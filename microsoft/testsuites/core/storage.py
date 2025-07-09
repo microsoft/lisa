@@ -57,6 +57,7 @@ from lisa.util.perf_timer import create_timer
     description="""
     This test suite is used to run storage related tests.
     """,
+    requirement=simple_requirement(unsupported_platform_type=[HYPERV]),
 )
 class Storage(TestSuite):
     DEFAULT_DISK_SIZE_IN_GB = 20

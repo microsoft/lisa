@@ -24,6 +24,7 @@ from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import Debian, Redhat, Suse
+from lisa.sut_orchestrator import HYPERV
 from lisa.testsuite import TestResult, node_requirement
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
@@ -59,6 +60,7 @@ class StoragePerformance(TestSuite):
                 data_disk_iops=search_space.IntRange(min=160000),
                 data_disk_count=search_space.IntRange(min=2),
             ),
+            unsupported_platform_type=[HYPERV],
         ),
     )
     def perf_ultra_datadisks_4k(self, node: Node, result: TestResult) -> None:

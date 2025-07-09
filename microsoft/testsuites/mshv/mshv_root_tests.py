@@ -14,8 +14,10 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    simple_requirement,
 )
 from lisa.operating_system import CBLMariner
+from lisa.sut_orchestrator import HYPERV
 from lisa.testsuite import TestResult
 from lisa.tools import (
     Cat,
@@ -41,6 +43,7 @@ from lisa.util import LisaException, SkippedException, find_group_in_lines
     Microsoft Hypervisor (MSHV) root partition. This test suite contains tests
     to check health of mshv root node.
     """,
+    requirement=simple_requirement(unsupported_platform_type=[HYPERV]),
 )
 class MshvHostTestSuite(TestSuite):
     mshvdiag_dmesg_pattern = re.compile(r"\[\s+\d+.\d+\]\s+mshv_diag:.*$")

@@ -23,7 +23,7 @@ from lisa.operating_system import BSD, Windows
 from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util import get_matched_str
-from lisa.util.constants import SIGINT
+from lisa.util.constants import HYPERV, SIGINT
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
 from microsoft.testsuites.xdp.xdptools import XdpTool
@@ -35,6 +35,7 @@ from microsoft.testsuites.xdp.xdptools import XdpTool
     description="""
     This test suite is to validate XDP functionality.
     """,
+    requirement=simple_requirement(unsupported_platform_type=[HYPERV]),
 )
 class XdpFunctional(TestSuite):
     # sample output:

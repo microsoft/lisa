@@ -18,6 +18,7 @@ from lisa import (
 )
 from lisa.features import Disk
 from lisa.operating_system import BSD, Windows
+from lisa.sut_orchestrator import HYPERV
 from lisa.tools import Fdisk, FileSystem, Fio, Mdadm, Mkfs, Mount
 from lisa.util import find_patterns_in_lines
 
@@ -90,6 +91,7 @@ class StorageTest(TestSuite):
                 data_disk_count=search_space.IntRange(min=64),
             ),
             unsupported_os=[Windows, BSD],
+            unsupported_platform_type=[HYPERV],
         ),
     )
     def verify_disk_with_nobarrier(self, node: Node) -> None:
@@ -119,6 +121,7 @@ class StorageTest(TestSuite):
                 data_disk_count=search_space.IntRange(min=2),
             ),
             unsupported_os=[Windows, BSD],
+            unsupported_platform_type=[HYPERV],
         ),
     )
     def verify_disk_with_fio_verify_option(self, node: Node) -> None:

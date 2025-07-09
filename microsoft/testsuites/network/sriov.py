@@ -64,6 +64,7 @@ from microsoft.testsuites.network.common import (
     description="""
     This test suite uses to verify accelerated network functionality.
     """,
+    requirement=simple_requirement(unsupported_platform_type=[HYPERV]),
 )
 class Sriov(TestSuite):
     TIME_OUT = 300
@@ -267,7 +268,7 @@ class Sriov(TestSuite):
         priority=1,
         requirement=simple_requirement(
             network_interface=features.Sriov(),
-            supported_platform_type=[AZURE, HYPERV],
+            supported_platform_type=[AZURE],
         ),
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:

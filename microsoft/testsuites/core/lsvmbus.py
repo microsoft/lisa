@@ -83,7 +83,7 @@ class LsVmBus(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, HYPERV], supported_os=[BSD]
+            supported_platform_type=[AZURE], supported_os=[BSD]
         ),
     )
     def verify_vmbus_devices_channels_bsd(self, node: Node) -> None:
