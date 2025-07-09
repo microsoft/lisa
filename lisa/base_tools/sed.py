@@ -29,7 +29,7 @@ class Sed(Tool):
             expression = f"/{match_lines}/s/{regexp}/{replacement}/g"
         else:
             expression = f"s/{regexp}/{replacement}/g"
-        expression = expression.replace('"', r"\"").replace("$", r"\$")
+        expression = expression.replace('"', r"\"").replace("$", r"\$").replace("'", r"\'")
 
         cmd = f'-i.bak "{expression}" {file}'
 
