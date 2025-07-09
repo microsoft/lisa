@@ -5,7 +5,7 @@ variable:
   - name: location
     value: "westus2"
   - name: rgname
-    value: "setupazfwthreesubnetretry62"
+    value: "setupazfwthreesubnetretry74"
   - name: imagename
     value: "MicrosoftCBLMariner:cbl-mariner:cbl-mariner-2-gen2:2.20250429.01"
   - name: deploy
@@ -27,7 +27,7 @@ variable:
   - name: vm_size
     value: ""
   - name: test_case_name
-    value: "verifylogrotate"
+    value: "verifyConnMarkReset"
   - name: use_public_address
     value: true
 concurrency: $(concurrency)
