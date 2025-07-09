@@ -247,15 +247,11 @@ class StressNgTestSuite(TestSuite):
                 log.info(f"{node_name} completed successfully")
 
                 # Extract only stress-ng: info lines from stdout
-                stress_info_lines = []
-                if result.stdout.strip():
-                    for line in result.stdout.strip().split("\n"):
-                        if "stress-ng: info" in line and "dispatching hogs:" not in line:
-                            stress_info_lines.append(line.strip())
-
-                # Disabled: logic for extracting info lines from stress-ng output.
-                # Only lines containing "stress-ng: info" (excluding "dispatching hogs:") would be included.
-                # This filtered out less relevant output and focused on summary/info messages.
+                # stress_info_lines = []
+                # if result.stdout.strip():
+                #     for line in result.stdout.strip().split("\n"):
+                #         if "stress-ng: info" in line and "dispatching hogs:" not in line:
+                #             stress_info_lines.append(line.strip())
 
                 # if stress_info_lines:
                 #     node_output = f"=== {node_name} ===\n" + "\n".join(
@@ -265,12 +261,10 @@ class StressNgTestSuite(TestSuite):
                 #     node_output = (
                 #         f"=== {node_name} ===\n No stress-ng info output found"
                 #     )
-                # Instead, just include the full stdout for now.
-                #node_output = f"=== {node_name} ===\n{result.stdout.strip()}"
 
                 # Process YAML output if applicable
                 node_output = self._process_yaml_output(
-                    nodes[i], job_file_name, node_output, log
+                    nodes[i], job_file_name, log
                 )
 
                 node_outputs.append(node_output)
@@ -329,21 +323,20 @@ class StressNgTestSuite(TestSuite):
         self,
         node: RemoteNode,
         job_file_name: str,
-        node_output: str,
         log: Logger,
     ) -> str:
         """
-        Process YAML output file if it exists and append to node output.
+        Process YAML output file if it exists and return its content as a string.
 
         Args:
             node: The remote node where the job was executed
             job_file_name: Name of the job file (used to derive YAML filename)
-            node_output: Current node output string
             log: Logger instance
 
         Returns:
-            Updated node output string with YAML content appended
+            YAML content string or an empty string if not found or error occurs
         """
+        node_output = ""
         try:
             # Determine YAML file name based on job file name
             job_stem = Path(job_file_name).stem
