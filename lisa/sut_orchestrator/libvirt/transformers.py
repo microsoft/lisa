@@ -565,7 +565,7 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
     node.execute("systemctl enable libvirtd", shell=True, sudo=True)
     node.execute("systemctl enable virtnetworkd", shell=True, sudo=True)
     log.info("Enabled libvirtd and virtnetworkd services")
-    node.reboot(time_out=900)
+    # node.reboot(time_out=900)  # DISABLED for local testing
     _wait_for_libvirtd(node)
     if isinstance(node.os, CBLMariner):
         # Some time we have seen 'default' nw of libvirt is not started
