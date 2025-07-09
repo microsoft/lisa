@@ -246,22 +246,6 @@ class StressNgTestSuite(TestSuite):
                 )
                 log.info(f"{node_name} completed successfully")
 
-                # Extract only stress-ng: info lines from stdout
-                # stress_info_lines = []
-                # if result.stdout.strip():
-                #     for line in result.stdout.strip().split("\n"):
-                #         if "stress-ng: info" in line and "dispatching hogs:" not in line:
-                #             stress_info_lines.append(line.strip())
-
-                # if stress_info_lines:
-                #     node_output = f"=== {node_name} ===\n" + "\n".join(
-                #         stress_info_lines
-                #     )
-                # else:
-                #     node_output = (
-                #         f"=== {node_name} ===\n No stress-ng info output found"
-                #     )
-
                 # Process YAML output if applicable
                 node_output = self._process_yaml_output(
                     nodes[i], job_file_name, log
@@ -277,8 +261,11 @@ class StressNgTestSuite(TestSuite):
                 # Store the exception to re-raise after collecting all outputs
                 exceptions_to_raise.append(e)
 
-        # Combine all node outputs
-        execution_summary = f"Job: {job_file_name}\n\n" + "\n\n".join(node_outputs)
+        # Combine all node outputs, including node names for clarity
+        execution_summary = f"Job: {job_file_name}\n\n"
+        for node, node_output in zip(nodes, node_outputs):
+            node_name = node.name
+            execution_summary += f"=== {node_name} ===\n{node_output}\n\n"
 
         # If any processes failed, re-raise the first exception to fail the test
         if exceptions_to_raise:
@@ -348,37 +335,22 @@ class StressNgTestSuite(TestSuite):
             if node.shell.exists(yaml_file_path):
                 log.debug(f"Found YAML output file: {yaml_file_path}")
                 
-                # Read YAML file content
-                yaml_content = node.shell.read(yaml_file_path)
+                # Read YAML file content using cat command
+                result = node.execute(f"cat {yaml_file_path}", shell=True)
+                yaml_content = result.stdout.strip()
                 
                 # Print raw YAML content for debugging
                 log.info(f"Raw YAML file content:\n{yaml_content}")
                 
-                yaml_data = yaml.safe_load(yaml_content)
+                # Return the raw YAML content as string
+                node_output = f"\n\n=== YAML Results ===\n{yaml_content}"
                 
-                # Print parsed YAML data for debugging
-                log.info(f"Parsed YAML data: {yaml_data}")
-
-                # Append YAML content to node output
-                node_output += "\n\n=== YAML Results ==="
-
-                if isinstance(yaml_data, dict):
-                    for key, value in yaml_data.items():
-                        # Handle nested structures better
-                        if isinstance(value, (dict, list)):
-                            node_output += f"\n{key}: {str(value)}"
-                        else:
-                            node_output += f"\n{key}: {value}"
-                elif isinstance(yaml_data, list):
-                    for i, item in enumerate(yaml_data):
-                        node_output += f"\n[{i}]: {str(item)}"
-                else:
-                    node_output += f"\n{str(yaml_data)}"
             else:
                 log.debug(f"YAML file not found at: {yaml_file_path}")
+                node_output = "\n\n=== YAML Results ===\n No YAML output file found"
 
-        except (yaml.YAMLError, ImportError, Exception) as e:
+        except Exception as e:
             log.warning(f"Could not process YAML output: {e}")
-            node_output += f"\n\n=== YAML Processing Error ===\n{str(e)}"
+            node_output = f"\n\n=== YAML Processing Error ===\n{str(e)}"
 
         return node_output
