@@ -344,7 +344,7 @@ class StressNgTestSuite(TestSuite):
                     # Print raw YAML content for debugging
                     log.info(f"Raw YAML file content:\n{yaml_content}")
 
-                    # Try to parse YAML content and pretty-print key-value pairs
+                    # Try to parse YAML content and extract specific elements
                     try:
                         parsed_yaml = yaml.safe_load(yaml_content)
                         if parsed_yaml is None:
@@ -352,27 +352,55 @@ class StressNgTestSuite(TestSuite):
                             node_output = f"=== YAML Results ===\nYAML file is empty or invalid"
                         elif isinstance(parsed_yaml, dict):
                             if parsed_yaml:  # Check if dict is not empty
-                                key_values = []
-                                for k, v in parsed_yaml.items():
-                                    # Handle different value types safely
-                                    if isinstance(v, (dict, list)):
-                                        key_values.append(f"{k}: {yaml.dump(v, default_flow_style=False).strip()}")
-                                    else:
-                                        key_values.append(f"{k}: {v}")
-                                node_output = f"=== YAML Results (Key-Value) ===\n" + "\n".join(key_values)
+                                # Extract only system-info and times sections
+                                filtered_data = {}
+                                
+                                # Look for system-info element
+                                if 'system-info' in parsed_yaml:
+                                    filtered_data['system-info'] = parsed_yaml['system-info']
+                                
+                                # Look for times element
+                                if 'times' in parsed_yaml:
+                                    filtered_data['times'] = parsed_yaml['times']
+                                
+                                if filtered_data:
+                                    key_values = []
+                                    for k, v in filtered_data.items():
+                                        key_values.append(f"{k}:")
+                                        if isinstance(v, dict):
+                                            for sub_k, sub_v in v.items():
+                                                key_values.append(f"  {sub_k}: {sub_v}")
+                                        else:
+                                            key_values.append(f"  {v}")
+                                    node_output = f"=== YAML Results (Filtered) ===\n" + "\n".join(key_values)
+                                else:
+                                    node_output = f"=== YAML Results ===\nNo system-info or times sections found"
                             else:
                                 node_output = f"=== YAML Results ===\nYAML contains empty dictionary"
                         elif isinstance(parsed_yaml, list):
-                            if parsed_yaml:  # Check if list is not empty
+                            # Handle list case - look for items containing system-info or times
+                            filtered_items = []
+                            for item in parsed_yaml:
+                                if isinstance(item, dict):
+                                    if 'system-info' in item or 'times' in item:
+                                        filtered_items.append(item)
+                            
+                            if filtered_items:
                                 list_items = []
-                                for i, item in enumerate(parsed_yaml):
-                                    if isinstance(item, (dict, list)):
-                                        list_items.append(f"[{i}]: {yaml.dump(item, default_flow_style=False).strip()}")
-                                    else:
-                                        list_items.append(f"[{i}]: {item}")
-                                node_output = f"=== YAML Results (List) ===\n" + "\n".join(list_items)
+                                for i, item in enumerate(filtered_items):
+                                    list_items.append(f"[{i}]:")
+                                    if isinstance(item, dict):
+                                        for k, v in item.items():
+                                            if k in ['system-info', 'times']:
+                                                list_items.append(f"  {k}:")
+                                                if isinstance(v, dict):
+                                                    for sub_k, sub_v in v.items():
+                                                        list_items.append(f"    {sub_k}: {sub_v}")
+                                                else:
+                                                    list_items.append(f"    {v}")
+                                node_output = f"=== YAML Results (Filtered List) ===\n" + "\n".join(list_items)
                             else:
-                                node_output = f"=== YAML Results ===\nYAML contains empty list"
+                                node_output = f"=== YAML Results ===\nNo system-info or times sections found in list"
                         else:
                             node_output = f"=== YAML Results ===\n{str(parsed_yaml)}"
                     except yaml.YAMLError as yaml_error:
