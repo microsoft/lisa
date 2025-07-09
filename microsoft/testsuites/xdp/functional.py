@@ -20,10 +20,11 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.operating_system import BSD, Windows
+from lisa.sut_orchestrator import HYPERV
 from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util import get_matched_str
-from lisa.util.constants import HYPERV, SIGINT
+from lisa.util.constants import SIGINT
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
 from microsoft.testsuites.xdp.xdptools import XdpTool
