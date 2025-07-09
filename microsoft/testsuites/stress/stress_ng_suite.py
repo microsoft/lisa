@@ -350,10 +350,17 @@ class StressNgTestSuite(TestSuite):
 
             if node.shell.exists(yaml_file_path):
                 log.debug(f"Found YAML output file: {yaml_file_path}")
-
+                
                 # Read YAML file content
                 yaml_content = node.shell.read_text(yaml_file_path)
+                
+                # Print raw YAML content for debugging
+                log.info(f"Raw YAML file content:\n{yaml_content}")
+                
                 yaml_data = yaml.safe_load(yaml_content)
+                
+                # Print parsed YAML data for debugging
+                log.info(f"Parsed YAML data: {yaml_data}")
 
                 # Append YAML content to node output
                 node_output += "\n\n=== YAML Results ==="
@@ -366,7 +373,6 @@ class StressNgTestSuite(TestSuite):
                         node_output += f"\n[{i}]: {item}"
                 else:
                     node_output += f"\n{yaml_data}"
-
             else:
                 log.debug(f"YAML file not found at: {yaml_file_path}")
 
