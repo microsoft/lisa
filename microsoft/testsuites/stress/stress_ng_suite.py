@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, cast
+import yaml
+import logging
 
 from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features import SerialConsole
@@ -11,7 +13,6 @@ from lisa.tools import StressNg
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
-
 
 @TestSuiteMetadata(
     area="stress-ng",
@@ -245,25 +246,9 @@ class StressNgTestSuite(TestSuite):
                 )
                 log.info(f"{node_name} completed successfully")
 
-                # Extract only stress-ng: info lines from stdout
-                stress_info_lines = []
-                if result.stdout.strip():
-                    for line in result.stdout.strip().split("\n"):
-                        if "stress-ng: info" in line and "dispatching hogs:" not in line:
-                            stress_info_lines.append(line.strip())
-
-                if stress_info_lines:
-                    node_output = f"=== {node_name} ===\n" + "\n".join(
-                        stress_info_lines
-                    )
-                else:
-                    node_output = (
-                        f"=== {node_name} ===\n No stress-ng info output found"
-                    )
-
                 # Process YAML output if applicable
                 node_output = self._process_yaml_output(
-                    nodes[i], job_file_name, node_output, log
+                    nodes[i], job_file_name, log
                 )
 
                 node_outputs.append(node_output)
@@ -274,10 +259,13 @@ class StressNgTestSuite(TestSuite):
                 node_outputs.append(error_output)
                 log.error(f"{node_name} failed: {e}")
                 # Store the exception to re-raise after collecting all outputs
-                #exceptions_to_raise.append(e)
+                exceptions_to_raise.append(e)
 
-        # Combine all node outputs
-        execution_summary = f"Job: {job_file_name}\n\n" + "\n\n".join(node_outputs)
+        # Combine all node outputs, including node names for clarity
+        execution_summary = f"Job: {job_file_name}\n\n"
+        for i, node_output in enumerate(node_outputs):
+            node_name = nodes[i].name if i < len(nodes) else f"node-{i + 1}"
+            execution_summary += f"=== {node_name} ===\n{node_output}\n\n"
 
         # If any processes failed, re-raise the first exception to fail the test
         if exceptions_to_raise:
@@ -322,56 +310,118 @@ class StressNgTestSuite(TestSuite):
         self,
         node: RemoteNode,
         job_file_name: str,
-        node_output: str,
         log: Logger,
     ) -> str:
         """
-        Process YAML output file if it exists and append to node output.
+        Process YAML output file if it exists and return its content as a string.
 
         Args:
             node: The remote node where the job was executed
             job_file_name: Name of the job file (used to derive YAML filename)
-            node_output: Current node output string
             log: Logger instance
 
         Returns:
-            Updated node output string with YAML content appended
+            YAML content string or an empty string if not found or error occurs
         """
+        # Suppress YAML library warnings
+        logging.getLogger("YamlManager").setLevel(logging.WARNING)
+        
+        node_output = ""
         try:
-            import yaml
-            from pathlib import Path
-
             # Determine YAML file name based on job file name
             job_stem = Path(job_file_name).stem
             yaml_filename = f"{job_stem}.yaml"
 
             # Check if YAML file exists in the working directory
             yaml_file_path = node.working_path / yaml_filename
+            log.debug(f"Looking for YAML file at: {yaml_file_path}")
 
             if node.shell.exists(yaml_file_path):
                 log.debug(f"Found YAML output file: {yaml_file_path}")
+                
+                # Read YAML file content using cat command
+                result = node.execute(f"cat '{yaml_file_path}'", shell=True)
+                yaml_content = result.stdout.strip()
+                
+                if yaml_content:
+                    # Print raw YAML content for debugging
+                    log.info(f"Raw YAML file content:\n{yaml_content}")
 
-                # Read YAML file content
-                yaml_content = node.shell.read_text(yaml_file_path)
-                yaml_data = yaml.safe_load(yaml_content)
-
-                # Append YAML content to node output
-                node_output += "\n\n=== YAML Results ==="
-
-                if isinstance(yaml_data, dict):
-                    for key, value in yaml_data.items():
-                        node_output += f"\n{key}: {value}"
-                elif isinstance(yaml_data, list):
-                    for i, item in enumerate(yaml_data):
-                        node_output += f"\n[{i}]: {item}"
+                    # Try to parse YAML content and extract specific elements
+                    try:
+                        parsed_yaml = yaml.safe_load(yaml_content)
+                        if parsed_yaml is None:
+                            log.warning("YAML file parsed as None (empty or invalid)")
+                            node_output = f"=== YAML Results ===\nYAML file is empty or invalid"
+                        elif isinstance(parsed_yaml, dict):
+                            if parsed_yaml:  # Check if dict is not empty
+                                # Extract only system-info and times sections
+                                filtered_data = {}
+                                
+                                # Look for system-info element
+                                if 'system-info' in parsed_yaml:
+                                    filtered_data['system-info'] = parsed_yaml['system-info']
+                                
+                                # Look for times element
+                                if 'times' in parsed_yaml:
+                                    filtered_data['times'] = parsed_yaml['times']
+                                
+                                if filtered_data:
+                                    key_values = []
+                                    for k, v in filtered_data.items():
+                                        key_values.append(f"{k}:")
+                                        if isinstance(v, dict):
+                                            for sub_k, sub_v in v.items():
+                                                key_values.append(f"  {sub_k}: {sub_v}")
+                                        else:
+                                            key_values.append(f"  {v}")
+                                    node_output = key_values
+                                else:
+                                    node_output = f"=== YAML Results ===\nNo system-info or times sections found"
+                            else:
+                                node_output = f"=== YAML Results ===\nYAML contains empty dictionary"
+                        elif isinstance(parsed_yaml, list):
+                            # Handle list case - look for items containing system-info or times
+                            filtered_items = []
+                            for item in parsed_yaml:
+                                if isinstance(item, dict):
+                                    if 'system-info' in item or 'times' in item:
+                                        filtered_items.append(item)
+                            
+                            if filtered_items:
+                                list_items = []
+                                for i, item in enumerate(filtered_items):
+                                    list_items.append(f"[{i}]:")
+                                    if isinstance(item, dict):
+                                        for k, v in item.items():
+                                            if k in ['system-info', 'times']:
+                                                list_items.append(f"  {k}:")
+                                                if isinstance(v, dict):
+                                                    for sub_k, sub_v in v.items():
+                                                        list_items.append(f"    {sub_k}: {sub_v}")
+                                                else:
+                                                    list_items.append(f"    {v}")
+                                node_output = f"=== YAML Results (Filtered List) ===\n" + "\n".join(list_items)
+                            else:
+                                node_output = f"=== YAML Results ===\nNo system-info or times sections found in list"
+                        else:
+                            node_output = f"=== YAML Results ===\n{str(parsed_yaml)}"
+                    except yaml.YAMLError as yaml_error:
+                        log.warning(f"Failed to parse YAML content: {yaml_error}")
+                        node_output = f"=== YAML Results (Raw - Parse Error) ===\n{yaml_content}"
+                    except Exception as parse_error:
+                        log.warning(f"Unexpected error parsing YAML: {parse_error}")
+                        node_output = f"=== YAML Results (Raw - Unexpected Error) ===\n{yaml_content}"
                 else:
-                    node_output += f"\n{yaml_data}"
-
+                    log.debug(f"YAML file {yaml_file_path} is empty")
+                    node_output = "=== YAML Results ===\nYAML file is empty"
+                
             else:
                 log.debug(f"YAML file not found at: {yaml_file_path}")
+                node_output = "=== YAML Results ===\nNo YAML output file found"
 
-        except (yaml.YAMLError, ImportError, Exception) as e:
+        except Exception as e:
             log.warning(f"Could not process YAML output: {e}")
-            node_output += f"\n\n=== YAML Processing Error ===\n{str(e)}"
+            node_output = f"=== YAML Processing Error ===\n{str(e)}"
 
         return node_output

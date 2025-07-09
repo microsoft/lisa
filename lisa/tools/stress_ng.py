@@ -65,10 +65,12 @@ class StressNg(Tool):
             from pathlib import Path
             job_filename = Path(job_file).stem  # filename without extension
             yaml_output_name = f"{job_filename}.yaml"
-            cmd += f" --yaml {yaml_output_name}"
+            # Create full path to YAML file in working directory
+            yaml_output_path = self.node.working_path / yaml_output_name
+            cmd += f" --yaml {yaml_output_path}"
             
             # Print directory contents for debugging
-            self.node.log.info(f"YAML output will be created: {yaml_output_name}")
+            self.node.log.info(f"YAML output will be created at: {yaml_output_path}")
             self.node.log.info(f"Current working directory: {self.node.working_path}")
             
             # List current directory contents
