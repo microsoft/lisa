@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, cast
+import yaml
 
 from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features import SerialConsole
@@ -252,14 +253,20 @@ class StressNgTestSuite(TestSuite):
                         if "stress-ng: info" in line and "dispatching hogs:" not in line:
                             stress_info_lines.append(line.strip())
 
-                if stress_info_lines:
-                    node_output = f"=== {node_name} ===\n" + "\n".join(
-                        stress_info_lines
-                    )
-                else:
-                    node_output = (
-                        f"=== {node_name} ===\n No stress-ng info output found"
-                    )
+                # Disabled: logic for extracting info lines from stress-ng output.
+                # Only lines containing "stress-ng: info" (excluding "dispatching hogs:") would be included.
+                # This filtered out less relevant output and focused on summary/info messages.
+
+                # if stress_info_lines:
+                #     node_output = f"=== {node_name} ===\n" + "\n".join(
+                #         stress_info_lines
+                #     )
+                # else:
+                #     node_output = (
+                #         f"=== {node_name} ===\n No stress-ng info output found"
+                #     )
+                # Instead, just include the full stdout for now.
+                #node_output = f"=== {node_name} ===\n{result.stdout.strip()}"
 
                 # Process YAML output if applicable
                 node_output = self._process_yaml_output(
@@ -274,7 +281,7 @@ class StressNgTestSuite(TestSuite):
                 node_outputs.append(error_output)
                 log.error(f"{node_name} failed: {e}")
                 # Store the exception to re-raise after collecting all outputs
-                #exceptions_to_raise.append(e)
+                exceptions_to_raise.append(e)
 
         # Combine all node outputs
         execution_summary = f"Job: {job_file_name}\n\n" + "\n\n".join(node_outputs)
@@ -338,9 +345,6 @@ class StressNgTestSuite(TestSuite):
             Updated node output string with YAML content appended
         """
         try:
-            import yaml
-            from pathlib import Path
-
             # Determine YAML file name based on job file name
             job_stem = Path(job_file_name).stem
             yaml_filename = f"{job_stem}.yaml"
@@ -352,7 +356,7 @@ class StressNgTestSuite(TestSuite):
                 log.debug(f"Found YAML output file: {yaml_file_path}")
                 
                 # Read YAML file content
-                yaml_content = node.shell.read_text(yaml_file_path)
+                yaml_content = node.shell.read(yaml_file_path)
                 
                 # Print raw YAML content for debugging
                 log.info(f"Raw YAML file content:\n{yaml_content}")
@@ -367,12 +371,16 @@ class StressNgTestSuite(TestSuite):
 
                 if isinstance(yaml_data, dict):
                     for key, value in yaml_data.items():
-                        node_output += f"\n{key}: {value}"
+                        # Handle nested structures better
+                        if isinstance(value, (dict, list)):
+                            node_output += f"\n{key}: {str(value)}"
+                        else:
+                            node_output += f"\n{key}: {value}"
                 elif isinstance(yaml_data, list):
                     for i, item in enumerate(yaml_data):
-                        node_output += f"\n[{i}]: {item}"
+                        node_output += f"\n[{i}]: {str(item)}"
                 else:
-                    node_output += f"\n{yaml_data}"
+                    node_output += f"\n{str(yaml_data)}"
             else:
                 log.debug(f"YAML file not found at: {yaml_file_path}")
 
