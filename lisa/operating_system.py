@@ -2003,13 +2003,31 @@ class CBLMariner(RPMDistro):
 
     def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
-        sed = self._node.tools[Sed]
-        sed.substitute(
-            regexp="GRUB_DEFAULT=.*",
-            replacement=f"GRUB_DEFAULT='{entry}'",
-            file="/etc/default/grub",
+        
+        # Check if GRUB_DEFAULT already exists in the file
+        grep_result = self._node.execute(
+            "grep -q '^GRUB_DEFAULT=' /etc/default/grub",
             sudo=True,
+            no_error_log=True,
         )
+        
+        # substitute if GRUB_DEFAULT exists, otherwise append it
+        if grep_result.exit_code == 0:
+            sed = self._node.tools[Sed]
+            sed.substitute(
+                regexp="GRUB_DEFAULT=.*",
+                replacement=f"GRUB_DEFAULT='{entry}'",
+                file="/etc/default/grub",
+                sudo=True,
+            )
+        else:
+            self._node.execute(
+                f"echo 'GRUB_DEFAULT=\\'{entry}\\'' >> /etc/default/grub",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to append GRUB_DEFAULT",
+            )
 
         # output to log for troubleshooting
         cat = self._node.tools[Cat]
