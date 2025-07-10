@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Any, List, Optional, Type, Union
+from typing import Any, List, Optional, Type, Union, cast
 
 from lisa.executable import ExecutableResult, Tool
 from lisa.tools.kernel_config import KLDStat
@@ -10,7 +10,11 @@ from random import randint
 import time
 from lisa.util.perf_timer import create_timer
 import spur
-
+import os
+from pathlib import Path
+from lisa.executable import CustomScriptBuilder
+from .whoami import Whoami
+from lisa.util.shell import try_connect
 
 class Modprobe(Tool):
     @property
@@ -123,27 +127,51 @@ class Modprobe(Tool):
         if not self.is_module_loaded(mod_name, force_run=True):
             return
 
-        v = "-v " if verbose else ""
+        dhclient_renew_command = self.node.tools[Dhclient].generate_renew_command() if mod_name == "hv_netvsc" else ""
 
+        username = self.node.tools[Whoami].get_username()
         unique_id = randint(0, 10000)
         nohup_output_log_file_name = f"/tmp/nohup_log_{mod_name}_{str(unique_id)}.out"
         loop_process_pid_file_name = (
-            f"/tmp/loop_process_pid_{mod_name}_{str(unique_id)}.pid"
+            f"/home/{username}/loop_process_pid_{mod_name}_{str(unique_id)}.pid"
         )
 
-        if mod_name == "hv_netvsc":
-            # hv_netvsc needs a special case, since reloading it has the potential
-            # to leave the node without a network connection if things go wrong.
+        # if mod_name == "hv_netvsc":
+        #     # hv_netvsc needs a special case, since reloading it has the potential
+        #     # to leave the node without a network connection if things go wrong.
 
-            # These commands must be sent together, bundle them up as one line
-            # If the VM is disconnected after running below command, wait 60s is enough.
-            # however, go with bigger timeout if times > 1 (multiple times of reload)
-            renew_command = self.node.tools[Dhclient].generate_renew_command()
-            reload_command = f"(for i in $(seq 1 {times}); do modprobe -r {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; modprobe {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; done; sleep 1; ip link set eth0 down; ip link set eth0 up; {renew_command}) & echo $! > {loop_process_pid_file_name}"
+        #     # These commands must be sent together, bundle them up as one line
+        #     # If the VM is disconnected after running below command, wait 60s is enough.
+        #     # however, go with bigger timeout if times > 1 (multiple times of reload)
+        #     renew_command = self.node.tools[Dhclient].generate_renew_command()
+        #     reload_command = f"(for i in $(seq 1 {times}); do modprobe -r {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; modprobe {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; done; sleep 1; ip link set eth0 down; ip link set eth0 up; {renew_command}) & echo $! > {loop_process_pid_file_name}"
+        # else:
+        #     reload_command = f"(for i in $(seq 1 {times}); do modprobe -r {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; modprobe {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; done) & echo $! > {loop_process_pid_file_name}"
+
+        # self.node.execute(reload_command, sudo=True, nohup=nohup, shell=True)
+        
+        # Dynamically determine the script path relative to this file
+        # script_dir = os.path.dirname(os.path.abspath(__file__))
+        # script_path = os.path.join(script_dir, "..", "microsoft", "utils", "modprobe_reloader.sh")
+
+        if verbose:
+            verbose_flag = "true"
         else:
-            reload_command = f"(for i in $(seq 1 {times}); do modprobe -r {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; modprobe {v}{mod_name} >> {nohup_output_log_file_name} 2>&1; done) & echo $! > {loop_process_pid_file_name}"
+            verbose_flag = "false"
 
-        self.node.execute(reload_command, sudo=True, nohup=nohup, shell=True)
+        modprobe_reloader_tool = CustomScriptBuilder(
+            Path(__file__).parent.joinpath("scripts"), ["modprobe_reloader.sh"]
+        )
+        # parameters = f"{mod_name} {times} {v} {nohup_output_log_file_name} {loop_process_pid_file_name} \"{dhclient_renew_command}\""
+
+        parameters = f"{nohup_output_log_file_name} {loop_process_pid_file_name} {mod_name} {times} {verbose_flag} \"{dhclient_renew_command}\""
+        # self.node.tools[modprobe_reloader_tool].run()
+        self.node.tools[modprobe_reloader_tool].run(parameters)
+        # time.sleep(10)
+        # Construct the command to execute the shell script
+        # command = f"{script_path} {mod_name} {times} {v} {nohup_output_log_file_name} {loop_process_pid_file_name} \"{dhclient_renew_command}\""
+
+        # self.node.execute(command, sudo=True, nohup=nohup, shell=True)
         cat = self.node.tools[Cat]
         tried_times: int = 0
         timer = create_timer()
@@ -171,10 +199,24 @@ class Modprobe(Tool):
                     break
             except Exception as e:
                 self._log.debug(
-                    "An exception is caught, this could be due to the VM network"
-                    f"going down during the module reload operation, retrying... {e}"
+                    "An exception is caught, this could be due to the VM network "
+                    f"going down during the module reload operation, {e}"
+                    "\nTrying to reconnect to the remote node..."
                 )
-                time.sleep(1)
+                
+                time.sleep(5)
+                # from lisa.node import RemoteNode
+                # remote_node = cast(RemoteNode, self.node)
+                # try:
+                #     try_connect(remote_node.connection_info)
+                # except Exception as reconnect_error:
+                #     self._log.error(
+                #         f"Failed to reconnect to the remote node: {reconnect_error}"
+                #     )
+
+                # self._log.debug(
+                #     "Retrying to check the loop process status..."
+                # )
 
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
@@ -209,11 +251,11 @@ class Modprobe(Tool):
             ).stdout.strip()
         )
 
-        self.node.execute(
-            f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
-            sudo=True,
-            shell=True,
-        )
+        # self.node.execute(
+        #     f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
+        #     sudo=True,
+        #     shell=True,
+        # )
 
         return {
             "rmmod_count": rmmod_count,

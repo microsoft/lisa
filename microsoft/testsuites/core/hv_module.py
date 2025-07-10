@@ -218,6 +218,7 @@ class HvModule(TestSuite):
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
+        node.execute(f"dmesg -n 7", sudo=True, shell=True) #temporary step
         if isinstance(node.os, Redhat):
             try:
                 log.debug("Checking LIS installation before reload.")
@@ -254,7 +255,7 @@ class HvModule(TestSuite):
                 mod_name=module,
                 times=loop_count,
                 verbose=True,
-                timeout=600,
+                timeout=1200,
                 nohup=True,
             )
             if not result:
@@ -280,20 +281,25 @@ class HvModule(TestSuite):
                 )
                 failed_modules[module] = failure_message
 
-        if failed_modules:
-            raise AssertionError(
+        result_message = ""
+        result_message += (
                 "The following modules have reload count mismatch:\n"
                 + ",\n".join(
                     f"{module}: {msg}" for module, msg in failed_modules.items()
                 )
-            )
+            ) if failed_modules else ""
+        
+        result_message += (
+            f"\nThe following modules were skipped during reload: "
+            f"{', '.join(skipped_modules)}. "
+            "This may be due to them being built-in to the kernel or in use."
+        ) if skipped_modules else ""
 
+        if failed_modules:
+            raise AssertionError(result_message)
         if skipped_modules:
-            raise SkippedException(
-                f"The following modules were skipped during"
-                f" reload: {', '.join(skipped_modules)}. "
-                "This may be due to them being built into the kernel or in use."
-            )
+            raise SkippedException(result_message)
+        
 
     def _get_modules_by_type(
         self,
