@@ -2022,7 +2022,7 @@ class CBLMariner(RPMDistro):
             )
         else:
             self._node.execute(
-                f"echo 'GRUB_DEFAULT=\\'{entry}\\'' >> /etc/default/grub",
+                f"echo \"GRUB_DEFAULT='{entry}'\" >> /etc/default/grub",
                 sudo=True,
                 shell=True,
                 expected_exit_code=0,
