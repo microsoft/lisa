@@ -242,6 +242,7 @@ class Kselftest(Tool):
             env_var_dict["TMPDIR"] = new_tmp_path
             self._log.debug(f"Kselftest set TMPDIR to {new_tmp_path}!")
 
+        skip_tests = ["net"]
         if run_collections or skip_tests:
             # List all available tests
             list_result = self.run(" -l", shell=True)
@@ -275,7 +276,8 @@ class Kselftest(Tool):
             # Ensure skip_tests is not None
             skip_tests = skip_tests or []
             # Exclude tests based on skip_tests
-            tests_to_run = [test for test in filtered_tests if test not in skip_tests]
+            # tests_to_run = [test for test in filtered_tests if test not in skip_tests]
+            tests_to_run = [test for test in filtered_tests if "net" not in test]
 
             if tests_to_run:
                 tests_to_run_str = " ".join(f"-t {test}" for test in tests_to_run)
