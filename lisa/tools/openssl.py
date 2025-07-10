@@ -132,11 +132,11 @@ class OpenSSL(Tool):
         cmd = "speed"
         if sec is not None:
             cmd = f"{cmd} -seconds {sec}"
-        # 20 min timeout to complete all of the cryptographic operations
+        # 1 hour timeout to complete all of the cryptographic operations
         # that OpenSSL speed measures.
         return self.run(
             cmd,
-            timeout=1200,
+            timeout=3600,
             expected_exit_code=0,
             expected_exit_code_failure_message=("OpenSSL speed test failed."),
         )

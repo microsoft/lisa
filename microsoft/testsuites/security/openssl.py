@@ -95,7 +95,7 @@ class OpenSSLTestSuite(TestSuite):
         and test avoids timeout.
         """,
         priority=2,
-        timeout=1200,  # 20 minutes
+        timeout=3600,  # 1 hour
     )
     def verify_openssl_speed_test(self, node: Node) -> None:
         """This function runs OpenSSL speed test to measure the
