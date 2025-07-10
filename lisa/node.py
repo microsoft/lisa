@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
 from typing import (
@@ -31,6 +32,7 @@ from lisa.util import (
     InitializableMixin,
     LisaException,
     RequireUserPasswordException,
+    TcpConnectionException,
     constants,
     fields_to_dict,
     generate_strong_password,
@@ -693,7 +695,20 @@ class RemoteNode(Node):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         assert self._connection_info, "call setConnectionInfo before use remote node"
-        super()._initialize(*args, **kwargs)
+        try:
+            super()._initialize(*args, **kwargs)
+        except TcpConnectionException as e:
+            try:
+                vm_logs = self._collect_logs_using_non_ssh_executor()
+                if vm_logs:
+                    self.log.info(
+                        f"Collected information using non-ssh executor:\n{vm_logs}"
+                    )
+            except Exception as log_error:
+                self.log.debug(
+                    f"Failed to collect logs using non-ssh executor: {log_error}"
+                )
+            raise e
 
     def get_working_path(self) -> PurePath:
         return self._get_remote_working_path()
@@ -736,6 +751,24 @@ class RemoteNode(Node):
                 if not self._reset_password():
                     raise RequireUserPasswordException("Reset password failed")
             self._check_password_and_store_prompt()
+
+    def _collect_logs_using_non_ssh_executor(self) -> Optional[str]:
+        """
+        Collects information using the NonSshExecutor feature.
+        This is used when the connection to the node is not stable.
+        """
+        from lisa.features import NonSshExecutor
+
+        if self.features.is_supported(NonSshExecutor):
+            non_ssh_executor = self.features[NonSshExecutor]
+            out = non_ssh_executor.execute()
+            return "\n".join(out)
+        else:
+            self.log.debug(
+                f"NonSshExecutor is not supported on {self.name}, "
+                "cannot collect logs using non-ssh executor."
+            )
+        return None
 
     def _check_password_and_store_prompt(self) -> None:
         # self.shell.is_sudo_required_password is true, so running sudo command
@@ -783,6 +816,26 @@ class RemoteNode(Node):
                     ssh_shell = cast(SshShell, self.shell)
                     ssh_shell.bash_prompt = bash_prompt
             self.has_checked_bash_prompt = True
+
+    def get_password(self, generate: bool = True) -> str:
+        """
+        Get the password for the node. If the password is not set, it will
+        generate a strong password and reset it.
+        """
+        if not self._connection_info.password:
+            if not generate:
+                raise RequireUserPasswordException(
+                    "The password is not set, and generate is False."
+                )
+            self.log.debug("password is not set, generating a strong password.")
+            if not self._reset_password():
+                raise RequireUserPasswordException("Reset password failed")
+        password = self._connection_info.password
+        if not password:
+            raise RequireUserPasswordException(
+                "The password is not set, and generate is False."
+            )
+        return password
 
     def _reset_password(self) -> bool:
         from lisa.features import PasswordExtension
