@@ -69,7 +69,6 @@ class Disk(Feature):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.disks: List[str] = []
         self._os_disk_controller_type: Optional[schema.DiskControllerType] = None
-        self._resource_disk_controller_type: Optional[schema.ResourceDiskType] = None
 
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
@@ -77,9 +76,8 @@ class Disk(Feature):
     def get_resource_disks(self) -> List[str]:
         return []
 
-    def get_resource_disk_type(self) -> schema.ResourceDiskType:
-        controller_type = self.get_os_disk_controller_type()
-        return schema.ResourceDiskType(controller_type.value)
+    def get_resource_disk_type(self) -> Optional[schema.ResourceDiskType]:
+        return None
 
     def get_luns(self) -> Dict[str, int]:
         raise NotImplementedError

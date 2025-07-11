@@ -662,6 +662,10 @@ class StoragePerformance(TestSuite):
                 overwrite=True,
                 test_result=test_result,
             )
+            if disk_count == 1:
+                # If there is only one resource disk, it will be mounted at /mnt
+                # mount it back after fio test.
+                node.tools[Mount].reload_fstab_config()
         else:
             raise SkippedException(
                 f"Resource disk type {resource_disk_type} not supported for "
