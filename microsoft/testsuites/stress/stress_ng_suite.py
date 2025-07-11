@@ -3,6 +3,7 @@
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, cast
 import yaml
+import logging
 
 from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features import SerialConsole
@@ -12,7 +13,6 @@ from lisa.tools import StressNg
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
-
 
 @TestSuiteMetadata(
     area="stress-ng",
@@ -323,6 +323,9 @@ class StressNgTestSuite(TestSuite):
         Returns:
             YAML content string or an empty string if not found or error occurs
         """
+        # Suppress YAML library warnings
+        logging.getLogger("YamlManager").setLevel(logging.WARNING)
+        
         node_output = ""
         try:
             # Determine YAML file name based on job file name
