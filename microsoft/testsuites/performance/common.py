@@ -90,29 +90,30 @@ def perf_disk(
     # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
     if ioengine == IoEngine.LIBAIO:
         numjob = min(numjob, 256)
-    for mode in FIOMODES:
-        iodepth = start_iodepth
-        numjobindex = 0
-        while iodepth <= max_iodepth:
-            if num_jobs:
-                numjob = num_jobs[numjobindex]
-            fio_result = fio.launch(
-                name=f"iteration{numjobiterator}",
-                filename=filename,
-                mode=mode.name,
-                time=time,
-                size_gb=size_mb,
-                block_size=f"{block_size}K",
-                iodepth=iodepth,
-                overwrite=overwrite,
-                numjob=numjob,
-                cwd=cwd,
-                ioengine=ioengine,
-            )
-            fio_result_list.append(fio_result)
-            iodepth = iodepth * 2
-            numjobindex += 1
-            numjobiterator += 1
+    #for mode in FIOMODES:
+    #for i in range(16):
+    iodepth = start_iodepth
+    numjobindex = 0
+    for i in range(16):
+        if num_jobs:
+            numjob = num_jobs[numjobindex]
+        fio_result = fio.launch(
+            name=f"iteration{numjobiterator}",
+            filename=filename,
+            mode='randread',
+            time=time,
+            size_gb=size_mb,
+            block_size=f"{block_size}K",
+            iodepth=iodepth,
+            overwrite=overwrite,
+            numjob=numjob,
+            cwd=cwd,
+            ioengine=ioengine,
+        )
+        fio_result_list.append(fio_result)
+        #iodepth = iodepth * 2
+        numjobindex += 1
+        numjobiterator += 1
 
     other_fields: Dict[str, Any] = {}
     other_fields["core_count"] = core_count
