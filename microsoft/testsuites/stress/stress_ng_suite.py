@@ -372,7 +372,7 @@ class StressNgTestSuite(TestSuite):
                                                 key_values.append(f"  {sub_k}: {sub_v}")
                                         else:
                                             key_values.append(f"  {v}")
-                                    node_output = f"=== YAML Results (Filtered) ===\n" + "\n".join(key_values)
+                                    node_output = key_values
                                 else:
                                     node_output = f"=== YAML Results ===\nNo system-info or times sections found"
                             else:
