@@ -14,6 +14,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.util import SkippedException
 from lisa.operating_system import CBLMariner, Posix
 from lisa.tools import OpenSSL
 
@@ -61,6 +62,11 @@ class OpenSSLTestSuite(TestSuite):
         This test sets up the dependencies to run the
         experimental Go system crypto tests and cleans go builds.
         """
+        if isinstance(node.os, CBLMariner):
+            if node.os.information.release != "3.0":
+                raise SkippedException(
+                    "Go system crypto tests are only supported on CBLMariner 3.0."
+                )
         # installs go dependencies for tests
         posix_os = cast(Posix, node.os)
         posix_os.install_packages(
