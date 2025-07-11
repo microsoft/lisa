@@ -14,9 +14,9 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.util import SkippedException
 from lisa.operating_system import CBLMariner, Posix
 from lisa.tools import OpenSSL
+from lisa.util import SkippedException
 
 
 @TestSuiteMetadata(
