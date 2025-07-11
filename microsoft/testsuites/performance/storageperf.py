@@ -26,7 +26,16 @@ from lisa.node import RemoteNode
 from lisa.operating_system import Debian, Redhat, Suse
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.testsuite import TestResult, node_requirement
-from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
+from lisa.tools import (
+    FileSystem,
+    Lscpu,
+    Mkfs,
+    Mount,
+    NFSClient,
+    NFSServer,
+    Reboot,
+    Sysctl,
+)
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
@@ -664,8 +673,10 @@ class StoragePerformance(TestSuite):
             )
             if disk_count == 1:
                 # If there is only one resource disk, it will be mounted at /mnt
-                # mount it back after fio test.
-                node.tools[Mount].reload_fstab_config()
+                # mount it back after fio test. Simple 'mount -a' cannot do this.
+                # This is because the resource disk is not listed in /etc/fstab.
+                # So, we need to reboot the VM so that couninit does it.
+                node.tools[Reboot].reboot()
         else:
             raise SkippedException(
                 f"Resource disk type {resource_disk_type} not supported for "
