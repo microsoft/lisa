@@ -5,7 +5,7 @@ variable:
   - name: location
     value: "westus2"
   - name: rgname
-    value: "setupazfwthreesubnetretry74"
+    value: "setupazfwthreesubnetretry76"
   - name: imagename
     value: "MicrosoftCBLMariner:cbl-mariner:cbl-mariner-2-gen2:2.20250429.01"
   - name: deploy

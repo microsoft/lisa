@@ -259,6 +259,7 @@ class azureFirewallTests(TestSuite):
         """
     )
     def verifyConnMarkReset(self, environment: Environment, log: Logger) -> None:
+        createRouteTable(environment,log)
         firewallNode = cast(RemoteNode, environment.nodes[0])
         clientNode = cast(RemoteNode, environment.nodes[1])
         firewallInit(firewallNode,log)
@@ -294,10 +295,9 @@ class azureFirewallTests(TestSuite):
         result = clientNode.execute("python3 /tmp/startesp.py", sudo=True)
         log.info(f"Result for generating ESP traffic:", result.stdout)
 
-        result = firewallNode.execute('conntrack -L > out.txt', sudo=True)
-        log.info("Conntrack entries saved to a file", result.stdout)
+        result = firewallNode.execute('conntrack -L', sudo=True)
+        log.info("Conntrack Output result:", result.stdout)
 
-        result = firewallNode.execute('cat out.txt | grep "unknown"', sudo=True)
         if ("unknown" not in result.stdout and "mark=256" not in result.stdout):
             log.err("Unknown protocol type with mark 256 is not found in conntrack", result.stdout)
         log.info("Found connection which has unknown protocol type with mark 256", result.stdout)
@@ -337,7 +337,8 @@ class azureFirewallTests(TestSuite):
         result = firewallNode.execute(f"bash -x {command}", sudo=True)
         log.info("Successfully restarted cse_runner.sh", result)
         #Restart cseparams.sh
-        result = firewallNode.execute('conntrack -L | grep "unknown"', sudo=True)
+        conntrackcmd = f'conntrack -L | grep "unknown"'
+        result = firewallNode.execute(conntrackcmd, sudo=True)
         if("unknown" not in result.stdout and "mark=0" not in result.stdout):
             log.error("Connection mark reset is not successful", result.stdout)
         log.info("Connection mark reset is successful", result.stdout) 
