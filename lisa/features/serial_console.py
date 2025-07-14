@@ -191,7 +191,7 @@ class SerialConsole(Feature):
                 f"{initramfs_logs} {filesystem_exception_logs}"
             )
 
-    def login(self) -> None:
+    def ensure_login(self) -> None:
         # Clear the serial console and try to get the login prompt
         self.read()
         self.write("\n")

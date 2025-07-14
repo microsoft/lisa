@@ -1,3 +1,5 @@
+from typing import List
+
 from lisa.feature import Feature
 from lisa.features.serial_console import SerialConsole
 
@@ -9,15 +11,6 @@ class NonSshExecutor(Feature):
     execution method for scenarios where SSH connectivity is not possible or desired.
     """
 
-    COMMANDS_TO_EXECUTE = [
-        "ip addr show",
-        "ip link show",
-        "systemctl status NetworkManager --no-pager --plain",
-        "systemctl status network --no-pager --plain",
-        "systemctl status systemd-networkd --no-pager --plain",
-        "ping -c 3 -n 8.8.8.8",
-    ]
-
     @classmethod
     def name(cls) -> str:
         return "NonSshExecutor"
@@ -25,7 +18,7 @@ class NonSshExecutor(Feature):
     def enabled(self) -> bool:
         return True
 
-    def execute(self, commands: list[str] = COMMANDS_TO_EXECUTE) -> list[str]:
+    def execute(self, commands: List[str]) -> List[str]:
         """
         Executes a list of commands on the node and returns their outputs.
 
@@ -33,8 +26,12 @@ class NonSshExecutor(Feature):
         :return: A string containing the output of the executed commands.
         """
         out = []
+        if not self._node.features.is_supported(SerialConsole):
+            raise NotImplementedError(
+                "NonSshExecutor requires SerialConsole feature to be supported."
+            )
         serial_console = self._node.features[SerialConsole]
-        serial_console.login()
+        serial_console.ensure_login()
         # clear the console before executing commands
         serial_console.write("\n")
         _ = serial_console.read()
