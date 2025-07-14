@@ -41,6 +41,11 @@ class Uname(Tool):
         r"(?P<os>[\w\W]+?)$"
     )
 
+    # x86_64
+    # aarch64
+    # Pattern for uname -m output (single line with architecture)
+    _architecture_pattern = re.compile(r"^(\w+)$")
+
     @classmethod
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         # This file is a base tool, which is used by os. To avoid circular
@@ -93,7 +98,15 @@ class Uname(Tool):
             "i386": CpuArchitecture.I386,
         }
         self.initialize()
-        arch_str = self.run("-m", force_run=force_run).stdout.strip().lower()
+        result = self.run("-m", force_run=force_run)
+        if result.exit_code != 0:
+            raise LisaException(
+                f"failed to get machine architecture, {result.stderr} {result.stdout}"
+            )
+        matched = self._architecture_pattern.findall(result.stdout.strip())
+        if not matched:
+            raise LisaException("The output of 'uname -m' is not expected.")
+        arch_str = matched[0].lower()
         return arch_map.get(arch_str, CpuArchitecture.UNKNOWN)
 
 
