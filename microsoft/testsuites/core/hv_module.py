@@ -229,13 +229,13 @@ class HvModule(TestSuite):
         skipped_modules = []
         failed_modules = {}
         hv_modules = [
+            "hyperv_keyboard",
             "hv_vmbus",
             "hv_netvsc",
             "hv_storvsc",
             "hv_utils",
             "hv_balloon",
             "hid_hyperv",
-            "hyperv_keyboard",
             "hyperv_fb",
         ]
         loadable_modules = set(

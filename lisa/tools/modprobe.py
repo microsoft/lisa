@@ -131,7 +131,7 @@ class Modprobe(Tool):
 
         username = self.node.tools[Whoami].get_username()
         unique_id = randint(0, 10000)
-        nohup_output_log_file_name = f"/tmp/nohup_log_{mod_name}_{str(unique_id)}.out"
+        nohup_output_log_file_name = f"/home/{username}/nohup_log_{mod_name}_{str(unique_id)}.out"
         loop_process_pid_file_name = (
             f"/home/{username}/loop_process_pid_{mod_name}_{str(unique_id)}.pid"
         )
@@ -142,12 +142,13 @@ class Modprobe(Tool):
             verbose_flag = "false"
 
         modprobe_reloader_tool = CustomScriptBuilder(
-            Path(__file__).parent.joinpath("scripts"), ["modprobe_reloader.sh"]
+            # Path(__file__).parent.joinpath("scripts"), ["modprobe_reloader.sh"]
+            Path(__file__).parent.joinpath("scripts"), ["modprobe_reloader_test.sh"]
         )
 
         parameters = f'{nohup_output_log_file_name} {loop_process_pid_file_name} {mod_name} {times} {verbose_flag} {dhclient_command} {interface}'
 
-        self.node.tools[modprobe_reloader_tool].run(parameters, sudo=True, shell=True)
+        self.node.tools[modprobe_reloader_tool].run(parameters, sudo=True, shell=True, nohup=True)
 
         cat = self.node.tools[Cat]
         tried_times: int = 0
@@ -178,6 +179,7 @@ class Modprobe(Tool):
                 self._log.debug(
                     "An exception is caught, this could be due to the VM network "
                     f"going down during the module reload operation, {e}"
+                    f"time elapsed so far: {timer.elapsed(False)} seconds, "
                     "\nTrying to reconnect to the remote node in 2 sec..."
                 )
                 time.sleep(2)
@@ -200,7 +202,7 @@ class Modprobe(Tool):
                 shell=True,
             ).stdout.strip()
         )
-        is_in_use_count = int(
+        in_use_count = int(
             self.node.execute(
                 f"grep -o 'is in use' {nohup_output_log_file_name} | wc -l",
                 sudo=True,
@@ -216,16 +218,16 @@ class Modprobe(Tool):
         )
 
         # Comment this section to retain the logs for debugging purposes
-        self.node.execute(
-            f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
-            sudo=True,
-            shell=True,
-        )
+        # self.node.execute(
+        #     f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
+        #     sudo=True,
+        #     shell=True,
+        # )
 
         return {
             "rmmod_count": rmmod_count,
             "insmod_count": insmod_count,
-            "in_use_count": is_in_use_count,
+            "in_use_count": in_use_count,
             "busy_count": device_or_resource_busy_count,
         }
 
