@@ -62,11 +62,10 @@ class OpenSSLTestSuite(TestSuite):
         This test sets up the dependencies to run the
         experimental Go system crypto tests and cleans go builds.
         """
-        if isinstance(node.os, CBLMariner):
-            if node.os.information.release != "3.0":
-                raise SkippedException(
-                    "Go system crypto tests are only supported on CBLMariner 3.0."
-                )
+        if float(node.os.information.release) < 3.0:
+            raise SkippedException(
+                "Go system crypto tests are only supported on CBLMariner 3.0. or later"
+            )
         # installs go dependencies for tests
         posix_os = cast(Posix, node.os)
         posix_os.install_packages(
