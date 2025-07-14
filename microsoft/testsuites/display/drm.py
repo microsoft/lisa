@@ -57,7 +57,7 @@ class Drm(TestSuite):
         kernel_info = (
             f"{node.os.information.full_version} {node.os.get_kernel_information()}"
         )
-        is_built_in = node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV")
+        is_drm_built_in = node.tools[KernelConfig].is_enabled("CONFIG_DRM_HYPERV")
         has_hyperv_drm = node.tools[Lsmod].module_exists("hyperv_drm")
         has_hyperv_fb = node.tools[Lsmod].module_exists("hyperv_fb")
 
@@ -79,7 +79,7 @@ class Drm(TestSuite):
             f"OS DRM Summary: {kernel_info} | "
             f"OS Full Version: {node.os.information.full_version} | "
             f"Marketplace: {marketplace_info} | "
-            f"DRM_HYPERV built-in: {is_built_in} | "
+            f"DRM_HYPERV built-in: {is_drm_built_in} | "
             f"hyperv_drm in lsmod: {has_hyperv_drm} | "
             f"hyperv_fb in lsmod: {has_hyperv_fb}"
         )
