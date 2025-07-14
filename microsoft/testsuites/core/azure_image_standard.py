@@ -1516,13 +1516,17 @@ class AzureImageStandard(TestSuite):
         requirement=simple_requirement(supported_platform_type=[AZURE]),
     )
     def verify_python_version(self, node: Node) -> None:
-        minimum_version = Version("3.8.0")
+        minimum_version = Version("3.9")
+        next_minimum_version = Version("3.10")
+        eof_date = "2025-10-31"
         python_command = ["python3 --version", "python --version"]
         self._verify_version_by_pattern_value(
             node=node,
             commands=python_command,
             version_pattern=self._python_version_pattern,
             minimum_version=minimum_version,
+            next_minimum_version=next_minimum_version,
+            eof_date=eof_date,
             library_name="Python",
         )
 
@@ -1739,6 +1743,8 @@ class AzureImageStandard(TestSuite):
         commands: List[str],
         version_pattern: Pattern[str],
         minimum_version: Version,
+        eof_date: Optional[str] = None,
+        next_minimum_version: Optional[Version] = None,
         extended_support_versions: Optional[List[Version]] = None,
         library_name: str = "library",
         group_index: int = 1,
@@ -1753,6 +1759,8 @@ class AzureImageStandard(TestSuite):
             minimum_version: Minimum required version. Please use dots (.) to separate
                     version numbers for proper version comparison, e.g. "1.2.3" or
                     "1.2.3.4"
+            next_minimum_version: Optional version that is the next minimum version.
+            eof_date: Optional end-of-life date for the minimum_version.
             extended_support_versions: Optional list of versions that are still
                     supported despite being lower than minimum_version
             library_name: Name of the library/tool being checked (for messages)
@@ -1811,6 +1819,12 @@ class AzureImageStandard(TestSuite):
                 raise LisaException(message + action_message)
             elif not extended_support_versions:
                 raise LisaException(message + action_message)
+        if next_minimum_version and eof_date and current_version < next_minimum_version:
+            raise PassedException(
+                f"Support for {library_name} {minimum_version} will end on {eof_date}."
+                f" Please consider upgrading to {library_name} {next_minimum_version} "
+                "or later to ensure continued support."
+            )
 
     def _get_not_enabled_modules(self, node: Node) -> List[str]:
         """
