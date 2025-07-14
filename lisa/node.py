@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import time
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
 from typing import (
@@ -697,18 +696,14 @@ class RemoteNode(Node):
         assert self._connection_info, "call setConnectionInfo before use remote node"
         try:
             super()._initialize(*args, **kwargs)
-        except TcpConnectionException as e:
+        except TcpConnectionException:
             try:
-                vm_logs = self._collect_logs_using_non_ssh_executor()
-                if vm_logs:
-                    self.log.info(
-                        f"Collected information using non-ssh executor:\n{vm_logs}"
-                    )
+                self._collect_logs_using_non_ssh_executor()
             except Exception as log_error:
                 self.log.debug(
                     f"Failed to collect logs using non-ssh executor: {log_error}"
                 )
-            raise e
+            raise
 
     def get_working_path(self) -> PurePath:
         return self._get_remote_working_path()
@@ -752,23 +747,32 @@ class RemoteNode(Node):
                     raise RequireUserPasswordException("Reset password failed")
             self._check_password_and_store_prompt()
 
-    def _collect_logs_using_non_ssh_executor(self) -> Optional[str]:
+    def _collect_logs_using_non_ssh_executor(self):
         """
         Collects information using the NonSshExecutor feature.
         This is used when the connection to the node is not stable.
         """
         from lisa.features import NonSshExecutor
 
+        commands = [
+            "ip addr show",
+            "ip link show",
+            "systemctl status NetworkManager --no-pager --plain",
+            "systemctl status network --no-pager --plain",
+            "systemctl status systemd-networkd --no-pager --plain",
+            "ping -c 3 -n 8.8.8.8",
+        ]
+
         if self.features.is_supported(NonSshExecutor):
             non_ssh_executor = self.features[NonSshExecutor]
-            out = non_ssh_executor.execute()
-            return "\n".join(out)
+            out = non_ssh_executor.execute(commands=commands)
+            out = "\n\n".join(out)
+            self.log.info(f"Collected information using NonSshExecutor:\n{out}")
         else:
             self.log.debug(
                 f"NonSshExecutor is not supported on {self.name}, "
                 "cannot collect logs using non-ssh executor."
             )
-        return None
 
     def _check_password_and_store_prompt(self) -> None:
         # self.shell.is_sudo_required_password is true, so running sudo command
@@ -825,7 +829,7 @@ class RemoteNode(Node):
         if not self._connection_info.password:
             if not generate:
                 raise RequireUserPasswordException(
-                    "The password is not set, and generate is False."
+                    "The password is not set and generation is disabled."
                 )
             self.log.debug("password is not set, generating a strong password.")
             if not self._reset_password():
@@ -833,7 +837,7 @@ class RemoteNode(Node):
         password = self._connection_info.password
         if not password:
             raise RequireUserPasswordException(
-                "The password is not set, and generate is False."
+                "The password has neither been set nor generated."
             )
         return password
 

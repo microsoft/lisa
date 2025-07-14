@@ -6,7 +6,6 @@ import json
 import re
 import string
 import time
-import uuid
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -28,7 +27,6 @@ from azure.mgmt.compute.models import (
     HardwareProfile,
     NetworkInterfaceReference,
     RunCommandInput,
-    RunCommandInputParameter,
     VirtualMachineExtension,
     VirtualMachineUpdate,
 )
@@ -3747,7 +3745,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
 
 
 class RunCommand(AzureFeatureMixin, Feature):
-
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -3789,7 +3786,7 @@ class RunCommand(AzureFeatureMixin, Feature):
 
         return result["value"][0]["message"]
 
-    def _add_echo_before_command(self, commands: List[str]):
+    def _add_echo_before_command(self, commands: List[str]) -> List[str]:
         """
         Adds an echo command before each command in the list to ensure
         that the output of each command is captured in the logs.
@@ -3798,9 +3795,7 @@ class RunCommand(AzureFeatureMixin, Feature):
 
 
 class NonSshExecutor(AzureFeatureMixin, features.NonSshExecutor):
-    def execute(
-        self, commands: list[str] = features.NonSshExecutor.COMMANDS_TO_EXECUTE
-    ) -> list[str]:
+    def execute(self, commands: List[str]) -> List[str]:
         # RunCommand is faster than SerialConsole. Hence attempt to use it first.
         try:
             output = self._node.features[RunCommand].execute(commands)
