@@ -758,12 +758,12 @@ class RemoteNode(Node):
             "ip addr show",
             "ip link show",
             "ip neigh",
-            "systemctl status NetworkManager --no-pager --plain",
-            "systemctl status network --no-pager --plain",
-            "systemctl status systemd-networkd --no-pager --plain",
             "ping -c 3 -n 8.8.8.8",
             "cat /var/log/waagent.log | tail -n 50",
             "journalctl -n 50 --no-pager",
+            "systemctl status NetworkManager --no-pager --plain",
+            "systemctl status network --no-pager --plain",
+            "systemctl status systemd-networkd --no-pager --plain",
         ]
 
         if self.features.is_supported(NonSshExecutor):

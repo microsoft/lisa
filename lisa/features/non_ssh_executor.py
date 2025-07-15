@@ -2,6 +2,7 @@ from typing import List
 
 from lisa.feature import Feature
 from lisa.features.serial_console import SerialConsole
+from lisa.util import LisaException
 
 
 class NonSshExecutor(Feature):
@@ -25,7 +26,7 @@ class NonSshExecutor(Feature):
         :param commands: A list of shell commands to execute.
         :return: A string containing the output of the executed commands.
         """
-        out = []
+        out: List[str] = []
         if not self._node.features.is_supported(SerialConsole):
             raise NotImplementedError(
                 "NonSshExecutor requires SerialConsole feature to be supported."
@@ -33,8 +34,12 @@ class NonSshExecutor(Feature):
         serial_console = self._node.features[SerialConsole]
         serial_console.ensure_login()
         # clear the console before executing commands
-        serial_console.write("\n")
         _ = serial_console.read()
+        # write a newline and read to make sure serial console has the prompt
+        serial_console.write("\n")
+        response = serial_console.read()
+        if not response or "$" not in response and "#" not in response:
+            raise LisaException("Serial console prompt not found in output")
         for command in commands:
             serial_console.write(self._add_newline(command))
             out.append(serial_console.read())
