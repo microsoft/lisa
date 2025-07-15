@@ -3755,7 +3755,7 @@ class RunCommand(AzureFeatureMixin, Feature):
         :return: The output of the commands.
         """
         context = get_node_context(self._node)
-        platform = self._platform
+        platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
 
         # Prepare the RunCommandInput for Azure
@@ -3784,10 +3784,14 @@ class RunCommand(AzureFeatureMixin, Feature):
 
 class NonSshExecutor(AzureFeatureMixin, features.NonSshExecutor):
     def execute(self, commands: List[str]) -> List[str]:
-        # RunCommand is faster than SerialConsole. Hence attempt to use it first.
+        # RunCommand does not require password login, hence attempt to use it first.
+        # RunCommand has a limitation on 4KB of output.
         try:
-            output = self._node.features[RunCommand].execute(commands)
-            return [output]
+            result = []
+            for command in commands:
+                out = self._node.features[RunCommand].execute([command])
+                result.append(out)
+            return result
         except Exception as e:
             self._log.info(f"RunCommand failed: {e}")
             # Fallback to the default non-SSH executor behavior
