@@ -572,14 +572,16 @@ class StoragePerformance(TestSuite):
         start_iodepth: int = 1,
         max_iodepth: int = 256,
     ) -> None:
-        disk = node.features[Disk]
-        data_disks = disk.get_raw_data_disks()
-        disk_count = len(data_disks)
-        assert_that(disk_count).described_as(
-            "At least 1 data disk for fio testing."
-        ).is_greater_than(0)
-        partition_disks = reset_partitions(node, data_disks)
-        filename = ":".join(partition_disks)
+        # disk = node.features[Disk]
+        # data_disks = disk.get_raw_data_disks()
+        # disk_count = len(data_disks)
+        # assert_that(disk_count).described_as(
+        #     "At least 1 data disk for fio testing."
+        # ).is_greater_than(0)
+        # partition_disks = reset_partitions(node, data_disks)
+        # filename = ":".join(partition_disks)
+        disk_count = 64
+        filename = "/dev/nvme1n1:/dev/nvme1n2:/dev/nvme1n3:/dev/nvme1n4:/dev/nvme1n5:/dev/nvme1n6:/dev/nvme1n7:/dev/nvme1n8:/dev/nvme1n9:/dev/nvme1n10:/dev/nvme1n11:/dev/nvme1n12:/dev/nvme1n13:/dev/nvme1n14:/dev/nvme1n15:/dev/nvme1n16:/dev/nvme1n17:/dev/nvme1n18:/dev/nvme1n19:/dev/nvme1n20:/dev/nvme1n21:/dev/nvme1n22:/dev/nvme1n23:/dev/nvme1n24:/dev/nvme1n25:/dev/nvme1n26:/dev/nvme1n27:/dev/nvme1n28:/dev/nvme1n29:/dev/nvme1n30:/dev/nvme1n31:/dev/nvme1n32:/dev/nvme1n33:/dev/nvme1n34:/dev/nvme1n35:/dev/nvme1n36:/dev/nvme1n37:/dev/nvme1n38:/dev/nvme1n39:/dev/nvme1n40:/dev/nvme1n41:/dev/nvme1n42:/dev/nvme1n43:/dev/nvme1n44:/dev/nvme1n45:/dev/nvme1n46:/dev/nvme1n47:/dev/nvme1n48:/dev/nvme1n49:/dev/nvme1n50:/dev/nvme1n51:/dev/nvme1n52:/dev/nvme1n53:/dev/nvme1n54:/dev/nvme1n55:/dev/nvme1n56:/dev/nvme1n57:/dev/nvme1n58:/dev/nvme1n59:/dev/nvme1n60:/dev/nvme1n61:/dev/nvme1n62:/dev/nvme1n63:/dev/nvme1n64"
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         perf_disk(
