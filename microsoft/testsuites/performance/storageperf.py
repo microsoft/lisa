@@ -4,6 +4,7 @@
 import inspect
 import uuid
 from pathlib import Path, PurePosixPath
+from time import sleep
 from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
@@ -677,6 +678,11 @@ class StoragePerformance(TestSuite):
                 # This is because the resource disk is not listed in /etc/fstab.
                 # So, we need to reboot the VM so that couninit does it.
                 node.tools[Reboot].reboot()
+                # There is delay in mounting the resource disk after reboot.
+                # So, we need to wait for a while.
+                while not disk.get_resource_disks():
+                    sleep(2)
+
         else:
             raise SkippedException(
                 f"Resource disk type {resource_disk_type} not supported for "
