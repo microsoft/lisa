@@ -52,7 +52,7 @@ class OpenSSLTestSuite(TestSuite):
         description="""
         This test will use Go experimental system crypto tests
         """,
-        priority=2,
+        priority=3,
         requirement=simple_requirement(
             supported_os=[CBLMariner],
         ),
