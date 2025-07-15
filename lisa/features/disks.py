@@ -76,8 +76,8 @@ class Disk(Feature):
     def get_resource_disks(self) -> List[str]:
         return []
 
-    def get_resource_disk_type(self) -> Optional[schema.ResourceDiskType]:
-        return None
+    def get_resource_disk_type(self) -> schema.ResourceDiskType:
+        return schema.ResourceDiskType.SCSI
 
     def get_luns(self) -> Dict[str, int]:
         raise NotImplementedError
