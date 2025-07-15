@@ -313,115 +313,45 @@ class StressNgTestSuite(TestSuite):
         log: Logger,
     ) -> str:
         """
-        Process YAML output file if it exists and return its content as a string.
-
-        Args:
-            node: The remote node where the job was executed
-            job_file_name: Name of the job file (used to derive YAML filename)
-            log: Logger instance
-
-        Returns:
-            YAML content string or an empty string if not found or error occurs
+        Process YAML output file if it exists and return a concise summary string.
+        Only extracts 'system-info' and 'times' sections if present.
         """
-        # Suppress YAML library warnings
+        import logging
         logging.getLogger("YamlManager").setLevel(logging.WARNING)
-        
-        node_output = ""
+
+        job_stem = Path(job_file_name).stem
+        yaml_filename = f"{job_stem}.yaml"
+        yaml_file_path = node.working_path / yaml_filename
+        log.debug(f"Looking for YAML file at: {yaml_file_path}")
+
+        if not node.shell.exists(yaml_file_path):
+            return "No YAML output file found"
+
+        result = node.execute(f"cat '{yaml_file_path}'", shell=True)
+        yaml_content = result.stdout.strip()
+        if not yaml_content:
+            return "YAML file is empty"
+
         try:
-            # Determine YAML file name based on job file name
-            job_stem = Path(job_file_name).stem
-            yaml_filename = f"{job_stem}.yaml"
-
-            # Check if YAML file exists in the working directory
-            yaml_file_path = node.working_path / yaml_filename
-            log.debug(f"Looking for YAML file at: {yaml_file_path}")
-
-            if node.shell.exists(yaml_file_path):
-                log.debug(f"Found YAML output file: {yaml_file_path}")
-                
-                # Read YAML file content using cat command
-                result = node.execute(f"cat '{yaml_file_path}'", shell=True)
-                yaml_content = result.stdout.strip()
-                
-                if yaml_content:
-                    # Print raw YAML content for debugging
-                    log.info(f"Raw YAML file content:\n{yaml_content}")
-
-                    # Try to parse YAML content and extract specific elements
-                    try:
-                        parsed_yaml = yaml.safe_load(yaml_content)
-                        if parsed_yaml is None:
-                            log.warning("YAML file parsed as None (empty or invalid)")
-                            node_output = f"=== YAML Results ===\nYAML file is empty or invalid"
-                        elif isinstance(parsed_yaml, dict):
-                            if parsed_yaml:  # Check if dict is not empty
-                                # Extract only system-info and times sections
-                                filtered_data = {}
-                                
-                                # Look for system-info element
-                                if 'system-info' in parsed_yaml:
-                                    filtered_data['system-info'] = parsed_yaml['system-info']
-                                
-                                # Look for times element
-                                if 'times' in parsed_yaml:
-                                    filtered_data['times'] = parsed_yaml['times']
-                                
-                                if filtered_data:
-                                    key_values = []
-                                    for k, v in filtered_data.items():
-                                        key_values.append(f"{k}:")
-                                        if isinstance(v, dict):
-                                            for sub_k, sub_v in v.items():
-                                                key_values.append(f"  {sub_k}: {sub_v}")
-                                        else:
-                                            key_values.append(f"  {v}")
-                                    node_output = key_values
-                                else:
-                                    node_output = f"=== YAML Results ===\nNo system-info or times sections found"
-                            else:
-                                node_output = f"=== YAML Results ===\nYAML contains empty dictionary"
-                        elif isinstance(parsed_yaml, list):
-                            # Handle list case - look for items containing system-info or times
-                            filtered_items = []
-                            for item in parsed_yaml:
-                                if isinstance(item, dict):
-                                    if 'system-info' in item or 'times' in item:
-                                        filtered_items.append(item)
-                            
-                            if filtered_items:
-                                list_items = []
-                                for i, item in enumerate(filtered_items):
-                                    list_items.append(f"[{i}]:")
-                                    if isinstance(item, dict):
-                                        for k, v in item.items():
-                                            if k in ['system-info', 'times']:
-                                                list_items.append(f"  {k}:")
-                                                if isinstance(v, dict):
-                                                    for sub_k, sub_v in v.items():
-                                                        list_items.append(f"    {sub_k}: {sub_v}")
-                                                else:
-                                                    list_items.append(f"    {v}")
-                                node_output = f"=== YAML Results (Filtered List) ===\n" + "\n".join(list_items)
-                            else:
-                                node_output = f"=== YAML Results ===\nNo system-info or times sections found in list"
-                        else:
-                            node_output = f"=== YAML Results ===\n{str(parsed_yaml)}"
-                    except yaml.YAMLError as yaml_error:
-                        log.warning(f"Failed to parse YAML content: {yaml_error}")
-                        node_output = f"=== YAML Results (Raw - Parse Error) ===\n{yaml_content}"
-                    except Exception as parse_error:
-                        log.warning(f"Unexpected error parsing YAML: {parse_error}")
-                        node_output = f"=== YAML Results (Raw - Unexpected Error) ===\n{yaml_content}"
-                else:
-                    log.debug(f"YAML file {yaml_file_path} is empty")
-                    node_output = "=== YAML Results ===\nYAML file is empty"
-                
-            else:
-                log.debug(f"YAML file not found at: {yaml_file_path}")
-                node_output = "=== YAML Results ===\nNo YAML output file found"
-
+            parsed_yaml = yaml.safe_load(yaml_content)
         except Exception as e:
-            log.warning(f"Could not process YAML output: {e}")
-            node_output = f"=== YAML Processing Error ===\n{str(e)}"
+            log.warning(f"Failed to parse YAML content: {e}")
+            return "YAML parse error"
 
-        return node_output
+        if not isinstance(parsed_yaml, dict):
+            return str(parsed_yaml) if parsed_yaml else "YAML file is empty or invalid"
+
+        # Only extract 'system-info' and 'times' if present
+        output_lines = []
+        for key in ("system-info", "times"):
+            if key in parsed_yaml:
+                output_lines.append(f"{key}:")
+                value = parsed_yaml[key]
+                if isinstance(value, dict):
+                    for sub_k, sub_v in value.items():
+                        output_lines.append(f"  {sub_k}: {sub_v}")
+                else:
+                    output_lines.append(f"  {value}")
+        if not output_lines:
+            return "No system-info or times in YAML"
+        return "\n".join(output_lines)
