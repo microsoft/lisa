@@ -747,7 +747,7 @@ class RemoteNode(Node):
                     raise RequireUserPasswordException("Reset password failed")
             self._check_password_and_store_prompt()
 
-    def _collect_logs_using_non_ssh_executor(self):
+    def _collect_logs_using_non_ssh_executor(self) -> None:
         """
         Collects information using the NonSshExecutor feature.
         This is used when the connection to the node is not stable.
@@ -768,9 +768,11 @@ class RemoteNode(Node):
 
         if self.features.is_supported(NonSshExecutor):
             non_ssh_executor = self.features[NonSshExecutor]
-            out = non_ssh_executor.execute(commands=commands)
-            out = "\n\n".join(out)
-            self.log.info(f"Collected information using NonSshExecutor:\n{out}")
+            outputs = non_ssh_executor.execute(commands=commands)
+            collected_info = "\n\n".join(outputs)
+            self.log.info(
+                f"Collected information using NonSshExecutor:\n{collected_info}"
+            )
         else:
             self.log.debug(
                 f"NonSshExecutor is not supported on {self.name}, "

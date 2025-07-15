@@ -49,11 +49,11 @@ class NonSshExecutor(Feature):
             for command in commands:
                 serial_console.write(self._add_newline(command))
                 out.append(serial_console.read())
+            return out
         except Exception as e:
             raise LisaException(f"Failed to execute commands: {e}") from e
         finally:
             serial_console.close()
-        return out
 
     def _add_newline(self, command: str) -> str:
         """
