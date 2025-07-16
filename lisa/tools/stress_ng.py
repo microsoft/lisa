@@ -63,12 +63,13 @@ class StressNg(Tool):
         cmd = f"--job {job_file}"
         if yaml:
             from pathlib import Path
+
             job_filename = Path(job_file).stem  # filename without extension
             yaml_output_name = f"{job_filename}.yaml"
             # Create full path to YAML file in working directory
             yaml_output_path = self.node.working_path / yaml_output_name
             cmd += f" --yaml {yaml_output_path}"
-            
+
         return self.run_async(cmd, force_run=True, sudo=sudo)
 
     def launch_class_async(

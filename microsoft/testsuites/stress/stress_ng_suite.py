@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import logging
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, cast
+
 import yaml
-import logging
 
 from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features import SerialConsole
@@ -13,6 +14,7 @@ from lisa.tools import StressNg
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
+
 
 @TestSuiteMetadata(
     area="stress-ng",
@@ -47,14 +49,14 @@ class StressNgTestSuite(TestSuite):
             # Handle different input formats: string, comma-separated string, or list
             if isinstance(jobs, str):
                 # Split on comma and strip whitespace from each job
-                jobs = [job.strip() for job in jobs.split(',')]
+                jobs = [job.strip() for job in jobs.split(",")]
             elif isinstance(jobs, list):
                 # Already a list, keep as is
                 log.debug(f"Job list provided as list type with {len(jobs)} job(s)")
                 pass
             else:
                 # Convert other types to string and then split
-                jobs = [job.strip() for job in str(jobs).split(',')]
+                jobs = [job.strip() for job in str(jobs).split(",")]
 
             for job_file in jobs:
                 try:
@@ -241,15 +243,11 @@ class StressNgTestSuite(TestSuite):
         for i, process in enumerate(stress_processes):
             node_name = nodes[i].name if i < len(nodes) else f"node-{i + 1}"
             try:
-                result = process.wait_result(
-                    timeout=self.TIME_OUT, expected_exit_code=0
-                )
+                process.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
                 log.info(f"{node_name} completed successfully")
 
                 # Process YAML output if applicable
-                node_output = self._process_yaml_output(
-                    nodes[i], job_file_name, log
-                )
+                node_output = self._process_yaml_output(nodes[i], job_file_name, log)
 
                 node_outputs.append(node_output)
 
@@ -316,13 +314,11 @@ class StressNgTestSuite(TestSuite):
         Process YAML output file if it exists and return a concise summary string.
         Only extracts 'system-info' and 'times' sections if present.
         """
-        import logging
         logging.getLogger("YamlManager").setLevel(logging.WARNING)
 
         job_stem = Path(job_file_name).stem
         yaml_filename = f"{job_stem}.yaml"
         yaml_file_path = node.working_path / yaml_filename
-        log.debug(f"Looking for YAML file at: {yaml_file_path}")
 
         if not node.shell.exists(yaml_file_path):
             return "No YAML output file found"
