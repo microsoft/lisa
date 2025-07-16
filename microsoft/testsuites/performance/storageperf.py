@@ -185,7 +185,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.StandardSSDLRS,
                 os_disk_type=schema.DiskType.StandardSSDLRS,
-                data_disk_iops=search_space.IntRange(min=4000),
+                data_disk_iops=search_space.IntRange(min=6000),
                 data_disk_count=search_space.IntRange(min=16),
             ),
         ),
