@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 import logging
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Tuple, cast
 
 import yaml
 
 from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.base_tools import Cat
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
@@ -47,15 +48,8 @@ class StressNgTestSuite(TestSuite):
             jobs = variables[self.CONFIG_VARIABLE]
 
             # Handle different input formats: string, comma-separated string, or list
-            if isinstance(jobs, str):
+            if not isinstance(jobs, list):
                 # Split on comma and strip whitespace from each job
-                jobs = [job.strip() for job in jobs.split(",")]
-            elif isinstance(jobs, list):
-                # Already a list, keep as is
-                log.debug(f"Job list provided as list type with {len(jobs)} job(s)")
-                pass
-            else:
-                # Convert other types to string and then split
                 jobs = [job.strip() for job in str(jobs).split(",")]
 
             for job_file in jobs:
@@ -165,7 +159,7 @@ class StressNgTestSuite(TestSuite):
         except Exception as execution_error:
             execution_status = TestStatus.FAILED
             execution_summary = (
-                f"Error : {type(execution_error).__name__}: " f"{str(execution_error)}"
+                f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
             self._check_panic(nodes)
             raise execution_error
@@ -208,7 +202,6 @@ class StressNgTestSuite(TestSuite):
                 # Launch stress-ng with the job file
                 stress_process = node.tools[StressNg].launch_job_async(
                     str(remote_job_file),
-                    yaml=True,
                 )
                 stress_processes.append(stress_process)
 
@@ -227,7 +220,7 @@ class StressNgTestSuite(TestSuite):
         nodes: List[RemoteNode],
         log: Logger,
         job_file_name: str,
-    ) -> tuple[TestStatus, str]:
+    ) -> Tuple[TestStatus, str]:
         """
         Monitor stress-ng execution and capture stress-ng info output.
 
@@ -241,7 +234,7 @@ class StressNgTestSuite(TestSuite):
 
         # Wait for all processes and capture their output
         for i, process in enumerate(stress_processes):
-            node_name = nodes[i].name if i < len(nodes) else f"node-{i + 1}"
+            node_name = nodes[i].name
             try:
                 process.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
                 log.info(f"{node_name} completed successfully")
@@ -262,7 +255,7 @@ class StressNgTestSuite(TestSuite):
         # Combine all node outputs, including node names for clarity
         execution_summary = f"Job: {job_file_name}\n\n"
         for i, node_output in enumerate(node_outputs):
-            node_name = nodes[i].name if i < len(nodes) else f"node-{i + 1}"
+            node_name = nodes[i].name
             execution_summary += f"=== {node_name} ===\n{node_output}\n\n"
 
         # If any processes failed, re-raise the first exception to fail the test
@@ -323,8 +316,8 @@ class StressNgTestSuite(TestSuite):
         if not node.shell.exists(yaml_file_path):
             return "No YAML output file found"
 
-        result = node.execute(f"cat '{yaml_file_path}'", shell=True)
-        yaml_content = result.stdout.strip()
+        cat = node.tools[Cat]
+        yaml_content = cat.read(str(yaml_file_path)).strip()
         if not yaml_content:
             return "YAML file is empty"
 

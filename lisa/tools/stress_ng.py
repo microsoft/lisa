@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from pathlib import Path
 from typing import cast
 
 from lisa.executable import Tool
@@ -57,20 +58,16 @@ class StressNg(Tool):
         cmd += f" --timeout {timeout_in_seconds} "
         self.run(cmd, force_run=True, timeout=timeout_in_seconds)
 
-    def launch_job_async(
-        self, job_file: str, sudo: bool = False, yaml: bool = False
-    ) -> Process:
-        cmd = f"--job {job_file}"
-        if yaml:
-            from pathlib import Path
+    def launch_job_async(self, job_file: str, sudo: bool = False) -> Process:
+        job_cmd = f"--job {job_file}"
+        # filename without extension
+        job_filename = Path(job_file).stem
+        yaml_output_name = f"{job_filename}.yaml"
+        # Create full path to YAML file in working directory
+        yaml_output_path = self.node.working_path / yaml_output_name
+        job_cmd += f" --yaml {yaml_output_path}"
 
-            job_filename = Path(job_file).stem  # filename without extension
-            yaml_output_name = f"{job_filename}.yaml"
-            # Create full path to YAML file in working directory
-            yaml_output_path = self.node.working_path / yaml_output_name
-            cmd += f" --yaml {yaml_output_path}"
-
-        return self.run_async(cmd, force_run=True, sudo=sudo)
+        return self.run_async(job_cmd, force_run=True, sudo=sudo)
 
     def launch_class_async(
         self,
