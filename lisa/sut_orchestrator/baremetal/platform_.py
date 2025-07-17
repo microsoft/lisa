@@ -17,7 +17,7 @@ from .bootconfig import BootConfig
 from .build import Build
 from .cluster.cluster import Cluster
 from .context import get_build_context, get_node_context
-from .features import SerialConsole, StartStop
+from .features import SecurityProfile, SerialConsole, StartStop
 from .ip_getter import IpGetterChecker
 from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
@@ -43,7 +43,7 @@ class BareMetalPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [StartStop, SerialConsole]
+        return [StartStop, SerialConsole, SecurityProfile]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         baremetal_runbook: BareMetalPlatformSchema = self.runbook.get_extended_runbook(

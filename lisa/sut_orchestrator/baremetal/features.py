@@ -2,9 +2,9 @@
 # Licensed under the MIT license.
 
 
-from typing import TYPE_CHECKING, Any, Type
+from typing import TYPE_CHECKING, Any, Optional, Type
 
-from lisa import schema
+from lisa import features, schema, search_space
 from lisa.feature import Feature
 
 if TYPE_CHECKING:
@@ -18,8 +18,23 @@ class ClusterFeature(Feature):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         _feature_type = self._get_inner_type()
+
+        # Use the feature's own create_setting if available, otherwise default
+        # to the generic FeatureSettings.create. This allows platform-specific
+        # features to define their own default settings.
+        if hasattr(self, "create_setting"):
+            settings = self.create_setting()
+        else:
+            settings = schema.FeatureSettings.create(_feature_type.name())
+
+        # Ensure we always have a valid FeatureSettings object
+        if not settings:
+            settings = schema.FeatureSettings()
+            
+        settings.type = _feature_type.name()
+
         self._inner = _feature_type(
-            schema.FeatureSettings.create(_feature_type.name()),
+            settings,
             self._node,
             self._platform,
             *args,
@@ -41,3 +56,31 @@ class SerialConsole(ClusterFeature):
     def _get_inner_type(self) -> Type[Feature]:
         platform: BareMetalPlatform = self._platform  # type: ignore
         return platform.cluster.get_serial_console()
+
+
+class SecurityProfile(ClusterFeature):
+    @classmethod
+    def name(cls) -> str:
+        # Use the same name as the base SecurityProfile feature
+        return features.SecurityProfile.name()
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return features.SecurityProfileSettings
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        # For baremetal, we only support Standard security profile
+        return features.SecurityProfileSettings(
+            security_profile=search_space.SetSpace(
+                True, [features.SecurityProfileType.Standard]
+            ),
+            encrypt_disk=search_space.SetSpace(True, [False]),
+        )
+
+    def _get_inner_type(self) -> Type[Feature]:
+        # For baremetal, SecurityProfile doesn't need a backing implementation
+        # since it's just a capability declaration
+        return features.SecurityProfile
