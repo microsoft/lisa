@@ -17,12 +17,24 @@ from .bootconfig import BootConfig
 from .build import Build
 from .cluster.cluster import Cluster
 from .context import get_build_context, get_node_context
-from .features import SerialConsole, StartStop
+from .features import SecurityProfile, SerialConsole, StartStop
 from .ip_getter import IpGetterChecker
 from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
 from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
+
+
+def convert_to_baremetal_node_space(node_space: schema.NodeSpace) -> None:
+    """
+    Convert generic FeatureSettings to baremetal-specific types.
+    It converts generic FeatureSettings (like SecurityProfile) to platform-specific
+    types that have proper typing and platform-specific behavior.
+    """
+    if not node_space:
+        return
+
+    feature.reload_platform_features(node_space, BareMetalPlatform.supported_features())
 
 
 class BareMetalPlatform(Platform):
@@ -43,7 +55,7 @@ class BareMetalPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [StartStop, SerialConsole]
+        return [StartStop, SerialConsole, SecurityProfile]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         baremetal_runbook: BareMetalPlatformSchema = self.runbook.get_extended_runbook(
@@ -87,6 +99,11 @@ class BareMetalPlatform(Platform):
         if len(environment.runbook.nodes_requirement) > 1:
             # so far only supports one node
             return False
+
+        # Convert test requirements to platform-specific feature types
+        if environment.runbook.nodes_requirement:
+            for node_requirement in environment.runbook.nodes_requirement:
+                convert_to_baremetal_node_space(node_requirement)
 
         return self._check_capability(environment, log, self.cluster.client)
 
