@@ -3,7 +3,7 @@
 
 from typing import Any, Type
 
-from lisa import features, schema, search_space
+from lisa import feature, features, schema, search_space
 from lisa.environment import Environment
 from lisa.util import InitializableMixin, subclasses
 from lisa.util.logger import Logger, get_logger
@@ -93,5 +93,19 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             items=[
                 schema.FeatureSettings.create(features.SerialConsole.name()),
                 schema.FeatureSettings.create(features.StartStop.name()),
+                features.SecurityProfileSettings(
+                    security_profile=search_space.SetSpace(
+                        True, [features.SecurityProfileType.Standard]
+                    ),
+                    encrypt_disk=search_space.SetSpace(True, [False]),
+                ),
             ],
+        )
+
+        # Convert generic FeatureSettings to baremetal-specific ones
+        from ..platform_ import BareMetalPlatform
+
+        feature.reload_platform_features(
+            node_capability,
+            BareMetalPlatform.supported_features(),
         )

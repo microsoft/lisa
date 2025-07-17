@@ -2,10 +2,11 @@
 # Licensed under the MIT license.
 
 
-from typing import TYPE_CHECKING, Any, Type
+from typing import TYPE_CHECKING, Any, Optional, Type
 
-from lisa import schema
+from lisa import features, schema, search_space
 from lisa.feature import Feature
+from lisa.util.logger import get_logger
 
 if TYPE_CHECKING:
     from .platform_ import BareMetalPlatform
@@ -17,9 +18,36 @@ class ClusterFeature(Feature):
         return getattr(self._inner, key)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._log = get_logger(name=self.__class__.__name__, parent=self._log)
         _feature_type = self._get_inner_type()
+        self._log.info(
+            f"Initializing baremetal cluster feature for {type(self).__name__}, "
+            f"inner feature type is {_feature_type.__name__}"
+        )
+
+        # Use the feature's own create_setting if available, otherwise default
+        # to the generic FeatureSettings.create. This allows platform-specific
+        # features to define their own default settings.
+        if hasattr(self, "create_setting"):
+            self._log.info(f"'{type(self).__name__}' has create_setting, using it.")
+            settings = self.create_setting()
+        else:
+            self._log.info(
+                f"'{type(self).__name__}' does not have create_setting, "
+                f"using generic FeatureSettings.create."
+            )
+            settings = schema.FeatureSettings.create(_feature_type.name())
+
+        self._log.info(f"Created settings object of type {type(settings)}")
+
+        if settings:
+            settings.type = _feature_type.name()
+            self._log.info(f"Set settings.type to '{settings.type}'")
+        else:
+            self._log.warning("Settings object is None.")
+
         self._inner = _feature_type(
-            schema.FeatureSettings.create(_feature_type.name()),
+            settings,
             self._node,
             self._platform,
             *args,
@@ -41,3 +69,31 @@ class SerialConsole(ClusterFeature):
     def _get_inner_type(self) -> Type[Feature]:
         platform: BareMetalPlatform = self._platform  # type: ignore
         return platform.cluster.get_serial_console()
+
+
+class SecurityProfile(ClusterFeature):
+    @classmethod
+    def name(cls) -> str:
+        # Use the same name as the base SecurityProfile feature
+        return features.SecurityProfile.name()
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return features.SecurityProfileSettings
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        # For baremetal, we only support Standard security profile
+        return features.SecurityProfileSettings(
+            security_profile=search_space.SetSpace(
+                True, [features.SecurityProfileType.Standard]
+            ),
+            encrypt_disk=search_space.SetSpace(True, [False]),
+        )
+
+    def _get_inner_type(self) -> Type[Feature]:
+        # For baremetal, SecurityProfile doesn't need a backing implementation
+        # since it's just a capability declaration
+        return features.SecurityProfile
