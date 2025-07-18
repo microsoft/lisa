@@ -16,6 +16,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    create_timer,
     schema,
     search_space,
     simple_requirement,
@@ -678,9 +679,13 @@ class StoragePerformance(TestSuite):
                 # This is because the resource disk is not listed in /etc/fstab.
                 # So, we need to reboot the VM so that couninit does it.
                 node.tools[Reboot].reboot()
+                timeout = 600
+                timer = create_timer()
                 # There is delay in mounting the resource disk after reboot.
                 # So, we need to wait for a while.
-                while not disk.get_resource_disks():
+                while timer.elapsed(False) < timeout:
+                    if disk.get_resource_disks():
+                        break
                     sleep(2)
 
         else:
