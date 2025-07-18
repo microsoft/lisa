@@ -91,6 +91,20 @@ class HibernationSetup(Tool):
         offset = get_matched_str(cmdline, self._cmdline_resume_offset_pattern)
         return offset
 
+    def get_hibernate_resume_offset_from_sys_power(self) -> str:
+        cat = self.node.tools[Cat]
+        offset = cat.read("/sys/power/resume_offset", force_run=True, sudo=True)
+        return offset
+
+    def get_last_boot_time(self) -> str:
+        boot_time = self.node.execute(
+            "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
+            sudo=True,
+            shell=True,
+        ).stdout
+
+        return boot_time
+
     def _install(self) -> bool:
         if isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
