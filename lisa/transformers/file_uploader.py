@@ -50,6 +50,34 @@ class FileUploaderTransformer(DeploymentTransformer):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         runbook: FileUploaderTransformerSchema = self.runbook
+        # Debug: Print current working directory and source path
+        print(f"[FileUploader DEBUG] Current working directory: {os.getcwd()}")
+        print(f"[FileUploader DEBUG] runbook.source: {runbook.source}")
+        # Debug: List contents of current working directory
+        try:
+            print(f"[FileUploader DEBUG] Contents of cwd: {os.listdir(os.getcwd())}")
+        except Exception as e:
+            print(f"[FileUploader DEBUG] Could not list cwd contents: {e}")
+        # Debug: Check if msft-lkt exists and list contents
+        msft_lkt_path = os.path.join(os.getcwd(), "msft-lkt")
+        print(f"[FileUploader DEBUG] msft-lkt exists: {os.path.exists(msft_lkt_path)}")
+        if os.path.exists(msft_lkt_path):
+            try:
+                print(f"[FileUploader DEBUG] msft-lkt contents: {os.listdir(msft_lkt_path)}")
+            except Exception as e:
+                print(f"[FileUploader DEBUG] Could not list msft-lkt contents: {e}")
+        # Debug: Check if scripts directory exists and list contents
+        scripts_path = os.path.join(os.getcwd(), "msft-lkt", "pipelines", "kernel-build", "scripts")
+        print(f"[FileUploader DEBUG] scripts dir exists: {os.path.exists(scripts_path)}")
+        if os.path.exists(scripts_path):
+            try:
+                print(f"[FileUploader DEBUG] scripts dir contents: {os.listdir(scripts_path)}")
+            except Exception as e:
+                print(f"[FileUploader DEBUG] Could not list scripts dir contents: {e}")
+        # Debug: Check if verify_lvbs.sh exists
+        verify_lvbs_path = os.path.join(scripts_path, "verify_lvbs.sh")
+        print(f"[FileUploader DEBUG] verify_lvbs.sh exists: {os.path.exists(verify_lvbs_path)}")
+
         if not runbook.source:
             raise ValueError("'source' must be provided.")
         if not runbook.destination:
