@@ -47,9 +47,8 @@ class StressNgTestSuite(TestSuite):
         if self.CONFIG_VARIABLE in variables:
             jobs = variables[self.CONFIG_VARIABLE]
 
-            # Handle different input formats: string, comma-separated string, or list
+            # Convert job file configuration to a list if needed
             if not isinstance(jobs, list):
-                # Split on comma and strip whitespace from each job
                 jobs = [job.strip() for job in str(jobs).split(",")]
 
             for job_file in jobs:
