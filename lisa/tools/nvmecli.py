@@ -30,6 +30,12 @@ class Nvmecli(Tool):
         r"(?P<namespace>/dev/nvme[0-9]n[0-9])", re.MULTILINE
     )
 
+    # "ModelNumber":"MSFT NVMe Accelerator v1.0"
+    _nvme_remote_disk_pattern = "MSFT NVMe Accelerator"
+
+    # "ModelNumber":"Microsoft NVMe Direct Disk v2"
+    _nvme_direct_disk_pattern = "Microsoft NVMe Direct Disk"
+
     @property
     def command(self) -> str:
         return "nvme"
@@ -110,6 +116,54 @@ class Nvmecli(Tool):
         nvme_list = self.run("list -o json", shell=True, sudo=True, force_run=force_run)
         nvme_devices = json.loads(nvme_list.stdout)
         return nvme_devices["Devices"]
+
+    def get_remote_disks(self, force_run: bool = False) -> List[str]:
+        nvme_remote_disks = []
+        nvme_devices = self.get_devices(force_run=force_run)
+        # Sample output of nvme -list -o json
+        # for azure remote disks, the ModelNumber will contain
+        # "MSFT NVMe Accelerator v1.0"
+        # Example
+        # {
+        #   "NameSpace":10,
+        #   "DevicePath":"/dev/nvme1n9",
+        #   "GenericPath":"/dev/ng1n9",
+        #   "Firmware":"v1.00000",
+        #   "ModelNumber":"MSFT NVMe Accelerator v1.0",
+        #   "SerialNumber":"SN: 00001",
+        #   "UsedBytes":1099511627776,
+        #   "MaximumLBA":2147483648,
+        #   "PhysicalSize":1099511627776,
+        #   "SectorSize":512
+        # }
+        for device in nvme_devices["Devices"]:
+            if self._nvme_remote_disk_pattern in device["ModelNumber"]:
+                nvme_remote_disks.append(device["DevicePath"])
+        return nvme_remote_disks
+
+    def get_local_disks(self, force_run: bool = False) -> List[str]:
+        nvme_local_disks = []
+        nvme_devices = self.get_devices(force_run=force_run)
+        # Sample output of nvme -list -o json
+        # For local/direct NVMe disks, the ModelNumber will contain
+        # "Microsoft NVMe Direct Disk"
+        # Example:
+        # {
+        #     "NameSpace":1,
+        #     "DevicePath":"/dev/nvme2n1",
+        #     "GenericPath":"/dev/ng2n1",
+        #     "Firmware":"NVMDV002",
+        #     "ModelNumber":"Microsoft NVMe Direct Disk v2",
+        #     "SerialNumber":"8065a67db93bd3640003",
+        #     "UsedBytes":1889785610240,
+        #     "MaximumLBA":3690987520,
+        #     "PhysicalSize":1889785610240,
+        #     "SectorSize":512
+        # }
+        for device in nvme_devices["Devices"]:
+            if self._nvme_direct_disk_pattern in device["ModelNumber"]:
+                nvme_local_disks.append(device["DevicePath"])
+        return nvme_local_disks
 
     def get_disks(self, force_run: bool = False) -> List[str]:
         nvme_devices = self.get_devices(force_run=force_run)

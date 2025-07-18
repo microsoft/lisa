@@ -1872,12 +1872,8 @@ class Disk(AzureFeatureMixin, features.Disk):
             # same NVMe controller. The same controller is used by OS disk.
             # This loop collects all the SCSI remote disks except OS disk.
             nvme_cli = self._node.tools[Nvmecli]
-            nvme_disks = nvme_cli.get_disks(force_run=True)
-            disk_array = []
-            for nvme_disk in nvme_disks:
-                if self._is_remote_data_disk(nvme_disk):
-                    disk_array.append(nvme_disk)
-            return disk_array
+            nvme_disks = nvme_cli.get_remote_disks(force_run=True)
+            return nvme_disks
 
         # disk_controller_type == SCSI
 
@@ -2101,7 +2097,7 @@ class Disk(AzureFeatureMixin, features.Disk):
             partition.mountpoint == "/mnt/resource" for partition in disk.partitions
         )
 
-    def _is_remote_data_disk(self, disk: str) -> bool:
+    def _is_remote_data_disk(self, disk: str, all_disk: ) -> bool:
         # If disk_controller_type == NVME
         nvme = self._node.features[Nvme]
         if self.get_os_disk_controller_type() == schema.DiskControllerType.NVME:

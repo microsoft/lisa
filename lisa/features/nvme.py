@@ -151,10 +151,10 @@ class Nvme(Feature):
             self._node.features[Disk].get_os_disk_controller_type()
             == schema.DiskControllerType.NVME
         ):
-            os_disk_nvme_device = self._get_os_disk_nvme_device()
+            nvme_local_disks = self._node.tools[Nvmecli].get_local_disks()
             # Removing OS disk/device from the list.
-            for disk in disk_list:
-                if os_disk_nvme_device in disk:
+            for disk in disk_list.copy():
+                if disk in :
                     disk_list.remove(disk)
                     break
         return disk_list
