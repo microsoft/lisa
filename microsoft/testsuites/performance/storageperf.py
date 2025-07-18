@@ -21,7 +21,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import AvailabilityZoneEnabled, Disk
+from lisa.features import AvailabilityZoneEnabled, Disk, StartStop
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
@@ -35,7 +35,6 @@ from lisa.tools import (
     Mount,
     NFSClient,
     NFSServer,
-    Reboot,
     Sysctl,
 )
 from lisa.util import SkippedException
@@ -678,7 +677,8 @@ class StoragePerformance(TestSuite):
                 # mount it back after fio test. Simple 'mount -a' cannot do this.
                 # This is because the resource disk is not listed in /etc/fstab.
                 # So, we need to reboot the VM so that couninit does it.
-                node.tools[Reboot].reboot()
+                start_stop = node.features[StartStop]
+                start_stop.restart()
                 timeout = 600
                 timer = create_timer()
                 # There is delay in mounting the resource disk after reboot.
