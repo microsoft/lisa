@@ -13,7 +13,6 @@ from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
 )
-from personal.lisa.lisa.parameter_parser import runbook
 
 FILE_UPLOADER = "file_uploader"
 UPLOADED_FILES = "uploaded_files"
