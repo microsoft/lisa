@@ -13,6 +13,7 @@ from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
 )
+from personal.lisa.lisa.parameter_parser import runbook
 
 FILE_UPLOADER = "file_uploader"
 UPLOADED_FILES = "uploaded_files"
@@ -50,6 +51,19 @@ class FileUploaderTransformer(DeploymentTransformer):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         runbook: FileUploaderTransformerSchema = self.runbook
+        
+		#begin debug
+        parent_dir = os.path.dirname(os.getcwd())
+		print(f"[FileUploader DEBUG] Parent dir: {parent_dir}")
+		try:
+			print(f"[FileUploader DEBUG] Parent dir contents: {os.listdir(parent_dir)}")
+		except Exception as e:
+			print(f"[FileUploader DEBUG] Could not list parent dir contents: {e}")
+		msft_lkt_path = os.path.join(parent_dir, "msft-lkt")
+		print(f"[FileUploader DEBUG] msft-lkt at parent exists: {os.path.exists(msft_lkt_path)}")
+		if os.path.exists(msft_lkt_path):
+			print(f"[FileUploader DEBUG] msft-lkt at parent contents: {os.listdir(msft_lkt_path)}")
+    
         # Debug: Print current working directory and source path
         print(f"[FileUploader DEBUG] Current working directory: {os.getcwd()}")
         print(f"[FileUploader DEBUG] runbook.source: {runbook.source}")
@@ -77,6 +91,8 @@ class FileUploaderTransformer(DeploymentTransformer):
         # Debug: Check if verify_lvbs.sh exists
         verify_lvbs_path = os.path.join(scripts_path, "verify_lvbs.sh")
         print(f"[FileUploader DEBUG] verify_lvbs.sh exists: {os.path.exists(verify_lvbs_path)}")
+		print(f"[FileUploader DEBUG] Absolute runbook.source: {os.path.abspath(runbook.source)}")
+        #end debug
 
         if not runbook.source:
             raise ValueError("'source' must be provided.")
