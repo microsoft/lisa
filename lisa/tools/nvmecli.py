@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Type, cast
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Git, Make
-from lisa.util import LisaException, SkippedException, find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines
 from lisa.util.logger import Logger
 from lisa.util.process import ExecutableResult
 
