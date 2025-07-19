@@ -91,6 +91,7 @@ class FileUploaderTransformer(DeploymentTransformer):
         verify_lvbs_path = os.path.join(scripts_path, "verify_lvbs.sh")
         print(f"[FileUploader DEBUG] verify_lvbs.sh exists: {os.path.exists(verify_lvbs_path)}")
         print(f"[FileUploader DEBUG] Absolute runbook.source: {os.path.abspath(runbook.source)}")
+        print(f"[FileUploader DEBUG] Absolute runbook.destination: {os.path.abspath(runbook.destination)}")
         #end debug
 
         if not runbook.source:
