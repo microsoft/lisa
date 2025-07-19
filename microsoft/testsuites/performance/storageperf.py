@@ -28,15 +28,7 @@ from lisa.node import RemoteNode
 from lisa.operating_system import Debian, Redhat, Suse
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.testsuite import TestResult, node_requirement
-from lisa.tools import (
-    FileSystem,
-    Lscpu,
-    Mkfs,
-    Mount,
-    NFSClient,
-    NFSServer,
-    Sysctl,
-)
+from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
