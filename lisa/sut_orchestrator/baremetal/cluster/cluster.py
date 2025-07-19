@@ -93,12 +93,7 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             items=[
                 schema.FeatureSettings.create(features.SerialConsole.name()),
                 schema.FeatureSettings.create(features.StartStop.name()),
-                features.SecurityProfileSettings(
-                    security_profile=search_space.SetSpace(
-                        True, [features.SecurityProfileType.Standard]
-                    ),
-                    encrypt_disk=search_space.SetSpace(True, [False]),
-                ),
+                schema.FeatureSettings.create(features.SecurityProfile.name()),
             ],
         )
 
