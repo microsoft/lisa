@@ -20,20 +20,8 @@ from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
+from lisa.tools.kernel_config import ModulesType
 from lisa.util import LisaException, SkippedException
-
-ModulesType = Enum(
-    "ModulesType",
-    [
-        # Modules which dont have "=y" in the kernel config
-        # and therefore are not built into the kernel.
-        "NOT_BUILT_IN",
-        # Modules which have "=m" in the kernel config
-        # and therefore are built as loadable modules.
-        "LOADABLE",
-    ],
-)
-
 
 @TestSuiteMetadata(
     area="core",
@@ -241,7 +229,7 @@ class HvModule(TestSuite):
             "hyperv_fb",
         ]
         loadable_modules = set(
-            self._get_modules_by_type(node, module_type=ModulesType.LOADABLE)
+            self._get_modules_by_type(node, module_type=ModulesType.MODULE)
         )
 
         for module in hv_modules:
@@ -305,14 +293,14 @@ class HvModule(TestSuite):
         )
 
         if failed_modules:
-            raise AssertionError(result_message)
+            raise LisaException(result_message)
         if skipped_modules:
             raise SkippedException(result_message)
 
     def _get_modules_by_type(
         self,
         node: Node,
-        module_type: ModulesType = ModulesType.NOT_BUILT_IN,
+        module_type: ModulesType = ModulesType.BUILT_IN,
     ) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
@@ -337,15 +325,7 @@ class HvModule(TestSuite):
             }
         modules = []
         for module in hv_modules_configuration:
-            if module_type == ModulesType.LOADABLE:
-                if node.tools[KernelConfig].is_built_as_module(
-                    hv_modules_configuration[module]
-                ):
-                    modules.append(module)
-            elif module_type == ModulesType.NOT_BUILT_IN:
-                if not node.tools[KernelConfig].is_built_in(
-                    hv_modules_configuration[module]
-                ):
-                    modules.append(module)
+            if node.tools[KernelConfig].is_kernel_config_set_to(config_name=hv_modules_configuration[module], config_value=module_type):
+                modules.append(module)
 
         return modules
