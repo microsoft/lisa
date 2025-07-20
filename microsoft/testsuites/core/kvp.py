@@ -37,10 +37,10 @@ class Kvp(TestSuite):
         description="""
     Verify KVP daemon installed, running, permission correct.
 
-    1. verify that the KVP Daemon is running.
-    2. run the KVP client tool and verify that the data pools are created and
+    1. run the KVP client tool and verify that the data pools are created and
        accessible.
-    3. check kvp_pool file permission is 644.
+    2. check kvp_pool file permission is 644.
+    3. verify that the KVP Daemon is running.
     4. check kernel version supports hv_kvp.
     5. Check if KVP pool 3 file has a size greater than zero.
     6. At least 11 items are present in pool 3, and verify record count is
@@ -58,21 +58,12 @@ class Kvp(TestSuite):
             kvp_process_name = "hypervkvpd|hv_kvp_daemon"
             kvp_file_permission = 644
 
-        # 1. verify that the KVP Daemon is running.
-        pgrep = node.tools[Pgrep]
-        processes = pgrep.get_processes(kvp_process_name)
-        assert_that(
-            processes,
-            "cannot find running kvp daemon, or find multiple running kvp processes.",
-        ).is_length(1)
-        kvp_daemon_pid = processes[0].id
-
-        # 2. run the KVP client tool
+        # 1. run the KVP client tool
         kvp_client = node.tools[KvpClient]
         pool_count = kvp_client.get_pool_count()
         assert_that(pool_count, "kvp pool count must be 5").is_equal_to(5)
 
-        # 3. check kvp_pool file permission is 644.
+        # 2. check kvp_pool file permission is 644.
         for i in range(pool_count):
             permission = node.tools[Stat].get_file_permission(
                 f"{kvp_pool_path}/.kvp_pool_{i}", sudo=True
@@ -81,6 +72,15 @@ class Kvp(TestSuite):
                 permission,
                 f"the permission of {kvp_pool_path}/.kvp_pool_{i} must be 644",
             ).is_equal_to(kvp_file_permission)
+
+        # 3. verify that the KVP Daemon is running.
+        pgrep = node.tools[Pgrep]
+        processes = pgrep.get_processes(kvp_process_name)
+        assert_that(
+            processes,
+            "cannot find running kvp daemon, or find multiple running kvp processes.",
+        ).is_length(1)
+        kvp_daemon_pid = processes[0].id
 
         # 4. check kernel version supports hv_kvp.
         if not isinstance(node.os, BSD):

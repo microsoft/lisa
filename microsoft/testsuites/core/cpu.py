@@ -23,7 +23,7 @@ from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
 
-hyperv_interrupt_substr = ["hyperv", "Hypervisor", "Hyper-V"]
+hyperv_interrupt_substr = ["hyperv", "hypervsum", "Hypervisor", "Hyper-V"]
 
 
 EPYC_ROME_NUMA_NODE_SIZE = 4
@@ -232,6 +232,16 @@ class CPU(TestSuite):
                     ),
                     "Hypervisor synthetic timer interrupt should be processed by "
                     "all vCPU's",
+                ).is_equal_to(True)
+            elif isinstance(node.os, BSD):
+                assert_that(
+                    all(
+                        [
+                            interrupt_count > 0
+                            for interrupt_count in interrupt.cpu_counter
+                        ]
+                    ),
+                    "Hypervisor interrupts should be processed by all vCPU's",
                 ).is_equal_to(True)
             else:
                 continue

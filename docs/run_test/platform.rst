@@ -141,13 +141,14 @@ deployment.
       ...
       admin_private_key_file: "<path of private key file>"
       azure:
-         virtual_network_resource_group: $(vnet_resource_group)
-         virtual_network_name: $(vnet_name)
-         subnet_prefix: $(subnet_name)
+         virtual_network_resource_group: $(virtual_network_resource_group)
+         virtual_network_name: $(virtual_network_name)
+         subnet_prefix: $(subnet_prefix)
          use_public_address: "<true or false>"
          create_public_address: "<true or false>"
          use_ipv6: "<true or false>"
          enable_vm_nat: "<true or false>"
+         source_address_prefixes: $(source_address_prefixes)
       requirement:
          ...
          ignored_capability:
@@ -205,6 +206,22 @@ deployment.
   subnet to access the internet. The default value is `false`, it means that
   the DefaultOutboundAccess property of the subnet will be set to "False".
   This means that the VMs in the subnet cannot access the internet.
+* **source_address_prefixes**. Specify source IP address ranges that are 
+  allowed to access the VMs through network security group rules. If not
+  provided, your current public IP address will be automatically detected and 
+  used. You can specify multiple IP ranges using either comma-separated string
+  format or YAML list format. Examples:
+  
+  .. code:: bash
+  
+     # Single IP range (string format)
+     lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24"
+     
+     # Multiple IP ranges (comma-separated string format)
+     lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24,10.0.0.0/8"
+     
+     # List format
+     lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:['192.168.1.0/24','10.0.0.0/8']"
 * **ignored_capability**. Specify feature names which will be ignored in 
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:

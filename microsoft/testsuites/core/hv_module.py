@@ -270,8 +270,7 @@ class HvModule(TestSuite):
                 )
                 failed_modules[module] = failure_message
 
-        result_message = ""
-        result_message += (
+        result_message = (
             (
                 "The following modules have reload count mismatch:\n"
                 + ",\n".join(

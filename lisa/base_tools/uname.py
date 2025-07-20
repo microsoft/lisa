@@ -12,6 +12,7 @@ from lisa.util import LisaException, parse_version
 
 if TYPE_CHECKING:
     from lisa.node import Node
+    from lisa.operating_system import CpuArchitecture
 
 
 @dataclass
@@ -39,6 +40,11 @@ class Uname(Tool):
         r"(?P<kernel_version>[^ ]*?) (?P<uname_version>[\w\W]*) (?P<platform>[\w\W]+?) "
         r"(?P<os>[\w\W]+?)$"
     )
+
+    # x86_64
+    # aarch64
+    # Pattern for uname -m output (single line with architecture)
+    _architecture_pattern = re.compile(r"^(\w+)$")
 
     @classmethod
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
@@ -80,9 +86,33 @@ class Uname(Tool):
 
         return result
 
+    def get_machine_architecture(self, force_run: bool = False) -> "CpuArchitecture":
+        # To avoid circular import
+        from lisa.operating_system import CpuArchitecture
+
+        arch_map = {
+            "x86_64": CpuArchitecture.X64,
+            "amd64": CpuArchitecture.X64,
+            "aarch64": CpuArchitecture.ARM64,
+            "arm64": CpuArchitecture.ARM64,
+            "i386": CpuArchitecture.I386,
+        }
+        self.initialize()
+        result = self.run("-m", force_run=force_run)
+        if result.exit_code != 0:
+            raise LisaException(
+                f"failed to get machine architecture, {result.stderr} {result.stdout}"
+            )
+        matched = self._architecture_pattern.findall(result.stdout.strip())
+        if not matched:
+            raise LisaException("The output of 'uname -m' is not expected.")
+        arch_str = matched[0].lower()
+        return arch_map.get(arch_str, CpuArchitecture.UNKNOWN)
+
 
 class FreeBSDUname(Uname):
+    # FreeBSD 14.1-RELEASE-p7 FreeBSD 14.1-RELEASE-p7 GENERIC arm64
     _key_info_pattern = re.compile(
-        r"^(?P<os>[^ ]*?) (?P<kernel_version>[\w\W]*?) "
-        r"(?P<platform>[\w\W]+?) (?P<uname_version>[\w\W]+?)$"
+        r"^(?P<os>[^ ]*?) (?P<kernel_version>[\w\W]*?) [^ ]*? [\w\W]*? "
+        r"(?P<uname_version>[\w\W]+?) (?P<platform>[\w\W]+?)$"
     )
