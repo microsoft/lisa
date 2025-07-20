@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from functools import partial
-from typing import Any
+from typing import Any, Dict
 
 from lisa import (
     Logger,
@@ -145,7 +145,9 @@ class NetworkPerformace(TestSuite):
             network_interface=Synthetic(),
         ),
     )
-    def perf_tcp_ntttcp_128_connections_synthetic(self, result: TestResult) -> None:
+    def perf_tcp_ntttcp_128_connections_synthetic(
+        self, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
         perf_ntttcp(result, connections=[128])
 
     @TestCaseMetadata(
@@ -162,7 +164,9 @@ class NetworkPerformace(TestSuite):
             )
         ),
     )
-    def perf_tcp_ntttcp_synthetic(self, result: TestResult) -> None:
+    def perf_tcp_ntttcp_synthetic(
+        self, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
         perf_ntttcp(result)
 
     @TestCaseMetadata(
@@ -179,7 +183,9 @@ class NetworkPerformace(TestSuite):
             )
         ),
     )
-    def perf_tcp_ntttcp_sriov(self, result: TestResult) -> None:
+    def perf_tcp_ntttcp_sriov(
+        self, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
         perf_ntttcp(result)
 
     @TestCaseMetadata(
@@ -194,7 +200,9 @@ class NetworkPerformace(TestSuite):
             unsupported_os=[BSD, Windows],
         ),
     )
-    def perf_udp_1k_ntttcp_synthetic(self, result: TestResult) -> None:
+    def perf_udp_1k_ntttcp_synthetic(
+        self, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
         perf_ntttcp(result, udp_mode=True)
 
     @TestCaseMetadata(
@@ -209,7 +217,9 @@ class NetworkPerformace(TestSuite):
             unsupported_os=[BSD, Windows],
         ),
     )
-    def perf_udp_1k_ntttcp_sriov(self, result: TestResult) -> None:
+    def perf_udp_1k_ntttcp_sriov(
+        self, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
         perf_ntttcp(result, udp_mode=True)
 
     @TestCaseMetadata(
