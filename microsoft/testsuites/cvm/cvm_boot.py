@@ -17,11 +17,12 @@ from lisa import (
 )
 from lisa.environment import EnvironmentStatus
 from lisa.features.security_profile import (
+    CvmDiskEncryptionEnabled,
     CvmEnabled,
     SecurityProfile,
     SecurityProfileSettings,
 )
-from lisa.operating_system import CBLMariner, Posix
+from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import simple_requirement
 from lisa.tools import BootCtl, Lsblk, Tpm2
@@ -52,7 +53,7 @@ class CVMBootTestSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[CvmEnabled()],
+            supported_features=[CvmDiskEncryptionEnabled()],
             supported_platform_type=[AZURE],
         ),
     )
@@ -96,9 +97,13 @@ class CVMBootTestSuite(TestSuite):
         use_new_environment=True,
     )
     def verify_boot_success_after_component_upgrade(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        variables: Dict[str, Any],
     ) -> None:
-        posix_os: Posix = cast(Posix, node.os)
+        os: CBLMariner = cast(CBLMariner, node.os)
         # First boot - no package upgrade has been performed
         # Check PCR values (PCR4, PCR7)
         pcrs_before_reboot = node.tools[Tpm2].pcrread(pcrs=[4, 7])
@@ -107,16 +112,20 @@ class CVMBootTestSuite(TestSuite):
         boot_components = ["shim", "systemd-boot", "kernel-uki"]
         boot_components_versions: Dict[str, str] = dict()
         for pkg in boot_components:
-            pkg_version = posix_os.get_package_information(pkg, use_cached=False)
+            pkg_version = os.get_package_information(pkg, use_cached=False)
             boot_components_versions[pkg] = pkg_version.version_str
 
+        repo_url = variables.get("rpm_repository")
+        if repo_url:
+            os.add_repository(repo_url)
+
         # Upgrade boot components
-        posix_os.update_packages(boot_components)
+        os.update_packages(boot_components)
 
         # Get new boot components versions
         boot_components_new_versions: Dict[str, str] = dict()
         for pkg in boot_components:
-            pkg_version = posix_os.get_package_information(pkg, use_cached=False)
+            pkg_version = os.get_package_information(pkg, use_cached=False)
             boot_components_new_versions[pkg] = pkg_version.version_str
 
         # Reboot

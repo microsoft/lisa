@@ -1,13 +1,15 @@
 #!/bin/sh
 
 set -x
-log_file="$1"
-pid_file="$2"
-module_name="$3"
-times="$4"                      # 100
-verbose="$5"                    # true/false
-dhclient_command="$6"           # dhcpcd/dhclient
-interface="$7"                  # eth0
+log_file="${1:-$HOME/modprobe_reloader.log}"    # Default log file path in the home directory
+pid_file="${2:-$HOME/modprobe_reloader.pid}"    # Default PID file path in the home directory
+module_name="${3:-hv_netvsc}"                   # Default module name
+times="${4:-1}"                                 # Default number of iterations
+verbose="${5:-true}"                            # Default verbosity (true)
+dhclient_command="${6:-dhclient}"               # Default DHCP client command
+interface="${7:-eth0}"                          # Default network interface
+
+
 
 # Convert verbose parameter to a flag
 if [ "$verbose" = "true" ]; then
@@ -33,9 +35,9 @@ if [ "$module_name" = "hv_netvsc" ]; then
     done
     sleep 1
     # shellcheck disable=SC2086,SC2129
-    ip link set eth0 down >> $log_file 2>&1
+    ip link set $interface down >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
-    ip link set eth0 up >> $log_file 2>&1
+    ip link set $interface up >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
     $dhcp_stop_command >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129

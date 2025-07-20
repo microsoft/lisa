@@ -139,6 +139,7 @@ class InterruptInspectorBSD(InterruptInspector):
         r"^\s*(?P<irq_name>\S+):\s?(?P<irq_type>\S+)\s*(?P<irq_count>\d+)\s*"
         r"(?P<irq_rate>\d+)$"
     )
+    _cpu_number_regex = re.compile(r"cpu(?P<cpu_index>\d+)")
 
     @property
     def command(self) -> str:
@@ -159,18 +160,43 @@ class InterruptInspectorBSD(InterruptInspector):
         result = self.run(force_run=True)
         mappings = result.stdout.splitlines(keepends=False)[1:-1]
         assert mappings
-        interrupts = []
+        interrupts: List[Interrupt] = []
         for line in mappings:
             matched = self._interrupt_regex.fullmatch(line)
             assert matched
-            interrupts.append(
-                Interrupt(
-                    irq_number=str(matched.group("irq_name")),
-                    cpu_counter=[int(matched.group("irq_count"))],
-                    counter_sum=int(matched.group("irq_count")),
-                    metadata=str(matched.group("irq_type")),
+            if matched.group("irq_name").startswith("cpu"):
+                # cpu interrupts need to be organized by irq type not name
+                output = self.node.execute("sysctl -n kern.smp.cpus")
+                core_count = int(output.stdout.strip())
+                exists = False
+                num_result = self._cpu_number_regex.fullmatch(matched.group("irq_name"))
+                assert num_result
+                cpu_num = int(num_result.group("cpu_index"))
+                for interrupt in interrupts:
+                    if interrupt.irq_number == matched.group("irq_type"):
+                        interrupt.cpu_counter[cpu_num] = int(matched.group("irq_count"))
+                        interrupt.counter_sum += int(matched.group("irq_count"))
+                        exists = True
+                        break
+                if not exists:
+                    newinterrupt = Interrupt(
+                        irq_number=matched.group("irq_type"),
+                        cpu_counter=[0] * core_count,
+                        counter_sum=int(matched.group("irq_count")),
+                        metadata=matched.group("irq_type"),
+                    )
+                    newinterrupt.cpu_counter[cpu_num] = int(matched.group("irq_count"))
+                    interrupts.append(newinterrupt)
+
+            else:
+                interrupts.append(
+                    Interrupt(
+                        irq_number=str(matched.group("irq_name")),
+                        cpu_counter=[int(matched.group("irq_count"))],
+                        counter_sum=int(matched.group("irq_count")),
+                        metadata=str(matched.group("irq_type")),
+                    )
                 )
-            )
         result = self.node.execute("pciconf -l")
         for interrupt in interrupts:
             # The metadata is the IRQ type. We need to get the PCI slot from the

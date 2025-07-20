@@ -2,11 +2,13 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
+from lisa.node import Node
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator import platform_utils
 from lisa.util.logger import Logger
 from lisa.util.subclasses import Factory
 
@@ -29,6 +31,11 @@ class BareMetalPlatform(Platform):
         runbook: schema.Platform,
     ) -> None:
         super().__init__(runbook=runbook)
+
+        self._environment_information_hooks = {
+            platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
+        }
 
     @classmethod
     def type_name(cls) -> str:
@@ -60,6 +67,18 @@ class BareMetalPlatform(Platform):
             self._cluster_runbook, parent_logger=self._log
         )
         self.cluster.initialize()
+
+    def _get_node_information(self, node: Node) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        for key, method in self._environment_information_hooks.items():
+            node.log.debug(f"detecting {key} ...")
+            try:
+                value = method(node)
+                if value:
+                    information[key] = value
+            except Exception as e:
+                node.log.exception(f"error on get {key}.", exc_info=e)
+        return information
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"

@@ -3,8 +3,9 @@
 
 import json
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import BSD, Posix
@@ -37,6 +38,7 @@ class PartitionInfo(object):
     fstype: str = ""
     uuid: str = ""
     part_uuid: str = ""
+    logical_devices: List["PartitionInfo"] = field(default_factory=list)
 
     @property
     def is_mounted(self) -> bool:
@@ -63,6 +65,7 @@ class PartitionInfo(object):
         fstype: str = "",
         uuid: str = "",
         part_uuid: str = "",
+        logical_devices: Optional[List["PartitionInfo"]] = None,
     ):
         self.name = name
         self.mountpoint = mountpoint
@@ -75,6 +78,7 @@ class PartitionInfo(object):
         self.fstype = fstype
         self.uuid = uuid
         self.part_uuid = part_uuid
+        self.logical_devices = logical_devices if logical_devices else []
 
 
 @dataclass
@@ -137,16 +141,16 @@ class DiskInfo(object):
 class Lsblk(Tool):
     _INVAILD_JSON_OPTION_PATTERN = re.compile(r"lsblk: invalid option -- 'J'", re.M)
     # NAME="sdb1" SIZE="15030288384" TYPE="part" MOUNTPOINT="/mnt" FSTYPE="ext4"
-    # UUID="ec9b6d68-0376-4284-b758-67aa37c47da5" PARTUUID=""
+    # UUID="ec9b6d68-0376-4284-b758-67aa37c47da5" PARTUUID="" PKNAME="sdb"
     _LSBLK_ENTRY_REGEX = re.compile(
         r'NAME="(?P<name>\S+)"\s+SIZE="(?P<size>\d+)"\s+'
         r'TYPE="(?P<type>\S+)"\s+MOUNTPOINT="(?P<mountpoint>\S*)"'
         r'\s+FSTYPE="(?P<fstype>\S*)"\s+UUID="(?P<uuid>\S*)"\s+PARTUUID='
-        r'"(?P<partuuid>\S*)"'
+        r'"(?P<partuuid>\S*)"\s+PKNAME="(?P<pkname>\S*)"'
     )
 
-    # sda
-    _DISK_NAME_REGEX = re.compile(r"\s*(?P<name>\D+)\s*")
+    # NAME="sdb1"
+    _DISK_NAME_REGEX = re.compile(r'NAME="(?P<name>\S+)"')
 
     @property
     def command(self) -> str:
@@ -169,6 +173,21 @@ class Lsblk(Tool):
             )
         return self._check_exists()
 
+    def _parse_partition(self, entry: Dict[str, Any]) -> PartitionInfo:
+        return PartitionInfo(
+            name=entry["name"],
+            mountpoint=entry["mountpoint"],
+            size=int(entry["size"]),
+            dev_type=entry["type"],
+            fstype=entry["fstype"],
+            uuid=entry["uuid"],
+            part_uuid=entry["partuuid"],
+            logical_devices=[
+                self._parse_partition(sub_child)
+                for sub_child in entry.get("children", [])
+            ],
+        )
+
     def parse_lsblk_json_output(self, output: str) -> List[DiskInfo]:
         disks: List[DiskInfo] = []
         lsblk_entries = json.loads(output)["blockdevices"]
@@ -190,17 +209,7 @@ class Lsblk(Tool):
             )
 
             for child in lsblk_entry.get("children", []):
-                disk_info.partitions.append(
-                    PartitionInfo(
-                        name=child["name"],
-                        mountpoint=child["mountpoint"],
-                        size=int(child["size"]),
-                        dev_type=child["type"],
-                        fstype=child["fstype"],
-                        uuid=child["uuid"],
-                        part_uuid=child["partuuid"],
-                    )
-                )
+                disk_info.partitions.append(self._parse_partition(child))
             # add disk to list of disks
             disks.append(disk_info)
         return disks
@@ -211,53 +220,44 @@ class Lsblk(Tool):
             output, [self._LSBLK_ENTRY_REGEX]
         )[0]
 
-        # create partition map
-        disk_partition_map: Dict[str, List[PartitionInfo]] = {}
-        for lsblk_entry in lsblk_entries:
-            # we only need to add partitions to the map
-            if not lsblk_entry["type"] == "part":
-                continue
+        logical_types = {"lvm", "crypt", "dm", "loop", "rom", "mpath", "md", "raid"}
+        logical_devices_map: Dict[str, List[PartitionInfo]] = defaultdict(list)
+        disk_partition_map: Dict[str, List[PartitionInfo]] = defaultdict(list)
 
-            # extract drive name from partition name
-            matched = find_patterns_groups_in_lines(
-                lsblk_entry["name"], [self._DISK_NAME_REGEX]
-            )[0]
-            assert len(matched) == 1, "Could not extract drive name from partition name"
-
-            # add partition to disk partition map
-            drive_name = matched[0]["name"]
-            if drive_name not in disk_partition_map:
-                disk_partition_map[drive_name] = []
-
-            disk_partition_map[drive_name].append(
-                PartitionInfo(
-                    name=lsblk_entry["name"],
-                    size=int(lsblk_entry["size"]),
-                    dev_type=lsblk_entry["type"],
-                    mountpoint=lsblk_entry["mountpoint"],
-                    fstype=lsblk_entry["fstype"],
-                    uuid=lsblk_entry["uuid"],
-                    part_uuid=lsblk_entry["partuuid"],
-                )
+        for entry in lsblk_entries:
+            part = PartitionInfo(
+                name=entry["name"],
+                size=int(entry["size"]),
+                dev_type=entry["type"],
+                mountpoint=entry["mountpoint"],
+                fstype=entry["fstype"],
+                uuid=entry["uuid"],
+                part_uuid=entry["partuuid"],
             )
-
-        # create disk info
-        for lsblk_entry in lsblk_entries:
-            # we only add physical disks to the list
-            if not lsblk_entry["type"] == "disk":
-                continue
-
-            # add disk to list of disks
-            disks.append(
-                DiskInfo(
-                    name=lsblk_entry["name"],
-                    mountpoint=lsblk_entry["mountpoint"],
-                    size=int(lsblk_entry["size"]),
-                    dev_type=lsblk_entry["type"],
-                    partitions=disk_partition_map.get(lsblk_entry["name"], []),
-                    uuid=lsblk_entry["uuid"],
+            if entry["type"] in logical_types:
+                logical_devices_map[entry["pkname"]].append(part)
+            elif entry["type"] == "part":
+                disk_partition_map[entry["pkname"]].append(part)
+            elif entry["type"] == "disk":
+                disks.append(
+                    DiskInfo(
+                        name=entry["name"],
+                        mountpoint=entry["mountpoint"],
+                        size=int(entry["size"]),
+                        dev_type=entry["type"],
+                        uuid=entry["uuid"],
+                    )
                 )
-            )
+
+        # Add logical devices to the partition
+        for part_list in disk_partition_map.values():
+            for part in part_list:
+                part.logical_devices = logical_devices_map.get(part.name, [])
+
+        # Add partitions to the disk
+        for disk in disks:
+            disk.partitions = disk_partition_map.get(disk.name, [])
+
         return disks
 
     def get_disks(self, force_run: bool = False) -> List[DiskInfo]:
@@ -278,7 +278,7 @@ class Lsblk(Tool):
             self._INVAILD_JSON_OPTION_PATTERN, output
         ):
             output = self.run(
-                "-e 7 -b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,UUID,PARTUUID",
+                "-e 7 -b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,UUID,PARTUUID,PKNAME",
                 sudo=True,
                 force_run=force_run,
             ).stdout
@@ -291,6 +291,22 @@ class Lsblk(Tool):
 
         return disks
 
+    def get_block_name(self, device: str, force_run: bool = False) -> str:
+        # $ lsblk /dev/sda2 -P -o NAME
+        # NAME="sda2"
+        # NAME="vg-data"
+        # NAME="vg-meta"
+        # If there are logical volumes under sda2, the output will have multiple lines.
+        # This function just get the device name sda2.
+        result = self.run(f"{device} -P -o NAME", sudo=True, force_run=force_run)
+        if result.exit_code == 0:
+            lsblk_entries = find_patterns_groups_in_lines(
+                result.stdout, [self._DISK_NAME_REGEX]
+            )[0]
+            for entry in lsblk_entries:
+                return entry["name"]
+        return ""
+
     def find_disk_by_mountpoint(
         self, mountpoint: str, force_run: bool = False
     ) -> DiskInfo:
@@ -302,6 +318,9 @@ class Lsblk(Tool):
 
             # check if any of the partitions is mounted and mountpoint matches
             for partition in disk.partitions:
+                for logical_device in partition.logical_devices:
+                    if logical_device.mountpoint == mountpoint:
+                        return disk
                 if partition.mountpoint == mountpoint:
                     return disk
 
@@ -430,3 +449,6 @@ class BSDLsblk(Lsblk):
         # sort disk with OS disk first
         disks.sort(key=lambda disk: disk.is_os_disk, reverse=True)
         return disks
+
+    def get_block_name(self, device: str, force_run: bool = False) -> str:
+        return device
