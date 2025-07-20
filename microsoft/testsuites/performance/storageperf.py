@@ -668,7 +668,7 @@ class StoragePerformance(TestSuite):
                 # If there is only one resource disk, it will be mounted at /mnt
                 # mount it back after fio test. Simple 'mount -a' cannot do this.
                 # This is because the resource disk is not listed in /etc/fstab.
-                # So, we need to reboot the VM so that couninit does it.
+                # So, we need to reboot the VM so that cloudinit does it.
                 start_stop = node.features[StartStop]
                 start_stop.restart()
                 timeout = 600
