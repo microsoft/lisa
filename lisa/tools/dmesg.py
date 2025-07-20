@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List
+from typing import List, Optional
 
 from semver import VersionInfo
 
@@ -49,11 +49,26 @@ class Dmesg(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def get_output(self, force_run: bool = False) -> str:
-        command_output = self._run(force_run=force_run)
+    def get_output(
+        self,
+        force_run: bool = False,
+        no_error_log: bool = True,
+        no_info_log: bool = True,
+        no_debug_log: bool = False,
+        tail_lines: Optional[int] = None,
+    ) -> str:
+        command_output = self._run(
+            force_run=force_run,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            no_debug_log=no_debug_log,
+        )
 
         # Remove the color code from stdout stream
         stdout = filter_ansi_escape(command_output.stdout)
+        if tail_lines is not None:
+            stdout_lines = stdout.splitlines()
+            stdout = "\n".join(stdout_lines[-tail_lines:])
         return stdout
 
     def check_kernel_errors(
@@ -104,12 +119,29 @@ class Dmesg(Tool):
                 return VersionInfo(int(major), int(minor))
         raise LisaException("No find matched vmbus version in dmesg")
 
-    def _run(self, force_run: bool = False) -> ExecutableResult:
-        # sometime it need sudo, we can retry
-        # so no_error_log for first time
-        result = self.run(force_run=force_run, no_error_log=True)
+    def _run(
+        self,
+        force_run: bool = False,
+        no_error_log: bool = True,
+        no_info_log: bool = True,
+        no_debug_log: bool = False,
+    ) -> ExecutableResult:
+        # no_error_log is set to True for the first run because
+        # it will fail for distros that require sudo to run dmesg.
+        result = self.run(
+            force_run=force_run,
+            no_error_log=True,
+            no_info_log=no_info_log,
+            no_debug_log=no_debug_log,
+        )
         if result.exit_code != 0:
             # may need sudo
-            result = self.run(sudo=True, force_run=force_run)
+            result = self.run(
+                sudo=True,
+                force_run=force_run,
+                no_error_log=no_error_log,
+                no_info_log=no_info_log,
+                no_debug_log=no_debug_log,
+            )
         self._cached_result = result
         return result

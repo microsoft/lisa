@@ -28,6 +28,8 @@ security_profile_priority: List[SecurityProfileType] = [
     SecurityProfileType.Stateless,
 ]
 
+encrypt_disk_priority: List[bool] = [False, True]
+
 
 @dataclass_json()
 @dataclass()
@@ -58,7 +60,20 @@ class SecurityProfileSettings(schema.FeatureSettings):
             )
         ),
     )
-    encrypt_disk: bool = field(default=False)
+
+    encrypt_disk: Union[search_space.SetSpace[bool], bool] = field(
+        default_factory=partial(
+            search_space.SetSpace[bool], is_allow_set=True, items=[False, True]
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=bool,
+                default_values=[False, True],
+            ),
+            required=False,
+        ),
+    )
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -77,7 +92,13 @@ class SecurityProfileSettings(schema.FeatureSettings):
             capability.security_profile,
             security_profile_priority,
         )
-        value.encrypt_disk = self.encrypt_disk or capability.encrypt_disk
+        value.encrypt_disk = getattr(
+            search_space, f"{method.value}_setspace_by_priority"
+        )(
+            self.encrypt_disk,
+            capability.encrypt_disk,
+            encrypt_disk_priority,
+        )
         return value
 
     def check(self, capability: Any) -> search_space.ResultReason:
@@ -90,6 +111,10 @@ class SecurityProfileSettings(schema.FeatureSettings):
                 self.security_profile, capability.security_profile
             ),
             "security_profile",
+        )
+        result.merge(
+            search_space.check_setspace(self.encrypt_disk, capability.encrypt_disk),
+            "encrypt_disk",
         )
         return result
 
@@ -118,6 +143,7 @@ class SecurityProfile(Feature):
 SecureBootEnabled = partial(
     SecurityProfileSettings,
     security_profile=search_space.SetSpace(True, [SecurityProfileType.SecureBoot]),
+    encrypt_disk=search_space.SetSpace(True, [False]),
 )
 
 CvmEnabled = partial(
@@ -130,4 +156,11 @@ CvmDisabled = partial(
     security_profile=search_space.SetSpace(
         True, [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
     ),
+    encrypt_disk=search_space.SetSpace(True, [False]),
+)
+
+CvmDiskEncryptionEnabled = partial(
+    SecurityProfileSettings,
+    security_profile=search_space.SetSpace(True, [SecurityProfileType.CVM]),
+    encrypt_disk=True,
 )

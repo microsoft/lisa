@@ -28,6 +28,9 @@ class JUnitSchema(schema.Notifier):
     path: str = "lisa.junit.xml"
     # respect the original behavior, include subtest by default
     include_subtest: bool = True
+    # control whether to append message ID to test case names
+    # useful when combinators are used to distinguish multiple test runs
+    append_message_id: bool = True
 
 
 class _TestSuiteInfo:
@@ -296,8 +299,13 @@ class JUnit(Notifier):
         if not testsuite_info:
             raise LisaException("Test suite not started.")
 
+        runbook: JUnitSchema = cast(JUnitSchema, self.runbook)
+
         testcase = ET.SubElement(testsuite_info.xml, "testcase")
-        testcase.attrib["name"] = f"{message.name} ({message.id_})"
+        if runbook.append_message_id:
+            testcase.attrib["name"] = f"{message.name} ({message.id_})"
+        else:
+            testcase.attrib["name"] = message.name
         testcase.attrib["classname"] = class_name
         testcase.attrib["time"] = self._get_elapsed_str(elapsed)
 

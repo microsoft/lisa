@@ -8,7 +8,10 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa.executable import CustomScript, CustomScriptBuilder, ExecutableResult, Tool
 from lisa.tools import Cat, Dhclient
+from lisa.tools.dmesg import Dmesg
+from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KLDStat
+from lisa.tools.lsmod import Lsmod
 from lisa.util import UnsupportedOperationException
 from lisa.util.perf_timer import create_timer
 
@@ -66,15 +69,20 @@ class Modprobe(Tool):
                 self.node.execute(f"rmmod {mod_name}", sudo=True, shell=True)
             else:
                 if self.is_module_loaded(mod_name, force_run=True):
-                    self.run(
-                        f"-r {mod_name}",
-                        force_run=True,
-                        sudo=True,
-                        shell=True,
-                        expected_exit_code=0,
-                        expected_exit_code_failure_message="Fail to remove module "
-                        f"{mod_name}",
-                    )
+                    try:
+                        self.run(
+                            f"-r {mod_name}",
+                            force_run=True,
+                            sudo=True,
+                            shell=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                f"Fail to remove module {mod_name}"
+                            ),
+                        )
+                    except AssertionError as e:
+                        self._collect_logs(mod_name)
+                        raise e
 
     def load(
         self,
@@ -144,6 +152,22 @@ class Modprobe(Tool):
         modprobe_reloader_tool = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["modprobe_reloader.sh"]
         )
+
+        # here paramters are passed to the script modprobe_reloader.sh,
+        # which is run on the remote node to reload the module.
+        # The script is run in nohup mode, so it can continue running even if the
+        # connection to the remote node is lost.
+        # The script will run the modprobe command in a loop for the specified number
+        # The parameters are:
+        # nohup_output_log_file_name: file to store the output of the script
+        # loop_process_pid_file_name: file to store the pid of the loop process
+        # mod_name: name of the module to be reloaded e.g. hv_netvsc
+        # times: number of times to reload the module
+        # verbose_flag: whether to run the script in verbose mode or not
+        # dhclient_command: command to run dhclient, e.g. dhclient or dhcpcd
+        # interface: network interface to run dhclient on, e.g. eth0
+        # The nohup_output_log_file_name and loop_process_pid_file_name are
+        # created in the home directory of the user running the script.
 
         parameters = (
             f"{nohup_output_log_file_name} {loop_process_pid_file_name} "
@@ -247,6 +271,62 @@ class Modprobe(Tool):
         if not ignore_error:
             result.assert_exit_code(0, f"failed to load module {file_name}")
         return result
+
+    def _collect_logs(self, mod_name: str) -> None:
+        self._log.info(
+            f"Failed to remove module {mod_name}."
+            " Collecting additional debug information."
+        )
+        self._log_lsmod_status(mod_name)
+        self._tail_dmesg_log()
+        self._tail_journalctl_for_module(mod_name)
+
+    def _log_lsmod_status(self, mod_name: str) -> None:
+        lsmod_tool = self.node.tools[Lsmod]
+        module_exists = lsmod_tool.module_exists(
+            mod_name=mod_name,
+            force_run=True,
+            no_debug_log=True,
+        )
+        if not module_exists:
+            self._log.info(f"Module {mod_name} does not exist in lsmod output.")
+        else:
+            self._log.info(f"Module {mod_name} exists in lsmod output.")
+            usedby_count, usedby_modules = lsmod_tool.get_used_by_modules(
+                mod_name, sudo=True, force_run=True
+            )
+            if usedby_count == 0:
+                self._log.info(f"Module '{mod_name}' is not used by any other modules.")
+            else:
+                self._log.info(
+                    f"Module {mod_name} is used by {usedby_count} modules. "
+                    f"Module names: '{usedby_modules}'"
+                )
+
+    def _tail_dmesg_log(self) -> None:
+        dmesg_tool = self.node.tools[Dmesg]
+        tail_lines = 20
+
+        dmesg_output = dmesg_tool.get_output(
+            force_run=True, no_debug_log=True, tail_lines=tail_lines
+        )
+
+        self._log.info(f"Last {tail_lines} dmesg lines: {dmesg_output}")
+
+    def _tail_journalctl_for_module(self, mod_name: str) -> None:
+        tail_lines = 20
+        journalctl_tool = self.node.tools[Journalctl]
+        journalctl_out = journalctl_tool.filter_logs_by_pattern(
+            mod_name,
+            tail_line_count=tail_lines,
+            no_debug_log=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        self._log.info(
+            f"Last {tail_lines} journalctl lines for module {mod_name}:\n"
+            f"{journalctl_out}"
+        )
 
 
 class ModprobeFreeBSD(Modprobe):
