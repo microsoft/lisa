@@ -26,7 +26,7 @@ from lisa.util.process import ExecutableResult
 @dataclass_json()
 @dataclass
 class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+    force_install: bool = False
 
 
 @dataclass_json()
@@ -137,7 +137,9 @@ class QemuInstallerTransformer(Transformer):
             node=node,
             log=self._log,
         )
-        if not installer._is_installed():
+        force_install = getattr(runbook.installer, "force_install", False)
+        self._log.debug(f"QEMU force installation set to: {force_install}")
+        if not installer._is_installed() or force_install:
             installer.validate()
             qemu_version = installer.install()
             self._log.info(f"installed qemu version: {qemu_version}")
@@ -178,7 +180,9 @@ class CloudHypervisorInstallerTransformer(Transformer):
             node=node,
             log=self._log,
         )
-        if not installer._is_installed():
+        force_install = getattr(runbook.installer, "force_install", False)
+        self._log.debug(f"cloud-hypervisor force installation set to: {force_install}")
+        if not installer._is_installed() or force_install:
             installer.validate()
             ch_version = installer.install()
             self._log.info(f"installed cloud-hypervisor version: {ch_version}")
@@ -469,7 +473,7 @@ class CloudHypervisorMsftSourceInstaller(CloudHypervisorSourceInstaller):
         code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
 
         self._log.info("Building source code of Cloudhypervisor...")
-        self._build_cmd = "cargo build --release --features=kvm,mshv,igvm,snp"
+        self._build_cmd = "cargo build --release --features=kvm,mshv,igvm,sev_snp"
         self._build_and_install(code_path)
         return self._get_version()
 
@@ -544,7 +548,9 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
         node=node,
         log=log,
     )
-    if not libvirt_installer._is_installed():
+    force_install = getattr(runbook, "force_install", False)
+    log.debug(f"libvirt force installation set to: {force_install}")
+    if not libvirt_installer._is_installed() or force_install:
         libvirt_installer.validate()
         libvirt_version = libvirt_installer.install()
         log.info(f"installed libvirt version: {libvirt_version}")
