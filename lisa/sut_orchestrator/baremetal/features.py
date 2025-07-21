@@ -18,23 +18,8 @@ class ClusterFeature(Feature):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         _feature_type = self._get_inner_type()
-
-        # Use the feature's own create_setting if available, otherwise default
-        # to the generic FeatureSettings.create. This allows platform-specific
-        # features to define their own default settings.
-        if hasattr(self, "create_setting"):
-            settings = self.create_setting()
-        else:
-            settings = schema.FeatureSettings.create(_feature_type.name())
-
-        # Ensure we always have a valid FeatureSettings object
-        if not settings:
-            settings = schema.FeatureSettings()
-            
-        settings.type = _feature_type.name()
-
         self._inner = _feature_type(
-            settings,
+            schema.FeatureSettings.create(_feature_type.name()),
             self._node,
             self._platform,
             *args,

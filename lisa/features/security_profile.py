@@ -102,20 +102,6 @@ class SecurityProfileSettings(schema.FeatureSettings):
         return value
 
     def check(self, capability: Any) -> search_space.ResultReason:
-        # Handle case when capability is a base FeatureSettings instead of SecurityProfileSettings
-        is_generic = isinstance(capability, schema.FeatureSettings)
-        is_specific = isinstance(capability, SecurityProfileSettings)
-        if is_generic and not is_specific:
-            # Convert the base FeatureSettings to SecurityProfileSettings
-            converted = SecurityProfileSettings()
-            # Copy any matching attributes
-            for attr in dir(capability):
-                if attr.startswith("_") or callable(getattr(capability, attr)):
-                    continue
-                if hasattr(converted, attr):
-                    setattr(converted, attr, getattr(capability, attr))
-            capability = converted
-
         assert isinstance(
             capability, SecurityProfileSettings
         ), f"actual: {type(capability)}"
