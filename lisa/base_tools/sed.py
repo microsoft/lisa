@@ -27,8 +27,7 @@ class Sed(Tool):
         # Escape slashes (must be done before crafting sed expression, as we want to preserve slashes after)
         regexp = regexp.replace("/", r"\/")
         replacement = replacement.replace("/", r"\/")
-        
-        # always force run, make sure it happens every time.
+
         if match_lines != "":
             expression = f"/{match_lines}/s/{regexp}/{replacement}/g"
         else:

@@ -2003,14 +2003,14 @@ class CBLMariner(RPMDistro):
 
     def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
-        
+
         # Check if GRUB_DEFAULT already exists in the file
         grep_result = self._node.execute(
             "grep -q '^GRUB_DEFAULT=' /etc/default/grub",
             sudo=True,
             no_error_log=True,
         )
-        
+
         # substitute if GRUB_DEFAULT exists, otherwise append it
         if grep_result.exit_code == 0:
             sed = self._node.tools[Sed]
@@ -2043,8 +2043,6 @@ class CBLMariner(RPMDistro):
         # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
         # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
         extracted_version = kernel_version
-        
-        # Extract version from RPM package name format using single regex
         rpm_version_pattern = re.compile(r"^kernel-(?:[^-]+-)*(\d+\.\d+\.\d+.*?)\.x86_64$")
         match = rpm_version_pattern.match(kernel_version)
         if match:
@@ -2065,21 +2063,17 @@ class CBLMariner(RPMDistro):
             expected_exit_code_failure_message="Failed to rebuild GRUB configuration",
         )
 
-        # Parse the GRUB configuration to find the correct menu entry name
-        # for the new kernel
+        # Parse the GRUB configuration to find the correct menu entry name for the new kernel
         grub_cfg_result = self._node.execute(
             "cat /boot/grub2/grub.cfg",
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to read GRUB configuration",
         )
-
-        # Look for menuentry lines that contain the extracted kernel version
         menu_entry_pattern = re.compile(
             rf"menuentry '([^']*{re.escape(extracted_version)}[^']*)'",
             re.IGNORECASE
         )
-        
         menu_entry_name = None
         for line in grub_cfg_result.stdout.split('\n'):
             match = menu_entry_pattern.search(line)
@@ -2098,15 +2092,6 @@ class CBLMariner(RPMDistro):
 
         # Set the new kernel as default using the existing method
         self._replace_default_entry(menu_entry_name)
-
-        # Set GRUB timeout to allow menu selection (using direct execution for simplicity)
-        self._node.execute(
-            "sed -i.bak 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=30/' /etc/default/grub || echo 'GRUB_TIMEOUT=30' >> /etc/default/grub",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to set GRUB timeout"
-        )
 
         # Rebuild GRUB configuration to apply the changes
         self._node.execute(
