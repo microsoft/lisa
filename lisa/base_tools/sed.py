@@ -24,7 +24,8 @@ class Sed(Tool):
         match_lines: str = "",
         sudo: bool = False,
     ) -> None:
-        # Escape slashes (must be done before crafting sed expression, as we want to preserve slashes after)
+        # Escape slashes (must be done before crafting sed expression,
+        # as we want to preserve slashes after)
         regexp = regexp.replace("/", r"\/")
         replacement = replacement.replace("/", r"\/")
 

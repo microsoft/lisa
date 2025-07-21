@@ -25,8 +25,7 @@ from lisa.util.logger import Logger, get_logger
 
 @dataclass_json()
 @dataclass
-class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin): ...
 
 
 @dataclass_json()
@@ -164,12 +163,16 @@ class KernelInstallerTransformer(DeploymentTransformer):
             from lisa.transformers.rpm_kernel_installer import RPMInstaller
 
             if (
-                isinstance(installer, RepoInstaller)
-                and "fde" not in installer.runbook.source
-            ) or (
-                isinstance(installer, SourceInstaller)
-                and not isinstance(installer, Dom0Installer)
-            ) or isinstance(installer, RPMInstaller):
+                (
+                    isinstance(installer, RepoInstaller)
+                    and "fde" not in installer.runbook.source
+                )
+                or (
+                    isinstance(installer, SourceInstaller)
+                    and not isinstance(installer, Dom0Installer)
+                )
+                or isinstance(installer, RPMInstaller)
+            ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
             elif (

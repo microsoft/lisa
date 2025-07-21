@@ -2043,12 +2043,15 @@ class CBLMariner(RPMDistro):
         # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
         # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
         extracted_version = kernel_version
-        rpm_version_pattern = re.compile(r"^kernel-(?:[^-]+-)*(\d+\.\d+\.\d+.*?)\.x86_64$")
+        rpm_version_pattern = re.compile(
+            r"^kernel-(?:[^-]+-)*(\d+\.\d+\.\d+.*?)\.x86_64$"
+        )
         match = rpm_version_pattern.match(kernel_version)
         if match:
             extracted_version = match.group(1)
             self._log.info(
-                f"Extracted kernel version '{extracted_version}' from RPM package '{kernel_version}'"
+                f"Extracted kernel version '{extracted_version}' "
+                f"from RPM package '{kernel_version}'"
             )
         else:
             self._log.debug(
@@ -2063,7 +2066,7 @@ class CBLMariner(RPMDistro):
             expected_exit_code_failure_message="Failed to rebuild GRUB configuration",
         )
 
-        # Parse the GRUB configuration to find the correct menu entry name for the new kernel
+        # Parse the GRUB configuration to find the correct menu entry name
         grub_cfg_result = self._node.execute(
             "cat /boot/grub2/grub.cfg",
             sudo=True,
@@ -2083,8 +2086,9 @@ class CBLMariner(RPMDistro):
 
         if not menu_entry_name:
             self._log.warning(
-                f"Could not find GRUB menu entry for kernel version '{extracted_version}' "
-                f"(original: '{kernel_version}'). GRUB configuration may not be updated properly."
+                f"Could not find GRUB menu entry for kernel version "
+                f"'{extracted_version}' (original: '{kernel_version}'). "
+                f"GRUB configuration may not be updated properly."
             )
             return
 
@@ -2098,12 +2102,14 @@ class CBLMariner(RPMDistro):
             "grub2-mkconfig -o /boot/grub2/grub.cfg",
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to rebuild GRUB configuration with new default",
+            expected_exit_code_failure_message=(
+                "Failed to rebuild GRUB configuration with new default"
+            ),
         )
 
         self._log.info(
-            f"Successfully configured GRUB to boot into kernel version '{extracted_version}' "
-            f"(from RPM package '{kernel_version}')"
+            f"Successfully configured GRUB to boot into kernel version "
+            f"'{extracted_version}' (from RPM package '{kernel_version}')"
         )
 
 
