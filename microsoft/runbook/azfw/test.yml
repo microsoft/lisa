@@ -5,7 +5,7 @@ variable:
   - name: location
     value: "westus2"
   - name: rgname
-    value: "setupazfwthreesubnetretry76"
+    value: "setupazfwthreesubnetretry84"
   - name: imagename
     value: "MicrosoftCBLMariner:cbl-mariner:cbl-mariner-2-gen2:2.20250429.01"
   - name: deploy
@@ -27,7 +27,7 @@ variable:
   - name: vm_size
     value: ""
   - name: test_case_name
-    value: "verifyConnMarkReset"
+    value: "createresources"
   - name: use_public_address
     value: true
 concurrency: $(concurrency)
@@ -42,7 +42,7 @@ platform:
     azure:
       resource_group_name: $(rgname)
       deploy: $(deploy)
-      subscription_id: "11764614-ffac-4e4d-8506-bdf64388ce6c"
+      subscription_id: "e7eb2257-46e4-4826-94df-153853fea38f"
       wait_delete: $(waitdelete)
     requirement:
       core_count:

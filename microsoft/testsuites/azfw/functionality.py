@@ -17,7 +17,7 @@ import time
     description="""
     This test suite verifies marking in conntrack.
     """,
-    requirement=simple_requirement(min_count=2, min_nic_count=2)
+    requirement=simple_requirement(min_count=3, min_nic_count=3)
 )
 class FunctionalityTest(TestSuite):
     @TestCaseMetadata(
@@ -104,7 +104,13 @@ class FunctionalityTest(TestSuite):
 
         if("0" in result.stdout):
             raise Exception("Log rotation failed, azfw_test.log file is empty", result.stdout)
-
+    @TestCaseMetadata(
+        description= """
+            This test will create three VMs
+        """
+    )
+    def createresources(self, environment: Environment, log: Logger) -> None:
+        print("Done creating the resources")
 
 def installandsetuppackages(packageName, node, log):
     node.execute(f"sudo tdnf install -y {packageName}", sudo=True)
