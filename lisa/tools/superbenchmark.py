@@ -28,18 +28,51 @@ class SuperBenchmark(Tool):
         return True
 
     def install(self) -> bool:
-        """Install superbenchmark using pip."""
+        """Install superbenchmark from source."""
         posix_os: Posix = cast(Posix, self.node.os)
         
-        # Install superbench package via pip
-        result = self.node.execute(
-            "python3 -m pip install superbench",
-            sudo=True,
-            timeout=600,  # Installation might take a while
-        )
+        # First check if it's already installed
+        if self._check_exists():
+            return True
         
-        if result.exit_code != 0:
-            self._log.debug(f"Failed to install superbench via pip: {result.stderr}")
+        # Clone superbenchmark repository
+        from .git import Git
+        from .make import Make
+        
+        git = self.node.tools[Git]
+        tool_path = self.get_tool_path()
+        
+        try:
+            # Clone the repository
+            git.clone(
+                "https://github.com/microsoft/superbenchmark",
+                tool_path,
+                ref="main"
+            )
+            
+            code_path = tool_path.joinpath("superbenchmark")
+            
+            # Install with pip
+            result = self.node.execute(
+                "python3 -m pip install .",
+                sudo=True,
+                timeout=600,
+                cwd=code_path
+            )
+            
+            if result.exit_code != 0:
+                self._log.debug(f"Failed to install superbench: {result.stderr}")
+                return False
+            
+            # Run post-install if make is available
+            make = self.node.tools[Make]
+            if make.exists:
+                make_result = make.run("postinstall", cwd=code_path, ignore_error=True)
+                if make_result.exit_code != 0:
+                    self._log.debug(f"Post-install step failed: {make_result.stderr}")
+            
+        except Exception as e:
+            self._log.debug(f"Failed to install superbench from source: {e}")
             return False
             
         return self._check_exists()
