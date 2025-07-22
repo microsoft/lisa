@@ -25,7 +25,8 @@ from lisa.util.logger import Logger, get_logger
 
 @dataclass_json()
 @dataclass
-class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin): ...
+class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    ...
 
 
 @dataclass_json()
