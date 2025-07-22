@@ -47,10 +47,10 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
     filter_ansi_escape,
+    find_group_in_lines,
     get_matched_str,
     parse_version,
     retry_without_exceptions,
-    extract_kernel_version_from_rpm,
 )
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
@@ -2043,14 +2043,20 @@ class CBLMariner(RPMDistro):
         # Examples:
         # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
         # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
-        extracted_version = extract_kernel_version_from_rpm(kernel_version)
-        if extracted_version is not None:
+        extracted_version = kernel_version
+        rpm_version_pattern = re.compile(
+            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.x86_64$"
+        )
+        match_result = find_group_in_lines(
+            kernel_version, rpm_version_pattern, single_line=True
+        )
+        if match_result.get("version"):
+            extracted_version = match_result["version"]
             self._log.info(
                 f"Extracted kernel version '{extracted_version}' "
                 f"from RPM package '{kernel_version}'"
             )
         else:
-            extracted_version = kernel_version
             self._log.debug(
                 f"Could not extract version from '{kernel_version}', using as-is"
             )
@@ -2071,15 +2077,13 @@ class CBLMariner(RPMDistro):
             expected_exit_code_failure_message="Failed to read GRUB configuration",
         )
         menu_entry_pattern = re.compile(
-            rf"menuentry '([^']*{re.escape(extracted_version)}[^']*)'",
-            re.IGNORECASE
+            rf"menuentry '(?P<entry>[^']*{re.escape(extracted_version)}[^']*)'",
+            re.IGNORECASE,
         )
-        menu_entry_name = None
-        for line in grub_cfg_result.stdout.split('\n'):
-            match = menu_entry_pattern.search(line)
-            if match:
-                menu_entry_name = match.group(1)
-                break
+        match_result = find_group_in_lines(
+            grub_cfg_result.stdout, menu_entry_pattern, single_line=True
+        )
+        menu_entry_name = match_result.get("entry")
 
         if not menu_entry_name:
             self._log.warning(

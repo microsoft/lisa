@@ -80,12 +80,6 @@ __version_info_pattern = re.compile(
     re.VERBOSE,
 )
 
-# kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
-# kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
-__rpm_version_pattern = re.compile(
-    r"^kernel-(?:[^-]+-)*(\d+\.\d+\.\d+.*?)\.x86_64$"
-)
-
 # hooks manager helper, they must be same name.
 _NAME_LISA = "lisa"
 plugin_manager = pluggy.PluginManager(_NAME_LISA)
@@ -663,13 +657,6 @@ def is_valid_url(url: str, raise_error: bool = True) -> bool:
 
 def filter_ansi_escape(content: str) -> str:
     return __ansi_escape.sub("", content)
-
-
-def extract_kernel_version_from_rpm(rpm_pkg_name: str) -> str | None:
-    match = __rpm_version_pattern.match(rpm_pkg_name)
-    if match:
-        return match.group(1)
-    return None
 
 
 def dump_file(file_name: Path, content: Any) -> None:
