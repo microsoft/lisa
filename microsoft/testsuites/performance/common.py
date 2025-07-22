@@ -67,7 +67,7 @@ def perf_disk(
     test_name: str = "",
     num_jobs: Optional[List[int]] = None,
     block_size: int = 4,
-    time: int = 900,
+    time: int = 600,
     size_mb: int = 0,
     numjob: int = 0,
     overwrite: bool = False,
@@ -94,7 +94,7 @@ def perf_disk(
     #for i in range(16):
     iodepth = start_iodepth
     numjobindex = 0
-    for i in range(2):
+    for i in range(6):
         if num_jobs:
             numjob = num_jobs[numjobindex]
         fio_result = fio.launch(
