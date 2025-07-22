@@ -20,6 +20,7 @@ from lisa.tools import (
     ResizePartition,
 )
 from lisa.tools.hwclock import Hwclock
+from lisa.tools.who import Who
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
@@ -57,6 +58,7 @@ def verify_hibernation(
     hibernation_setup_tool = node.tools[HibernationSetup]
     startstop = node.features[StartStop]
     dmesg = node.tools[Dmesg]
+    who = node.tools[Who]
 
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
@@ -76,7 +78,7 @@ def verify_hibernation(
     if type(node.os) == Redhat or type(node.os) == AlmaLinux or type(node.os) == SLES:
         node.reboot()
 
-    boot_time_before_hibernation = hibernation_setup_tool.get_last_boot_time()
+    boot_time_before_hibernation = who.last_boot()
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
     try:
@@ -100,7 +102,7 @@ def verify_hibernation(
 
     startstop.start()
 
-    boot_time_after_hibernation = hibernation_setup_tool.get_last_boot_time()
+    boot_time_after_hibernation = who.last_boot()
     log.info(
         f"Last Boot time before hibernation: {boot_time_before_hibernation},"
         f"Last Boot time after hibernation: {boot_time_after_hibernation}"
