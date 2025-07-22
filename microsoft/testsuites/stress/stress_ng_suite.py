@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import logging
+import time
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Tuple, cast
 
@@ -11,7 +12,7 @@ from lisa.base_tools import Cat
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import StressNg
+from lisa.tools import StressNg, Free, Lscpu
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
@@ -31,8 +32,9 @@ class StressNgTestSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs a stress-ng jobfile. The path to the jobfile must be specified using a
-        runbook variable named "stress_ng_jobs". For more info about jobfiles refer:
+        Runs a stress-ng jobfile with comprehensive perf monitoring. The path to the
+        jobfile must be specified using a runbook variable named "stress_ng_jobs".
+        For more info about jobfiles refer:
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
         priority=4,
@@ -130,23 +132,28 @@ class StressNgTestSuite(TestSuite):
         log: Logger,
     ) -> None:
         """
-        Execute a stress-ng job file on all nodes in the environment.
-
+        Execute a stress-ng job file with comprehensive perf monitoring.
+        
         Args:
             job_file: Path to the stress-ng job file
             environment: Test environment containing target nodes
             test_result: Test result object for reporting
-            log: Logger instance for detailed logging
         """
-
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
         stress_processes: List[Process] = []
         job_file_name = Path(job_file).name
+        monitoring_data = {}
 
         execution_status = TestStatus.QUEUED
         execution_summary = ""
 
         try:
+            # Start perf monitoring before deploying stress jobs
+            for node in nodes:
+                monitoring_data[node.name] = self._start_perf_monitoring(
+                    node, job_file_name
+                )
+
             self._deploy_and_launch_stress_jobs(
                 nodes, job_file, job_file_name, stress_processes, log
             )
@@ -164,6 +171,16 @@ class StressNgTestSuite(TestSuite):
             raise execution_error
 
         finally:
+            # Collect perf monitoring results
+            for node in nodes:
+                perf_summary = self._stop_and_collect_perf_monitoring(
+                    node, monitoring_data.get(node.name, {}), job_file_name, test_result
+                )
+                execution_summary += (
+                    f"\n\n=== Perf Monitoring Results for {node.name} ===\n"
+                    f"{perf_summary}"
+                )
+
             self._report_test_results(
                 test_result, job_file_name, execution_status, execution_summary
             )
@@ -343,3 +360,166 @@ class StressNgTestSuite(TestSuite):
         if not output_lines:
             return "No system-info or times in YAML"
         return "\n".join(output_lines)
+
+    def _start_perf_monitoring(
+        self, node: RemoteNode, test_name: str
+    ) -> Dict[str, Any]:
+        """
+        Start comprehensive perf monitoring on a node
+        """
+        monitoring_data = {
+            "test_name": test_name,
+            "start_time": time.time(),
+            "baseline_memory": 0,
+            "baseline_cpu_info": "",
+            "perf_processes": [],
+        }
+
+        try:
+            # Get baseline system information
+            free_tool = node.tools[Free]
+            lscpu = node.tools[Lscpu]
+
+            monitoring_data["baseline_memory"] = free_tool.get_free_memory_mb()
+            monitoring_data["baseline_cpu_info"] = f"cores: {lscpu.get_core_count()}"
+
+            node.log.info(f"Starting perf monitoring for {test_name}")
+            node.log.info(f"Baseline memory: {monitoring_data['baseline_memory']}MB")
+            node.log.info(f"CPU info: {monitoring_data['baseline_cpu_info']}")
+
+            # Start background perf monitoring processes
+            # Use a long duration to cover any possible job file timeout.
+            # Different job files can have different timeouts (10min, 2hrs, etc).
+            # The cleanup in finally block will stop processes when test completes.
+            monitoring_duration = self.TIME_OUT
+            monitoring_commands = [
+                # CPU and general performance monitoring
+                (
+                    f"perf stat -e cycles,instructions,cache-misses,page-faults "
+                    f"-a -o /tmp/perf_cpu_stats_{test_name}.txt "
+                    f"sleep {monitoring_duration} &"
+                ),
+                # Memory access monitoring
+                (
+                    f"perf stat -e cache-references,cache-misses,L1-dcache-loads,"
+                    f"L1-dcache-load-misses "
+                    f"-a -o /tmp/perf_memory_stats_{test_name}.txt "
+                    f"sleep {monitoring_duration} &"
+                ),
+                # Context switches and system calls
+                (
+                    f"perf stat -e context-switches,cpu-migrations,minor-faults,"
+                    f"major-faults -a -o /tmp/perf_system_stats_{test_name}.txt "
+                    f"sleep {monitoring_duration} &"
+                ),
+                # Record detailed performance data
+                (
+                    f"perf record -g -a -o /tmp/perf_record_{test_name}.data "
+                    f"sleep {monitoring_duration} &"
+                ),
+            ]
+
+            # Start each monitoring command
+            for cmd in monitoring_commands:
+                try:
+                    node.execute(cmd, sudo=True)
+                    monitoring_data["perf_processes"].append(cmd)
+                    node.log.debug(f"Started: {cmd}")
+                except Exception as e:
+                    node.log.warning(f"Failed to start monitoring command '{cmd}': {e}")
+
+        except Exception as e:
+            node.log.debug(f"Failed to start perf monitoring: {e}")
+
+        return monitoring_data
+
+    def _stop_and_collect_perf_monitoring(
+        self,
+        node: RemoteNode,
+        monitoring_data: Dict[str, Any],
+        test_name: str,
+        result: TestResult,
+    ) -> str:
+        """
+        Stop perf monitoring and collect results
+        """
+        summary_lines = []
+
+        try:
+            # Stop all perf processes
+            node.execute("pkill -f 'perf stat'", sudo=True)
+            node.execute("pkill -f 'perf record'", sudo=True)
+
+            # Wait a moment for processes to stop
+            time.sleep(2)
+
+            end_time = time.time()
+            duration = end_time - monitoring_data.get("start_time", end_time)
+
+            summary_lines.append(f"Performance Monitoring Summary for {test_name}")
+            summary_lines.append(f"Duration: {duration:.2f} seconds")
+            summary_lines.append(
+                f"Baseline memory: {monitoring_data.get('baseline_memory', 'N/A')}MB"
+            )
+            summary_lines.append(
+                f"CPU info: {monitoring_data.get('baseline_cpu_info', 'N/A')}"
+            )
+
+            # Collect final memory usage
+            try:
+                free_tool = node.tools[Free]
+                final_memory = free_tool.get_free_memory_mb()
+                memory_change = (
+                    monitoring_data.get("baseline_memory", final_memory) - final_memory
+                )
+                summary_lines.append(f"Final memory: {final_memory}MB")
+                summary_lines.append(f"Memory change: {memory_change}MB")
+            except Exception as e:
+                summary_lines.append(f"Failed to get final memory: {e}")
+
+            # Collect perf stat results
+            perf_files = [
+                f"/tmp/perf_cpu_stats_{test_name}.txt",
+                f"/tmp/perf_memory_stats_{test_name}.txt",
+                f"/tmp/perf_system_stats_{test_name}.txt",
+            ]
+
+            for perf_file in perf_files:
+                try:
+                    if node.shell.exists(PurePath(perf_file)):
+                        perf_result = node.execute(f"cat {perf_file}", sudo=True)
+                        if perf_result.stdout.strip():
+                            summary_lines.append(f"\n--- {Path(perf_file).stem} ---")
+                            summary_lines.append(perf_result.stdout.strip())
+                except Exception as e:
+                    summary_lines.append(f"Failed to read {perf_file}: {e}")
+
+            # Get top performance hotspots if perf record succeeded
+            try:
+                record_file = f"/tmp/perf_record_{test_name}.data"
+                if node.shell.exists(PurePath(record_file)):
+                    perf_report = node.execute(
+                        f"perf report -i {record_file} --stdio | head -20", sudo=True
+                    )
+                    if perf_report.stdout.strip():
+                        summary_lines.append("\n--- Top Performance Hotspots ---")
+                        summary_lines.append(perf_report.stdout.strip())
+            except Exception as e:
+                summary_lines.append(f"Failed to generate perf report: {e}")
+
+        except Exception as e:
+            summary_lines.append(f"Error collecting perf monitoring results: {e}")
+
+        finally:
+            # Cleanup perf files
+            try:
+                cleanup_files = [f"/tmp/perf_*_{test_name}.*"]
+                for pattern in cleanup_files:
+                    node.execute(f"rm -f {pattern}", sudo=True)
+            except Exception as e:
+                node.log.debug(f"Failed to cleanup perf files: {e}")
+
+        summary = "\n".join(summary_lines)
+        node.log.info(f"Perf monitoring results:\n{summary}")
+
+        return summary
