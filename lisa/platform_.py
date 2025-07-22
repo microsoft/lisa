@@ -94,6 +94,13 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         raise NotImplementedError()
 
+    def _post_deletion_operations(self, environment: Environment, log: Logger) -> None:
+        """
+        Perform any operations after the environment is deleted.
+        This is a placeholder for any cleanup or finalization tasks.
+        """
+        pass
+
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         return {}
 
@@ -213,7 +220,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     def delete_environment(self, environment: Environment) -> None:
         log = get_logger(f"del[{environment.name}]", parent=self._log)
-
+        log.info(f"environment status:: {environment.status}")
         try:
             environment.cleanup()
             if (self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS) or (
@@ -238,14 +245,12 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                 if remote_addresses:
                     log.info(f"node ip addresses: {remote_addresses}")
             else:
-                log.debug("deleting")
                 self._delete_environment(environment, log)
-                log.info("deleted")
 
         finally:
-            # mark environment is deleted.
             # if there is any error on deleting, it should be ignored.
-            environment.status = EnvironmentStatus.Deleted
+            # execute post deletion operations regardless
+            self._post_deletion_operations(environment, log)
 
     def cleanup(self) -> None:
         self._cleanup()
