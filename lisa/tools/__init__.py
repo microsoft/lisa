@@ -114,6 +114,7 @@ from .start_configuration import StartConfiguration
 from .stat import Stat
 from .strace import Strace
 from .stress_ng import StressNg
+from .superbenchmark import SuperBenchmark
 from .swap import Swap
 from .sysctl import Sysctl
 from .systemd_analyze import SystemdAnalyze
@@ -255,6 +256,7 @@ __all__ = [
     "Stat",
     "Strace",
     "StressNg",
+    "SuperBenchmark",
     "Swap",
     "Sysctl",
     "SystemdAnalyze",
