@@ -50,6 +50,7 @@ from lisa.util import (
     get_matched_str,
     parse_version,
     retry_without_exceptions,
+    extract_kernel_version_from_rpm,
 )
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
@@ -2042,18 +2043,14 @@ class CBLMariner(RPMDistro):
         # Examples:
         # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
         # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
-        extracted_version = kernel_version
-        rpm_version_pattern = re.compile(
-            r"^kernel-(?:[^-]+-)*(\d+\.\d+\.\d+.*?)\.x86_64$"
-        )
-        match = rpm_version_pattern.match(kernel_version)
-        if match:
-            extracted_version = match.group(1)
+        extracted_version = extract_kernel_version_from_rpm(kernel_version)
+        if extracted_version is not None:
             self._log.info(
                 f"Extracted kernel version '{extracted_version}' "
                 f"from RPM package '{kernel_version}'"
             )
         else:
+            extracted_version = kernel_version
             self._log.debug(
                 f"Could not extract version from '{kernel_version}', using as-is"
             )
