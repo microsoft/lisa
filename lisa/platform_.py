@@ -250,6 +250,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         finally:
             # if there is any error on deleting, it should be ignored.
             # execute post deletion operations regardless
+            environment.status = EnvironmentStatus.Deleted
             self._post_deletion_operations(environment, log)
 
     def cleanup(self) -> None:

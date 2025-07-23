@@ -52,7 +52,7 @@ from packaging.version import parse
 from retry import retry
 
 from lisa import feature, schema, search_space
-from lisa.environment import Environment, EnvironmentStatus
+from lisa.environment import Environment
 from lisa.features import (
     Disk,
     SecurityProfile,
@@ -646,10 +646,6 @@ class AzurePlatform(Platform):
                 self.initialize_environment(environment, log)
             except Exception as e:
                 raise e
-
-    def _post_deletion_operations(self, environment: Environment, log: Logger) -> None:
-        log.info("Marking the environment as deleted.")
-        environment.status = EnvironmentStatus.Deleted
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         log.debug("deleting environment...")
