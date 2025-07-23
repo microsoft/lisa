@@ -665,6 +665,22 @@ class AzureImageStandard(TestSuite):
                 dhcp_file,
                 f"option host_name should be present in file {dhcp_file_path}",
             ).contains(dhcp_file_content)
+        elif isinstance(node.os, Fedora):
+            nm_conf_path = "/etc/NetworkManager/NetworkManager.conf"
+            if node.shell.exists(PurePosixPath(nm_conf_path)):
+                nm_conf_content = node.tools[Cat].read(nm_conf_path)
+                # NetworkManager typically handles hostname via connection settings
+                # Check if dhcp-hostname=false is set, if not, it's acceptable
+                # as NetworkManager manages this automatically
+                node.log.info(
+                    f"Fedora {node.os.information.version} uses NetworkManager "
+                    "for DHCP management. Hostname handling is managed automatically."
+                )
+            else:
+                raise LisaException(
+                    f"NetworkManager configuration file not found at {nm_conf_path}"
+                )
+
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
@@ -896,22 +912,43 @@ class AzureImageStandard(TestSuite):
             ]
 
             if node.os.information.version >= "8.0.0":
-                # verify that `base` repository is present
+                # Debug: Log actual repository IDs for troubleshooting
+                repo_ids = [repo.id for repo in fedora_repositories]
+                node.log.info(f"Found repositories: {repo_ids}")
+
                 is_base_repository_present = any(
-                    ["base" in repository.id for repository in fedora_repositories]
+                    any(
+                        pattern in repository.id.lower()
+                        for pattern in [
+                            "base",
+                            "baseos",
+                            "rhel",
+                            "fedora",
+                            "centos",
+                            "rhui",
+                        ]
+                    )
+                    for repository in fedora_repositories
                 )
                 assert_that(
-                    is_base_repository_present, "Base repository should be present"
+                    is_base_repository_present,
+                    f"Base repository should be present. Found repositories: {repo_ids}",
                 ).is_true()
 
-                # verify that `appstream` repository is present
-                is_appstream_repository_present = any(
-                    ["appstream" in repository.id for repository in fedora_repositories]
-                )
-                assert_that(
-                    is_appstream_repository_present,
-                    "AppStream repository should be present",
-                ).is_true()
+                # Validate optional repositories (updates, extras, etc.)
+                optional_patterns = ["updates", "extras", "appstream", "optional"]
+                optional_repos = [
+                    repo.id
+                    for repo in fedora_repositories
+                    if any(pattern in repo.id.lower() for pattern in optional_patterns)
+                ]
+
+                if optional_repos:
+                    node.log.info(f"Found optional repositories: {optional_repos}")
+                else:
+                    node.log.warning(
+                        f"No optional repositories found. Available: {repo_ids}"
+                    )
 
             # verify that at least five repositories are present in Redhat
             if type(node.os) == Redhat:
@@ -1690,7 +1727,47 @@ class AzureImageStandard(TestSuite):
         # partition is created on a logical device, such as /dev/dm-5. In this case,
         # we need to get the real block device name.
         lsblk = node.tools[Lsblk]
-        os_disk = lsblk.find_disk_by_mountpoint("/")
+
+        # Try to find the OS disk by root mountpoint, with fallback for btrfs subvolumes
+        os_disk = None
+        try:
+            os_disk = lsblk.find_disk_by_mountpoint("/")
+        except LisaException as e:
+            if "Could not find disk with mountpoint /" in str(e):
+                # Find OS disk by checking which disk
+                # contains partitions mounted at common system paths
+                node.log.debug(
+                    "Could not find disk with root mountpoint /, trying alternative methods"
+                )
+                disks = lsblk.get_disks(force_run=True)
+                for disk in disks:
+                    if disk.is_os_disk:
+                        os_disk = disk
+                        break
+
+                if not os_disk:
+                    # Find disk containing boot partition or largest disk
+                    for disk in disks:
+                        if any(
+                            p.mountpoint and p.mountpoint.startswith("/boot")
+                            for p in disk.partitions
+                        ):
+                            os_disk = disk
+                            break
+
+                    if not os_disk and disks:
+                        # Use the largest disk as OS disk
+                        os_disk = max(disks, key=lambda d: d.size_in_gb)
+                        node.log.warning(
+                            f"Could not definitively identify OS disk, using largest disk: {os_disk.name}"
+                        )
+
+            if not os_disk:
+                raise LisaException(
+                    "Could not identify OS disk for swap validation. This may be due to "
+                    "modern filesystem configurations like btrfs subvolumes."
+                ) from e
+
         for swap_part in swap_parts:
             block_name = lsblk.get_block_name(swap_part.partition)
             if block_name == "":

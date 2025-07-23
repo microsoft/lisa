@@ -4,7 +4,7 @@ from retry import retry
 
 from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Redhat, Suse
+from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Fedora, Redhat, Suse
 from lisa.util import (
     LisaException,
     ReleaseEndOfLifeException,
@@ -144,6 +144,9 @@ class Docker(Tool):
                 )
         elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
+        elif isinstance(self.node.os, Fedora):
+            # Fedora supports Docker directly from their repositories
+            self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, Suse):
             self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, BSD):
