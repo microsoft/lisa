@@ -329,17 +329,27 @@ class StressNgTestSuite(TestSuite):
         if not isinstance(parsed_yaml, dict):
             return str(parsed_yaml) if parsed_yaml else "YAML file is empty or invalid"
 
-        # Only extract 'system-info' and 'times' if present
         output_lines = []
-        for key in ("system-info", "times"):
+        # Extract system-info, times, and metrics sections if present
+        for key in ("metrics", "system-info", "times"):
             if key in parsed_yaml:
-                output_lines.append(f"{key}:")
-                value = parsed_yaml[key]
-                if isinstance(value, dict):
-                    for sub_k, sub_v in value.items():
-                        output_lines.append(f"  {sub_k}: {sub_v}")
+                if key == "metrics":
+                    # Calculate total bogo-ops from metrics section
+                    total_bogo_ops = 0
+                    if isinstance(parsed_yaml[key], list):
+                        for stressor in parsed_yaml[key]:
+                            if isinstance(stressor, dict) and "bogo-ops" in stressor:
+                                total_bogo_ops += float(stressor["bogo-ops"])
+                    output_lines.append(f"Total Bogo-Ops: {total_bogo_ops:.2f}")
                 else:
-                    output_lines.append(f"  {value}")
+                    # Handle system-info and times sections as before
+                    output_lines.append(f"{key}:")
+                    value = parsed_yaml[key]
+                    if isinstance(value, dict):
+                        for sub_k, sub_v in value.items():
+                            output_lines.append(f"  {sub_k}: {sub_v}")
+                    else:
+                        output_lines.append(f"  {value}")
         if not output_lines:
-            return "No system-info or times in YAML"
+            return "No useful information found in YAML"
         return "\n".join(output_lines)
