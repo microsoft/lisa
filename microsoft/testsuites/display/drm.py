@@ -155,7 +155,7 @@ class Drm(TestSuite):
                     grub_content,
                     GRUB_CMDLINE_LINUX_DEFAULT_PATTERN,
                     first_match=False,
-                ).replace("/", r"\/")
+                )
 
                 sed = node.tools[Sed]
 
