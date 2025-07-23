@@ -145,15 +145,28 @@ class StressNgTestSuite(TestSuite):
 
         execution_status = TestStatus.QUEUED
         execution_summary = ""
+        # Performance metrics storage
+        perf_data = {}
 
         try:
+            # Capture system metrics before and after test
+            log.info("Collecting system metrics before test...")
+            before_metrics = self._collect_basic_metrics(log, "Before Test")
+            
             self._deploy_and_launch_stress_jobs(
                 nodes, job_file, job_file_name, stress_processes, log
             )
 
-            execution_status, execution_summary = self._monitor_stress_execution(
+            execution_status, stress_summary = self._monitor_stress_execution(
                 stress_processes, nodes, log, job_file_name
             )
+            
+            # Capture system metrics after test
+            log.info("Collecting system metrics after test...")
+            after_metrics = self._collect_basic_metrics(log, "After Test")
+            
+            # Combine all outputs
+            execution_summary = stress_summary + "\n\n" + "## Local Linux Host Performance Metrics ##\n\n" + before_metrics + "\n\n" + after_metrics
 
         except Exception as execution_error:
             execution_status = TestStatus.FAILED
@@ -295,6 +308,80 @@ class StressNgTestSuite(TestSuite):
     def _check_panic(self, nodes: List[RemoteNode]) -> None:
         for node in nodes:
             node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+            
+    def _collect_basic_metrics(self, log: Logger, label: str = "Current") -> str:
+        """
+        Collect metrics from the local Linux host machine and return formatted report.
+        Returns a formatted string with system metrics.
+        """
+        import subprocess
+        import platform
+        from datetime import datetime
+        
+        try:
+            # Function to safely execute a command and capture output
+            def run_command(command):
+                try:
+                    result = subprocess.run(
+                        command, 
+                        shell=True, 
+                        capture_output=True, 
+                        text=True,
+                        timeout=10
+                    )
+                    return result.stdout.strip() if result.returncode == 0 else f"Error ({result.returncode})"
+                except Exception as e:
+                    return f"Error: {str(e)}"
+            
+            # Collect all metrics
+            hostname = platform.node()
+            timestamp = str(datetime.now())
+            kernel = run_command("uname -r")
+            distro = run_command("cat /etc/os-release | grep PRETTY_NAME | cut -d'\"' -f2")
+            cpu_count = run_command("nproc --all")
+            cpu_model = run_command("cat /proc/cpuinfo | grep 'model name' | head -1 | cut -d':' -f2").strip()
+            load_average = run_command("cat /proc/loadavg")
+            cpu_utilization = run_command("top -bn1 | grep '%Cpu(s)' | awk '{print \"User: \"$2\"%, System: \"$4\"%, Idle: \"$8\"%\"}'")
+            memory_info = run_command("free -m")
+            memory_percent = run_command("free | grep Mem | awk '{print $3/$2 * 100.0}'")
+            disk_usage = run_command("df -h /")
+            process_count = run_command("ps -e | wc -l")
+            top_cpu_processes = run_command("ps -eo pid,ppid,cmd,%cpu,%mem --sort=-%cpu | head -6")
+            network_interfaces = run_command("ip -o addr show | grep -v 'link/ether' | grep -v 'link/loopback' | awk '{print $2, $4}'")
+            
+            # Format memory percentage
+            try:
+                memory_percent = f"{float(memory_percent):.2f}%"
+            except (ValueError, TypeError):
+                pass
+            
+            # Build formatted report
+            output_lines = [f"### {label} System Metrics ###"]
+            output_lines.append(f"Hostname: {hostname}")
+            output_lines.append(f"Timestamp: {timestamp}")
+            output_lines.append(f"Distribution: {distro}")
+            output_lines.append(f"Kernel: {kernel}")
+            output_lines.append(f"CPU Count: {cpu_count}")
+            output_lines.append(f"CPU Model: {cpu_model}")
+            
+            # Load average
+            load_parts = load_average.split()
+            if len(load_parts) >= 3:
+                output_lines.append(f"Load Average (1,5,15 min): {load_parts[0]} {load_parts[1]} {load_parts[2]}")
+            
+            output_lines.append(f"CPU Utilization: {cpu_utilization}")
+            output_lines.append(f"Memory Usage: {memory_percent}")
+            output_lines.append(f"Memory Info:\n{memory_info}")
+            output_lines.append(f"Disk Usage:\n{disk_usage}")
+            output_lines.append(f"Process Count: {process_count}")
+            output_lines.append(f"Top CPU Processes:\n{top_cpu_processes}")
+            output_lines.append(f"Network Interfaces:\n{network_interfaces}")
+            
+            return "\n".join(output_lines)
+                
+        except Exception as e:
+            log.debug(f"Error collecting local host metrics: {e}")
+            return f"### {label} System Metrics ###\nError collecting metrics: {str(e)}"
 
     def _process_yaml_output(
         self,
@@ -331,32 +418,26 @@ class StressNgTestSuite(TestSuite):
 
         output_lines = []
         
-        # Calculate total bogo-ops across all stressors
-        total_bogo_ops = 0
-        
-        # Look for stressor entries and collect bogo-ops
-        for key, value in parsed_yaml.items():
-            if isinstance(value, dict) and 'bogo-ops' in value:
-                try:
-                    bogo_ops = float(value.get('bogo-ops', 0))
-                    total_bogo_ops += bogo_ops
-                except (ValueError, TypeError) as e:
-                    # Handle potential parsing errors gracefully
-                    log.debug(f"Could not parse bogo-ops for {key}: {e}")
-                    
-        # Prepare concise output focused on bogo-ops
-        output_lines.append(f"Total Bogo-Ops: {total_bogo_ops:.2f}")
-            
-        # Extract system-info and times sections if present
-        for key in ("system-info", "times"):
+        # Extract system-info, times, and metrics sections if present
+        for key in ("metrics", "system-info", "times"):
             if key in parsed_yaml:
-                output_lines.append(f"{key}:")
-                value = parsed_yaml[key]
-                if isinstance(value, dict):
-                    for sub_k, sub_v in value.items():
-                        output_lines.append(f"  {sub_k}: {sub_v}")
+                if key == "metrics":
+                    # Calculate total bogo-ops from metrics section
+                    total_bogo_ops = 0
+                    if isinstance(parsed_yaml[key], list):
+                        for stressor in parsed_yaml[key]:
+                            if isinstance(stressor, dict) and 'bogo-ops' in stressor:
+                                total_bogo_ops += float(stressor['bogo-ops'])
+                    output_lines.append(f"Total Bogo-Ops: {total_bogo_ops:.2f}")
                 else:
-                    output_lines.append(f"  {value}")
+                    # Handle system-info and times sections as before
+                    output_lines.append(f"{key}:")
+                    value = parsed_yaml[key]
+                    if isinstance(value, dict):
+                        for sub_k, sub_v in value.items():
+                            output_lines.append(f"  {sub_k}: {sub_v}")
+                    else:
+                        output_lines.append(f"  {value}")
         
         if not output_lines:
             return "No useful information found in YAML"
