@@ -304,7 +304,7 @@ class StressNgTestSuite(TestSuite):
     ) -> str:
         """
         Process YAML output file if it exists and return a concise summary string.
-        Only extracts 'system-info' and 'times' sections if present.
+        Extracts 'system-info', 'times' sections, and calculates total bogo-ops.
         """
         logging.getLogger("YamlManager").setLevel(logging.WARNING)
 
@@ -329,8 +329,25 @@ class StressNgTestSuite(TestSuite):
         if not isinstance(parsed_yaml, dict):
             return str(parsed_yaml) if parsed_yaml else "YAML file is empty or invalid"
 
-        # Only extract 'system-info' and 'times' if present
         output_lines = []
+        
+        # Calculate total bogo-ops across all stressors
+        total_bogo_ops = 0
+        
+        # Look for stressor entries and collect bogo-ops
+        for key, value in parsed_yaml.items():
+            if isinstance(value, dict) and 'bogo-ops' in value:
+                try:
+                    bogo_ops = float(value.get('bogo-ops', 0))
+                    total_bogo_ops += bogo_ops
+                except (ValueError, TypeError) as e:
+                    # Handle potential parsing errors gracefully
+                    log.debug(f"Could not parse bogo-ops for {key}: {e}")
+                    
+        # Prepare concise output focused on bogo-ops
+        output_lines.append(f"Total Bogo-Ops: {total_bogo_ops:.2f}")
+            
+        # Extract system-info and times sections if present
         for key in ("system-info", "times"):
             if key in parsed_yaml:
                 output_lines.append(f"{key}:")
@@ -340,6 +357,8 @@ class StressNgTestSuite(TestSuite):
                         output_lines.append(f"  {sub_k}: {sub_v}")
                 else:
                     output_lines.append(f"  {value}")
+        
         if not output_lines:
-            return "No system-info or times in YAML"
+            return "No useful information found in YAML"
+            
         return "\n".join(output_lines)
