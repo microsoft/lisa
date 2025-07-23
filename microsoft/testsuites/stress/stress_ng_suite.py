@@ -167,6 +167,7 @@ class StressNgTestSuite(TestSuite):
             
             # Combine all outputs
             execution_summary = stress_summary + "\n\n" + "## Local Linux Host Performance Metrics ##\n\n" + before_metrics + "\n\n" + after_metrics
+            log.info(f"Final log: {execution_summary}.")
 
         except Exception as execution_error:
             execution_status = TestStatus.FAILED
