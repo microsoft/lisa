@@ -122,7 +122,7 @@ class Msr(TestSuite):
     )
     def verify_hyperv_platform_id(self, node: RemoteNode) -> None:
         distro = node.os
-        if isinstance(distro, Redhat) and not isinstance(distro, Fedora):
+        if isinstance(distro, Redhat):
             # Install EPEL only for RHEL/CentOS, not Fedora
             # Fedora already has comprehensive package repositories
             distro.install_epel()

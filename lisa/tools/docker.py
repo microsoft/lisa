@@ -144,10 +144,7 @@ class Docker(Tool):
                 )
         elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
-        elif isinstance(self.node.os, Fedora):
-            # Fedora supports Docker directly from their repositories
-            self.node.os.install_packages(["docker"])
-        elif isinstance(self.node.os, Suse):
+        elif isinstance(self.node.os, Suse) or isinstance(self.node.os, Fedora):
             self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, BSD):
             raise UnsupportedDistroException(

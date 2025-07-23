@@ -665,22 +665,6 @@ class AzureImageStandard(TestSuite):
                 dhcp_file,
                 f"option host_name should be present in file {dhcp_file_path}",
             ).contains(dhcp_file_content)
-        elif isinstance(node.os, Fedora):
-            nm_conf_path = "/etc/NetworkManager/NetworkManager.conf"
-            if node.shell.exists(PurePosixPath(nm_conf_path)):
-                nm_conf_content = node.tools[Cat].read(nm_conf_path)
-                # NetworkManager typically handles hostname via connection settings
-                # Check if dhcp-hostname=false is set, if not, it's acceptable
-                # as NetworkManager manages this automatically
-                node.log.info(
-                    f"Fedora {node.os.information.version} uses NetworkManager "
-                    "for DHCP management. Hostname handling is managed automatically."
-                )
-            else:
-                raise LisaException(
-                    f"NetworkManager configuration file not found at {nm_conf_path}"
-                )
-
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
@@ -1727,46 +1711,7 @@ class AzureImageStandard(TestSuite):
         # partition is created on a logical device, such as /dev/dm-5. In this case,
         # we need to get the real block device name.
         lsblk = node.tools[Lsblk]
-
-        # Try to find the OS disk by root mountpoint, with fallback for btrfs subvolumes
-        os_disk = None
-        try:
-            os_disk = lsblk.find_disk_by_mountpoint("/")
-        except LisaException as e:
-            if "Could not find disk with mountpoint /" in str(e):
-                # Find OS disk by checking which disk
-                # contains partitions mounted at common system paths
-                node.log.debug(
-                    "Could not find disk with root mountpoint /, trying alternative methods"
-                )
-                disks = lsblk.get_disks(force_run=True)
-                for disk in disks:
-                    if disk.is_os_disk:
-                        os_disk = disk
-                        break
-
-                if not os_disk:
-                    # Find disk containing boot partition or largest disk
-                    for disk in disks:
-                        if any(
-                            p.mountpoint and p.mountpoint.startswith("/boot")
-                            for p in disk.partitions
-                        ):
-                            os_disk = disk
-                            break
-
-                    if not os_disk and disks:
-                        # Use the largest disk as OS disk
-                        os_disk = max(disks, key=lambda d: d.size_in_gb)
-                        node.log.warning(
-                            f"Could not definitively identify OS disk, using largest disk: {os_disk.name}"
-                        )
-
-            if not os_disk:
-                raise LisaException(
-                    "Could not identify OS disk for swap validation. This may be due to "
-                    "modern filesystem configurations like btrfs subvolumes."
-                ) from e
+        os_disk = self._find_os_disk_with_fallbacks(node, lsblk)
 
         for swap_part in swap_parts:
             block_name = lsblk.get_block_name(swap_part.partition)
@@ -1916,3 +1861,54 @@ class AzureImageStandard(TestSuite):
             ):
                 not_enabled_modules.append(module)
         return not_enabled_modules
+
+    def _find_os_disk_with_fallbacks(self, node: Node, lsblk):
+        """
+        Helper method to find OS disk with multiple fallback strategies.
+        Returns the identified OS disk or raises an exception if not found.
+        """
+        try:
+            # First try: Find disk by root mountpoint
+            os_disk = lsblk.find_disk_by_mountpoint("/")
+            if os_disk:
+                return os_disk
+        except LisaException as e:
+            node.log.debug(f"Could not find disk with root mountpoint /: {str(e)}")
+        try:
+            # Get all disks for fallback strategies
+            disks = lsblk.get_disks(force_run=True)
+            # Second try: Find disk marked as OS disk
+            for disk in disks:
+                if hasattr(disk, "is_os_disk") and disk.is_os_disk:
+                    node.log.debug(
+                        f"Found OS disk by is_os_disk attribute: {disk.name}"
+                    )
+                    return disk
+
+            # Third try: Find disk containing boot partition
+            for disk in disks:
+                if any(
+                    p.mountpoint and p.mountpoint.startswith("/boot")
+                    for p in disk.partitions
+                ):
+                    node.log.debug(f"Found OS disk by boot partition: {disk.name}")
+                    return disk
+
+            # Use the largest disk as OS disk
+            if disks:
+                largest_disk = max(disks, key=lambda d: d.size_in_gb)
+                node.log.warning(
+                    f"Could not definitively identify OS disk, using largest disk: {largest_disk.name}"
+                )
+                return largest_disk
+
+        except Exception as e:
+            raise LisaException(
+                f"Failed to get disk information for OS disk identification: {str(e)}"
+            ) from e
+
+        # If we reach here, no OS disk could be identified
+        raise LisaException(
+            "Could not identify OS disk for swap validation. This may be due to "
+            "modern filesystem configurations like btrfs subvolumes or no disks found."
+        )
