@@ -119,6 +119,17 @@ class Dmesg(Tool):
                 return VersionInfo(int(major), int(minor))
         raise LisaException("No find matched vmbus version in dmesg")
 
+    def is_hyperv(self) -> bool:
+        """
+        Check if the system is running on Hyper-V by looking for
+        "Hypervisor detected: Microsoft Hyper-V" in the dmesg output.
+        """
+        result = self.run()
+        result.assert_exit_code(
+            message=f"exit code should be zero, but actually {result.exit_code}"
+        )
+        return "Hypervisor detected: Microsoft Hyper-V" in result.stdout
+
     def _run(
         self,
         force_run: bool = False,
