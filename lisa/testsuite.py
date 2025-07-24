@@ -566,6 +566,7 @@ class TestCaseMetadata:
         use_new_environment: bool = False,
         owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
+        tags: Optional[List[str]] = None,
     ) -> None:
         self.suite: TestSuiteMetadata
 
@@ -575,7 +576,8 @@ class TestCaseMetadata:
         self.use_new_environment = use_new_environment
         if requirement:
             self.requirement = requirement
-
+        if tags:
+            self.tags = tags
         self._owner = owner
 
     def __getattr__(self, key: str) -> Any:
