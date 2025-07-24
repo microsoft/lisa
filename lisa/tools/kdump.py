@@ -16,7 +16,6 @@ from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
 from lisa.tools import Find, Gcc
 from lisa.tools.df import Df
-from lisa.tools.dmesg import Dmesg
 from lisa.tools.echo import Echo
 from lisa.tools.free import Free
 from lisa.tools.lsblk import Lsblk
@@ -855,16 +854,6 @@ class KdumpCheck(Tool):
         # Check the kernel config for kdump supported
         kdump = self.node.tools[KdumpBase]
         kdump.check_required_kernel_config()
-
-        # Check the VMBus version for kdump supported
-        dmesg = self.node.tools[Dmesg]
-        vmbus_version = dmesg.get_vmbus_version()
-        if vmbus_version < "3.0.0":
-            raise SkippedException(
-                f"No negotiated VMBus version {vmbus_version}. "
-                "Kernel might be old or patches not included. "
-                "Full support for kdump is not present."
-            )
 
         # Below code aims to check the kernel config for "auto crashkernel" supported.
         # Redhat/Centos has this "auto crashkernel" feature. For version 7, it needs the

@@ -455,6 +455,8 @@ class TimeSync(TestSuite):
         ),
     )
     def verify_pmu_disabled_for_arm64(self, node: Node) -> None:
+        if not node.tools[Dmesg].is_hyperv():
+            raise SkippedException("This test case is only applicable for Hyper-V VMs.")
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         if arch != CpuArchitecture.ARM64:
