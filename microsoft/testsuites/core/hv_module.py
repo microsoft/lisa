@@ -128,7 +128,8 @@ class HvModule(TestSuite):
         ):
             missing_modules.remove("hv_netvsc")
             log.info(
-                "hv_netvsc excluded from initrd on Fedora 41+ - this is expected behavior"
+                "hv_netvsc excluded from initrd on Fedora 41+ - this is expected "
+                "behavior"
             )
 
         assert_that(missing_modules).described_as(

@@ -55,6 +55,7 @@ from lisa.tools import (
     Stat,
     Swap,
 )
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
     PassedException,
@@ -916,7 +917,8 @@ class AzureImageStandard(TestSuite):
                 )
                 assert_that(
                     is_base_repository_present,
-                    f"Base repository should be present. Found repositories: {repo_ids}",
+                    f"Base repository should be present. Found repositories: "
+                    f"{repo_ids}",
                 ).is_true()
 
                 # Validate optional repositories (updates, extras, etc.)
@@ -1862,7 +1864,7 @@ class AzureImageStandard(TestSuite):
                 not_enabled_modules.append(module)
         return not_enabled_modules
 
-    def _find_os_disk_with_fallbacks(self, node: Node, lsblk):
+    def _find_os_disk_with_fallbacks(self, node: Node, lsblk: Lsblk) -> DiskInfo:
         """
         Helper method to find OS disk with multiple fallback strategies.
         Returns the identified OS disk or raises an exception if not found.
@@ -1898,7 +1900,8 @@ class AzureImageStandard(TestSuite):
             if disks:
                 largest_disk = max(disks, key=lambda d: d.size_in_gb)
                 node.log.warning(
-                    f"Could not definitively identify OS disk, using largest disk: {largest_disk.name}"
+                    f"Could not definitively identify OS disk, using largest disk: "
+                    f"{largest_disk.name}"
                 )
                 return largest_disk
 
