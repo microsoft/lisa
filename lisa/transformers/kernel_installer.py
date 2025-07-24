@@ -161,13 +161,18 @@ class KernelInstallerTransformer(DeploymentTransformer):
             # the installed kernel version is lower than current kernel version.
             from lisa.transformers.dom0_kernel_installer import Dom0Installer
             from lisa.transformers.kernel_source_installer import SourceInstaller
+            from lisa.transformers.rpm_kernel_installer import RPMInstaller
 
             if (
-                isinstance(installer, RepoInstaller)
-                and "fde" not in installer.runbook.source
-            ) or (
-                isinstance(installer, SourceInstaller)
-                and not isinstance(installer, Dom0Installer)
+                (
+                    isinstance(installer, RepoInstaller)
+                    and "fde" not in installer.runbook.source
+                )
+                or (
+                    isinstance(installer, SourceInstaller)
+                    and not isinstance(installer, Dom0Installer)
+                )
+                or isinstance(installer, RPMInstaller)
             ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
