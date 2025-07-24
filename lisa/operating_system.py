@@ -2107,7 +2107,7 @@ class CBLMariner(RPMDistro):
         # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
         extracted_version = kernel_version
         rpm_version_pattern = re.compile(
-            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.x86_64$"
+            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.(x86_64|aarch64)$"
         )
         match_result = find_group_in_lines(
             kernel_version, rpm_version_pattern, single_line=True
@@ -2139,7 +2139,7 @@ class CBLMariner(RPMDistro):
             expected_exit_code_failure_message="Failed to read GRUB configuration",
         )
         menu_entry_pattern = re.compile(
-            rf"menuentry '(?P<entry>[^']*{re.escape(extracted_version)}[^']*)'",
+            rf"menuentry '(?P<entry>[^']*{re.escape(extracted_version)}\s*)'",
             re.IGNORECASE,
         )
         match_result = find_group_in_lines(
