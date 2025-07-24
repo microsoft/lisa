@@ -883,7 +883,7 @@ class KdumpCheck(Tool):
         disk = self.node.features[Disk]
         resource_disks = disk.get_resource_disks()
         assert_that(len(resource_disks)).described_as(
-            "No resource disk found, cannot get dump path for large memory VMs"
+            "No resource disk found, not possible testing kdump for large memory VMs"
         ).is_not_zero()
         if schema.ResourceDiskType.SCSI == disk.get_resource_disk_type():
             mount_point = disk.get_resource_disk_mount_point()
