@@ -101,7 +101,7 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         if runbook.type:
             self._credential_type = runbook.type
         else:
-            self._credential_type = AzureCredentialType.DefaultAzureCredential
+            self._credential_type = AzureCredentialType.DefaultAzureCredential  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
 
         self._log.debug(f"Credential type: {self._credential_type}")
         self._cloud = cloud
