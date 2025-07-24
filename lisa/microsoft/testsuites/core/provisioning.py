@@ -8,6 +8,7 @@ from assertpy import assert_that
 
 from lisa import (
     BadEnvironmentStateException,
+    Environment,
     Logger,
     PassedException,
     RemoteNode,
@@ -35,7 +36,8 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.features.security_profile import CvmDisabled
-from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci
+from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci, Dmesg
+from lisa.nic import Nics
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -74,8 +76,10 @@ class Provisioning(TestSuite):
             environment_status=EnvironmentStatus.Deployed,
         ),
     )
-    def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
-        self._smoke_test(log, node, log_path, "smoke_test")
+    def smoke_test(
+        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
+    ) -> None:
+        self._smoke_test(log, node, log_path, "smoke_test", environment)
 
     @TestCaseMetadata(
         description="""
@@ -89,10 +93,14 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_synthetic_nic(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
     ) -> None:
         self._smoke_test(
-            log, node, log_path, "verify_deployment_provision_synthetic_nic"
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_synthetic_nic",
+            environment,
         )
 
     @TestCaseMetadata(
@@ -107,10 +115,14 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_standard_ssd_disk(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
     ) -> None:
         self._smoke_test(
-            log, node, log_path, "verify_deployment_provision_standard_ssd_disk"
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_standard_ssd_disk",
+            environment,
         )
 
     @TestCaseMetadata(
@@ -126,10 +138,14 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
     ) -> None:
         self._smoke_test(
-            log, node, log_path, "verify_deployment_provision_ephemeral_managed_disk"
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_ephemeral_managed_disk",
+            environment,
         )
 
     @TestCaseMetadata(
@@ -389,6 +405,7 @@ class Provisioning(TestSuite):
         node: RemoteNode,
         log_path: Path,
         case_name: str,
+        environment: Environment,
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
@@ -449,6 +466,33 @@ class Provisioning(TestSuite):
                     )
             else:
                 node.reboot()
+            is_mana_driver_present = node.nics.is_mana_driver_enabled()
+            is_mana_device_present = node.nics.is_mana_device_present()
+            lower_nics = node.nics.get_lower_nics()
+
+            # Get marketplace image name for Azure platform
+            image_name = "unknown"
+            try:
+                from lisa.sut_orchestrator import AZURE
+                from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+                from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+
+                platform = environment.platform
+                if isinstance(platform, AzurePlatform):
+                    azure_node_runbook = node.capability.get_extended_runbook(
+                        AzureNodeSchema, AZURE
+                    )
+                    image_name = azure_node_runbook.get_image_name()
+            except Exception:
+                # If not Azure platform or any error, just use "unknown"
+                pass
+
+            log.info(
+                f"marketplace image: {image_name}, "
+                f"mana driver present: {is_mana_driver_present}, "
+                f"mana pci present: {is_mana_device_present}"
+                f", lower nics: {len(lower_nics)}"
+            )
             log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as e:
             if node.features.is_supported(SerialConsole):
