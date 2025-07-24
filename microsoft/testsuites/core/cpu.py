@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections import defaultdict
 
 from assertpy.assertpy import assert_that
 
@@ -28,6 +29,7 @@ hyperv_interrupt_substr = ["hyperv", "hypervsum", "Hypervisor", "Hyper-V"]
 
 EPYC_ROME_NUMA_NODE_SIZE = 4
 EPYC_MILAN_NUMA_NODE_SIZE = 8
+GB200_NUMA_NODE_SIZE = 72
 
 
 @TestSuiteMetadata(
@@ -115,6 +117,11 @@ class CPU(TestSuite):
                 # This is AMD EPYC Milan processor series
                 effective_numa_node_size = EPYC_MILAN_NUMA_NODE_SIZE * threads_per_core
                 self._verify_node_mapping(node, effective_numa_node_size)
+                return
+            elif "Neoverse-V2" in processor_name:
+                # This is Ampere Altra Neoverse V2 processor series
+                effective_numa_node_size = GB200_NUMA_NODE_SIZE * threads_per_core
+                self._verify_node_mapping(node, effective_numa_node_size, True)
                 return
 
         cpu_info = lscpu.get_cpu_info()
@@ -265,13 +272,27 @@ class CPU(TestSuite):
             time.sleep(1)
             process.kill()
 
-    def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
+    def _verify_node_mapping(
+        self, node: Node, numa_node_size: int, strict: bool = False
+    ) -> None:
         cpu_info = node.tools[Lscpu].get_cpu_info()
         cpu_info.sort(key=lambda cpu: cpu.cpu)
-        for i, cpu in enumerate(cpu_info):
-            numa_node_id = i // numa_node_size
-            assert_that(
-                cpu.l3_cache,
-                "L3 cache of each core must be mapped to the NUMA node "
-                "associated with the core.",
-            ).is_equal_to(numa_node_id)
+
+        if strict:
+            numa_l3_mapping = defaultdict(set)
+            for i, cpu in enumerate(cpu_info):
+                numa_node_id = i // numa_node_size
+                numa_l3_mapping[numa_node_id].add(cpu.l3_cache)
+
+            for numa_node_id, l3_caches in numa_l3_mapping.items():
+                assert_that(len(l3_caches)).described_as(
+                    f"NUMA node {numa_node_id} should map to exactly one L3 cache"
+                ).is_equal_to(1)
+        else:
+            for i, cpu in enumerate(cpu_info):
+                numa_node_id = i // numa_node_size
+                assert_that(
+                    cpu.l3_cache,
+                    "L3 cache of each core must be mapped to the "
+                    "NUMA node associated with the core.",
+                ).is_equal_to(numa_node_id)
