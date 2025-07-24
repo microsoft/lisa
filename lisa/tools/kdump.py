@@ -8,9 +8,11 @@ from pathlib import Path, PurePath, PurePosixPath
 from time import sleep
 from typing import TYPE_CHECKING, Any, List, Type, cast
 
+from assertpy import assert_that
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from semver import VersionInfo
 
+from lisa import schema
 from lisa.base_tools import Cat, Sed, Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
@@ -780,6 +782,7 @@ class KdumpCheck(Tool):
         if self._is_system_with_more_memory():
             # As system memory is more than free os disk size, need to
             # change the dump path and increase the timeout duration
+
             # kdump.config_resource_disk_dump_path(self._get_resource_disk_dump_path())
             kdump.config_resource_disk_dump_path('/var/crash')
             self.timeout_of_dump_crash = 1200
@@ -888,10 +891,20 @@ class KdumpCheck(Tool):
 
     def _get_resource_disk_dump_path(self) -> str:
         from lisa.features import Disk
-
-        mount_point = self.node.features[Disk].get_resource_disk_mount_point()
-        dump_path = mount_point + "/crash"
-        return dump_path
+        disk = self.node.features[Disk]
+        resource_disks = disk.get_resource_disks()
+        assert_that(len(resource_disks)).described_as(
+            "No resource disk found, cannot get dump path for large memory VMs"
+        ).is_not_zero()
+        if schema.ResourceDiskType.SCSI == disk.get_resource_disk_type():
+            mount_point = disk.get_resource_disk_mount_point()
+            dump_path = mount_point + "/crash"
+            return dump_path
+        else:
+            raise LisaException(
+                "The resource disk type is not SCSI. "
+                "Currently only SCSI resource disk is supported."
+            )
 
     def _is_system_with_more_memory(self) -> bool:
         free = self.node.tools[Free]
