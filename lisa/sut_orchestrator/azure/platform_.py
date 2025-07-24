@@ -1044,7 +1044,7 @@ class AzurePlatform(Platform):
 
                 cached_credential = get_static_access_token(
                     azure_runbook.azure_arm_access_token
-                ) or DefaultAzureCredential(
+                ) or DefaultAzureCredential(  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
                     authority=self.cloud.endpoints.active_directory,
                 )
 
