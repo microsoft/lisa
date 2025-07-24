@@ -147,6 +147,9 @@ class NvmeTestSuite(TestSuite):
     def verify_nvme_fstrim(self, node: Node) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         mount = node.tools[Mount]
         df = node.tools[Df]
 
@@ -229,6 +232,9 @@ class NvmeTestSuite(TestSuite):
             )
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         mount = node.tools[Mount]
         for namespace in nvme_namespaces:
             mount_point = namespace.rpartition("/")[-1]
@@ -281,6 +287,9 @@ class NvmeTestSuite(TestSuite):
     def verify_nvme_manage_ns(self, node: Node) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         nvme_devices = nvme.get_devices()
         nvme_cli = node.tools[Nvmecli]
         device_format_exit_code = 0
@@ -415,6 +424,9 @@ class NvmeTestSuite(TestSuite):
         # Verify the basic function of all NVMe disks
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         nvme_cli = node.tools[Nvmecli]
         cat = node.tools[Cat]
         mount = node.tools[Mount]
