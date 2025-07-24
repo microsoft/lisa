@@ -335,7 +335,7 @@ class StressNgTestSuite(TestSuite):
             if key in parsed_yaml:
                 if key == "metrics":
                     # Calculate total bogo-ops from metrics section
-                    total_bogo_ops = 0
+                    total_bogo_ops = 0.0
                     if isinstance(parsed_yaml[key], list):
                         for stressor in parsed_yaml[key]:
                             if isinstance(stressor, dict) and "bogo-ops" in stressor:
