@@ -779,7 +779,8 @@ class KdumpCheck(Tool):
         if self._is_system_with_more_memory():
             # As system memory is more than free os disk size, need to
             # change the dump path and increase the timeout duration
-            kdump.config_resource_disk_dump_path(self._get_resource_disk_dump_path())
+            # kdump.config_resource_disk_dump_path(self._get_resource_disk_dump_path())
+            kdump.config_resource_disk_dump_path('/var/crash')
             self.timeout_of_dump_crash = 1200
             if "T" in total_memory and float(total_memory.strip("T")) > 6:
                 self.timeout_of_dump_crash = 2000
