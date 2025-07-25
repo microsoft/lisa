@@ -138,6 +138,7 @@ class AzureDiskEncryption(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
+            min_memory_mb=MIN_REQUIRED_MEMORY_MB,
             supported_features=[CvmDisabled()],
         ),
     )
