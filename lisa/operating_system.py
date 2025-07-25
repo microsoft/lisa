@@ -2105,9 +2105,10 @@ class CBLMariner(RPMDistro):
         # Examples:
         # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
         # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
+        # kernel-6.6.89-9.azl3.aarch64 -> 6.6.89-9.azl3
         extracted_version = kernel_version
         rpm_version_pattern = re.compile(
-            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.x86_64$"
+            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.(x86_64|aarch64)$"
         )
         match_result = find_group_in_lines(
             kernel_version, rpm_version_pattern, single_line=True
@@ -2138,8 +2139,11 @@ class CBLMariner(RPMDistro):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to read GRUB configuration",
         )
+        # Examples of potential menu entries:
+        # For kernel-6.6.96-3.cm2.x86_64 => 6.6.96-3.cm2
+        # => menuentry 'AzureLinux GNU/Linux, with Linux 6.6.96-3.cm2'
         menu_entry_pattern = re.compile(
-            rf"menuentry '(?P<entry>[^']*{re.escape(extracted_version)}[^']*)'",
+            rf"menuentry '(?P<entry>[^']*{re.escape(extracted_version)}\s*)'",
             re.IGNORECASE,
         )
         match_result = find_group_in_lines(
