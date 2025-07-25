@@ -15,7 +15,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import BSD, Fedora, Redhat
+from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
