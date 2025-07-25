@@ -83,10 +83,6 @@ class ReadyPlatform(Platform):
         pass
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        # ready platform doesn't support delete environment
-        pass
-
-    def _post_deletion_operations(self, environment: Environment, log: Logger) -> None:
         if self._ready_runbook.reuse_dirty_env:
             log.debug(
                 f"Environment '{environment.name}' was marked as 'Deleted' "
