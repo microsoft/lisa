@@ -80,7 +80,7 @@ class HvModule(TestSuite):
             unsupported_os=[BSD],
         ),
     )
-    def verify_initrd_modules(self, log: Logger, environment: Environment) -> None:
+    def verify_initrd_modules(self, environment: Environment) -> None:
         node = environment.nodes[0]
         # 1) Takes all of the necessary modules and removes
         #    those that are statically loaded into the kernel
@@ -117,20 +117,6 @@ class HvModule(TestSuite):
             and "hid_hyperv" in missing_modules
         ):
             missing_modules.remove("hid_hyperv")
-
-        # Fedora 41+ optimizes initrd by excluding non-essential modules like hv_netvsc
-        # Network drivers can be loaded later during network service initialization
-        node = environment.nodes[0]
-        if (
-            isinstance(node.os, Fedora)
-            and node.os.information.version.major >= 41
-            and "hv_netvsc" in missing_modules
-        ):
-            missing_modules.remove("hv_netvsc")
-            log.info(
-                "hv_netvsc excluded from initrd on Fedora 41+ - this is expected "
-                "behavior"
-            )
 
         assert_that(missing_modules).described_as(
             "Required Hyper-V modules are missing from initrd."
