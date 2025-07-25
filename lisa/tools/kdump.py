@@ -858,14 +858,13 @@ class KdumpCheck(Tool):
 
         # Check the VMBus version for kdump supported
         dmesg = self.node.tools[Dmesg]
-        if dmesg.is_hyperv():
-            vmbus_version = dmesg.get_vmbus_version()
-            if vmbus_version < "3.0.0":
-                raise SkippedException(
-                    f"No negotiated VMBus version {vmbus_version}. "
-                    "Kernel might be old or patches not included. "
-                    "Full support for kdump is not present."
-                )
+        vmbus_version = dmesg.get_vmbus_version()
+        if vmbus_version < "3.0.0":
+            raise SkippedException(
+                f"No negotiated VMBus version {vmbus_version}. "
+                "Kernel might be old or patches not included. "
+                "Full support for kdump is not present."
+            )
 
         # Below code aims to check the kernel config for "auto crashkernel" supported.
         # Redhat/Centos has this "auto crashkernel" feature. For version 7, it needs the
