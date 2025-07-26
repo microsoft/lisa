@@ -614,7 +614,7 @@ For example,
       address: $(bisect_vm_address)
       private_key_file: $(admin_private_key_file)
 
-Refer `Sample runbook <https://github.com/microsoft/lisa/blob/main/examples/runbook/git_bisect.yml>`__
+Refer `Sample runbook <https://github.com/microsoft/lisa/blob/main/microsoft/runbook/examples/git_bisect.yml>`__
 
 notifier
 ~~~~~~~~
