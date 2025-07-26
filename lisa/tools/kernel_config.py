@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from enum import Enum
 from typing import Any, Optional, Type
 
 from assertpy.assertpy import assert_that
@@ -9,6 +10,12 @@ from lisa.executable import Tool
 from lisa.operating_system import CoreOs
 from lisa.tools import Cat, Uname
 from lisa.util import find_groups_in_lines
+
+
+class ModulesType(Enum):
+    BUILT_IN = "y"
+    MODULE = "m"
+    NOT_BUILT = "n"
 
 
 class KernelConfig(Tool):
@@ -28,6 +35,18 @@ class KernelConfig(Tool):
     @property
     def can_install(self) -> bool:
         return False
+
+    def is_kernel_config_set_to(
+        self, config_name: str, config_value: ModulesType
+    ) -> bool:
+        return (
+            self.node.execute(
+                f"grep ^{config_name}={config_value.value} {self.config_path}",
+                sudo=True,
+                shell=True,
+            ).exit_code
+            == 0
+        )
 
     def is_built_in(self, config_name: str) -> bool:
         return (
