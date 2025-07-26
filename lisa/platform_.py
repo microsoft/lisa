@@ -214,38 +214,31 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def delete_environment(self, environment: Environment) -> None:
         log = get_logger(f"del[{environment.name}]", parent=self._log)
 
-        try:
-            environment.cleanup()
-            if (self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS) or (
-                self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_FAILED
-                and environment.status == EnvironmentStatus.Bad
-            ):
-                log.info(
-                    f"skipped to delete environment {environment.name}, "
-                    "as on runbook, keep_environment value "
-                    f"is set to {self.runbook.keep_environment} "
-                    f"and env status is {environment.status}"
-                )
-
-                # output addresses for troubleshooting easier.
-                remote_addresses = [
-                    x.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
-                    for x in environment.nodes.list()
-                    if isinstance(x, RemoteNode) and hasattr(x, "_connection_info")
-                ]
-                # if the connection info is not found, there is no ip address to
-                # output.
-                if remote_addresses:
-                    log.info(f"node ip addresses: {remote_addresses}")
-            else:
-                log.debug("deleting")
-                self._delete_environment(environment, log)
-                log.info("deleted")
-
-        finally:
-            # mark environment is deleted.
-            # if there is any error on deleting, it should be ignored.
+        environment.cleanup()
+        if (self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS) or (
+            self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_FAILED
+            and environment.status == EnvironmentStatus.Bad
+        ):
+            log.info(
+                f"skipped to delete environment {environment.name}, "
+                "as on runbook, keep_environment value "
+                f"is set to {self.runbook.keep_environment} "
+                f"and env status is {environment.status}"
+            )
             environment.status = EnvironmentStatus.Deleted
+            # output addresses for troubleshooting easier.
+            remote_addresses = [
+                x.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+                for x in environment.nodes.list()
+                if isinstance(x, RemoteNode) and hasattr(x, "_connection_info")
+            ]
+            # if the connection info is not found, there is no ip address to
+            # output.
+            if remote_addresses:
+                log.info(f"node ip addresses: {remote_addresses}")
+        else:
+            environment.status = EnvironmentStatus.Deleted
+            self._delete_environment(environment, log)
 
     def cleanup(self) -> None:
         self._cleanup()
