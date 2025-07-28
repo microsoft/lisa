@@ -45,6 +45,7 @@ from lisa.tools import (
     Sysctl,
 )
 from lisa.tools.fio import IoEngine
+from lisa.tools.ip import Ip
 from lisa.tools.ntttcp import (
     NTTTCP_TCP_CONCURRENCY,
     NTTTCP_TCP_CONCURRENCY_BSD,
@@ -258,6 +259,7 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
+    variables: Optional[Dict[str, Any]] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
