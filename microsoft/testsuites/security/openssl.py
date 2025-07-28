@@ -102,7 +102,7 @@ class OpenSSLTestSuite(TestSuite):
         priority=2,
         timeout=3600,  # 1 hour
     )
-    def verify_openssl_speed_test(self, node: Node) -> None:
+    def verify_openssl_speed_test(self, log: Logger, node: Node) -> None:
         """This function runs OpenSSL speed test to measure the
         performance of cryptographic operations.
 
@@ -112,7 +112,15 @@ class OpenSSLTestSuite(TestSuite):
         speed measures complete in a reasonable time frame.
         """
 
-        node.tools[OpenSSL].speed(sec=1)
+        result = node.tools[OpenSSL].speed(sec=1)
+        
+        # Check for errors in the output - OpenSSL speed can return exit code 0
+        # even when some tests fail, so we need to check stdout for error indicators
+        if ":error:" in result.stdout:
+            log.error(f"OpenSSL speed test output contains errors: {result.stdout}")
+            assert_that(result.stdout).described_as(
+                "OpenSSL speed test failed - errors found in output"
+            ).does_not_contain(":error:")
 
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
