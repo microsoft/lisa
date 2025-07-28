@@ -5,6 +5,7 @@ import shlex
 from typing import TYPE_CHECKING, Optional, Tuple
 
 from lisa.executable import Tool
+from lisa.util import LisaException
 from lisa.util.process import ExecutableResult
 
 if TYPE_CHECKING:
@@ -134,12 +135,22 @@ class OpenSSL(Tool):
             cmd = f"{cmd} -seconds {sec}"
         # 1 hour timeout to complete all of the cryptographic operations
         # that OpenSSL speed measures.
-        return self.run(
+        result = self.run(
             cmd,
             timeout=3600,
             expected_exit_code=0,
             expected_exit_code_failure_message=("OpenSSL speed test failed."),
         )
+        
+        # Check for errors in the output - OpenSSL speed can return exit code 0
+        # even when some cryptographic operations fail, so we need to check 
+        # stdout for error indicators
+        if ":error:" in result.stdout:
+            raise LisaException(
+                f"OpenSSL speed test failed - errors found in output: {result.stdout}"
+            )
+        
+        return result
 
     def _run_with_piped_input(
         self,
