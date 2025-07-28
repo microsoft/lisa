@@ -8,6 +8,7 @@ from lisa.environment import Environment
 from lisa.util import InitializableMixin, subclasses
 from lisa.util.logger import Logger, get_logger
 
+from ..features import SecurityProfile
 from ..schema import ClientSchema, ClusterSchema
 
 
@@ -93,11 +94,6 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             items=[
                 schema.FeatureSettings.create(features.SerialConsole.name()),
                 schema.FeatureSettings.create(features.StartStop.name()),
-                features.SecurityProfileSettings(
-                    security_profile=search_space.SetSpace(
-                        True, [features.SecurityProfileType.Standard]
-                    ),
-                    encrypt_disk=search_space.SetSpace(True, [False]),
-                ),
+                SecurityProfile.create_setting(),
             ],
         )

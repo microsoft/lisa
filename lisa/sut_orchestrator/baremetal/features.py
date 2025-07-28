@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 
-from typing import TYPE_CHECKING, Any, Optional, Type
+from typing import TYPE_CHECKING, Any, Type
 
 from lisa import features, schema, search_space
 from lisa.feature import Feature
@@ -54,9 +54,7 @@ class SecurityProfile(features.SecurityProfile):
         return features.SecurityProfileSettings
 
     @classmethod
-    def create_setting(
-        cls, *args: Any, **kwargs: Any
-    ) -> Optional[schema.FeatureSettings]:
+    def create_setting(cls, *args: Any, **kwargs: Any) -> schema.FeatureSettings:
         # For baremetal, we only support Standard security profile
         return features.SecurityProfileSettings(
             security_profile=search_space.SetSpace(
