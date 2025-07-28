@@ -636,50 +636,6 @@ class StoragePerformance(TestSuite):
                 disk_type=DiskType.localnvme,
             )
             return
-        elif schema.ResourceDiskType.SCSI == resource_disk_type:
-            # If there is only one resource disk and its SCSI type,
-            # it will be mounted at /mnt
-            # unmount it before resetting partitions.
-            if disk_count == 1:
-                node.tools[Mount].umount(resource_disks[0], "/mnt", erase=True)
-                filename = resource_disks[0]
-            else:
-                partition_disks = reset_partitions(node, resource_disks)
-                filename = ":".join(partition_disks)
-            core_count = node.tools[Lscpu].get_core_count()
-
-            perf_disk(
-                node,
-                start_iodepth,
-                max_iodepth,
-                filename,
-                test_name=inspect.stack()[1][3],
-                core_count=core_count,
-                disk_count=disk_count,
-                disk_setup_type=disk_setup_type,
-                disk_type=DiskType.localssd,
-                numjob=core_count,
-                block_size=block_size,
-                size_mb=8192,
-                overwrite=True,
-                test_result=test_result,
-            )
-            if disk_count == 1:
-                # If there is only one resource disk, it will be mounted at /mnt
-                # mount it back after fio test. Simple 'mount -a' cannot do this.
-                # This is because the resource disk is not listed in /etc/fstab.
-                # So, we need to reboot the VM so that cloudinit does it.
-                start_stop = node.features[StartStop]
-                start_stop.restart()
-                timeout = 600
-                timer = create_timer()
-                # There is delay in mounting the resource disk after reboot.
-                # So, we need to wait for a while.
-                while timer.elapsed(False) < timeout:
-                    if disk.get_resource_disks():
-                        break
-                    sleep(2)
-
         else:
             raise SkippedException(
                 f"Resource disk type {resource_disk_type} not supported for "
