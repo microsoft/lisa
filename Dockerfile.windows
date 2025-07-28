@@ -4,7 +4,7 @@ SHELL ["powershell", "-Command"]
 
 WORKDIR C:\\app\\
 
-ENV PYTHON_VERSION=3.11.6
+ENV PYTHON_VERSION=3.12.9
 
 RUN Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$Env:PYTHON_VERSION/python-$Env:PYTHON_VERSION-amd64.exe" -OutFile "C:\\python-installer.exe" -UseBasicParsing; \
     $gitRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers @{ 'User-Agent' = 'Docker Build' }; \
