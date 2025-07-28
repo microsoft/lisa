@@ -641,7 +641,9 @@ class StoragePerformance(TestSuite):
             # it will be mounted at /mnt
             # unmount it before resetting partitions.
             if disk_count == 1:
-                node.tools[Mount].umount(resource_disks[0], "/mnt", erase=True)
+                node.tools[Mount].umount(
+                    resource_disks[0], disk.get_resource_disk_mount_point(), erase=False
+                )
                 filename = resource_disks[0]
             else:
                 partition_disks = reset_partitions(node, resource_disks)
