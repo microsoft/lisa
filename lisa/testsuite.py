@@ -928,8 +928,8 @@ def _add_case_to_suite(
     test_case.suite = test_suite
     test_case.full_name = f"{test_suite.name}.{test_case.name}"
     # Append tags from test_suite if exists to test_case tags and remove duplicates
-    suite_tags = getattr(test_suite, "tags", None)
-    case_tags = getattr(test_case, "tags", None)
+    suite_tags = getattr(test_suite, "tags", []) or []
+    case_tags = getattr(test_case, "tags", []) or []
     test_case.tags = list(dict.fromkeys(case_tags + suite_tags))
     test_suite.cases.append(test_case)
 
