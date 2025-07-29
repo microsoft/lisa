@@ -1661,7 +1661,9 @@ class AzurePlatform(Platform):
                     resource_group_name, environment, log, False
                 )
                 raise LisaException(
-                    f"Deployment timeout: Azure did not respond in {self._azure_runbook.provisioning_timeout // 60} minutes (usual response is 50 minutes)."
+                    f"Deployment timeout: Azure did not respond in "
+                    f"{self._azure_runbook.provisioning_timeout // 60} minutes "
+                    f"(usual response is 50 minutes)."
                 )
         except HttpResponseError as e:
             # Some errors happens underlying, so there is no detail errors from API.
