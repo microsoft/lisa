@@ -1647,7 +1647,7 @@ class AzurePlatform(Platform):
             while timer.elapsed(False) < self._azure_runbook.provisioning_timeout:
                 try:
                     wait_operation(
-                        deployment_operation, time_out=600, failure_identity="deploy"
+                        deployment_operation, time_out=300, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
                     # Capture logs and continue retrying
