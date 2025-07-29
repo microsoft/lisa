@@ -566,6 +566,7 @@ class TestCaseMetadata:
         use_new_environment: bool = False,
         owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
+        tags: Optional[List[str]] = None,
     ) -> None:
         self.suite: TestSuiteMetadata
 
@@ -575,7 +576,8 @@ class TestCaseMetadata:
         self.use_new_environment = use_new_environment
         if requirement:
             self.requirement = requirement
-
+        if tags:
+            self.tags = tags
         self._owner = owner
 
     def __getattr__(self, key: str) -> Any:
@@ -925,6 +927,10 @@ def _add_case_to_suite(
 ) -> None:
     test_case.suite = test_suite
     test_case.full_name = f"{test_suite.name}.{test_case.name}"
+    # Append tags from test_suite if exists to test_case tags and remove duplicates
+    suite_tags = getattr(test_suite, "tags", []) or []
+    case_tags = getattr(test_case, "tags", []) or []
+    test_case.tags = list(dict.fromkeys(case_tags + suite_tags))
     test_suite.cases.append(test_case)
 
 
