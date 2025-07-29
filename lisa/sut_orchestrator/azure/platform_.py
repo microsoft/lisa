@@ -1643,13 +1643,15 @@ class AzurePlatform(Platform):
             while True:
                 try:
                     wait_operation(
-                        deployment_operation, time_out=300, failure_identity="deploy"
+                        deployment_operation, time_out=3600, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
                     self._save_console_log_and_check_panic(
                         resource_group_name, environment, log, False
                     )
-                    continue
+                    raise LisaException(
+                        "Deployment timeout: Azure did not respond in 60 minutes (usual response is 50 minutes)."
+                    )
                 break
         except HttpResponseError as e:
             # Some errors happens underlying, so there is no detail errors from API.
