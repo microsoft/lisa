@@ -8,6 +8,7 @@ import math
 import os
 import re
 import sys
+import time
 from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
@@ -1640,18 +1641,26 @@ class AzurePlatform(Platform):
             deployment_operation = deployments.begin_create_or_update(
                 **deployment_parameters
             )
+            start_time = time.time()
             while True:
                 try:
                     wait_operation(
-                        deployment_operation, time_out=3600, failure_identity="deploy"
+                        deployment_operation, time_out=600, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
+                    # Check if we've exceeded the 60-minute overall timeout
+                    if time.time() - start_time > 3600:  # 60 minutes
+                        self._save_console_log_and_check_panic(
+                            resource_group_name, environment, log, False
+                        )
+                        raise LisaException(
+                            "Deployment timeout: Azure did not respond in 60 minutes (usual response is 50 minutes)."
+                        )
+                    # Otherwise, capture logs and continue retrying
                     self._save_console_log_and_check_panic(
                         resource_group_name, environment, log, False
                     )
-                    raise LisaException(
-                        "Deployment timeout: Azure did not respond in 60 minutes (usual response is 50 minutes)."
-                    )
+                    continue
                 break
         except HttpResponseError as e:
             # Some errors happens underlying, so there is no detail errors from API.
