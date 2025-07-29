@@ -1642,26 +1642,26 @@ class AzurePlatform(Platform):
                 **deployment_parameters
             )
             timer = create_timer()
-            while True:
+            while timer.elapsed(False) < 3600:  # 60 minutes
                 try:
                     wait_operation(
                         deployment_operation, time_out=600, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
-                    # Check if we've exceeded the 60-minute overall timeout
-                    if timer.elapsed(False) > 3600:  # 60 minutes
-                        self._save_console_log_and_check_panic(
-                            resource_group_name, environment, log, False
-                        )
-                        raise LisaException(
-                            "Deployment timeout: Azure did not respond in 60 minutes (usual response is 50 minutes)."
-                        )
-                    # Otherwise, capture logs and continue retrying
+                    # Capture logs and continue retrying
                     self._save_console_log_and_check_panic(
                         resource_group_name, environment, log, False
                     )
                     continue
                 break
+            # Check if we exited the loop due to timeout
+            if timer.elapsed(False) >= 3600:
+                self._save_console_log_and_check_panic(
+                    resource_group_name, environment, log, False
+                )
+                raise LisaException(
+                    "Deployment timeout: Azure did not respond in 60 minutes (usual response is 50 minutes)."
+                )
         except HttpResponseError as e:
             # Some errors happens underlying, so there is no detail errors from API.
             # For example,
