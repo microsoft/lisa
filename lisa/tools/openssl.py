@@ -177,10 +177,10 @@ class OpenSSL(Tool):
             or returns unexpected exit code
         """
         sanitized_input = shlex.quote(piped_input_cmd)
-        cmd = f"printf '%s' {sanitized_input} | {self.command} {openssl_cmd}"
+        full_cmd = f"printf %s {sanitized_input} | {self.command} {openssl_cmd}"
+        cmd = f"bash -c {shlex.quote(full_cmd)}"
         result = self.node.execute(
             cmd,
-            shell=True,
             expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message=expected_exit_code_failure_message,
         )
