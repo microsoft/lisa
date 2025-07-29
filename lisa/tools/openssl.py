@@ -141,15 +141,15 @@ class OpenSSL(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=("OpenSSL speed test failed."),
         )
-        
+
         # Check for errors in the output - OpenSSL speed can return exit code 0
-        # even when some cryptographic operations fail, so we need to check 
+        # even when some cryptographic operations fail, so we need to check
         # stdout for error indicators
         if ":error:" in result.stdout:
             raise LisaException(
                 f"OpenSSL speed test failed - errors found in output: {result.stdout}"
             )
-        
+
         return result
 
     def _run_with_piped_input(
