@@ -341,6 +341,8 @@ class AzurePlatformSchema:
     wait_delete: bool = False
     # the AzCopy path can be specified if use this tool to copy blob
     azcopy_path: str = field(default="")
+    # timeout for deployment operations in seconds (default: 60 minutes)
+    provisioning_timeout: int = field(default=3600)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
@@ -1642,7 +1644,7 @@ class AzurePlatform(Platform):
                 **deployment_parameters
             )
             timer = create_timer()
-            while timer.elapsed(False) < 3600:  # 60 minutes
+            while timer.elapsed(False) < self._azure_runbook.provisioning_timeout:
                 try:
                     wait_operation(
                         deployment_operation, time_out=600, failure_identity="deploy"
@@ -1655,12 +1657,12 @@ class AzurePlatform(Platform):
                     continue
                 break
             # Check if we exited the loop due to timeout
-            if timer.elapsed(False) >= 3600:
+            if timer.elapsed(False) >= self._azure_runbook.provisioning_timeout:
                 self._save_console_log_and_check_panic(
                     resource_group_name, environment, log, False
                 )
                 raise LisaException(
-                    "Deployment timeout: Azure did not respond in 60 minutes (usual response is 50 minutes)."
+                    f"Deployment timeout: Azure did not respond in {self._azure_runbook.provisioning_timeout // 60} minutes (usual response is 50 minutes)."
                 )
         except HttpResponseError as e:
             # Some errors happens underlying, so there is no detail errors from API.
