@@ -1641,7 +1641,7 @@ class AzurePlatform(Platform):
             deployment_operation = deployments.begin_create_or_update(
                 **deployment_parameters
             )
-            start_time = time.time()
+            timer = create_timer()
             while True:
                 try:
                     wait_operation(
@@ -1649,7 +1649,7 @@ class AzurePlatform(Platform):
                     )
                 except LisaTimeoutException:
                     # Check if we've exceeded the 60-minute overall timeout
-                    if time.time() - start_time > 3600:  # 60 minutes
+                    if timer.elapsed(False) > 3600:  # 60 minutes
                         self._save_console_log_and_check_panic(
                             resource_group_name, environment, log, False
                         )
