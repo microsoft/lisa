@@ -3,6 +3,7 @@
 
 from pathlib import Path
 from statistics import mean, median
+from typing import Optional
 
 from assertpy import assert_that
 
@@ -15,6 +16,7 @@ from lisa import (
     SkippedException,
     TcpConnectionException,
     TestCaseMetadata,
+    TestResult,
     TestSuite,
     TestSuiteMetadata,
     create_timer,
@@ -78,9 +80,14 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(
-        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
-        self._smoke_test(log, node, log_path, "smoke_test", environment)
+        self._smoke_test(log, node, log_path, "smoke_test", environment, result)
 
     @TestCaseMetadata(
         description="""
@@ -95,7 +102,12 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_synthetic_nic(
-        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
             log,
@@ -103,6 +115,7 @@ class Provisioning(TestSuite):
             log_path,
             "verify_deployment_provision_synthetic_nic",
             environment,
+            result,
         )
 
     @TestCaseMetadata(
@@ -118,7 +131,12 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_standard_ssd_disk(
-        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
             log,
@@ -126,6 +144,7 @@ class Provisioning(TestSuite):
             log_path,
             "verify_deployment_provision_standard_ssd_disk",
             environment,
+            result,
         )
 
     @TestCaseMetadata(
@@ -144,7 +163,12 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
-        self, log: Logger, node: RemoteNode, log_path: Path, environment: Environment
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
             log,
@@ -152,6 +176,7 @@ class Provisioning(TestSuite):
             log_path,
             "verify_deployment_provision_ephemeral_managed_disk",
             environment,
+            result,
         )
 
     @TestCaseMetadata(
@@ -167,10 +192,20 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_premium_disk(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
-            log, node, log_path, "verify_deployment_provision_premium_disk"
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_premium_disk",
+            environment,
+            result,
         )
 
     @TestCaseMetadata(
@@ -189,10 +224,20 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_premiumv2_disk(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
-            log, node, log_path, "verify_deployment_provision_premiumv2_disk"
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_premiumv2_disk",
+            environment,
+            result,
         )
 
     @TestCaseMetadata(
@@ -208,10 +253,22 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_sriov(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self.check_sriov(log, node)
-        self._smoke_test(log, node, log_path, "verify_deployment_provision_sriov")
+        self._smoke_test(
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_sriov",
+            environment,
+            result,
+        )
         self.check_sriov(log, node)
 
     @TestCaseMetadata(
@@ -227,14 +284,21 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_reboot_in_platform(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
             log,
             node,
             log_path,
+            "verify_reboot_in_platform",
+            environment,
+            result,
             reboot_in_platform=True,
-            case_name="verify_reboot_in_platform",
         )
 
     @TestCaseMetadata(
@@ -253,13 +317,20 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_ultra_datadisk(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
             log,
             node,
             log_path,
             "verify_deployment_provision_ultra_datadisk",
+            environment,
+            result,
         )
 
     @TestCaseMetadata(
@@ -275,13 +346,20 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_stop_start_in_platform(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
     ) -> None:
         self._smoke_test(
             log,
             node,
             log_path,
             "verify_stop_start_in_platform",
+            environment,
+            result,
             reboot_in_platform=True,
             is_restart=False,
         )
@@ -300,11 +378,20 @@ class Provisioning(TestSuite):
             supported_features=[SerialConsole],
         ),
     )
-    def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+    def stress_reboot(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        environment: Environment,
+        result: TestResult,
+    ) -> None:
         reboot_times = []
         try:
             for i in range(100):
-                elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
+                elapsed = self._smoke_test(
+                    log, node, log_path, "stress_reboot", environment
+                )
                 reboot_times.append((i + 1, elapsed))
                 log.debug(f"Reboot iterations {i + 1}/100 completed in {elapsed:.2f}s")
         except PassedException as e:
@@ -324,6 +411,7 @@ class Provisioning(TestSuite):
         log_path: Path,
         case_name: str,
         environment: Environment,
+        result: Optional[TestResult] = None,
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
@@ -402,6 +490,17 @@ class Provisioning(TestSuite):
             except Exception:
                 # If not Azure platform or any error, just use "unknown"
                 pass
+
+            # Add MANA information to test result if result object is provided
+            if result:
+                result.information.update(
+                    {
+                        "mana_driver_present": is_mana_driver_present,
+                        "mana_device_present": is_mana_device_present,
+                        "lower_nics_count": len(lower_nics),
+                        "marketplace_image": image_name,
+                    }
+                )
 
             log.info(
                 f"marketplace image: {image_name}, "
