@@ -95,7 +95,7 @@ class TestResult:
 
         self._environment_information: Dict[str, Any] = {}
         # parent_log = get_logger("suite", self.runtime_data.metadata.suite.name)
-        self.log = get_logger("case", self.name)
+        self.log = get_logger("case", f"{self.name}[{self.id_}]")
 
     @property
     def is_queued(self) -> bool:
