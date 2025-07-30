@@ -35,9 +35,9 @@ if [ "$module_name" = "hv_netvsc" ]; then
     done
     sleep 1
     # shellcheck disable=SC2086,SC2129
-    ip link set eth0 down >> $log_file 2>&1
+    ip link set $interface down >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
-    ip link set eth0 up >> $log_file 2>&1
+    ip link set $interface up >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
     $dhcp_stop_command >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129

@@ -4,6 +4,7 @@
 import time
 from pathlib import Path
 from random import randint
+import uuid
 from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa.executable import CustomScript, CustomScriptBuilder, ExecutableResult, Tool
@@ -12,6 +13,7 @@ from lisa.tools.dmesg import Dmesg
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KLDStat
 from lisa.tools.lsmod import Lsmod
+from lisa.tools.modinfo import Modinfo
 from lisa.util import UnsupportedOperationException
 from lisa.util.perf_timer import create_timer
 
@@ -130,13 +132,22 @@ class Modprobe(Tool):
         verbose: bool = False,
         timeout: int = 60,
         interface: str = "eth0",
+        cleanup_logs: bool = False,
     ) -> Dict[str, int]:
+        lsmod_tool = self.node.tools[Lsmod]
+        module_exists = lsmod_tool.module_exists(
+            mod_name=mod_name,
+            force_run=True,
+            no_debug_log=True,
+        )
+        if not module_exists:
+            return {"module_exists": False}
         if not self.is_module_loaded(mod_name, force_run=True):
             return {}
         dhclient_command = self.node.tools[Dhclient].command
 
         username = self.node.tools[Whoami].get_username()
-        unique_id = randint(0, 10000)
+        unique_id = uuid.uuid4()
         nohup_output_log_file_name = (
             f"/home/{username}/nohup_log_{mod_name}_{str(unique_id)}.out"
         )
@@ -194,7 +205,7 @@ class Modprobe(Tool):
                 if status == "running":
                     self._log.debug(
                         f"Reload operation for {mod_name} is {status}, pid: {pid}"
-                        "rechecking after 1 second..."
+                        "\nrechecking after 1 second..."
                     )
                     time.sleep(1)
                 else:
@@ -215,16 +226,17 @@ class Modprobe(Tool):
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
         )
 
+        module_path = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
         rmmod_count = int(
             self.node.execute(
-                f"grep -o 'rmmod' {nohup_output_log_file_name} | wc -l",
+                f"grep -E 'rmmod {mod_name}' {nohup_output_log_file_name} | wc -l",
                 sudo=True,
                 shell=True,
             ).stdout.strip()
         )
         insmod_count = int(
             self.node.execute(
-                f"grep -o 'insmod' {nohup_output_log_file_name} | wc -l",
+                f"grep -E 'insmod {module_path}' {nohup_output_log_file_name} | wc -l",
                 sudo=True,
                 shell=True,
             ).stdout.strip()
@@ -245,14 +257,15 @@ class Modprobe(Tool):
             ).stdout.strip()
         )
 
-        # Comment this section to retain the logs for debugging purposes
-        self.node.execute(
-            f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
-            sudo=True,
-            shell=True,
-        )
+        if cleanup_logs:
+            self.node.execute(
+                f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
+                sudo=True,
+                shell=True,
+            )
 
         return {
+            "module_exists": True,
             "rmmod_count": rmmod_count,
             "insmod_count": insmod_count,
             "in_use_count": in_use_count,

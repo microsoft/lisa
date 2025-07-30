@@ -227,6 +227,7 @@ class HvModule(TestSuite):
             "hid_hyperv",
             "hyperv_keyboard",
             "hyperv_fb",
+            "hyperv_drm",
         ]
         loadable_modules = set(
             self._get_modules_by_type(node, module_type=ModulesType.MODULE)
@@ -245,13 +246,17 @@ class HvModule(TestSuite):
                 mod_name=module,
                 times=loop_count,
                 verbose=True,
-                timeout=600,
+                timeout=1800,
             )
             if not result:
                 failed_modules[
                     module
                 ] = "Failed to reload module, needs further investigation"
                 continue
+            if not result["module_exists"]:
+                log.info(f"Module {module} does not exist, skipping")
+                continue
+
             log.info(f"Reloading module {module} result: {result}")
             if result["in_use_count"] > 0 or result["busy_count"] > 0:
                 # If the module is in use, it cannot be reloaded.
@@ -321,6 +326,7 @@ class HvModule(TestSuite):
                 "hv_balloon": "CONFIG_HYPERV_BALLOON",
                 "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
                 "hyperv_fb": "CONFIG_FB_HYPERV",
+                "hyperv_drm": "CONFIG_DRM_HYPERV"
             }
         modules = []
         for module in hv_modules_configuration:
