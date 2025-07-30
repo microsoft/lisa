@@ -2967,8 +2967,8 @@ class AzurePlatform(Platform):
         allowed_types = azure_runbook.image.disk_controller_type
         if node_space.disk.disk_controller_type:
             allowed_types = search_space.intersect_setspace_by_priority(
-                node_space.disk.disk_controller_type,  # type: ignore
                 azure_runbook.image.disk_controller_type,  # type: ignore
+                node_space.disk.disk_controller_type,  # type: ignore
                 [],
             )
         node_space.disk.disk_controller_type = allowed_types
