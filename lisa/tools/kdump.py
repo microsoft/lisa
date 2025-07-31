@@ -877,8 +877,17 @@ class KdumpCheck(Tool):
     def _get_resource_disk_dump_path(self) -> str:
         from lisa.features import Disk
 
-        mount_point = self.node.features[Disk].get_resource_disk_mount_point()
-        dump_path = mount_point + "/crash"
+        # Try to access Disk feature (available on Azure platform)
+        try:
+            mount_point = self.node.features[Disk].get_resource_disk_mount_point()
+            dump_path = mount_point + "/crash"
+        except Exception as e:
+            # Fallback for platforms without resource disk (baremetal, MSHV, etc.)
+            # Use /var/crash as it's the standard kdump path.
+            dump_path = "/var/crash"
+            self._log.debug(
+                f"Using fallback dump path: {dump_path}" f" due to exception: {e}"
+            )
         return dump_path
 
     def _is_system_with_more_memory(self) -> bool:
