@@ -881,12 +881,13 @@ class KdumpCheck(Tool):
         try:
             mount_point = self.node.features[Disk].get_resource_disk_mount_point()
             dump_path = mount_point + "/crash"
-        except Exception as e:
+        except LisaException as e:
             # Fallback for platforms without resource disk (baremetal, MSHV, etc.)
             # Use /var/crash as it's the standard kdump path.
             dump_path = "/var/crash"
             self._log.debug(
-                f"Using fallback dump path: {dump_path} due to exception: {e}"
+                f"Resource disk not available on this platform. "
+                f"Using fallback dump path: {dump_path}. Exception: {e}"
             )
         return dump_path
 
