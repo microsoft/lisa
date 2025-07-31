@@ -886,7 +886,7 @@ class KdumpCheck(Tool):
             # Use /var/crash as it's the standard kdump path.
             dump_path = "/var/crash"
             self._log.debug(
-                f"Using fallback dump path: {dump_path}" f" due to exception: {e}"
+                f"Using fallback dump path: {dump_path} due to exception: {e}"
             )
         return dump_path
 
