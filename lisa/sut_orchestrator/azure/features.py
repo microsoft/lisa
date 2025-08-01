@@ -1098,7 +1098,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def reload_module(self) -> None:
         modprobe_tool = self._node.tools[Modprobe]
-        modprobe_tool.reload(["hv_netvsc"])
+        modprobe_tool.reload("hv_netvsc")
 
     # Subroutine for applying route table to subnet.
     # We don't want to retry the entire routine if we
