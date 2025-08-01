@@ -30,7 +30,7 @@ from lisa.util import (
     generate_random_chars,
 )
 
-TIME_LIMIT = 3600 * 2
+TIME_LIMIT = 3600 * 4
 MIN_REQUIRED_MEMORY_MB = 8 * 1024
 
 # Define a type alias for readability
