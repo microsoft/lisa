@@ -131,7 +131,7 @@ class Ltp(Tool):
             rm.remove_file(output_file, sudo=True)
 
         # add parameters for the test logging
-        parameters = f"-p -q -l {result_file} -o {output_file} "
+        parameters = f"-p -l {result_file} -o {output_file} "
 
         # add the list of tests to run
         # if ltp_tests=[], "-f" not set, ltp will run full test
