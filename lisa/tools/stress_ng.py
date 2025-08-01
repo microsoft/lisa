@@ -86,7 +86,9 @@ class StressNg(Tool):
 
     def _install_required_packages(self) -> None:
         if isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
+            self.node.os.install_packages(
+                ["gcc", "glibc-devel", "kernel-headers", "binutils", "make"]
+            )
 
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()
