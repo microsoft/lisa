@@ -117,13 +117,85 @@ class CPU(TestSuite):
                 self._verify_node_mapping(node, effective_numa_node_size)
                 return
 
+        # For all other cases, check L3 cache mapping with socket awareness
         cpu_info = lscpu.get_cpu_info()
+        
+        # Build a mapping of socket -> NUMA nodes and socket -> L3 caches
+        socket_to_numa_nodes = {}
+        socket_to_l3_caches = {}
+        
         for cpu in cpu_info:
-            assert_that(
-                cpu.l3_cache,
-                "L3 cache of each core must be mapped to the NUMA node "
-                "associated with the core.",
-            ).is_equal_to(cpu.numa_node)
+            socket = cpu.socket
+            numa_node = cpu.numa_node
+            l3_cache = cpu.l3_cache
+            
+            # Track NUMA nodes per socket
+            if socket not in socket_to_numa_nodes:
+                socket_to_numa_nodes[socket] = set()
+            socket_to_numa_nodes[socket].add(numa_node)
+            
+            # Track L3 caches per socket
+            if socket not in socket_to_l3_caches:
+                socket_to_l3_caches[socket] = set()
+            socket_to_l3_caches[socket].add(l3_cache)
+        
+        # Check if this is a simple 1:1 mapping (traditional case)
+        all_numa_nodes = set()
+        all_l3_caches = set()
+        for numa_nodes in socket_to_numa_nodes.values():
+            all_numa_nodes.update(numa_nodes)
+        for l3_caches in socket_to_l3_caches.values():
+            all_l3_caches.update(l3_caches)
+        
+        # If NUMA nodes and L3 caches are identical sets, use simple verification
+        if all_numa_nodes == all_l3_caches:
+            log.debug("Detected 1:1 mapping between NUMA nodes and L3 caches")
+            for cpu in cpu_info:
+                assert_that(
+                    cpu.l3_cache,
+                    "L3 cache of each core must be mapped to the NUMA node "
+                    "associated with the core.",
+                ).is_equal_to(cpu.numa_node)
+        else:
+            # Otherwise, verify socket-aware mapping
+            log.debug("Detected shared L3 cache within sockets")
+            
+            # For each socket, all CPUs in the same NUMA node should have same L3 cache
+            numa_to_l3_mapping = {}
+            for cpu in cpu_info:
+                if cpu.numa_node not in numa_to_l3_mapping:
+                    numa_to_l3_mapping[cpu.numa_node] = cpu.l3_cache
+                else:
+                    # Verify consistency: all CPUs in same NUMA node should have same L3
+                    assert_that(
+                        cpu.l3_cache,
+                        f"All CPUs in NUMA node {cpu.numa_node} should have the same "
+                        f"L3 cache mapping, expected {numa_to_l3_mapping[cpu.numa_node]} "
+                        f"but found {cpu.l3_cache} for CPU {cpu.cpu}",
+                    ).is_equal_to(numa_to_l3_mapping[cpu.numa_node])
+            
+            # For each socket, verify L3 caches are only shared within the socket
+            for socket, numa_nodes in socket_to_numa_nodes.items():
+                l3_caches_in_socket = socket_to_l3_caches[socket]
+                
+                # Get L3 caches used by other sockets
+                other_socket_l3_caches = set()
+                for other_socket, other_l3_caches in socket_to_l3_caches.items():
+                    if other_socket != socket:
+                        other_socket_l3_caches.update(other_l3_caches)
+                
+                # Verify no L3 cache is shared across sockets
+                shared_l3_caches = l3_caches_in_socket.intersection(other_socket_l3_caches)
+                assert_that(
+                    len(shared_l3_caches),
+                    f"L3 caches should not be shared across sockets. "
+                    f"Socket {socket} shares L3 cache(s) {shared_l3_caches} with other sockets",
+                ).is_equal_to(0)
+                
+                log.debug(
+                    f"Socket {socket}: NUMA nodes {sorted(numa_nodes)} use "
+                    f"L3 cache(s) {sorted(l3_caches_in_socket)}"
+                )
 
     @TestCaseMetadata(
         description="""
