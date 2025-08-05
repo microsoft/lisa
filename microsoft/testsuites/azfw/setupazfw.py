@@ -11,7 +11,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface
-from lisa.tools import Ls, Mkdir
+from lisa.tools import Ls, Mkdir, Sysctl
 import time
 
 #Constants
@@ -59,7 +59,7 @@ cseparams = {
     This test suite sets up Azure Firewall for testing purposes.
     It ensures that the firewall is configured correctly and ready for use.
     """,
-    requirement=simple_requirement(min_count=2, min_nic_count=2),
+    requirement=simple_requirement(min_count=3, min_nic_count=3),
 
 )
 class azureFirewallTests(TestSuite):  
@@ -198,6 +198,11 @@ class azureFirewallTests(TestSuite):
         
         createRouteTable(environment, log)
     
+
+
+
+
+    
     @TestCaseMetadata(
             description= """
                 This test will verify if Application rules are working
@@ -259,7 +264,7 @@ class azureFirewallTests(TestSuite):
         """
     )
     def verifyConnMarkReset(self, environment: Environment, log: Logger) -> None:
-        createRouteTable(environment,log)
+        # createRouteTable(environment,log)
         firewallNode = cast(RemoteNode, environment.nodes[0])
         clientNode = cast(RemoteNode, environment.nodes[1])
         firewallInit(firewallNode,log)
