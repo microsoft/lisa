@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from assertpy.assertpy import assert_that
 
@@ -322,7 +323,7 @@ class CPU(TestSuite):
 
         return all_numa_nodes == all_l3_caches
 
-    def _verify_one_to_one_mapping(self, cpu_info: list, log: Logger) -> None:
+    def _verify_one_to_one_mapping(self, cpu_info: list[Any], log: Logger) -> None:
         """Verify traditional 1:1 mapping between NUMA nodes and L3 caches."""
         log.debug("Detected 1:1 mapping between NUMA nodes and L3 caches")
         for cpu in cpu_info:
@@ -334,7 +335,7 @@ class CPU(TestSuite):
 
     def _verify_socket_aware_mapping(
         self,
-        cpu_info: list,
+        cpu_info: list[Any],
         socket_to_numa_nodes: dict[int, set[int]],
         socket_to_l3_caches: dict[int, set[int]],
         log: Logger,
@@ -348,7 +349,7 @@ class CPU(TestSuite):
         # Verify isolation: L3 caches should not be shared across sockets
         self._verify_socket_isolation(socket_to_numa_nodes, socket_to_l3_caches, log)
 
-    def _verify_numa_consistency(self, cpu_info: list) -> None:
+    def _verify_numa_consistency(self, cpu_info: list[Any]) -> None:
         """Verify all CPUs in the same NUMA node have the same L3 cache."""
         numa_to_l3_mapping = {}
         for cpu in cpu_info:
