@@ -553,7 +553,7 @@ class StoragePerformance(TestSuite):
         disk_type: DiskType = DiskType.premiumssd,
         block_size: int = 4,
         start_iodepth: int = 1,
-        max_iodepth: int = 256,
+        max_iodepth: int = 512,
     ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
