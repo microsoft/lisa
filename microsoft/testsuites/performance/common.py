@@ -71,7 +71,7 @@ def perf_disk(
     size_mb: int = 0,
     numjob: int = 0,
     overwrite: bool = False,
-    ioengine: IoEngine = IoEngine.LIBAIO,
+    ioengine: IoEngine = IoEngine.IO_URING,
     cwd: Optional[pathlib.PurePath] = None,
 ) -> None:
     fio_result_list: List[FIOResult] = []
