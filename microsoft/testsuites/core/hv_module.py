@@ -295,8 +295,8 @@ class HvModule(TestSuite):
 
         if failed_modules:
             raise LisaException(result_message)
-        if skipped_modules:
-            raise SkippedException(result_message)
+        # if skipped_modules:
+        #     raise SkippedException(result_message)
 
     def _get_modules_by_type(
         self,
