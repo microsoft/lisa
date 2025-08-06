@@ -710,8 +710,8 @@ class NetworkDataPath(str, Enum):
 
 
 _network_data_path_priority: List[NetworkDataPath] = [
-    NetworkDataPath.Sriov,
     NetworkDataPath.Synthetic,
+    NetworkDataPath.Sriov,
 ]
 
 
