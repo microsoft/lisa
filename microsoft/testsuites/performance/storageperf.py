@@ -177,6 +177,24 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case uses fio to test data disk performance with 4K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                os_disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_iops=search_space.IntRange(min=6000),
+                data_disk_count=search_space.IntRange(min=16),
+            ),
+        ),
+    )
+    def perf_ssd_datadisks_4k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(node, result)
+        
+    @TestCaseMetadata(
+        description="""
         This test case uses fio to test vm with 24 data disks.
         """,
         priority=3,
