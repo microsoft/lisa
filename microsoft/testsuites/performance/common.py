@@ -94,13 +94,14 @@ def perf_disk(
     #for i in range(16):
     iodepth = start_iodepth
     numjobindex = 0
-    for i in range(6):
+    for mode in FIOMODES:
         if num_jobs:
             numjob = num_jobs[numjobindex]
         fio_result = fio.launch(
             name=f"iteration{numjobiterator}",
             filename=filename,
-            mode='randread',
+            #mode='randread',
+            mode=mode.name,
             time=time,
             size_gb=size_mb,
             block_size=f"{block_size}K",
@@ -111,7 +112,7 @@ def perf_disk(
             ioengine=ioengine,
         )
         fio_result_list.append(fio_result)
-        #iodepth = iodepth * 2
+        iodepth = iodepth * 2
         numjobindex += 1
         numjobiterator += 1
 
