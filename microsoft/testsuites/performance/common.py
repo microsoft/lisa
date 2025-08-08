@@ -95,9 +95,11 @@ def perf_disk(
     iodepth = start_iodepth
     numjobindex = 0
     for mode in FIOMODES:
-        if num_jobs:
-            numjob = num_jobs[numjobindex]
+        iodepth = start_iodepth
+        numjobindex = 0
         while iodepth <= max_iodepth:
+            if num_jobs:
+                numjob = num_jobs[numjobindex]        
             fio_result = fio.launch(
                 name=f"iteration{numjobiterator}",
                 filename=filename,
