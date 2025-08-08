@@ -164,7 +164,7 @@ class StressNgTestSuite(TestSuite):
             )
             
             # Check for crashes and send test results
-            self._check_panic(nodes, job_file_name)
+            self._check_panic(nodes, job_file_name, test_result)
             
             raise execution_error
 
@@ -301,7 +301,7 @@ class StressNgTestSuite(TestSuite):
             test_message=execution_summary,
         )
 
-    def _check_panic(self, nodes: List[RemoteNode], test_case_name: str) -> None:
+    def _check_panic(self, nodes: List[RemoteNode], test_case_name: str, test_result: TestResult) -> None:
         """
         Check for kernel panics, send crash details as test results, and raise.
         """
@@ -323,12 +323,9 @@ Source: {panic_ex.source}
 Error codes/phrases: {panic_ex.panics}
 Full error: {str(panic_ex)}"""
                 
-                # Convert crash_message to TestResult format
-                crash_test_result = TestResult(id_=f"crash_{test_case_name}_{node.name}")
-                
-                # Send crash details as test result message
+                # Send crash details as test result message using the original TestResult
                 send_sub_test_result_message(
-                    test_result=crash_test_result,
+                    test_result=test_result,
                     test_case_name=f"CRASH_{test_case_name}_{node.name}",
                     test_status=TestStatus.FAILED,
                     test_message=crash_message,
