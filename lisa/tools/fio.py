@@ -30,8 +30,6 @@ FIOMODES = Enum(
     "FIOMODES",
     [
         "randread",
-        #"randwrite",
-        #"read",
         "write",
     ],
 )
