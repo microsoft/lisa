@@ -1718,6 +1718,7 @@ class Disk(AzureFeatureMixin, features.Disk):
     LUN_PATTERN_BSD = re.compile(
         r"at\s+scbus\d+\s+target\s+\d+\s+lun\s+(\d+)\s+\(.*(da\d+)", re.M
     )
+    _resource_disk_type: Optional[schema.ResourceDiskType] = None
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -2036,12 +2037,14 @@ class Disk(AzureFeatureMixin, features.Disk):
     # function returns the type of resource disk/disks available on the VM
     # raises exception if no resource disk is available
     def get_resource_disk_type(self) -> schema.ResourceDiskType:
-        resource_disks = self.get_resource_disks()
-        if not resource_disks:
-            raise LisaException("No Resource disks are available on VM")
-        return schema.ResourceDiskType(
-            self._node.features[Disk].get_disk_type(disk=resource_disks[0])
-        )
+        if self._resource_disk_type is None:
+            resource_disks = self.get_resource_disks()
+            if not resource_disks:
+                raise LisaException("No Resource disks are available on VM")
+            self._resource_disk_type = schema.ResourceDiskType(
+                self._node.features[Disk].get_disk_type(disk=resource_disks[0])
+            )
+        return self._resource_disk_type
 
     def get_resource_disks(self) -> List[str]:
         resource_disk_list = []
