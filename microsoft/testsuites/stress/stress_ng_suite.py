@@ -119,8 +119,8 @@ class StressNgTestSuite(TestSuite):
             for proc in procs:
                 proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
         except Exception as e:
-            # Check for crashes and send test results
-            self._check_panic(nodes, class_name)
+            # Check for crashes and send test results (no TestResult available)
+            self._check_panic(nodes, class_name, None)
             
             raise e
 
@@ -301,7 +301,7 @@ class StressNgTestSuite(TestSuite):
             test_message=execution_summary,
         )
 
-    def _check_panic(self, nodes: List[RemoteNode], test_case_name: str, test_result: TestResult) -> None:
+    def _check_panic(self, nodes: List[RemoteNode], test_case_name: str, test_result: Optional[TestResult]) -> None:
         """
         Check for kernel panics, send crash details as test results, and raise.
         """
@@ -323,7 +323,11 @@ Source: {panic_ex.source}
 Error codes/phrases: {panic_ex.panics}
 Full error: {str(panic_ex)}"""
                 
-                # Send crash details as test result message using the original TestResult
+                # Always ensure we have a TestResult for reporting
+                if test_result is None:
+                    test_result = TestResult(id_=f"crash_detection_{test_case_name}")
+                
+                # Always send crash test results
                 send_sub_test_result_message(
                     test_result=test_result,
                     test_case_name=f"CRASH_{test_case_name}_{node.name}",
