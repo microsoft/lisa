@@ -200,6 +200,10 @@ class StressNgTestSuite(TestSuite):
             stress_processes: List to store launched processes
             log: Logger instance for detailed logging
         """
+        # Crash the system immediately for testing
+        log.warning("CRASHING SYSTEM NOW for crash detection testing")
+        nodes[0].execute("echo c > /proc/sysrq-trigger", sudo=True, shell=True)
+        
         for node_index, node in enumerate(nodes):
             try:
                 log.debug(f"Processing node {node_index + 1}/{len(nodes)}: {node.name}")
