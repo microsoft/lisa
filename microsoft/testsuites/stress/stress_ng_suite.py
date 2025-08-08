@@ -119,14 +119,8 @@ class StressNgTestSuite(TestSuite):
             for proc in procs:
                 proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
         except Exception as e:
-            # Check for crashes and handle them
-            crash_details = self._check_panic(nodes)
-            if crash_details:
-                # Process crash information
-                for crash in crash_details:
-                    self._log.error(f"Node {crash['node_name']} error codes: {crash['panic_phrases']}")
-                # Raise the first crash to fail the test
-                raise crash_details[0]['exception']
+            # Check for crashes and send test results
+            self._check_panic(nodes, class_name)
             
             raise e
 
@@ -169,11 +163,8 @@ class StressNgTestSuite(TestSuite):
                 f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
             
-            # Check for crashes and handle them
-            crash_details = self._check_panic(nodes)
-            if crash_details:
-                # Raise the first crash to fail the test
-                raise crash_details[0]['exception']
+            # Check for crashes and send test results
+            self._check_panic(nodes, job_file_name)
             
             raise execution_error
 
@@ -310,48 +301,41 @@ class StressNgTestSuite(TestSuite):
             test_message=execution_summary,
         )
 
-    def _check_panic(self, nodes: List[RemoteNode]) -> Optional[List[Dict[str, Any]]]:
+    def _check_panic(self, nodes: List[RemoteNode], test_case_name: str) -> None:
         """
-        Check for kernel panics on all nodes and return crash details.
-        
-        Args:
-            nodes: List of remote nodes to check for panics
-            
-        Returns:
-            List of crash detail dictionaries if crashes found, None if no crashes.
-            Each dictionary contains:
-            - node_name: Name of the node that crashed
-            - stage: Stage when panic was detected  
-            - panic_phrases: List of detected panic phrases/error codes
-            - source: Source of the panic detection (e.g., "serial log")
-            - full_error_message: Complete error message
-            - exception: The original KernelPanicException object
+        Check for kernel panics, send crash details as test results, and raise.
         """
-        crash_details = []
-        
         for node in nodes:
             try:
                 node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
             except KernelPanicException as panic_ex:
                 # Always log the crash details
-                self._log.error(f"CRASH DETECTED on node {node.name}:")
-                self._log.error(f"  Stage: {panic_ex.stage}")
-                self._log.error(f"  Source: {panic_ex.source}")
-                self._log.error(f"  Error codes/phrases: {panic_ex.panics}")
-                self._log.error(f"  Full error: {str(panic_ex)}")
+                node.log.error(f"CRASH DETECTED on node {node.name}:")
+                node.log.error(f"  Stage: {panic_ex.stage}")
+                node.log.error(f"  Source: {panic_ex.source}")
+                node.log.error(f"  Error codes/phrases: {panic_ex.panics}")
+                node.log.error(f"  Full error: {str(panic_ex)}")
                 
-                # Capture detailed crash information
-                crash_info = {
-                    'node_name': node.name,
-                    'stage': panic_ex.stage,
-                    'panic_phrases': panic_ex.panics,
-                    'source': panic_ex.source,
-                    'full_error_message': str(panic_ex),
-                    'exception': panic_ex
-                }
-                crash_details.append(crash_info)
-        
-        return crash_details if crash_details else None
+                # Create detailed crash message
+                crash_message = f"""CRASH DETECTED on {node.name}:
+Stage: {panic_ex.stage}
+Source: {panic_ex.source}
+Error codes/phrases: {panic_ex.panics}
+Full error: {str(panic_ex)}"""
+                
+                # Convert crash_message to TestResult format
+                crash_test_result = TestResult(id_=f"crash_{test_case_name}_{node.name}")
+                
+                # Send crash details as test result message
+                send_sub_test_result_message(
+                    test_result=crash_test_result,
+                    test_case_name=f"CRASH_{test_case_name}_{node.name}",
+                    test_status=TestStatus.FAILED,
+                    test_message=crash_message,
+                )
+                
+                # Raise the panic to fail the test
+                raise panic_ex
 
     def _process_yaml_output(
         self,
