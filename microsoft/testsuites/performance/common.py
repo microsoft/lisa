@@ -97,24 +97,25 @@ def perf_disk(
     for mode in FIOMODES:
         if num_jobs:
             numjob = num_jobs[numjobindex]
-        fio_result = fio.launch(
-            name=f"iteration{numjobiterator}",
-            filename=filename,
-            #mode='randread',
-            mode=mode.name,
-            time=time,
-            size_gb=size_mb,
-            block_size=f"{block_size}K",
-            iodepth=iodepth,
-            overwrite=overwrite,
-            numjob=numjob,
-            cwd=cwd,
-            ioengine=ioengine,
-        )
-        fio_result_list.append(fio_result)
-        iodepth = iodepth * 2
-        numjobindex += 1
-        numjobiterator += 1
+        while iodepth <= max_iodepth:
+            fio_result = fio.launch(
+                name=f"iteration{numjobiterator}",
+                filename=filename,
+                #mode='randread',
+                mode=mode.name,
+                time=time,
+                size_gb=size_mb,
+                block_size=f"{block_size}K",
+                iodepth=iodepth,
+                overwrite=overwrite,
+                numjob=numjob,
+                cwd=cwd,
+                ioengine=ioengine,
+            )
+            fio_result_list.append(fio_result)
+            iodepth = iodepth * 2
+            numjobindex += 1
+            numjobiterator += 1
 
     other_fields: Dict[str, Any] = {}
     other_fields["core_count"] = core_count
