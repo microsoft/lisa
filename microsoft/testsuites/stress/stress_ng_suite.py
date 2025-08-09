@@ -10,6 +10,7 @@ from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuite
 from lisa.base_tools import Cat
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
+from lisa.sut_orchestrator.azure.common import simple_requirement
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
 from lisa.util import SkippedException
@@ -32,10 +33,18 @@ class StressNgTestSuite(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs a stress-ng jobfile. The path to the jobfile must be specified using a
-        runbook variable named "stress_ng_jobs". For more info about jobfiles refer:
+        runbook variable named "stress_ng_jobs". Node count, CPU count and memory can be
+        configured via runbook variables "stress_ng_node_count", "stress_ng_cpu_count"
+        and "stress_ng_memory_mb".
+        For more info about jobfiles refer:
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
         priority=4,
+        requirement=simple_requirement(
+            min_count=1,
+            min_core_count=1,
+            min_memory_mb=1024,
+        ),
     )
     def stress_ng_jobfile(
         self,
@@ -44,6 +53,16 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
         result: TestResult,
     ) -> None:
+        # Get configurable parameters from variables for logging
+        node_count = variables.get("stress_ng_node_count", 1)
+        cpu_count = variables.get("stress_ng_cpu_count", 1)
+        memory_mb = variables.get("stress_ng_memory_mb", 1024)
+        
+        log.info(
+            f"Test configured for: Node count={node_count}, "
+            f"CPU count={cpu_count}, Memory={memory_mb}MB"
+        )
+        
         if self.CONFIG_VARIABLE in variables:
             jobs = variables[self.CONFIG_VARIABLE]
 
