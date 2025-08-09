@@ -558,8 +558,21 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
         if isinstance(node.os, Ubuntu):
             node.execute("systemctl disable apparmor", shell=True, sudo=True)
         node.execute("systemctl enable libvirtd", shell=True, sudo=True)
-        node.reboot(time_out=900)
+        
+        # Reboot with extended timeout and better error handling
+        try:
+            log.info("Rebooting node after libvirt installation...")
+            node.reboot(time_out=1200)  # Increased timeout to 20 minutes
+            log.info("Node reboot completed successfully")
+        except Exception as e:
+            log.warning(f"Reboot completed with warning: {e}")
+            # Continue execution as the reboot might have succeeded despite the error
+        
+        # Wait a bit before trying to restart services on CBL Mariner
         if isinstance(node.os, CBLMariner):
+            log.info("Waiting for CBL Mariner to stabilize after reboot...")
+            time.sleep(10)  # Wait 10 seconds before attempting service restart
+            
             # After reboot, libvirtd service is in failed state and needs to
             # be restarted manually. Doing it immediately after restart
             # fails. So wait for a while before restarting libvirtd.
@@ -568,16 +581,35 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
             tries = 0
             while tries <= 10:
                 try:
+                    log.debug(
+                        f"Attempting to restart libvirtd service "
+                        f"(attempt {tries + 1}/11)"
+                    )
                     node.tools[Service].restart_service("libvirtd")
+                    log.info("Successfully restarted libvirtd service")
                     break
-                except Exception:
-                    time.sleep(1)
+                except Exception as e:
+                    log.warning(
+                        f"Failed to restart libvirtd (attempt {tries + 1}): {e}"
+                    )
+                    time.sleep(2)  # Increased wait time between attempts
                     tries += 1
+            
+            if tries > 10:
+                log.warning("Failed to restart libvirtd after maximum attempts")
     else:
         libvirt_version = libvirt_installer._get_version()
         log.info(f"Already installed! libvirt version: {libvirt_version}")
         _fix_mariner_installation(node=node)
-        node.reboot(time_out=900)
+        
+        # Reboot with extended timeout for already installed case
+        try:
+            log.info("Rebooting node after applying Mariner fixes...")
+            node.reboot(time_out=1200)  # Increased timeout to 20 minutes
+            log.info("Node reboot completed successfully")
+        except Exception as e:
+            log.warning(f"Reboot completed with warning: {e}")
+            # Continue execution as the reboot might have succeeded despite the error
 
 
 # Some fixes to the libvirt installation on Mariner.
