@@ -6,11 +6,17 @@ from typing import Any, Dict, List, Tuple, cast
 
 import yaml
 
-from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Environment,
+    RemoteNode,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.base_tools import Cat
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.sut_orchestrator.azure.common import simple_requirement
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
 from lisa.util import SkippedException
