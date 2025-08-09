@@ -6,15 +6,26 @@ from typing import Any, Dict, List, Tuple, cast
 
 import yaml
 
-from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Environment,
+    RemoteNode,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.base_tools import Cat
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
+from lisa.tools.stress_ng import get_stress_ng_config
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
+
+# Determine stress_ng configuration at import time
+STRESS_NG_CONFIG = get_stress_ng_config()
 
 
 @TestSuiteMetadata(
@@ -26,13 +37,13 @@ from lisa.util.process import Process
     """,
 )
 class StressNgTestSuite(TestSuite):
-    TIME_OUT = 3600
+    # Timeout for longhaul stress testing:
+    TIME_OUT = 435600
     CONFIG_VARIABLE = "stress_ng_jobs"
 
     @TestCaseMetadata(
         description="""
         Runs a stress-ng jobfile. The path to the jobfile must be specified using a
-        runbook variable named "stress_ng_jobs". For more info about jobfiles refer:
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
         priority=4,
@@ -109,6 +120,71 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
     ) -> None:
         self._run_stressor_class(environment, "network")
+
+    @TestCaseMetadata(
+        description="""
+        Multi-VM stress test using stress-ng jobfiles.
+
+        Creates multiple VMs to stress host CPU and memory resources.
+        Each VM runs stress-ng jobfiles to test resource utilization and
+        contention scenarios across the entire host system.
+
+        VM configuration is controlled by runbook variables:
+        - stress_ng_node_count: Number of VMs to create
+        - stress_ng_cpu_count: CPU cores per VM
+        - stress_ng_memory_mb: Memory per VM in MB
+        - stress_ng_jobs: Jobfile(s) to execute
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            min_count=STRESS_NG_CONFIG["node_count"],
+            min_core_count=STRESS_NG_CONFIG["cpu_count"],
+            min_memory_mb=STRESS_NG_CONFIG["memory_mb"],
+        ),
+    )
+    def multi_vm_stress_test(
+        self,
+        log: Logger,
+        variables: Dict[str, Any],
+        environment: Environment,
+        result: TestResult,
+    ) -> None:
+        """
+        Execute multi-VM stress test across multiple VMs.
+        VM allocation is controlled by test requirement set at import time.
+        This requirement is dynamically determined from command line variables.
+        """
+
+        log.debug(
+            f"Dynamic config detected at import: "
+            f"{STRESS_NG_CONFIG['node_count']} nodes, "
+            f"{STRESS_NG_CONFIG['cpu_count']} CPU, "
+            f"{STRESS_NG_CONFIG['memory_mb']} MB"
+        )
+
+        # Validate we have at least 2 VMs for meaningful multi-VM testing
+        expected_vm_count = STRESS_NG_CONFIG["node_count"]
+        if expected_vm_count < 2:
+            raise SkippedException(
+                f"Multi-VM stress test requires at least 2 VMs, "
+                f"but configuration specifies only {expected_vm_count} VM(s). "
+                f"Check test requirement and resources."
+            )
+
+        # Execute the stress test
+        if self.CONFIG_VARIABLE not in variables:
+            raise SkippedException("No jobfile provided for multi-VM stress test")
+
+        jobs = variables[self.CONFIG_VARIABLE]
+        if not isinstance(jobs, list):
+            jobs = [job.strip() for job in str(jobs).split(",")]
+
+        # Execute each jobfile across all VMs
+        for job_file in jobs:
+            log.info(f"Executing jobfile '{job_file}' across multiple VMs")
+            self._run_stress_ng_job(job_file, environment, result, log)
+
+        log.info("Multi-VM stress test completed successfully")
 
     def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
