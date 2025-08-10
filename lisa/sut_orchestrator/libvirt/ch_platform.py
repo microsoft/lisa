@@ -121,7 +121,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 domain.attrib["type"] = "kvm"
             else:
                 # Fall back to 'ch' if neither mshv nor kvm devices are available
-                domain.attrib["type"] = "ch"
+                domain.attrib["type"] = "hyperv"
 
         else:
             domain.attrib["type"] = "ch"
