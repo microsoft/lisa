@@ -74,8 +74,12 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             node_context.kernel_path = node_runbook.kernel.path
         libvirt_version = self._get_libvirt_version()
         assert libvirt_version, "Can not get libvirt version"
+        
+        # Extract version number from "libvirtd (libvirt) X.Y.Z" format
+        version_match = re.search(r'(\d+\.\d+\.\d+)', libvirt_version)
+        version_number = version_match.group(1) if version_match else libvirt_version
 
-        if parse_version(libvirt_version) >= "10.5.0":
+        if parse_version(version_number) >= "10.5.0":
             en = "utf-8"
             token = secrets.token_hex(16)
             node_context.host_data = base64.b64encode(token.encode(en)).decode(en)
@@ -112,6 +116,10 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context = get_node_context(node)
         libvirt_version = self._get_libvirt_version()
         assert libvirt_version, "Can not get libvirt version"
+        
+        # Extract version number from "libvirtd (libvirt) X.Y.Z" format
+        version_match = re.search(r'(\d+\.\d+\.\d+)', libvirt_version)
+        version_number = version_match.group(1) if version_match else libvirt_version
 
         domain = ET.Element("domain")
         domain.attrib["type"] = "ch"
@@ -138,7 +146,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
-            if parse_version(libvirt_version) >= "10.5.0":
+            if parse_version(version_number) >= "10.5.0":
                 attrb_type = "sev-snp"
                 attrb_host_data = "hostData"
 
