@@ -18,6 +18,7 @@ from lisa.sut_orchestrator.libvirt.context import (
     NodeContext,
     get_node_context,
 )
+from lisa.util import parse_version
 from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
 from lisa.tools import QemuImg
 from lisa.util.logger import Logger, filter_ansi_escape
@@ -109,6 +110,8 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node: Node,
     ) -> str:
         node_context = get_node_context(node)
+        libvirt_version = self._get_libvirt_version()
+        assert libvirt_version, "Can not get libvirt version"
 
         domain = ET.Element("domain")
         domain.attrib["type"] = "ch"
