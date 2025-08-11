@@ -567,7 +567,34 @@
     "use_availability_zones": "[equals(variables('availability_type'), 'availability_zone')]",
     "availability_set_value": "[if(variables('use_availability_set'), __bicep.getAvailabilitySetId(variables('availability_set_name_value')), null())]",
     "combined_vm_tags": "[union(parameters('tags'), parameters('vm_tags'))]",
-    "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]"
+    "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]",
+    "AzureMonitorLinuxAgentExtension": {
+      "name": "AzureMonitorLinuxAgent",
+      "properties": {
+        "publisher": "Microsoft.Azure.Monitor",
+        "type": "AzureMonitorLinuxAgent",
+        "typeHandlerVersion": "1.0",
+        "autoUpgradeMinorVersion": true,
+        "enableAutomaticUpgrade": true,
+        "settings": {
+          "GCS_AUTO_CONFIG": true
+        }
+      }
+    },
+    "AzureSecurityLinuxAgentExtension": {
+      "name": "AzureSecurityLinuxAgent",
+      "properties": {
+        "publisher": "Microsoft.Azure.Security.Monitoring",
+        "type": "AzureSecurityLinuxAgent",
+        "typeHandlerVersion": "2.0",
+        "autoUpgradeMinorVersion": true,
+        "enableAutomaticUpgrade": true,
+        "settings": {
+          "enableGenevaUpload": true,
+          "enableAutoConfig": true
+        }
+      }
+    }
   },
   "resources": {
     "virtual_network_name_resource": {
@@ -802,7 +829,7 @@
             "/subscriptions/e7eb2257-46e4-4826-94df-153853fea38f/resourceGroups/gsatestresourcegroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/gsateststorage-blobreader": {},
             "/subscriptions/11764614-ffac-4e4d-8506-bdf64388ce6c/resourcegroups/Bala-LisaTestResourcesRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/lisatestaccessidentity": {}
         }
-    },
+      },
       "properties": {
         "availabilitySet": "[variables('availability_set_value')]",
         "hardwareProfile": {

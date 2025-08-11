@@ -18,7 +18,9 @@ from lisa.tools import Ping as ping
 from lisa.tools import Sysctl as sysctl
 import time
 from lisa.features import NetworkInterface
-
+from lisa.sut_orchestrator.azure.common import (
+    get_node_context
+)
 
 
 
@@ -31,6 +33,7 @@ lisaContainerName = "fwcreateconfigfiles"
 firewallAppVersion = "app-15432201"
 bootstrapFileName = f"app/{firewallAppVersion}/bootstrap.tar"
 gsaContainerName = "app"
+gsaMSIClientID = "6f5a4b4b-8ca9-47b8-a65b-50b249dafa6b"
 gsaStorageAccountName = "gsateststorage"
 cseparams = {
         "RULE_CONFIG_URL": "https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/ruleConfig.json",
@@ -89,8 +92,7 @@ class AzureFirewallNetworkRuleTest(TestSuite):
 
 
     def test_network_rules(self, environment: Environment, log: Logger) -> None:
-
-        
+    
         firewallNode, clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICName, firewallNICIPAddr = chooseFirewallServerClientVMs(environment, log)
 
         #Enable IP Forwarding
@@ -98,9 +100,16 @@ class AzureFirewallNetworkRuleTest(TestSuite):
         clientNode.tools[sysctl].write("net.ipv4.ip_forward", "1")
         serverNode.tools[sysctl].write("net.ipv4.ip_forward", "1")
 
-        asyncio.run(createRouteTable(clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICIPAddr, log))
+        firewallNodeContext = get_node_context(firewallNode)
+        firewallResourceGroupName = firewallNodeContext.resource_group_name
 
+        asyncio.run(createRouteTable(clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICIPAddr, log))
         delFirewallNICRoutes(firewallNICIPAddr, firewallNode, log)
+
+        log.info("Enabling Key Vault VM Extension on Firewall Node to provision Geneva Certificates through Client Node")
+        enableKeyVaultVMExtension(clientNode, firewallResourceGroupName, firewallNode.name, "settings.json", "/tmp/settings.json", log)
+        extractKeyAndCerts(firewallNode, log)
+
         log.info("Setting up Azure Firewall in VM:",firewallNode.name)
         firewallInit(firewallNode, log)
 
@@ -128,6 +137,28 @@ async def performping(node, nodeNICName, destinationIPAddr, count, interval, log
 # ipv4 network longest prefix match helper. Assumes 24bit mask
 def ipv4_to_lpm(addr: str) -> str:
     return ".".join(addr.split(".")[:3]) + ".0/24"    
+
+def extractKeyAndCerts(node, log):
+    #Get all the files in /tmp/ directory and loop through them, find and move the .pem file to /var/lib/waagent
+    result = node.execute("ls /var/lib/waagent/", sudo=True)
+    log.info(f"Files in /tmp/: {result.stdout.splitlines()}")
+    for file in result.stdout.splitlines():
+        if file.startswith("lisatestgenevakv.geneva2.") and file.endswith(".PEM"):
+            pemFileName = file
+            log.info(f"Found .PEM file: {pemFileName}")
+            node.execute(f"mv /tmp/{file} /var/lib/waagent/", sudo=True)
+            log.info(f"Moved {file} to /var/lib/waagent/")
+            break
+
+    log.info("Move the .PEM file from /tmp/ to /var/lib/waagent")
+    # Extract the key and certificates from the .pem file
+    pemFilePath = f"/var/lib/waagent/{pemFileName}"
+    result = node.execute (f"openssl pkey -in {pemFilePath} -out {pemFilePath.replace('.PEM', '.prv')}", sudo=True)
+    log.info(f"Extracted private key from {pemFilePath} to {pemFilePath.replace('.PEM', '.prv')}", result.stdout)
+    result = node.execute(f"openssl x509 -in {pemFilePath} -out {pemFilePath.replace('.PEM', '.crt')}", sudo=True)
+    log.info(f"Extracted certificate from {pemFilePath} to {pemFilePath.replace('.PEM', '.crt')}", result.stdout)
+    result = node.execute(f"openssl x509 -in {pemFilePath.replace('.PEM', '.crt')} -text -noout", sudo=True)
+    log.info(f"Extracted certificate details from {pemFilePath.replace('.PEM', '.crt')}", result.stdout)
 
 async def createRouteTable(clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICIPAddr, log):
     log.info("Creating Route Table to send traffic via Azure Firewall Client --> Firewall --> Server")
@@ -230,6 +261,8 @@ def delFirewallNICRoutes(firewallNICIPAddr,firewallNode, log):
     log.info(f"Routes after deletion: {firewallRoutes}")
 
 
+
+
 def deleteiproute(ipaddresses, node, log):
 
     for ipaddr in ipaddresses:
@@ -242,8 +275,25 @@ def deleteiproute(ipaddresses, node, log):
                 node.execute(f"ip route del {route}", sudo=True)
         
 
+#Enable Key Vault VM Extension on the Firewall VM to provision Geneva Certificates from Client Node
+def enableKeyVaultVMExtension(clientNode, resourceGroupName, firewallVMName, settingsFileName, settingsFilePath, log):
 
+    GsaTestStorageBlobReaderIdentity = "/subscriptions/e7eb2257-46e4-4826-94df-153853fea38f/resourcegroups/gsatestresourcegroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/gsateststorage-blobreader"
 
+    clientNode.execute("sudo tdnf install -y azure-cli", sudo=True)
+    result = clientNode.execute(f"az login --identity --resource-id {GsaTestStorageBlobReaderIdentity}")
+    log.info('Successfully logged into lisa storage', result.stdout)
+
+    #Download the settings.json file from blob storage
+    log.info(f"Downloading settings.json {settingsFileName} file from blob storage to {settingsFilePath} on node: {clientNode.name}")
+    command = f"az storage blob download --auth-mode login --account-name {lisaStorageAccountName} -c {lisaContainerName} -n {settingsFileName} -f {settingsFilePath}"
+    result = clientNode.execute(command)
+    log.info(f"Result for downloading settings.json {settingsFileName} file from blob storage: {result.stdout}")
+
+    log.info(f"Enabling Key Vault VM Extension on {firewallVMName} which is present in {resourceGroupName} resource group from node : {clientNode.name}")
+    command = f'az vm extension set -n "KeyVaultForLinux" --publisher Microsoft.Azure.KeyVault --resource-group {resourceGroupName} --vm-name {firewallVMName} --version 3.0 --enable-auto-upgrade --settings {settingsFilePath}'
+    result = clientNode.execute(command)
+    log.info("Successfully enabled Key Vault VM Extension", result)
 
 
 def firewallInit(firewallNode, log):
@@ -271,18 +321,18 @@ def firewallInit(firewallNode, log):
 
     result = firewallNode.execute("bash -x /tmp/install_runtime_deps.sh", sudo=True)
     log.info("Successfully executed install_runtime_deps.sh", result.stdout)
-    firewallNode.execute("mv /tmp/mdsd.service /etc/systemd/system/mdsd.service", sudo=True)
-    firewallNode.execute("mv /tmp/mock_statsd.service /etc/systemd/system/mock_statsd.service", sudo=True)
-    firewallNode.execute("mv /tmp/mock_statsd.py /opt/mock_statsd.py", sudo=True)
-    firewallNode.execute("mv /tmp/mock_mdsd /opt/mock_mdsd", sudo=True)
+    # firewallNode.execute("mv /tmp/mdsd.service /etc/systemd/system/mdsd.service", sudo=True)
+    # firewallNode.execute("mv /tmp/mock_statsd.service /etc/systemd/system/mock_statsd.service", sudo=True)
+    # firewallNode.execute("mv /tmp/mock_statsd.py /opt/mock_statsd.py", sudo=True)
+    # firewallNode.execute("mv /tmp/mock_mdsd /opt/mock_mdsd", sudo=True)
     firewallNode.execute("useradd -M -e 2100-01-01 azfwuser", sudo=True)
     
     # Reload daemon 
     result = firewallNode.execute("sudo systemctl daemon-reload", sudo=True)
     log.info("Daemon reloaded successfully", result)
     #Restart mdsd and mdsd.statsd service
-    result = firewallNode.execute("sudo systemctl restart mock_statsd.service", sudo=True)
-    result = firewallNode.execute("sudo systemctl restart mdsd.service", sudo=True)
+    # result = firewallNode.execute("sudo systemctl restart mock_statsd.service", sudo=True)
+    # result = firewallNode.execute("sudo systemctl restart mdsd.service", sudo=True)
     
     # Continue with your blob download and other operations
     result = firewallNode.execute("az storage blob download --auth-mode login --account-name gsateststorage -c app -n app/app-15817278/bootstrap.tar -f /tmp/bootstrap.tar") #Done
@@ -308,7 +358,7 @@ def firewallInit(firewallNode, log):
     result = firewallNode.execute("tar -xvf /tmp/bootstrap.tar -C /tmp/bootstrap/", sudo=True) #Done
     log.info("Successfully extracted bootstrap.tar")
 
-    result = firewallNode.execute("mv /tmp/bootstrap_geneva.sh /tmp/bootstrap/drop/vmss/bootstrap_geneva.sh", sudo=True) #Done
+    # result = firewallNode.execute("mv /tmp/bootstrap_geneva.sh /tmp/bootstrap/drop/vmss/bootstrap_geneva.sh", sudo=True) #Done
 
     result = firewallNode.execute("sed -i '461d' /tmp/bootstrap/drop/vmss/azfw_common.sh", sudo=True) #Done
     result = firewallNode.execute("sed -i '79d' /tmp/bootstrap/drop/vmss/bootstrap.sh", sudo=True)    #Done
