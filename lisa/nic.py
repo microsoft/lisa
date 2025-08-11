@@ -489,6 +489,8 @@ class Nics(InitializableMixin):
         return modprobe.module_exists(module_name)
 
     def get_packets(self, nic_name: str, name: str = "tx_packets") -> int:
+        if not nic_name:
+            raise LisaException("Nic name must be provided to get packets.")
         if not self.packet_path_exist(nic_name, name):
             self.reload()
         cat = self._node.tools[Cat]
