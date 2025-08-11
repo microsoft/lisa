@@ -211,7 +211,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=8,
+                nic_count=4,
                 data_path=schema.NetworkDataPath.Sriov,
             ),
         ),
