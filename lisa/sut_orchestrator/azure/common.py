@@ -1030,7 +1030,13 @@ class AzureNodeSchema:
 
         if isinstance(raw_data, dict):
             normalized_data = {
-                k: (v.lower() if isinstance(v, str) and hasattr(schema_type, k) else v)
+                k: (
+                    v.lower()
+                    if isinstance(v, str)
+                    and not isinstance(v, Enum)
+                    and hasattr(schema_type, k)
+                    else v
+                )
                 for k, v in raw_data.items()
             }
             prop_value = schema.load_by_type(schema_type, normalized_data)
