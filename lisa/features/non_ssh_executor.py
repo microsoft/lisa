@@ -1,3 +1,4 @@
+import re
 from typing import List
 
 from lisa.feature import Feature
@@ -44,16 +45,57 @@ class NonSshExecutor(Feature):
             # write a newline and read to make sure serial console has the prompt
             serial_console.write("\n")
             response = serial_console.read()
-            if not response or "$" not in response and "#" not in response:
-                raise LisaException("Serial console prompt not found in output")
+
+            # Check for full prompt pattern instead of individual characters
+            if not self._is_valid_prompt(response):
+                raise LisaException(
+                    f"Valid shell prompt not found in output. "
+                    f"Expected a shell prompt ending with $, #, or >, "
+                    f"but got: {response.strip()}"
+                )
+
             for command in commands:
                 serial_console.write(self._add_newline(command))
                 out.append(serial_console.read())
+            collected_info = "\n\n".join(out)
+            self._log.info(
+                f"Collected information using NonSshExecutor:\n{collected_info}"
+            )
             return out
         except Exception as e:
             raise LisaException(f"Failed to execute commands: {e}") from e
         finally:
             serial_console.close()
+
+    def _is_valid_prompt(self, response: str) -> bool:
+        """
+        Check if the response contains a valid shell prompt pattern.
+
+        :param response: The response from the serial console
+        :return: True if a valid prompt is found, False otherwise
+        """
+        if not response:
+            return False
+
+        # Generic pattern that matches any prompt format:
+        # - Username and hostname part: word chars, @, hyphens, dots
+        # - Colon separator
+        # - Path part: ~, /, word chars, dots, hyphens, slashes
+        # - Optional whitespace
+        # - Ending with $, #, or >
+        # - Optional trailing whitespace
+        prompt_pattern = r"[a-zA-Z0-9_@.-]+:[~/a-zA-Z0-9_./-]*\s*[\$#>]\s*$"
+
+        # Check each line in the response for the prompt pattern
+        lines = response.split("\n")
+        for line in lines:
+            line = line.strip()
+            if re.search(prompt_pattern, line):
+                self._log.debug(f"Valid prompt found: '{line}'")
+                return True
+
+        self._log.debug(f"No valid prompt found in response: '{response.strip()}'")
+        return False
 
     def _add_newline(self, command: str) -> str:
         """
