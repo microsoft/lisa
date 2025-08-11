@@ -186,23 +186,77 @@ class LibvirtDevicePool(BaseDevicePool):
             vendor_id=vendor_id,
             device_id=device_id,
         )
-        primary_nic_iommu = self.get_primary_nic_id()
-        for item in device_list:
-            device = DeviceAddressSchema()
-            domain, bus, slot, fn = self._parse_pci_address_str(addr=item.slot)
-            device.domain = domain
-            device.bus = bus
-            device.slot = slot
-            device.function = fn
-            iommu_group = self._get_device_iommu_group(device)
-            is_vfio_pci = self._is_driver_vfio_pci(device)
+        bdf_list = [i.slot for i in device_list]
+        self._create_pool(pool_type, bdf_list)
 
-            if not is_vfio_pci and iommu_group not in primary_nic_iommu:
+    def create_device_pool_from_pci_addresses(
+        self,
+        pool_type: HostDevicePoolType,
+        pci_addr_list: List[str],
+    ) -> None:
+        self.available_host_devices[pool_type] = {}
+        for bdf in pci_addr_list:
+            domain, bus, slot, fn = self._parse_pci_address_str(bdf)
+            device = self._get_pci_address_instance(domain, bus, slot, fn)
+            iommu_group = self._get_device_iommu_group(device)
+
+            # Get all the devices of that iommu group
+            iommu_path = f"/sys/kernel/iommu_groups/{iommu_group}/devices"
+            bdf_list = [i.strip() for i in self.host_node.tools[Ls].list(iommu_path)]
+            bdf_list.append(bdf.strip())  # append the given device in list
+
+            self._create_pool(pool_type, bdf_list)
+
+    def _create_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        bdf_list: List[str],
+    ) -> None:
+        iommu_grp_of_used_devices = []
+        primary_nic_iommu = self.get_primary_nic_id()
+        for bdf in bdf_list:
+            domain, bus, slot, fn = self._parse_pci_address_str(bdf)
+            dev = self._get_pci_address_instance(domain, bus, slot, fn)
+            is_vfio_pci = self._is_driver_vfio_pci(dev)
+            iommu_group = self._get_device_iommu_group(dev)
+
+            if iommu_group in iommu_grp_of_used_devices:
+                # No need to add this device in pool as one of the devices for this
+                # iommu group is in use
+                continue
+
+            if is_vfio_pci:
+                # Do not consider any device for pool if any device of same iommu group
+                # is already assigned
+                pool = self.available_host_devices.get(pool_type, {})
+                pool.pop(iommu_group, [])
+                self.available_host_devices[pool_type] = pool
+                iommu_grp_of_used_devices.append(iommu_group)
+            elif (
+                iommu_group not in primary_nic_iommu
+                and iommu_group not in iommu_grp_of_used_devices
+            ):
                 pool = self.available_host_devices.get(pool_type, {})
                 devices = pool.get(iommu_group, [])
-                devices.append(device)
+                if dev not in devices:
+                    devices.append(dev)
                 pool[iommu_group] = devices
                 self.available_host_devices[pool_type] = pool
+
+    def _get_pci_address_instance(
+        self,
+        domain: str,
+        bus: str,
+        slot: str,
+        fn: str,
+    ) -> DeviceAddressSchema:
+        device = DeviceAddressSchema()
+        device.domain = domain
+        device.bus = bus
+        device.slot = slot
+        device.function = fn
+
+        return device
 
     def _add_device_passthrough_xml(
         self,
