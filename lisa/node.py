@@ -768,11 +768,7 @@ class RemoteNode(Node):
 
         if self.features.is_supported(NonSshExecutor):
             non_ssh_executor = self.features[NonSshExecutor]
-            outputs = non_ssh_executor.execute(commands=commands)
-            collected_info = "\n\n".join(outputs)
-            self.log.info(
-                f"Collected information using NonSshExecutor:\n{collected_info}"
-            )
+            non_ssh_executor.execute(commands=commands)
         else:
             self.log.debug(
                 f"NonSshExecutor is not supported on {self.name}, "
