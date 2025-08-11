@@ -41,16 +41,13 @@ class StressNgTestSuite(TestSuite):
         Runs a stress-ng jobfile. The path to the jobfile must be specified using a
         runbook variable named "stress_ng_jobs". Node count, CPU count and memory can be
         configured via runbook variables "stress_ng_node_count", "stress_ng_cpu_count"
-        and "stress_ng_memory_mb".
+        and "stress_ng_memory_mb". Also supports saturation and overcommit test
+        scenarios with their respective variable sets.
         For more info about jobfiles refer:
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
         priority=4,
-        requirement=simple_requirement(
-            min_count=1,
-            min_core_count=1,
-            min_memory_mb=1024,
-        ),
+        requirement=simple_requirement(min_count=1),
     )
     def stress_ng_jobfile(
         self,
@@ -59,15 +56,27 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
         result: TestResult,
     ) -> None:
-        # Get configurable parameters from variables for logging
-        node_count = variables.get("stress_ng_node_count", 1)
-        cpu_count = variables.get("stress_ng_cpu_count", 1)
-        memory_mb = variables.get("stress_ng_memory_mb", 1024)
-        
-        log.info(
-            f"Test configured for: Node count={node_count}, "
-            f"CPU count={cpu_count}, Memory={memory_mb}MB"
-        )
+        # Detect which stress test scenario is being used and get appropriate variables
+        if "stress_ng_saturation_node_count" in variables:
+            # Saturation test scenario
+            node_count = variables["stress_ng_saturation_node_count"]
+            cpu_count = variables["stress_ng_saturation_cpu_count"]
+            memory_mb = variables["stress_ng_saturation_memory_mb"]
+            scenario = "saturation"
+            log.info(
+                f"Stress-ng {scenario} test configured for: Node count={node_count}, "
+                f"CPU count={cpu_count}, Memory={memory_mb}MB"
+            )
+        elif "stress_ng_overcommit_node_count" in variables:
+            # Overcommit test scenario
+            node_count = variables["stress_ng_overcommit_node_count"]
+            cpu_count = variables["stress_ng_overcommit_cpu_count"]
+            memory_mb = variables["stress_ng_overcommit_memory_mb"]
+            scenario = "overcommit"
+            log.info(
+                f"Stress-ng {scenario} test configured for: Node count={node_count}, "
+                f"CPU count={cpu_count}, Memory={memory_mb}MB"
+            )
         
         if self.CONFIG_VARIABLE in variables:
             jobs = variables[self.CONFIG_VARIABLE]
