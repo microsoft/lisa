@@ -92,6 +92,8 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_GPU: [
         "1db4",  # NVIDIA Corporation GV100GL [Tesla V100 PCIe 16GB]
         "1eb8",  # NVIDIA Corporation TU104GL [Tesla T4]
+        "2941",  # NVIDIA Corporation GB200
+        "2951",  # NVIDIA Corporation GB300
         "13f2",  # NVIDIA Corporation GM204GL [Tesla M60]
         "74b5",  # Advanced Micro Devices, Inc. [AMD/ATI]
         "5353",  # Hyper-V virtual VGA [VGA compatible controller]
