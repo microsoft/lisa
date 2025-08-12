@@ -816,7 +816,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     test_result = environment.source_test_result
     if not test_result:
-        log.warn(
+        log.warning(
             "LISA environment does not have a pointer to the test result object."
             "performance data reporting for this test will be broken!"
         )
