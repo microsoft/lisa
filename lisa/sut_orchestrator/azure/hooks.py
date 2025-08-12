@@ -100,6 +100,51 @@ class AzureHookSpecDefaultImpl:
             ),
             SkippedException,
         ),
+        (
+            # ResourceCollectionRequestsThrottled - Too many requests to Azure API
+            "Azure API throttling detected. The deployment was throttled "
+            "due to too many requests",
+            re.compile(
+                r"ResourceCollectionRequestsThrottled.*Operation '.*' failed as server "
+                r"encountered too many requests.*Please try after '\d+' seconds"
+            ),
+            ResourceAwaitableException,
+        ),
+        (
+            # ResourceGroupQuotaExceeded - Resource group limit reached
+            "Resource group quota exceeded. Please delete some "
+            "resource groups before retrying",
+            re.compile(
+                r"ResourceGroupQuotaExceeded.*Creating the resource group.*would "
+                r"exceed the quota of '\d+'.*current resource group count is '\d+'"
+            ),
+            SkippedException,
+        ),
+        (
+            # ResourceDeploymentFailure - Deployment timeout
+            "Resource deployment timed out. Azure provisioning took too long",
+            re.compile(
+                r"ResourceDeploymentFailure.*The resource provision operation did not "
+                r"complete within the allowed timeout period"
+            ),
+            SkippedException,
+        ),
+        (
+            # Connection aborted - Transient network issues
+            "Connection to Azure was aborted. This is likely a temporary network issue",
+            re.compile(
+                r"Connection aborted.*RemoteDisconnected.*Remote end closed connection"
+            ),
+            ResourceAwaitableException,
+        ),
+        (
+            # FailedIdentityOperation with 499 status - Client timeout
+            "Client closed the request before Azure could respond (HTTP 499)",
+            re.compile(
+                r"FailedIdentityOperation.*Status: '499'.*Client Closed Request"
+            ),
+            ResourceAwaitableException,
+        ),
     ]
 
     @hookimpl
