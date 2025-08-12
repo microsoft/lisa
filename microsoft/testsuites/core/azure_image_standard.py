@@ -1281,8 +1281,11 @@ class AzureImageStandard(TestSuite):
            /etc/ssh/sshd_config.d/50-cloudimg-settings.conf
         2. Verify the parameter exists. The test fails if ClientAliveInterval is not
            found.
-        3. Confirm the value is within the acceptable range (> 0 and < 181 ). The test
-           fails if the value is outside this range.
+        3. Confirm the value is within the acceptable range (> 0 and < 236 ). The test
+           fails if the value is outside this range. It is recommended to set
+           ClientAliveInterval to 180. For Azure certification, values between 30 and
+           235 are acceptable depending on application requirements. For more details,
+           refer to https://aka.ms/Linux-Testcases.
         """,
         priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
@@ -1293,14 +1296,15 @@ class AzureImageStandard(TestSuite):
         value = ssh.get(setting)
         if not value:
             raise LisaException(f"not find {setting} in sshd_config")
-        if not (int(value) > 0 and int(value) < 181):
+        if not (int(value) > 0 and int(value) < 236):
             # "The ClientAliveInterval configuration of OpenSSH is set to" is the
             # failure triage pattern. Please be careful when changing this string.
             raise LisaException(
                 f"The {setting} configuration of OpenSSH is set to {int(value)} "
                 "seconds in this image. A properly configured ClientAliveInterval "
-                "helps maintain secure SSH connections. Please keep ClientAliveInterval"
-                " between 0 seconds and 180 seconds."
+                "helps maintain secure SSH connections. Please set ClientAliveInterval"
+                " to 180. On the application need, values between 30 and 235 are "
+                "acceptable. For more details, refer to https://aka.ms/Linux-Testcases."
             )
 
     @TestCaseMetadata(
