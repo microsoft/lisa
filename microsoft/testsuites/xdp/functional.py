@@ -132,7 +132,7 @@ class XdpFunctional(TestSuite):
         2. Install and validate xdpdump.
         """,
         priority=3,
-        requirement=simple_requirement(min_nic_count=4),
+        requirement=simple_requirement(min_nic_count=2),
     )
     def verify_xdp_multiple_nics(self, node: Node) -> None:
         xdpdump = get_xdpdump(node)
