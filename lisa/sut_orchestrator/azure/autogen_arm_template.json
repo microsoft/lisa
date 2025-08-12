@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "16291477761159155605"
+      "templateHash": "6322760451492665980"
     }
   },
   "functions": [
@@ -567,34 +567,7 @@
     "use_availability_zones": "[equals(variables('availability_type'), 'availability_zone')]",
     "availability_set_value": "[if(variables('use_availability_set'), __bicep.getAvailabilitySetId(variables('availability_set_name_value')), null())]",
     "combined_vm_tags": "[union(parameters('tags'), parameters('vm_tags'))]",
-    "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]",
-    "AzureMonitorLinuxAgentExtension": {
-      "name": "AzureMonitorLinuxAgent",
-      "properties": {
-        "publisher": "Microsoft.Azure.Monitor",
-        "type": "AzureMonitorLinuxAgent",
-        "typeHandlerVersion": "1.0",
-        "autoUpgradeMinorVersion": true,
-        "enableAutomaticUpgrade": true,
-        "settings": {
-          "GCS_AUTO_CONFIG": true
-        }
-      }
-    },
-    "AzureSecurityLinuxAgentExtension": {
-      "name": "AzureSecurityLinuxAgent",
-      "properties": {
-        "publisher": "Microsoft.Azure.Security.Monitoring",
-        "type": "AzureSecurityLinuxAgent",
-        "typeHandlerVersion": "2.0",
-        "autoUpgradeMinorVersion": true,
-        "enableAutomaticUpgrade": true,
-        "settings": {
-          "enableGenevaUpload": true,
-          "enableAutoConfig": true
-        }
-      }
-    }
+    "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]"
   },
   "resources": {
     "virtual_network_name_resource": {
