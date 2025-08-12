@@ -195,12 +195,83 @@ class StressNgTestSuite(TestSuite):
             stress_processes: List to store launched processes
             log: Logger instance for detailed logging
         """
-        # Crash the system immediately for testing
+        # Wait for VM to fully boot and console logging to be established
+        import time
+        log.warning("Waiting for VM to fully boot before crash test...")
+        time.sleep(30)  # Give console logging time to start
+        
+        # Check initial console log state
+        try:
+            initial_serial = nodes[0].features[SerialConsole].get_console_log(saved_path=None, force_run=True)
+            log.debug(f"Initial serial log length: {len(initial_serial)}")
+            log.debug(f"Initial serial content: {initial_serial[-200:] if len(initial_serial) > 200 else initial_serial}")
+        except Exception as e:
+            log.warning(f"Failed to get initial serial log: {e}")
+        
+        # Crash the system for testing
         log.warning("CRASHING SYSTEM NOW for crash detection testing")
         
-        # Execute crash command and expect it to disconnect
-        result = nodes[0].execute("echo c > /proc/sysrq-trigger", sudo=True, shell=True)
-        log.debug(f"Crash command result: {result}")
+        # First, enable SysRq if it's disabled
+        log.debug("Enabling SysRq...")
+        nodes[0].execute("echo 1 > /proc/sys/kernel/sysrq", sudo=True, shell=True)
+        
+        # Verify SysRq is enabled
+        sysrq_status = nodes[0].execute("cat /proc/sys/kernel/sysrq", sudo=True, shell=True)
+        log.debug(f"SysRq status: {sysrq_status.stdout}")
+        
+        # Try multiple crash methods for better reliability
+        crash_methods = [
+            # Method 1: SysRq crash trigger (immediate)
+            "echo c > /proc/sysrq-trigger",
+            # Method 2: Force kernel panic with immediate crash
+            "echo 1 > /proc/sys/kernel/panic_on_oops && echo c > /proc/sysrq-trigger",
+            # Method 3: NULL pointer dereference in kernel space
+            "echo 1 > /proc/sys/kernel/panic_on_oops && echo 'int main(){int *p=0; *p=42; return 0;}' > /tmp/crash.c && gcc /tmp/crash.c -o /tmp/crash && /tmp/crash",
+            # Method 4: Direct kernel module crash (if available)
+            "modprobe dummy 2>/dev/null || echo 'Kernel module crash method not available'",
+        ]
+        
+        # Try each crash method until one works
+        crash_successful = False
+        for i, crash_cmd in enumerate(crash_methods):
+            try:
+                log.warning(f"Attempting crash method {i+1}/{len(crash_methods)}: {crash_cmd[:50]}...")
+                
+                # For method 3 (NULL pointer), prepare the crash program first
+                if "crash.c" in crash_cmd:
+                    log.debug("Preparing NULL pointer crash program...")
+                    # Split the command to execute parts separately for better control
+                    nodes[0].execute("echo 1 > /proc/sys/kernel/panic_on_oops", sudo=True, shell=True)
+                    nodes[0].execute("echo 'int main(){int *p=0; *p=42; return 0;}' > /tmp/crash.c", sudo=True, shell=True)
+                    nodes[0].execute("gcc /tmp/crash.c -o /tmp/crash", sudo=True, shell=True)
+                    result = nodes[0].execute("/tmp/crash", sudo=True, shell=True)
+                else:
+                    # Execute the crash command
+                    result = nodes[0].execute(crash_cmd, sudo=True, shell=True)
+                
+                log.debug(f"Crash method {i+1} result: {result}")
+                
+                # If we get here without exception, the command completed
+                # For crash commands, we expect the connection to drop
+                if result.exit_code == 0 and "echo c > /proc/sysrq-trigger" in crash_cmd:
+                    log.warning(f"Crash method {i+1} executed successfully")
+                    crash_successful = True
+                    break
+                elif "modprobe" in crash_cmd:
+                    log.debug(f"Kernel module method attempted: {result.stdout}")
+                    continue  # Try next method
+                else:
+                    log.info(f"Crash method {i+1} completed, trying next method...")
+                    
+            except Exception as crash_error:
+                log.info(f"Crash method {i+1} triggered exception (expected for crash): {crash_error}")
+                crash_successful = True
+                break  # Exception likely means the crash worked
+        
+        if not crash_successful:
+            log.warning("All crash methods completed without apparent system crash")
+        else:
+            log.info("Crash appears to have been triggered successfully")
         
         for node_index, node in enumerate(nodes):
             try:
@@ -317,6 +388,48 @@ class StressNgTestSuite(TestSuite):
                 # Add longer delay for crash to be fully logged
                 import time
                 node.log.info("Waiting for crash to be fully logged to serial console...")
+                
+                # Check if we can access the console log file directly from LibVirt context
+                try:
+                    from lisa.sut_orchestrator.libvirt.context import get_node_context
+                    node_context = get_node_context(node)
+                    console_log_path = node_context.console_log_file_path
+                    node.log.debug(f"LibVirt console log file path: {console_log_path}")
+                    
+                    # Try to read the file directly if it exists
+                    import os
+                    if os.path.exists(console_log_path):
+                        with open(console_log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            direct_content = f.read()
+                        node.log.debug(f"Direct console log file size: {len(direct_content)}")
+                        if len(direct_content) > 500:
+                            node.log.debug(f"Direct console log (last 500 chars): {direct_content[-500:]}")
+                        else:
+                            node.log.debug(f"Direct console log content: {direct_content}")
+                        
+                        # Check for common crash indicators in the direct log
+                        crash_indicators = ["kernel panic", "Oops:", "BUG:", "Call Trace:", "RIP:", "segfault", "general protection fault"]
+                        for indicator in crash_indicators:
+                            if indicator.lower() in direct_content.lower():
+                                node.log.info(f"FOUND CRASH INDICATOR in direct log: {indicator}")
+                                
+                    else:
+                        node.log.warning(f"Console log file doesn't exist at: {console_log_path}")
+                except Exception as direct_read_error:
+                    node.log.warning(f"Failed to read console log directly: {direct_read_error}")
+                
+                # Also check if the VM actually rebooted (indicating a crash)
+                try:
+                    uptime_result = node.execute("uptime", shell=True)
+                    node.log.debug(f"System uptime after crash: {uptime_result.stdout}")
+                    
+                    # Check for crash evidence in dmesg or /var/log
+                    dmesg_result = node.execute("dmesg | tail -50", shell=True)
+                    node.log.debug(f"Recent dmesg output: {dmesg_result.stdout}")
+                    
+                except Exception as system_check_error:
+                    node.log.warning(f"Failed to check system state after crash: {system_check_error}")
+                    # This might be expected if the system is still recovering from crash
                 
                 # Try multiple attempts with increasing delays to capture the crash
                 max_attempts = 5
