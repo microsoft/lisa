@@ -1,14 +1,21 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from logging import Logger
+
+from assertpy import assert_that
+
 from lisa import (
     Environment,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    features,
     schema,
     simple_requirement,
 )
 from lisa.features import NetworkInterface, StartStop
+from lisa.node import Node
+from lisa.tools.ip import Ip
 
 from .common import initialize_nic_info, remove_extra_nics, restore_extra_nics
 
@@ -191,3 +198,21 @@ class Synthetic(TestSuite):
                     initialize_nic_info(environment, is_sriov=False)
         finally:
             restore_extra_nics(environment)
+
+    @TestCaseMetadata(
+        "",
+        priority=2,
+        use_new_environment=True,
+        requirement=simple_requirement(
+            network_interface=features.SyntheticIPv6(),
+        ),
+    )
+    def verify_synthetic_ipv6_basic(self, node: Node, log: Logger) -> None:
+        ip = node.tools[Ip]
+        # for each nic, verify that ipv6 exists using nic name
+        for nic in node.nics.nics.keys():
+            nic_ipv6 = ip.get_ipv6_address(nic)
+            assert_that(
+                nic_ipv6,
+                f"Expected IPv6 address but found none on nic {nic}",
+            ).is_not_empty()

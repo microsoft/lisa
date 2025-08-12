@@ -15,6 +15,7 @@ from lisa import (
 )
 from lisa.environment import Environment, Node
 from lisa.features import Sriov, Synthetic
+from lisa.features.network_interface import SriovIPv6, SyntheticIPv6
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Sysctl

@@ -213,8 +213,11 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        use_ipv6: bool = False,
     ) -> Process:
         cmd = ""
+        if use_ipv6:
+            cmd += " -6 "
         if server_ip:
             cmd += f" -r{server_ip} "
         cmd += (
@@ -308,6 +311,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        use_ipv6: bool = False,
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -326,11 +330,15 @@ class Ntttcp(Tool):
         # the devices specified by the differentiator
         # Examples for differentiator: Hyper-V PCIe MSI, mlx4, Hypervisor callback
         # interrupts
-        cmd = (
+        cmd = ""
+        if use_ipv6:
+            cmd += " -6 "
+        cmd += (
             f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
             f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
             f"--show-nic-packets {nic_name} "
         )
+
         if udp_mode:
             cmd += " -u "
         if dev_differentiator:

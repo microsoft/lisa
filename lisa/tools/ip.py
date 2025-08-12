@@ -12,7 +12,7 @@ from lisa.operating_system import Posix
 from lisa.tools import Cat
 from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 
 class IpInfo:
@@ -345,6 +345,17 @@ class Ip(Tool):
         matched = self._get_matched_dict(result.stdout)
         assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
         return matched["ip_addr"]
+
+    def get_ipv6_address(self, nic_name: str) -> str:
+        """Get the global IPv6 address for a network interface."""
+        result = self.run(f"-6 addr show {nic_name}", force_run=True, sudo=True)
+
+        # Regex to match IPv6 addresses with global scope
+        # Example: inet6 2001:db8::5/128 scope global dynamic noprefixroute
+        ipv6_pattern = re.compile(r"inet6\s+([0-9a-fA-F:]+)\/\d+\s+scope\s+global")
+
+        ipv6_address = get_matched_str(result.stdout, ipv6_pattern)
+        return ipv6_address
 
     def get_default_route_info(self) -> tuple[str, str]:
         result = self.run("route", force_run=True, sudo=True)

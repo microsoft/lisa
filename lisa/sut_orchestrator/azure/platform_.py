@@ -1199,6 +1199,12 @@ class AzurePlatform(Platform):
         )
         arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
 
+        # Override IPv6 setting if environment specifically requires IPv6
+        if not arm_parameters.use_ipv6:  # Only check if not already enabled
+            ipv6_required = self._check_ipv6_requirements(environment)
+            if ipv6_required:
+                arm_parameters.use_ipv6 = True
+
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
         # if no key or password specified, generate the key pair
@@ -2242,6 +2248,11 @@ class AzurePlatform(Platform):
         ](is_allow_set=True, items=[])
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
+        node_space.network_interface.ip_version = search_space.SetSpace[
+            schema.IPVersion
+        ](is_allow_set=True, items=[])
+        node_space.network_interface.ip_version.add(schema.IPVersion.IPv4)
+        node_space.network_interface.ip_version.add(schema.IPVersion.IPv6)
         node_space.network_interface.nic_count = search_space.IntRange(min=1)
         # till now, the max nic number supported in Azure is 8
         node_space.network_interface.max_nic_count = 8
@@ -3053,6 +3064,29 @@ class AzurePlatform(Platform):
             self._log.debug(f"Failed to check BYOIP feature: {e}")
             self._cached_byoip_registered = False
         return self._cached_byoip_registered
+
+    def _check_ipv6_requirements(self, environment: Environment) -> bool:
+        """Check if IPv6 is specifically required by analyzing environment requirements."""
+        ipv6_required = False
+
+        # Check environment runbook node requirements for IPv6 specifications
+        if environment.runbook and environment.runbook.nodes_requirement:
+            for node_requirement in environment.runbook.nodes_requirement:
+                if (
+                    node_requirement.network_interface
+                    and node_requirement.network_interface.ip_version is not None
+                ):
+                    ip_version = node_requirement.network_interface.ip_version
+                    if isinstance(ip_version, search_space.SetSpace):
+                        if schema.IPVersion.IPv6 in ip_version.items:
+                            ipv6_required = True
+                            break
+                    elif isinstance(ip_version, schema.IPVersion):
+                        if ip_version == schema.IPVersion.IPv6:
+                            ipv6_required = True
+                            break
+
+        return ipv6_required
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
