@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import logging
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import yaml
 
@@ -12,7 +12,7 @@ from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
-from lisa.util import SkippedException
+from lisa.util import SkippedException, KernelPanicException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
 
@@ -119,7 +119,9 @@ class StressNgTestSuite(TestSuite):
             for proc in procs:
                 proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
         except Exception as e:
-            self._check_panic(nodes)
+            # Check for crashes and send test results (no TestResult available)
+            self._check_panic(nodes, class_name, None)
+            
             raise e
 
     def _run_stress_ng_job(
@@ -160,10 +162,17 @@ class StressNgTestSuite(TestSuite):
             execution_summary = (
                 f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
-            self._check_panic(nodes)
+            
             raise execution_error
 
         finally:
+            # Always check for crashes before reporting results, regardless of how we got here
+            try:
+                self._check_panic(nodes, job_file_name, test_result)
+            except Exception as panic_check_error:
+                # If panic check fails, log it but don't break the finally block
+                log.warning(f"Failed to check for panic: {panic_check_error}")
+            
             self._report_test_results(
                 test_result, job_file_name, execution_status, execution_summary
             )
@@ -186,6 +195,13 @@ class StressNgTestSuite(TestSuite):
             stress_processes: List to store launched processes
             log: Logger instance for detailed logging
         """
+        # Crash the system immediately for testing
+        log.warning("CRASHING SYSTEM NOW for crash detection testing")
+        
+        # Execute crash command and expect it to disconnect
+        result = nodes[0].execute("echo c > /proc/sysrq-trigger", sudo=True, shell=True)
+        log.debug(f"Crash command result: {result}")
+        
         for node_index, node in enumerate(nodes):
             try:
                 log.debug(f"Processing node {node_index + 1}/{len(nodes)}: {node.name}")
@@ -292,9 +308,83 @@ class StressNgTestSuite(TestSuite):
             test_message=execution_summary,
         )
 
-    def _check_panic(self, nodes: List[RemoteNode]) -> None:
+    def _check_panic(self, nodes: List[RemoteNode], test_case_name: str, test_result: Optional[TestResult]) -> None:
+        """
+        Check for kernel panics, send crash details as test results, and raise.
+        """
         for node in nodes:
-            node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+            try:
+                # Add longer delay for crash to be fully logged
+                import time
+                node.log.info("Waiting for crash to be fully logged to serial console...")
+                
+                # Try multiple attempts with increasing delays to capture the crash
+                max_attempts = 5
+                for attempt in range(max_attempts):
+                    node.log.debug(f"Attempt {attempt + 1}/{max_attempts} to capture crash log...")
+                    
+                    # Wait progressively longer for crash to be logged
+                    wait_time = 5 + (attempt * 5)  # 5, 10, 15, 20, 25 seconds
+                    time.sleep(wait_time)
+                    
+                    # Force invalidate cache and refresh
+                    if hasattr(node.features[SerialConsole], 'invalidate_cache'):
+                        node.features[SerialConsole].invalidate_cache()
+                    
+                    # Get fresh serial log content
+                    serial_content = node.features[SerialConsole].get_console_log(saved_path=None, force_run=True)
+                    node.log.debug(f"Serial console log content (length: {len(serial_content)}):")
+                    
+                    # Show more content for debugging
+                    if len(serial_content) > 1000:
+                        node.log.debug(f"First 500 chars: {serial_content[:500]}")
+                        node.log.debug(f"Last 500 chars: {serial_content[-500:]}")
+                    else:
+                        node.log.debug(f"Full serial log: {serial_content}")
+                    
+                    # If we have substantial content (more than just login prompt), try to check for panic
+                    if len(serial_content) > 200:  # More than just login prompt
+                        break
+                    else:
+                        node.log.warning(f"Serial log too short ({len(serial_content)} chars), retrying...")
+                
+                node.log.debug("Checking panic in serial log with force_run=True...")
+                
+                # Now check for panic
+                node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+                
+                # If we get here, no panic was detected
+                node.log.warning("No kernel panic detected in serial console log")
+                
+            except KernelPanicException as panic_ex:
+                # Always log the crash details
+                node.log.error(f"CRASH DETECTED on node {node.name}:")
+                node.log.error(f"  Stage: {panic_ex.stage}")
+                node.log.error(f"  Source: {panic_ex.source}")
+                node.log.error(f"  Error codes/phrases: {panic_ex.panics}")
+                node.log.error(f"  Full error: {str(panic_ex)}")
+                
+                # Create detailed crash message
+                crash_message = f"""CRASH DETECTED on {node.name}:
+Stage: {panic_ex.stage}
+Source: {panic_ex.source}
+Error codes/phrases: {panic_ex.panics}
+Full error: {str(panic_ex)}"""
+                
+                # Always ensure we have a TestResult for reporting
+                if test_result is None:
+                    test_result = TestResult(id_=f"crash_detection_{test_case_name}")
+                
+                # Always send crash test results
+                send_sub_test_result_message(
+                    test_result=test_result,
+                    test_case_name=f"CRASH_{test_case_name}_{node.name}",
+                    test_status=TestStatus.FAILED,
+                    test_message=crash_message,
+                )
+                
+                # Raise the panic to fail the test
+                raise panic_ex
 
     def _process_yaml_output(
         self,

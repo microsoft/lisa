@@ -175,6 +175,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         console = ET.SubElement(devices, "console")
         console.attrib["type"] = "pty"
 
+        # Add console log file to capture all output from boot time
+        console_log = ET.SubElement(console, "log")
+        console_log.attrib["file"] = node_context.console_log_file_path
+        console_log.attrib["append"] = "on"
+
         console_target = ET.SubElement(console, "target")
         console_target.attrib["type"] = "serial"
         console_target.attrib["port"] = "0"
