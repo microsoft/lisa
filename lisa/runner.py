@@ -457,9 +457,9 @@ class RootRunner(Action):
             for runner in self._runners:
                 runner.close()
         except Exception as e:
-            self._log.warn(f"error on close runner: {e}")
+            self._log.warning(f"error on close runner: {e}")
 
         try:
             transformer.run(self._runbook_builder, constants.TRANSFORMER_PHASE_CLEANUP)
         except Exception as e:
-            self._log.warn(f"error on run cleanup transformers: {e}")
+            self._log.warning(f"error on run cleanup transformers: {e}")

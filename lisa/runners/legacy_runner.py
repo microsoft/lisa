@@ -37,7 +37,7 @@ if platform.system() == "Windows":
         import win32file  # type: ignore
     except Exception:
         log = get_logger("init", "runner")
-        log.warn(
+        log.warning(
             "win32file package is not installed, legacy runner cannot run correctly."
         )
 
