@@ -151,44 +151,21 @@ class StressNgTestSuite(TestSuite):
     ) -> None:
         """
         Execute multi-VM stress test across multiple VMs.
-        Uses saturation config if saturation variables are non-zero,
-        otherwise uses overcommit config.
+        Generic method that runs with whatever variables are passed from the pipeline.
         """
         log.info("=== MULTI-VM STRESS TEST ===")
         
-        # Determine scenario based on which variables have non-zero values
-        saturation_nodes = int(variables.get("stress_ng_saturation_node_count", 0))
-        overcommit_nodes = int(variables.get("stress_ng_overcommit_node_count", 0))
+        # Log environment and configuration for debugging
+        actual_vm_count = len(environment.nodes.list())
+        node_count = variables.get("stress_ng_node_count", "not set")
+        cpu_count = variables.get("stress_ng_cpu_count", "not set")
+        memory_mb = variables.get("stress_ng_memory_mb", "not set")
         
-        if saturation_nodes > 0:
-            scenario = "saturation"
-            variables["stress_ng_node_count"] = saturation_nodes
-            variables["stress_ng_cpu_count"] = variables[
-                "stress_ng_saturation_cpu_count"
-            ]
-            variables["stress_ng_memory_mb"] = variables[
-                "stress_ng_saturation_memory_mb"
-            ]
-            log.info(f"Saturation: {saturation_nodes} VMs")
-            
-        elif overcommit_nodes > 0:
-            scenario = "overcommit"
-            variables["stress_ng_node_count"] = overcommit_nodes
-            variables["stress_ng_cpu_count"] = variables[
-                "stress_ng_overcommit_cpu_count"
-            ]
-            variables["stress_ng_memory_mb"] = variables[
-                "stress_ng_overcommit_memory_mb"
-            ]
-            log.info(f"Overcommit: {overcommit_nodes} VMs")
-            
-        else:
-            scenario = "standard"
-            log.info("Standard multi-VM (no specific scenario variables found)")
+        log.info(f"Environment: {actual_vm_count} VMs available")
+        log.info(f"Configuration: {node_count} nodes, {cpu_count} CPU, {memory_mb} MB")
         
-        self._execute_multi_vm_stress_test(
-            log, variables, environment, result, scenario
-        )
+        # Execute the stress test with whatever configuration was passed
+        self._execute_multi_vm_stress_test(log, variables, environment, result)
 
     def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
@@ -440,20 +417,18 @@ class StressNgTestSuite(TestSuite):
         variables: Dict[str, Any],
         environment: Environment,
         result: TestResult,
-        scenario_type: str,
     ) -> None:
         """
         Common execution logic for multi-VM stress tests.
         """
         # Log multi-VM configuration
         actual_vm_count = len(environment.nodes.list())
-        log.info(f"Multi-VM stress test ({scenario_type}):")
-        log.info(f"  Running on {actual_vm_count} VMs")
+        log.info(f"Multi-VM stress test running on {actual_vm_count} VMs")
         
         # Reuse the existing jobfile validation and execution logic
         if self.CONFIG_VARIABLE not in variables:
             raise SkippedException(
-                f"No jobfile provided for multi-VM {scenario_type} stress test"
+                "No jobfile provided for multi-VM stress test"
             )
 
         jobs = variables[self.CONFIG_VARIABLE]
@@ -465,4 +440,4 @@ class StressNgTestSuite(TestSuite):
             log.info(f"Executing jobfile '{job_file}' across {actual_vm_count} VMs")
             self._run_stress_ng_job(job_file, environment, result, log)
 
-        log.info(f"Multi-VM {scenario_type} stress test completed successfully")
+        log.info("Multi-VM stress test completed successfully")
