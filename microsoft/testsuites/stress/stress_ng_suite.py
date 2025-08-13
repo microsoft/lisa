@@ -211,67 +211,120 @@ class StressNgTestSuite(TestSuite):
         # Crash the system for testing
         log.warning("CRASHING SYSTEM NOW for crash detection testing")
         
-        # First, enable SysRq if it's disabled
-        log.debug("Enabling SysRq...")
+        # First, check system capabilities and enable debugging
+        log.debug("Checking system capabilities and crash prerequisites...")
+        
+        # Check if we're running as root
+        whoami_result = nodes[0].execute("whoami", shell=True)
+        log.debug(f"Current user: {whoami_result.stdout}")
+        
+        # Check if SysRq exists and current status
+        sysrq_check = nodes[0].execute("ls -la /proc/sys/kernel/sysrq*", shell=True)
+        log.debug(f"SysRq files: {sysrq_check.stdout}")
+        
+        current_sysrq = nodes[0].execute("cat /proc/sys/kernel/sysrq 2>/dev/null || echo 'N/A'", shell=True)
+        log.debug(f"Current SysRq status: {current_sysrq.stdout}")
+        
+        # Enable all SysRq functions (more aggressive)
+        log.debug("Enabling all SysRq functions...")
         nodes[0].execute("echo 1 > /proc/sys/kernel/sysrq", sudo=True, shell=True)
         
         # Verify SysRq is enabled
         sysrq_status = nodes[0].execute("cat /proc/sys/kernel/sysrq", sudo=True, shell=True)
-        log.debug(f"SysRq status: {sysrq_status.stdout}")
+        log.debug(f"SysRq status after enable: {sysrq_status.stdout}")
         
-        # Try multiple crash methods for better reliability
+        # Check if crash utilities are available
+        log.debug("Checking crash prerequisites...")
+        gcc_check = nodes[0].execute("which gcc", shell=True)
+        log.debug(f"GCC available: {gcc_check.stdout if gcc_check.exit_code == 0 else 'Not found'}")
+        
+        # Enable panic on oops globally first
+        log.debug("Enabling panic on oops...")
+        nodes[0].execute("echo 1 > /proc/sys/kernel/panic_on_oops", sudo=True, shell=True)
+        panic_status = nodes[0].execute("cat /proc/sys/kernel/panic_on_oops", shell=True)
+        log.debug(f"Panic on oops: {panic_status.stdout}")
+        
+        # Try multiple crash methods with enhanced debugging
         crash_methods = [
-            # Method 1: SysRq crash trigger (immediate)
-            "echo c > /proc/sysrq-trigger",
-            # Method 2: Force kernel panic with immediate crash
-            "echo 1 > /proc/sys/kernel/panic_on_oops && echo c > /proc/sysrq-trigger",
-            # Method 3: NULL pointer dereference in kernel space
-            "echo 1 > /proc/sys/kernel/panic_on_oops && echo 'int main(){int *p=0; *p=42; return 0;}' > /tmp/crash.c && gcc /tmp/crash.c -o /tmp/crash && /tmp/crash",
-            # Method 4: Direct kernel module crash (if available)
-            "modprobe dummy 2>/dev/null || echo 'Kernel module crash method not available'",
+            # Method 1: Direct SysRq crash (most reliable)
+            ("sysrq_c", "echo c > /proc/sysrq-trigger"),
+            # Method 2: SysRq with sync first
+            ("sysrq_sync_crash", "sync && echo c > /proc/sysrq-trigger"),
+            # Method 3: Manual kernel panic trigger
+            ("manual_panic", "echo 1 > /proc/sys/kernel/panic && sleep 1"),
+            # Method 4: Segfault with panic on oops
+            ("segfault_crash", "echo 'int main(){*(int*)0=42; return 0;}' > /tmp/crash.c && gcc /tmp/crash.c -o /tmp/crash && /tmp/crash"),
+            # Method 5: Memory corruption
+            ("memory_corrupt", "dd if=/dev/urandom of=/dev/mem bs=1 count=1 seek=1000 2>/dev/null || echo 'Memory method failed'"),
         ]
         
-        # Try each crash method until one works
+        # Try each crash method with detailed monitoring
         crash_successful = False
-        for i, crash_cmd in enumerate(crash_methods):
+        for i, (method_name, crash_cmd) in enumerate(crash_methods):
             try:
-                log.warning(f"Attempting crash method {i+1}/{len(crash_methods)}: {crash_cmd[:50]}...")
+                log.warning(f"=== Attempting crash method {i+1}/{len(crash_methods)}: {method_name} ===")
+                log.debug(f"Command: {crash_cmd}")
                 
-                # For method 3 (NULL pointer), prepare the crash program first
-                if "crash.c" in crash_cmd:
-                    log.debug("Preparing NULL pointer crash program...")
-                    # Split the command to execute parts separately for better control
-                    nodes[0].execute("echo 1 > /proc/sys/kernel/panic_on_oops", sudo=True, shell=True)
-                    nodes[0].execute("echo 'int main(){int *p=0; *p=42; return 0;}' > /tmp/crash.c", sudo=True, shell=True)
+                # Check system state before crash attempt
+                pre_crash_uptime = nodes[0].execute("uptime", shell=True)
+                log.debug(f"Pre-crash uptime: {pre_crash_uptime.stdout.strip()}")
+                
+                # Execute crash command with timeout and detailed logging
+                if method_name == "segfault_crash":
+                    # Handle segfault method separately
+                    log.debug("Creating crash program...")
+                    nodes[0].execute("echo 'int main(){*(int*)0=42; return 0;}' > /tmp/crash.c", sudo=True, shell=True)
                     nodes[0].execute("gcc /tmp/crash.c -o /tmp/crash", sudo=True, shell=True)
-                    result = nodes[0].execute("/tmp/crash", sudo=True, shell=True)
+                    log.debug("Executing crash program...")
+                    result = nodes[0].execute("/tmp/crash", sudo=True, shell=True, timeout=10)
                 else:
-                    # Execute the crash command
-                    result = nodes[0].execute(crash_cmd, sudo=True, shell=True)
+                    # Execute other crash methods
+                    log.debug(f"Executing: {crash_cmd}")
+                    result = nodes[0].execute(crash_cmd, sudo=True, shell=True, timeout=10)
                 
-                log.debug(f"Crash method {i+1} result: {result}")
+                log.debug(f"Crash command result: exit_code={result.exit_code}, stdout='{result.stdout}', stderr='{result.stderr}'")
                 
-                # If we get here without exception, the command completed
-                # For crash commands, we expect the connection to drop
-                if result.exit_code == 0 and "echo c > /proc/sysrq-trigger" in crash_cmd:
-                    log.warning(f"Crash method {i+1} executed successfully")
-                    crash_successful = True
-                    break
-                elif "modprobe" in crash_cmd:
-                    log.debug(f"Kernel module method attempted: {result.stdout}")
-                    continue  # Try next method
+                # If we get here, the command completed - this is unexpected for crash commands
+                if result.exit_code == 0:
+                    log.warning(f"Method {method_name} completed successfully - this is unexpected for crash commands!")
+                    # Wait a bit to see if delayed crash occurs
+                    import time
+                    time.sleep(5)
+                    
+                    # Check if system is still responsive
+                    try:
+                        post_check = nodes[0].execute("echo 'System still alive'", shell=True, timeout=5)
+                        log.warning(f"System still responsive after {method_name}: {post_check.stdout}")
+                    except Exception as e:
+                        log.info(f"System became unresponsive after {method_name} - crash may have worked: {e}")
+                        crash_successful = True
+                        break
                 else:
-                    log.info(f"Crash method {i+1} completed, trying next method...")
+                    log.warning(f"Method {method_name} failed with exit code {result.exit_code}")
                     
             except Exception as crash_error:
-                log.info(f"Crash method {i+1} triggered exception (expected for crash): {crash_error}")
+                log.info(f"Method {method_name} triggered exception - this is EXPECTED for crash: {type(crash_error).__name__}: {crash_error}")
+                # Exception during crash command likely means the crash worked
                 crash_successful = True
-                break  # Exception likely means the crash worked
+                break
         
+        # Final crash status
         if not crash_successful:
-            log.warning("All crash methods completed without apparent system crash")
+            log.error("ERROR: All crash methods completed without triggering system crash!")
+            log.error("This suggests either:")
+            log.error("1. SysRq is disabled or filtered by hypervisor")
+            log.error("2. System has crash protections enabled")
+            log.error("3. Commands are not executing with sufficient privileges")
+            
+            # Try one last desperate method
+            log.warning("Attempting final emergency crash method...")
+            try:
+                result = nodes[0].execute("killall -9 systemd-logind && echo b > /proc/sysrq-trigger", sudo=True, shell=True, timeout=5)
+                log.debug(f"Emergency method result: {result}")
+            except Exception as e:
+                log.info(f"Emergency crash method triggered exception: {e}")
         else:
-            log.info("Crash appears to have been triggered successfully")
+            log.info("SUCCESS: System crash appears to have been triggered!")
         
         for node_index, node in enumerate(nodes):
             try:
@@ -389,6 +442,9 @@ class StressNgTestSuite(TestSuite):
                 import time
                 node.log.info("Waiting for crash to be fully logged to serial console...")
                 
+                # DEEP DIVE: Console logging configuration debugging
+                node.log.warning("=== CONSOLE LOGGING DEEP DIVE DEBUG ===")
+                
                 # Check if we can access the console log file directly from LibVirt context
                 try:
                     from lisa.sut_orchestrator.libvirt.context import get_node_context
@@ -396,36 +452,137 @@ class StressNgTestSuite(TestSuite):
                     console_log_path = node_context.console_log_file_path
                     node.log.debug(f"LibVirt console log file path: {console_log_path}")
                     
-                    # Try to read the file directly if it exists
+                    # Check if file exists and get detailed info
                     import os
                     if os.path.exists(console_log_path):
+                        stat_info = os.stat(console_log_path)
+                        node.log.debug(f"Console log file stats: size={stat_info.st_size}, mtime={stat_info.st_mtime}")
+                        
+                        # Read file with multiple methods to compare
                         with open(console_log_path, 'r', encoding='utf-8', errors='ignore') as f:
                             direct_content = f.read()
-                        node.log.debug(f"Direct console log file size: {len(direct_content)}")
-                        if len(direct_content) > 500:
-                            node.log.debug(f"Direct console log (last 500 chars): {direct_content[-500:]}")
-                        else:
-                            node.log.debug(f"Direct console log content: {direct_content}")
+                        node.log.debug(f"Direct file read: {len(direct_content)} bytes")
+                        
+                        with open(console_log_path, 'rb') as f:
+                            binary_content = f.read()
+                        node.log.debug(f"Binary file read: {len(binary_content)} bytes")
+                        node.log.debug(f"Binary content (first 100 bytes): {binary_content[:100]}")
+                        
+                        if len(direct_content) > 0:
+                            node.log.debug(f"Direct console log content: '{direct_content}'")
+                            # Look for any signs that logging is working
+                            if "login:" in direct_content and len(direct_content) <= 100:
+                                node.log.warning("Console log appears to contain only login prompt - this suggests console logging isn't capturing system messages!")
+                        
+                        # Check file modification time vs current time
+                        import datetime
+                        mtime = datetime.datetime.fromtimestamp(stat_info.st_mtime)
+                        now = datetime.datetime.now()
+                        age_seconds = (now - mtime).total_seconds()
+                        node.log.debug(f"Console log file age: {age_seconds} seconds")
+                        
+                        if age_seconds > 300:  # 5 minutes
+                            node.log.warning(f"Console log file is {age_seconds} seconds old - might not be actively logging!")
                         
                         # Check for common crash indicators in the direct log
-                        crash_indicators = ["kernel panic", "Oops:", "BUG:", "Call Trace:", "RIP:", "segfault", "general protection fault"]
+                        crash_indicators = ["kernel panic", "Oops:", "BUG:", "Call Trace:", "RIP:", "segfault", "general protection fault", "Call trace:", "Kernel panic"]
+                        found_indicators = []
                         for indicator in crash_indicators:
                             if indicator.lower() in direct_content.lower():
+                                found_indicators.append(indicator)
                                 node.log.info(f"FOUND CRASH INDICATOR in direct log: {indicator}")
+                        
+                        if found_indicators:
+                            node.log.warning(f"Found crash indicators: {found_indicators}")
+                        else:
+                            node.log.warning("No crash indicators found in console log")
                                 
                     else:
-                        node.log.warning(f"Console log file doesn't exist at: {console_log_path}")
+                        node.log.error(f"Console log file doesn't exist at: {console_log_path}")
+                        
+                        # Check if directory exists
+                        log_dir = os.path.dirname(console_log_path)
+                        if os.path.exists(log_dir):
+                            files_in_dir = os.listdir(log_dir)
+                            node.log.debug(f"Files in log directory {log_dir}: {files_in_dir}")
+                        else:
+                            node.log.error(f"Log directory doesn't exist: {log_dir}")
+                            
                 except Exception as direct_read_error:
-                    node.log.warning(f"Failed to read console log directly: {direct_read_error}")
+                    node.log.error(f"Failed to read console log directly: {direct_read_error}")
+                
+                # Check LibVirt domain configuration to see if console logging is properly set up
+                try:
+                    # Try to get LibVirt domain info
+                    node.log.debug("Checking LibVirt domain configuration...")
+                    domain_info = node.execute("virsh list --all", shell=True)
+                    node.log.debug(f"LibVirt domains: {domain_info.stdout}")
+                    
+                    # Try to get the specific domain config (if we can determine domain name)
+                    if hasattr(node_context, 'domain_name') or hasattr(node_context, 'vm_name'):
+                        domain_name = getattr(node_context, 'domain_name', getattr(node_context, 'vm_name', 'unknown'))
+                        node.log.debug(f"Checking domain config for: {domain_name}")
+                        domain_config = node.execute(f"virsh dumpxml {domain_name} 2>/dev/null || echo 'Domain not found'", shell=True)
+                        node.log.debug(f"Domain XML config: {domain_config.stdout[:500]}...")
+                        
+                        # Look for console configuration in the XML
+                        if '<console' in domain_config.stdout and 'type="pty"' in domain_config.stdout:
+                            node.log.debug("Console configuration found in domain XML")
+                            if 'log' in domain_config.stdout:
+                                node.log.debug("Log configuration found in console section")
+                            else:
+                                node.log.warning("No log configuration found in console section!")
+                        else:
+                            node.log.warning("No console configuration found in domain XML!")
+                            
+                except Exception as libvirt_error:
+                    node.log.warning(f"Failed to check LibVirt configuration: {libvirt_error}")
+                
+                # Compare LibVirt console log vs LISA SerialConsole feature
+                node.log.debug("=== Comparing LibVirt vs LISA console access ===")
+                
+                # Get LISA's version
+                try:
+                    lisa_serial_content = node.features[SerialConsole].get_console_log(saved_path=None, force_run=True)
+                    node.log.debug(f"LISA SerialConsole length: {len(lisa_serial_content)}")
+                    if lisa_serial_content != direct_content:
+                        node.log.warning("LISA SerialConsole content differs from direct file read!")
+                        node.log.debug(f"LISA content: '{lisa_serial_content}'")
+                    else:
+                        node.log.debug("LISA SerialConsole matches direct file read")
+                except Exception as lisa_serial_error:
+                    node.log.error(f"Failed to get LISA SerialConsole: {lisa_serial_error}")
+                
+                # Check if there are alternative log sources
+                try:
+                    node.log.debug("Checking alternative log sources...")
+                    
+                    # Check system journal for boot messages
+                    journal_check = node.execute("journalctl --boot | tail -20", shell=True)
+                    node.log.debug(f"Recent journal entries: {journal_check.stdout}")
+                    
+                    # Check dmesg for kernel messages
+                    dmesg_check = node.execute("dmesg | tail -20", shell=True)
+                    node.log.debug(f"Recent dmesg entries: {dmesg_check.stdout}")
+                    
+                    # Check /var/log/messages or syslog
+                    syslog_check = node.execute("tail -20 /var/log/messages 2>/dev/null || tail -20 /var/log/syslog 2>/dev/null || echo 'No syslog found'", shell=True)
+                    node.log.debug(f"Recent syslog entries: {syslog_check.stdout}")
+                    
+                except Exception as alt_log_error:
+                    node.log.warning(f"Failed to check alternative logs: {alt_log_error}")
+                
+                node.log.warning("=== END CONSOLE LOGGING DEEP DIVE ===")
                 
                 # Also check if the VM actually rebooted (indicating a crash)
                 try:
                     uptime_result = node.execute("uptime", shell=True)
                     node.log.debug(f"System uptime after crash: {uptime_result.stdout}")
                     
-                    # Check for crash evidence in dmesg or /var/log
-                    dmesg_result = node.execute("dmesg | tail -50", shell=True)
-                    node.log.debug(f"Recent dmesg output: {dmesg_result.stdout}")
+                    # Parse uptime to see if system recently rebooted
+                    uptime_str = uptime_result.stdout.strip()
+                    if "min" in uptime_str and not "hour" in uptime_str and not "day" in uptime_str:
+                        node.log.warning(f"System uptime is very recent: {uptime_str} - this suggests a recent reboot/crash!")
                     
                 except Exception as system_check_error:
                     node.log.warning(f"Failed to check system state after crash: {system_check_error}")
