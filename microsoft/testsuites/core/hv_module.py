@@ -62,7 +62,9 @@ class HvModule(TestSuite):
         lis_driver = node.tools[LisDriver]
         lis_version = lis_driver.get_version()
 
-        hv_modules = self._get_modules_by_type(node)
+        hv_modules = self._get_modules_by_type(
+            node, module_type=ModulesType.MODULE
+        ) + self._get_modules_by_type(node, module_type=ModulesType.NOT_BUILT)
         for module in hv_modules:
             module_version = VersionInfo.parse(modinfo.get_version(module))
             assert_that(module_version).described_as(
@@ -155,7 +157,9 @@ class HvModule(TestSuite):
     )
     def verify_hyperv_modules(self, log: Logger, environment: Environment) -> None:
         node = environment.nodes[0]
-        hv_modules = self._get_modules_by_type(node)
+        hv_modules = self._get_modules_by_type(
+            node, module_type=ModulesType.MODULE
+        ) + self._get_modules_by_type(node, module_type=ModulesType.NOT_BUILT)
         distro_version = node.os.information.version
         if len(hv_modules) == 0:
             raise SkippedException(
@@ -179,20 +183,22 @@ class HvModule(TestSuite):
                 modprobe.run("mlx4_en", sudo=True)
 
         # Counts the Hyper V drivers loaded as modules
-        missing_modules = []
+        missing_modules = set()
         lsmod = node.tools[Lsmod]
         for module in hv_modules:
             if lsmod.module_exists(module):
                 log.info(f"Module {module} present")
             else:
                 log.error(f"Module {module} absent")
-                missing_modules.append(module)
+                missing_modules.add(module)
 
-        if (
-            isinstance(environment.platform, AzurePlatform)
-            and "hid_hyperv" in missing_modules
-        ):
-            missing_modules.remove("hid_hyperv")
+        if isinstance(environment.platform, AzurePlatform):
+            missing_modules.discard("hid_hyperv")
+        if not ("hyperv_fb" in missing_modules and "hyperv_drm" in missing_modules):
+            # as long as both of these modules are not missing, we are OK to pass.
+            missing_modules.discard("hyperv_fb")
+            missing_modules.discard("hyperv_drm")
+
         assert_that(missing_modules).described_as(
             "Not all Hyper V drivers are present."
         ).is_length(0)
