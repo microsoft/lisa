@@ -343,7 +343,18 @@ class DpdkTestpmd(Tool):
         r"EAL: PCI device [a-fA-F0-9]{4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9] "
         r"on NUMA socket [0-9]+"
     )
+    _search_hotplug_regex_netvsc_remove = re.compile(
+        r"HN_DRIVER: hn_nvs_set_datapath\(\): set datapath Synthetic"
+    )
+    _search_hotplug_regex_netvsc_add = re.compile(
+        r"HN_DRIVER: hn_nvs_set_datapath\(\): set datapath VF"
+    )
 
+    _search_hotplug_add_regexps = [
+        _search_hotplug_regex,
+        _search_hotplug_regex_alt,
+        _search_hotplug_regex_netvsc_add,
+    ]
     # ex v19.11-rc3 or 19.11
     _version_info_from_git_tag_regex = re.compile(
         r"v?(?P<major>[0-9]+)\.(?P<minor>[0-9]+)"
@@ -563,7 +574,10 @@ class DpdkTestpmd(Tool):
         ).is_not_empty()
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} -- --forward-mode={mode} "
+            f"{nic_include_info} "
+            "--log-level netvsc,debug "
+            "--log-level mana,debug "
+            f"-- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
             "--mbuf-size=2048,8096"
         )
@@ -916,16 +930,14 @@ class DpdkTestpmd(Tool):
         ]
         after_rescind = self._last_run_output[device_removal_index:]
         # Identify the device add event
-        hotplug_match = self._search_hotplug_regex.finditer(after_rescind)
-        matches_list = list(hotplug_match)
+        matches_list = []
+        for search_regex in self._search_hotplug_add_regexps:
+            hotplug_match = search_regex.finditer(after_rescind)
+            matches_list = list(hotplug_match)
         if not list(matches_list):
-            hotplug_alt_match = self._search_hotplug_regex_alt.finditer(after_rescind)
-            if hotplug_alt_match:
-                matches_list = list(hotplug_alt_match)
-            else:
-                command_dumped = "timeout: the monitored command dumped core"
-                if command_dumped in self._last_run_output:
-                    raise LisaException("Testpmd crashed after device removal.")
+            command_dumped = "timeout: the monitored command dumped core"
+            if command_dumped in self._last_run_output:
+                raise LisaException("Testpmd crashed after device removal.")
 
         # pick the last match
 

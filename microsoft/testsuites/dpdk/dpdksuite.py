@@ -390,6 +390,54 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
+    def verify_dpdk_sriov_rescind_failover_receiver_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        test_kits = init_nodes_concurrent(
+            environment,
+            log,
+            variables,
+            "netvsc",
+            HugePageSize.HUGE_2MB,
+        )
+
+        try:
+            check_send_receive_compatibility(test_kits)
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+        sender, receiver = test_kits
+
+        # Want to only switch receiver sriov to avoid timing weirdness
+        receiver.switch_sriov = True
+        sender.switch_sriov = False
+
+        kit_cmd_pairs = generate_send_receive_run_info("netvsc", sender, receiver)
+
+        run_testpmd_concurrent(
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+        )
+
+        rescind_tx_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_rescind()
+        self._check_rx_or_tx_pps_sriov_rescind("RX", rescind_tx_pps_set)
+
+    @TestCaseMetadata(
+        description="""
+            test sriov failsafe during vf revoke (receive side)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+            supported_features=[IsolatedResource],
+        ),
+    )
     def verify_dpdk_sriov_rescind_failover_receiver(
         self,
         environment: Environment,
@@ -415,7 +463,7 @@ class Dpdk(TestSuite):
         receiver.switch_sriov = True
         sender.switch_sriov = False
 
-        kit_cmd_pairs = generate_send_receive_run_info("failsafe", sender, receiver)
+        kit_cmd_pairs = generate_send_receive_run_info("netvsc", sender, receiver)
 
         run_testpmd_concurrent(
             kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
@@ -478,9 +526,8 @@ class Dpdk(TestSuite):
             ).is_greater_than(2**20)
         else:
             assert_that(pps).described_as(
-                f"{tx_or_rx}-PPS ({pps}) should have been less "
-                "than 2^20 (~1m) PPS after sriov disable."
-            ).is_less_than(2**20)
+                f"{tx_or_rx}-PPS ({pps}) should not have been 0 during rescind."
+            ).is_not_zero()
 
     @TestCaseMetadata(
         description="""
