@@ -684,6 +684,36 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            Tests a basic sender/receiver setup for the netvsc pmd using jumbo frames.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_multi_txrx_queue_max_mtu_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            verify_dpdk_send_receive_multi_txrx_queue(
+                environment, log, variables, "netvsc", result=result, set_mtu=9000
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
             Tests a basic sender/receiver setup for default failsafe driver setup.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the expected
