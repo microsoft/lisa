@@ -121,15 +121,6 @@ class AzureHookSpecDefaultImpl:
             SkippedException,
         ),
         (
-            # ResourceDeploymentFailure - Deployment timeout
-            "Resource deployment timed out. Azure provisioning took too long",
-            re.compile(
-                r"ResourceDeploymentFailure.*The resource provision operation did not "
-                r"complete within the allowed timeout period"
-            ),
-            SkippedException,
-        ),
-        (
             # Connection aborted - Transient network issues
             "Connection to Azure was aborted. This is likely a temporary network issue",
             re.compile(
