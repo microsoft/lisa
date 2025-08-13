@@ -488,6 +488,7 @@ class DpdkTestpmd(Tool):
         extra_args: str = "",
         multiple_queues: bool = False,
         service_cores: int = 1,
+        mtu: int = 0,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -550,6 +551,9 @@ class DpdkTestpmd(Tool):
             extra_args += f" --txd={txd} --rxd={txd} --stats 2"
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
+
+        if mtu:
+            extra_args += f" --max-pkt-len={mtu} --txpkts=9000 --tx-offloads=0x00008000"
 
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
