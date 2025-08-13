@@ -3020,9 +3020,11 @@ class AzurePlatform(Platform):
         azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
         if azure_runbook.vhd:
             if node_space.network_interface:
+                # node_space.network_interface must be passed in as capability
+                # because azure_runbook.vhd.network_data_path may be None
                 data_path = search_space.intersect_setspace_by_priority(  # type: ignore
-                    node_space.network_interface.data_path,
                     azure_runbook.vhd.network_data_path,
+                    node_space.network_interface.data_path,
                     [],
                 )
                 node_space.network_interface.data_path = data_path
