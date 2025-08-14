@@ -533,6 +533,7 @@ class VhdSchema(AzureImageSchema):
                 [
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
+                    SecurityProfileType.SecureBoot,
                 ],
             )
             self.encrypt_disk = search_space.SetSpace(True, [True, False])
