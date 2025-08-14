@@ -62,6 +62,7 @@ class Config:
     software_deployment_name: str
     log_root_path: str
     code_path: str
+    selected_flow: str
 
 
 def create_agent_execution_settings() -> AzureChatPromptExecutionSettings:
@@ -295,7 +296,9 @@ def setup_debug_logging() -> str:
     """
     debug_dir = os.path.join(get_current_directory(), "logs")
     os.makedirs(debug_dir, exist_ok=True)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%d_%H-%M-%S"
+    )
     tracing_filepath = os.path.join(debug_dir, f"debug_{timestamp}.log")
 
     # Initialize semantic kernel logging
@@ -993,7 +996,7 @@ class CodeSearchAgent(FileSearchAgentBase):
         )
 
 
-def _load_config() -> Config:
+def _load_config(selected_flow: str) -> Config:
     """
     Load environment variables and validate required configs.
     """
@@ -1018,6 +1021,7 @@ def _load_config() -> Config:
         software_deployment_name=software_deployment_name,  # type: ignore
         log_root_path=log_root_path,  # type: ignore
         code_path=code_path,  # type: ignore
+        selected_flow=selected_flow,
     )
 
 
@@ -1104,6 +1108,7 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
         config.code_path,
         log_folder_path,
         error_message,
+        selected_flow=config.selected_flow,
     )
 
     # Extract keywords
@@ -1230,8 +1235,8 @@ def main() -> None:
     """
 
     # Setup and validation
-    config = _load_config()
     args = parse_args()
+    config = _load_config(args.flow)
     setup_debug_logging()
 
     # Load and filter test data
@@ -1241,6 +1246,24 @@ def main() -> None:
     results = _process_test_cases(test_data, config)
 
     _output_results(results, config)
+
+
+def _add_flow_argument(parser: argparse.ArgumentParser) -> None:
+    """
+    Add the --flow argument to a parser.
+
+    Args:
+        parser: The ArgumentParser to add the --flow argument to
+    """
+    parser.add_argument(
+        "--flow",
+        choices=["default", "gpt-5"],
+        default="default",
+        help=(
+            "Select the analysis flow to use. Choices: 'default', 'gpt-5'. "
+            "(default: 'default')"
+        ),
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -1253,7 +1276,10 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command")
 
     # 'eval' subcommand (default)
-    subparsers.add_parser("eval", help="Run evaluation on all test cases (default)")
+    eval_parser = subparsers.add_parser(
+        "eval", help="Run evaluation on all test cases (default)"
+    )
+    _add_flow_argument(eval_parser)
 
     # 'single' subcommand
     single_parser = subparsers.add_parser(
@@ -1266,10 +1292,174 @@ def parse_args() -> argparse.Namespace:
         default=8,
         help="Index of the test case to analyze (default: 8, ranging 0-11)",
     )
+    _add_flow_argument(single_parser)
 
     parser.set_defaults(command="eval")
 
     return parser.parse_args()
+
+
+async def _async_analyze_default(
+    current_directory: str,
+    azure_openai_api_key: str,
+    azure_openai_endpoint: str,
+    general_deployment_name: str,
+    software_deployment_name: str,
+    code_path: str,
+    log_folder_path: str,
+    error_message: str,
+) -> str:
+    """
+    Default async analysis method using multi-agent orchestration.
+    """
+    system_instructions = load_system_prompt("user_prompt.txt")
+
+    # Include the actual error message in the analysis prompt
+    analysis_prompt = f"""{system_instructions}
+**ERROR MESSAGE TO ANALYZE: **
+{error_message}
+**AVAILABLE LOG PATHS: **
+{log_folder_path}
+**AVAILABLE CODE PATHS: **
+{code_path}
+    """
+
+    # Create specialized agents using the custom base class
+    logging.info("Initializing agents")
+
+    log_search_agent = LogSearchAgent(
+        log_paths=[log_folder_path],
+        deployment_name=software_deployment_name,
+        api_key=azure_openai_api_key,
+        base_url=azure_openai_endpoint,
+    )
+    code_search_agent = CodeSearchAgent(
+        code_paths=[code_path],
+        deployment_name=software_deployment_name,
+        api_key=azure_openai_api_key,
+        base_url=azure_openai_endpoint,
+    )
+
+    agents = [log_search_agent, code_search_agent]
+
+    logging.info("Setting up Magentic orchestration")
+
+    # Create magentic orchestration
+    chat_completion_service = AzureChatCompletion(
+        deployment_name=general_deployment_name,
+        api_key=azure_openai_api_key,
+        endpoint=azure_openai_endpoint,
+        api_version="2024-12-01-preview",
+    )
+
+    # Load the final answer prompt
+    final_answer_prompt = load_system_prompt("final_answer_system_prompt.txt")
+
+    # Create execution settings for the manager using the shared builder
+    manager_execution_settings = create_agent_execution_settings()
+
+    manager = StandardMagenticManager(
+        chat_completion_service=chat_completion_service,
+        final_answer_prompt=final_answer_prompt,
+        execution_settings=manager_execution_settings,
+    )
+
+    magentic_orchestration = MagenticOrchestration(
+        members=agents,
+        manager=manager,
+        agent_response_callback=agent_response_callback,
+    )
+
+    runtime = InProcessRuntime()
+    runtime.start()
+
+    logging.info(f"Starting analysis for: {error_message[:100]}...")
+
+    try:
+        # Execute analysis with timeout protection and retry logic
+        async def run_analysis() -> Any:
+            orchestration_result = await magentic_orchestration.invoke(
+                task=analysis_prompt,
+                runtime=runtime,
+            )
+            return await orchestration_result.get()
+
+        # Retry configuration
+        max_retries = 3
+
+        for attempt in range(max_retries + 1):
+            try:
+                # Set a reasonable timeout (5 minutes) with retry
+                value: Any = await asyncio.wait_for(run_analysis(), timeout=300.0)
+
+                # if the result is not the last message, the format is not
+                # correct. It will raise an exception, and trigger retry.
+                if isinstance(value, list):
+                    value = " ".join(
+                        (
+                            msg.content.strip()
+                            if hasattr(msg, "content") and msg.content
+                            else ""
+                        )
+                        for msg in value
+                    )
+                elif hasattr(value, "content"):
+                    value = value.content.strip()
+                else:
+                    value = str(value).strip()
+
+                break
+
+            except Exception as e:
+                if attempt == max_retries:
+                    # Last attempt failed, re-raise the exception
+                    logging.error(
+                        f"Analysis failed after {max_retries + 1} attempts: {e}"
+                    )
+                    raise
+
+                # Calculate delay with exponential backoff
+                logging.warning(f"Analysis attempt {attempt + 1} failed: {e}")
+
+        logging.info("🎯 **FINAL ANALYSIS RESULT**")
+        logging.info(value)
+        return str(value)
+
+    finally:
+        try:
+            await runtime.stop_when_idle()
+            await runtime.close()
+        except Exception as e:
+            logging.debug(f"Error during runtime cleanup: {e}")
+
+
+async def _async_analyze_gpt5(
+    current_directory: str,
+    azure_openai_api_key: str,
+    azure_openai_endpoint: str,
+    general_deployment_name: str,
+    software_deployment_name: str,
+    code_path: str,
+    log_folder_path: str,
+    error_message: str,
+) -> str:
+    """
+    GPT-5 specific async analysis method.
+    This is a placeholder for future GPT-5 specific implementation.
+    """
+    # For now, use the same implementation as default
+    # This can be extended with GPT-5 specific logic in the future
+    logging.info("Using GPT-5 analysis flow")
+    return await _async_analyze_default(
+        current_directory,
+        azure_openai_api_key,
+        azure_openai_endpoint,
+        general_deployment_name,
+        software_deployment_name,
+        code_path,
+        log_folder_path,
+        error_message,
+    )
 
 
 def analyze(
@@ -1281,133 +1471,33 @@ def analyze(
     code_path: str,
     log_folder_path: str,
     error_message: str,
+    selected_flow: str,
 ) -> str:
     """
     Analyze logs using async agents with asyncio.run for execution.
+    Supports different analysis flows based on selected_flow parameter.
     """
 
-    async def _async_analyze() -> str:
-        system_instructions = load_system_prompt("user_prompt.txt")
+    # Select the appropriate analysis method based on selected_flow
+    if selected_flow == "gpt-5":
+        async_analyze_func = _async_analyze_gpt5
+    else:  # default flow
+        async_analyze_func = _async_analyze_default
 
-        # Include the actual error message in the analysis prompt
-        analysis_prompt = f"""{system_instructions}
-**ERROR MESSAGE TO ANALYZE: **
-{error_message}
-**AVAILABLE LOG PATHS: **
-{log_folder_path}
-**AVAILABLE CODE PATHS: **
-{code_path}
-        """
+    logging.info(f"Using analysis flow: {selected_flow}")
 
-        # Create specialized agents using the custom base class
-        logging.info("Initializing agents")
-
-        log_search_agent = LogSearchAgent(
-            log_paths=[log_folder_path],
-            deployment_name=software_deployment_name,
-            api_key=azure_openai_api_key,
-            base_url=azure_openai_endpoint,
+    return asyncio.run(
+        async_analyze_func(
+            current_directory,
+            azure_openai_api_key,
+            azure_openai_endpoint,
+            general_deployment_name,
+            software_deployment_name,
+            code_path,
+            log_folder_path,
+            error_message,
         )
-        code_search_agent = CodeSearchAgent(
-            code_paths=[code_path],
-            deployment_name=software_deployment_name,
-            api_key=azure_openai_api_key,
-            base_url=azure_openai_endpoint,
-        )
-
-        agents = [log_search_agent, code_search_agent]
-
-        logging.info("Setting up Magentic orchestration")
-
-        # Create magentic orchestration
-        chat_completion_service = AzureChatCompletion(
-            deployment_name=general_deployment_name,
-            api_key=azure_openai_api_key,
-            endpoint=azure_openai_endpoint,
-            api_version="2024-12-01-preview",
-        )
-
-        # Load the final answer prompt
-        final_answer_prompt = load_system_prompt("final_answer_system_prompt.txt")
-
-        # Create execution settings for the manager using the shared builder
-        manager_execution_settings = create_agent_execution_settings()
-
-        manager = StandardMagenticManager(
-            chat_completion_service=chat_completion_service,
-            final_answer_prompt=final_answer_prompt,
-            execution_settings=manager_execution_settings,
-        )
-
-        magentic_orchestration = MagenticOrchestration(
-            members=agents,
-            manager=manager,
-            agent_response_callback=agent_response_callback,
-        )
-
-        runtime = InProcessRuntime()
-        runtime.start()
-
-        logging.info(f"Starting analysis for: {error_message[:100]}...")
-
-        try:
-            # Execute analysis with timeout protection and retry logic
-            async def run_analysis() -> Any:
-                orchestration_result = await magentic_orchestration.invoke(
-                    task=analysis_prompt,
-                    runtime=runtime,
-                )
-                return await orchestration_result.get()
-
-            # Retry configuration
-            max_retries = 3
-
-            for attempt in range(max_retries + 1):
-                try:
-                    # Set a reasonable timeout (5 minutes) with retry
-                    value: Any = await asyncio.wait_for(run_analysis(), timeout=300.0)
-
-                    # if the result is not the last message, the format is not
-                    # correct. It will raise an exception, and trigger retry.
-                    if isinstance(value, list):
-                        value = " ".join(
-                            (
-                                msg.content.strip()
-                                if hasattr(msg, "content") and msg.content
-                                else ""
-                            )
-                            for msg in value
-                        )
-                    elif hasattr(value, "content"):
-                        value = value.content.strip()
-                    else:
-                        value = str(value).strip()
-
-                    break
-
-                except Exception as e:
-                    if attempt == max_retries:
-                        # Last attempt failed, re-raise the exception
-                        logging.error(
-                            f"Analysis failed after {max_retries + 1} attempts: {e}"
-                        )
-                        raise
-
-                    # Calculate delay with exponential backoff
-                    logging.warning(f"Analysis attempt {attempt + 1} failed: {e}")
-
-            logging.info("🎯 **FINAL ANALYSIS RESULT**")
-            logging.info(value)
-            return str(value)
-
-        finally:
-            try:
-                await runtime.stop_when_idle()
-                await runtime.close()
-            except Exception as e:
-                logging.debug(f"Error during runtime cleanup: {e}")
-
-    return asyncio.run(_async_analyze())
+    )
 
 
 if __name__ == "__main__":
