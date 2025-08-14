@@ -197,159 +197,243 @@ class StressNgTestSuite(TestSuite):
         """
         # Wait for VM to fully boot and console logging to be established
         import time
-        log.warning("Waiting for VM to fully boot before crash test...")
+        nodes[0].log.warning("Waiting for VM to fully boot before crash test...")
         time.sleep(30)  # Give console logging time to start
         
-        # Check initial console log state
+        # Pre-crash system state capture
+        nodes[0].log.debug("=== PRE-CRASH SYSTEM STATE CAPTURE ===")
         try:
-            initial_serial = nodes[0].features[SerialConsole].get_console_log(saved_path=None, force_run=True)
-            log.debug(f"Initial serial log length: {len(initial_serial)}")
-            log.debug(f"Initial serial content: {initial_serial[-200:] if len(initial_serial) > 200 else initial_serial}")
-        except Exception as e:
-            log.warning(f"Failed to get initial serial log: {e}")
+            pre_crash_uptime = nodes[0].execute("uptime", shell=True)
+            nodes[0].log.info(f"Pre-crash uptime: {pre_crash_uptime.stdout.strip()}")
+            
+            pre_crash_load = nodes[0].execute("cat /proc/loadavg", shell=True)
+            nodes[0].log.debug(f"Pre-crash load: {pre_crash_load.stdout.strip()}")
+            
+            pre_crash_memory = nodes[0].execute("free -m", shell=True)
+            nodes[0].log.debug(f"Pre-crash memory: {pre_crash_memory.stdout.strip()}")
+            
+        except Exception as pre_state_error:
+            nodes[0].log.warning(f"Failed to capture pre-crash state: {pre_state_error}")
         
-        # Crash the system for testing
-        log.warning("CRASHING SYSTEM NOW for crash detection testing")
+        # Crash the system for testing - enhanced crash methods
+        nodes[0].log.warning("=== INITIATING SYSTEM CRASH FOR CRASH DETECTION TESTING ===")
         
-        # First, check system capabilities and enable debugging
-        log.debug("Checking system capabilities and crash prerequisites...")
+        # Enhanced crash preparation
+        nodes[0].log.debug("Preparing system for crash testing...")
         
-        # Check if we're running as root
-        whoami_result = nodes[0].execute("whoami", shell=True)
-        log.debug(f"Current user: {whoami_result.stdout}")
+        try:
+            # 1. Check and enable all necessary crash mechanisms
+            nodes[0].log.debug("Step 1: Enable crash mechanisms...")
+            
+            # Enable SysRq with all functions
+            nodes[0].execute("echo 1 > /proc/sys/kernel/sysrq", sudo=True, shell=True)
+            sysrq_status = nodes[0].execute("cat /proc/sys/kernel/sysrq", shell=True)
+            nodes[0].log.debug(f"SysRq status: {sysrq_status.stdout.strip()}")
+            
+            # Enable panic on oops
+            nodes[0].execute("echo 1 > /proc/sys/kernel/panic_on_oops", sudo=True, shell=True)
+            panic_oops_status = nodes[0].execute("cat /proc/sys/kernel/panic_on_oops", shell=True)
+            nodes[0].log.debug(f"Panic on oops: {panic_oops_status.stdout.strip()}")
+            
+            # Set panic timeout to ensure reboot (0 = no auto reboot, 1 = reboot after 1 sec)
+            nodes[0].execute("echo 10 > /proc/sys/kernel/panic", sudo=True, shell=True)
+            panic_timeout = nodes[0].execute("cat /proc/sys/kernel/panic", shell=True)
+            nodes[0].log.debug(f"Panic timeout: {panic_timeout.stdout.strip()}")
+            
+            # 2. Prepare crash detection logging
+            nodes[0].log.debug("Step 2: Prepare logging systems...")
+            
+            # Force kernel to log more verbosely
+            nodes[0].execute("echo 7 > /proc/sys/kernel/printk", sudo=True, shell=True)
+            printk_level = nodes[0].execute("cat /proc/sys/kernel/printk", shell=True)
+            nodes[0].log.debug(f"Kernel printk level: {printk_level.stdout.strip()}")
+            
+            # Sync filesystems before crash
+            nodes[0].execute("sync", sudo=True, shell=True)
+            nodes[0].log.debug("Filesystems synced")
+            
+        except Exception as prep_error:
+            nodes[0].log.warning(f"Crash preparation failed (continuing anyway): {prep_error}")
         
-        # Check if SysRq exists and current status
-        sysrq_check = nodes[0].execute("ls -la /proc/sys/kernel/sysrq*", shell=True)
-        log.debug(f"SysRq files: {sysrq_check.stdout}")
-        
-        current_sysrq = nodes[0].execute("cat /proc/sys/kernel/sysrq 2>/dev/null || echo 'N/A'", shell=True)
-        log.debug(f"Current SysRq status: {current_sysrq.stdout}")
-        
-        # Enable all SysRq functions (more aggressive)
-        log.debug("Enabling all SysRq functions...")
-        nodes[0].execute("echo 1 > /proc/sys/kernel/sysrq", sudo=True, shell=True)
-        
-        # Verify SysRq is enabled
-        sysrq_status = nodes[0].execute("cat /proc/sys/kernel/sysrq", sudo=True, shell=True)
-        log.debug(f"SysRq status after enable: {sysrq_status.stdout}")
-        
-        # Check if crash utilities are available
-        log.debug("Checking crash prerequisites...")
-        gcc_check = nodes[0].execute("which gcc", shell=True)
-        log.debug(f"GCC available: {gcc_check.stdout if gcc_check.exit_code == 0 else 'Not found'}")
-        
-        # Enable panic on oops globally first
-        log.debug("Enabling panic on oops...")
-        nodes[0].execute("echo 1 > /proc/sys/kernel/panic_on_oops", sudo=True, shell=True)
-        panic_status = nodes[0].execute("cat /proc/sys/kernel/panic_on_oops", shell=True)
-        log.debug(f"Panic on oops: {panic_status.stdout}")
-        
-        # Try multiple crash methods with enhanced debugging
+        # Enhanced crash methods with better success detection
         crash_methods = [
-            # Method 1: Direct SysRq crash (most reliable)
-            ("sysrq_c", "echo c > /proc/sysrq-trigger"),
-            # Method 2: SysRq with sync first
-            ("sysrq_sync_crash", "sync && echo c > /proc/sysrq-trigger"),
-            # Method 3: Manual kernel panic trigger
-            ("manual_panic", "echo 1 > /proc/sys/kernel/panic && sleep 1"),
-            # Method 4: Segfault with panic on oops
-            ("segfault_crash", "echo 'int main(){*(int*)0=42; return 0;}' > /tmp/crash.c && gcc /tmp/crash.c -o /tmp/crash && /tmp/crash"),
-            # Method 5: Memory corruption
-            ("memory_corrupt", "dd if=/dev/urandom of=/dev/mem bs=1 count=1 seek=1000 2>/dev/null || echo 'Memory method failed'"),
+            # Method 1: Direct kernel panic trigger (most reliable)
+            {
+                "name": "direct_panic", 
+                "cmd": "echo 1 > /proc/sys/kernel/panic && sleep 1",
+                "timeout": 5,
+                "description": "Direct kernel panic trigger"
+            },
+            # Method 2: SysRq crash trigger
+            {
+                "name": "sysrq_crash", 
+                "cmd": "echo c > /proc/sysrq-trigger",
+                "timeout": 5,
+                "description": "SysRq crash trigger"
+            },
+            # Method 3: SysRq with sync first  
+            {
+                "name": "sysrq_sync_crash", 
+                "cmd": "echo s > /proc/sysrq-trigger && sleep 1 && echo c > /proc/sysrq-trigger",
+                "timeout": 10,
+                "description": "SysRq sync then crash"
+            },
+            # Method 4: Kernel module crash (if possible)
+            {
+                "name": "module_crash",
+                "cmd": "echo 'BUG()' > /proc/breakme 2>/dev/null || echo 1 > /proc/sys/kernel/panic",
+                "timeout": 5,
+                "description": "Kernel module crash or fallback panic"
+            },
+            # Method 5: Memory corruption attempt
+            {
+                "name": "memory_corruption",
+                "cmd": "dd if=/dev/urandom of=/dev/mem bs=1 count=1 seek=1000000 2>/dev/null || echo c > /proc/sysrq-trigger",
+                "timeout": 10,
+                "description": "Memory corruption or SysRq fallback"
+            }
         ]
         
-        # Try each crash method with detailed monitoring
+        # Try each crash method with comprehensive monitoring
         crash_successful = False
-        for i, (method_name, crash_cmd) in enumerate(crash_methods):
+        for i, method in enumerate(crash_methods):
+            if crash_successful:
+                break
+                
+            nodes[0].log.warning(f"=== Crash Method {i+1}/{len(crash_methods)}: {method['name']} ===")
+            nodes[0].log.debug(f"Description: {method['description']}")
+            nodes[0].log.debug(f"Command: {method['cmd']}")
+            
             try:
-                log.warning(f"=== Attempting crash method {i+1}/{len(crash_methods)}: {method_name} ===")
-                log.debug(f"Command: {crash_cmd}")
-                
-                # Check system state before crash attempt
+                # Pre-method check
                 try:
-                    pre_crash_uptime = nodes[0].execute("uptime", shell=True)
-                    log.debug(f"Pre-crash uptime: {pre_crash_uptime.stdout.strip()}")
-                except Exception as e:
-                    log.warning(f"Failed to get pre-crash uptime (system may already be unstable): {e}")
-                
-                # Execute crash command with timeout and detailed logging
-                try:
-                    if method_name == "segfault_crash":
-                        # Handle segfault method separately
-                        log.debug("Creating crash program...")
-                        nodes[0].execute("echo 'int main(){*(int*)0=42; return 0;}' > /tmp/crash.c", sudo=True, shell=True)
-                        nodes[0].execute("gcc /tmp/crash.c -o /tmp/crash", sudo=True, shell=True)
-                        log.debug("Executing crash program...")
-                        result = nodes[0].execute("/tmp/crash", sudo=True, shell=True, timeout=10)
-                    else:
-                        # Execute other crash methods
-                        log.debug(f"Executing: {crash_cmd}")
-                        result = nodes[0].execute(crash_cmd, sudo=True, shell=True, timeout=10)
-                    
-                    log.debug(f"Crash command result: exit_code={result.exit_code}, stdout='{result.stdout}', stderr='{result.stderr}'")
-                    
-                    # If we get here, the command completed - this is unexpected for crash commands
-                    if result.exit_code == 0:
-                        log.warning(f"Method {method_name} completed successfully - this is unexpected for crash commands!")
-                        # Wait a bit to see if delayed crash occurs
-                        import time
-                        time.sleep(5)
-                        
-                        # Check if system is still responsive
-                        try:
-                            post_check = nodes[0].execute("echo 'System still alive'", shell=True, timeout=5)
-                            log.warning(f"System still responsive after {method_name}: {post_check.stdout}")
-                        except Exception as e:
-                            log.info(f"System became unresponsive after {method_name} - crash may have worked: {e}")
-                            crash_successful = True
-                            break
-                    else:
-                        log.warning(f"Method {method_name} failed with exit code {result.exit_code}")
-                        
-                except Exception as crash_error:
-                    log.info(f"Method {method_name} triggered exception - this is EXPECTED for crash: {type(crash_error).__name__}: {crash_error}")
-                    # Exception during crash command likely means the crash worked
+                    pre_method_check = nodes[0].execute("echo 'pre_method_alive'", shell=True, timeout=3)
+                    nodes[0].log.debug(f"Pre-method system state: {pre_method_check.stdout}")
+                except Exception as pre_check_error:
+                    nodes[0].log.warning(f"Pre-method check failed: {pre_check_error}")
+                    # If we can't even do a basic echo, system might already be crashed
                     crash_successful = True
                     break
-                    
-            except Exception as outer_error:
-                log.info(f"Method {method_name} caused outer exception - likely successful crash: {type(outer_error).__name__}: {outer_error}")
-                crash_successful = True
-                break
-        
-        # If crash was successful, wait for system to fully crash and potentially restart
-        if crash_successful:
-            log.info("SUCCESS: System crash appears to have been triggered!")
-            log.info("Waiting for system to fully crash and potentially restart...")
-            import time
-            time.sleep(60)  # Wait longer for crash to complete and system to potentially restart
-            
-            # Try to reconnect after crash
-            log.info("Attempting to reconnect after crash...")
-            for reconnect_attempt in range(5):
+                
+                # Execute crash command with timeout
+                nodes[0].log.debug(f"Executing crash command with {method['timeout']}s timeout...")
                 try:
-                    time.sleep(10)  # Wait between reconnection attempts
-                    test_result = nodes[0].execute("echo 'Reconnected after crash'", shell=True, timeout=30)
-                    log.info(f"Successfully reconnected after crash (attempt {reconnect_attempt + 1}): {test_result.stdout}")
-                    break
-                except Exception as reconnect_error:
-                    log.debug(f"Reconnection attempt {reconnect_attempt + 1} failed: {reconnect_error}")
-                    if reconnect_attempt == 4:
-                        log.warning("Failed to reconnect after 5 attempts - system may not have restarted")
-        else:
-            log.error("ERROR: All crash methods completed without triggering system crash!")
-            log.error("This suggests either:")
-            log.error("1. SysRq is disabled or filtered by hypervisor")
-            log.error("2. System has crash protections enabled") 
-            log.error("3. Commands are not executing with sufficient privileges")
+                    result = nodes[0].execute(method['cmd'], sudo=True, shell=True, timeout=method['timeout'])
+                    nodes[0].log.debug(f"Crash command completed: exit_code={result.exit_code}, stdout='{result.stdout}', stderr='{result.stderr}'")
+                    
+                    # If command completed without exception, system might not have crashed yet
+                    if result.exit_code == 0:
+                        nodes[0].log.warning(f"Method {method['name']} completed successfully - unexpected for crash command")
+                        # Wait a bit to see if delayed crash occurs
+                        time.sleep(5)
+                        
+                        # Try post-crash connectivity test
+                        try:
+                            post_test = nodes[0].execute("echo 'post_crash_test'", shell=True, timeout=5)
+                            if "post_crash_test" in post_test.stdout:
+                                nodes[0].log.warning(f"System still responsive after {method['name']}")
+                            else:
+                                nodes[0].log.info(f"System response abnormal after {method['name']} - possible crash")
+                                crash_successful = True
+                        except Exception as post_error:
+                            nodes[0].log.info(f"System unresponsive after {method['name']} - crash likely successful: {post_error}")
+                            crash_successful = True
+                    else:
+                        nodes[0].log.warning(f"Method {method['name']} failed with exit code {result.exit_code}")
+                
+                except Exception as cmd_error:
+                    # Exception during crash command is actually expected and indicates success
+                    nodes[0].log.info(f"Method {method['name']} triggered exception (EXPECTED): {type(cmd_error).__name__}: {cmd_error}")
+                    
+                    # Different types of exceptions indicate different levels of crash success
+                    error_str = str(cmd_error).lower()
+                    if any(keyword in error_str for keyword in ["timeout", "connection", "ssh", "unreachable", "broken pipe"]):
+                        nodes[0].log.info(f"Method {method['name']} caused connectivity loss - crash successful!")
+                        crash_successful = True
+                    else:
+                        nodes[0].log.warning(f"Method {method['name']} failed with unexpected error: {cmd_error}")
+                
+            except Exception as method_error:
+                nodes[0].log.info(f"Method {method['name']} caused system-level error - likely successful crash: {method_error}")
+                crash_successful = True
             
-            # Try one last desperate method
-            log.warning("Attempting final emergency crash method...")
+            # If this method succeeded, no need to try others
+            if crash_successful:
+                nodes[0].log.info(f"SUCCESS: Method {method['name']} successfully crashed the system!")
+                break
+            else:
+                nodes[0].log.warning(f"Method {method['name']} did not appear to crash the system, trying next method...")
+                # Small delay between methods
+                time.sleep(2)
+        
+        # Post-crash analysis and waiting
+        if crash_successful:
+            nodes[0].log.info("=== SYSTEM CRASH DETECTED - WAITING FOR FULL CRASH CYCLE ===")
+            
+            # Wait for crash to fully complete and system to potentially restart
+            nodes[0].log.info("Waiting for crash to complete and system to potentially restart...")
+            time.sleep(60)  # Extended wait for full crash cycle
+            
+            # Attempt reconnection after crash
+            nodes[0].log.info("Attempting to reconnect after crash...")
+            reconnection_successful = False
+            for reconnect_attempt in range(10):  # More reconnection attempts
+                try:
+                    wait_time = 10 + (reconnect_attempt * 5)  # Progressive backoff
+                    time.sleep(wait_time)
+                    
+                    # Try to reconnect and get basic system info
+                    reconnect_result = nodes[0].execute("echo 'reconnected' && uptime", shell=True, timeout=30)
+                    nodes[0].log.info(f"Reconnection attempt {reconnect_attempt + 1} successful!")
+                    nodes[0].log.info(f"Post-crash system state: {reconnect_result.stdout}")
+                    reconnection_successful = True
+                    break
+                    
+                except Exception as reconnect_error:
+                    nodes[0].log.debug(f"Reconnection attempt {reconnect_attempt + 1} failed: {reconnect_error}")
+                    
+                    # If it's the last attempt, log it as a warning
+                    if reconnect_attempt == 9:
+                        nodes[0].log.warning("Failed to reconnect after 10 attempts - system may not have restarted or may be permanently crashed")
+                        
+            if not reconnection_successful:
+                nodes[0].log.error("Could not reconnect to system after crash - this may indicate:")
+                nodes[0].log.error("1. System crashed and did not restart automatically")
+                nodes[0].log.error("2. System is in an unrecoverable state")
+                nodes[0].log.error("3. Network connectivity issues")
+                
+        else:
+            nodes[0].log.error("=== CRASH METHODS FAILED ===")
+            nodes[0].log.error("All crash methods completed without successfully crashing the system!")
+            nodes[0].log.error("This indicates:")
+            nodes[0].log.error("1. SysRq may be disabled or filtered by the hypervisor")
+            nodes[0].log.error("2. Kernel has strong crash protections enabled")
+            nodes[0].log.error("3. Commands are not executing with sufficient privileges")
+            nodes[0].log.error("4. System is running in a protected/hardened environment")
+            
+            # Try one final emergency method
+            nodes[0].log.warning("Attempting final emergency crash method...")
             try:
-                result = nodes[0].execute("killall -9 systemd-logind && echo b > /proc/sysrq-trigger", sudo=True, shell=True, timeout=5)
-                log.debug(f"Emergency method result: {result}")
-            except Exception as e:
-                log.info(f"Emergency crash method triggered exception: {e}")
+                # More aggressive crash attempts
+                emergency_methods = [
+                    "echo 'kernel.panic=1' > /proc/sys/kernel/panic && echo c > /proc/sysrq-trigger",
+                    "killall -9 init && echo c > /proc/sysrq-trigger", 
+                    "echo b > /proc/sysrq-trigger",  # Immediate reboot
+                ]
+                
+                for emergency_cmd in emergency_methods:
+                    try:
+                        nodes[0].log.debug(f"Emergency method: {emergency_cmd}")
+                        result = nodes[0].execute(emergency_cmd, sudo=True, shell=True, timeout=5)
+                        nodes[0].log.debug(f"Emergency result: {result}")
+                        time.sleep(5)  # Wait to see if it takes effect
+                    except Exception as emergency_error:
+                        nodes[0].log.info(f"Emergency method triggered exception: {emergency_error}")
+                        crash_successful = True
+                        break
+                        
+            except Exception as final_error:
+                nodes[0].log.info(f"Final emergency crash method triggered exception: {final_error}")
                 crash_successful = True
         
         for node_index, node in enumerate(nodes):
@@ -376,7 +460,7 @@ class StressNgTestSuite(TestSuite):
                     f"{deployment_error}"
                 )
                 if getattr(node, "log", None):
-                    node.log.error(f"Failed to start stress job: {deployment_error}")
+                    nodes[0].log.error(f"Failed to start stress job: {deployment_error}")
                 raise deployment_error
 
     def _monitor_stress_execution(
@@ -460,232 +544,235 @@ class StressNgTestSuite(TestSuite):
 
     def _check_panic(self, nodes: List[RemoteNode], test_case_name: str, test_result: Optional[TestResult]) -> None:
         """
-        Check for kernel panics, send crash details as test results, and raise.
+        Check for kernel panics using multiple detection methods.
+        This is a comprehensive crash detection system that checks:
+        1. Serial console logs for panic patterns
+        2. SSH connectivity status 
+        3. System uptime changes
+        4. Alternative log sources (journalctl, dmesg, syslog)
+        5. LibVirt console log files directly
         """
         for node in nodes:
+            crash_detected = False
+            crash_evidence = []
+            
             try:
-                # Add longer delay for crash to be fully logged
-                import time
-                node.log.info("Waiting for crash to be fully logged to serial console...")
-                
-                # DEEP DIVE: Console logging configuration debugging
-                node.log.warning("=== CONSOLE LOGGING DEEP DIVE DEBUG ===")
-                
-                # Check if we can access the console log file directly from LibVirt context
+                # Method 1: Check SSH connectivity first (fastest indicator)
+                nodes[0].log.debug("=== Crash Detection Method 1: SSH Connectivity Test ===")
                 try:
-                    from lisa.sut_orchestrator.libvirt.context import get_node_context
-                    node_context = get_node_context(node)
-                    console_log_path = node_context.console_log_file_path
-                    node.log.debug(f"LibVirt console log file path: {console_log_path}")
-                    
-                    # Check if file exists and get detailed info
-                    import os
-                    if os.path.exists(console_log_path):
-                        stat_info = os.stat(console_log_path)
-                        node.log.debug(f"Console log file stats: size={stat_info.st_size}, mtime={stat_info.st_mtime}")
-                        
-                        # Read file with multiple methods to compare
-                        with open(console_log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            direct_content = f.read()
-                        node.log.debug(f"Direct file read: {len(direct_content)} bytes")
-                        
-                        with open(console_log_path, 'rb') as f:
-                            binary_content = f.read()
-                        node.log.debug(f"Binary file read: {len(binary_content)} bytes")
-                        node.log.debug(f"Binary content (first 100 bytes): {binary_content[:100]}")
-                        
-                        if len(direct_content) > 0:
-                            node.log.debug(f"Direct console log content: '{direct_content}'")
-                            # Look for any signs that logging is working
-                            if "login:" in direct_content and len(direct_content) <= 100:
-                                node.log.warning("Console log appears to contain only login prompt - this suggests console logging isn't capturing system messages!")
-                        
-                        # Check file modification time vs current time
-                        import datetime
-                        mtime = datetime.datetime.fromtimestamp(stat_info.st_mtime)
-                        now = datetime.datetime.now()
-                        age_seconds = (now - mtime).total_seconds()
-                        node.log.debug(f"Console log file age: {age_seconds} seconds")
-                        
-                        if age_seconds > 300:  # 5 minutes
-                            node.log.warning(f"Console log file is {age_seconds} seconds old - might not be actively logging!")
-                        
-                        # Check for common crash indicators in the direct log
-                        crash_indicators = ["kernel panic", "Oops:", "BUG:", "Call Trace:", "RIP:", "segfault", "general protection fault", "Call trace:", "Kernel panic"]
-                        found_indicators = []
-                        for indicator in crash_indicators:
-                            if indicator.lower() in direct_content.lower():
-                                found_indicators.append(indicator)
-                                node.log.info(f"FOUND CRASH INDICATOR in direct log: {indicator}")
-                        
-                        if found_indicators:
-                            node.log.warning(f"Found crash indicators: {found_indicators}")
-                            # If we found crash indicators in the log, create and raise a KernelPanicException
-                            crash_message = f"Found crash indicators in console log: {found_indicators}"
-                            node.log.error(f"CRASH DETECTED from console log analysis: {crash_message}")
-                            
-                            # Simulate a KernelPanicException with the found evidence
-                            from lisa.util import KernelPanicException
-                            raise KernelPanicException(crash_message)
-                        else:
-                            node.log.warning("No crash indicators found in console log")
-                                
-                    else:
-                        node.log.error(f"Console log file doesn't exist at: {console_log_path}")
-                        
-                        # Check if directory exists
-                        log_dir = os.path.dirname(console_log_path)
-                        if os.path.exists(log_dir):
-                            files_in_dir = os.listdir(log_dir)
-                            node.log.debug(f"Files in log directory {log_dir}: {files_in_dir}")
-                        else:
-                            node.log.error(f"Log directory doesn't exist: {log_dir}")
-                            
-                except Exception as direct_read_error:
-                    node.log.error(f"Failed to read console log directly: {direct_read_error}")
+                    # Simple connectivity test with short timeout
+                    connectivity_result = node.execute("echo 'ssh_alive'", shell=True, timeout=5)
+                    nodes[0].log.debug(f"SSH connectivity test: {connectivity_result.stdout}")
+                    if "ssh_alive" not in connectivity_result.stdout:
+                        crash_evidence.append("SSH response malformed")
+                        crash_detected = True
+                except Exception as ssh_error:
+                    nodes[0].log.warning(f"SSH connectivity failed: {ssh_error}")
+                    if any(keyword in str(ssh_error).lower() for keyword in ["connection", "timeout", "session not active", "ssh", "unreachable"]):
+                        crash_evidence.append(f"SSH failure: {ssh_error}")
+                        crash_detected = True
                 
-                # Check if there are alternative log sources BEFORE trying SSH commands
-                alternative_crash_evidence = False
-                try:
-                    node.log.debug("Checking alternative log sources...")
-                    
-                    # Only try these if SSH is working
+                # Method 2: Check system state indicators
+                if not crash_detected:
+                    nodes[0].log.debug("=== Crash Detection Method 2: System State Analysis ===")
                     try:
-                        # Check system journal for boot messages
-                        journal_check = node.execute("journalctl --boot | tail -20", shell=True, timeout=10)
-                        node.log.debug(f"Recent journal entries: {journal_check.stdout}")
+                        # Check uptime for recent reboot
+                        uptime_result = node.execute("uptime", shell=True, timeout=10)
+                        nodes[0].log.debug(f"System uptime: {uptime_result.stdout}")
                         
-                        # Look for crash evidence in journal
-                        if any(indicator in journal_check.stdout.lower() for indicator in ["kernel panic", "oops", "bug:", "call trace"]):
-                            node.log.warning("Found crash evidence in system journal!")
-                            alternative_crash_evidence = True
+                        # Parse uptime - if very recent, it suggests reboot
+                        uptime_str = uptime_result.stdout.strip()
+                        if ("min" in uptime_str and not "hour" in uptime_str and not "day" in uptime_str):
+                            # Extract minutes and check if less than 5 minutes
+                            import re
+                            min_match = re.search(r'(\d+)\s+min', uptime_str)
+                            if min_match and int(min_match.group(1)) < 5:
+                                crash_evidence.append(f"Recent reboot detected: {uptime_str}")
+                                crash_detected = True
+                                nodes[0].log.warning(f"System rebooted recently: {uptime_str}")
                         
-                        # Check dmesg for kernel messages
-                        dmesg_check = node.execute("dmesg | tail -20", shell=True, timeout=10)
-                        node.log.debug(f"Recent dmesg entries: {dmesg_check.stdout}")
+                        # Check memory info for OOM killer activity
+                        oom_check = node.execute("dmesg | grep -i 'killed process\\|out of memory' | tail -5", shell=True, timeout=5)
+                        if oom_check.stdout and len(oom_check.stdout.strip()) > 0:
+                            crash_evidence.append(f"OOM activity: {oom_check.stdout}")
+                            nodes[0].log.warning(f"OOM killer activity detected: {oom_check.stdout}")
                         
-                        # Look for crash evidence in dmesg
-                        if any(indicator in dmesg_check.stdout.lower() for indicator in ["kernel panic", "oops", "bug:", "call trace"]):
-                            node.log.warning("Found crash evidence in dmesg!")
-                            alternative_crash_evidence = True
-                        
-                        # Check /var/log/messages or syslog
-                        syslog_check = node.execute("tail -20 /var/log/messages 2>/dev/null || tail -20 /var/log/syslog 2>/dev/null || echo 'No syslog found'", shell=True, timeout=10)
-                        node.log.debug(f"Recent syslog entries: {syslog_check.stdout}")
-                        
-                        # Look for crash evidence in syslog
-                        if any(indicator in syslog_check.stdout.lower() for indicator in ["kernel panic", "oops", "bug:", "call trace"]):
-                            node.log.warning("Found crash evidence in syslog!")
-                            alternative_crash_evidence = True
-                            
-                    except Exception as ssh_error:
-                        node.log.warning(f"SSH commands failed (expected if system crashed): {ssh_error}")
-                        # SSH failure after crash attempt is actually evidence of successful crash
-                        if "SSH session not active" in str(ssh_error) or "Connection" in str(ssh_error):
-                            node.log.warning("SSH failure suggests system crash was successful!")
-                            alternative_crash_evidence = True
-                        
-                except Exception as alt_log_error:
-                    node.log.warning(f"Failed to check alternative logs: {alt_log_error}")
+                    except Exception as state_error:
+                        nodes[0].log.warning(f"System state check failed (possible crash): {state_error}")
+                        if any(keyword in str(state_error).lower() for keyword in ["connection", "timeout", "session"]):
+                            crash_evidence.append(f"System state check failure: {state_error}")
+                            crash_detected = True
                 
-                # If we found evidence of crash from alternative sources, raise exception
-                if alternative_crash_evidence:
-                    crash_message = "System crash detected from alternative log sources or SSH disconnection"
-                    node.log.error(f"CRASH DETECTED: {crash_message}")
-                    from lisa.util import KernelPanicException
-                    raise KernelPanicException(crash_message)
+                # Method 3: Check kernel logs for panic patterns
+                if not crash_detected:
+                    nodes[0].log.debug("=== Crash Detection Method 3: Kernel Log Analysis ===")
+                    try:
+                        # Check dmesg for kernel panics and oops
+                        dmesg_result = node.execute("dmesg | tail -50", shell=True, timeout=10)
+                        kernel_indicators = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection", "unable to handle"]
+                        
+                        dmesg_content = dmesg_result.stdout.lower()
+                        found_kernel_issues = [indicator for indicator in kernel_indicators if indicator in dmesg_content]
+                        
+                        if found_kernel_issues:
+                            crash_evidence.append(f"Kernel issues in dmesg: {found_kernel_issues}")
+                            crash_detected = True
+                            nodes[0].log.warning(f"Kernel issues detected in dmesg: {found_kernel_issues}")
+                        
+                        # Check journalctl for system crashes
+                        journal_result = node.execute("journalctl -p err --since='5 minutes ago' --no-pager | tail -20", shell=True, timeout=10)
+                        if journal_result.stdout and len(journal_result.stdout.strip()) > 0:
+                            journal_content = journal_result.stdout.lower()
+                            journal_issues = [indicator for indicator in kernel_indicators if indicator in journal_content]
+                            if journal_issues:
+                                crash_evidence.append(f"System errors in journal: {journal_issues}")
+                                crash_detected = True
+                                nodes[0].log.warning(f"System errors in journal: {journal_issues}")
+                        
+                    except Exception as log_error:
+                        nodes[0].log.warning(f"Kernel log analysis failed (possible crash): {log_error}")
+                        if any(keyword in str(log_error).lower() for keyword in ["connection", "timeout", "session"]):
+                            crash_evidence.append(f"Kernel log check failure: {log_error}")
+                            crash_detected = True
                 
-                # Also check if the VM actually rebooted (indicating a crash)
+                # Method 4: Serial Console Analysis (enhanced)
+                nodes[0].log.debug("=== Crash Detection Method 4: Serial Console Analysis ===")
                 try:
-                    uptime_result = node.execute("uptime", shell=True, timeout=10)
-                    node.log.debug(f"System uptime after crash: {uptime_result.stdout}")
+                    # Add delay for crash to be logged
+                    import time
+                    time.sleep(10)  # Give console logging time to capture crash
                     
-                    # Parse uptime to see if system recently rebooted
-                    uptime_str = uptime_result.stdout.strip()
-                    if "min" in uptime_str and not "hour" in uptime_str and not "day" in uptime_str:
-                        node.log.warning(f"System uptime is very recent: {uptime_str} - this suggests a recent reboot/crash!")
-                        # Recent uptime is evidence of crash
-                        crash_message = f"Recent system uptime detected: {uptime_str}"
-                        node.log.error(f"CRASH DETECTED from uptime analysis: {crash_message}")
-                        from lisa.util import KernelPanicException
-                        raise KernelPanicException(crash_message)
-                    
-                except Exception as system_check_error:
-                    node.log.warning(f"Failed to check system state after crash: {system_check_error}")
-                    # SSH failure might indicate successful crash
-                    if "SSH session not active" in str(system_check_error) or "Connection" in str(system_check_error):
-                        crash_message = f"SSH connection failed after crash attempt: {system_check_error}"
-                        node.log.error(f"CRASH DETECTED from SSH failure: {crash_message}")
-                        from lisa.util import KernelPanicException  
-                        raise KernelPanicException(crash_message)
-                
-                # Try multiple attempts with increasing delays to capture the crash
-                max_attempts = 5
-                for attempt in range(max_attempts):
-                    node.log.debug(f"Attempt {attempt + 1}/{max_attempts} to capture crash log...")
-                    
-                    # Wait progressively longer for crash to be logged
-                    wait_time = 5 + (attempt * 5)  # 5, 10, 15, 20, 25 seconds
-                    time.sleep(wait_time)
-                    
-                    # Force invalidate cache and refresh
+                    # Force refresh of console log
                     if hasattr(node.features[SerialConsole], 'invalidate_cache'):
                         node.features[SerialConsole].invalidate_cache()
                     
-                    # Get fresh serial log content
+                    # Get console log with force refresh
                     serial_content = node.features[SerialConsole].get_console_log(saved_path=None, force_run=True)
-                    node.log.debug(f"Serial console log content (length: {len(serial_content)}):")
+                    nodes[0].log.debug(f"Serial console log length: {len(serial_content)}")
                     
-                    # Show more content for debugging
-                    if len(serial_content) > 1000:
-                        node.log.debug(f"First 500 chars: {serial_content[:500]}")
-                        node.log.debug(f"Last 500 chars: {serial_content[-500:]}")
+                    if len(serial_content) > 200:  # Substantial content
+                        # Look for crash patterns in serial log
+                        crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection fault", "unable to handle kernel"]
+                        serial_content_lower = serial_content.lower()
+                        found_serial_issues = [pattern for pattern in crash_patterns if pattern in serial_content_lower]
+                        
+                        if found_serial_issues:
+                            crash_evidence.append(f"Serial console patterns: {found_serial_issues}")
+                            crash_detected = True
+                            nodes[0].log.warning(f"Crash patterns found in serial console: {found_serial_issues}")
+                        
+                        # Also check for repeated login prompts (suggesting reboot loop)
+                        login_count = serial_content_lower.count("login:")
+                        if login_count > 2:  # Multiple login prompts suggest reboots
+                            crash_evidence.append(f"Multiple login prompts detected: {login_count}")
+                            nodes[0].log.warning(f"Multiple login prompts suggest system reboots: {login_count}")
                     else:
-                        node.log.debug(f"Full serial log: {serial_content}")
+                        nodes[0].log.warning(f"Serial console log too short: {len(serial_content)} bytes")
+                        # Short console log after crash attempt might indicate logging issues
+                        if len(serial_content) < 100:
+                            crash_evidence.append("Serial console log suspiciously short")
                     
-                    # If we have substantial content (more than just login prompt), try to check for panic
-                    if len(serial_content) > 200:  # More than just login prompt
-                        break
-                    else:
-                        node.log.warning(f"Serial log too short ({len(serial_content)} chars), retrying...")
+                    # Try direct LibVirt console log access if available
+                    try:
+                        from lisa.sut_orchestrator.libvirt.context import get_node_context
+                        node_context = get_node_context(node)
+                        console_log_path = node_context.console_log_file_path
+                        
+                        import os
+                        if os.path.exists(console_log_path):
+                            with open(console_log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                direct_log = f.read()
+                            
+                            nodes[0].log.debug(f"Direct LibVirt log length: {len(direct_log)}")
+                            
+                            # Check direct log for crash patterns
+                            if len(direct_log) > len(serial_content):  # More content in direct log
+                                direct_log_lower = direct_log.lower()
+                                direct_issues = [pattern for pattern in crash_patterns if pattern in direct_log_lower]
+                                if direct_issues:
+                                    crash_evidence.append(f"Direct LibVirt log patterns: {direct_issues}")
+                                    crash_detected = True
+                                    nodes[0].log.warning(f"Crash patterns found in direct LibVirt log: {direct_issues}")
+                            
+                            # Check file age - if very old, logging might be broken
+                            stat_info = os.stat(console_log_path)
+                            import datetime
+                            age_seconds = (datetime.datetime.now().timestamp() - stat_info.st_mtime)
+                            if age_seconds > 300:  # More than 5 minutes old
+                                nodes[0].log.warning(f"Console log file is stale ({age_seconds:.1f}s old)")
+                                crash_evidence.append(f"Console log file stale: {age_seconds:.1f}s old")
+                        
+                    except Exception as libvirt_error:
+                        nodes[0].log.debug(f"Direct LibVirt log access failed: {libvirt_error}")
                 
-                node.log.debug("Checking panic in serial log with force_run=True...")
+                except Exception as serial_error:
+                    nodes[0].log.warning(f"Serial console analysis failed: {serial_error}")
+                    # If serial console analysis fails completely, it might indicate system crash
+                    crash_evidence.append(f"Serial console analysis failure: {serial_error}")
                 
-                # Now check for panic
-                node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+                # Method 5: Use built-in SerialConsole.check_panic
+                if not crash_detected:
+                    nodes[0].log.debug("=== Crash Detection Method 5: Built-in Panic Check ===")
+                    try:
+                        # Use the built-in panic detection with force refresh
+                        node.features[SerialConsole].check_panic(saved_path=None, stage="stress_test_panic_check", force_run=True)
+                        nodes[0].log.debug("Built-in panic check passed - no panic detected")
+                    except KernelPanicException as builtin_panic:
+                        nodes[0].log.warning(f"Built-in panic check detected crash: {builtin_panic}")
+                        crash_evidence.append(f"Built-in panic detection: {builtin_panic.panics}")
+                        crash_detected = True
+                        # Re-raise this exception as it's already properly formatted
+                        raise builtin_panic
+                    except Exception as builtin_error:
+                        nodes[0].log.warning(f"Built-in panic check failed: {builtin_error}")
+                        # If built-in check fails, it might be due to system crash
+                        crash_evidence.append(f"Built-in panic check failure: {builtin_error}")
                 
-                # If we get here, no panic was detected
-                node.log.warning("No kernel panic detected in serial console log")
+                # If any crash evidence was found, raise KernelPanicException
+                if crash_detected and crash_evidence:
+                    nodes[0].log.error(f"CRASH DETECTED on node {node.name}")
+                    nodes[0].log.error(f"Evidence found: {crash_evidence}")
+                    
+                    # Create comprehensive crash message
+                    crash_message = f"Crash detected on {node.name} with evidence: {'; '.join(crash_evidence)}"
+                    
+                    # Ensure we have a TestResult for reporting
+                    if test_result is None:
+                        from lisa.testsuite import TestResult
+                        test_result = TestResult(id_=f"crash_detection_{test_case_name}")
+                    
+                    # Send crash test results
+                    send_sub_test_result_message(
+                        test_result=test_result,
+                        test_case_name=f"CRASH_{test_case_name}_{node.name}",
+                        test_status=TestStatus.FAILED,
+                        test_message=crash_message,
+                    )
+                    
+                    # Raise KernelPanicException with proper parameters
+                    from lisa.util import KernelPanicException
+                    raise KernelPanicException(
+                        stage="comprehensive_crash_detection",
+                        panics=crash_evidence,
+                        source="multi_method_analysis"
+                    )
+                else:
+                    nodes[0].log.info(f"No crash evidence found on node {node.name}")
                 
-            except KernelPanicException as panic_ex:
-                # Always log the crash details
-                node.log.error(f"CRASH DETECTED on node {node.name}:")
-                node.log.error(f"  Stage: {panic_ex.stage}")
-                node.log.error(f"  Source: {panic_ex.source}")
-                node.log.error(f"  Error codes/phrases: {panic_ex.panics}")
-                node.log.error(f"  Full error: {str(panic_ex)}")
-                
-                # Create detailed crash message
-                crash_message = f"""CRASH DETECTED on {node.name}:
-Stage: {panic_ex.stage}
-Source: {panic_ex.source}
-Error codes/phrases: {panic_ex.panics}
-Full error: {str(panic_ex)}"""
-                
-                # Always ensure we have a TestResult for reporting
-                if test_result is None:
-                    test_result = TestResult(id_=f"crash_detection_{test_case_name}")
-                
-                # Always send crash test results
-                send_sub_test_result_message(
-                    test_result=test_result,
-                    test_case_name=f"CRASH_{test_case_name}_{node.name}",
-                    test_status=TestStatus.FAILED,
-                    test_message=crash_message,
-                )
-                
-                # Raise the panic to fail the test
-                raise panic_ex
+            except KernelPanicException:
+                # Re-raise KernelPanicException as-is
+                raise
+            except Exception as check_error:
+                nodes[0].log.error(f"Crash detection failed with unexpected error: {check_error}")
+                # If crash detection itself fails completely, it might indicate system instability
+                if test_result:
+                    send_sub_test_result_message(
+                        test_result=test_result,
+                        test_case_name=f"CRASH_DETECTION_ERROR_{test_case_name}_{node.name}",
+                        test_status=TestStatus.FAILED,
+                        test_message=f"Crash detection system failure: {check_error}",
+                    )
+                raise
 
     def _process_yaml_output(
         self,
