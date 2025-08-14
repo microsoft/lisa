@@ -15,6 +15,7 @@ from lisa import (
 )
 from lisa.environment import Environment, Node
 from lisa.features import Sriov, Synthetic
+from lisa.features.network_interface import SriovIPv6, SyntheticIPv6
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Sysctl
@@ -285,6 +286,36 @@ class NetworkPerformace(TestSuite):
             buffer_length_list=IPERF_UDP_BUFFER_LENGTHS,
             udp_mode=True,
         )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses ntttcp to test IPv6 SR-IOV network throughput.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=SriovIPv6(),
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def perf_tcp_ipv6_ntttcp_sriov(self, result: TestResult) -> None:
+        perf_ntttcp(result, use_ipv6=True)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses ntttcp to test IPv6 synthetic network throughput.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=SyntheticIPv6(),
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def perf_tcp_ipv6_ntttcp_synthetic(self, result: TestResult) -> None:
+        perf_ntttcp(result, use_ipv6=True)
 
     # Marked all following tests to skip on BSD since
     # sockperf compilation is not natively supported at this time
