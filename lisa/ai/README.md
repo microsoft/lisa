@@ -47,7 +47,7 @@ Edit `.env` with your Azure OpenAI credentials and paths:
 AZURE_OPENAI_API_KEY=your_azure_openai_api_key_here
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
 GENERAL_DEPLOYMENT_NAME=gpt-4o
-SOFTWARE_DEPLOYMENT_NAME=gpt-4o
+SOFTWARE_DEPLOYMENT_NAME=gpt-4.1
 
 # Embedding Configuration
 EMBEDDING_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
@@ -65,11 +65,16 @@ CODE_PATH=/path/to/your/lisa/code/repository
 From `c:\code\lisa\lisa\ai` after activating the venv:
 
 ```pwsh
-# Analyze all cases defined in data/small_v20250603/inputs.json
+# Analyze all cases defined in data/small_v20250603/inputs.json (default command)
 python .\log_agent.py eval
 
-# Analyze a single case by index (0-based)
+# Analyze a single case by index (0-based, default is 8, range 0-11)
 python .\log_agent.py single -t 6
+python .\log_agent.py single --test-index 6
+
+# Use a specific analysis flow (choices: 'default', 'gpt-5')
+python .\log_agent.py eval --flow default
+python .\log_agent.py single -t 6 --flow gpt-5
 
 # Help
 python .\log_agent.py --help
