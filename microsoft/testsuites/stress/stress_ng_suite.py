@@ -685,8 +685,51 @@ class StressNgTestSuite(TestSuite):
                             
                             nodes[0].log.debug(f"Direct LibVirt log length: {len(direct_log)}")
                             
+                            # ENHANCED CONSOLE LOGGING DIAGNOSTICS
+                            stat_info = os.stat(console_log_path)
+                            import datetime
+                            age_seconds = (datetime.datetime.now().timestamp() - stat_info.st_mtime)
+                            
+                            nodes[0].log.warning(f"=== CONSOLE LOGGING DIAGNOSTICS ===")
+                            nodes[0].log.warning(f"Console log file: {console_log_path}")
+                            nodes[0].log.warning(f"File size: {stat_info.st_size} bytes")
+                            nodes[0].log.warning(f"File age: {age_seconds:.1f} seconds")
+                            nodes[0].log.warning(f"Direct log length: {len(direct_log)}")
+                            nodes[0].log.warning(f"SerialConsole API length: {len(serial_content)}")
+                            
+                            # Show recent content for diagnosis
+                            if len(direct_log) > 0:
+                                recent_content = direct_log[-300:] if len(direct_log) > 300 else direct_log
+                                nodes[0].log.debug(f"Recent console content: {repr(recent_content)}")
+                                
+                                # Check if we're getting kernel messages at all
+                                kernel_indicators = ["kernel:", "dmesg:", "[", "]", "systemd", "systemctl", "getty", "login:", "ubuntu"]
+                                has_kernel_activity = any(indicator in direct_log.lower() for indicator in kernel_indicators)
+                                nodes[0].log.warning(f"Console shows kernel/system activity: {has_kernel_activity}")
+                                
+                                if not has_kernel_activity and len(direct_log) < 200:
+                                    nodes[0].log.error("=== CONSOLE LOGGING ISSUE DETECTED ===")
+                                    nodes[0].log.error("Console log contains minimal content and no kernel messages!")
+                                    nodes[0].log.error("This suggests:")
+                                    nodes[0].log.error("1. Console logging stopped after initial boot")
+                                    nodes[0].log.error("2. Kernel console output is not being redirected to serial console") 
+                                    nodes[0].log.error("3. LibVirt console stream is not capturing runtime messages")
+                                    nodes[0].log.error("4. The kernel may not be configured to output to the console device")
+                                    nodes[0].log.error("")
+                                    nodes[0].log.error("=== POTENTIAL FIXES FOR CONSOLE LOGGING ===")
+                                    nodes[0].log.error("1. Add kernel parameters: console=ttyS0 console=tty0")
+                                    nodes[0].log.error("2. Add kernel parameters: earlyprintk=serial")
+                                    nodes[0].log.error("3. Add kernel parameters: ignore_loglevel")
+                                    nodes[0].log.error("4. Check if systemd is redirecting console output")
+                                    nodes[0].log.error("5. Verify LibVirt console device configuration")
+                                    crash_evidence.append("Console logging appears broken - no kernel messages")
+                                elif len(direct_log) < 100:
+                                    nodes[0].log.warning("Console log is very short - may indicate early boot failure or logging issue")
+                                    crash_evidence.append("Console log suspiciously short")
+                            
                             # Check direct log for crash patterns
-                            if len(direct_log) > len(serial_content):  # More content in direct log
+                            if len(direct_log) > 0:
+                                crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection fault", "unable to handle kernel"]
                                 direct_log_lower = direct_log.lower()
                                 direct_issues = [pattern for pattern in crash_patterns if pattern in direct_log_lower]
                                 if direct_issues:
@@ -695,12 +738,58 @@ class StressNgTestSuite(TestSuite):
                                     nodes[0].log.warning(f"Crash patterns found in direct LibVirt log: {direct_issues}")
                             
                             # Check file age - if very old, logging might be broken
-                            stat_info = os.stat(console_log_path)
-                            import datetime
-                            age_seconds = (datetime.datetime.now().timestamp() - stat_info.st_mtime)
                             if age_seconds > 300:  # More than 5 minutes old
-                                nodes[0].log.warning(f"Console log file is stale ({age_seconds:.1f}s old)")
+                                nodes[0].log.warning(f"Console log file is stale ({age_seconds:.1f}s old) - console logging may have stopped!")
                                 crash_evidence.append(f"Console log file stale: {age_seconds:.1f}s old")
+                                
+                                # Try to diagnose why console logging stopped
+                                nodes[0].log.error("=== INVESTIGATING STALE CONSOLE LOG ===")
+                                try:
+                                    # Check if LibVirt domain is still running
+                                    node_context = get_node_context(node)
+                                    domain = node_context.domain
+                                    if domain:
+                                        domain_state = domain.state()
+                                        nodes[0].log.warning(f"LibVirt domain state: {domain_state}")
+                                        
+                                        # Domain state meanings:
+                                        # 1 = VIR_DOMAIN_RUNNING
+                                        # 3 = VIR_DOMAIN_PAUSED  
+                                        # 4 = VIR_DOMAIN_CRASHED
+                                        # 5 = VIR_DOMAIN_SHUTOFF
+                                        if domain_state[0] == 1:  # VIR_DOMAIN_RUNNING
+                                            nodes[0].log.error("LibVirt domain is RUNNING but console log is stale!")
+                                            nodes[0].log.error("This indicates a console logging configuration issue!")
+                                            crash_evidence.append("LibVirt domain running but console log stale")
+                                        elif domain_state[0] in [4, 5]:  # VIR_DOMAIN_CRASHED, VIR_DOMAIN_SHUTOFF
+                                            nodes[0].log.warning(f"LibVirt domain state indicates crash/shutdown: {domain_state}")
+                                            crash_evidence.append(f"LibVirt domain crash/shutdown state: {domain_state}")
+                                            crash_detected = True
+                                        elif domain_state[0] == 3:  # VIR_DOMAIN_PAUSED
+                                            nodes[0].log.warning("LibVirt domain is PAUSED - may indicate system hang")
+                                            crash_evidence.append("LibVirt domain paused")
+                                            crash_detected = True
+                                            
+                                        # Check console logger status
+                                        console_logger = node_context.console_logger
+                                        if console_logger:
+                                            nodes[0].log.debug("Console logger object exists")
+                                            # Try to determine if console logger is still active
+                                            if hasattr(console_logger, '_stream_completed'):
+                                                is_completed = console_logger._stream_completed.is_set()
+                                                nodes[0].log.warning(f"Console logger stream completed: {is_completed}")
+                                                if is_completed:
+                                                    nodes[0].log.error("Console logger stream has completed - this explains why logging stopped!")
+                                                    crash_evidence.append("Console logger stream completed")
+                                        else:
+                                            nodes[0].log.error("Console logger object is None!")
+                                            crash_evidence.append("Console logger missing")
+                                            
+                                except Exception as domain_error:
+                                    nodes[0].log.debug(f"Failed to check LibVirt domain state: {domain_error}")
+                        else:
+                            nodes[0].log.error(f"Console log file doesn't exist: {console_log_path}")
+                            crash_evidence.append("Console log file missing")
                         
                     except Exception as libvirt_error:
                         nodes[0].log.debug(f"Direct LibVirt log access failed: {libvirt_error}")
@@ -710,9 +799,54 @@ class StressNgTestSuite(TestSuite):
                     # If serial console analysis fails completely, it might indicate system crash
                     crash_evidence.append(f"Serial console analysis failure: {serial_error}")
                 
-                # Method 5: Use built-in SerialConsole.check_panic
+                # Method 5: LibVirt Domain State Analysis (console-independent)
                 if not crash_detected:
-                    nodes[0].log.debug("=== Crash Detection Method 5: Built-in Panic Check ===")
+                    nodes[0].log.debug("=== Crash Detection Method 5: LibVirt Domain State Analysis ===")
+                    try:
+                        from lisa.sut_orchestrator.libvirt.context import get_node_context
+                        node_context = get_node_context(node)
+                        domain = node_context.domain
+                        
+                        if domain:
+                            # Get current domain state
+                            domain_state = domain.state()
+                            nodes[0].log.debug(f"LibVirt domain state: {domain_state}")
+                            
+                            # Domain state analysis
+                            state_code = domain_state[0]
+                            reason_code = domain_state[1] if len(domain_state) > 1 else 0
+                            
+                            if state_code == 4:  # VIR_DOMAIN_CRASHED
+                                crash_evidence.append(f"LibVirt domain crashed (state={state_code}, reason={reason_code})")
+                                crash_detected = True
+                                nodes[0].log.error(f"LibVirt reports domain CRASHED: {domain_state}")
+                            elif state_code == 5:  # VIR_DOMAIN_SHUTOFF
+                                crash_evidence.append(f"LibVirt domain shutoff (state={state_code}, reason={reason_code})")
+                                crash_detected = True
+                                nodes[0].log.warning(f"LibVirt reports domain SHUTOFF: {domain_state}")
+                            elif state_code == 3:  # VIR_DOMAIN_PAUSED
+                                crash_evidence.append(f"LibVirt domain paused (state={state_code}, reason={reason_code})")
+                                crash_detected = True
+                                nodes[0].log.warning(f"LibVirt reports domain PAUSED: {domain_state}")
+                            elif state_code == 1:  # VIR_DOMAIN_RUNNING
+                                nodes[0].log.debug("LibVirt domain is running - checking for other crash indicators")
+                            else:
+                                nodes[0].log.warning(f"Unknown LibVirt domain state: {domain_state}")
+                                crash_evidence.append(f"LibVirt domain unknown state: {domain_state}")
+                        else:
+                            nodes[0].log.error("LibVirt domain object is None!")
+                            crash_evidence.append("LibVirt domain missing")
+                            crash_detected = True
+                            
+                    except Exception as domain_analysis_error:
+                        nodes[0].log.warning(f"LibVirt domain state analysis failed: {domain_analysis_error}")
+                        # If we can't check domain state, it might indicate system issues
+                        crash_evidence.append(f"LibVirt domain analysis failure: {domain_analysis_error}")
+                
+                # Method 6: Use built-in SerialConsole.check_panic (fallback)
+                # Method 6: Use built-in SerialConsole.check_panic (fallback)
+                if not crash_detected:
+                    nodes[0].log.debug("=== Crash Detection Method 6: Built-in Panic Check (Fallback) ===")
                     try:
                         # Use the built-in panic detection with force refresh
                         node.features[SerialConsole].check_panic(saved_path=None, stage="stress_test_panic_check", force_run=True)
