@@ -79,7 +79,7 @@ var ip_tags = [for key in objectKeys(ip_service_tags): {
   tag: ip_service_tags[key]
 }]
 
-func isCvm(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vmgs_path)))
+func isCvmVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vmgs_path)))
 
 func isVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vhd_path)))
 
@@ -189,11 +189,11 @@ func generateSecurityProfile(node object) object => {
   securityType: node.security_profile.security_type
 }
 
-func getOsProfile(node object, admin_username string, admin_password string, admin_key_data string) object? => isCvm(node) 
+func getOsProfile(node object, admin_username string, admin_password string, admin_key_data string) object? => isCvmVhd(node) 
 ? null
 : generateOsProfile(node, admin_username, admin_password, admin_key_data)
 
-func getImageReference(node object) object? => isCvm(node) 
+func getImageReference(node object) object? => isCvmVhd(node) 
 ? null
 : generateImageReference(node)
 
@@ -212,7 +212,7 @@ func getOSImage(node object) object => {
   diskSizeGB: node.osdisk_size_in_gb
 }
 
-func getVMOsDisk(node object) object => isCvm(node) ? getOSDisk('${node.name}-disk')
+func getVMOsDisk(node object) object => isCvmVhd(node) ? getOSDisk('${node.name}-disk')
 : ((node.os_disk_type == 'Ephemeral')
 ? getEphemeralOSImage(node)
 : getOSImage(node))
@@ -377,7 +377,7 @@ resource nodes_image 'Microsoft.Compute/images@2019-03-01' = [for i in range(0, 
   }
 }]
 
-resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, node_count): if (isCvm(nodes[i])) {
+resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, node_count): if (isCvmVhd(nodes[i])) {
   name: '${nodes[i].name}-disk'
   tags: tags
   location: location
@@ -388,7 +388,10 @@ resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, no
     osType: 'Linux'
     hyperVGeneration: 'V${nodes[i].hyperv_generation}'
     securityProfile: {
-      securityType: 'ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey'
+      securityType: nodes[i].security_profile.encryption_type
+      secureVMDiskEncryptionSetId: empty(nodes[i].security_profile.disk_encryption_set_id)
+      ? null
+      : nodes[i].security_profile.disk_encryption_set_id
     }
     creationData: {
       createOption: 'ImportSecure'
