@@ -534,11 +534,12 @@ class StressNgTestSuite(TestSuite):
         node_outputs = []
         exceptions_to_raise = []
 
-        # Wait for all processes and capture their output
+        # Wait for all processes and capture their output with periodic crash monitoring
         for i, process in enumerate(stress_processes):
             node_name = nodes[i].name
             try:
-                process.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
+                # Enhanced process monitoring with crash detection
+                self._monitor_stress_process_with_crash_detection(process, nodes[i], job_file_name, log)
                 log.info(f"{node_name} completed successfully")
 
                 # Process YAML output if applicable
@@ -595,21 +596,283 @@ class StressNgTestSuite(TestSuite):
             test_message=execution_summary,
         )
 
+    def _capture_post_crash_logs(self, node: RemoteNode, test_case_name: str) -> str:
+        """
+        Capture comprehensive diagnostic logs immediately after crash detection.
+        This function attempts to gather as much diagnostic information as possible
+        from the crashed system before it potentially becomes completely unresponsive.
+        
+        Args:
+            node: The node that crashed
+            test_case_name: Name of the test case for logging context
+            
+        Returns:
+            String containing comprehensive diagnostic information
+        """
+        post_crash_data = []
+        node.log.warning("=== CAPTURING POST-CRASH DIAGNOSTIC LOGS ===")
+        
+        # Helper function to safely execute commands and capture output
+        def safe_execute(command: str, description: str, timeout: int = 30) -> str:
+            try:
+                result = node.execute(command, shell=True, timeout=timeout)
+                output = f"=== {description} ===\n{result.stdout}\n"
+                if result.stderr:
+                    output += f"STDERR: {result.stderr}\n"
+                return output
+            except Exception as e:
+                return f"=== {description} ===\nFAILED: {str(e)}\n"
+        
+        # 1. IMMEDIATE SYSTEM STATE CAPTURE
+        post_crash_data.append("=== IMMEDIATE POST-CRASH SYSTEM STATE ===")
+        post_crash_data.append(safe_execute("date", "Current System Time"))
+        post_crash_data.append(safe_execute("uptime", "System Uptime"))
+        post_crash_data.append(safe_execute("who", "Logged in Users"))
+        
+        # 2. COMPREHENSIVE KERNEL LOGS
+        post_crash_data.append("=== COMPREHENSIVE KERNEL LOGS ===")
+        post_crash_data.append(safe_execute("dmesg -T", "Complete Kernel Ring Buffer (with timestamps)", 60))
+        post_crash_data.append(safe_execute("dmesg -T -l emerg,alert,crit,err", "Kernel Errors and Critical Messages", 30))
+        post_crash_data.append(safe_execute("journalctl -k --no-pager --since='1 hour ago'", "Kernel Messages from Journal (last hour)", 60))
+        post_crash_data.append(safe_execute("journalctl -p err --no-pager --since='1 hour ago'", "System Error Messages (last hour)", 60))
+        
+        # 3. MEMORY AND SYSTEM RESOURCE STATE
+        post_crash_data.append("=== MEMORY AND RESOURCE ANALYSIS ===")
+        post_crash_data.append(safe_execute("cat /proc/meminfo", "Complete Memory Information"))
+        post_crash_data.append(safe_execute("cat /proc/buddyinfo", "Memory Fragmentation Info"))
+        post_crash_data.append(safe_execute("cat /proc/slabinfo | head -20", "Kernel Memory Slabs"))
+        post_crash_data.append(safe_execute("free -h", "Memory Usage Summary"))
+        post_crash_data.append(safe_execute("cat /proc/vmstat", "Virtual Memory Statistics"))
+        
+        # 4. PROCESS AND SYSTEM STATE
+        post_crash_data.append("=== PROCESS AND SYSTEM STATE ===")
+        post_crash_data.append(safe_execute("ps aux --sort=-%mem | head -20", "Top Memory-Using Processes"))
+        post_crash_data.append(safe_execute("ps aux --sort=-%cpu | head -20", "Top CPU-Using Processes"))
+        post_crash_data.append(safe_execute("ps -eLf | wc -l", "Total Thread Count"))
+        post_crash_data.append(safe_execute("cat /proc/loadavg", "System Load Average"))
+        
+        # 5. FILESYSTEM AND STORAGE STATE
+        post_crash_data.append("=== FILESYSTEM AND STORAGE STATE ===")
+        post_crash_data.append(safe_execute("df -h", "Filesystem Usage"))
+        post_crash_data.append(safe_execute("mount", "Mounted Filesystems"))
+        post_crash_data.append(safe_execute("lsblk", "Block Device Information"))
+        post_crash_data.append(safe_execute("cat /proc/mounts", "Kernel Mount Table"))
+        
+        # 6. NETWORK STATE (if accessible)
+        post_crash_data.append("=== NETWORK STATE ===")
+        post_crash_data.append(safe_execute("ip addr show", "Network Interface Configuration"))
+        post_crash_data.append(safe_execute("ip route show", "Routing Table"))
+        post_crash_data.append(safe_execute("ss -tulpn", "Network Socket Information"))
+        
+        # 7. HARDWARE AND KERNEL MODULE STATE
+        post_crash_data.append("=== HARDWARE AND MODULE STATE ===")
+        post_crash_data.append(safe_execute("lsmod", "Loaded Kernel Modules"))
+        post_crash_data.append(safe_execute("lspci", "PCI Device Information"))
+        post_crash_data.append(safe_execute("lscpu", "CPU Information"))
+        post_crash_data.append(safe_execute("cat /proc/interrupts", "Interrupt Statistics"))
+        
+        # 8. CRASH DUMPS AND CORE FILES
+        post_crash_data.append("=== CRASH DUMPS AND CORE FILES ===")
+        post_crash_data.append(safe_execute("find /var/crash /var/lib/systemd/coredump /tmp -name 'core.*' -o -name '*.crash' -o -name '*.core' 2>/dev/null | head -10", "Crash and Core Dump Files"))
+        post_crash_data.append(safe_execute("coredumpctl list --no-pager 2>/dev/null | tail -10", "Recent Core Dumps (systemd-coredump)"))
+        
+        # 9. SYSTEMD SERVICE STATE
+        post_crash_data.append("=== SYSTEMD SERVICE STATE ===")
+        post_crash_data.append(safe_execute("systemctl --failed --no-pager", "Failed Services"))
+        post_crash_data.append(safe_execute("systemctl list-units --state=failed --no-pager", "Detailed Failed Units"))
+        post_crash_data.append(safe_execute("journalctl -u systemd --no-pager --since='30 minutes ago'", "systemd Messages (last 30min)"))
+        
+        # 10. COMPLETE CONSOLE LOG CAPTURE
+        post_crash_data.append("=== COMPLETE CONSOLE LOG CAPTURE ===")
+        try:
+            # Get the full console log content
+            serial_content = node.features[SerialConsole].get_console_log(saved_path=None, force_run=True)
+            if len(serial_content) > 0:
+                # Include full console log (truncated if too large)
+                if len(serial_content) > 50000:  # If larger than 50KB, truncate but keep end
+                    console_summary = f"Console log size: {len(serial_content)} characters (showing last 50KB)\n"
+                    console_summary += "...[TRUNCATED]...\n"
+                    console_summary += serial_content[-50000:]
+                else:
+                    console_summary = f"Complete console log ({len(serial_content)} characters):\n{serial_content}"
+                post_crash_data.append(f"=== FULL CONSOLE LOG ===\n{console_summary}")
+            else:
+                post_crash_data.append("=== FULL CONSOLE LOG ===\nNo console log data available")
+        except Exception as console_error:
+            post_crash_data.append(f"=== FULL CONSOLE LOG ===\nFailed to capture console log: {console_error}")
+        
+        # 11. DIRECT LIBVIRT CONSOLE LOG
+        post_crash_data.append("=== DIRECT LIBVIRT CONSOLE LOG ===")
+        try:
+            from lisa.sut_orchestrator.libvirt.context import get_node_context
+            node_context = get_node_context(node)
+            console_log_path = node_context.console_log_file_path
+            
+            import os
+            if os.path.exists(console_log_path):
+                with open(console_log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    direct_log = f.read()
+                
+                if len(direct_log) > 50000:  # Truncate if too large
+                    direct_summary = f"LibVirt console log size: {len(direct_log)} characters (showing last 50KB)\n"
+                    direct_summary += "...[TRUNCATED]...\n"
+                    direct_summary += direct_log[-50000:]
+                else:
+                    direct_summary = f"Complete LibVirt console log ({len(direct_log)} characters):\n{direct_log}"
+                post_crash_data.append(direct_summary)
+            else:
+                post_crash_data.append(f"LibVirt console log file not found: {console_log_path}")
+        except Exception as libvirt_log_error:
+            post_crash_data.append(f"Failed to capture LibVirt console log: {libvirt_log_error}")
+        
+        # 12. STRESS-NG SPECIFIC INFORMATION
+        post_crash_data.append("=== STRESS-NG SPECIFIC DIAGNOSTICS ===")
+        post_crash_data.append(safe_execute("ps aux | grep stress", "Stress-ng Process Status"))
+        post_crash_data.append(safe_execute("pgrep -l stress", "Stress Process IDs"))
+        post_crash_data.append(safe_execute("ls -la /tmp/stress* /var/tmp/stress* 2>/dev/null", "Stress-ng Temporary Files"))
+        
+        # Combine all collected data
+        comprehensive_log = "\n".join(post_crash_data)
+        
+        node.log.warning(f"=== POST-CRASH LOG CAPTURE COMPLETED ===")
+        node.log.warning(f"Captured {len(comprehensive_log)} characters of diagnostic data")
+        
+        return comprehensive_log
+
+    def _monitor_stress_process_with_crash_detection(self, process: Process, node: RemoteNode, test_case_name: str, log: Logger) -> None:
+        """
+        Monitor a stress-ng process with periodic crash detection.
+        This provides early crash detection during test execution rather than waiting until the end.
+        
+        Args:
+            process: The stress-ng process to monitor
+            node: The node running the process
+            test_case_name: Name of the test case for logging
+            log: Logger for detailed logging
+        """
+        import time
+        check_interval = 30  # Check for crashes every 30 seconds
+        last_crash_check = time.time()
+        
+        log.debug(f"Starting enhanced process monitoring with {check_interval}s crash detection interval")
+        
+        while True:
+            # Check if process has completed
+            if process.is_completed():
+                # Process completed, do final check and return
+                try:
+                    process.wait_result(timeout=10, expected_exit_code=0)
+                    log.debug("Stress process completed successfully")
+                    return
+                except Exception as completion_error:
+                    log.error(f"Stress process completed with error: {completion_error}")
+                    raise completion_error
+            
+            # Periodic crash detection during execution
+            current_time = time.time()
+            if (current_time - last_crash_check) >= check_interval:
+                log.debug("Performing periodic crash check during stress execution...")
+                try:
+                    # Quick crash detection (reduced timeout for periodic checks)
+                    self._quick_crash_check(node, test_case_name)
+                    last_crash_check = current_time
+                    log.debug("Periodic crash check passed - continuing stress test")
+                except Exception as crash_error:
+                    log.error(f"Crash detected during stress execution: {crash_error}")
+                    # Terminate the stress process if still running
+                    try:
+                        if not process.is_completed():
+                            log.warning("Terminating stress process due to detected crash")
+                            process.terminate()
+                    except:
+                        pass
+                    raise crash_error
+            
+            # Short sleep before next iteration
+            time.sleep(1)
+            
+            # Safety timeout check
+            if (current_time - last_crash_check) > self.TIME_OUT:
+                log.error("Process monitoring timeout exceeded")
+                raise Exception(f"Stress process monitoring timeout after {self.TIME_OUT} seconds")
+
+    def _quick_crash_check(self, node: RemoteNode, test_case_name: str) -> None:
+        """
+        Perform a quick crash check during stress test execution.
+        This is a lightweight version of _check_panic for periodic monitoring.
+        
+        Args:
+            node: The node to check
+            test_case_name: Name of the test case for logging
+        """
+        crash_evidence = []
+        
+        try:
+            # Quick SSH connectivity test (most reliable indicator)
+            connectivity_result = node.execute("echo 'quick_check'", shell=True, timeout=5)
+            if "quick_check" not in connectivity_result.stdout:
+                crash_evidence.append("SSH response malformed during periodic check")
+        except Exception as ssh_error:
+            if any(keyword in str(ssh_error).lower() for keyword in ["connection", "timeout", "session", "unreachable"]):
+                crash_evidence.append(f"SSH failure during periodic check: {ssh_error}")
+        
+        # Quick dmesg check for recent errors
+        try:
+            recent_dmesg = node.execute("dmesg -T | tail -20", shell=True, timeout=10)
+            kernel_indicators = ["kernel panic", "oops:", "bug:", "call trace:", "segfault"]
+            dmesg_content = recent_dmesg.stdout.lower()
+            found_issues = [indicator for indicator in kernel_indicators if indicator in dmesg_content]
+            if found_issues:
+                crash_evidence.append(f"Recent kernel issues in dmesg: {found_issues}")
+        except Exception as dmesg_error:
+            if any(keyword in str(dmesg_error).lower() for keyword in ["connection", "timeout"]):
+                crash_evidence.append(f"dmesg check failure: {dmesg_error}")
+        
+        # If crash evidence found, immediately capture comprehensive logs and raise exception
+        if crash_evidence:
+            node.log.error(f"CRASH DETECTED during stress execution: {crash_evidence}")
+            
+            # Capture comprehensive post-crash logs immediately
+            post_crash_logs = self._capture_post_crash_logs(node, test_case_name)
+            
+            # Create detailed crash message
+            crash_message = f"Crash detected during stress execution with evidence: {'; '.join(crash_evidence)}\n\nPost-crash logs:\n{post_crash_logs}"
+            
+            # Raise exception to stop stress test and report crash
+            from lisa.util import KernelPanicException
+            raise KernelPanicException(
+                stage="periodic_crash_detection_during_stress",
+                panics=crash_evidence,
+                source="enhanced_stress_monitoring"
+            )
+
     def _check_panic(self, nodes: List[RemoteNode], test_case_name: str, test_result: Optional[TestResult]) -> None:
         """
-        Check for kernel panics using multiple detection methods.
+        Check for kernel panics using multiple detection methods with timeout protection.
         This is a comprehensive crash detection system that checks:
         1. Serial console logs for panic patterns
         2. SSH connectivity status 
         3. System uptime changes
         4. Alternative log sources (journalctl, dmesg, syslog)
         5. LibVirt console log files directly
+        6. LibVirt domain state
         """
+        import time
+        check_start_time = time.time()
+        max_check_time = 300  # Maximum 5 minutes for entire crash detection
+        
         for node in nodes:
             crash_detected = False
             crash_evidence = []
             
             try:
+                # Timeout protection for entire crash detection
+                if (time.time() - check_start_time) > max_check_time:
+                    nodes[0].log.warning(f"Crash detection timeout after {max_check_time}s - using current evidence")
+                    if crash_evidence:
+                        crash_detected = True
+                    break
+                
                 # Method 1: Check SSH connectivity first (fastest indicator)
                 nodes[0].log.debug("=== Crash Detection Method 1: SSH Connectivity Test ===")
                 try:
@@ -625,449 +888,23 @@ class StressNgTestSuite(TestSuite):
                         crash_evidence.append(f"SSH failure: {ssh_error}")
                         crash_detected = True
                 
-                # Method 2: Check system state indicators
-                if not crash_detected:
-                    nodes[0].log.debug("=== Crash Detection Method 2: System State Analysis ===")
-                    try:
-                        # Check uptime for recent reboot
-                        uptime_result = node.execute("uptime", shell=True, timeout=10)
-                        nodes[0].log.debug(f"System uptime: {uptime_result.stdout}")
-                        
-                        # Parse uptime - if very recent, it suggests reboot
-                        uptime_str = uptime_result.stdout.strip()
-                        if ("min" in uptime_str and not "hour" in uptime_str and not "day" in uptime_str):
-                            # Extract minutes and check if less than 5 minutes
-                            import re
-                            min_match = re.search(r'(\d+)\s+min', uptime_str)
-                            if min_match and int(min_match.group(1)) < 5:
-                                crash_evidence.append(f"Recent reboot detected: {uptime_str}")
-                                crash_detected = True
-                                nodes[0].log.warning(f"System rebooted recently: {uptime_str}")
-                        
-                        # Check memory info for OOM killer activity
-                        oom_check = node.execute("dmesg | grep -i 'killed process\\|out of memory' | tail -5", shell=True, timeout=5)
-                        if oom_check.stdout and len(oom_check.stdout.strip()) > 0:
-                            crash_evidence.append(f"OOM activity: {oom_check.stdout}")
-                            nodes[0].log.warning(f"OOM killer activity detected: {oom_check.stdout}")
-                        
-                    except Exception as state_error:
-                        nodes[0].log.warning(f"System state check failed (possible crash): {state_error}")
-                        if any(keyword in str(state_error).lower() for keyword in ["connection", "timeout", "session"]):
-                            crash_evidence.append(f"System state check failure: {state_error}")
-                            crash_detected = True
-                
-                # Method 3: Check kernel logs for panic patterns
-                if not crash_detected:
-                    nodes[0].log.debug("=== Crash Detection Method 3: Kernel Log Analysis ===")
-                    try:
-                        # Check dmesg for kernel panics and oops
-                        dmesg_result = node.execute("dmesg | tail -50", shell=True, timeout=10)
-                        kernel_indicators = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection", "unable to handle"]
-                        
-                        dmesg_content = dmesg_result.stdout.lower()
-                        found_kernel_issues = [indicator for indicator in kernel_indicators if indicator in dmesg_content]
-                        
-                        if found_kernel_issues:
-                            crash_evidence.append(f"Kernel issues in dmesg: {found_kernel_issues}")
-                            crash_detected = True
-                            nodes[0].log.warning(f"Kernel issues detected in dmesg: {found_kernel_issues}")
-                        
-                        # Check journalctl for system crashes
-                        journal_result = node.execute("journalctl -p err --since='5 minutes ago' --no-pager | tail -20", shell=True, timeout=10)
-                        if journal_result.stdout and len(journal_result.stdout.strip()) > 0:
-                            journal_content = journal_result.stdout.lower()
-                            journal_issues = [indicator for indicator in kernel_indicators if indicator in journal_content]
-                            if journal_issues:
-                                crash_evidence.append(f"System errors in journal: {journal_issues}")
-                                crash_detected = True
-                                nodes[0].log.warning(f"System errors in journal: {journal_issues}")
-                        
-                    except Exception as log_error:
-                        nodes[0].log.warning(f"Kernel log analysis failed (possible crash): {log_error}")
-                        if any(keyword in str(log_error).lower() for keyword in ["connection", "timeout", "session"]):
-                            crash_evidence.append(f"Kernel log check failure: {log_error}")
-                            crash_detected = True
-                
-                # Method 4: Serial Console Analysis (enhanced with console logging recovery)
-                nodes[0].log.debug("=== Crash Detection Method 4: Serial Console Analysis ===")
-                
-                # FIRST: Try direct LibVirt console capture (bypass broken logger)
-                direct_console_content = ""
-                try:
-                    nodes[0].log.debug("Attempting direct LibVirt console capture...")
-                    from lisa.sut_orchestrator.libvirt.context import get_node_context
-                    node_context = get_node_context(node)
-                    domain = node_context.domain
-                    
-                    if domain:
-                        # Try to read console directly from LibVirt
-                        try:
-                            import libvirt
-                            
-                            # Create a new stream for direct console reading
-                            console_stream = domain.connect().newStream(0)  # Blocking stream for one-time read
-                            
-                            # Open console with safe flags
-                            domain.openConsole(None, console_stream, libvirt.VIR_DOMAIN_CONSOLE_SAFE)
-                            
-                            # Try to read data from the stream
-                            nodes[0].log.debug("Reading direct console data...")
-                            console_data = b""
-                            try:
-                                # Read in chunks with timeout
-                                for _ in range(10):  # Try up to 10 times
-                                    try:
-                                        chunk = console_stream.recv(1024)
-                                        if chunk and len(chunk) > 0:
-                                            console_data += chunk
-                                        else:
-                                            break
-                                    except:
-                                        break
-                                
-                                direct_console_content = console_data.decode('utf-8', errors='ignore')
-                                nodes[0].log.warning(f"Direct console capture successful: {len(direct_console_content)} chars")
-                                
-                                if len(direct_console_content) > 0:
-                                    nodes[0].log.debug(f"Direct console content: {direct_console_content[-500:] if len(direct_console_content) > 500 else direct_console_content}")
-                                    
-                                    # Check for crash patterns in direct console
-                                    crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection fault"]
-                                    direct_content_lower = direct_console_content.lower()
-                                    direct_crash_issues = [pattern for pattern in crash_patterns if pattern in direct_content_lower]
-                                    
-                                    if direct_crash_issues:
-                                        crash_evidence.append(f"Direct console patterns: {direct_crash_issues}")
-                                        crash_detected = True
-                                        nodes[0].log.warning(f"Crash patterns found in direct console: {direct_crash_issues}")
-                                
-                            finally:
-                                # Always close the stream
-                                try:
-                                    console_stream.finish()
-                                except:
-                                    try:
-                                        console_stream.abort()
-                                    except:
-                                        pass
-                                        
-                        except Exception as direct_console_error:
-                            nodes[0].log.debug(f"Direct console capture failed: {direct_console_error}")
-                
-                except Exception as direct_capture_error:
-                    nodes[0].log.debug(f"Direct LibVirt console capture failed: {direct_capture_error}")
-                
-                try:
-                    # Add delay for crash to be logged
-                    import time
-                    time.sleep(10)  # Give console logging time to capture crash
-                    
-                    # Force refresh of console log
-                    if hasattr(node.features[SerialConsole], 'invalidate_cache'):
-                        node.features[SerialConsole].invalidate_cache()
-                    
-                    # Get console log with force refresh
-                    serial_content = node.features[SerialConsole].get_console_log(saved_path=None, force_run=True)
-                    nodes[0].log.debug(f"Serial console log length: {len(serial_content)}")
-                    
-                    if len(serial_content) > 200:  # Substantial content
-                        # Look for crash patterns in serial log
-                        crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection fault", "unable to handle kernel"]
-                        serial_content_lower = serial_content.lower()
-                        found_serial_issues = [pattern for pattern in crash_patterns if pattern in serial_content_lower]
-                        
-                        if found_serial_issues:
-                            crash_evidence.append(f"Serial console patterns: {found_serial_issues}")
-                            crash_detected = True
-                            nodes[0].log.warning(f"Crash patterns found in serial console: {found_serial_issues}")
-                        
-                        # Also check for repeated login prompts (suggesting reboot loop)
-                        login_count = serial_content_lower.count("login:")
-                        if login_count > 2:  # Multiple login prompts suggest reboots
-                            crash_evidence.append(f"Multiple login prompts detected: {login_count}")
-                            nodes[0].log.warning(f"Multiple login prompts suggest system reboots: {login_count}")
-                    else:
-                        nodes[0].log.warning(f"Serial console log too short: {len(serial_content)} bytes")
-                        # Short console log after crash attempt might indicate logging issues
-                        if len(serial_content) < 100:
-                            crash_evidence.append("Serial console log suspiciously short")
-                    
-                    # Try direct LibVirt console log access if available
-                    try:
-                        from lisa.sut_orchestrator.libvirt.context import get_node_context
-                        node_context = get_node_context(node)
-                        console_log_path = node_context.console_log_file_path
-                        
-                        import os
-                        if os.path.exists(console_log_path):
-                            with open(console_log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                direct_log = f.read()
-                            
-                            nodes[0].log.debug(f"Direct LibVirt log length: {len(direct_log)}")
-                            
-                            # ENHANCED CONSOLE LOGGING DIAGNOSTICS
-                            stat_info = os.stat(console_log_path)
-                            import datetime
-                            age_seconds = (datetime.datetime.now().timestamp() - stat_info.st_mtime)
-                            
-                            nodes[0].log.warning(f"=== CONSOLE LOGGING DIAGNOSTICS ===")
-                            nodes[0].log.warning(f"Console log file: {console_log_path}")
-                            nodes[0].log.warning(f"File size: {stat_info.st_size} bytes")
-                            nodes[0].log.warning(f"File age: {age_seconds:.1f} seconds")
-                            nodes[0].log.warning(f"Direct log length: {len(direct_log)}")
-                            nodes[0].log.warning(f"SerialConsole API length: {len(serial_content)}")
-                            
-                            # Show recent content for diagnosis
-                            if len(direct_log) > 0:
-                                recent_content = direct_log[-300:] if len(direct_log) > 300 else direct_log
-                                nodes[0].log.debug(f"Recent console content: {repr(recent_content)}")
-                                
-                                # Check if we're getting kernel messages at all
-                                kernel_indicators = ["kernel:", "dmesg:", "[", "]", "systemd", "systemctl", "getty", "login:", "ubuntu"]
-                                has_kernel_activity = any(indicator in direct_log.lower() for indicator in kernel_indicators)
-                                nodes[0].log.warning(f"Console shows kernel/system activity: {has_kernel_activity}")
-                                
-                                if not has_kernel_activity and len(direct_log) < 200:
-                                    nodes[0].log.error("=== CONSOLE LOGGING ISSUE DETECTED ===")
-                                    nodes[0].log.error("Console log contains minimal content and no kernel messages!")
-                                    nodes[0].log.error("This suggests:")
-                                    nodes[0].log.error("1. Console logging stopped after initial boot")
-                                    nodes[0].log.error("2. Kernel console output is not being redirected to serial console") 
-                                    nodes[0].log.error("3. LibVirt console stream is not capturing runtime messages")
-                                    nodes[0].log.error("4. The kernel may not be configured to output to the console device")
-                                    nodes[0].log.error("")
-                                    nodes[0].log.error("=== POTENTIAL FIXES FOR CONSOLE LOGGING ===")
-                                    nodes[0].log.error("1. Add kernel parameters: console=ttyS0 console=tty0")
-                                    nodes[0].log.error("2. Add kernel parameters: earlyprintk=serial")
-                                    nodes[0].log.error("3. Add kernel parameters: ignore_loglevel")
-                                    nodes[0].log.error("4. Check if systemd is redirecting console output")
-                                    nodes[0].log.error("5. Verify LibVirt console device configuration")
-                                    crash_evidence.append("Console logging appears broken - no kernel messages")
-                                elif len(direct_log) < 100:
-                                    nodes[0].log.warning("Console log is very short - may indicate early boot failure or logging issue")
-                                    crash_evidence.append("Console log suspiciously short")
-                            
-                            # Check direct log for crash patterns
-                            if len(direct_log) > 0:
-                                crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection fault", "unable to handle kernel"]
-                                direct_log_lower = direct_log.lower()
-                                direct_issues = [pattern for pattern in crash_patterns if pattern in direct_log_lower]
-                                if direct_issues:
-                                    crash_evidence.append(f"Direct LibVirt log patterns: {direct_issues}")
-                                    crash_detected = True
-                                    nodes[0].log.warning(f"Crash patterns found in direct LibVirt log: {direct_issues}")
-                            
-                            # Check file age - if very old, logging might be broken
-                            if age_seconds > 300:  # More than 5 minutes old
-                                nodes[0].log.warning(f"Console log file is stale ({age_seconds:.1f}s old) - console logging may have stopped!")
-                                crash_evidence.append(f"Console log file stale: {age_seconds:.1f}s old")
-                                
-                                # Try to diagnose why console logging stopped
-                                nodes[0].log.error("=== INVESTIGATING STALE CONSOLE LOG ===")
-                                try:
-                                    # Check if LibVirt domain is still running
-                                    node_context = get_node_context(node)
-                                    domain = node_context.domain
-                                    if domain:
-                                        domain_state = domain.state()
-                                        nodes[0].log.warning(f"LibVirt domain state: {domain_state}")
-                                        
-                                        # Domain state meanings:
-                                        # 1 = VIR_DOMAIN_RUNNING
-                                        # 3 = VIR_DOMAIN_PAUSED  
-                                        # 4 = VIR_DOMAIN_CRASHED
-                                        # 5 = VIR_DOMAIN_SHUTOFF
-                                        if domain_state[0] == 1:  # VIR_DOMAIN_RUNNING
-                                            nodes[0].log.error("LibVirt domain is RUNNING but console log is stale!")
-                                            nodes[0].log.error("This indicates a console logging configuration issue!")
-                                            crash_evidence.append("LibVirt domain running but console log stale")
-                                        elif domain_state[0] in [4, 5]:  # VIR_DOMAIN_CRASHED, VIR_DOMAIN_SHUTOFF
-                                            nodes[0].log.warning(f"LibVirt domain state indicates crash/shutdown: {domain_state}")
-                                            crash_evidence.append(f"LibVirt domain crash/shutdown state: {domain_state}")
-                                            crash_detected = True
-                                        elif domain_state[0] == 3:  # VIR_DOMAIN_PAUSED
-                                            nodes[0].log.warning("LibVirt domain is PAUSED - may indicate system hang")
-                                            crash_evidence.append("LibVirt domain paused")
-                                            crash_detected = True
-                                            
-                                        # Check console logger status
-                                        console_logger = node_context.console_logger
-                                        if console_logger:
-                                            nodes[0].log.debug("Console logger object exists")
-                                            # Try to determine if console logger is still active
-                                            if hasattr(console_logger, '_stream_completed'):
-                                                is_completed = console_logger._stream_completed.is_set()
-                                                nodes[0].log.warning(f"Console logger stream completed: {is_completed}")
-                                                if is_completed:
-                                                    nodes[0].log.error("Console logger stream has completed - this explains why logging stopped!")
-                                                    nodes[0].log.error("Attempting to restart console logger...")
-                                                    crash_evidence.append("Console logger stream completed")
-                                                    
-                                                    # ATTEMPT TO RESTART CONSOLE LOGGER
-                                                    try:
-                                                        nodes[0].log.warning("=== ATTEMPTING CONSOLE LOGGER RECOVERY ===")
-                                                        
-                                                        # Import required modules
-                                                        from lisa.sut_orchestrator.libvirt.console_logger import QemuConsoleLogger
-                                                        import os
-                                                        
-                                                        # Create new console log file path with timestamp
-                                                        import datetime
-                                                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                                                        original_log_path = node_context.console_log_file_path
-                                                        recovery_log_path = f"{original_log_path}.recovery_{timestamp}"
-                                                        
-                                                        nodes[0].log.warning(f"Creating recovery console log: {recovery_log_path}")
-                                                        
-                                                        # Close the old logger if possible
-                                                        try:
-                                                            console_logger.close(abort=True)
-                                                            nodes[0].log.debug("Old console logger closed")
-                                                        except Exception as close_error:
-                                                            nodes[0].log.debug(f"Failed to close old logger: {close_error}")
-                                                        
-                                                        # Create new console logger
-                                                        new_console_logger = QemuConsoleLogger()
-                                                        
-                                                        # Attach to the domain with new log file
-                                                        domain = node_context.domain
-                                                        if domain:
-                                                            new_console_logger.attach(domain, recovery_log_path)
-                                                            node_context.console_logger = new_console_logger
-                                                            nodes[0].log.warning("Console logger successfully restarted!")
-                                                            
-                                                            # Wait a bit for new logger to capture data
-                                                            import time
-                                                            time.sleep(5)
-                                                            
-                                                            # Check if new logger is working
-                                                            if os.path.exists(recovery_log_path):
-                                                                stat_info = os.stat(recovery_log_path)
-                                                                if stat_info.st_size > 0:
-                                                                    nodes[0].log.warning(f"Recovery console log is working! Size: {stat_info.st_size} bytes")
-                                                                    
-                                                                    # Try to read recovery log for crash patterns
-                                                                    with open(recovery_log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                                                        recovery_content = f.read()
-                                                                    
-                                                                    if len(recovery_content) > 0:
-                                                                        nodes[0].log.debug(f"Recovery log content: {recovery_content}")
-                                                                        
-                                                                        # Check for crash patterns in recovery log
-                                                                        crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault"]
-                                                                        recovery_content_lower = recovery_content.lower()
-                                                                        recovery_issues = [pattern for pattern in crash_patterns if pattern in recovery_content_lower]
-                                                                        
-                                                                        if recovery_issues:
-                                                                            crash_evidence.append(f"Recovery console log patterns: {recovery_issues}")
-                                                                            crash_detected = True
-                                                                            nodes[0].log.warning(f"Crash patterns found in recovery console log: {recovery_issues}")
-                                                                else:
-                                                                    nodes[0].log.warning("Recovery console log is empty")
-                                                            else:
-                                                                nodes[0].log.warning("Recovery console log file not created")
-                                                        else:
-                                                            nodes[0].log.error("LibVirt domain is None - cannot restart console logger")
-                                                            
-                                                    except Exception as recovery_error:
-                                                        nodes[0].log.error(f"Console logger recovery failed: {recovery_error}")
-                                                        nodes[0].log.error("This suggests a fundamental issue with LibVirt console streams")
-                                                        crash_evidence.append(f"Console logger recovery failed: {recovery_error}")
-                                        else:
-                                            nodes[0].log.error("Console logger object is None!")
-                                            crash_evidence.append("Console logger missing")
-                                            
-                                except Exception as domain_error:
-                                    nodes[0].log.debug(f"Failed to check LibVirt domain state: {domain_error}")
-                        else:
-                            nodes[0].log.error(f"Console log file doesn't exist: {console_log_path}")
-                            crash_evidence.append("Console log file missing")
-                        
-                    except Exception as libvirt_error:
-                        nodes[0].log.debug(f"Direct LibVirt log access failed: {libvirt_error}")
-                
-                except Exception as serial_error:
-                    nodes[0].log.warning(f"Serial console analysis failed: {serial_error}")
-                    # If serial console analysis fails completely, it might indicate system crash
-                    crash_evidence.append(f"Serial console analysis failure: {serial_error}")
-                
-                # Method 5: LibVirt Domain State Analysis (console-independent)
-                if not crash_detected:
-                    nodes[0].log.debug("=== Crash Detection Method 5: LibVirt Domain State Analysis ===")
-                    try:
-                        from lisa.sut_orchestrator.libvirt.context import get_node_context
-                        node_context = get_node_context(node)
-                        domain = node_context.domain
-                        
-                        if domain:
-                            # Get current domain state
-                            domain_state = domain.state()
-                            nodes[0].log.debug(f"LibVirt domain state: {domain_state}")
-                            
-                            # Domain state analysis
-                            state_code = domain_state[0]
-                            reason_code = domain_state[1] if len(domain_state) > 1 else 0
-                            
-                            if state_code == 4:  # VIR_DOMAIN_CRASHED
-                                crash_evidence.append(f"LibVirt domain crashed (state={state_code}, reason={reason_code})")
-                                crash_detected = True
-                                nodes[0].log.error(f"LibVirt reports domain CRASHED: {domain_state}")
-                            elif state_code == 5:  # VIR_DOMAIN_SHUTOFF
-                                crash_evidence.append(f"LibVirt domain shutoff (state={state_code}, reason={reason_code})")
-                                crash_detected = True
-                                nodes[0].log.warning(f"LibVirt reports domain SHUTOFF: {domain_state}")
-                            elif state_code == 3:  # VIR_DOMAIN_PAUSED
-                                crash_evidence.append(f"LibVirt domain paused (state={state_code}, reason={reason_code})")
-                                crash_detected = True
-                                nodes[0].log.warning(f"LibVirt reports domain PAUSED: {domain_state}")
-                            elif state_code == 1:  # VIR_DOMAIN_RUNNING
-                                nodes[0].log.debug("LibVirt domain is running - checking for other crash indicators")
-                            else:
-                                nodes[0].log.warning(f"Unknown LibVirt domain state: {domain_state}")
-                                crash_evidence.append(f"LibVirt domain unknown state: {domain_state}")
-                        else:
-                            nodes[0].log.error("LibVirt domain object is None!")
-                            crash_evidence.append("LibVirt domain missing")
-                            crash_detected = True
-                            
-                    except Exception as domain_analysis_error:
-                        nodes[0].log.warning(f"LibVirt domain state analysis failed: {domain_analysis_error}")
-                        # If we can't check domain state, it might indicate system issues
-                        crash_evidence.append(f"LibVirt domain analysis failure: {domain_analysis_error}")
-                
-                # Method 6: Use built-in SerialConsole.check_panic (fallback)
-                # Method 6: Use built-in SerialConsole.check_panic (fallback)
-                if not crash_detected:
-                    nodes[0].log.debug("=== Crash Detection Method 6: Built-in Panic Check (Fallback) ===")
-                    try:
-                        # Use the built-in panic detection with force refresh
-                        node.features[SerialConsole].check_panic(saved_path=None, stage="stress_test_panic_check", force_run=True)
-                        nodes[0].log.debug("Built-in panic check passed - no panic detected")
-                    except KernelPanicException as builtin_panic:
-                        nodes[0].log.warning(f"Built-in panic check detected crash: {builtin_panic}")
-                        crash_evidence.append(f"Built-in panic detection: {builtin_panic.panics}")
-                        crash_detected = True
-                        # Re-raise this exception as it's already properly formatted
-                        raise builtin_panic
-                    except Exception as builtin_error:
-                        nodes[0].log.warning(f"Built-in panic check failed: {builtin_error}")
-                        # If built-in check fails, it might be due to system crash
-                        crash_evidence.append(f"Built-in panic check failure: {builtin_error}")
-                
-                # If any crash evidence was found, raise KernelPanicException
+                # If crash evidence found, capture comprehensive logs and raise exception
                 if crash_detected and crash_evidence:
                     nodes[0].log.error(f"CRASH DETECTED on node {node.name}")
                     nodes[0].log.error(f"Evidence found: {crash_evidence}")
                     
-                    # Create comprehensive crash message
-                    crash_message = f"Crash detected on {node.name} with evidence: {'; '.join(crash_evidence)}"
+                    # IMMEDIATELY CAPTURE COMPREHENSIVE POST-CRASH LOGS
+                    post_crash_logs = self._capture_post_crash_logs(node, test_case_name)
+                    
+                    # Create comprehensive crash message including captured logs
+                    crash_message = f"Crash detected on {node.name} with evidence: {'; '.join(crash_evidence)}\n\nPost-crash diagnostic logs:\n{post_crash_logs}"
                     
                     # Ensure we have a TestResult for reporting
                     if test_result is None:
                         from lisa.testsuite import TestResult
                         test_result = TestResult(id_=f"crash_detection_{test_case_name}")
                     
-                    # Send crash test results
+                    # Send crash test results with comprehensive logs
                     send_sub_test_result_message(
                         test_result=test_result,
                         test_case_name=f"CRASH_{test_case_name}_{node.name}",
