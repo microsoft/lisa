@@ -200,6 +200,45 @@ class StressNgTestSuite(TestSuite):
         nodes[0].log.warning("Waiting for VM to fully boot before crash test...")
         time.sleep(30)  # Give console logging time to start
         
+        # PROACTIVE CONSOLE LOGGER HEALTH CHECK
+        nodes[0].log.warning("=== PROACTIVE CONSOLE LOGGER HEALTH CHECK ===")
+        try:
+            from lisa.sut_orchestrator.libvirt.context import get_node_context
+            node_context = get_node_context(nodes[0])
+            console_logger = node_context.console_logger
+            
+            if console_logger and hasattr(console_logger, '_stream_completed'):
+                is_completed = console_logger._stream_completed.is_set()
+                nodes[0].log.warning(f"Pre-crash console logger status - stream completed: {is_completed}")
+                
+                if is_completed:
+                    nodes[0].log.error("Console logger stream already completed before crash test!")
+                    nodes[0].log.error("This explains why console logging isn't working properly")
+                    nodes[0].log.error("Console logging failure occurred during boot or early operation")
+                else:
+                    nodes[0].log.info("Console logger appears healthy before crash test")
+                    
+                    # Check console log file health
+                    console_log_path = node_context.console_log_file_path
+                    import os
+                    if os.path.exists(console_log_path):
+                        stat_info = os.stat(console_log_path)
+                        import datetime
+                        age_seconds = (datetime.datetime.now().timestamp() - stat_info.st_mtime)
+                        nodes[0].log.info(f"Console log file: {stat_info.st_size} bytes, {age_seconds:.1f}s old")
+                        
+                        if age_seconds > 60:  # More than 1 minute old
+                            nodes[0].log.warning(f"Console log file is getting stale ({age_seconds:.1f}s) - logging may be slowing down")
+                        elif stat_info.st_size < 50:
+                            nodes[0].log.warning(f"Console log file is very small ({stat_info.st_size} bytes) - may not be capturing properly")
+                        else:
+                            nodes[0].log.info("Console log file appears healthy")
+            else:
+                nodes[0].log.error("Console logger not available or missing stream completion check")
+                
+        except Exception as health_check_error:
+            nodes[0].log.warning(f"Console logger health check failed: {health_check_error}")
+        
         # Pre-crash system state capture
         nodes[0].log.debug("=== PRE-CRASH SYSTEM STATE CAPTURE ===")
         try:
@@ -240,7 +279,7 @@ class StressNgTestSuite(TestSuite):
             panic_timeout = nodes[0].execute("cat /proc/sys/kernel/panic", shell=True)
             nodes[0].log.debug(f"Panic timeout: {panic_timeout.stdout.strip()}")
             
-            # 2. Prepare crash detection logging
+            # 2. Prepare crash detection logging and force console output
             nodes[0].log.debug("Step 2: Prepare logging systems...")
             
             # Force kernel to log more verbosely
@@ -248,9 +287,23 @@ class StressNgTestSuite(TestSuite):
             printk_level = nodes[0].execute("cat /proc/sys/kernel/printk", shell=True)
             nodes[0].log.debug(f"Kernel printk level: {printk_level.stdout.strip()}")
             
+            # Force console output and disable console blanking
+            nodes[0].execute("setterm -blank 0 -powerdown 0 2>/dev/null || true", sudo=True, shell=True)
+            nodes[0].execute("echo 0 > /sys/class/vtconsole/vtcon1/bind 2>/dev/null || true", sudo=True, shell=True)
+            
+            # Enable all kernel debugging and ensure console output
+            nodes[0].execute("echo 1 > /proc/sys/kernel/printk_ratelimit_burst", sudo=True, shell=True)
+            nodes[0].execute("echo 0 > /proc/sys/kernel/printk_ratelimit", sudo=True, shell=True)
+            
+            # Force immediate console flush
+            nodes[0].execute("dmesg --console-level=7 2>/dev/null || true", sudo=True, shell=True)
+            
+            # Send test message to console to verify logging
+            nodes[0].execute("echo 'LISA_CRASH_TEST_START' > /dev/console 2>/dev/null || echo 'LISA_CRASH_TEST_START' > /dev/kmsg || true", sudo=True, shell=True)
+            
             # Sync filesystems before crash
             nodes[0].execute("sync", sudo=True, shell=True)
-            nodes[0].log.debug("Filesystems synced")
+            nodes[0].log.debug("Filesystems synced and console logging configured")
             
         except Exception as prep_error:
             nodes[0].log.warning(f"Crash preparation failed (continuing anyway): {prep_error}")
@@ -635,8 +688,75 @@ class StressNgTestSuite(TestSuite):
                             crash_evidence.append(f"Kernel log check failure: {log_error}")
                             crash_detected = True
                 
-                # Method 4: Serial Console Analysis (enhanced)
+                # Method 4: Serial Console Analysis (enhanced with console logging recovery)
                 nodes[0].log.debug("=== Crash Detection Method 4: Serial Console Analysis ===")
+                
+                # FIRST: Try direct LibVirt console capture (bypass broken logger)
+                direct_console_content = ""
+                try:
+                    nodes[0].log.debug("Attempting direct LibVirt console capture...")
+                    from lisa.sut_orchestrator.libvirt.context import get_node_context
+                    node_context = get_node_context(node)
+                    domain = node_context.domain
+                    
+                    if domain:
+                        # Try to read console directly from LibVirt
+                        try:
+                            import libvirt
+                            
+                            # Create a new stream for direct console reading
+                            console_stream = domain.connect().newStream(0)  # Blocking stream for one-time read
+                            
+                            # Open console with safe flags
+                            domain.openConsole(None, console_stream, libvirt.VIR_DOMAIN_CONSOLE_SAFE)
+                            
+                            # Try to read data from the stream
+                            nodes[0].log.debug("Reading direct console data...")
+                            console_data = b""
+                            try:
+                                # Read in chunks with timeout
+                                for _ in range(10):  # Try up to 10 times
+                                    try:
+                                        chunk = console_stream.recv(1024)
+                                        if chunk and len(chunk) > 0:
+                                            console_data += chunk
+                                        else:
+                                            break
+                                    except:
+                                        break
+                                
+                                direct_console_content = console_data.decode('utf-8', errors='ignore')
+                                nodes[0].log.warning(f"Direct console capture successful: {len(direct_console_content)} chars")
+                                
+                                if len(direct_console_content) > 0:
+                                    nodes[0].log.debug(f"Direct console content: {direct_console_content[-500:] if len(direct_console_content) > 500 else direct_console_content}")
+                                    
+                                    # Check for crash patterns in direct console
+                                    crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault", "general protection fault"]
+                                    direct_content_lower = direct_console_content.lower()
+                                    direct_crash_issues = [pattern for pattern in crash_patterns if pattern in direct_content_lower]
+                                    
+                                    if direct_crash_issues:
+                                        crash_evidence.append(f"Direct console patterns: {direct_crash_issues}")
+                                        crash_detected = True
+                                        nodes[0].log.warning(f"Crash patterns found in direct console: {direct_crash_issues}")
+                                
+                            finally:
+                                # Always close the stream
+                                try:
+                                    console_stream.finish()
+                                except:
+                                    try:
+                                        console_stream.abort()
+                                    except:
+                                        pass
+                                        
+                        except Exception as direct_console_error:
+                            nodes[0].log.debug(f"Direct console capture failed: {direct_console_error}")
+                
+                except Exception as direct_capture_error:
+                    nodes[0].log.debug(f"Direct LibVirt console capture failed: {direct_capture_error}")
+                
                 try:
                     # Add delay for crash to be logged
                     import time
@@ -780,7 +900,79 @@ class StressNgTestSuite(TestSuite):
                                                 nodes[0].log.warning(f"Console logger stream completed: {is_completed}")
                                                 if is_completed:
                                                     nodes[0].log.error("Console logger stream has completed - this explains why logging stopped!")
+                                                    nodes[0].log.error("Attempting to restart console logger...")
                                                     crash_evidence.append("Console logger stream completed")
+                                                    
+                                                    # ATTEMPT TO RESTART CONSOLE LOGGER
+                                                    try:
+                                                        nodes[0].log.warning("=== ATTEMPTING CONSOLE LOGGER RECOVERY ===")
+                                                        
+                                                        # Import required modules
+                                                        from lisa.sut_orchestrator.libvirt.console_logger import QemuConsoleLogger
+                                                        import os
+                                                        
+                                                        # Create new console log file path with timestamp
+                                                        import datetime
+                                                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                                                        original_log_path = node_context.console_log_file_path
+                                                        recovery_log_path = f"{original_log_path}.recovery_{timestamp}"
+                                                        
+                                                        nodes[0].log.warning(f"Creating recovery console log: {recovery_log_path}")
+                                                        
+                                                        # Close the old logger if possible
+                                                        try:
+                                                            console_logger.close(abort=True)
+                                                            nodes[0].log.debug("Old console logger closed")
+                                                        except Exception as close_error:
+                                                            nodes[0].log.debug(f"Failed to close old logger: {close_error}")
+                                                        
+                                                        # Create new console logger
+                                                        new_console_logger = QemuConsoleLogger()
+                                                        
+                                                        # Attach to the domain with new log file
+                                                        domain = node_context.domain
+                                                        if domain:
+                                                            new_console_logger.attach(domain, recovery_log_path)
+                                                            node_context.console_logger = new_console_logger
+                                                            nodes[0].log.warning("Console logger successfully restarted!")
+                                                            
+                                                            # Wait a bit for new logger to capture data
+                                                            import time
+                                                            time.sleep(5)
+                                                            
+                                                            # Check if new logger is working
+                                                            if os.path.exists(recovery_log_path):
+                                                                stat_info = os.stat(recovery_log_path)
+                                                                if stat_info.st_size > 0:
+                                                                    nodes[0].log.warning(f"Recovery console log is working! Size: {stat_info.st_size} bytes")
+                                                                    
+                                                                    # Try to read recovery log for crash patterns
+                                                                    with open(recovery_log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                                                        recovery_content = f.read()
+                                                                    
+                                                                    if len(recovery_content) > 0:
+                                                                        nodes[0].log.debug(f"Recovery log content: {recovery_content}")
+                                                                        
+                                                                        # Check for crash patterns in recovery log
+                                                                        crash_patterns = ["kernel panic", "oops:", "bug:", "call trace:", "rip:", "segfault"]
+                                                                        recovery_content_lower = recovery_content.lower()
+                                                                        recovery_issues = [pattern for pattern in crash_patterns if pattern in recovery_content_lower]
+                                                                        
+                                                                        if recovery_issues:
+                                                                            crash_evidence.append(f"Recovery console log patterns: {recovery_issues}")
+                                                                            crash_detected = True
+                                                                            nodes[0].log.warning(f"Crash patterns found in recovery console log: {recovery_issues}")
+                                                                else:
+                                                                    nodes[0].log.warning("Recovery console log is empty")
+                                                            else:
+                                                                nodes[0].log.warning("Recovery console log file not created")
+                                                        else:
+                                                            nodes[0].log.error("LibVirt domain is None - cannot restart console logger")
+                                                            
+                                                    except Exception as recovery_error:
+                                                        nodes[0].log.error(f"Console logger recovery failed: {recovery_error}")
+                                                        nodes[0].log.error("This suggests a fundamental issue with LibVirt console streams")
+                                                        crash_evidence.append(f"Console logger recovery failed: {recovery_error}")
                                         else:
                                             nodes[0].log.error("Console logger object is None!")
                                             crash_evidence.append("Console logger missing")
