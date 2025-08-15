@@ -77,14 +77,28 @@ class Ssh(Tool):
         self.node.close()
 
     def get(self, setting: str) -> str:
-        config_path = self.get_default_sshd_config_path()
-        settings = self.node.tools[Cat].read(config_path, True, True)
-        if isinstance(self.node.os, Ubuntu):
-            extra_sshd_config = "/etc/ssh/sshd_config.d/50-cloudimg-settings.conf"
-            path_exist = self.node.execute(f"ls -lt {extra_sshd_config}", sudo=True)
-            if path_exist.exit_code == 0:
-                settings += self.node.tools[Cat].read(extra_sshd_config, True, True)
-        pattern = re.compile(rf"^{setting}\s+(?P<value>.*)", re.M)
+        # Firstly, using command "sshd -T" to get the effective configuration
+        # Take ClientAliveInterval as an example, if the value is "60m" in the config
+        # file, sshd -T can show the effective value which is 3600.
+        result = self.node.execute(
+            f"sshd -T | grep {setting.lower()}", sudo=True, shell=True
+        )
+        if result.exit_code == 0:
+            settings = result.stdout
+            # The pattern needs to match "clientaliveinterval 120"
+            pattern = re.compile(rf"^{setting.lower()}\s+(?P<value>.*)", re.M)
+        else:
+            config_path = self.get_default_sshd_config_path()
+            settings = self.node.tools[Cat].read(config_path, True, True)
+            if isinstance(self.node.os, Ubuntu):
+                extra_sshd_config = "/etc/ssh/sshd_config.d/50-cloudimg-settings.conf"
+                path_exist = self.node.execute(f"ls -lt {extra_sshd_config}", sudo=True)
+                if path_exist.exit_code == 0:
+                    settings += self.node.tools[Cat].read(extra_sshd_config, True, True)
+            # The pattern needs to match: "ClientAliveInterval 120" or
+            # "ClientAliveInterval 120 # this is a comment"
+            pattern = re.compile(rf"^{setting}\s+(?P<value>[^#\n]*)", re.M)
+
         matches = find_patterns_groups_in_lines(settings, [pattern])
         if not matches[0]:
             return ""
