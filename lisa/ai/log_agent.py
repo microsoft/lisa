@@ -54,7 +54,7 @@ VERBOSITY_LENGTH_THRESHOLD = 1000  # Max length for verbose log messages
 class Config:
     """Configuration data class for the log analyzer."""
 
-    working_directory: str
+    current_directory: str
     azure_openai_api_key: str
     azure_openai_endpoint: str
     embedding_endpoint: str
@@ -75,7 +75,7 @@ def create_agent_execution_settings() -> AzureChatPromptExecutionSettings:
     return settings
 
 
-def get_working_directory() -> str:
+def get_current_directory() -> str:
     """Get the working directory for the log analyzer."""
     return os.path.dirname(os.path.realpath(__file__))
 
@@ -93,8 +93,8 @@ def load_system_prompt(prompt_filename: str) -> str:
     Raises:
         FileNotFoundError: If the prompt file doesn't exist.
     """
-    working_directory = get_working_directory()
-    prompt_path = os.path.join(working_directory, "prompts", prompt_filename)
+
+    prompt_path = os.path.join(get_current_directory(), "prompts", prompt_filename)
 
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
@@ -116,7 +116,7 @@ def load_test_data() -> List[Dict[str, str]]:
         ValueError: If JSON format is invalid
     """
     json_path = os.path.join(
-        get_working_directory(), "data", "small_v20250603", "inputs.json"
+        get_current_directory(), "data", "small_v20250603", "inputs.json"
     )
 
     try:
@@ -293,7 +293,7 @@ def setup_debug_logging() -> str:
     Also sets up console logging for INFO level messages.
     This will capture all agent communications, function calls, and LLM interactions.
     """
-    debug_dir = os.path.join(get_working_directory(), "logs")
+    debug_dir = os.path.join(get_current_directory(), "logs")
     os.makedirs(debug_dir, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     tracing_filepath = os.path.join(debug_dir, f"debug_{timestamp}.log")
@@ -997,8 +997,8 @@ def _load_config() -> Config:
     """
     Load environment variables and validate required configs.
     """
-    working_directory = os.path.dirname(os.path.realpath(__file__))
-    load_dotenv(os.path.join(working_directory, ".env"))
+    current_directory = get_current_directory()
+    load_dotenv(os.path.join(current_directory, ".env"))
 
     # Get environment variables
     azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY")
@@ -1010,7 +1010,7 @@ def _load_config() -> Config:
     code_path = os.getenv("CODE_PATH")
 
     return Config(
-        working_directory=working_directory,
+        current_directory=current_directory,
         azure_openai_api_key=azure_openai_api_key,  # type: ignore
         azure_openai_endpoint=azure_openai_endpoint,  # type: ignore
         embedding_endpoint=embedding_endpoint,  # type: ignore
@@ -1096,7 +1096,7 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
     error_message = item["error_message"]
 
     generated_text = analyze(
-        config.working_directory,
+        config.current_directory,
         config.azure_openai_api_key,
         config.azure_openai_endpoint,
         config.general_deployment_name,
@@ -1273,7 +1273,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def analyze(
-    working_directory: str,
+    current_directory: str,
     azure_openai_api_key: str,
     azure_openai_endpoint: str,
     general_deployment_name: str,
