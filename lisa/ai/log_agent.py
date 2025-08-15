@@ -81,12 +81,13 @@ def get_current_directory() -> str:
     return os.path.dirname(os.path.realpath(__file__))
 
 
-def load_system_prompt(prompt_filename: str) -> str:
+def load_prompt(prompt_filename: str, flow: str) -> str:
     """
     Load system prompt from the prompts directory.
 
     Args:
-        prompt_filename: Name of the prompt file (e.g., "log_search_system_prompt.txt").
+        prompt_filename: Name of the prompt file (e.g., "log_search.txt").
+        flow: The flow context for the prompt (e.g., "default", "gpt-5").
 
     Returns:
         str: Contents of the prompt file.
@@ -95,7 +96,9 @@ def load_system_prompt(prompt_filename: str) -> str:
         FileNotFoundError: If the prompt file doesn't exist.
     """
 
-    prompt_path = os.path.join(get_current_directory(), "prompts", prompt_filename)
+    prompt_path = os.path.join(
+        get_current_directory(), "prompts", flow, prompt_filename
+    )
 
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
@@ -947,7 +950,7 @@ class LogSearchAgent(FileSearchAgentBase):
         self, log_paths: List[str], deployment_name: str, api_key: str, base_url: str
     ) -> None:
         # Load specialized system prompt for log search
-        instructions = load_system_prompt("log_search_system_prompt.txt")
+        instructions = load_prompt("log_search.txt", flow="default")
 
         # Initialize with Azure OpenAI service and log analysis plugin
         super().__init__(
@@ -979,7 +982,7 @@ class CodeSearchAgent(FileSearchAgentBase):
         self, code_paths: List[str], deployment_name: str, api_key: str, base_url: str
     ) -> None:
         # Load specialized system prompt for code search
-        instructions = load_system_prompt("code_search_system_prompt.txt")
+        instructions = load_prompt("code_search.txt", flow="default")
 
         # Initialize with Azure OpenAI service and log analysis plugin
         super().__init__(
@@ -1312,7 +1315,7 @@ async def _async_analyze_default(
     """
     Default async analysis method using multi-agent orchestration.
     """
-    system_instructions = load_system_prompt("user_prompt.txt")
+    system_instructions = load_prompt("user.txt", flow="default")
 
     # Include the actual error message in the analysis prompt
     analysis_prompt = f"""{system_instructions}
@@ -1353,7 +1356,7 @@ async def _async_analyze_default(
     )
 
     # Load the final answer prompt
-    final_answer_prompt = load_system_prompt("final_answer_system_prompt.txt")
+    final_answer_prompt = load_prompt("final_answer.txt", flow="default")
 
     # Create execution settings for the manager using the shared builder
     manager_execution_settings = create_agent_execution_settings()
