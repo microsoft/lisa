@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import os
+from dataclasses import dataclass
 from typing import (
     Any,
     AsyncIterable,
@@ -47,6 +48,20 @@ from semantic_kernel.utils.logging import setup_logging
 
 # Constants used in the code
 VERBOSITY_LENGTH_THRESHOLD = 1000  # Max length for verbose log messages
+
+
+@dataclass
+class Config:
+    """Configuration data class for the log analyzer."""
+
+    working_directory: str
+    azure_openai_api_key: str
+    azure_openai_endpoint: str
+    embedding_endpoint: str
+    general_deployment_name: str
+    software_deployment_name: str
+    log_root_path: str
+    code_path: str
 
 
 def create_agent_execution_settings() -> AzureChatPromptExecutionSettings:
@@ -978,38 +993,32 @@ class CodeSearchAgent(FileSearchAgentBase):
         )
 
 
-def _load_and_validate_config() -> Dict[str, Any]:
+def _load_config() -> Config:
     """
     Load environment variables and validate required configs.
     """
     working_directory = os.path.dirname(os.path.realpath(__file__))
     load_dotenv(os.path.join(working_directory, ".env"))
 
-    config = {
-        "working_directory": working_directory,
-        "azure_openai_api_key": os.getenv("AZURE_OPENAI_API_KEY"),
-        "azure_openai_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "embedding_endpoint": os.getenv("EMBEDDING_ENDPOINT"),
-        "general_deployment_name": os.getenv("GENERAL_DEPLOYMENT_NAME"),
-        "software_deployment_name": os.getenv("SOFTWARE_DEPLOYMENT_NAME"),
-        "log_root_path": os.getenv("LOG_ROOT_PATH"),
-        "code_path": os.getenv("CODE_PATH"),
-    }
+    # Get environment variables
+    azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    embedding_endpoint = os.getenv("EMBEDDING_ENDPOINT")
+    general_deployment_name = os.getenv("GENERAL_DEPLOYMENT_NAME")
+    software_deployment_name = os.getenv("SOFTWARE_DEPLOYMENT_NAME")
+    log_root_path = os.getenv("LOG_ROOT_PATH")
+    code_path = os.getenv("CODE_PATH")
 
-    # Validate required environment variables
-    required_vars = [
-        "azure_openai_api_key",
-        "azure_openai_endpoint",
-        "embedding_endpoint",
-        "general_deployment_name",
-        "software_deployment_name",
-        "log_root_path",
-        "code_path",
-    ]
-    for var in required_vars:
-        if config[var] is None:
-            raise ValueError(f"{var} environment variable is not set.")
-    return config
+    return Config(
+        working_directory=working_directory,
+        azure_openai_api_key=azure_openai_api_key,  # type: ignore
+        azure_openai_endpoint=azure_openai_endpoint,  # type: ignore
+        embedding_endpoint=embedding_endpoint,  # type: ignore
+        general_deployment_name=general_deployment_name,  # type: ignore
+        software_deployment_name=software_deployment_name,  # type: ignore
+        log_root_path=log_root_path,  # type: ignore
+        code_path=code_path,  # type: ignore
+    )
 
 
 def _prepare_test_data(args: argparse.Namespace) -> List[Dict[str, str]]:
@@ -1079,22 +1088,20 @@ def _get_keywords(ground_truth: Union[Dict[str, List[str]], List[str], str]) -> 
     return keywords_str
 
 
-def _process_single_test_case(
-    item: Dict[str, Any], config: Dict[str, Any]
-) -> Dict[str, Any]:
+def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str, Any]:
     """
     Process a single test case and gather results.
     """
-    log_folder_path = os.path.join(config["log_root_path"], item["path"])
+    log_folder_path = os.path.join(config.log_root_path, item["path"])
     error_message = item["error_message"]
 
     generated_text = analyze(
-        config["working_directory"],
-        config["azure_openai_api_key"],
-        config["azure_openai_endpoint"],
-        config["general_deployment_name"],
-        config["software_deployment_name"],
-        config["code_path"],
+        config.working_directory,
+        config.azure_openai_api_key,
+        config.azure_openai_endpoint,
+        config.general_deployment_name,
+        config.software_deployment_name,
+        config.code_path,
         log_folder_path,
         error_message,
     )
@@ -1110,8 +1117,8 @@ def _process_single_test_case(
     similarity = calculate_similarity(
         generated_keywords,
         ground_truth_keywords,
-        config["embedding_endpoint"],
-        config["azure_openai_api_key"],
+        config.embedding_endpoint,
+        config.azure_openai_api_key,
     )
 
     return {
@@ -1122,7 +1129,7 @@ def _process_single_test_case(
 
 
 def _process_test_cases(
-    test_data: List[Dict[str, Any]], config: Dict[str, Any]
+    test_data: List[Dict[str, Any]], config: Config
 ) -> Dict[str, Any]:
     """
     Process all test cases and gather results.
@@ -1175,7 +1182,7 @@ def _output_detailed_results(results: Dict[str, Any]) -> None:
         logging.info("")
 
 
-def _output_summary_statistics(results: Dict[str, Any], config: Dict[str, Any]) -> None:
+def _output_summary_statistics(results: Dict[str, Any], config: Config) -> None:
     """
     Output summary statistics for all test cases.
     """
@@ -1188,8 +1195,8 @@ def _output_summary_statistics(results: Dict[str, Any], config: Dict[str, Any]) 
         logging.info(f"Test case {index} Similarity: {similarity: .6f}")
 
     logging.info(
-        f"General deployment name: {config['general_deployment_name']}, "
-        f"Software deployment name: {config['software_deployment_name']}"
+        f"General deployment name: {config.general_deployment_name}, "
+        f"Software deployment name: {config.software_deployment_name}"
     )
 
     # Aggregate statistics
@@ -1202,7 +1209,7 @@ def _output_summary_statistics(results: Dict[str, Any], config: Dict[str, Any]) 
     )
 
 
-def _output_results(results: Dict[str, Any], config: Dict[str, Any]) -> None:
+def _output_results(results: Dict[str, Any], config: Config) -> None:
     """
     Output detailed results and summary statistics.
     """
@@ -1223,7 +1230,7 @@ def main() -> None:
     """
 
     # Setup and validation
-    config = _load_and_validate_config()
+    config = _load_config()
     args = parse_args()
     setup_debug_logging()
 
