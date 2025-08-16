@@ -638,13 +638,15 @@ class StoragePerformance(TestSuite):
             return
         elif schema.ResourceDiskType.SCSI == resource_disk_type:
             # If there is only one resource disk and its SCSI type,
-            # it will be mounted at /mnt
-            # unmount it before resetting partitions.
+            # it will be mounted at /mnt.
+            # Use the mount point as filename.
+            # If there are multiple resource disks, reset partitions and
+            # use the partition disks as filename.
             if disk_count == 1:
-                node.tools[Mount].umount(
-                    resource_disks[0], disk.get_resource_disk_mount_point(), erase=False
-                )
-                filename = resource_disks[0]
+                # node.tools[Mount].umount(
+                #     resource_disks[0], disk.get_resource_disk_mount_point(), erase=False
+                # )
+                filename = f"{disk.get_resource_disk_mount_point()}/fiodata"
             else:
                 partition_disks = reset_partitions(node, resource_disks)
                 filename = ":".join(partition_disks)
