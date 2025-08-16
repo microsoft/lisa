@@ -334,11 +334,11 @@ You can either specify a Python version or the path to an executable.
 
 .. code:: console
 
-   $ nox -vs test --force-python 3.11
+   $ nox -vs test --force-python 3.12
 
 .. code:: console
 
-   $ nox -vs test --force-python /usr/bin/python3.11
+   $ nox -vs test --force-python /usr/bin/python3.12
 
 Speeding up Nox
 ~~~~~~~~~~~~~~~
