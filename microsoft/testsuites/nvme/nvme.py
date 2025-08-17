@@ -414,8 +414,8 @@ class NvmeTestSuite(TestSuite):
         #  actual vCPU count / 8.
         if isinstance(environment.platform, AzurePlatform):
             lscpu_tool = node.tools[Lscpu]
-            core_count = lscpu_tool.get_core_count()
-            expected_count = math.ceil(core_count / 8)
+            thread_count = lscpu_tool.get_thread_count()
+            expected_count = math.ceil(thread_count / 8)
             assert_that(nvme_namespace).described_as(
                 "nvme devices count should be equal to [vCPU/8]."
             ).is_length(expected_count)

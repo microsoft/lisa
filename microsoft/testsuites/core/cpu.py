@@ -172,12 +172,12 @@ class CPU(TestSuite):
     def verify_cpu_count(self, node: Node, log: Logger) -> None:
         lscpu = node.tools[Lscpu]
         # 1. Get vCPU count.
-        cpu_count = lscpu.get_core_count()
-        log.debug(f"{cpu_count} CPU cores detected...")
+        thread_count = lscpu.get_thread_count()
+        log.debug(f"{thread_count} CPU threads detected...")
         # 2. Calculate vCPU count
         calculated_cpu_count = lscpu.calculate_vcpu_count()
         # 3. Judge whether the actual vCPU count equals to expected value.
-        assert_that(cpu_count).described_as(
+        assert_that(thread_count).described_as(
             "The VM may end up being incorrectly configured on some Azure hosts,"
             " it is a known host bug, please check the host version."
         ).is_equal_to(calculated_cpu_count)
@@ -215,10 +215,10 @@ class CPU(TestSuite):
     )
     def verify_vmbus_interrupts(self, node: Node, log: Logger) -> None:
         found_hyperv_interrupt = False
-        cpu_count = node.tools[Lscpu].get_core_count()
-        log.debug(f"{cpu_count} CPU cores detected...")
+        thread_count = node.tools[Lscpu].get_thread_count()
+        log.debug(f"{thread_count} CPU threads detected...")
 
-        self._create_stimer_interrupts(node, cpu_count)
+        self._create_stimer_interrupts(node, thread_count)
         interrupt_inspector = node.tools[InterruptInspector]
         interrupts = interrupt_inspector.get_interrupt_data()
         for interrupt in interrupts:
@@ -231,7 +231,7 @@ class CPU(TestSuite):
             assert_that(
                 len(interrupt.cpu_counter),
                 "Hyper-v interrupts should have count for each cpu.",
-            ).is_equal_to(cpu_count)
+            ).is_equal_to(thread_count)
             if interrupt.irq_number == "HRE" or "reenlightenment" in interrupt.metadata:
                 assert_that(
                     all(
@@ -253,7 +253,7 @@ class CPU(TestSuite):
                     ),
                     "Hypervisor callback interrupt should be processed by "
                     "atleast min(#vCPU, 4) vCPU's",
-                ).is_greater_than_or_equal_to(min(cpu_count, 4))
+                ).is_greater_than_or_equal_to(min(thread_count, 4))
             elif interrupt.irq_number == "HVS" or "stimer" in interrupt.metadata:
                 assert_that(
                     all(

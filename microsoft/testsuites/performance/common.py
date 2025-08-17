@@ -227,7 +227,7 @@ def perf_tcp_pps(
     )
 
     cpu = client.tools[Lscpu]
-    core_count = cpu.get_core_count()
+    thread_count = cpu.get_thread_count()
     if "maxpps" == test_type:
         ssh = client.tools[Ssh]
         ssh.set_max_session()
@@ -237,7 +237,7 @@ def perf_tcp_pps(
     for port in ports:
         server_netperf.run_as_server(port)
     for port in ports:
-        client_netperf.run_as_client_async(server.internal_address, core_count, port)
+        client_netperf.run_as_client_async(server.internal_address, thread_count, port)
     client_sar = client.tools[Sar]
     server_sar = server.tools[Sar]
     server_sar.get_statistics_async()

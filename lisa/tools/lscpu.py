@@ -97,7 +97,7 @@ class Lscpu(Tool):
     __cpu_model_name = re.compile(r"^\s*Model name:\s+(?P<model_name>.*)\s*$", re.M)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._core_count: Optional[int] = None
+        self._thread_count: Optional[int] = None
 
     @property
     def command(self) -> str:
@@ -130,6 +130,17 @@ class Lscpu(Tool):
             )
         return self._check_exists()
 
+    def get_core_count(self, force_run: bool = False) -> int:
+        """
+        Return the number of physical cores on the system.
+        Physical cores = Core(s) per socket * Socket(s).
+        """
+        core_per_socket = self.get_core_per_socket_count(force_run=force_run)
+        socket_count = self.get_socket_count(force_run=force_run)
+        physical_core_count = core_per_socket * socket_count
+
+        return physical_core_count
+
     def get_architecture(self, force_run: bool = False) -> CpuArchitecture:
         architecture: str = ""
         result = self.run(force_run=force_run)
@@ -146,16 +157,16 @@ class Lscpu(Tool):
         ).is_subset_of(ArchitectureNames.keys())
         return ArchitectureNames[architecture]
 
-    def get_core_count(self, force_run: bool = False) -> int:
+    def get_thread_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
         matched = self.__vcpu.findall(result.stdout)
         assert_that(
             len(matched),
             f"cpu count should have exact one line, but got {matched}",
         ).is_equal_to(1)
-        self._core_count = int(matched[0][1])
+        self._thread_count = int(matched[0][1])
 
-        return self._core_count
+        return self._thread_count
 
     def get_thread_per_core_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
@@ -325,16 +336,16 @@ class WindowsLscpu(Lscpu):
     def _check_exists(self) -> bool:
         return True
 
-    def get_core_count(self, force_run: bool = False) -> int:
+    def get_thread_count(self, force_run: bool = False) -> int:
         result = self.node.tools[PowerShell].run_cmdlet(
             self.__computer_system_command, force_run=force_run
         )
         # Linux returns vCPU count, so let Windows return vCPU count too.
-        logic_core_count = int(
+        thread_count = int(
             find_group_in_lines(result, self.__number_of_logic_processors)["count"]
         )
-        self._log.debug(f"vCPU core count: {logic_core_count}")
-        return logic_core_count
+        self._log.debug(f"vCPU thread count: {thread_count}")
+        return thread_count
 
     def get_socket_count(self, force_run: bool = False) -> int:
         result = self.node.tools[PowerShell].run_cmdlet(
@@ -346,21 +357,21 @@ class WindowsLscpu(Lscpu):
 
     def get_core_per_socket_count(self, force_run: bool = False) -> int:
         socket_count = self.get_socket_count(force_run=force_run)
-        core_count = self._get_physical_core_count(force_run=force_run)
+        core_count = self._get_core_count(force_run=force_run)
         core_pre_socket = core_count // socket_count
         self._log.debug(f"core per socket: {core_pre_socket}")
 
         return core_pre_socket
 
     def get_thread_per_core_count(self, force_run: bool = False) -> int:
-        physical_core_count = self._get_physical_core_count(force_run=force_run)
-        thread_count = self.get_core_count(force_run=force_run)
+        physical_core_count = self._get_core_count(force_run=force_run)
+        thread_count = self.get_thread_count(force_run=force_run)
 
         thread_per_core = thread_count // physical_core_count
         self._log.debug(f"thread per core: {thread_per_core}")
         return thread_per_core
 
-    def _get_physical_core_count(self, force_run: bool = False) -> int:
+    def _get_core_count(self, force_run: bool = False) -> int:
         result = self.node.tools[PowerShell].run_cmdlet(
             self.__computer_system_command, force_run=force_run
         )
@@ -379,7 +390,7 @@ class BSDLscpu(Lscpu):
     def command(self) -> str:
         return "sysctl"
 
-    def get_core_count(self, force_run: bool = False) -> int:
+    def get_thread_count(self, force_run: bool = False) -> int:
         output = self.run("-n kern.smp.cpus", force_run=force_run)
         core_count = int(output.stdout.strip())
         return core_count
@@ -467,15 +478,15 @@ class VMWareESXiLscpu(Lscpu):
     def command(self) -> str:
         return "esxcli"
 
-    def get_core_count(self, force_run: bool = False) -> int:
+    def get_thread_count(self, force_run: bool = False) -> int:
         result = self.run("hardware cpu global get", force_run)
         matched = self.__cpu_threads.findall(result.stdout)
         assert_that(
             len(matched),
             f"cpu thread should have exact one line, but got {matched}",
         ).is_equal_to(1)
-        self._core_count = int(matched[0])
-        return self._core_count
+        self._thread_count = int(matched[0])
+        return self._thread_count
 
     def calculate_vcpu_count(self, force_run: bool = False) -> int:
         result = self.run("hardware cpu global get", force_run)

@@ -768,7 +768,7 @@ class Sriov(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         client_lscpu = client_node.tools[Lscpu]
-        client_cpu_count = client_lscpu.get_core_count()
+        client_thread_count = client_lscpu.get_thread_count()
 
         vm_nics = initialize_nic_info(environment)
 
@@ -797,11 +797,11 @@ class Sriov(TestSuite):
                     assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
                         " plus one to account for control queue"
-                    ).is_equal_to(client_cpu_count + 1)
+                    ).is_equal_to(client_thread_count + 1)
                 else:
                     assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
-                    ).is_equal_to(client_cpu_count)
+                    ).is_equal_to(client_thread_count)
                 matched_server_nic_info: NicInfo
                 for _, server_nic_info in vm_nics[server_node.name].items():
                     if (
@@ -856,11 +856,11 @@ class Sriov(TestSuite):
                     assert_that(len(final_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
                         " plus one to account for control queue"
-                    ).is_equal_to(client_cpu_count + 1)
+                    ).is_equal_to(client_thread_count + 1)
                 else:
                     assert_that(len(final_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
-                    ).is_equal_to(client_cpu_count)
+                    ).is_equal_to(client_thread_count)
                 unused_cpu = 0
                 for (
                     cpu,
@@ -872,7 +872,7 @@ class Sriov(TestSuite):
                         unused_cpu += 1
                 # 8. Compare interrupts count changes, expected half of cpus' interrupts
                 #    increased.
-                assert_that(client_cpu_count / 2).described_as(
+                assert_that(client_thread_count / 2).described_as(
                     f"More than half of the vCPUs {unused_cpu} didn't have increased "
                     "interrupt count!"
                 ).is_greater_than(unused_cpu)

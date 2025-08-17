@@ -142,8 +142,8 @@ class MshvHostStressTestSuite(TestSuite):
         hypervisor_fw_path = str(node.get_working_path() / self.HYPERVISOR_FW_NAME)
         disk_img_path = node.get_working_path() / self.DISK_IMG_NAME
         disk_img_copy_path = self._get_disk_img_copy_path(node)
-        cores = node.tools[Lscpu].get_core_count()
-        vm_count = int(cores / cpus_per_vm)
+        threads = node.tools[Lscpu].get_thread_count()
+        vm_count = int(threads / cpus_per_vm)
         failures = 0
         for test_iter in range(times):
             log.info(f"Test iteration {test_iter + 1} of {times}")

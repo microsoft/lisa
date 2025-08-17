@@ -517,14 +517,14 @@ class DpdkTestpmd(Tool):
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
         # infer core count to assign based on number of queues
-        cores_available = self.node.tools[Lscpu].get_core_count()
-        assert_that(cores_available).described_as(
-            "DPDK tests need more than 4 cores, recommended more than 8 cores"
+        threads_available = self.node.tools[Lscpu].get_thread_count()
+        assert_that(threads_available).described_as(
+            "DPDK tests need more than 4 threads, recommended more than 8 threads"
         ).is_greater_than(4)
 
         queues_and_servicing_core = queues + service_cores
 
-        while queues_and_servicing_core > (cores_available - 2):
+        while queues_and_servicing_core > (threads_available - 2):
             # if less, split the number of queues
             queues = queues // 2
             queues_and_servicing_core = queues + service_cores
