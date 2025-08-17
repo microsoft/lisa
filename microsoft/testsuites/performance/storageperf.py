@@ -4,7 +4,6 @@
 import inspect
 import uuid
 from pathlib import Path, PurePosixPath
-from time import sleep
 from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
@@ -16,12 +15,11 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    create_timer,
     schema,
     search_space,
     simple_requirement,
 )
-from lisa.features import AvailabilityZoneEnabled, Disk, StartStop
+from lisa.features import AvailabilityZoneEnabled, Disk
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
