@@ -78,16 +78,16 @@ class NvmePerformace(TestSuite):
                 sudo=True,
             )
         cpu = node.tools[Lscpu]
-        core_count = cpu.get_core_count()
+        thread_count = cpu.get_thread_count()
         start_iodepth = 1
         perf_disk(
             node,
             start_iodepth,
             max_iodepth,
             filename,
-            core_count=core_count,
+            core_count=thread_count,
             disk_count=disk_count,
-            numjob=core_count,
+            numjob=thread_count,
             disk_setup_type=DiskSetupType.raw,
             disk_type=DiskType.nvme,
             test_result=result,

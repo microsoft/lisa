@@ -165,14 +165,14 @@ def verify_hibernation(
 def run_storage_workload(node: Node) -> Decimal:
     fio = node.tools[Fio]
     fiodata = node.get_pure_path("./fiodata")
-    core_count = node.tools[Lscpu].get_core_count()
+    thread_count = node.tools[Lscpu].get_thread_count()
     if node.shell.exists(fiodata):
         node.shell.remove(fiodata)
     fio_result = fio.launch(
         name="workload",
         filename="fiodata",
         mode="readwrite",
-        numjob=core_count,
+        numjob=thread_count,
         iodepth=128,
         time=120,
         block_size="1M",

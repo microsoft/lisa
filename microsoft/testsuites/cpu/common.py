@@ -72,8 +72,8 @@ def get_idle_cpus(node: Node) -> List[str]:
             cpu_in_used.add(target_cpu)
 
     # get all cpu exclude cpu 0, usually cpu 0 is not allowed to do hotplug
-    cpu_count = node.tools[Lscpu].get_core_count()
-    all_cpu = list(range(1, cpu_count))
+    thread_count = node.tools[Lscpu].get_thread_count()
+    all_cpu = list(range(1, thread_count))
 
     # get the idle cpu by excluding in used cpu from all cpu
     idle_cpu = [str(x) for x in all_cpu if str(x) not in cpu_in_used]

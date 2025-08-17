@@ -353,9 +353,9 @@ class StoragePerformance(TestSuite):
                 max_iodepth = testcase.get("max_iodepth", 1)
                 num_jobs = []
                 iodepth_iter = start_iodepth
-                core_count = node.tools[Lscpu].get_core_count()
+                thread_count = node.tools[Lscpu].get_thread_count()
                 while iodepth_iter <= max_iodepth:
-                    num_jobs.append(min(iodepth_iter, core_count))
+                    num_jobs.append(min(iodepth_iter, thread_count))
                     iodepth_iter = iodepth_iter * 2
 
                 time = testcase.get("time", 240)
@@ -378,7 +378,7 @@ class StoragePerformance(TestSuite):
                     time=time,
                     size_mb=size_mb,
                     overwrite=overwrite,
-                    core_count=core_count,
+                    core_count=thread_count,
                     disk_count=1,
                 )
             except Exception:
@@ -501,9 +501,9 @@ class StoragePerformance(TestSuite):
         # iodepth = 16, core count = 8 => max_jobs = 8
         num_jobs = []
         iodepth_iter = start_iodepth
-        core_count = client_node.tools[Lscpu].get_core_count()
+        thread_count = client_node.tools[Lscpu].get_thread_count()
         while iodepth_iter <= max_iodepth:
-            num_jobs.append(min(iodepth_iter, core_count))
+            num_jobs.append(min(iodepth_iter, thread_count))
             iodepth_iter = iodepth_iter * 2
 
         # setup raid on server
@@ -529,7 +529,7 @@ class StoragePerformance(TestSuite):
                 client_node,
                 server_data_disk_count,
                 client_nfs_mount_dir,
-                core_count,
+                thread_count,
                 num_jobs,
                 start_iodepth=start_iodepth,
                 max_iodepth=max_iodepth,
@@ -564,18 +564,18 @@ class StoragePerformance(TestSuite):
         partition_disks = reset_partitions(node, data_disks)
         filename = ":".join(partition_disks)
         cpu = node.tools[Lscpu]
-        core_count = cpu.get_core_count()
+        thread_count = cpu.get_thread_count()
         perf_disk(
             node,
             start_iodepth,
             max_iodepth,
             filename,
             test_name=inspect.stack()[1][3],
-            core_count=core_count,
+            core_count=thread_count,
             disk_count=disk_count,
             disk_setup_type=disk_setup_type,
             disk_type=disk_type,
-            numjob=core_count,
+            numjob=thread_count,
             block_size=block_size,
             size_mb=8192,
             overwrite=True,
