@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "6809515254395981153"
+      "templateHash": "8369789714257914259"
     }
   },
   "functions": [
@@ -22,7 +22,7 @@
           ],
           "output": {
             "type": "bool",
-            "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.vmgs_path))))]"
+            "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.cvm_gueststate_path))))]"
           }
         },
         "isVhd": {
@@ -711,7 +711,7 @@
         "name": "nodes_image",
         "count": "[length(range(0, variables('node_count')))]"
       },
-      "condition": "[and(__bicep.isVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]), empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vmgs_path))]",
+      "condition": "[and(__bicep.isVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]), empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_gueststate_path))]",
       "type": "Microsoft.Compute/images",
       "apiVersion": "2019-03-01",
       "name": "[format('{0}-image', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
@@ -736,7 +736,7 @@
       },
       "condition": "[__bicep.isCvmVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
       "type": "Microsoft.Compute/disks",
-      "apiVersion": "2021-04-01",
+      "apiVersion": "2025-01-02",
       "name": "[format('{0}-disk', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
@@ -753,7 +753,8 @@
         "creationData": {
           "createOption": "ImportSecure",
           "storageAccountId": "[resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('vhd_storage_name'))]",
-          "securityDataUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vmgs_path]",
+          "securityDataUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_gueststate_path]",
+          "securityMetadataUri": "[if(empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_metadata_path), null(), parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_metadata_path)]",
           "sourceUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vhd_path]"
         }
       },

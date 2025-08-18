@@ -121,7 +121,7 @@ from .common import (
     check_or_create_storage_account,
     convert_to_azure_node_space,
     get_compute_client,
-    get_deployable_vhd_path,
+    get_deployable_storage_path,
     get_environment_context,
     get_marketplace_ordering_client,
     get_node_context,
@@ -1427,13 +1427,15 @@ class AzurePlatform(Platform):
         if azure_node_runbook.vhd and azure_node_runbook.vhd.vhd_path:
             # vhd is higher priority
             vhd = azure_node_runbook.vhd
-            vhd.vhd_path = get_deployable_vhd_path(
+            vhd.vhd_path = get_deployable_storage_path(
                 self, vhd.vhd_path, azure_node_runbook.location, log
             )
-            if vhd.vmgs_path:
-                vhd.vmgs_path = get_deployable_vhd_path(
-                    self, vhd.vmgs_path, azure_node_runbook.location, log
-                )
+            vhd.cvm_gueststate_path = get_deployable_storage_path(
+                self, vhd.cvm_gueststate_path, azure_node_runbook.location, log
+            )
+            vhd.cvm_metadata_path = get_deployable_storage_path(
+                self, vhd.cvm_metadata_path, azure_node_runbook.location, log
+            )
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
@@ -1496,13 +1498,15 @@ class AzurePlatform(Platform):
         if arm_parameters.vhd and arm_parameters.vhd.vhd_path:
             # vhd is higher priority
             vhd = arm_parameters.vhd
-            vhd.vhd_path = get_deployable_vhd_path(
+            vhd.vhd_path = get_deployable_storage_path(
                 self, vhd.vhd_path, arm_parameters.location, log
             )
-            if vhd.vmgs_path:
-                vhd.vmgs_path = get_deployable_vhd_path(
-                    self, vhd.vmgs_path, arm_parameters.location, log
-                )
+            vhd.cvm_gueststate_path = get_deployable_storage_path(
+                self, vhd.cvm_gueststate_path, arm_parameters.location, log
+            )
+            vhd.cvm_metadata_path = get_deployable_storage_path(
+                self, vhd.cvm_metadata_path, arm_parameters.location, log
+            )
             arm_parameters.vhd = vhd
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
