@@ -36,7 +36,7 @@ from .common import (
     copy_vhd_using_azcopy,
     generate_user_delegation_sas_token,
     get_compute_client,
-    get_deployable_vhd_path,
+    get_deployable_storage_path,
     get_environment_context,
     get_or_create_storage_container,
     get_primary_ip_addresses,
@@ -601,7 +601,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_resource_group_location = image_location
         if not runbook.gallery_location:
             runbook.gallery_location = image_location
-        vhd_path = get_deployable_vhd_path(
+        vhd_path = get_deployable_storage_path(
             platform, runbook.vhd, image_location, self._log
         )
         vhd_details = get_vhd_details(platform, vhd_path)

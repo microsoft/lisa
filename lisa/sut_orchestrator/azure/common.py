@@ -525,12 +525,13 @@ class SharedImageGallerySchema(AzureImageSchema):
 @dataclass
 class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
-    vmgs_path: Optional[str] = None
+    cvm_gueststate_path: Optional[str] = None
+    cvm_metadata_path: Optional[str] = None
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
         # There are no platform tags to parse, but we can assume the
         # security profile based on the presence of a VMGS path.
-        if self.vmgs_path:
+        if self.cvm_gueststate_path:
             self.security_profile = search_space.SetSpace(
                 True,
                 [
@@ -877,8 +878,10 @@ class AzureNodeSchema:
             else:
                 add_secret(vhd.vhd_path, PATTERN_URL)
                 self._orignal_vhd_path = replace(vhd.vhd_path, mask=PATTERN_URL)
-                if vhd.vmgs_path:
-                    add_secret(vhd.vmgs_path, PATTERN_URL)
+                if vhd.cvm_gueststate_path:
+                    add_secret(vhd.cvm_gueststate_path, PATTERN_URL)
+                if vhd.cvm_metadata_path:
+                    add_secret(vhd.cvm_metadata_path, PATTERN_URL)
                 # this step makes vhd_raw is validated, and
                 # filter out any unwanted content.
                 self.vhd_raw = vhd.to_dict()  # type: ignore
@@ -2393,14 +2396,17 @@ def _generate_sas_token_for_vhd(
 
 
 @lru_cache(maxsize=10)  # noqa: B019
-def get_deployable_vhd_path(
-    platform: "AzurePlatform", vhd_path: str, location: str, log: Logger
+def get_deployable_storage_path(
+    platform: "AzurePlatform", vhd_path: Optional[str], location: str, log: Logger
 ) -> str:
     """
     The sas url is not able to create a vm directly, so this method check if
-    the vhd_path is a sas url. If so, copy it to a location in current
-    subscription, so it can be deployed.
+    the vhd_path (disk image, CVM guest state, or CVM metadata) is a sas url.
+    If so, copy it to a location in current subscription, so it can be deployed.
     """
+    if not vhd_path:
+        return ""
+
     matches = SAS_URL_PATTERN.match(vhd_path)
     if not matches:
         vhd_details = get_vhd_details(platform, vhd_path)
@@ -2412,6 +2418,7 @@ def get_deployable_vhd_path(
             return vhd_path
         else:
             vhd_path = _generate_sas_token_for_vhd(platform, vhd_details)
+            assert isinstance(vhd_path, str), f"fail to generate sas url for {vhd_path}"
             matches = SAS_URL_PATTERN.match(vhd_path)
             assert matches, f"fail to generate sas url for {vhd_path}"
             add_secret(vhd_path, PATTERN_URL)
