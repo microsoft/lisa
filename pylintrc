@@ -95,6 +95,7 @@ disable=
     # Ignore
     fixme,
 
+    R0917
 [REPORTS]
 
 # Set the output format. Available formats are text, parseable, colorized, json

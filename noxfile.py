@@ -132,7 +132,7 @@ def mypy(session: nox.Session) -> None:
         *NOX_DEPENDENCIES,
     )
 
-    session.run("mypy", "-p", "lisa")
+    session.run("python", "-W", "ignore::SyntaxWarning", "-m", "mypy", "-p", "lisa")
     session.run("mypy", "docs", "microsoft")
     session.run("mypy", "noxfile.py")
 

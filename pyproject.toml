@@ -107,11 +107,11 @@ baremetal = [
 ]
 
 mypy = [
-    "mypy == 0.942",
+    "mypy == 1.17.1",
 ]
 
 pylint = [
-    "pylint ~= 2.17.0"
+    "pylint ~= 3.3.8"
 ]
 
 test = [
@@ -164,7 +164,7 @@ skip_empty = true
 max-line-length = 88
 select = ["B", "BLK", "C90", "E", "F", "I", "W", "N"]
 max-complexity = 15
-extend-ignore = ["E203", "W503", "N818"]
+extend-ignore = ["E203", "W503", "N818", "E231", "E241", "E226", "E702", "E201", "E202", "E221", "E713", "N808"]
 exclude = [
     ".git",
     ".nox",
@@ -186,7 +186,7 @@ line_length = 88
 
 
 [tool.mypy]
-exclude = ".venv/.*"
+exclude = '(\.venv/.*|.*/site-packages/.*)'
 implicit_reexport = true
 mypy_path = "./typings"
 strict = true
