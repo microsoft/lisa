@@ -21,6 +21,7 @@ from lisa.features import NetworkInterface
 from lisa.sut_orchestrator.azure.common import (
     get_node_context
 )
+from string import Template
 
 
 
@@ -64,7 +65,12 @@ cseparams = {
         "NOSNAT_IS_AUTO_LEARN_ENABLED": None
     }
 
-
+#Templates
+imcpClientTemplate = Template("ping -c $count -I $NICName $destinationIPAddr -i $interval")
+tcpClientTemplate = Template("iperf3 -V -c $destinationIPAddr --port $port -B $NICIPAddr -t $testDuration")
+tcpServerTemplate = Template("iperf3 -s -B $NICIPAddr -p $destinationPort --one-off")
+udpClientTemplate = Template("iperf3 -V -c $destinationIPAddr --port $port -B $NICIPAddr -t $testDuration -u")
+udpRuleConfigName = "allowUDPConfig.json"
 
 
 
@@ -121,18 +127,56 @@ class AzureFirewallNetworkRuleTest(TestSuite):
 
         #Send ICMP traffic from Client To Server
         log.info(f"Sending ICMP traffic from Client {clientNICIPAddr} to Server {serverNICIPAddr} using ping")
-        asyncio.run(performping(clientNode, clientNICName, serverNICIPAddr, 100, 5, log))
+        generateReloadVerify(firewallNode, clientNode, serverNode, clientNICName, serverNICIPAddr, clientNICIPAddr, 100, 5, log, "ICMP")
+        generateReloadVerify(firewallNode, clientNode, serverNode, clientNICName, serverNICIPAddr, clientNICIPAddr, 100, 5, log, "TCP")
+        generateReloadVerify(firewallNode, clientNode, serverNode, clientNICName, serverNICIPAddr, clientNICIPAddr, 100, 5, log, "UDP")
+
+        #Send TCP Packet From Client to Server
+
+async def startServer(node, command, log):
+    log.info(f"Execute Command : {command} on node {node.name}")
+    result = node.execute(command)
+    log.info(f"Server traffic started on node: {node.name}, result: {result.stdout}")
+
+async def generateTraffic(node, command, log):
+    log.info(f"Execute command : {command} on node : {node.name}")
+    result = node.execute(command)
+    log.info(f"Done Generating the traffic: {result.stdout}")
+
+def generateReloadVerify(firewallNode, clientNode, serverNode, ClientNodeNICName, destinationIPAddr, sourceIPAddr, count, interval, log, trafficType):
+    log.info(f"Generating {trafficType} traffic from {ClientNodeNICName} to {destinationIPAddr} with count {count} and interval {interval}:{trafficType}")
+
+    if(trafficType == "ICMP"):
+        icmpClient = imcpClientTemplate.substitute(count=count, NICName=ClientNodeNICName, destinationIPAddr=destinationIPAddr, interval=interval)
+        asyncio.run(generateTraffic(clientNode, icmpClient, log))
         conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
         iptablesdump = firewallNode.execute("iptables-save", sudo=True)
         log.info(f"Conntrack Dump: {conntrackdump.stdout}")
         log.info(f"Iptables Dump: {iptablesdump.stdout}")
-
-
-async def performping(node, nodeNICName, destinationIPAddr, count, interval, log):
-    ping_command = f"ping -c {count} -I {nodeNICName} {destinationIPAddr} -i {interval}"
-    log.info(f"Execute command : {ping_command} on node : {node.name}")
-    result = node.execute(ping_command)
-    log.info("Executed PING command successfully", result.stdout)
+    elif(trafficType == "TCP"):
+            tcpClient = tcpClientTemplate.substitute(destinationIPAddr=destinationIPAddr, port="5201", NICIPAddr=sourceIPAddr, testDuration=interval)
+            tcpServer = tcpServerTemplate.substitute(NICIPAddr=destinationIPAddr, destinationPort="5201")
+            asyncio.run(startServer(serverNode, tcpServer, log))
+            asyncio.run(generateTraffic(clientNode, tcpClient, log))
+            conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
+            iptablesdump = firewallNode.execute("iptables-save", sudo=True)
+            log.info(f"Conntrack Dump: {conntrackdump.stdout}")
+            log.info(f"Iptables Dump: {iptablesdump.stdout}")
+    elif(trafficType == "UDP"):
+        udpClient = udpClientTemplate.substitute(destinationIPAddr=destinationIPAddr, port="5201", NICIPAddr=sourceIPAddr, testDuration=interval)
+        udpServer = tcpServerTemplate.substitute(NICIPAddr=destinationIPAddr, destinationPort="5201")
+        asyncio.run(startServer(serverNode, udpServer, log))
+        asyncio.run(generateTraffic(clientNode, udpClient, log))
+        conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
+        iptablesdump = firewallNode.execute("iptables-save", sudo=True)
+        log.info(f"Conntrack Dump: {conntrackdump.stdout}")
+        log.info(f"Iptables Dump: {iptablesdump.stdout}")
+        log.info(f"Reloading Firewall Rules {udpRuleConfigName}")
+        reloadRules(firewallNode, udpRuleConfigName, log)
+        conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
+        iptablesdump = firewallNode.execute("iptables-save", sudo=True)
+        log.info(f"Conntrack Dump: {conntrackdump.stdout}")
+        log.info(f"Iptables Dump: {iptablesdump.stdout}")
 
 # ipv4 network longest prefix match helper. Assumes 24bit mask
 def ipv4_to_lpm(addr: str) -> str:
@@ -294,6 +338,41 @@ def enableKeyVaultVMExtension(clientNode, resourceGroupName, firewallVMName, set
     command = f'az vm extension set -n "KeyVaultForLinux" --publisher Microsoft.Azure.KeyVault --resource-group {resourceGroupName} --vm-name {firewallVMName} --version 3.0 --enable-auto-upgrade --settings {settingsFilePath}'
     result = clientNode.execute(command)
     log.info("Successfully enabled Key Vault VM Extension", result)
+
+def reloadRules(firewallNode, ruleConfigName, log):
+    cseparams = {
+            "RULE_CONFIG_URL": f"https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/{ruleConfigName}",
+            "RULE_CONFIG_NAME": "a36eb125-41ee-4e34-8158-c14c0c75ee4a",
+            "SETTINGS_URL": "https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/mdsMetadata.txt",
+            "GENEVATHUMBPRINT": "3BD30EA445312E57C4C2AD1152524BE5D35E3937",
+            "FQDN_TAGS_CONFIG_URL": "https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/defaultfqdntags.json",
+            "SERVICE_TAGS_CONFIG_URL": "https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/servicetags.json",
+            "WEB_CATEGORIES_CONFIG_URL": "https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/defaultwebcategories.json",
+            "IDPS_RULES_CONFIG_URL": "https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/rules.tar.gz",
+            "IDPS_RULES_OVERRIDES_URL": "https://lisatestresourcestorage.blob.core.windows.net/fwcreateconfigfiles/instrusionsystemoverrides.json",
+            "INTERFLOW_KEY": "c70e2937d7984d41bab046ad131fcbe0",
+            "WEB_CATEGORIZATION_VENDOR_LICENSE_KEY": "7gk92m7cNiKmFtfkjwPua64zEVk2ct7z",
+            "AAD_TENANT_ID": "33e01921-4d64-4f8c-a055-5bdaffd5e33d",
+            "AAD_CLIENT_ID": "074a0fa4-34df-493f-985b-d3dedb49748b",
+            "AAD_SECRET": "LZJeyEbkqM0Z+6B]l65ucj=WK-P@7d]*",
+            "NUMBER_PUBLIC_IPS": 1,
+            "NUMBER_PORTS_PER_PUBLIC_IP": 2496,
+            "DATA_SUBNET_PREFIX": "10.0.0.0/24",
+            "DATA_SUBNET_PREFIX_IPV6": "",
+            "MGMT_SUBNET_PREFIX": "",
+            "ROUTE_SERVICE_CONFIG_URL": None,
+            "TENANT_KEYVAULT_URL": "https://fwcreationkeyvault.vault.azure.net/",
+            "TENANT_IDENTITY_RESOURCE_ID": "/subscriptions/11764614-ffac-4e4d-8506-bdf64388ce6c/resourcegroups/Bala-LisaTestResourcesRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/lisatestaccessidentity",
+            "REGIONAL_KEYVAULT_URL": "https://fwcreationkeyvault.vault.azure.net/",
+            "REGIONAL_IDENTITY_RESOURCE_ID": "/subscriptions/11764614-ffac-4e4d-8506-bdf64388ce6c/resourcegroups/Bala-LisaTestResourcesRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/lisatestaccessidentity",
+            "NOSNAT_IPPREFIXES_CONFIG_SAS_URL": None,
+            "NOSNAT_IS_AUTO_LEARN_ENABLED": None
+    }
+    json_str = json.dumps(cseparams)
+    # escaped_json = json_str.replace('"', '\\"')
+    command = f"/tmp/bootstrap/drop/vmss/bootstrap.sh '{json_str}'"
+    result = firewallNode.execute(f"bash -x {command}", sudo=True)
+    log.info("Successfully executed bootstrap.sh", result)
 
 
 def firewallInit(firewallNode, log):
