@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import asyncio
-import logging
 import os
 from typing import (
     Any,
@@ -32,6 +31,10 @@ from semantic_kernel.contents import AuthorRole, ChatMessageContent
 from semantic_kernel.functions import KernelArguments, kernel_function
 
 from lisa.ai.common import create_agent_execution_settings, get_current_directory
+from lisa.util.logger import Logger
+
+# Module-level logger for callback functions and utility methods
+_logger: Logger
 
 
 def _load_prompt(prompt_filename: str, flow: str) -> str:
@@ -78,7 +81,7 @@ def _agent_response_callback(
         if hasattr(message, "items") and message.items:
             pass
         else:
-            logging.info(f"💭 {message.name} is thinking...")
+            _logger.info(f"💭 {message.name} is thinking...")
     else:
         log_message = f"🤖 {message.name}: {message.content.strip()}"
 
@@ -88,12 +91,13 @@ def _agent_response_callback(
                 if hasattr(item, "function_name"):
                     log_message += f". Also calling: {item.function_name}"
 
-        logging.info(log_message)
+        _logger.info(log_message)
 
 
 class FileSearchPlugin:
-    def __init__(self, paths: List[str]) -> None:
+    def __init__(self, paths: List[str], logger: Logger) -> None:
         self._paths = paths
+        self._logger = logger
 
     @kernel_function(  # type: ignore[misc]
         name="search_files",
@@ -121,7 +125,7 @@ class FileSearchPlugin:
 
         if not os.path.exists(path):
             error_message = f"Log folder path does not exist: {path}"
-            logging.error(error_message)
+            self._logger.error(error_message)
             return {"error": error_message}
 
         valid_result = self._valid_path(path)
@@ -168,11 +172,11 @@ class FileSearchPlugin:
                                 log_context["context"].append(parsed_line)
 
                 except Exception as e:
-                    logging.error(f"Error processing file {file_path}: {str(e)}")
+                    self._logger.error(f"Error processing file {file_path}: {str(e)}")
                     continue
 
         match_count = len(log_context["context"])
-        logging.info(
+        self._logger.info(
             f"Search results: {files_found} files processed, "
             f"{match_count} matches found."
         )
@@ -206,26 +210,28 @@ class FileSearchPlugin:
             return valid_result
 
         # Add debugging for path resolution
-        logging.debug(f"read_text_file called with file_path: {file_path}")
-        logging.debug(f"read_text_file normalized path: {norm_path}")
-        logging.debug(f"read_text_file absolute path: {os.path.abspath(norm_path)}")
-        logging.debug(f"Path exists check: {os.path.exists(norm_path)}")
+        self._logger.debug(f"read_text_file called with file_path: {file_path}")
+        self._logger.debug(f"read_text_file normalized path: {norm_path}")
+        self._logger.debug(
+            f"read_text_file absolute path: {os.path.abspath(norm_path)}"
+        )
+        self._logger.debug(f"Path exists check: {os.path.exists(norm_path)}")
 
         if not os.path.exists(norm_path):
             error_message = f"File not found: {norm_path}"
-            logging.error(error_message)
+            self._logger.error(error_message)
 
             # Add additional debugging to help identify the issue
             parent_dir = os.path.dirname(norm_path)
-            logging.error(f"Parent directory: {parent_dir}")
-            logging.error(f"Parent directory exists: {os.path.exists(parent_dir)}")
+            self._logger.error(f"Parent directory: {parent_dir}")
+            self._logger.error(f"Parent directory exists: {os.path.exists(parent_dir)}")
 
             if os.path.exists(parent_dir):
                 try:
                     files_in_parent = os.listdir(parent_dir)
-                    logging.error(f"Files in parent directory: {files_in_parent}")
+                    self._logger.error(f"Files in parent directory: {files_in_parent}")
                 except Exception as e:
-                    logging.error(f"Cannot list parent directory: {e}")
+                    self._logger.error(f"Cannot list parent directory: {e}")
 
             return {"error": error_message}
 
@@ -240,16 +246,16 @@ class FileSearchPlugin:
                     if i > traceback_end:
                         break
 
-            logging.info(
+            self._logger.info(
                 f"Successfully extracted {len(traceback)} lines of context",
             )
         except Exception as e:
             error_message = f"Error reading file {norm_path}: {str(e)}"
-            logging.error(error_message)
+            self._logger.error(error_message)
             return {"error": error_message}
 
         result = "\n".join(traceback)
-        logging.debug(f"read_text_file result: {result}")
+        self._logger.debug(f"read_text_file result: {result}")
         return {"content": result}
 
     def _validate_list_files_input(
@@ -263,17 +269,17 @@ class FileSearchPlugin:
 
         if not os.path.exists(norm_file_path):
             error_message = f"Directory path does not exist: {norm_file_path}"
-            logging.error(error_message)
+            self._logger.error(error_message)
             return {"error": error_message}
 
         if not os.path.isdir(norm_file_path):
             error_message = f"Path is not a directory: {norm_file_path}"
-            logging.error(error_message)
+            self._logger.error(error_message)
             return {"error": error_message}
 
         if offset < 0:
             error_message = f"Invalid offset: {offset}. Offset must be non-negative."
-            logging.error(error_message)
+            self._logger.error(error_message)
             return {"error": error_message}
 
         return None
@@ -318,7 +324,7 @@ class FileSearchPlugin:
                     files.append(item_path)
         except PermissionError:
             error_message = f"Permission denied accessing directory: {folder_path}"
-            logging.error(error_message)
+            self._logger.error(error_message)
             raise PermissionError(error_message)
         return files
 
@@ -346,7 +352,7 @@ class FileSearchPlugin:
         # Validate offset against total files
         if offset >= total_files and total_files > 0:
             error_message = f"Offset {offset} is beyond total file count {total_files}"
-            logging.error(error_message)
+            self._logger.error(error_message)
             return {"error": error_message}
 
         # Calculate pagination boundaries
@@ -360,12 +366,12 @@ class FileSearchPlugin:
 
         # Log results
         extension_info = f" with extension '{file_extensions}'"
-        logging.info(
+        self._logger.info(
             f"Listed {len(paginated_files)} files{extension_info} "
             f"(offset: {offset}, total: {total_files}) under {folder_path}"
         )
 
-        logging.debug(f"list_files found: {paginated_files}")
+        self._logger.debug(f"list_files found: {paginated_files}")
 
         return {
             "files": paginated_files,
@@ -408,7 +414,7 @@ class FileSearchPlugin:
             along with pagination metadata
         """
 
-        logging.debug(
+        self._logger.debug(
             f"Listing files under {folder_path} "
             f"(recursive: {recursive}, max_files: {max_files}, offset: {offset}, "
             f"file_extensions: {file_extensions})"
@@ -431,7 +437,7 @@ class FileSearchPlugin:
             )
             return result
         except Exception as e:
-            logging.error(f"Error occurred while listing files: {e}")
+            self._logger.error(f"Error occurred while listing files: {e}")
             return {"error": str(e)}
 
     def _valid_path(self, path: str) -> Dict[str, str]:
@@ -474,13 +480,14 @@ class FileSearchAgentBase(ChatCompletionAgent):  # type: ignore
         deployment_name: str,
         api_key: str,
         base_url: str,
+        logger: Logger,
     ) -> None:
         super().__init__(
             service=self._create_ai_service(deployment_name, api_key, base_url),
             name=name,
             description=description,
             instructions=instructions,
-            plugins=[FileSearchPlugin(paths=paths)],
+            plugins=[FileSearchPlugin(paths=paths, logger=logger)],
         )
 
     def _create_ai_service(
@@ -649,7 +656,12 @@ class LogSearchAgent(FileSearchAgentBase):
     """
 
     def __init__(
-        self, log_paths: List[str], deployment_name: str, api_key: str, base_url: str
+        self,
+        log_paths: List[str],
+        deployment_name: str,
+        api_key: str,
+        base_url: str,
+        logger: Logger,
     ) -> None:
         # Load specialized system prompt for log search
         instructions = _load_prompt("log_search.txt", flow="default")
@@ -666,6 +678,7 @@ class LogSearchAgent(FileSearchAgentBase):
             deployment_name=deployment_name,
             api_key=api_key,
             base_url=base_url,
+            logger=logger,
         )
 
 
@@ -681,7 +694,12 @@ class CodeSearchAgent(FileSearchAgentBase):
     """
 
     def __init__(
-        self, code_paths: List[str], deployment_name: str, api_key: str, base_url: str
+        self,
+        code_paths: List[str],
+        deployment_name: str,
+        api_key: str,
+        base_url: str,
+        logger: Logger,
     ) -> None:
         # Load specialized system prompt for code search
         instructions = _load_prompt("code_search.txt", flow="default")
@@ -698,6 +716,7 @@ class CodeSearchAgent(FileSearchAgentBase):
             deployment_name=deployment_name,
             api_key=api_key,
             base_url=base_url,
+            logger=logger,
         )
 
 
@@ -710,6 +729,7 @@ async def async_analyze_default(
     code_path: str,
     log_folder_path: str,
     error_message: str,
+    logger: Logger,
 ) -> str:
     """
     Default async analysis method using multi-agent orchestration.
@@ -727,24 +747,30 @@ async def async_analyze_default(
     """
 
     # Create specialized agents using the custom base class
-    logging.info("Initializing agents")
+    logger.info("Initializing agents")
+
+    # Set global logger for callbacks
+    global _logger
+    _logger = logger
 
     log_search_agent = LogSearchAgent(
         log_paths=[log_folder_path],
         deployment_name=software_deployment_name,
         api_key=azure_openai_api_key,
         base_url=azure_openai_endpoint,
+        logger=logger,
     )
     code_search_agent = CodeSearchAgent(
         code_paths=[code_path],
         deployment_name=software_deployment_name,
         api_key=azure_openai_api_key,
         base_url=azure_openai_endpoint,
+        logger=logger,
     )
 
     agents = [log_search_agent, code_search_agent]
 
-    logging.info("Setting up Magentic orchestration")
+    logger.info("Setting up Magentic orchestration")
 
     # Create magentic orchestration
     chat_completion_service = AzureChatCompletion(
@@ -775,7 +801,7 @@ async def async_analyze_default(
     runtime = InProcessRuntime()
     runtime.start()
 
-    logging.info(f"Starting analysis for: {error_message[:100]}...")
+    logger.info(f"Starting analysis for: {error_message[:100]}...")
 
     try:
         # Execute analysis with timeout protection and retry logic
@@ -815,16 +841,16 @@ async def async_analyze_default(
             except Exception as e:
                 if attempt == max_retries:
                     # Last attempt failed, re-raise the exception
-                    logging.error(
+                    logger.error(
                         f"Analysis failed after {max_retries + 1} attempts: {e}"
                     )
                     raise
 
                 # Calculate delay with exponential backoff
-                logging.warning(f"Analysis attempt {attempt + 1} failed: {e}")
+                logger.warning(f"Analysis attempt {attempt + 1} failed: {e}")
 
-        logging.info("🎯 **FINAL ANALYSIS RESULT**")
-        logging.info(value)
+        logger.info("🎯 **FINAL ANALYSIS RESULT**")
+        logger.info(value)
         return str(value)
 
     finally:
@@ -832,4 +858,4 @@ async def async_analyze_default(
             await runtime.stop_when_idle()
             await runtime.close()
         except Exception as e:
-            logging.debug(f"Error during runtime cleanup: {e}")
+            logger.debug(f"Error during runtime cleanup: {e}")
