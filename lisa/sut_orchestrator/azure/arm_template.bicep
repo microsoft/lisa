@@ -382,7 +382,7 @@ resource nodes_disk 'Microsoft.Compute/disks@2025-01-02' = [for i in range(0, no
   tags: tags
   location: location
   sku: {
-    name: 'Standard_LRS'
+    name: nodes[i].os_disk_type
   }
   properties: {
     osType: 'Linux'

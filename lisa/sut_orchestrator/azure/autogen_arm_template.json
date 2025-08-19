@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "8369789714257914259"
+      "templateHash": "16291477761159155605"
     }
   },
   "functions": [
@@ -741,7 +741,7 @@
       "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "Standard_LRS"
+        "name": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].os_disk_type]"
       },
       "properties": {
         "osType": "Linux",
