@@ -198,7 +198,7 @@ class StoragePerformance(TestSuite):
         This test case uses fio to test data disk performance using 1024K block size.
         """,
         priority=3,
-        timeout=900,
+        timeout=TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.StandardSSDLRS,
