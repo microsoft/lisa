@@ -86,17 +86,23 @@ You can also use the analyzer programmatically:
 
 ```python
 from log_agent import analyze
+from lisa.util.logger import get_logger
+
+# Get a logger instance
+logger = get_logger("my_analyzer")
 
 # Analyze a specific error
 result = analyze(
-    working_directory="/path/to/lisa/ai",
+    current_directory="/path/to/lisa/ai",
     azure_openai_api_key="your-api-key",
     azure_openai_endpoint="https://your-resource.openai.azure.com",
     general_deployment_name="gpt-4o",
     software_deployment_name="gpt-4o",
     code_path="/path/to/lisa/code",
     log_folder_path="/path/to/test/logs",
-    error_message="Your error message here"
+    error_message="Your error message here",
+    selected_flow="default",
+    logger=logger
 )
 
 print(result)

@@ -10,21 +10,24 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
-from dotenv import load_dotenv
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.azure_ai_inference import (
     AzureAIInferenceTextEmbedding,
 )
-from semantic_kernel.utils.logging import setup_logging
 
 from lisa.ai.default_flow import async_analyze_default
-from lisa.util.logger import get_logger, init_logger
-
-# from .common import VERBOSITY_LENGTH_THRESHOLD, get_current_directory
-
+from lisa.util.logger import (
+    Logger,
+    add_handler,
+    enable_console_timestamp,
+    get_logger,
+    uninit_logger,
+)
 
 # Constants used in the code
 VERBOSITY_LENGTH_THRESHOLD = 1000  # Max length for verbose log messages
+
+_logger = get_logger("LogAgent")
 
 
 def get_current_directory() -> str:
@@ -70,7 +73,7 @@ def _load_test_data() -> List[Dict[str, str]]:
         if not isinstance(test_data, list):
             raise ValueError("JSON file should contain an array of test cases")
 
-        logging.debug(f"test data count: {len(test_data)}")
+        _logger.debug(f"test data count: {len(test_data)}")
         return test_data
 
     except FileNotFoundError:
@@ -121,10 +124,10 @@ async def _calculate_similarity_async(
 
         # Output
         for idx, text in enumerate(texts):
-            logging.debug(f"Text {idx}: text length = {len(text)}")
+            _logger.debug(f"Text {idx}: text length = {len(text)}")
         # Calculate cosine similarity
         similarity = _cosine_similarity(resp[0], resp[1])
-        logging.info(f"Cosine similarity: {similarity}")
+        _logger.info(f"Cosine similarity: {similarity}")
 
         return similarity
     finally:
@@ -205,7 +208,7 @@ class VerbosityFilter(logging.Filter):
                         )
                         record.args = ()
 
-        logging.debug("verbosity filter applied")
+        _logger.debug("verbosity filter applied")
 
         return True
 
@@ -231,10 +234,10 @@ class ConsoleFilter(logging.Filter):
         return True
 
 
-logger = get_logger("AI")
+_logger = get_logger("AI")
 
 
-def setup_debug_logging() -> str:
+def setup_logger() -> str:
     """
     Set up debug logging for all Semantic Kernel operations to a timestamped file.
     Also sets up console logging for INFO level messages.
@@ -247,34 +250,12 @@ def setup_debug_logging() -> str:
     )
     tracing_filepath = os.path.join(debug_dir, f"debug_{timestamp}.log")
 
-    # Initialize semantic kernel logging
-    setup_logging()
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    # Remove any existing handlers
-    for handler in logging.getLogger().handlers[:]:
-        logging.getLogger().removeHandler(handler)
+    enable_console_timestamp()
 
     # Create file handler for DEBUG level
     file_handler = logging.FileHandler(tracing_filepath, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    file_handler.setFormatter(formatter)
-
-    # Create console handler for INFO level
-    # console_handler = logging.StreamHandler()
-    # console_handler.setLevel(logging.INFO)
-    # console_handler.setFormatter(formatter)
-
-    # Apply custom filter to console handler for in_process_runtime logs
-    # console_filter = ConsoleFilter()
-    # console_handler.addFilter(console_filter)
-
-    # Add both handlers
-    logging.getLogger().addHandler(file_handler)
-    # logging.getLogger().addHandler(console_handler)
+    add_handler(file_handler)
 
     # Apply verbosity filter to prevent excessive output (only to file handler)
     verbosity_filter = VerbosityFilter()
@@ -295,7 +276,7 @@ def setup_debug_logging() -> str:
     )
     logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
-    logger.info(f"Debug logging configured. Writing to: {tracing_filepath}")
+    _logger.info(f"Debug logging configured. Writing to: {tracing_filepath}")
 
     return tracing_filepath
 
@@ -304,6 +285,10 @@ def _load_config(selected_flow: str) -> Config:
     """
     Load environment variables and validate required configs.
     """
+
+    # only for individual runs
+    from dotenv import load_dotenv
+
     current_directory = get_current_directory()
     load_dotenv(os.path.join(current_directory, ".env"))
 
@@ -413,14 +398,15 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
         log_folder_path,
         error_message,
         selected_flow=config.selected_flow,
+        logger=_logger,
     )
 
     # Extract keywords
     generated_keywords = _get_keywords(_extract_generated_content(generated_text))
     ground_truth_keywords = _get_keywords(item["ground_truth"])
 
-    logging.info(f"Generated keywords: {generated_keywords}")
-    logging.info(f"Ground truth keywords: {ground_truth_keywords}")
+    _logger.info(f"Generated keywords: {generated_keywords}")
+    _logger.info(f"Ground truth keywords: {ground_truth_keywords}")
 
     # Calculate similarity
     similarity = _calculate_similarity(
@@ -451,7 +437,7 @@ def _process_test_cases(
     }
 
     for item in test_data:
-        logging.info(f"Analyzing test case {item['id']}: {item['path']}")
+        _logger.info(f"Analyzing test case {item['id']}: {item['path']}")
 
         # Process single test test case
         test_result = _process_single_test_case(item, config)
@@ -470,7 +456,7 @@ def _output_detailed_results(results: Dict[str, Any]) -> None:
     """
     Output detailed results for each test case.
     """
-    logging.info("=== DETAILED RESULTS ===")
+    _logger.info("=== DETAILED RESULTS ===")
 
     test_ids: List[Any] = results["test_ids"]
     similarities: List[Any] = results["similarities"]
@@ -484,11 +470,11 @@ def _output_detailed_results(results: Dict[str, Any]) -> None:
         similarity = similarities[index]
         generated = gen_list[index]
         ground_truth = gt_list[index]
-        logging.info(f"Test case {index} (ID: {test_id}): ")
-        logging.info(f"  Similarity: {similarity: .6f}")
-        logging.info(f"  Generated keywords: {generated}")
-        logging.info(f"  Ground truth keywords: {ground_truth}")
-        logging.info("")
+        _logger.info(f"Test case {index} (ID: {test_id}): ")
+        _logger.info(f"  Similarity: {similarity: .6f}")
+        _logger.info(f"  Generated keywords: {generated}")
+        _logger.info(f"  Ground truth keywords: {ground_truth}")
+        _logger.info("")
 
 
 def _output_summary_statistics(results: Dict[str, Any], config: Config) -> None:
@@ -497,23 +483,23 @@ def _output_summary_statistics(results: Dict[str, Any], config: Config) -> None:
     """
     similarities = results["similarities"]
 
-    logging.info("=== SUMMARY ===")
+    _logger.info("=== SUMMARY ===")
 
     # Individual similarities
     for index, similarity in enumerate(similarities):
-        logging.info(f"Test case {index} Similarity: {similarity: .6f}")
+        _logger.info(f"Test case {index} Similarity: {similarity: .6f}")
 
-    logging.info(
+    _logger.info(
         f"General deployment name: {config.general_deployment_name}, "
         f"Software deployment name: {config.software_deployment_name}"
     )
 
     # Aggregate statistics
     avg_similarity = sum(similarities) / len(similarities)
-    logging.info(
+    _logger.info(
         f"Average similarity: {avg_similarity: .6f}, "
         f"Best: {max(similarities): .6f}, "
-        f"Worst: {min(similarities):.6f}, "
+        f"Worst: {min(similarities): .6f}, "
         f"Total test cases: {len(similarities)}"
     )
 
@@ -523,7 +509,7 @@ def _output_results(results: Dict[str, Any], config: Config) -> None:
     Output detailed results and summary statistics.
     """
     if not results["similarities"]:
-        logging.info("No results to display.")
+        _logger.info("No results to display.")
         return
 
     _output_detailed_results(results)
@@ -541,7 +527,7 @@ def main() -> None:
     # Setup and validation
     args = parse_args()
     config = _load_config(args.flow)
-    setup_debug_logging()
+    setup_logger()
 
     # Load and filter test data
     test_data = _prepare_test_data(args)
@@ -612,6 +598,7 @@ async def _async_analyze_gpt5(
     code_path: str,
     log_folder_path: str,
     error_message: str,
+    logger: Logger,
 ) -> str:
     """
     GPT-5 specific async analysis method.
@@ -619,7 +606,7 @@ async def _async_analyze_gpt5(
     """
     # For now, use the same implementation as default
     # This can be extended with GPT-5 specific logic in the future
-    logging.info("Using GPT-5 analysis flow")
+    logger.info("Using GPT-5 analysis flow")
     return await async_analyze_default(
         current_directory,
         azure_openai_api_key,
@@ -629,6 +616,7 @@ async def _async_analyze_gpt5(
         code_path,
         log_folder_path,
         error_message,
+        logger,
     )
 
 
@@ -642,6 +630,7 @@ def analyze(
     log_folder_path: str,
     error_message: str,
     selected_flow: str,
+    logger: Logger,
 ) -> str:
     """
     Analyze logs using async agents with asyncio.run for execution.
@@ -654,7 +643,7 @@ def analyze(
     else:  # default flow
         async_analyze_func = async_analyze_default
 
-    logging.info(f"Using analysis flow: {selected_flow}")
+    logger.info(f"Using analysis flow: {selected_flow}")
 
     return asyncio.run(
         async_analyze_func(
@@ -666,9 +655,13 @@ def analyze(
             code_path,
             log_folder_path,
             error_message,
+            logger,
         )
     )
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        uninit_logger()
