@@ -86,8 +86,6 @@ class TestResult:
     log_file: str = ""
     stacktrace: Optional[str] = None
     retried_times: int = 0
-    _log_file_handler: Optional[logging.FileHandler] = None
-    _case_log_path: Optional[Path] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
@@ -95,6 +93,11 @@ class TestResult:
 
         self._environment_information: Dict[str, Any] = {}
         self.log = get_logger(f"case[{self.name}]", self.id_)
+
+        self._log_file_handler: Optional[logging.FileHandler] = None
+        self._case_log_path: Optional[Path] = None
+
+        self.subscribe_log(self.log)
 
     @property
     def is_queued(self) -> bool:
@@ -270,10 +273,25 @@ class TestResult:
         return result
 
     def subscribe_log(self, log: Logger) -> None:
-        add_handler(self._get_log_file_handler(), log)
+        # add_handler(self._get_log_file_handler(), log)
+        if self._log_file_handler:
+            add_handler(self._log_file_handler, log)
+        else:
+            # create_file_handler will call add_handler internally.
+            case_log_path = self.get_case_log_path()
+            case_log_file = case_log_path / f"{case_log_path.name}.log"
+            self.log_file = case_log_file.relative_to(
+                constants.RUN_LOCAL_LOG_PATH
+            ).as_posix()
+
+            self._log_file_handler = create_file_handler(case_log_file, log)
 
     def unsubscribe_log(self, log: Logger) -> None:
-        remove_handler(self._get_log_file_handler(), log)
+        if is_unittest():
+            return
+
+        assert self._log_file_handler, "Log file handler is not set"
+        remove_handler(self._log_file_handler, log)
 
     def get_case_log_path(self) -> Path:
         if not self._case_log_path:
