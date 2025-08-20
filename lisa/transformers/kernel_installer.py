@@ -155,8 +155,13 @@ class KernelInstallerTransformer(DeploymentTransformer):
             ):
                 # Remove the old kernel entries from boot.
                 self._log.info("Removing old kernel entries from boot")
+                # node.execute(
+                #     "efibootmgr -b 0",
+                #     sudo=True,
+                #     shell=True,
+                # )
                 node.execute(
-                    "efibootmgr -b 0",
+                    f"DEBIAN_FRONTEND=noninteractive apt-get  -y install {installer.runbook.source} --allow-unauthenticated",
                     sudo=True,
                     shell=True,
                 )
