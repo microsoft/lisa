@@ -100,6 +100,14 @@ class AzureHookSpecDefaultImpl:
             ),
             SkippedException,
         ),
+        (
+            # SSH Channel Exception - Connection failed
+            "SSH channel connection failed. The VM may be overloaded or hitting connection limits",
+            re.compile(
+                r"ChannelException.*Connect failed"
+            ),
+            ResourceAwaitableException,  # Retry with a different VM
+        ),
     ]
 
     @hookimpl
