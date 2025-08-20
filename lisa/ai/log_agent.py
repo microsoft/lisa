@@ -375,8 +375,9 @@ def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
         # ground_truth is a string
         keywords = [answer]
 
-    if isinstance(keywords, list):
-        keywords_str = ", ".join(keywords)
+    assert isinstance(keywords, list), f"Expected list, got {type(keywords)}"
+    # Sort alphabetically and join.
+    keywords_str = ", ".join(sorted(keywords))
 
     return keywords_str
 
