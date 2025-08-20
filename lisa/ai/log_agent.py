@@ -122,9 +122,6 @@ async def _calculate_similarity_async(
     try:
         resp = await embed.generate_embeddings(texts=texts)
 
-        # Output
-        for idx, text in enumerate(texts):
-            _logger.debug(f"Text {idx}: text length = {len(text)}")
         # Calculate cosine similarity
         similarity = _cosine_similarity(resp[0], resp[1])
         _logger.info(f"Cosine similarity: {similarity}")
