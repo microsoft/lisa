@@ -50,14 +50,16 @@ Your response must be in valid JSON format with the following fields:
 
 ## Output Format:
 
-CRITICAL: Output ONLY valid JSON. Do not include any text before or after the JSON object.
+CRITICAL:
+- Output ONLY valid JSON. Do not include any text before or after the JSON object.
+- The JSON format MUST BE CORRECT, including quotes and brackets.
 
 Example structure:
 
 {
     "summary": "",
     "problem": "",
-    "problem_keywords": [],
+    "problem_keywords": ["", ""],
     "code_recommendation": ""
 }
 
