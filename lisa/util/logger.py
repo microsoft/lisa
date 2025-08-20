@@ -199,7 +199,7 @@ def create_file_handler(
     return file_handler
 
 
-def set_level(level: int) -> None:
+def set_console_level(level: int) -> None:
     _console_handler.setLevel(level)
 
 
