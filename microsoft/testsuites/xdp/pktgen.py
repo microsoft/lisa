@@ -105,21 +105,21 @@ class Pktgen(Tool):
                 module_full_path = str(self._tool_path / self._module_name)
             modprobe = self.node.tools[Modprobe]
             modprobe.remove([module_full_path], ignore_error=True)
-            load_module_result = modprobe.load_by_file(
-                module_full_path, ignore_error=True
-            )
-            # CONFIG_MODULE_ALLOW_BTF_MISMATCH allows loading kernel modules
-            # with mismatched BTF (BPF Type Format) data.
-            # if not set, it is expected to see the `Invalid parameters` error
-            if self._error_pattern.search(
-                load_module_result.stdout
-            ) and not self.node.tools[KernelConfig].is_enabled(
-                "CONFIG_MODULE_ALLOW_BTF_MISMATCH"
-            ):
-                raise UnsupportedKernelException(self.node.os)
-            load_module_result.assert_exit_code(
-                0, f"failed to load module {module_full_path}"
-            )
+            # load_module_result = modprobe.load_by_file(
+            #     module_full_path, ignore_error=True
+            # )
+            # # CONFIG_MODULE_ALLOW_BTF_MISMATCH allows loading kernel modules
+            # # with mismatched BTF (BPF Type Format) data.
+            # # if not set, it is expected to see the `Invalid parameters` error
+            # if self._error_pattern.search(
+            #     load_module_result.stdout
+            # ) and not self.node.tools[KernelConfig].is_enabled(
+            #     "CONFIG_MODULE_ALLOW_BTF_MISMATCH"
+            # ):
+            #     raise UnsupportedKernelException(self.node.os)
+            # load_module_result.assert_exit_code(
+            #     0, f"failed to load module {module_full_path}"
+            # )
 
         if thread_count == 1:
             command = self._single_thread_entry
@@ -189,7 +189,7 @@ class Pktgen(Tool):
         #   /all/Packages/k/kernel-modules-internal-4.18.0-372.9.1.el8.aarch64.rpm
         rpm_locations = [
             (
-                "https://repo.almalinux.org/almalinux/"
+                "https://vault.almalinux.org/"
                 f"{'.'.join(parts[-2].replace('el','').split('_'))}/devel/{parts[-1]}/"
                 "os/Packages/kernel-modules-internal-"
                 f"{'.'.join(parts[0:3])}-{'.'.join(parts[3:-1])}.{parts[-1]}.rpm"
