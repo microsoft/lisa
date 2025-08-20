@@ -11,13 +11,22 @@ Your task is to create a comprehensive final answer that consolidates findings f
 Your response must be in valid JSON format with the following fields:
 
 1. **summary**: A comprehensive 3-4 sentence explanation of the primary root cause, including:
-   - The specific error that occurred
+   - Sentence 1 must COPY VERBATIM at least one concrete token present in the source:
+        • any quoted/backticked substring, or
+        • any code-like token with digits/underscores/colons/slashes/dots.
+        • The specific error that occurred
    - Evidence supporting this conclusion
    - The underlying problem
    - Recommended and actionable next steps
    - If confidence is low for the primary cause, add one sentence about the secondary possibility
 
-2. **problem**: A single, clear sentence describing the underlying problem, including key names.
+2. **problem**: A single, clear sentence describing the underlying problem.
+    - ≤30 words; core issue only (no causes/fixes/speculation beyond the Summary).
+    - COPY VERBATIM at least one concrete token found in the Summary:
+        • anything inside single/double quotes or backticks, or
+        • code-like tokens containing digits/underscores/colons/slashes/dots (e.g., eth1, 10.0.0.1).
+    - If both a command/interface token and an error/message token exist, include the command/interface token.
+    - Use only information explicitly present in the Summary.
 
 3. **problem_keywords**: 1-5 key words that best describe the problem including key names.
 
