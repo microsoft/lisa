@@ -149,22 +149,22 @@ class KernelInstallerTransformer(DeploymentTransformer):
             message.old_kernel_version = uname.get_linux_information(
                 force_run=True
             ).kernel_version_raw
-            if (
-                isinstance(installer, RepoInstaller)
-                and "fde" in installer.runbook.source
-            ):
-                # Remove the old kernel entries from boot.
-                self._log.info("Removing old kernel entries from boot")
-                # node.execute(
-                #     "efibootmgr -b 0",
-                #     sudo=True,
-                #     shell=True,
-                # )
-                node.execute(
-                    f"DEBIAN_FRONTEND=noninteractive apt-get  -y install {installer.runbook.source} --allow-unauthenticated",
-                    sudo=True,
-                    shell=True,
-                )
+            # if (
+            #     isinstance(installer, RepoInstaller)
+            #     and "fde" in installer.runbook.source
+            # ):
+            #     # Remove the old kernel entries from boot.
+            #     self._log.info("Removing old kernel entries from boot")
+            #     node.execute(
+            #         "efibootmgr -b 0",
+            #         sudo=True,
+            #         shell=True,
+            #     )
+            #     node.execute(
+            #         f"DEBIAN_FRONTEND=noninteractive apt-get  -y install {installer.runbook.source} --allow-unauthenticated",
+            #         sudo=True,
+            #         shell=True,
+            #     )
             installed_kernel_version = installer.install()
             build_sucess = True
             self._information = installer.information
@@ -177,6 +177,18 @@ class KernelInstallerTransformer(DeploymentTransformer):
             from lisa.transformers.dom0_kernel_installer import Dom0Installer
             from lisa.transformers.kernel_source_installer import SourceInstaller
             from lisa.transformers.rpm_kernel_installer import RPMInstaller
+
+            if (
+                isinstance(installer, RepoInstaller)
+                and "fde" in installer.runbook.source
+            ):
+                # Remove the old kernel entries from boot.
+                self._log.info("Removing old kernel entries from boot")
+                node.execute(
+                    "efibootmgr -b 1 -B",
+                    sudo=True,
+                    shell=True,
+                )
 
             if (
                 (
