@@ -10,6 +10,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
+from retry import retry
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.azure_ai_inference import (
     AzureAIInferenceTextEmbedding,
@@ -379,6 +380,7 @@ def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
     return keywords_str
 
 
+@retry(tries=3, delay=2)  # type: ignore
 def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str, Any]:
     """
     Process a single test case and gather results.
