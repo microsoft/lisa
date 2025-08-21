@@ -16,6 +16,8 @@ from typing import (
 )
 
 from semantic_kernel import Kernel
+
+# pylint: disable=no-name-in-module
 from semantic_kernel.agents import (
     ChatCompletionAgent,
     MagenticOrchestration,
@@ -858,4 +860,5 @@ async def async_analyze_default(
             await runtime.stop_when_idle()
             await runtime.close()
         except Exception as e:
+            logger.debug(f"Error during runtime cleanup: {e}")
             logger.debug(f"Error during runtime cleanup: {e}")
