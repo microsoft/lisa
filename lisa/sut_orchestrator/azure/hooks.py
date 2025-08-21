@@ -118,22 +118,6 @@ class AzureHookSpecDefaultImpl:
                 r"ResourceGroupQuotaExceeded.*Creating the resource group.*would "
                 r"exceed the quota of '\d+'.*current resource group count is '\d+'"
             ),
-            SkippedException,
-        ),
-        (
-            # Connection aborted - Transient network issues
-            "Connection to Azure was aborted. This is likely a temporary network issue",
-            re.compile(
-                r"Connection aborted.*RemoteDisconnected.*Remote end closed connection"
-            ),
-            ResourceAwaitableException,
-        ),
-        (
-            # FailedIdentityOperation with 499 status - Client timeout
-            "Client closed the request before Azure could respond (HTTP 499)",
-            re.compile(
-                r"FailedIdentityOperation.*Status: '499'.*Client Closed Request"
-            ),
             ResourceAwaitableException,
         ),
     ]
