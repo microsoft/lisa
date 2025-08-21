@@ -103,6 +103,7 @@ def pylint(session: nox.Session) -> None:
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["baremetal"],
         *OPTIONAL_DEPENDENCIES["libvirt"],
+        *OPTIONAL_DEPENDENCIES["ai"],
         *OPTIONAL_DEPENDENCIES["pylint"],
         *OPTIONAL_DEPENDENCIES["typing"],
     )
@@ -127,6 +128,7 @@ def mypy(session: nox.Session) -> None:
     session.install(
         *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["azure"],
+        *OPTIONAL_DEPENDENCIES["ai"],
         *OPTIONAL_DEPENDENCIES["mypy"],
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
