@@ -576,7 +576,7 @@ class XdpPerformance(TestSuite):
         if is_multi_threads:
             lscpu = sender.tools[Lscpu]
             # max 8 thread to prevent too big concurrency
-            thread_count = int(min(lscpu.get_core_count(), 8))
+            thread_count = int(min(lscpu.get_thread_count(), 8))
         else:
             thread_count = 1
 

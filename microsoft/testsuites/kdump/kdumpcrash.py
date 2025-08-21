@@ -115,8 +115,8 @@ class KdumpCrash(TestSuite):
         self, node: Node, log_path: Path, log: Logger
     ) -> None:
         lscpu = node.tools[Lscpu]
-        cpu_count = lscpu.get_core_count()
-        cpu_num = randint(0, cpu_count - 1)
+        thread_count = lscpu.get_thread_count()
+        cpu_num = randint(0, thread_count - 1)
         self.kdump_util.trigger_kdump_on_specified_cpu(
             cpu_num=cpu_num,
             log_path=log_path,

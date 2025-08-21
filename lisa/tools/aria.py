@@ -75,7 +75,7 @@ class Aria(Tool):
         # on the node, or 16 which is the max number of connections aria2 can
         # handle
         if not num_connections:
-            num_connections = min(self.node.tools[Lscpu].get_core_count(), 16)
+            num_connections = min(self.node.tools[Lscpu].get_thread_count(), 16)
 
         # setup aria2c command and run
         command = f"-x {num_connections} --dir={file_path} --out={filename} "
