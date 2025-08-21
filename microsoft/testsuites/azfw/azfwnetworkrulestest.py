@@ -1,6 +1,7 @@
 from typing import cast
 import json
 import asyncio
+from typing import TYPE_CHECKING
 # from lisa.sut_orchestrator.azure.common import add_user_assign_identity
 from lisa import (
     Environment,
@@ -12,18 +13,20 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface
-from lisa.tools import Ls, Mkdir
+from lisa.tools import Ls, Mkdir, Iperf3, Ping
 from lisa.tools import Ip as ip
 from lisa.tools import Ping as ping
 from lisa.tools import Sysctl as sysctl
-import time
+from time import sleep
+import re
 from lisa.features import NetworkInterface
 from lisa.sut_orchestrator.azure.common import (
-    get_node_context
+    get_node_context,
+    get_network_client
 )
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from string import Template
-
-
+from azure.mgmt.network import NetworkManagementClient
 
 #Constants
 vmcount = 3
@@ -104,12 +107,19 @@ class AzureFirewallNetworkRuleTest(TestSuite):
         #Enable IP Forwarding
         firewallNode.tools[sysctl].write("net.ipv4.ip_forward", "1")
         clientNode.tools[sysctl].write("net.ipv4.ip_forward", "1")
-        serverNode.tools[sysctl].write("net.ipv4.ip_forward", "1")
+        serverNode.tools[sysctl].write("net.ipv4.ip_forward", "1")        
 
         firewallNodeContext = get_node_context(firewallNode)
         firewallResourceGroupName = firewallNodeContext.resource_group_name
 
+        #Create Route Table to route traffic via Firewall
         asyncio.run(createRouteTable(clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICIPAddr, log))
+
+        #Enable IP Forwarding on the NICs in which packets are gonna be sent out
+        asyncio.run(enableNICIPForwarding(firewallNode, firewallNICIPAddr, log))
+        asyncio.run(enableNICIPForwarding(clientNode, clientNICIPAddr, log))
+        asyncio.run(enableNICIPForwarding(serverNode, serverNICIPAddr, log))
+
         delFirewallNICRoutes(firewallNICIPAddr, firewallNode, log)
 
         log.info("Enabling Key Vault VM Extension on Firewall Node to provision Geneva Certificates through Client Node")
@@ -124,59 +134,161 @@ class AzureFirewallNetworkRuleTest(TestSuite):
         serverNode.execute("iptables -A INPUT -p tcp -j ACCEPT", sudo=True)
         serverNode.execute("iptables -A INPUT -p udp -j ACCEPT", sudo=True)
         serverNode.execute("iptables -A INPUT -p icmp -j ACCEPT", sudo=True)
+        
+        #Install iperf3 in both Client And Server Side
+        serverNode.execute("sudo tdnf install -y iperf3", sudo=True)
+        clientNode.execute("sudo tdnf install -y iperf3", sudo=True)
 
-        #Send ICMP traffic from Client To Server
-        log.info(f"Sending ICMP traffic from Client {clientNICIPAddr} to Server {serverNICIPAddr} using ping")
-        generateReloadVerify(firewallNode, clientNode, serverNode, clientNICName, serverNICIPAddr, clientNICIPAddr, 100, 5, log, "ICMP")
-        generateReloadVerify(firewallNode, clientNode, serverNode, clientNICName, serverNICIPAddr, clientNICIPAddr, 100, 5, log, "TCP")
-        generateReloadVerify(firewallNode, clientNode, serverNode, clientNICName, serverNICIPAddr, clientNICIPAddr, 100, 5, log, "UDP")
+        testICMPTraffic(firewallNode, clientNode, clientNICName, clientNICIPAddr, serverNICIPAddr, log)
+        testTCPUDPTraffic(firewallNode, clientNICName, clientNode, serverNode, serverNICIPAddr, clientNICIPAddr, 5201, "tcp", log)
+        testTCPUDPTraffic(firewallNode, clientNICName, clientNode, serverNode, serverNICIPAddr, clientNICIPAddr, 5201, "udp", log)
 
-        #Send TCP Packet From Client to Server
 
-async def startServer(node, command, log):
-    log.info(f"Execute Command : {command} on node {node.name}")
-    result = node.execute(command)
-    log.info(f"Server traffic started on node: {node.name}, result: {result.stdout}")
+async def enableNICIPForwarding(node, nodeNICIPAddr, log):
+    log.info(f"Enable IP Forwarding for IP Addr : {nodeNICIPAddr}")
+    result = node.features[NetworkInterface].switch_ip_forwarding(enable=True, private_ip_addr=nodeNICIPAddr)
 
-async def generateTraffic(node, command, log):
-    log.info(f"Execute command : {command} on node : {node.name}")
-    result = node.execute(command)
-    log.info(f"Done Generating the traffic: {result.stdout}")
+def testICMPTraffic(firewallNode, clientNode, clientNICName, clientNICIPAddr, serverNICIPAddr,log):
+    protocol = "icmp"
+    log.info("Generating ICMP Traffic")
+    icmpresult = generateTraffic(clientNode, "", protocol, clientNICIPAddr, clientNICName, serverNICIPAddr, log)
+    verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, "256", log)
+    result = firewallNode.execute(f"iptables-save",sudo=True)
+    log.info(f"Before Reloading Rules IPTable Result : {result.stdout}")
+    log.info(f"ICMP Traffic Result before reload : {icmpresult.stdout}")
+    log.info(f"Reloading Firewall Rules {udpRuleConfigName}")
+    reloadRules(firewallNode, udpRuleConfigName, log)
+    log.info(f"IPTable Rules : {result.stdout}")
+    verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, "0", log)
+    icmpresult = generateTraffic(clientNode, "", protocol, clientNICIPAddr, clientNICName, serverNICIPAddr, log)
+    log.info(f"ICMP Traffic Result after reload : {icmpresult.stdout}")
+    verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, "256", log)
 
-def generateReloadVerify(firewallNode, clientNode, serverNode, ClientNodeNICName, destinationIPAddr, sourceIPAddr, count, interval, log, trafficType):
-    log.info(f"Generating {trafficType} traffic from {ClientNodeNICName} to {destinationIPAddr} with count {count} and interval {interval}:{trafficType}")
 
-    if(trafficType == "ICMP"):
-        icmpClient = imcpClientTemplate.substitute(count=count, NICName=ClientNodeNICName, destinationIPAddr=destinationIPAddr, interval=interval)
-        asyncio.run(generateTraffic(clientNode, icmpClient, log))
-        conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
-        iptablesdump = firewallNode.execute("iptables-save", sudo=True)
-        log.info(f"Conntrack Dump: {conntrackdump.stdout}")
-        log.info(f"Iptables Dump: {iptablesdump.stdout}")
-    elif(trafficType == "TCP"):
-            tcpClient = tcpClientTemplate.substitute(destinationIPAddr=destinationIPAddr, port="5201", NICIPAddr=sourceIPAddr, testDuration=interval)
-            tcpServer = tcpServerTemplate.substitute(NICIPAddr=destinationIPAddr, destinationPort="5201")
-            asyncio.run(startServer(serverNode, tcpServer, log))
-            asyncio.run(generateTraffic(clientNode, tcpClient, log))
-            conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
-            iptablesdump = firewallNode.execute("iptables-save", sudo=True)
-            log.info(f"Conntrack Dump: {conntrackdump.stdout}")
-            log.info(f"Iptables Dump: {iptablesdump.stdout}")
-    elif(trafficType == "UDP"):
-        udpClient = udpClientTemplate.substitute(destinationIPAddr=destinationIPAddr, port="5201", NICIPAddr=sourceIPAddr, testDuration=interval)
-        udpServer = tcpServerTemplate.substitute(NICIPAddr=destinationIPAddr, destinationPort="5201")
-        asyncio.run(startServer(serverNode, udpServer, log))
-        asyncio.run(generateTraffic(clientNode, udpClient, log))
-        conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
-        iptablesdump = firewallNode.execute("iptables-save", sudo=True)
-        log.info(f"Conntrack Dump: {conntrackdump.stdout}")
-        log.info(f"Iptables Dump: {iptablesdump.stdout}")
-        log.info(f"Reloading Firewall Rules {udpRuleConfigName}")
-        reloadRules(firewallNode, udpRuleConfigName, log)
-        conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
-        iptablesdump = firewallNode.execute("iptables-save", sudo=True)
-        log.info(f"Conntrack Dump: {conntrackdump.stdout}")
-        log.info(f"Iptables Dump: {iptablesdump.stdout}")
+def verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, mask, log):
+    
+    log.info(f"Verifying conntrack entry for Protocol {protocol} from {clientNICIPAddr} to {serverNICIPAddr} in node {firewallNode.name}")
+    result = firewallNode.execute(f"bash -c \"conntrack -L | grep '{clientNICIPAddr}' | grep '{serverNICIPAddr}' | grep '{protocol}' | grep '{mask}'\"", sudo=True)
+    if result.stdout:
+        log.info(f"Found entry for protocol {protocol} from {clientNICIPAddr} to {serverNICIPAddr} \n {result.stdout}")
+    
+
+def generateTraffic(clientNode, serverNode, protocol, clientNICIPAddr, clientNICName, serverNICIPAddr, log):
+
+    packetCount = 40
+    packetLength = 128000
+    totalBytes = packetCount*packetLength
+    bitRate = f"{(packetLength * 8) / (1024*1024)}M/{packetCount}"
+    port = 5201
+
+    if protocol == "tcp":
+        log.info(f"Generating TCP Traffic from {clientNICIPAddr} to {serverNICIPAddr}, total packet count:{packetCount}")
+        # serverProcess = serverNode.tools[Iperf3].run_as_server_async(port=port, one_connection_only=True, bind=serverNICIPAddr, daemon=False)
+        # clientProcess = clientNode.tools[Iperf3].run_as_client_async(server_ip=serverNICIPAddr,port=port,client_ip=clientNICIPAddr,buffer_length= packetLength, numberofBytes=totalBytes)
+        # client_result = clientProcess.wait_result(timeout=20)
+        # server_result = serverProcess.wait_result(timeout=20)
+        asyncio.run(setupServer(serverNode, port, serverNICIPAddr, log))
+        sleep(10)
+        setupClient(clientNode, port, serverNICIPAddr, clientNICIPAddr, str(packetLength), str(totalBytes), False, "", log)
+    elif protocol == "icmp":
+        log.info(f"Generating ICMP Traffic from {clientNICIPAddr} to {serverNICIPAddr}, total packet count:{packetCount}")
+        icmpResult = clientNode.tools[Ping].ping_async(target=serverNICIPAddr, nic_name=clientNICName, count=packetCount, sudo=True)
+        icmpResult = icmpResult.wait_result()
+        return icmpResult
+    elif protocol == "udp":
+        log.info(f"Generate UDP traffic from {clientNICIPAddr} to {serverNICIPAddr}, total packet count:{packetCount}")
+        # serverResult = serverNode.tools[Iperf3].run_as_server_async(port=port, one_connection_only=True, bind=serverNICIPAddr, daemon=False)
+        # clientResult = clientNode.tools[Iperf3].run_as_client(server_ip=serverNICIPAddr,port=port,client_ip=clientNICIPAddr,bitrate=bitRate, buffer_length=packetLength, udp_mode=True)
+        asyncio.run(setupServer(serverNode, port, serverNICIPAddr, log))
+        setupClient(clientNode, port, serverNICIPAddr, clientNICIPAddr, str(packetLength), "", False, str(bitRate), log)
+
+
+async def setupServer(node, serverPort, serverNICIPAddr, log):
+    servercmd = f"iperf3 -s -p {serverPort} -B {serverNICIPAddr} --one-off -D"
+    log.info(f"Server Command : {servercmd}")
+    result = node.execute(servercmd)
+    log.info(f"Result for Running the Server in IPAddress {serverNICIPAddr} : {result.stdout}")
+
+
+def setupClient(node, destionationPort, destinationIPAddr, clientNICIPAddr, bufferLength, numberOfBytes, udpMode, bitRate, log):
+    if udpMode:
+        clientcmd = f"iperf3 -c {destinationIPAddr} -p {destionationPort} -B {clientNICIPAddr} -u -l {bufferLength} -b {bitRate}"
+    else:
+        clientcmd = f"iperf3 -c {destinationIPAddr} -p {destionationPort} -B {clientNICIPAddr} -l {bufferLength} -n {numberOfBytes}"
+    log.info(f"Client Command : {clientcmd}")
+    result = node.execute(clientcmd)
+    log.info(f"Result for Running the Client in IPAddress {clientNICIPAddr} : {result.stdout}")
+
+
+def testTCPUDPTraffic(firewallNode,clientNICName, clientNode,serverNode,serverNICIPAddr,clientNICIPAddr,port,protocol,log):
+    log.info(f"Sending TCP Traffic from {clientNICIPAddr} to {serverNICIPAddr} on port {port}")
+    generateTraffic(clientNode, serverNode, protocol, clientNICIPAddr, clientNICName, serverNICIPAddr, log)
+    verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, "256", log)
+    result = firewallNode.execute(f"iptables-save",sudo=True)
+    log.info(f"Before Reloading Rules IPTable Result : {result.stdout}")
+    log.info(f"Reloading Firewall Rules {udpRuleConfigName}")
+    reloadRules(firewallNode, udpRuleConfigName, log)
+    result = firewallNode.execute(f"iptables-save",sudo=True)
+    log.info(f"After Reloading Rules IPTable Result: {result.stdout}")
+    verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, "0", log)
+    generateTraffic(clientNode, serverNode, protocol, clientNICIPAddr, clientNICName, serverNICIPAddr, log)
+    verifyConntrackEntry(firewallNode, clientNICIPAddr, serverNICIPAddr, protocol, "256", log)
+
+
+def testUDPTraffic(firewallNode,clientNode,serverNode,serverNICIPAddr,clientNICIPAddr,port,log):
+
+    log.info(f"Sending UDP Traffic from {clientNICIPAddr} to {serverNICIPAddr} on port {port}")
+    serverNode.tools[Iperf3].run_as_server_async(port=port,one_connection_only=True,bind=serverNICIPAddr,daemon=False)
+    clientNode.tools[Iperf3].run_as_client_async(server_ip=serverNICIPAddr,port=5201,run_time_seconds=180,client_ip=clientNICIPAddr, udp_mode=True)
+    conntrackdump = firewallNode.execute("conntrack -L", sudo=True)
+    iptablesdump = firewallNode.execute("iptables-save", sudo=True)
+    log.info(f"Conntrack Dump: {conntrackdump.stdout}")
+    log.info(f"Iptables Dump: {iptablesdump.stdout}")     
+    log.info(f"Reloading Firewall Rules {udpRuleConfigName}")
+    reloadRules(firewallNode, udpRuleConfigName, log)
+    conntrackdump = firewallNode.execute('conntrack -L | grep', sudo=True)
+    iptablesdump = firewallNode.execute("iptables-save", sudo=True)
+    log.info(f"Conntrack Dump: {conntrackdump.stdout}")
+    log.info(f"Iptables Dump: {iptablesdump.stdout}")
+
+
+def parse_conntrack_dump(conntrackDump, clientIPAddr, destinationIPAddr):
+    lines = conntrackDump.strip().split('\n')
+    icmp_entries = []
+
+    icmp_pattern = re.compile(
+        r'icmp\s+\d+\s+\d+\s+src=(?P<src1>\S+)\s+dst=(?P<dst1>\S+)\s+type=(?P<type1>\d+)\s+code=(?P<code1>\d+)\s+id=(?P<id1>\d+)\s+'
+        r'src=(?P<src2>\S+)\s+dst=(?P<dst2>\S+)\s+type=(?P<type2>\d+)\s+code=(?P<code2>\d+)\s+id=(?P<id2>\d+)'
+    )
+
+    for line in lines:
+        match = icmp_pattern.search(line)
+        if match:
+            request_src = match.group('src1')
+            request_dst = match.group('dst1')
+            reply_src = match.group('src2')
+            reply_dst = match.group('dst2')
+
+            if request_src == clientIPAddr and request_dst == destinationIPAddr and reply_src == destinationIPAddr and reply_dst == clientIPAddr:
+                entry = {
+                    'request': {
+                        'src': request_src,
+                        'dst': request_dst,
+                        'type': int(match.group('type1')),
+                        'code': int(match.group('code1')),
+                        'id': int(match.group('id1'))
+                    },
+                    'reply': {
+                        'src': reply_src,
+                        'dst': reply_dst,
+                        'type': int(match.group('type2')),
+                        'code': int(match.group('code2')),
+                        'id': int(match.group('id2'))
+                    }
+                }
+                icmp_entries.append(entry)
+
+    return icmp_entries
 
 # ipv4 network longest prefix match helper. Assumes 24bit mask
 def ipv4_to_lpm(addr: str) -> str:
@@ -207,6 +319,7 @@ def extractKeyAndCerts(node, log):
 async def createRouteTable(clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICIPAddr, log):
     log.info("Creating Route Table to send traffic via Azure Firewall Client --> Firewall --> Server")
 
+    routeTableName = f"{clientNICName}-clientToFirewall-route_table"
     log.info(f"Creating Client Route Table: {clientNICName}/{clientNICIPAddr}/32 to Firewall: {firewallNICIPAddr} and Client Subnet: {ipv4_to_lpm(clientNICIPAddr)}")
     clientNode.features[NetworkInterface].create_route_table(
         nic_name= clientNICName,
@@ -218,16 +331,14 @@ async def createRouteTable(clientNode, serverNode, clientNICName, clientNICIPAdd
     )
 
     log.info(f"Creating Server Route Table: {serverNICName}/{serverNICIPAddr}/32 to Firewall: {firewallNICIPAddr} and Server Subnet: {ipv4_to_lpm(serverNICIPAddr)}")
-    serverNode.features[NetworkInterface].create_route_table(
-        nic_name= serverNICName,
+    serverNode.features[NetworkInterface].add_route_to_table(
         route_name= "serverToFirewall",
         subnet_mask= ipv4_to_lpm(serverNICIPAddr),
         em_first_hop= serverNICIPAddr+"/32",
         next_hop_type= "VirtualAppliance",
-        dest_hop= firewallNICIPAddr
-    )    
-
-
+        dest_hop= firewallNICIPAddr,
+        routeTableName= routeTableName
+    )
 
 # Allocating the VMs to Firewall, Client and Server and choosing the correct NIC and making sure that Client and Server NICs are in same Subnet but not in same subnet as Firewalll NIC
 def chooseFirewallServerClientVMs(environment, log):
@@ -268,8 +379,6 @@ def chooseFirewallServerClientVMs(environment, log):
 
     return firewallNode, clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICName, firewallNICIPAddr
 
-
-
 def getNodesNICandIPaddr(node, log):
 
     log.info(f"Fetch all the available NICs for node: {node.name}")
@@ -283,7 +392,6 @@ def getNodesNICandIPaddr(node, log):
         log.info(f"NIC {i} Name: {availableNICs[i]}, IP Address: {availableNICsIPaddr[i]}")
 
     return availableNICs, availableNICsIPaddr
-
 
 def delFirewallNICRoutes(firewallNICIPAddr,firewallNode, log):
 
@@ -304,9 +412,6 @@ def delFirewallNICRoutes(firewallNICIPAddr,firewallNode, log):
     firewallRoutes = firewallNode.execute("ip route show", sudo=True)
     log.info(f"Routes after deletion: {firewallRoutes}")
 
-
-
-
 def deleteiproute(ipaddresses, node, log):
 
     for ipaddr in ipaddresses:
@@ -318,7 +423,6 @@ def deleteiproute(ipaddresses, node, log):
                 log.info(f"Deleting route: {route}")
                 node.execute(f"ip route del {route}", sudo=True)
         
-
 #Enable Key Vault VM Extension on the Firewall VM to provision Geneva Certificates from Client Node
 def enableKeyVaultVMExtension(clientNode, resourceGroupName, firewallVMName, settingsFileName, settingsFilePath, log):
 
@@ -370,10 +474,9 @@ def reloadRules(firewallNode, ruleConfigName, log):
     }
     json_str = json.dumps(cseparams)
     # escaped_json = json_str.replace('"', '\\"')
-    command = f"/tmp/bootstrap/drop/vmss/bootstrap.sh '{json_str}'"
+    command = f"/opt/azfw/bin/cse_runner.sh '{json_str}'"
     result = firewallNode.execute(f"bash -x {command}", sudo=True)
-    log.info("Successfully executed bootstrap.sh", result)
-
+    log.info("Reloaded Rules", result.stdout)
 
 def firewallInit(firewallNode, log):
     GsaTestStorageBlobReaderIdentity = "/subscriptions/e7eb2257-46e4-4826-94df-153853fea38f/resourcegroups/gsatestresourcegroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/gsateststorage-blobreader"

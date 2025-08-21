@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "6322760451492665980"
+      "templateHash": "1277445094080378074"
     }
   },
   "functions": [
@@ -555,6 +555,11 @@
         }
       }
     ],
+    "vmContributorRoleDefinitionId": "b24988ac-6180-42a0-ab88-20f7382dd24c",
+    "managedIdentityResourceGroup": "gsatestresourcegroup",
+    "managedIdentitySubscriptionId": "e7eb2257-46e4-4826-94df-153853fea38f",
+    "managedIdentityName": "gsateststorage-blobreader",
+    "managedIdentityResourceId": "[resourceId(variables('managedIdentitySubscriptionId'), variables('managedIdentityResourceGroup'), 'Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]",
     "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtual_network_name'))]",
     "node_count": "[length(parameters('nodes'))]",
     "availability_set_name_value": "lisa-availabilitySet",
@@ -852,6 +857,33 @@
         "nodes_image",
         "nodes_nics",
         "virtual_network_name_resource"
+      ]
+    },
+    "msi": {
+      "existing": true,
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "subscriptionId": "[variables('managedIdentitySubscriptionId')]",
+      "resourceGroup": "[variables('managedIdentityResourceGroup')]",
+      "name": "[variables('managedIdentityName')]"
+    },
+    "vmContributorRoleAssignment": {
+      "copy": {
+        "name": "vmContributorRoleAssignment",
+        "count": "[length(range(0, variables('node_count')))]"
+      },
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "scope": "[format('Microsoft.Compute/virtualMachines/{0}', parameters('nodes')[range(0, variables('node_count'))[range(0, variables('node_count'))[copyIndex()]]].name)]",
+      "name": "[guid(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, 'vm-contributor-role')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('vmContributorRoleDefinitionId'))]",
+        "principalId": "[reference('msi').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "msi",
+        "[format('nodes_vms[{0}]', range(0, variables('node_count'))[copyIndex()])]"
       ]
     },
     "nodes_nics": {

@@ -117,6 +117,7 @@ class Iperf3(Tool):
         report_periodic: int = 0,
         use_json_format: bool = False,
         one_connection_only: bool = False,
+        bind: str = "",
         daemon: bool = True,
     ) -> Process:
         # -s: run iperf3 as server mode
@@ -132,6 +133,8 @@ class Iperf3(Tool):
             cmd += f" -i{report_periodic} "
         if report_unit:
             cmd += f" -f {report_unit} "
+        if bind:
+            cmd += f" -B {bind}"
         if port:
             cmd += f" -p {port} "
         process = self.node.execute_async(
@@ -189,6 +192,7 @@ class Iperf3(Tool):
         client_ip: str = "",
         ip_version: str = "",
         udp_mode: bool = False,
+        numberofBytes: int = 0 
     ) -> Process:
         # -c: run iperf3 as client mode, followed by iperf3 server ip address
         # -t: run iperf3 testing for given seconds
@@ -230,6 +234,8 @@ class Iperf3(Tool):
             cmd += f" -P {parallel_number}"
         if client_ip:
             cmd += f" -B {client_ip}"
+        if numberofBytes and not udp_mode:
+            cmd += f" -n {numberofBytes} "
         if buffer_length:
             cmd += f" -l {buffer_length} "
         if ip_version == "4":
@@ -289,6 +295,7 @@ class Iperf3(Tool):
         client_ip: str = "",
         ip_version: str = "",
         udp_mode: bool = False,
+        numberofBytes: int = 0 
     ) -> ExecutableResult:
         process = self.run_as_client_async(
             server_ip,
@@ -304,6 +311,7 @@ class Iperf3(Tool):
             client_ip,
             ip_version,
             udp_mode,
+            numberofBytes
         )
         result = process.wait_result(
             expected_exit_code=0,
