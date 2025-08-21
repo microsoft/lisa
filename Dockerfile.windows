@@ -1,38 +1,61 @@
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
+# Multi-stage build to reduce final image size
+FROM mcr.microsoft.com/windows/servercore:ltsc2022 AS builder
+
+SHELL ["powershell", "-Command"]
+
+WORKDIR C:\\temp\\
+
+ENV PYTHON_VERSION=3.12.9
+
+# Download and install Python and Git in builder stage
+RUN Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$Env:PYTHON_VERSION/python-$Env:PYTHON_VERSION-amd64.exe" -OutFile "C:\\python-installer.exe" -UseBasicParsing; \
+    $gitRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers @{ 'User-Agent' = 'Docker Build' }; \
+    $gitInstallerUrl = $gitRelease.assets | Where-Object { $_.name -like '*64-bit.exe' } | Select-Object -ExpandProperty browser_download_url; \
+    Invoke-WebRequest -Uri $gitInstallerUrl -OutFile "C:\\git-installer.exe" -UseBasicParsing
+
+RUN Start-Process -FilePath "C:\\python-installer.exe" -ArgumentList '/quiet InstallAllUsers=1 PrependPath=1 TargetDir=C:\\Python' -Wait; \
+    Start-Process -FilePath "C:\\git-installer.exe" -ArgumentList '/VERYSILENT /NORESTART /SP-' -Wait; \
+    Remove-Item -Force "C:\\python-installer.exe", "C:\\git-installer.exe"; \
+    if (!(Test-Path 'C:\\Python')) { throw 'Python installation failed!' }
+
+# Clone LISA repository
+RUN $latestRelease = (Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/lisa/releases/latest").tag_name; \
+    git clone --depth 1 --branch $latestRelease https://github.com/microsoft/lisa.git C:\\temp\\lisa
+
+# Download and extract AzCopy
+RUN Invoke-WebRequest -Uri "https://aka.ms/downloadazcopy-v10-windows" -OutFile AzCopy.zip -UseBasicParsing; \
+    Expand-Archive -Path 'AzCopy.zip' -DestinationPath 'AzCopy'; \
+    $FullAzCopyPath = (Get-ChildItem -Path 'AzCopy' -Recurse -File -Filter 'azcopy.exe').FullName; \
+    Move-Item -Path $FullAzCopyPath -Destination "C:\\azcopy.exe"; \
+    Remove-Item -Path 'AzCopy.zip' -Force; \
+    Remove-Item -Path 'AzCopy' -Recurse -Force
+
+WORKDIR C:\\temp\\lisa
+
+# Install Python packages and create wheels for faster installation in final stage
+RUN python -m pip install --no-cache-dir --upgrade pip; \
+    python -m pip wheel --wheel-dir C:\\temp\\wheels .[ado,azure,libvirt,baremetal]
+
+# Final runtime stage - use smaller base image
+FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
 
 SHELL ["powershell", "-Command"]
 
 WORKDIR C:\\app\\
 
-ENV PYTHON_VERSION=3.12.9
+# Copy only Python runtime from builder
+COPY --from=builder C:\\Python C:\\Python
+COPY --from=builder C:\\azcopy.exe C:\\azcopy.exe
+COPY --from=builder C:\\temp\\lisa C:\\app\\lisa
+COPY --from=builder C:\\temp\\wheels C:\\temp\\wheels
 
-RUN Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$Env:PYTHON_VERSION/python-$Env:PYTHON_VERSION-amd64.exe" -OutFile "C:\\python-installer.exe" -UseBasicParsing; \
-    $gitRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers @{ 'User-Agent' = 'Docker Build' }; \
-    $gitInstallerUrl = $gitRelease.assets | Where-Object { $_.name -like '*64-bit.exe' } | Select-Object -ExpandProperty browser_download_url; \
-    Invoke-WebRequest -Uri $gitInstallerUrl -OutFile "C:\\git-installer.exe" -UseBasicParsing;
-
-RUN Start-Process -FilePath "C:\\python-installer.exe" -ArgumentList '/quiet InstallAllUsers=1 PrependPath=1 TargetDir=C:\\Python' -Wait; \
-    Start-Process -FilePath "C:\\git-installer.exe" -ArgumentList '/VERYSILENT /NORESTART /SP-' -Wait; \
-    Remove-Item -Force "C:\\python-installer.exe", "C:\\git-installer.exe"; \
-    if (!(Test-Path 'C:\\Python')) { throw 'Python installation failed!' }; \
-    $env:PATH = [Environment]::GetEnvironmentVariable('PATH', [EnvironmentVariableTarget]::Machine)
-
-RUN $latestRelease = (Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/lisa/releases/latest").tag_name; \
-    git clone --depth 1 --branch $latestRelease https://github.com/microsoft/lisa.git C:\\app\\lisa
-
-WORKDIR C:\\
-
-RUN Invoke-WebRequest -Uri "https://aka.ms/downloadazcopy-v10-windows" -OutFile AzCopy.zip -UseBasicParsing; \
-    Expand-Archive -Path 'AzCopy.zip' -DestinationPath 'AzCopy'; \
-    $FullAzCopyPath = (Get-ChildItem -Path 'AzCopy' -Recurse -File -Filter 'azcopy.exe').FullName; \
-    Write-Host "AzCopy path is ${FullAzCopyPath}"; \
-    Move-Item -Path $FullAzCopyPath -Destination "C:\\azcopy.exe"; \
-    Remove-Item -Path 'AzCopy.zip' -Force; \
-    Remove-Item -Path 'AzCopy' -Recurse -Force
-
+# Set environment variables
 ENV LISA_azcopy_path="C:\\azcopy.exe"
+ENV PATH="C:\\Python;C:\\Python\\Scripts;${PATH}"
 
 WORKDIR C:\\app\\lisa
 
+# Install from pre-built wheels for faster installation
 RUN python -m pip install --no-cache-dir --upgrade pip; \
-    python -m pip install --no-cache-dir --editable .[ado,azure,libvirt,baremetal] --config-settings editable_mode=compat
+    python -m pip install --no-cache-dir --find-links C:\\temp\\wheels --editable .[ado,azure,libvirt,baremetal] --config-settings editable_mode=compat; \
+    Remove-Item -Path C:\\temp\\wheels -Recurse -Force
