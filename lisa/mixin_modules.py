@@ -20,11 +20,6 @@ import lisa.notifiers.text_result  # noqa: F401
 import lisa.runners.lisa_runner  # noqa: F401
 import lisa.sut_orchestrator.ready  # noqa: F401
 
-try:
-    import lisa.runners.legacy_runner  # noqa: F401
-except ModuleNotFoundError as e:
-    print(f"win32 package is not installed, legacy runner is not supported. [{e}]")
-
 # Azure modules
 try:
     import lisa.sut_orchestrator.azure.hooks  # noqa: F401
