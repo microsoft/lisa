@@ -10,7 +10,6 @@ Runbook Reference
    -  `Use partial runbook <#use-partial-runbook>`__
    -  `Use extensions <#use-extensions>`__
 
-
 -  `Reference <#reference>`__
 
    -  `name <#name>`__
@@ -273,7 +272,6 @@ Below is the transformer to build kernel from source code and patches.
          - type: patch
            repo: https://github.com/microsoft/azure-linux-kernel.git
            file_pattern: Patches_Following_Mainline_History/4.9.184/*.patch
-
 
 Reference
 ---------

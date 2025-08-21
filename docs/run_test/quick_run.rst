@@ -121,17 +121,6 @@ Linux VM on Azure.
 
    LISA provides a debug runbook to run specific test cases by name. This is useful for debugging and testing individual cases.
 
-   .. code:: bash
-
-      lisa -r microsoft/runbook/debug.yml -v "case:hello" -v "origin:microsoft/runbook/azure.yml" -v subscription_id:<subscription id>
-
-   You can run different test cases by changing the case name:
-
-   .. code:: bash
-
-      # Run the verify_reboot test case
-      lisa -r microsoft/runbook/debug.yml -v "case:verify_reboot" -v "origin:microsoft/runbook/azure.yml" -v subscription_id:<subscription id>
-
    Simple example with case and origin:
 
    .. code:: bash
