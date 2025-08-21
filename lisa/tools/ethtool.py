@@ -569,9 +569,10 @@ class Ethtool(Tool):
         # Find the vCPU count to accurately get max channels for the device.
         lscpu = self.node.tools[Lscpu]
         vcpu_count = lscpu.get_thread_count(force_run=True)
-        if vcpu_count < device_channel_info.max_channels:
-            device_channel_info.max_channels = vcpu_count
 
+        device_channel_info.max_channels = min(
+            device_channel_info.max_channels, vcpu_count
+        )
         device.device_channel = device_channel_info
         return device_channel_info
 

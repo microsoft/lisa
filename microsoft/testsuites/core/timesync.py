@@ -222,6 +222,8 @@ class TimeSync(TestSuite):
                         expected_tsc_str = " constant_tsc "
                     elif CpuType.AMD == lscpu.get_cpu_type():
                         expected_tsc_str = " tsc "
+                    else:
+                        raise UnsupportedCpuArchitectureException(arch)
                     shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
                     assert_that(shown_up_times).described_as(
                         f"Expected {expected_tsc_str} shown up times in cpu flags is"

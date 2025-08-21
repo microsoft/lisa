@@ -1358,6 +1358,11 @@ class Ubuntu(Debian):
         self._node.execute("cloud-init status --wait", sudo=True)
 
     def _get_information(self) -> OsInformation:
+        vendor = ""
+        release = ""
+        codename = ""
+        full_version = ""
+
         cmd_result = self._node.execute(
             cmd="lsb_release -a",
             shell=True,

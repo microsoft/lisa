@@ -115,6 +115,7 @@ def _get_os_info_from_extension(log: Logger, node: Node) -> str:
 
     log.info(f"Substatus : '{extension_substatus}'")
     split_status = re.split(",|/", extension_substatus)
+    os = ""
     for component_status in split_status:
         if component_status is not None:
             if component_status.find("osidentifier") != -1:
@@ -122,6 +123,9 @@ def _get_os_info_from_extension(log: Logger, node: Node) -> str:
                 os_encoded = re.split(":", component_status)[-1]
                 os = base64.b64decode(os_encoded).decode()
 
+    assert_that(os).described_as(
+        "Expected OS information to be extracted"
+    ).is_not_empty()
     log.info(f"os : '{os}'")
     return os
 

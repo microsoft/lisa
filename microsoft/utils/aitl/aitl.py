@@ -223,6 +223,7 @@ def _call_rest_api(method: str, **kwargs: Any) -> Any:
     api_version = kwargs.pop("api_version")
     body = kwargs.pop("body", "")
     resource_type = kwargs.pop("resource")
+    action = kwargs.pop("action", method.lower())
     query = kwargs.pop("query", "")
     output = kwargs.pop("output", "")
 
@@ -285,7 +286,7 @@ if __name__ == "__main__":
     logging.debug(f"starting command with args: {cmd_args}")
 
     kwargs = vars(cmd_args)
-    action = kwargs.pop("action")
+    action = kwargs.get("action")
     resource = kwargs.get("resource")
 
     if action in ["create", "update"]:

@@ -183,9 +183,13 @@ def run_storage_workload(node: Node) -> Decimal:
 
 
 def run_network_workload(environment: Environment) -> Decimal:
+    assert_that(len(environment.nodes)).described_as(
+        "Expected environment to have at least 2 nodes"
+    ).is_greater_than_or_equal_to(2)
+
     client_node = cast(RemoteNode, environment.nodes[0])
-    if len(environment.nodes) >= 2:
-        server_node = cast(RemoteNode, environment.nodes[1])
+    server_node = cast(RemoteNode, environment.nodes[1])
+
     iperf3_server = server_node.tools[Iperf3]
     iperf3_client = client_node.tools[Iperf3]
     iperf3_server.run_as_server_async()
