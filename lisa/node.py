@@ -1127,8 +1127,7 @@ class Nodes:
         return self._default
 
     def list(self) -> Iterable[Node]:
-        for node in self._list:
-            yield node
+        yield from self._list
 
     def initialize(self) -> None:
         run_in_parallel([x.initialize for x in self._list])

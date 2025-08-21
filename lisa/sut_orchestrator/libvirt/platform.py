@@ -771,7 +771,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         # Give all the VMs some time to boot and then acquire an IP address.
         timeout = time.time() + environment_context.network_boot_timeout
-
+        address = ""
         if self.host_node.is_remote:
             remote_node = cast(RemoteNode, self.host_node)
             conn_info = remote_node.connection_info

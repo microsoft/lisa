@@ -111,7 +111,7 @@ mypy = [
 ]
 
 pylint = [
-    "pylint ~= 2.17.0"
+    "pylint ~= 3.3.0"
 ]
 
 test = [

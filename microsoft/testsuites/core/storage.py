@@ -173,6 +173,7 @@ class Storage(TestSuite):
         os_disk_partition = node.features[Disk].get_partition_with_mount_point(
             self.os_disk_mount_point
         )
+        os_disk = ""
         if os_disk_partition:
             os_disk = os_disk_partition.disk
 
