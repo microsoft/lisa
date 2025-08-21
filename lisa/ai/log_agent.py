@@ -319,7 +319,7 @@ def _prepare_test_data(args: argparse.Namespace) -> List[Dict[str, str]]:
     test_data = _load_test_data()
 
     if args.command == "single":
-        if not (0 <= args.test_index < len(test_data)):
+        if not 0 <= args.test_index < len(test_data):
             raise ValueError(
                 f"Test index {args.test_index} is out of range. "
                 f"Valid range is 0 to {len(test_data) - 1}."
