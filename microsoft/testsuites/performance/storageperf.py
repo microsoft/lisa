@@ -191,7 +191,7 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_standardssd_datadisks_4k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks(node, result)
+        self._perf_premium_datadisks(node, result, disk_type=DiskType.standardssd)
 
     @TestCaseMetadata(
         description="""
@@ -209,7 +209,9 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_standardssd_datadisks_1024k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks(node, result, block_size=1024)
+        self._perf_premium_datadisks(
+            node, result, disk_type=DiskType.standardssd, block_size=1024
+        )
 
     @TestCaseMetadata(
         description="""
