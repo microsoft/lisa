@@ -26,7 +26,6 @@ def get_stress_ng_config() -> Dict[str, int]:
 
     # Parse LISA command line variables (-v variable:value)
     import sys
-
     for i, arg in enumerate(sys.argv):
         if arg == "-v" and i + 1 < len(sys.argv):
             variable_arg = sys.argv[i + 1]
