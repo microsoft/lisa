@@ -726,7 +726,7 @@ class Storage(TestSuite):
             )
             assert_that(
                 added_partitions[added_disk_count - 1].size_in_gb,
-                f"data disk { added_partitions[added_disk_count - 1].name}"
+                f"data disk {added_partitions[added_disk_count - 1].name}"
                 f" size should be equal to {size} GB",
             ).is_equal_to(size)
 

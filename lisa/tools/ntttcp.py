@@ -817,7 +817,7 @@ class BSDNtttcp(Ntttcp):
         )
         cmd = (
             f" -s{server_ip} -P {ports_count} -n {threads_count}"
-            f" -t {run_time_seconds}  -b {buffer_size}k "
+            f" -t {run_time_seconds} -b {buffer_size}k "
         )
         if udp_mode:
             raise LisaException("UDP mode is not supported in FreeBSD")

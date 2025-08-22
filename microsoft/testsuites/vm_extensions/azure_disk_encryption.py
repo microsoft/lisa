@@ -119,7 +119,7 @@ class AzureDiskEncryption(TestSuite):
                 log.debug(
                     f"Sleeping for {retry_interval} seconds before checking again"
                 )
-                log.debug(f"Retry #{i+1} of {max_retries}")
+                log.debug(f"Retry #{i + 1} of {max_retries}")
                 time.sleep(retry_interval)
 
         assert_that(os_status).described_as(

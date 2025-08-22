@@ -23,7 +23,7 @@ _api_version = "2023-08-01-preview"
 
 def _generate_example(resource_type: str = "job") -> str:
     return f"""
-        Examples for {resource_type.capitalize() if resource_type == 'job' else 'Job Template' }:
+        Examples for {resource_type.capitalize() if resource_type == 'job' else 'Job Template'}:
         Create a {resource_type}:
             python -m aitl {resource_type} create -s {{subscription_id}} -r {{resource_group}} -n {{template_name}} -b {'@./tier0.json' if resource_type == 'job' else '@./template.json'}
 
@@ -32,7 +32,7 @@ def _generate_example(resource_type: str = "job") -> str:
 
         Get a {resource_type}:
             python -m aitl {resource_type} get -s {{subscription_id}} -r {{resource_group}} -n {{template_name}}
-    """  # noqa: E501
+    """  # noqa: E501,E241
 
 
 def _initialize() -> None:

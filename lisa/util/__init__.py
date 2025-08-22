@@ -758,7 +758,7 @@ def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> 
         assert_that(len(prefix)).described_as(
             f"kept length must be greater than prefix '{prefix}'"
         ).is_less_than_or_equal_to(kept_len)
-    return f"{prefix}{content[len(prefix) : ][-kept_len+len(prefix):]}"
+    return f"{prefix}{content[len(prefix) :][-kept_len + len(prefix):]}"
 
 
 def generate_random_chars(

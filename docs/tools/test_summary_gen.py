@@ -85,14 +85,14 @@ def _update_line(file: TextIO, metadata: Dict[str, str], index: int) -> None:
         metadata (Dict[str, str]): test case metadata
         index (int): no.# of test case
     """
-    file.write(f"    * - {index}\n")  # Index
+    file.write(f"    * - {index}\n")  # noqa: E221
     file.write(
-        f"      - :ref:`{metadata['suite_name']} <{metadata['suite_name']}>`\n"
+        f"      - :ref:`{metadata['suite_name']} <{metadata['suite_name']}>`\n"  # noqa: E221,E501
     )  # Test Suite Name
     file.write(
-        f"      - :ref:`{metadata['case_name']} <{metadata['case_name']}>`\n"
+        f"      - :ref:`{metadata['case_name']} <{metadata['case_name']}>`\n"  # noqa: E221,E501
     )  # Test Case Name
-    file.write(f"      - {metadata.get('priority', 2)}\n")  # Priority
+    file.write(f"      - {metadata.get('priority', 2)}\n")  # noqa: E221
     file.write("      - Azure, Ready\n")  # Platform - defaults to both
-    file.write(f"      - {metadata['category']}\n")  # Category
-    file.write(f"      - {metadata['area']}\n")  # Area
+    file.write(f"      - {metadata['category']}\n")  # noqa: E221
+    file.write(f"      - {metadata['area']}\n")  # noqa: E221

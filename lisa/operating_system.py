@@ -1178,7 +1178,7 @@ class Debian(Linux):
         # vim                                             deinstall
         # vim-common                                      install
         # auoms                                           hold
-        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")
+        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")  # noqa: E201
         if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
             return True
         return False

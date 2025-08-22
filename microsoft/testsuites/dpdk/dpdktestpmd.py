@@ -547,7 +547,7 @@ class DpdkTestpmd(Tool):
             extra_args = ""
         # mana pmd needs tx/rx descriptors declared.
         if self.is_mana:
-            extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
+            extra_args += f" --txd={txd} --rxd={txd} --stats 2"
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 

@@ -1936,7 +1936,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         # create managed disk
         managed_disks = []
         for i in range(count):
-            name = f"lisa_data_disk_{i+current_disk_count}_{self._node.name}"
+            name = f"lisa_data_disk_{i + current_disk_count}_{self._node.name}"
             async_disk_update = compute_client.disks.begin_create_or_update(
                 self._resource_group_name,
                 name,

@@ -380,12 +380,12 @@ def _assign_role_to_service_principal(
             )
 
             logging.info(
-                f"Succeeded to Assign role to ServicePrincipal: in {i+1} times trial"
+                f"Succeeded to Assign role to ServicePrincipal: in {i + 1} times trial"
             )
             break
         except subprocess.CalledProcessError as e:
             logging.debug(
-                f"Failed in {i+1} times retry: Assign role to ServicePrincipal"
+                f"Failed in {i + 1} times retry: Assign role to ServicePrincipal"
             )
             logging.debug(f"Error Info: {e.stderr}")
             time.sleep(5)

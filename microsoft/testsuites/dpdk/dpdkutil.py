@@ -991,7 +991,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
     joined_core_list = ",".join(included_cores)
     fwd_cmd = (
-        f"{server_app_path} {joined_include} -l {joined_core_list}  -- "
+        f"{server_app_path} {joined_include} -l {joined_core_list} -- "
         f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
