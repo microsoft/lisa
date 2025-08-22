@@ -19,13 +19,26 @@ from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
-from lisa.tools.stress_ng import get_stress_ng_config
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
 
-# Determine stress_ng configuration at import time
-STRESS_NG_CONFIG = get_stress_ng_config()
+
+def get_stress_ng_config_from_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Get stress-ng configuration from runbook variables.
+    
+    Args:
+        variables: Dictionary of runbook variables
+        
+    Returns:
+        Dictionary containing node_count, cpu_count, and memory_mb
+    """
+    return {
+        "node_count": variables.get("stress_ng_node_count", 2),
+        "cpu_count": variables.get("stress_ng_cpu_count", 1),
+        "memory_mb": variables.get("stress_ng_memory_mb", 1024),
+    }
 
 
 @TestSuiteMetadata(
@@ -134,12 +147,15 @@ class StressNgTestSuite(TestSuite):
         - stress_ng_cpu_count: CPU cores per VM
         - stress_ng_memory_mb: Memory per VM in MB
         - stress_ng_jobs: Jobfile(s) to execute
+        
+        Note: This test requires environment with at least 2 nodes to be
+        deployed through runbook variables for meaningful multi-VM testing.
         """,
         priority=4,
         requirement=simple_requirement(
-            min_count=STRESS_NG_CONFIG["node_count"],
-            min_core_count=STRESS_NG_CONFIG["cpu_count"],
-            min_memory_mb=STRESS_NG_CONFIG["memory_mb"],
+            min_count="$(stress_ng_node_count)",
+            min_core_count="$(stress_ng_cpu_count)",
+            min_memory_mb="$(stress_ng_memory_mb)",
         ),
     )
     def multi_vm_stress_test(
@@ -151,9 +167,11 @@ class StressNgTestSuite(TestSuite):
     ) -> None:
         """
         Execute multi-VM stress test across multiple VMs.
-        VM allocation is controlled by test requirement set at import time.
-        This requirement is dynamically determined from command line variables.
+        VM allocation is controlled by runbook variables passed at runtime.
         """
+
+        # Get stress-ng configuration from variables
+        STRESS_NG_CONFIG = get_stress_ng_config_from_variables(variables)
 
         log.debug(
             f"Dynamic config detected at import: "

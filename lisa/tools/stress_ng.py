@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Dict, cast
+from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix
@@ -10,45 +10,6 @@ from lisa.util.process import Process
 
 from .git import Git
 from .make import Make
-
-
-def get_stress_ng_config() -> Dict[str, int]:
-    """
-    Try to determine the desired stress_ng configuration from various sources.
-    This is evaluated at import time to set test requirements.
-    Returns dict with keys: node_count, cpu_count, memory_mb
-    """
-    config = {
-        "node_count": 4,
-        "cpu_count": 2,
-        "memory_mb": 2048,
-    }
-
-    # Parse LISA command line variables (-v variable:value)
-    import sys
-    for i, arg in enumerate(sys.argv):
-        if arg == "-v" and i + 1 < len(sys.argv):
-            variable_arg = sys.argv[i + 1]
-            # Parse variable:value pairs (can be space or comma separated)
-            for var_pair in variable_arg.replace(",", " ").split():
-                if ":" not in var_pair:
-                    continue
-
-                var_name, var_value = var_pair.split(":", 1)
-                if not var_name.startswith("stress_ng_"):
-                    continue
-
-                param_name = var_name[len("stress_ng_") :]
-                if param_name not in config:
-                    continue
-
-                try:
-                    config[param_name] = int(var_value)
-                except ValueError:
-                    # Invalid integer value, keep default
-                    continue
-
-    return config
 
 
 class StressNg(Tool):
