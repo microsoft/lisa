@@ -1684,7 +1684,7 @@ def load_by_type(schema_type: Type[T], raw_runbook: Any, many: bool = False) -> 
     """
     Convert dict, list or base typed schema to specified typed schema.
     """
-    if type(raw_runbook) == schema_type:
+    if type(raw_runbook) is schema_type:
         return raw_runbook
 
     if not isinstance(raw_runbook, dict) and not many:

@@ -1059,7 +1059,7 @@ class Debian(Linux):
         apt_repo.add_repository(repo)
 
         # apt update will not be triggered on Debian during add repo
-        if type(self._node.os) == Debian:
+        if type(self._node.os) is Debian:
             self._node.execute("apt-get update", sudo=True)
 
     def is_end_of_life_release(self) -> bool:

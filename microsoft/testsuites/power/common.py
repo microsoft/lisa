@@ -33,11 +33,11 @@ def is_distro_supported(node: Node) -> None:
         )
 
     if not (
-        (type(node.os) == Ubuntu and node.os.information.version >= "18.4.0")
-        or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
-        or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
-        or (type(node.os) == SLES and node.os.information.version >= "15.6.0")
-        or (type(node.os) == AlmaLinux and node.os.information.version >= "9.5.0")
+        (type(node.os) is Ubuntu and node.os.information.version >= "18.4.0")
+        or (type(node.os) is Redhat and node.os.information.version >= "8.3.0")
+        or (type(node.os) is Debian and node.os.information.version >= "10.0.0")
+        or (type(node.os) is SLES and node.os.information.version >= "15.6.0")
+        or (type(node.os) is AlmaLinux and node.os.information.version >= "9.5.0")
     ):
         raise SkippedException(
             f"hibernation setup tool doesn't support current distro {node.os.name}, "
@@ -75,7 +75,7 @@ def verify_hibernation(
     # the hibernation-setup tool.
     # A sleep(100) also works, but we are unsure of the exact time required.
     # So it is safer to reboot the VM.
-    if type(node.os) == Redhat or type(node.os) == AlmaLinux or type(node.os) == SLES:
+    if type(node.os) in (Redhat, AlmaLinux, SLES):
         node.reboot()
 
     boot_time_before_hibernation = who.last_boot()

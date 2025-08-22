@@ -95,7 +95,7 @@ def _validate_password(
             node.tools[Usermod].add_user_to_group("wheel", sudo=True)
 
     # simple command to determine if username password combination is valid/invalid
-    if type(node.os) == Ubuntu and node.os.information.release in ["18.04", "16.04"]:
+    if type(node.os) is Ubuntu and node.os.information.release in ["18.04", "16.04"]:
         message = "Permission denied, please try again."
         ssh_pass = node.tools[Sshpass]
         node = cast(RemoteNode, node)

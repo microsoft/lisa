@@ -101,7 +101,7 @@ class Dns(TestSuite):
             )
             if 0 != cmd_result.exit_code:
                 node.os.install_packages("unattended-upgrades")
-            if type(node.os) == Debian:
+            if type(node.os) is Debian:
                 if node.os.information.version >= "10.0.0":
                     node.execute(
                         "mkdir -p /var/cache/apt/archives/partial",

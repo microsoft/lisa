@@ -289,7 +289,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         }
 
         for distro in supported_major_versions:
-            if type(node.os) == distro:
+            if type(node.os) is distro:
                 version_list = supported_major_versions.get(distro)
                 if (
                     version_list is not None
