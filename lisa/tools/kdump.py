@@ -1015,7 +1015,7 @@ class KdumpCheck(Tool):
                             self.node.execute("df -h")
                             raise LisaException(
                                 "The vmcore file is incomplete with file size"
-                                f" {round(incomplete_file_size/1024/1024, 2)}MB"
+                                f" {round(incomplete_file_size / 1024 / 1024, 2)}MB"
                             )
                 else:
                     # If there is no any dump file in 100s, then raise exception

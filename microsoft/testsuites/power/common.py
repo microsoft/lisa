@@ -104,7 +104,7 @@ def verify_hibernation(
 
     boot_time_after_hibernation = who.last_boot()
     log.info(
-        f"Last Boot time before hibernation: {boot_time_before_hibernation},"
+        f"Last Boot time before hibernation: {boot_time_before_hibernation}, "
         f"Last Boot time after hibernation: {boot_time_after_hibernation}"
     )
 

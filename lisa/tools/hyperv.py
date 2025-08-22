@@ -320,7 +320,7 @@ class HyperV(Tool):
     def exists_switch(self, name: str, switch_type: str = "") -> bool:
         cmd = f"Get-VMSwitch -Name {name}"
         if switch_type != "":
-            cmd += f"  -SwitchType '{switch_type}'"
+            cmd += f" -SwitchType '{switch_type}'"
         output = self.node.tools[PowerShell].run_cmdlet(
             cmdlet=cmd,
             fail_on_error=False,
