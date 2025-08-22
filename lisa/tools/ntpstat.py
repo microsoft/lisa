@@ -43,7 +43,7 @@ class Ntpstat(Tool):
             self._install_from_src()
         return self._check_exists()
 
-    @retry(exceptions=LisaException, tries=40, delay=0.5)
+    @retry(exceptions=LisaException, tries=40, delay=0.5)  # type: ignore
     def check_time_sync(self) -> None:
         cmd_result = self.run(shell=True, sudo=True, force_run=True)
         if self.__not_sync in cmd_result.stdout:

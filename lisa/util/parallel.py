@@ -16,7 +16,7 @@ from lisa.util.perf_timer import create_timer
 
 from . import LisaException
 
-T_RESULT = TypeVar("T_RESULT")
+T_RESULT = TypeVar("T_RESULT")  # noqa: N808
 
 
 class Task(Generic[T_RESULT]):

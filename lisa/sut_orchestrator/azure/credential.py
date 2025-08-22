@@ -13,7 +13,7 @@ from azure.identity import (
     WorkloadIdentityCredential,
 )
 from dataclasses_json import dataclass_json
-from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud
 
 from lisa import schema, secret
 from lisa.util import subclasses

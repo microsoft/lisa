@@ -31,9 +31,9 @@ from azure.mgmt.compute.models import (
     VirtualMachine,
     VirtualMachineImage,
 )
-from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
-from azure.mgmt.resource import FeatureClient, SubscriptionClient  # type: ignore
-from azure.mgmt.resource.resources.models import (  # type: ignore
+from azure.mgmt.marketplaceordering.models import AgreementTerms
+from azure.mgmt.resource import FeatureClient, SubscriptionClient
+from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentMode,
     DeploymentProperties,
@@ -41,7 +41,7 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
 from marshmallow import validate
-from msrestazure.azure_cloud import (  # type: ignore
+from msrestazure.azure_cloud import (
     AZURE_CHINA_CLOUD,
     AZURE_GERMAN_CLOUD,
     AZURE_PUBLIC_CLOUD,
@@ -1586,7 +1586,7 @@ class AzurePlatform(Platform):
 
         return arm_parameters
 
-    @retry(exceptions=ResourceNotFoundError, tries=5, delay=2)
+    @retry(exceptions=ResourceNotFoundError, tries=5, delay=2)  # type: ignore
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
     ) -> None:
@@ -1735,7 +1735,7 @@ class AzurePlatform(Platform):
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
-    @retry(exceptions=LisaException, tries=150, delay=2)
+    @retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
     def _load_vms(
         self, resource_group_name: str, log: Logger
     ) -> Dict[str, VirtualMachine]:
@@ -2533,7 +2533,7 @@ class AzurePlatform(Platform):
         self, community_gallery_image: CommunityGalleryImageSchema
     ) -> int:
         found_image = self._get_cgi_version(community_gallery_image)
-        storage_profile = found_image.storage_profile  # type: ignore
+        storage_profile = found_image.storage_profile
         assert storage_profile, "'storage_profile' must not be 'None'"
         assert storage_profile.os_disk_image, "'os_disk_image' must not be 'None'"
         assert (
@@ -2798,7 +2798,7 @@ class AzurePlatform(Platform):
         # not all have the capability
         return False
 
-    @cached(cache=TTLCache(maxsize=50, ttl=10))
+    @cached(cache=TTLCache(maxsize=50, ttl=10))  # type: ignore
     def _get_vm_family_remaining_usages(
         self, location: str
     ) -> Dict[str, Tuple[int, int]]:

@@ -279,7 +279,7 @@ class Lspci(Tool):
     # It usually happens when the VM is just finished booting and not
     # all PCI devices are detected. For example SRIOV devices.
     # In such cases we need to retry after a short delay.
-    @retry(KeyError, tries=30, delay=2)
+    @retry(KeyError, tries=30, delay=2)  # type: ignore
     def get_devices(self, force_run: bool = False) -> List[PciDevice]:
         if (not self._pci_devices) or force_run:
             self._pci_devices = []
@@ -422,7 +422,7 @@ class LspciBSD(Lspci):
         )
         return matched[0]
 
-    @retry(tries=15, delay=3, backoff=1.15)
+    @retry(tries=15, delay=3, backoff=1.15)  # type: ignore
     def _enable_device(self, device: str) -> None:
         self.node.execute(
             f"devctl enable {device}",
@@ -431,7 +431,7 @@ class LspciBSD(Lspci):
             expected_exit_code_failure_message=f"Fail to enable {device} devices.",
         )
 
-    @retry(tries=15, delay=3, backoff=1.15)
+    @retry(tries=15, delay=3, backoff=1.15)  # type: ignore
     def _disable_device(self, device: str) -> None:
         if device in self._disabled_devices:
             return

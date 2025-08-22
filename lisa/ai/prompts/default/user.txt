@@ -33,5 +33,7 @@ Analyze errors by log and code to identify the root causes or possible reasons.
 **Conclusion**
 - **Evidence-based**: Support conclusions with specific log entries or code references.
 
+## AVOID INTERNAL EXCEPTIONS
+
 * **MUST NOT** SET THE NEXT SPEAKER TO MagneticManagerActor.
 * AGENTS **MUST NOT** BE THE LAST SPEAKER.

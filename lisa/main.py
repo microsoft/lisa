@@ -52,7 +52,7 @@ def _dump_code_information(log: Logger) -> None:
         log.info(f"submodules: {output}")
 
 
-@retry(FileExistsError, tries=10, delay=0.2)
+@retry(FileExistsError, tries=10, delay=0.2)  # type: ignore
 def test_path(
     log_root_path: Path, working_root_path: Path, run_id: str = ""
 ) -> PurePath:

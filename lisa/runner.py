@@ -303,8 +303,7 @@ class RootRunner(Action):
                 )
 
                 runners = self._generate_runners(sub_runbook_builder, variables)
-                for runner in runners:
-                    yield runner
+                yield from runners
 
                 transformer.run(
                     sub_runbook_builder,
@@ -316,10 +315,9 @@ class RootRunner(Action):
                 self._runbook_builder, phase=constants.TRANSFORMER_PHASE_EXPANDED
             )
 
-            for runner in self._generate_runners(
+            yield from self._generate_runners(
                 self._runbook_builder, self._runbook_builder.variables
-            ):
-                yield runner
+            )
 
             transformer.run(
                 self._runbook_builder,

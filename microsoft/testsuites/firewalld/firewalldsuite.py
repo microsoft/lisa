@@ -107,7 +107,7 @@ def _parse_test_result(
         raise LisaException(
             "Found unexpected failures, check logs for details\n"
             f"expected failure list: {known_failures}\n"
-            f"actual failure list:   {current_failures}\n"
+            f"actual failure list:   {current_failures}\n"  # noqa: E241
         )
 
     # Log the summary of tests

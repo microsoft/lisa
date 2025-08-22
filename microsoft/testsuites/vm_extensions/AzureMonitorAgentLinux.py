@@ -112,7 +112,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         }
 
         for distro in supported_major_versions_x86_64:
-            if type(node.os) == distro:
+            if type(node.os) is distro:
                 version_list = None
                 arch = node.os.get_kernel_information().hardware_platform
                 if arch == CpuArchitecture.ARM64:

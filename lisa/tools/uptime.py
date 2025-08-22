@@ -24,7 +24,7 @@ class Uptime(Tool):
         command_result = self.run(
             "-s", force_run=True, no_error_log=no_error_log, expected_exit_code=0
         )
-        return parser().parse(command_result.stdout)
+        return parser().parse(command_result.stdout)  # type: ignore
 
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
@@ -55,4 +55,4 @@ class WindowsUptime(Uptime):
         # extract date time string from the following result format:
         datetime_str = self.DATETIME_REGEX.findall(result)[0]
 
-        return parser().parse(datetime_str)
+        return parser().parse(datetime_str)  # type: ignore

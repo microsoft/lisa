@@ -8,7 +8,7 @@ from pathlib import Path, PurePath, PurePosixPath
 from time import sleep
 from typing import TYPE_CHECKING, Any, List, Type, cast
 
-from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_set_timeout
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Service, Wget
@@ -1015,7 +1015,7 @@ class KdumpCheck(Tool):
                             self.node.execute("df -h")
                             raise LisaException(
                                 "The vmcore file is incomplete with file size"
-                                f" {round(incomplete_file_size/1024/1024, 2)}MB"
+                                f" {round(incomplete_file_size / 1024 / 1024, 2)}MB"
                             )
                 else:
                     # If there is no any dump file in 100s, then raise exception

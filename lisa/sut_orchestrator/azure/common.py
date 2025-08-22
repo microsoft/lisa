@@ -49,10 +49,10 @@ from azure.mgmt.keyvault.models import (
     VaultCreateOrUpdateParameters,
     VaultProperties,
 )
-from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
+from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements
 from azure.mgmt.msi import ManagedServiceIdentityClient
-from azure.mgmt.network import NetworkManagementClient  # type: ignore
-from azure.mgmt.network.models import (  # type: ignore
+from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.network.models import (
     PrivateDnsZoneConfig,
     PrivateDnsZoneGroup,
     PrivateEndpoint,
@@ -60,18 +60,15 @@ from azure.mgmt.network.models import (  # type: ignore
     PrivateLinkServiceConnectionState,
     Subnet,
 )
-from azure.mgmt.privatedns import PrivateDnsManagementClient  # type: ignore
-from azure.mgmt.privatedns.models import (  # type: ignore
+from azure.mgmt.privatedns import PrivateDnsManagementClient
+from azure.mgmt.privatedns.models import (
     ARecord,
     PrivateZone,
     RecordSet,
     SubResource,
     VirtualNetworkLink,
 )
-from azure.mgmt.resource import (  # type: ignore
-    ResourceManagementClient,
-    SubscriptionClient,
-)
+from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters
 from azure.storage.blob import (
@@ -85,7 +82,7 @@ from azure.storage.blob import (
 from azure.storage.fileshare import ShareServiceClient
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
-from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud
 from PIL import Image, UnidentifiedImageError
 from requests.exceptions import ChunkedEncodingError
 from retry import retry
@@ -1886,7 +1883,7 @@ def copy_vhd_to_storage(
     properties = original_blob_client.get_blob_properties()
     content_settings: Optional[ContentSettings] = properties.content_settings
     if content_settings:
-        original_key = content_settings.get("content_md5", None)  # type: ignore
+        original_key = content_settings.get("content_md5", None)
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
@@ -1907,9 +1904,7 @@ def copy_vhd_to_storage(
             if blob:
                 # check if hash key matched with original key.
                 if blob.content_settings:
-                    cached_key = blob.content_settings.get(
-                        "content_md5", None
-                    )  # type: ignore
+                    cached_key = blob.content_settings.get("content_md5", None)
                 if is_stuck_copying(blob_client, log):
                     # Delete the stuck vhd.
                     blob_client.delete_blob(delete_snapshots="include")
@@ -2163,7 +2158,7 @@ def save_console_log(
         log.debug(f"Failed to save console log: {ex}")
         return b""
 
-    return log_response.content
+    return log_response.content  # type: ignore
 
 
 def load_environment(
@@ -2252,7 +2247,7 @@ def get_vm(platform: "AzurePlatform", node: Node) -> Any:
     return vm
 
 
-@retry(exceptions=LisaException, tries=150, delay=2)
+@retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
 def get_primary_ip_addresses(
     platform: "AzurePlatform",
     resource_group_name: str,
@@ -2821,7 +2816,7 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
-class StaticAccessTokenCredential(TokenCredential):
+class StaticAccessTokenCredential(TokenCredential):  # type: ignore
     def __init__(self, token: str) -> None:
         """
         Initialize StaticAccessTokenCredential with the provided token.
@@ -3141,7 +3136,7 @@ def assign_access_policy(
     return keyvault_poller.result()
 
 
-@retry(tries=5, delay=1)
+@retry(tries=5, delay=1)  # type: ignore
 def create_certificate(
     platform: "AzurePlatform",
     vault_url: str,
@@ -3208,7 +3203,7 @@ def check_certificate_existence(
             )
 
 
-@retry(tries=10, delay=1)
+@retry(tries=10, delay=1)  # type: ignore
 def rotate_certificate(
     platform: "AzurePlatform",
     vault_url: str,
@@ -3251,7 +3246,7 @@ def rotate_certificate(
     )
 
 
-@retry(tries=10, delay=1)
+@retry(tries=10, delay=1)  # type: ignore
 def delete_certificate(
     platform: "AzurePlatform",
     vault_url: str,
@@ -3279,7 +3274,7 @@ def is_cloud_init_enabled(node: Node) -> bool:
     return False
 
 
-@retry(tries=10, delay=1, jitter=(0.5, 1))
+@retry(tries=10, delay=1, jitter=(0.5, 1))  # type: ignore
 def load_location_info_from_file(
     cached_file_name: Path, log: Logger
 ) -> Optional[AzureLocation]:

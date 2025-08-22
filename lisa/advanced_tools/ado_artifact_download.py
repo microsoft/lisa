@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Union
 
 import requests
 from assertpy import assert_that
-from azure.devops.connection import Connection  # type: ignore
+from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
 
 from lisa.executable import Tool

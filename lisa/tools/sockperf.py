@@ -208,7 +208,7 @@ class Sockperf(Tool):
         self.node.log.info(
             f"sockperf latency results (usec):\n"
             "Percentiles:\n"
-            f'MAX   :  {matched_results.group("max_latency_us")}\n'
+            f'MAX   : {matched_results.group("max_latency_us")}\n'
             f'99.999: {matched_results.group("latency99_999_percentile_us")}\n'
             f'99.990: {matched_results.group("latency99_990_percentile_us")}\n'
             f'99.900: {matched_results.group("latency99_900_percentile_us")}\n'
@@ -217,7 +217,7 @@ class Sockperf(Tool):
             f'75.000: {matched_results.group("latency_us_75")}\n'
             f'50.000: {matched_results.group("latency_us_50")}\n'
             f'25.000: {matched_results.group("latency_us_25")}\n'
-            f'MIN   :  {matched_results.group("min_latency_us")}\n'
+            f'MIN   : {matched_results.group("min_latency_us")}\n'
         )
         message = create_perf_message(
             NetworkLatencyPerformanceMessage,

@@ -237,6 +237,8 @@ class Gpu(Feature):
                 cwd=self._node.get_working_path(),
             )
 
+            available_versions: List[Any] = []
+
             if release in ["1604"]:
                 cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
                 cuda_repo = (

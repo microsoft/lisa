@@ -115,7 +115,7 @@ class HyperVDevicePool(BaseDevicePool):
         # We will get vEthernet switch interface name, not actual NIC for baremetal
         cmd = (
             "(Get-NetAdapter | Get-NetIPAddress | Where-Object "
-            f"{{ $_.IPAddress -eq '{ip}' }}).InterfaceAlias"
+            f"{{$_.IPAddress -eq '{ip}'}}).InterfaceAlias"
         )
         interface_name = powershell.run_cmdlet(
             cmdlet=cmd,
@@ -125,7 +125,7 @@ class HyperVDevicePool(BaseDevicePool):
         # Get the MAC for above interface
         cmd = (
             "(Get-NetAdapter | Where-Object "
-            f"{{ $_.Name -eq '{interface_name}' }}).MacAddress"
+            f"{{$_.Name -eq '{interface_name}'}}).MacAddress"
         )
         mac_address = powershell.run_cmdlet(
             cmdlet=cmd,
@@ -135,7 +135,7 @@ class HyperVDevicePool(BaseDevicePool):
         # Get all interfaces for above MAC Address
         cmd = (
             "(Get-NetAdapter | Where-Object "
-            f"{{ $_.MacAddress -eq '{mac_address}' }}).Name"
+            f"{{$_.MacAddress -eq '{mac_address}'}}).Name"
         )
         inf_names_str = powershell.run_cmdlet(
             cmdlet=cmd,
@@ -148,7 +148,7 @@ class HyperVDevicePool(BaseDevicePool):
         for name in inf_names:
             cmd = (
                 "(Get-NetAdapter | Where-Object "
-                f"{{ $_.Name -eq '{name}' }}).PnPDeviceID"
+                f"{{$_.Name -eq '{name}'}}).PnPDeviceID"
             )
             interface_device_id = powershell.run_cmdlet(
                 cmdlet=cmd,

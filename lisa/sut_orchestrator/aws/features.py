@@ -198,7 +198,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
 
     def is_enabled_sriov(self) -> bool:
         instance = boto3.resource("ec2").Instance(self._instance_id)
-        return instance.ena_support
+        return instance.ena_support  # type: ignore
 
     def attach_nics(
         self, extra_nic_count: int, enable_accelerated_networking: bool = True

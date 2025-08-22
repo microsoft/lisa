@@ -37,7 +37,7 @@ class Utilities(TestSuite):
                 f"{tool_name_parameter} is empty."
                 f"This test case is not a validation. It is used to deploy tools."
             )
-        if type(tool_names) != list:
+        if type(tool_names) is not list:
             raise LisaException(f"{tool_name_parameter} parameter should be List[str]")
         #  Create mapping from lowercase tool name to actual tool name
         defined_tool_mapping: Dict[str, str] = {

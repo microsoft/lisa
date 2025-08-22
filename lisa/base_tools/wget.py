@@ -37,7 +37,7 @@ class Wget(Tool):
         posix_os.install_packages([self])
         return self._check_exists()
 
-    @retry(LisaException, tries=5, delay=2, backoff=1.5)
+    @retry(LisaException, tries=5, delay=2, backoff=1.5)  # type: ignore
     def get(
         self,
         url: str,
