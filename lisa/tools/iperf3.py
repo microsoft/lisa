@@ -173,7 +173,7 @@ class Iperf3(Tool):
             expected_exit_code_failure_message="fail to launch iperf3 server",
         )
 
-    @retry(tries=10, delay=2)
+    @retry(tries=10, delay=2)  # type: ignore
     def run_as_client_async(  # noqa: C901
         self,
         server_ip: str,
@@ -305,11 +305,12 @@ class Iperf3(Tool):
             ip_version,
             udp_mode,
         )
-        return process.wait_result(
+        result = process.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to launch iperf3 client",
             timeout=run_time_seconds,
         )
+        return result  # type: ignore
 
     def create_iperf_tcp_performance_message(
         self,

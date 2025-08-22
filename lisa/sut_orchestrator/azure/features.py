@@ -30,10 +30,10 @@ from azure.mgmt.compute.models import (
     VirtualMachineUpdate,
 )
 from azure.mgmt.core.exceptions import ARMErrorFormat
-from azure.mgmt.network.models import RouteTable  # type: ignore
-from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignore
-from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
-from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
+from azure.mgmt.network.models import RouteTable
+from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient
+from azure.mgmt.serialconsole.models import SerialPort, SerialPortState
+from azure.mgmt.serialconsole.operations import SerialPortsOperations
 from dataclasses_json import dataclass_json
 from retry import retry
 
@@ -329,27 +329,27 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
-    @retry(tries=3, delay=5)
+    @retry(tries=3, delay=5)  # type: ignore
     def write(self, data: str) -> None:
         # websocket connection is not stable, so we need to retry
         try:
             self._write(data)
             return
-        except websockets.ConnectionClosed as e:  # type: ignore
+        except websockets.ConnectionClosed as e:
             # If the connection is closed, we need to reconnect
             self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
             self._get_connection()
             raise e
 
-    @retry(tries=3, delay=5)
+    @retry(tries=3, delay=5)  # type: ignore
     def read(self) -> str:
         # websocket connection is not stable, so we need to retry
         try:
             # run command with timeout
             output = self._read()
             return output
-        except websockets.ConnectionClosed as e:  # type: ignore
+        except websockets.ConnectionClosed as e:
             # If the connection is closed, we need to reconnect
             self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
@@ -378,7 +378,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
             # create websocket connection
             ws = self._get_event_loop().run_until_complete(
-                websockets.connect(connection_str)  # type: ignore
+                websockets.connect(connection_str)
             )
 
             token = self._get_access_token()
@@ -1103,7 +1103,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     # Subroutine for applying route table to subnet.
     # We don't want to retry the entire routine if we
     # catch an exception in this section.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_update_subnet(
         self,
         virtual_network_name: str,
@@ -1139,7 +1139,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     # Subroutine to create the route table,
     # seperated because the create/apply process has multiple potential timeouts.
     # We don't want to restart the entire process if one step fails.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_create_route_table(
         self,
         em_first_hop: str,
@@ -1195,7 +1195,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         return route_table
 
-    @retry(tries=60, delay=10)
+    @retry(tries=60, delay=10)  # type: ignore
     def _check_sriov_enabled(
         self, enabled: bool, reset_connections: bool = True
     ) -> None:

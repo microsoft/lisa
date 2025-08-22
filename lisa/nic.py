@@ -299,7 +299,7 @@ class Nics(InitializableMixin):
         self.nics.clear()
         self._initialize()
 
-    @retry(tries=15, delay=3, backoff=1.15)
+    @retry(tries=15, delay=3, backoff=1.15)  # type: ignore
     def check_pci_enabled(self, pci_enabled: bool) -> None:
         self.reload()
         if pci_enabled:

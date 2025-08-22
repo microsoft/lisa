@@ -40,7 +40,7 @@ from lisa.util import (
 T = TypeVar("T")
 
 
-class ListableValidator(validate.Validator):
+class ListableValidator(validate.Validator):  # type: ignore[misc]
     default_message = ""
 
     def __init__(
@@ -96,7 +96,7 @@ class ListableValidator(validate.Validator):
 @dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class ExtendableSchemaMixin:
-    extended_schemas: CatchAll = field(default_factory=dict)  # type: ignore
+    extended_schemas: CatchAll = field(default_factory=dict)
 
     def get_extended_runbook(self, runbook_type: Type[T], type_name: str = "") -> T:
         """

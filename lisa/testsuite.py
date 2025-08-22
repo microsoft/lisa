@@ -12,7 +12,7 @@ from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
-from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_timeout
 from retry import retry
 
 from lisa import notifier, schema, search_space
@@ -296,6 +296,7 @@ class TestResult:
     def get_case_log_path(self) -> Path:
         if not self._case_log_path:
             self._case_log_path = self.__create_case_log_path()
+        assert self._case_log_path, "case log path is not set"
         return self._case_log_path
 
     def _get_log_file_handler(self) -> logging.FileHandler:
@@ -376,7 +377,7 @@ class TestResult:
 
         notifier.notify(result_message)
 
-    @retry(exceptions=FileExistsError, tries=30, delay=0.1)
+    @retry(exceptions=FileExistsError, tries=30, delay=0.1)  # type: ignore
     def __create_case_log_path(self) -> Path:
         case_name = self.runtime_data.name
         while True:

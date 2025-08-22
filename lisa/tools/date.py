@@ -27,7 +27,7 @@ class Date(Tool):
         command_result.assert_exit_code(
             0, f"'Date' return non-zero exit code: {command_result.stderr}"
         )
-        return parser().parse(command_result.stdout)
+        return parser().parse(command_result.stdout)  # type: ignore
 
     def set(self, new_date: datetime) -> None:
         self.run(

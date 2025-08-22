@@ -262,7 +262,7 @@ class AzSecPack(TestSuite):
             ).is_equal_to(True)
             log.info(f"{mdsd_service} is running successfully")
 
-    @retry(tries=5, delay=10)
+    @retry(tries=5, delay=10)  # type:ignore
     def _check_azsec_services_status(self, node: Node, log: Logger) -> None:
         service = node.tools[Service]
         azsec_services = ["azsecd", "azsecmond", "auoms"]
@@ -272,7 +272,7 @@ class AzSecPack(TestSuite):
             ).is_equal_to(True)
             log.info(f"{azsec_service} is running successfully")
 
-    @retry(tries=20, delay=30)
+    @retry(tries=20, delay=30)  # type:ignore
     def _check_azsecd_status(self, node: Node, log: Logger) -> None:
         azsecd = node.tools[Azsecd]
         output = azsecd.run(
@@ -301,7 +301,7 @@ class AzSecPack(TestSuite):
                 )
         log.info("Azsecd status is checked successfully")
 
-    @retry(tries=5, delay=10)
+    @retry(tries=5, delay=10)  # type:ignore
     def _check_azsecd_scanners(self, node: Node, log: Logger) -> None:
         azsecd = node.tools[Azsecd]
         scanners = ["heartbeat", "time", "certsinuse"]
@@ -313,7 +313,7 @@ class AzSecPack(TestSuite):
                     " Please check if azsecd scanner is running successfully."
                 )
 
-    @retry(tries=5, delay=10)
+    @retry(tries=5, delay=10)  # type:ignore
     def _check_journalctl_logs(self, node: Node, log: Logger) -> None:
         journalctl = node.tools[Journalctl]
         output = journalctl.logs_for_unit("azsecmond", sudo=True)

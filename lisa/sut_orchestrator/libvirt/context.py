@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-import libvirt  # type: ignore
+import libvirt
 
 from lisa.environment import Environment
 from lisa.node import Node

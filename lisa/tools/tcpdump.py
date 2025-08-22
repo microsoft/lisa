@@ -59,7 +59,7 @@ class TcpDump(Tool):
 
     # It may be called too fast, and the capture file may not be ready.
     # Use retry to wait it completed.
-    @retry(tries=3, delay=1)
+    @retry(tries=3, delay=1)  # type: ignore
     def parse(self, packet_filename: str = "tcp_dump.pcap") -> List[IpPacket]:
         full_name = self.get_tool_path() / packet_filename
         # -n not resolve address to domain name.

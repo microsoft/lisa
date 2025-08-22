@@ -8,7 +8,7 @@ from pathlib import Path, PurePath, PurePosixPath
 from time import sleep
 from typing import TYPE_CHECKING, Any, List, Type, cast
 
-from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_set_timeout
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Service, Wget

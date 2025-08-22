@@ -639,7 +639,7 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
     return total / (len(values) - 2)
 
 
-@retry(exceptions=AssertionError, tries=30, delay=2)
+@retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()
