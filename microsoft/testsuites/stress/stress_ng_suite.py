@@ -24,23 +24,6 @@ from lisa.util.logger import Logger
 from lisa.util.process import Process
 
 
-def get_stress_ng_config_from_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Get stress-ng configuration from runbook variables.
-    
-    Args:
-        variables: Dictionary of runbook variables
-        
-    Returns:
-        Dictionary containing node_count, cpu_count, and memory_mb
-    """
-    return {
-        "node_count": variables.get("stress_ng_node_count", 2),
-        "cpu_count": variables.get("stress_ng_cpu_count", 1),
-        "memory_mb": variables.get("stress_ng_memory_mb", 1024),
-    }
-
-
 @TestSuiteMetadata(
     area="stress-ng",
     category="stress",
@@ -153,9 +136,9 @@ class StressNgTestSuite(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
-            min_count=int("$(stress_ng_node_count)"),
-            min_core_count=int("$(stress_ng_cpu_count)"),
-            min_memory_mb=int("$(stress_ng_memory_mb)"),
+            min_count=2,
+            min_core_count=1,
+            min_memory_mb=1024,
         ),
     )
     def multi_vm_stress_test(
@@ -167,27 +150,21 @@ class StressNgTestSuite(TestSuite):
     ) -> None:
         """
         Execute multi-VM stress test across multiple VMs.
-        VM allocation is controlled by runbook variables passed at runtime.
+        The runbook controls the actual VM deployment based on variables.
+        This test simply uses whatever environment is provided.
         """
 
-        # Get stress-ng configuration from variables
-        stress_ng_config = get_stress_ng_config_from_variables(variables)
-
-        log.debug(
-            f"Dynamic config detected at import: "
-            f"{stress_ng_config['node_count']} nodes, "
-            f"{stress_ng_config['cpu_count']} CPU, "
-            f"{stress_ng_config['memory_mb']} MB"
-        )
-
-        # Validate we have at least 2 VMs for meaningful multi-VM testing
-        expected_vm_count = stress_ng_config["node_count"]
-        if expected_vm_count < 2:
-            raise SkippedException(
-                f"Multi-VM stress test requires at least 2 VMs, "
-                f"but configuration specifies only {expected_vm_count} VM(s). "
-                f"Check test requirement and resources."
-            )
+        log.info(f"Running multi-VM stress test on {len(environment.nodes)} nodes")
+        
+        # Debug: Show key configuration details
+        log.info("=== DEBUG: Configuration ===")
+        log.info(f"  Nodes: {len(environment.nodes)}")
+        node_count_var = variables.get('stress_ng_node_count', 'Not set')
+        log.info(f"  stress_ng_node_count: {node_count_var}")
+        for i, node in enumerate(environment.nodes.list()):
+            cpu = node.capability.core_count
+            memory = node.capability.memory_mb
+            log.info(f"  Node {i + 1}: CPU={cpu}, Memory={memory}MB")
 
         # Execute the stress test
         if self.CONFIG_VARIABLE not in variables:
