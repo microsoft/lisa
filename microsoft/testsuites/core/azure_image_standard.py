@@ -937,7 +937,7 @@ class AzureImageStandard(TestSuite):
                     )
 
             # verify that at least five repositories are present in Redhat
-            if type(node.os) == Redhat:
+            if type(node.os) is Redhat:
                 fedora_repositories = find_patterns_in_lines(
                     node.execute("yum repolist all -q", sudo=True).stdout,
                     [self._redhat_repo_regex],
@@ -977,7 +977,7 @@ class AzureImageStandard(TestSuite):
                     is_repository_present,
                     f"{id_} repository should be present",
                 ).is_true()
-        elif type(node.os) == FreeBSD:
+        elif type(node.os) is FreeBSD:
             repositories = node.os.get_repositories()
             assert_that(
                 len(repositories),
