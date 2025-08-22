@@ -1654,6 +1654,7 @@ class AzurePlatform(Platform):
                         resource_group_name, environment, log, False
                     )
                     continue
+                break
             # Check if we exited the loop due to timeout
             if timer.elapsed(False) >= self._azure_runbook.provisioning_timeout:
                 self._save_console_log_and_check_panic(
