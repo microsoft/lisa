@@ -14,9 +14,9 @@ from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
 import paramiko
-import spur  # type: ignore
+import spur
 import spurplus
-from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_timeout
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
 from lisa import development, schema

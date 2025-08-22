@@ -7,7 +7,7 @@ from pathlib import Path
 from time import sleep
 from typing import Any, Optional, Type, cast
 
-from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_set_timeout
 
 from lisa.executable import Tool
 from lisa.features import SerialConsole

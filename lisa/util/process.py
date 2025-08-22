@@ -13,10 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import spur  # type: ignore
+import spur
 from assertpy.assertpy import AssertionBuilder, assert_that, fail
 from retry import retry
-from spur.errors import NoSuchCommandError  # type: ignore
+from spur.errors import NoSuchCommandError
 
 from lisa.util import (
     LisaException,

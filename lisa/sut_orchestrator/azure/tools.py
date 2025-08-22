@@ -6,7 +6,7 @@ from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
-from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool

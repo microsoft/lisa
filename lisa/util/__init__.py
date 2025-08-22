@@ -952,7 +952,7 @@ def to_bool(value: Union[str, bool, int]) -> bool:
     )
 
 
-@retry(tries=10, delay=0.5)
+@retry(tries=10, delay=0.5)  # type: ignore
 def get_public_ip() -> str:
     response = requests.get("https://api.ipify.org/", timeout=5)
     result = response.text

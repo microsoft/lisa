@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ETree
 from pathlib import Path
 from typing import Any, Optional, Type
 
-import redfish  # type: ignore
+import redfish
 from assertpy import assert_that
 
 from lisa import features, schema

@@ -16,8 +16,8 @@ from pathlib import Path, PurePosixPath
 from threading import Lock, Timer
 from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
-import libvirt  # type: ignore
-import pycdlib  # type: ignore
+import libvirt
+import pycdlib
 import yaml
 
 from lisa import feature, schema, search_space

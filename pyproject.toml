@@ -193,6 +193,9 @@ strict = true
 namespace_packages = true
 show_column_numbers = true
 explicit_package_bases = true
+# Only check your code, ignore third-party packages
+no_site_packages = true
+ignore_missing_imports = true
 
 
 [tool.setuptools]

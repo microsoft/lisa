@@ -19,31 +19,31 @@ from typing import (
     Union,
 )
 
-from dotenv import load_dotenv  # type: ignore
-from semantic_kernel import Kernel  # type: ignore
-from semantic_kernel.agents import (  # type: ignore
+from dotenv import load_dotenv
+from semantic_kernel import Kernel
+from semantic_kernel.agents import (
     ChatCompletionAgent,
     MagenticOrchestration,
     StandardMagenticManager,
 )
-from semantic_kernel.agents.agent import AgentResponseItem, AgentThread  # type: ignore
-from semantic_kernel.agents.runtime import InProcessRuntime  # type: ignore
-from semantic_kernel.connectors.ai.azure_ai_inference import (  # type: ignore
+from semantic_kernel.agents.agent import AgentResponseItem, AgentThread
+from semantic_kernel.agents.runtime import InProcessRuntime
+from semantic_kernel.connectors.ai.azure_ai_inference import (
     AzureAIInferenceTextEmbedding,
 )
-from semantic_kernel.connectors.ai.chat_completion_client_base import (  # type: ignore
+from semantic_kernel.connectors.ai.chat_completion_client_base import (
     ChatCompletionClientBase,
 )
-from semantic_kernel.connectors.ai.function_choice_behavior import (  # type: ignore
+from semantic_kernel.connectors.ai.function_choice_behavior import (
     FunctionChoiceBehavior,
 )
-from semantic_kernel.connectors.ai.open_ai import (  # type: ignore
+from semantic_kernel.connectors.ai.open_ai import (
     AzureChatCompletion,
     AzureChatPromptExecutionSettings,
 )
-from semantic_kernel.contents import AuthorRole, ChatMessageContent  # type: ignore
-from semantic_kernel.functions import KernelArguments, kernel_function  # type: ignore
-from semantic_kernel.utils.logging import setup_logging  # type: ignore
+from semantic_kernel.contents import AuthorRole, ChatMessageContent
+from semantic_kernel.functions import KernelArguments, kernel_function
+from semantic_kernel.utils.logging import setup_logging
 
 # Constants used in the code
 VERBOSITY_LENGTH_THRESHOLD = 1000  # Max length for verbose log messages

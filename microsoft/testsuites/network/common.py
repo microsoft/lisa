@@ -12,7 +12,7 @@ from lisa.operating_system import BSD
 from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ping, Ssh
 
 
-@retry(exceptions=AssertionError, tries=30, delay=2)
+@retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
 def initialize_nic_info(
     environment: Environment, is_sriov: bool = True
 ) -> Dict[str, Dict[str, NicInfo]]:
@@ -62,7 +62,7 @@ def initialize_nic_info(
     return vm_nics
 
 
-@retry(exceptions=AssertionError, tries=150, delay=2)
+@retry(exceptions=AssertionError, tries=150, delay=2)  # type:ignore
 def sriov_basic_test(environment: Environment) -> None:
     for node in environment.nodes.list():
         # 1. Check VF counts listed from lspci is expected.

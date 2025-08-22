@@ -22,7 +22,7 @@ class Docker(Tool):
     def can_install(self) -> bool:
         return True
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def build_image(self, image_name: str, dockerfile: str) -> None:
         # alpine image build need to specify '--network host'
         self.run(
