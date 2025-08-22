@@ -2606,9 +2606,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        if image.security_profile:
-            return SecurityProfileSettings(security_profile=image.security_profile)
-        return None
+        return SecurityProfileSettings(security_profile=image.security_profile)
 
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
@@ -3486,9 +3484,7 @@ class Architecture(AzureFeatureMixin, Feature):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        if image.architecture:
-            return ArchitectureSettings(arch=image.architecture)
-        return None
+        return ArchitectureSettings(arch=image.architecture)
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
