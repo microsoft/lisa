@@ -1654,7 +1654,6 @@ class AzurePlatform(Platform):
                         resource_group_name, environment, log, False
                     )
                     continue
-                break
             # Check if we exited the loop due to timeout
             if timer.elapsed(False) >= self._azure_runbook.provisioning_timeout:
                 self._save_console_log_and_check_panic(
@@ -2980,9 +2979,11 @@ class AzurePlatform(Platform):
 
         allowed_types = azure_runbook.image.disk_controller_type
         if node_space.disk.disk_controller_type:
+            # Note: azure_runbook.image.disk_controller_type may be None
+            # so it must be passed in as requirement, not capability
             allowed_types = search_space.intersect_setspace_by_priority(
-                node_space.disk.disk_controller_type,  # type: ignore
                 azure_runbook.image.disk_controller_type,  # type: ignore
+                node_space.disk.disk_controller_type,  # type: ignore
                 [],
             )
         node_space.disk.disk_controller_type = allowed_types

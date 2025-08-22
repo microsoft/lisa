@@ -407,7 +407,7 @@ class LisaRunner(BaseRunner):
                     f"'{environment.name}': {e}"
                 )
         tested_environment.nodes.close()
-
+        self._log.debug(f"environment status after test run: {environment.status}")
         # keep failed environment, not to delete
         if (
             test_result.status == TestStatus.FAILED
