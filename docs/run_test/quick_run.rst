@@ -117,5 +117,18 @@ Linux VM on Azure.
    .. figure:: ../img/smoke_test_result.png
       :alt: image
 
+#. Test specific cases with debug runbook
+
+   LISA provides a debug runbook to run specific test cases by name. This is useful for debugging and testing individual cases.
+
+   Simple example with case and origin:
+
+   .. code:: bash
+
+      lisa -r microsoft/runbook/debug.yml \
+        -v "case:hello" \
+        -v "origin:azure.yml" \
+        -v subscription_id:<subscription id>
+
 .. note::
    See :doc:`Run LISA <run>` for more advanced usages.
