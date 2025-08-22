@@ -153,9 +153,9 @@ class StressNgTestSuite(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
-            min_count="$(stress_ng_node_count)",
-            min_core_count="$(stress_ng_cpu_count)",
-            min_memory_mb="$(stress_ng_memory_mb)",
+            min_count=int("$(stress_ng_node_count)"),
+            min_core_count=int("$(stress_ng_cpu_count)"),
+            min_memory_mb=int("$(stress_ng_memory_mb)"),
         ),
     )
     def multi_vm_stress_test(
@@ -171,17 +171,17 @@ class StressNgTestSuite(TestSuite):
         """
 
         # Get stress-ng configuration from variables
-        STRESS_NG_CONFIG = get_stress_ng_config_from_variables(variables)
+        stress_ng_config = get_stress_ng_config_from_variables(variables)
 
         log.debug(
             f"Dynamic config detected at import: "
-            f"{STRESS_NG_CONFIG['node_count']} nodes, "
-            f"{STRESS_NG_CONFIG['cpu_count']} CPU, "
-            f"{STRESS_NG_CONFIG['memory_mb']} MB"
+            f"{stress_ng_config['node_count']} nodes, "
+            f"{stress_ng_config['cpu_count']} CPU, "
+            f"{stress_ng_config['memory_mb']} MB"
         )
 
         # Validate we have at least 2 VMs for meaningful multi-VM testing
-        expected_vm_count = STRESS_NG_CONFIG["node_count"]
+        expected_vm_count = stress_ng_config["node_count"]
         if expected_vm_count < 2:
             raise SkippedException(
                 f"Multi-VM stress test requires at least 2 VMs, "
