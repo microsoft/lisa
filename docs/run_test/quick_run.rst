@@ -127,7 +127,7 @@ Linux VM on Azure.
 
       lisa -r microsoft/runbook/debug.yml \
         -v "case:hello" \
-        -v "origin:microsoft/runbook/azure.yml" \
+        -v "origin:azure.yml" \
         -v subscription_id:<subscription id>
 
 .. note::
