@@ -55,7 +55,7 @@ class CloudHypervisorTestSuite(TestSuite):
         log.debug(f"Journalctl Docker Logs: {docker_log}")
 
         dmesg = node.tools[Dmesg]
-        dmesg_log = dmesg.get_output(force_run=True)
+        dmesg_log = dmesg.get_output(no_debug_log=True, force_run=True)
         log.debug(f"Dmesg Logs: {dmesg_log}")
 
     @TestCaseMetadata(
