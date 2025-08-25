@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 import time
 import uuid
 from pathlib import Path
@@ -224,7 +225,9 @@ class Modprobe(Tool):
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
         )
-        module_path = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        module_path = re.escape(
+            self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        )
         rmmod_count = int(
             self.node.execute(
                 f"grep -E 'rmmod {mod_name}' {nohup_output_log_file_name} | wc -l",
