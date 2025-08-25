@@ -132,7 +132,7 @@ class Modprobe(Tool):
         verbose: bool = False,
         timeout: int = 60,
         interface: str = "eth0",
-        cleanup_logs: bool = True,
+        cleanup_logs: bool = False,
     ) -> Dict[str, int]:
         lsmod_tool = self.node.tools[Lsmod]
         module_exists = lsmod_tool.module_exists(
@@ -195,6 +195,8 @@ class Modprobe(Tool):
         while (timer.elapsed(False) < timeout) or tried_times < 1:
             tried_times += 1
             try:
+                self._log.info(f"Reading {nohup_output_log_file_name} for the {tried_times}th time...")
+                cat.read(nohup_output_log_file_name, force_run=True)
                 pid = cat.read(loop_process_pid_file_name, force_run=True)
                 r = self.node.execute(
                     f"ps -p {pid} > /dev/null && echo 'running' || echo 'not_running'",
@@ -235,10 +237,10 @@ class Modprobe(Tool):
         #  | wc -l
         # in order to get the correct count of insmod commands executed.
 
-        module_path = re.escape(
-            self.node.tools[Modinfo].get_filename(mod_name=mod_name)
-        )
-
+        file_path = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        self._log.debug(f"Module {mod_name} is located at: {file_path}")
+        module_path = re.escape(file_path)
+        print(f"module_path: {module_path}")
         rmmod_count = int(
             self.node.execute(
                 f"grep -E 'rmmod {mod_name}' {nohup_output_log_file_name} | wc -l",
