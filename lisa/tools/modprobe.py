@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import time
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
@@ -224,7 +225,7 @@ class Modprobe(Tool):
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
         )
-        module_path = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        module_path = re.escape(self.node.tools[Modinfo].get_filename(mod_name=mod_name))
         rmmod_count = int(
             self.node.execute(
                 f"grep -E 'rmmod {mod_name}' {nohup_output_log_file_name} | wc -l",
@@ -255,12 +256,12 @@ class Modprobe(Tool):
             ).stdout.strip()
         )
 
-        if cleanup_logs:
-            self.node.execute(
-                f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
-                sudo=True,
-                shell=True,
-            )
+        # if cleanup_logs:
+        #     self.node.execute(
+        #         f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
+        #         sudo=True,
+        #         shell=True,
+        #     )
 
         return {
             "module_exists": True,
