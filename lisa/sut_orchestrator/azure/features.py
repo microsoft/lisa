@@ -1910,6 +1910,32 @@ class Disk(AzureFeatureMixin, features.Disk):
         assert matched[0], "not found the matched disk label"
         return list(set(matched[0]))
 
+    @retry((HttpResponseError, ResourceExistsError), tries=3, delay=3, backoff=1.3)
+    def _update_vm_with_retry(self, compute_client: Any, vm: Any) -> None:
+        """
+        Updates a VM with retry logic to handle concurrent request conflicts.
+        """
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+            self._resource_group_name,
+            vm.name,
+            vm,
+        )
+        async_vm_update.wait()
+
+    @retry((HttpResponseError, ResourceExistsError), tries=3, delay=3, backoff=1.3)
+    def _create_managed_disk_with_retry(
+        self, compute_client: Any, name: str, disk_config: Dict[str, Any]
+    ) -> Any:
+        """
+        Creates a managed disk with retry logic to handle concurrent request conflicts.
+        """
+        async_disk_update = compute_client.disks.begin_create_or_update(
+            self._resource_group_name,
+            name,
+            disk_config,
+        )
+        return async_disk_update.result()
+
     def add_data_disk(
         self,
         count: int,
@@ -1936,17 +1962,16 @@ class Disk(AzureFeatureMixin, features.Disk):
         managed_disks = []
         for i in range(count):
             name = f"lisa_data_disk_{i+current_disk_count}_{self._node.name}"
-            async_disk_update = compute_client.disks.begin_create_or_update(
-                self._resource_group_name,
-                name,
-                {
-                    "location": node_context.location,
-                    "disk_size_gb": size_in_gb,
-                    "sku": {"name": disk_sku},
-                    "creation_data": {"create_option": DiskCreateOption.empty},
-                },
+            disk_config = {
+                "location": node_context.location,
+                "disk_size_gb": size_in_gb,
+                "sku": {"name": disk_sku},
+                "creation_data": {"create_option": DiskCreateOption.empty},
+            }
+            managed_disk = self._create_managed_disk_with_retry(
+                compute_client, name, disk_config
             )
-            managed_disks.append(async_disk_update.result())
+            managed_disks.append(managed_disk)
 
         # attach managed disk
         azure_platform: AzurePlatform = self._platform  # type: ignore
@@ -1967,12 +1992,7 @@ class Disk(AzureFeatureMixin, features.Disk):
             )
 
         # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
+        self._update_vm_with_retry(compute_client, vm)
 
         # update data disk count
         add_disk_names = [managed_disk.name for managed_disk in managed_disks]
@@ -1999,12 +2019,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         data_disks[:] = [disk for disk in data_disks if disk.name not in names]
 
         # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
+        self._update_vm_with_retry(compute_client, vm)
 
         # delete managed disk
         for name in names:
