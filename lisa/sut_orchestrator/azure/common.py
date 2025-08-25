@@ -2274,13 +2274,27 @@ def get_primary_ip_addresses(
         nic_name = get_matched_str(network_interface.id, NIC_NAME_PATTERN)
         nic = network_client.network_interfaces.get(resource_group_name, nic_name)
         if nic.primary:
+            # Check if IPv6 is actually enabled on the NIC
+            # if its enabled, use it as internal ip.
+            ipv6_enabled = any(
+                ip_config.private_ip_address_version == IpProtocol.ipv6
+                for ip_config in nic.ip_configurations
+            )
             if use_ipv6:
                 nic_index = 1
 
             ip_config = nic.ip_configurations[nic_index]
             if use_ipv6 and ip_config.private_ip_address_version != IpProtocol.ipv6:
                 raise LisaException(f"private address is not IPv6 in nic {nic.name}")
-            private_ip = ip_config.private_ip_address
+
+            # If IPv6 is actually enabled on the NIC, use it as the internal IP.
+            # Public IP can continue to be IPv4.
+            if ipv6_enabled:
+                ipv6_nic_index = 1
+                ipv6_config = nic.ip_configurations[ipv6_nic_index]
+                private_ip = ipv6_config.private_ip_address
+            else:
+                private_ip = ip_config.private_ip_address
 
             if create_public_address:
                 if not ip_config.public_ip_address:
