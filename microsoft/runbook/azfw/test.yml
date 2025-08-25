@@ -5,9 +5,9 @@ variable:
   - name: location
     value: "westus2"
   - name: rgname
-    value: "setupazfwthreesubnetretry200"
+    value: "setupazfwthreesubnetretry278"
   - name: imagename
-    value: "MicrosoftCBLMariner:cbl-mariner:cbl-mariner-2-gen2:2.20250429.01"
+    value: "MicrosoftCBLMariner:azure-linux-3:azure-linux-3-gen2:3.20250311.01"
   - name: deploy
     value: true
   - name: concurrency
