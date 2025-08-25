@@ -2545,14 +2545,6 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
 
 
 class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
-    # Convert Security Profile Setting to Arm Parameter Value
-    _security_profile_mapping = {
-        SecurityProfileType.Standard: "",
-        SecurityProfileType.SecureBoot: "TrustedLaunch",
-        SecurityProfileType.CVM: "ConfidentialVM",
-        SecurityProfileType.Stateless: "ConfidentialVM",
-    }
-
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
@@ -2618,42 +2610,81 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         assert len(environment.nodes._list) == len(arm_parameters.nodes)
         for node, node_parameters in zip(environment.nodes._list, arm_parameters.nodes):
             assert node.capability.features
+
             security_profile = [
                 feature_setting
                 for feature_setting in node.capability.features.items
                 if feature_setting.type == FEATURE_NAME_SECURITY_PROFILE
             ]
-            if security_profile:
-                settings = security_profile[0]
-                assert isinstance(settings, SecurityProfileSettings)
-                assert isinstance(settings.security_profile, SecurityProfileType)
-                assert isinstance(settings.encrypt_disk, bool)
-                node_parameters.security_profile[
-                    "security_type"
-                ] = cls._security_profile_mapping[settings.security_profile]
-                if settings.security_profile == SecurityProfileType.Stateless:
-                    node_parameters.security_profile["secure_boot"] = False
-                    node_parameters.security_profile[
-                        "encryption_type"
-                    ] = "NonPersistedTPM"
+            if not security_profile:
+                continue
+
+            settings = security_profile[0]
+            assert isinstance(settings, SecurityProfileSettings)
+            assert isinstance(settings.security_profile, SecurityProfileType)
+            assert isinstance(settings.encrypt_disk, bool)
+
+            # Set Security Type and Encryption Type
+            # microsoft.compute/virtualmachines
+            #     SecurityProfile.securityType =
+            #         {'TrustedLaunch', 'ConfidentialVM', ''}
+            #     VMDiskSecurityProfile.securityEncryptionType =
+            #         {'DiskWithVMGuestState', 'NonPersistedTPM', 'VMGuestStateOnly'}
+            # microsoft.compute/disks (Replaces VMDiskSecurityProfile for VHDs)
+            #     DiskSecurityProfile.securityType =
+            #         {ConfidentialVM_DiskEncryptedWithCustomerKey',
+            #         'ConfidentialVM_DiskEncryptedWithPlatformKey',
+            #         'ConfidentialVM_NonPersistedTPM',
+            #         'ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey',
+            #         'TrustedLaunch'}
+            is_vhd = bool(node_parameters.vhd)
+            if SecurityProfileType.Standard == settings.security_profile:
+                node_parameters.security_profile["security_type"] = ""
+            elif SecurityProfileType.SecureBoot == settings.security_profile:
+                node_parameters.security_profile["secure_boot"] = True
+                node_parameters.security_profile["security_type"] = "TrustedLaunch"
+                node_parameters.security_profile["encryption_type"] = "TrustedLaunch"
+            elif SecurityProfileType.Stateless == settings.security_profile:
+                node_parameters.security_profile["secure_boot"] = False
+                node_parameters.security_profile["security_type"] = "ConfidentialVM"
+                node_parameters.security_profile["encryption_type"] = (
+                    "ConfidentialVM_NonPersistedTPM" if is_vhd else "NonPersistedTPM"
+                )
+            elif SecurityProfileType.CVM == settings.security_profile:
+                node_parameters.security_profile["secure_boot"] = True
+                node_parameters.security_profile["security_type"] = "ConfidentialVM"
+                if settings.encrypt_disk:
+                    if settings.disk_encryption_set_id:
+                        node_parameters.security_profile["encryption_type"] = (
+                            "ConfidentialVM_DiskEncryptedWithCustomerKey"
+                            if is_vhd
+                            else "DiskWithVMGuestState"
+                        )
+                    else:
+                        node_parameters.security_profile["encryption_type"] = (
+                            "ConfidentialVM_DiskEncryptedWithPlatformKey"
+                            if is_vhd
+                            else "DiskWithVMGuestState"
+                        )
                 else:
-                    node_parameters.security_profile["secure_boot"] = True
                     node_parameters.security_profile["encryption_type"] = (
-                        "DiskWithVMGuestState"
-                        if settings.encrypt_disk
+                        "ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey"
+                        if is_vhd
                         else "VMGuestStateOnly"
                     )
-                node_parameters.security_profile[
-                    "disk_encryption_set_id"
-                ] = settings.disk_encryption_set_id
 
-                if node_parameters.security_profile["security_type"] == "":
-                    node_parameters.security_profile.clear()
-                elif 1 == node_parameters.hyperv_generation:
-                    raise SkippedException(
-                        f"{settings.security_profile} "
-                        "can only be set on gen2 image/vhd."
-                    )
+            # Disk Encryption Set ID
+            node_parameters.security_profile[
+                "disk_encryption_set_id"
+            ] = settings.disk_encryption_set_id
+
+            # Return Skipped Exception if security profile is set on Gen 1 VM
+            if node_parameters.security_profile["security_type"] == "":
+                node_parameters.security_profile.clear()
+            elif 1 == node_parameters.hyperv_generation:
+                raise SkippedException(
+                    f"{settings.security_profile} " "can only be set on gen2 image/vhd."
+                )
 
 
 availability_type_priority: List[AvailabilityType] = [

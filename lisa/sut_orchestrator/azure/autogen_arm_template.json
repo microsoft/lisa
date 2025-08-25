@@ -5,15 +5,15 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.33.93.31351",
-      "templateHash": "9070223824614413840"
+      "version": "0.37.4.10188",
+      "templateHash": "16291477761159155605"
     }
   },
   "functions": [
     {
       "namespace": "__bicep",
       "members": {
-        "isCvm": {
+        "isCvmVhd": {
           "parameters": [
             {
               "type": "object",
@@ -22,7 +22,7 @@
           ],
           "output": {
             "type": "bool",
-            "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.vmgs_path))))]"
+            "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.cvm_gueststate_path))))]"
           }
         },
         "isVhd": {
@@ -335,7 +335,7 @@
           "output": {
             "type": "object",
             "nullable": true,
-            "value": "[if(__bicep.isCvm(parameters('node')), null(), __bicep.generateOsProfile(parameters('node'), parameters('admin_username'), parameters('admin_password'), parameters('admin_key_data')))]"
+            "value": "[if(__bicep.isCvmVhd(parameters('node')), null(), __bicep.generateOsProfile(parameters('node'), parameters('admin_username'), parameters('admin_password'), parameters('admin_key_data')))]"
           }
         },
         "getImageReference": {
@@ -348,7 +348,7 @@
           "output": {
             "type": "object",
             "nullable": true,
-            "value": "[if(__bicep.isCvm(parameters('node')), null(), __bicep.generateImageReference(parameters('node')))]"
+            "value": "[if(__bicep.isCvmVhd(parameters('node')), null(), __bicep.generateImageReference(parameters('node')))]"
           }
         },
         "getSecurityProfile": {
@@ -394,7 +394,7 @@
           ],
           "output": {
             "type": "object",
-            "value": "[if(__bicep.isCvm(parameters('node')), __bicep.getOSDisk(format('{0}-disk', parameters('node').name)), if(equals(parameters('node').os_disk_type, 'Ephemeral'), __bicep.getEphemeralOSImage(parameters('node')), __bicep.getOSImage(parameters('node'))))]"
+            "value": "[if(__bicep.isCvmVhd(parameters('node')), __bicep.getOSDisk(format('{0}-disk', parameters('node').name)), if(equals(parameters('node').os_disk_type, 'Ephemeral'), __bicep.getEphemeralOSImage(parameters('node')), __bicep.getOSImage(parameters('node'))))]"
           }
         },
         "getAvailabilitySetId": {
@@ -711,7 +711,7 @@
         "name": "nodes_image",
         "count": "[length(range(0, variables('node_count')))]"
       },
-      "condition": "[and(__bicep.isVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]), empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vmgs_path))]",
+      "condition": "[and(__bicep.isVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]), empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_gueststate_path))]",
       "type": "Microsoft.Compute/images",
       "apiVersion": "2019-03-01",
       "name": "[format('{0}-image', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
@@ -734,25 +734,27 @@
         "name": "nodes_disk",
         "count": "[length(range(0, variables('node_count')))]"
       },
-      "condition": "[__bicep.isCvm(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
+      "condition": "[__bicep.isCvmVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
       "type": "Microsoft.Compute/disks",
-      "apiVersion": "2021-04-01",
+      "apiVersion": "2025-01-02",
       "name": "[format('{0}-disk', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "Standard_LRS"
+        "name": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].os_disk_type]"
       },
       "properties": {
         "osType": "Linux",
         "hyperVGeneration": "[format('V{0}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].hyperv_generation)]",
         "securityProfile": {
-          "securityType": "ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey"
+          "securityType": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].security_profile.encryption_type]",
+          "secureVMDiskEncryptionSetId": "[if(empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].security_profile.disk_encryption_set_id), null(), parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].security_profile.disk_encryption_set_id)]"
         },
         "creationData": {
           "createOption": "ImportSecure",
           "storageAccountId": "[resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('vhd_storage_name'))]",
-          "securityDataUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vmgs_path]",
+          "securityDataUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_gueststate_path]",
+          "securityMetadataUri": "[if(empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_metadata_path), null(), parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_metadata_path)]",
           "sourceUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vhd_path]"
         }
       },
@@ -896,8 +898,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.33.93.31351",
-              "templateHash": "6914571954054027821"
+              "version": "0.37.4.10188",
+              "templateHash": "17932923534203698710"
             }
           },
           "functions": [
