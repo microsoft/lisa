@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
@@ -131,11 +132,11 @@ class Lagscope(Tool, KillableMixin):
         for key in self._busy_pool_keys:
             sysctl.write(key, self._original_settings[key])
 
-    def run_as_server_async(self, ip: str = "", use_ipv6: bool = False) -> Process:
+    def run_as_server_async(self, ip: str = "") -> Process:
         # -r: run as a receiver
         # -rip: run as server mode with specified ip address
         cmd = ""
-        if use_ipv6:
+        if ipaddress.ip_address(ip).version == 6:
             cmd += " -6"
         if ip:
             cmd += f" -r{ip}"
@@ -162,7 +163,6 @@ class Lagscope(Tool, KillableMixin):
         count_of_histogram_intervals: int = 30,
         dump_csv: bool = True,
         daemon: bool = False,
-        use_ipv6: bool = False,
     ) -> Process:
         # -s: run as a sender
         # -i: test interval
@@ -176,7 +176,7 @@ class Lagscope(Tool, KillableMixin):
         # -R: dumps raw latencies into csv file
         # -D: run as daemon
         cmd = f"{self.command} -s{server_ip} "
-        if use_ipv6:
+        if ipaddress.ip_address(server_ip).version == 6:
             cmd += " -6 "
         if run_time_seconds:
             cmd += f" -t{run_time_seconds} "
@@ -397,7 +397,7 @@ class BSDLagscope(Lagscope):
         # This is not supported on FreeBSD.
         return
 
-    def run_as_server_async(self, ip: str = "", use_ipv6: bool = False) -> Process:
+    def run_as_server_async(self, ip: str = "") -> Process:
         return self.node.tools[Sockperf].start_server_async("tcp")
 
     def run_as_client_async(
@@ -413,7 +413,6 @@ class BSDLagscope(Lagscope):
         count_of_histogram_intervals: int = 30,
         dump_csv: bool = True,
         daemon: bool = False,
-        use_ipv6: bool = False,
     ) -> Process:
         return self.node.tools[Sockperf].run_client_async("tcp", server_ip)
 

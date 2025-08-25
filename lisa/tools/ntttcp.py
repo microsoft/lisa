@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 import re
 import time
 from decimal import Decimal
@@ -213,10 +214,9 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
-        use_ipv6: bool = False,
     ) -> Process:
         cmd = ""
-        if use_ipv6:
+        if ipaddress.ip_address(server_ip).version == 6:
             cmd += " -6 "
         if server_ip:
             cmd += f" -r{server_ip} "
@@ -311,7 +311,6 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
-        use_ipv6: bool = False,
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -331,7 +330,7 @@ class Ntttcp(Tool):
         # Examples for differentiator: Hyper-V PCIe MSI, mlx4, Hypervisor callback
         # interrupts
         cmd = ""
-        if use_ipv6:
+        if ipaddress.ip_address(server_ip).version == 6:
             cmd += " -6 "
         cmd += (
             f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
