@@ -173,6 +173,7 @@ DiskType = Enum(
         "localssd",
         "premiumv2ssd",
         "ultradisk",
+        "standardssd",
     ],
 )
 
