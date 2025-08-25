@@ -35,7 +35,7 @@ class SystemdAnalyze(Tool):
     def can_install(self) -> bool:
         return False
 
-    @retry(exceptions=LisaException, tries=30, delay=2)
+    @retry(exceptions=LisaException, tries=30, delay=2)  # type: ignore
     def get_boot_time(self, force_run: bool = True) -> ProvisionBootTimeMessage:
         result = self.run(
             parameters="time",

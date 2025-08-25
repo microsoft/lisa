@@ -1017,7 +1017,7 @@ class Debian(Linux):
     def clean_package_cache(self) -> None:
         self._node.execute("apt-get clean", sudo=True, shell=True)
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def remove_repository(
         self,
         repo: str,
@@ -1039,7 +1039,7 @@ class Debian(Linux):
         # So, it's needed to run apt update after remove repository.
         self._node.execute("apt-get update", sudo=True)
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def add_repository(
         self,
         repo: str,
@@ -1059,7 +1059,7 @@ class Debian(Linux):
         apt_repo.add_repository(repo)
 
         # apt update will not be triggered on Debian during add repo
-        if type(self._node.os) == Debian:
+        if type(self._node.os) is Debian:
             self._node.execute("apt-get update", sudo=True)
 
     def is_end_of_life_release(self) -> bool:
@@ -1178,7 +1178,7 @@ class Debian(Linux):
         # vim                                             deinstall
         # vim-common                                      install
         # auoms                                           hold
-        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")
+        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")  # noqa: E201
         if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
             return True
         return False
@@ -1358,6 +1358,11 @@ class Ubuntu(Debian):
         self._node.execute("cloud-init status --wait", sudo=True)
 
     def _get_information(self) -> OsInformation:
+        vendor = ""
+        release = ""
+        codename = ""
+        full_version = ""
+
         cmd_result = self._node.execute(
             cmd="lsb_release -a",
             shell=True,
@@ -1507,7 +1512,7 @@ class FreeBSD(BSD):
 
         return repositories
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def _install_packages(
         self,
         packages: List[str],
@@ -1529,7 +1534,7 @@ class FreeBSD(BSD):
             f"please check the package name and repo are correct or not.\n",
         )
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def _initialize_package_installation(self) -> None:
         result = self._node.execute("env ASSUME_ALWAYS_YES=yes pkg update", sudo=True)
         result.assert_exit_code(message="fail to run pkg update")
@@ -1631,7 +1636,7 @@ class RPMDistro(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
-    @retry(tries=3, delay=1)
+    @retry(tries=3, delay=1)  # type: ignore
     def _install_packages(
         self,
         packages: List[str],
@@ -1853,7 +1858,7 @@ class Redhat(Fedora):
             sudo=True,
         )
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
         if "Red Hat" == information.vendor:

@@ -69,7 +69,7 @@ class VirtualClient(TestSuite):
             raise SkippedException(
                 f"Virtual Client PostgreSQL doesn't support {arch} architecture."
             )
-        if type(node.os) == Ubuntu and node.os.information.version < "20.4.0":
+        if type(node.os) is Ubuntu and node.os.information.version < "20.4.0":
             raise SkippedException(
                 f"Virtual Client PostgreSQL doesn't support distro {type(node.os)}"
                 f" version {node.os.information.version}."

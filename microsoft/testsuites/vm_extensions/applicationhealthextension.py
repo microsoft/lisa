@@ -89,7 +89,7 @@ class ApplicationHealthExtension(TestSuite):
         }
 
         for distro in supported_major_versions:
-            if type(node.os) == distro:
+            if type(node.os) is distro:
                 version_list = supported_major_versions.get(distro)
                 if (
                     version_list is not None
@@ -100,7 +100,7 @@ class ApplicationHealthExtension(TestSuite):
                     return False
         return False
 
-    @retry(tries=5, delay=60)
+    @retry(tries=5, delay=60)  # type:ignore
     def _check_extension_logs(
         self, node: Node, log_file: str, expected_app_health_message: str
     ) -> None:

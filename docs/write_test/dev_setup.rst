@@ -125,7 +125,22 @@ Visual Studio Code
             "reportPrivateImportUsage": "none",
             "reportUnusedImport": "none",
             "reportUnusedFunction": "none",
-            "reportOptionalMemberAccess": "none"
+            "reportOptionalMemberAccess": "none",
+            "reportArgumentType": "none",
+            "reportAttributeAccessIssue": "none",
+            "reportAssignmentType": "none",
+            "reportOptionalSubscript": "none",
+            "reportRedeclaration": "none",
+            "reportIncompatibleVariableOverride": "none",
+            "reportUnnecessaryCast": "none",
+            "reportUnnecessaryComparison": "none",
+            "reportCallIssue": "none",
+            "reportOperatorIssue": "none",
+            "reportMissingImports": "none",
+            "reportUnusedVariable": "none",
+            "reportMissingParameterType": "none",
+            "reportReturnType": "none",
+            "reportMissingTypeStubs": "none"
          },
          "python.analysis.stubPath": "./typings",
          "python.languageServer": "Pylance",
@@ -152,8 +167,8 @@ Visual Studio Code
 
 3. Install extensions.
 
-   -  Install 
-      `Python <https://marketplace.visualstudio.com/items?itemName=ms-python.python>`__, 
+   -  Install
+      `Python <https://marketplace.visualstudio.com/items?itemName=ms-python.python>`__,
       `Pylance <https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance>`__
       to get best code intelligence experience.
    -  Install Python extensions to get consistent error as CI pipelines, `flake8 <https://marketplace.visualstudio.com/items?itemName=ms-python.flake8>`__, `mypy <https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker>`__, `black <https://marketplace.visualstudio.com/items?itemName=ms-python.black-formatter>`__, `isort <https://marketplace.visualstudio.com/items?itemName=ms-python.isort>`__.
@@ -334,11 +349,11 @@ You can either specify a Python version or the path to an executable.
 
 .. code:: console
 
-   $ nox -vs test --force-python 3.11
+   $ nox -vs test --force-python 3.12
 
 .. code:: console
 
-   $ nox -vs test --force-python /usr/bin/python3.11
+   $ nox -vs test --force-python /usr/bin/python3.12
 
 Speeding up Nox
 ~~~~~~~~~~~~~~~

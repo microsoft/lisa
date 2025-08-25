@@ -4,7 +4,7 @@
 from threading import Event
 from typing import IO, Any, Optional, Union
 
-import libvirt  # type: ignore
+import libvirt
 
 from . import libvirt_events_thread
 

@@ -4,7 +4,7 @@ import io
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-import pycdlib  # type: ignore
+import pycdlib
 import yaml
 
 from lisa import RemoteNode, schema

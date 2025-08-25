@@ -301,7 +301,7 @@ class RepoInstaller(BaseInstaller):
         # 4.18.0-1025.27~18.04.1 amd64 [installed]
         # output 4.18.0-1025
         kernel_version_package_pattern = re.compile(
-            f"^{source}/[^ ]+ "
+            f"^{source}/[^ ]+ "  # noqa: E202
             r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*[\r\n]+",
             re.M,
         )

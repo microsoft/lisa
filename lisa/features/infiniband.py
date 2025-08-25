@@ -85,7 +85,7 @@ class Infiniband(Feature):
         device_list = lspci.get_devices()
         return any("ConnectX-3" in device.device_info for device in device_list)
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def get_ib_interfaces(self) -> List[IBDevice]:
         """Gets the list of Infiniband devices
         excluding any ethernet devices

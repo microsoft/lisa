@@ -108,6 +108,8 @@ class BareMetalPlatform(Platform):
         return self._check_capability(environment, log, self.cluster.client)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
+        ready_checker: Optional[ReadyChecker] = None
+
         # process the cluster elements from runbook
         self._predeploy_environment(environment, log)
 
@@ -154,6 +156,7 @@ class BareMetalPlatform(Platform):
             self._log.debug("no copied source path specified, skip copy")
 
     def _predeploy_environment(self, environment: Environment, log: Logger) -> None:
+        key_file = ""
         # download source (shared, check if it's copied)
         if self._baremetal_runbook.source:
             if not self.local_artifacts_path:
@@ -220,6 +223,7 @@ class BareMetalPlatform(Platform):
                 not self.cluster.runbook.client[index].connection.password
                 and self.cluster.runbook.client[index].connection.private_key_file == ""
             ):
+                assert key_file, "Expected key_file to be set"
                 self.cluster.runbook.client[
                     index
                 ].connection.private_key_file = key_file

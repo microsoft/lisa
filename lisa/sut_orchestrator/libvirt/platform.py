@@ -16,8 +16,8 @@ from pathlib import Path, PurePosixPath
 from threading import Lock, Timer
 from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
-import libvirt  # type: ignore
-import pycdlib  # type: ignore
+import libvirt
+import pycdlib
 import yaml
 
 from lisa import feature, schema, search_space
@@ -771,7 +771,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         # Give all the VMs some time to boot and then acquire an IP address.
         timeout = time.time() + environment_context.network_boot_timeout
-
+        address = ""
         if self.host_node.is_remote:
             remote_node = cast(RemoteNode, self.host_node)
             conn_info = remote_node.connection_info

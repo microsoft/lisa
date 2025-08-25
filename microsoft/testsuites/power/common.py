@@ -33,11 +33,11 @@ def is_distro_supported(node: Node) -> None:
         )
 
     if not (
-        (type(node.os) == Ubuntu and node.os.information.version >= "18.4.0")
-        or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
-        or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
-        or (type(node.os) == SLES and node.os.information.version >= "15.6.0")
-        or (type(node.os) == AlmaLinux and node.os.information.version >= "9.5.0")
+        (type(node.os) is Ubuntu and node.os.information.version >= "18.4.0")
+        or (type(node.os) is Redhat and node.os.information.version >= "8.3.0")
+        or (type(node.os) is Debian and node.os.information.version >= "10.0.0")
+        or (type(node.os) is SLES and node.os.information.version >= "15.6.0")
+        or (type(node.os) is AlmaLinux and node.os.information.version >= "9.5.0")
     ):
         raise SkippedException(
             f"hibernation setup tool doesn't support current distro {node.os.name}, "
@@ -75,7 +75,7 @@ def verify_hibernation(
     # the hibernation-setup tool.
     # A sleep(100) also works, but we are unsure of the exact time required.
     # So it is safer to reboot the VM.
-    if type(node.os) == Redhat or type(node.os) == AlmaLinux or type(node.os) == SLES:
+    if type(node.os) in (Redhat, AlmaLinux, SLES):
         node.reboot()
 
     boot_time_before_hibernation = who.last_boot()
@@ -104,7 +104,7 @@ def verify_hibernation(
 
     boot_time_after_hibernation = who.last_boot()
     log.info(
-        f"Last Boot time before hibernation: {boot_time_before_hibernation},"
+        f"Last Boot time before hibernation: {boot_time_before_hibernation}, "
         f"Last Boot time after hibernation: {boot_time_after_hibernation}"
     )
 
@@ -183,9 +183,13 @@ def run_storage_workload(node: Node) -> Decimal:
 
 
 def run_network_workload(environment: Environment) -> Decimal:
+    assert_that(len(environment.nodes)).described_as(
+        "Expected environment to have at least 2 nodes"
+    ).is_greater_than_or_equal_to(2)
+
     client_node = cast(RemoteNode, environment.nodes[0])
-    if len(environment.nodes) >= 2:
-        server_node = cast(RemoteNode, environment.nodes[1])
+    server_node = cast(RemoteNode, environment.nodes[1])
+
     iperf3_server = server_node.tools[Iperf3]
     iperf3_client = client_node.tools[Iperf3]
     iperf3_server.run_as_server_async()
