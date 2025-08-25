@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import time
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
@@ -194,6 +195,8 @@ class Modprobe(Tool):
         while (timer.elapsed(False) < timeout) or tried_times < 1:
             tried_times += 1
             try:
+                self._log.info(f"Reading {nohup_output_log_file_name} for the {tried_times}th time...")
+                cat.read(nohup_output_log_file_name, force_run=True)
                 pid = cat.read(loop_process_pid_file_name, force_run=True)
                 r = self.node.execute(
                     f"ps -p {pid} > /dev/null && echo 'running' || echo 'not_running'",
@@ -224,7 +227,7 @@ class Modprobe(Tool):
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
         )
-        module_path = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        module_path = re.escape(self.node.tools[Modinfo].get_filename(mod_name=mod_name))
         rmmod_count = int(
             self.node.execute(
                 f"grep -E 'rmmod {mod_name}' {nohup_output_log_file_name} | wc -l",
