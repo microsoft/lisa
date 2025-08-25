@@ -147,12 +147,20 @@ AZURE_INTERNAL_ERROR_PATTERN = re.compile(
 )
 
 VM_SIZE_FALLBACK_PATTERNS = [
-    # exclude Standard_DS1_v2, because one core is too slow,
-    # and doesn't work in some distro
-    re.compile(r"Standard_DS((?!1)[\d])_v2"),
-    re.compile(r"Standard_DS([\d]{2})_v2"),
+    # First priority: Standard_D series with single digit
+    # (excluding D1) because one core is too slow, and doesn't work in some distro
+    # e.g., Standard_DS2_v2, Standard_D2_v5, Standard_D4s_v3
+    re.compile(r"^Standard_D[A-Z]*((?!1)[\d])[a-z]*_v\d+$"),
+    # Second Priority, remaining D series VM Sizes with two digit core count
+    # eg: Standard_D12_v5, Standard_D24s_v3
+    re.compile(r"^Standard_D[A-Z]*([\d]{2})[a-z]*_v\d+$"),
+    # Third priority: Standard VM sizes
+    # e.g., Standard_D64s_v5, Standard_F32as_v6, Standard_E16ads_v5
+    re.compile(r"^Standard_[A-Z]+\d+[a-z]*_v\d+$"),
+    # Catch-all for any remaining VM sizes
     re.compile(r".*"),
 ]
+
 LOCATIONS = [
     "westus3",
     "southeastasia",
