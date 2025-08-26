@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 import time
 import uuid
 from pathlib import Path
@@ -224,7 +225,20 @@ class Modprobe(Tool):
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
         )
-        module_path = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+
+        # in few OSes escape sequence is needed to be added. For example, this:
+        # grep -E 'insmod /lib/modules/6.12.41+deb13-cloud-arm64/kernel/drivers/net
+        # /hyperv/hv_netvsc.ko.xz' /home/lisatest/nohup_log_hv_netvsc_b8bc.out | wc -l
+        # will have to be changed to this:
+        # grep -E 'insmod\ /lib/modules/6\.12\.41\+deb13\-cloud\-arm64/kernel/drivers
+        # /net/hyperv/hv_netvsc\.ko\.xz' /home/lisatest/nohup_log_hv_net14967835.out
+        #  | wc -l
+        # in order to get the correct count of insmod commands executed.
+
+        module_path = re.escape(
+            self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        )
+
         rmmod_count = int(
             self.node.execute(
                 f"grep -E 'rmmod {mod_name}' {nohup_output_log_file_name} | wc -l",
