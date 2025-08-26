@@ -353,12 +353,13 @@ class AzurePrepareTestCase(TestCase):
             ("Standard_D12_v5", 1, "D12 should match pattern 1"),
             ("Standard_DS15_v2", 1, "DS15 should match pattern 1"),
             ("Standard_D24s_v3", 1, "D24s should match pattern 1"),
-            ("Standard_D48_v4", 1, "D48 should match pattern 1"),
+            ("Standard_D48ads_v5", 1, "D48 should match pattern 1"),
             # Third priority: Other Standard VM sizes
             ("Standard_A8_v2", 2, "A8_v2 should match pattern 2"),
             ("Standard_F32as_v6", 2, "F32as_v6 should match pattern 2"),
             ("Standard_E16ads_v5", 2, "E16ads_v5 should match pattern 2"),
             ("Standard_B2s_v2", 2, "B2s_v2 should match pattern 2"),
+            ("Standard_DC8ads_v6", 2, "Standard_DC8ads_v6 should match pattern 2"),
             # Fourth priority: Catch-all pattern (non-versioned or non-standard)
             ("Standard_B1ls", 3, "B1ls (no version) should match catch-all pattern 3"),
             ("Basic_A1", 3, "Basic_A1 should match catch-all pattern 3"),

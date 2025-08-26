@@ -149,7 +149,8 @@ AZURE_INTERNAL_ERROR_PATTERN = re.compile(
 VM_SIZE_FALLBACK_PATTERNS = [
     # First priority: Standard_D series with single digit
     # (excluding D1) because one core is too slow, and doesn't work in some distro
-    # D[S]*[\d]+' is used as instead of 'D[\d]+' to select older VM sizes like 'Standard_DS5_v2'
+    # D[S]*[\d]+' is used as instead of 'D[\d]+' to
+    # select older VM sizes like 'Standard_DS5_v2'
     # e.g., Standard_DS2_v2, Standard_D2_v5, Standard_D4s_v3
     re.compile(r"^Standard_D[S]*((?!1)[\d])[a-z]*_v\d+$"),
     # Second Priority, remaining D series VM Sizes with two digit core count
