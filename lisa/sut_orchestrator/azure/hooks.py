@@ -100,6 +100,26 @@ class AzureHookSpecDefaultImpl:
             ),
             SkippedException,
         ),
+        (
+            # ResourceCollectionRequestsThrottled - Too many requests to Azure API
+            "Azure API throttling detected. The deployment was throttled "
+            "due to too many requests",
+            re.compile(
+                r"ResourceCollectionRequestsThrottled.*Operation '.*' failed as server "
+                r"encountered too many requests.*Please try after '\d+' seconds"
+            ),
+            ResourceAwaitableException,
+        ),
+        (
+            # ResourceGroupQuotaExceeded - Resource group limit reached
+            "Resource group quota exceeded. Please delete some "
+            "resource groups before retrying",
+            re.compile(
+                r"ResourceGroupQuotaExceeded.*Creating the resource group.*would "
+                r"exceed the quota of '\d+'.*current resource group count is '\d+'"
+            ),
+            ResourceAwaitableException,
+        ),
     ]
 
     @hookimpl
