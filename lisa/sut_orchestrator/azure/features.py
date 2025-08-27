@@ -2262,7 +2262,7 @@ class Resize(AzureFeatureMixin, features.Resize):
             (
                 feature
                 for feature in current_vm_size.capability.features
-                if feature.type == VhdGenerationSettings.type
+                if feature.type == HyperVGenerationSettings.type
             ),
             None,
         )
@@ -2270,13 +2270,13 @@ class Resize(AzureFeatureMixin, features.Resize):
             (
                 feature
                 for feature in candidate_size.capability.features
-                if feature.type == VhdGenerationSettings.type
+                if feature.type == HyperVGenerationSettings.type
             ),
             None,
         )
 
-        if isinstance(current_gen, VhdGenerationSettings) and isinstance(
-            candidate_gen, VhdGenerationSettings
+        if isinstance(current_gen, HyperVGenerationSettings) and isinstance(
+            candidate_gen, HyperVGenerationSettings
         ):
             result = search_space.check_setspace(current_gen.gen, candidate_gen.gen)
             return result.result
@@ -3332,9 +3332,9 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
 @dataclass_json()
 @dataclass()
-class VhdGenerationSettings(schema.FeatureSettings):
-    type: str = "VhdGeneration"
-    # vhd generation in hyper-v
+class HyperVGenerationSettings(schema.FeatureSettings):
+    type: str = "HyperVGeneration"
+    # Hyper-V Generation capabilities of the VM
     gen: Optional[Union[search_space.SetSpace[int], int]] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
@@ -3349,7 +3349,7 @@ class VhdGenerationSettings(schema.FeatureSettings):
         if not super().__eq__(o):
             return False
 
-        assert isinstance(o, VhdGenerationSettings), f"actual: {type(o)}"
+        assert isinstance(o, HyperVGenerationSettings), f"actual: {type(o)}"
         return self.type == o.type and self.gen == o.gen
 
     def __repr__(self) -> str:
@@ -3366,7 +3366,7 @@ class VhdGenerationSettings(schema.FeatureSettings):
 
     def check(self, capability: Any) -> search_space.ResultReason:
         assert isinstance(
-            capability, VhdGenerationSettings
+            capability, HyperVGenerationSettings
         ), f"actual: {type(capability)}"
         result = super().check(capability)
 
@@ -3381,10 +3381,10 @@ class VhdGenerationSettings(schema.FeatureSettings):
         self, method: RequirementMethod, capability: Any
     ) -> Any:
         assert isinstance(
-            capability, VhdGenerationSettings
+            capability, HyperVGenerationSettings
         ), f"actual: {type(capability)}"
 
-        value = VhdGenerationSettings()
+        value = HyperVGenerationSettings()
         if self.gen or capability.gen:
             value.gen = getattr(search_space, f"{method.value}_setspace_by_priority")(
                 self.gen, capability.gen, [1, 2]
@@ -3392,7 +3392,7 @@ class VhdGenerationSettings(schema.FeatureSettings):
         return value
 
 
-class VhdGeneration(AzureFeatureMixin, Feature):
+class HyperVGeneration(AzureFeatureMixin, Feature):
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -3408,7 +3408,7 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         if "V2" in versions:
             gens.append(2)
 
-        settings = VhdGenerationSettings(gen=search_space.SetSpace(items=gens))
+        settings = HyperVGenerationSettings(gen=search_space.SetSpace(items=gens))
 
         return settings
 
@@ -3417,11 +3417,11 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        return VhdGenerationSettings(gen=image.hyperv_generation)
+        return HyperVGenerationSettings(gen=image.hyperv_generation)
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
-        return VhdGenerationSettings
+        return HyperVGenerationSettings
 
     @classmethod
     def can_disable(cls) -> bool:
