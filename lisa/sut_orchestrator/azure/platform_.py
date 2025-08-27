@@ -505,7 +505,7 @@ class AzurePlatform(Platform):
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
-            features.VhdGeneration,
+            features.HyperVGeneration,
             features.Architecture,
             features.Nfs,
             features.Availability,
