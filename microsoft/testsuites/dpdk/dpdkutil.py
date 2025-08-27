@@ -201,7 +201,17 @@ def generate_send_receive_run_info(
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
-
+    # for MTU test: check that we can fetch the max MTU size for the NIC
+    if set_mtu:
+        check_nic = sender.node.nics.get_primary_nic().lower
+        maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        if not maxmtu:
+            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+        if set_mtu > int(maxmtu):
+            raise SkippedException(
+                "Requested MTU size exceeds max mtu for DPDK mtu test: "
+                f"{set_mtu} > {maxmtu}."
+            )
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
         0,
@@ -567,6 +577,9 @@ def verify_dpdk_send_receive(
             ]
         else:
             raise SkippedException()
+        # skip MTU test if not on MANA (for now).
+        if set_mtu and not node.nics.is_mana_device_present():
+            raise SkippedException("set mtu test is intended for MANA VMs only.")
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
     # get test duration variable if set
