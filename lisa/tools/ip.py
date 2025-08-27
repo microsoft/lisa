@@ -89,6 +89,42 @@ class Ip(Tool):
     __ip_br_show_regex = re.compile(
         r"(?P<name>\w+)\s+(?P<status>\w+)\s+(?P<mac>[0-9a-z:]+)\s+(?P<flags>\<.+\>)"
     )
+    # ex:
+    # 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode \
+    # DEFAULT group default qlen 1000
+    # link/ether 00:15:5d:26:f7:e0 brd ff:ff:ff:ff:ff:ff promiscuity 0 minmtu 68 \
+    # maxmtu 65521 addrgenmode eui64 numtxqueues 64 numrxqueues 64 gso_max_size \
+    # 62780 gso_max_segs 65535 parentbus vmbus \
+    # parentdev b9ae607e-0668-436c-bdaa-074aea895f35
+    __ip_detail_show_regex = re.compile(
+        r"(?m)^\s*(?P<index>\d+):\s+"
+        r"(?P<ifname>[a-zA-Z0-9]+):\s+"
+        r"<(?P<flags>[^>]+)>\s+"
+        r"mtu\s+(?P<mtu>\d+)\s+"
+        r"qdisc\s+(?P<qdisc>\S+)"
+        r"(?:\s+master\s+(?P<master>\S+))?\s+"
+        r"state\s+(?P<state>\S+)"
+        r"(?:\s+mode\s+(?P<mode>\S+))?"
+        r"(?:\s+group\s+(?P<group>\S+))?"
+        r"(?:\s+qlen\s+(?P<qlen>\d+))?"
+        r"\s*\n\s+"  # note: associated detail line will be indented
+        r"link/(?P<link_type>\S+)\s+"
+        r"(?P<mac>[0-9A-Fa-f:]+)\s+"
+        r"brd\s+(?P<brd>[0-9A-Fa-f:]+)"
+        r"(?:\s+promiscuity\s+(?P<promiscuity>\d+))?"
+        r"(?:\s+allmulti\s+(?P<allmulti>\d+))?"
+        r"(?:\s+minmtu\s+(?P<minmtu>\d+))?"
+        r"(?:\s+maxmtu\s+(?P<maxmtu>\d+))?"
+        r"(?:\s+addrgenmode\s+(?P<addrgenmode>\S+))?"
+        r"(?:\s+numtxqueues\s+(?P<numtxqueues>\d+))?"
+        r"(?:\s+numrxqueues\s+(?P<numrxqueues>\d+))?"
+        r"(?:\s+gso_max_size\s+(?P<gso_max_size>\d+))?"
+        r"(?:\s+gso_max_segs\s+(?P<gso_max_segs>\d+))?"
+        r"(?:\s+tso_max_size\s+(?P<tso_max_size>\d+))?"
+        r"(?:\s+tso_max_segs\s+(?P<tso_max_segs>\d+))?"
+        r"(?:\s+parentbus\s+(?P<parentbus>\S+))?"
+        r"(?:\s+parentdev\s+(?P<parentdev>\S+))?",
+    )
 
     @property
     def command(self) -> str:
@@ -422,6 +458,23 @@ class Ip(Tool):
             log_routes = "\n".join(found_routes)
             self._log.debug(f"found routes: {log_routes}")
         return len(found_routes) > 0
+
+    def get_detail(self, interface: str, attribute: str) -> str:
+        details = self.run(
+            f"-d link show {interface}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not fetch interface details with 'ip -d link show'"
+            ),
+        ).stdout
+        found = self.__ip_detail_show_regex.match(details)
+        if not found:
+            return ""
+        detail = found.group(attribute)
+        if not detail:
+            return ""
+        return str(detail)
 
     def get_interface_list(self) -> list[str]:
         raise NotImplementedError()
