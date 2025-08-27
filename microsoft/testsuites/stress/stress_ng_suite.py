@@ -159,8 +159,19 @@ class StressNgTestSuite(TestSuite):
         # Debug: Show key configuration details
         log.info("=== DEBUG: Configuration ===")
         log.info(f"  Nodes: {len(environment.nodes)}")
-        node_count_var = variables.get('stress_ng_node_count', 'Not set')
-        log.info(f"  stress_ng_node_count: {node_count_var}")
+        
+        # Debug: Show ALL available variables
+        log.info("  Available variables:")
+        for key, value in variables.items():
+            if 'stress_ng' in key or 'guest' in key or 'node' in key:
+                log.info(f"    {key}: {value}")
+        
+        # Check specific variables
+        stress_ng_var = variables.get('stress_ng_node_count', 'Not set')
+        guest_var = variables.get('guest_node_count', 'Not set')
+        log.info(f"  stress_ng_node_count: {stress_ng_var}")
+        log.info(f"  guest_node_count: {guest_var}")
+        
         for i, node in enumerate(environment.nodes.list()):
             cpu = node.capability.core_count
             memory = node.capability.memory_mb
