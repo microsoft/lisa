@@ -777,6 +777,8 @@ class LisaRunner(BaseRunner):
         platform_type: str,
     ) -> None:
         assert platform_type
+        print(f"[DEBUG] _merge_test_requirements: Processing {len(test_results)} tests")
+        print(f"[DEBUG] _merge_test_requirements: Platform type: {platform_type}")
 
         cases_ignored_features: Dict[str, Set[str]] = {}
         # if platform defined requirement, replace the requirement from
@@ -845,9 +847,16 @@ class LisaRunner(BaseRunner):
                         )
 
                         try:
+                            print(f"[DEBUG] merge_req: Test {test_result.name}")
+                            orig_count = original_node_requirement.node_count
+                            plat_count = platform_requirement.node_count
+                            print(f"[DEBUG] merge_req: Orig node_count: {orig_count}")
+                            print(f"[DEBUG] merge_req: Plat node_count: {plat_count}")
                             node_requirement = original_node_requirement.intersect(
                                 platform_requirement
                             )
+                            final_count = node_requirement.node_count
+                            print(f"[DEBUG] merge_req: Final node_count: {final_count}")
                         except NotMeetRequirementException as e:
                             test_result.set_status(TestStatus.SKIPPED, str(e))
                             break

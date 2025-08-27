@@ -154,6 +154,34 @@ class StressNgTestSuite(TestSuite):
         This test simply uses whatever environment is provided.
         """
 
+        log.info("=== STRESS-NG MULTI-VM TEST START ===")
+        log.info(f"Environment has {len(environment.nodes)} nodes")
+        
+        # Debug: Show environment details
+        log.info("=== Environment Details ===")
+        for i, node in enumerate(environment.nodes):
+            log.info(f"  Node {i}: {node.name} - {node.os}")
+            log.info(f"    CPU cores: {node.capability.get('core_count', 'Unknown')}")
+            log.info(f"    Memory MB: {node.capability.get('memory_mb', 'Unknown')}")
+        
+        # Debug: Show ALL variables
+        log.info("=== All Variables ===")
+        for key in sorted(variables.keys()):
+            value = variables[key]
+            log.info(f"  {key}: {value}")
+        
+        # Check specific stress-ng variables
+        log.info("=== Stress-NG Variables ===")
+        stress_ng_node_count = variables.get('stress_ng_node_count', 'Not set')
+        stress_ng_cpu_count = variables.get('stress_ng_cpu_count', 'Not set')
+        stress_ng_memory_mb = variables.get('stress_ng_memory_mb', 'Not set')
+        stress_ng_jobs = variables.get('stress_ng_jobs', 'Not set')
+        
+        log.info(f"  stress_ng_node_count: {stress_ng_node_count}")
+        log.info(f"  stress_ng_cpu_count: {stress_ng_cpu_count}")
+        log.info(f"  stress_ng_memory_mb: {stress_ng_memory_mb}")
+        log.info(f"  stress_ng_jobs: {stress_ng_jobs}")
+
         log.info(f"Running multi-VM stress test on {len(environment.nodes)} nodes")
         
         # Debug: Show key configuration details

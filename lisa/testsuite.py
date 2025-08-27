@@ -476,8 +476,12 @@ def simple_requirement(
     """
     define a simple requirement to support most test cases.
     """
+    print(f"[DEBUG] simple_requirement: Creating with min_count={min_count}")
     node = schema.NodeSpace()
     node.node_count = search_space.IntRange(min=min_count)
+    node_count_type = type(node.node_count)
+    print(f"[DEBUG] simple_requirement: Created node_count: {node.node_count}")
+    print(f"[DEBUG] simple_requirement: node_count type: {node_count_type}")
     node.core_count = search_space.IntRange(min=min_core_count)
     node.gpu_count = search_space.IntRange(min=min_gpu_count)
     if min_memory_mb:

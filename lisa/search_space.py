@@ -480,9 +480,21 @@ def intersect_countspace(requirement: CountSpace, capability: CountSpace) -> Any
     if requirement is None and capability:
         return copy.copy(capability)
     if isinstance(requirement, int):
-        result = requirement
+        # Convert int to IntRange and use proper intersection logic
+        print(f"[DEBUG] intersect_countspace: Converting int {requirement} to IntRange")
+        int_as_range = IntRange(min=requirement, max=requirement)
+        print(f"[DEBUG] intersect_countspace: Capability is {capability}")
+        print(f"[DEBUG] intersect_countspace: Capability type: {type(capability)}")
+        result = int_as_range.intersect(capability)
+        print(f"[DEBUG] intersect_countspace: Result is {result}")
+        print(f"[DEBUG] intersect_countspace: Result type: {type(result)}")
     elif isinstance(requirement, IntRange):
+        print(f"[DEBUG] intersect_countspace: IntRange requirement {requirement}")
+        print(f"[DEBUG] intersect_countspace: Capability is {capability}")
+        print(f"[DEBUG] intersect_countspace: Capability type: {type(capability)}")
         result = requirement.intersect(capability)
+        print(f"[DEBUG] intersect_countspace: Result is {result}")
+        print(f"[DEBUG] intersect_countspace: Result type: {type(result)}")
     else:
         raise LisaException(
             f"not support to get intersect on countspace type: {type(requirement)}"
