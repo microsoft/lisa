@@ -284,7 +284,9 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test verifies nvme disk controller type of the VM.
+        This test verifies nvme disk controller type of the VM. It requires NVMe
+        supported VM sizes such as DsV6, EsV6 series. If the image doesn't support NVMe
+        or the NVMe driver is not in initramfs, the VM might timeout to provision.
 
         Steps:
         1. Get the disk type of the boot partition.
