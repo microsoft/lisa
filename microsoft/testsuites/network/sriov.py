@@ -38,6 +38,7 @@ from lisa.tools import (
     Lscpu,
     Service,
 )
+from lisa.tools.ip import Ip
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -876,6 +877,29 @@ class Sriov(TestSuite):
                     f"More than half of the vCPUs {unused_cpu} didn't have increased "
                     "interrupt count!"
                 ).is_greater_than(unused_cpu)
+
+    @TestCaseMetadata(
+        description="""
+        Verify IPv6 networking functionality with IPv6
+        1. Create an Azure VM with AN Enabled and IPv6 enabled
+        2. Verify that the NIC has an IPv6 address
+        """,
+        priority=2,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                network_interface=features.SriovIPv6(),
+            )
+        ),
+    )
+    def verify_sriov_ipv6_basic(self, node: Node, log: Logger) -> None:
+        ip = node.tools[Ip]
+        # for each nic, verify that ipv6 exists using nic name
+        for nic in node.nics.nics.keys():
+            nic_ipv6 = ip.get_ipv6_address(nic)
+            assert_that(
+                nic_ipv6,
+                f"Expected IPv6 address but found none on nic {nic}",
+            ).is_not_empty()
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
