@@ -2681,7 +2681,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
                 node_parameters.security_profile.clear()
-            elif 1 == node_parameters.hyperv_generation:
+            elif node_parameters.image and 1 == node_parameters.image.hyperv_generation:
                 raise SkippedException(
                     f"{settings.security_profile} " "can only be set on gen2 image/vhd."
                 )
