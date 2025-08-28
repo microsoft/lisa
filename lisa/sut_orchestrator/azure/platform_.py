@@ -72,8 +72,10 @@ from lisa.util import (
     LisaTimeoutException,
     NotMeetRequirementException,
     ResourceAwaitableException,
+    RootFsMountFailedException,
     SkippedException,
     check_panic,
+    check_rootfs_failure,
     constants,
     dump_file,
     field_metadata,
@@ -717,6 +719,7 @@ class AzurePlatform(Platform):
             log_file_name.write_bytes(log_response_content)
             if check_serial_console is True:
                 check_panic(log_response_content.decode("utf-8"), "provision", log)
+                check_rootfs_failure(log_response_content.decode("utf-8"), log)
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
         platform_runbook = cast(schema.Platform, self.runbook)
@@ -1705,7 +1708,7 @@ class AzurePlatform(Platform):
                     self._save_console_log_and_check_panic(
                         resource_group_name, environment, log, True
                     )
-                except KernelPanicException as ex:
+                except (KernelPanicException, RootFsMountFailedException) as ex:
                     if (
                         "OSProvisioningTimedOut: OS Provisioning for VM"
                         in error_message
