@@ -5,7 +5,7 @@ variable:
   - name: location
     value: "westus3"
   - name: keep_environment
-    value: "no"
+    value: "always"
   - name: resource_group_name
     value: ""
   - name: marketplace_image

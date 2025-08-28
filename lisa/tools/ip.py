@@ -341,6 +341,7 @@ class Ip(Tool):
         self.up(name)
 
     def get_ip_address(self, nic_name: str) -> str:
+        log.info("Received NIC Name:", nic_name)
         result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
         matched = self._get_matched_dict(result.stdout)
         assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
@@ -376,6 +377,7 @@ class Ip(Tool):
 
     def remove_all_routes_for_device(self, device: str) -> None:
         # get any routes going through a specific nic and remove them.
+        log.info(f"Removing all routes for device {device}")
         all_routes = self.run(
             "route",
             force_run=True,

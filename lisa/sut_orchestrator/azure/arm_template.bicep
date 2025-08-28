@@ -61,6 +61,16 @@ param source_address_prefixes array
 @description('Generate public IP address for each node')
 param create_public_address bool
 
+var vmContributorRoleDefinitionId = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
+var managedIdentityResourceGroup = 'gsatestresourcegroup'
+var managedIdentitySubscriptionId = 'e7eb2257-46e4-4826-94df-153853fea38f'
+var managedIdentityName = 'gsateststorage-blobreader'
+var managedIdentityResourceId = resourceId(
+  managedIdentitySubscriptionId,
+  managedIdentityResourceGroup,                        
+  'Microsoft.ManagedIdentity/userAssignedIdentities',
+  managedIdentityName
+)
 var vnet_id = virtual_network_name_resource.id
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
@@ -467,4 +477,21 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     virtual_network_name_resource
     nodes_disk
   ]
+}]
+
+
+resource msi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(managedIdentitySubscriptionId, managedIdentityResourceGroup)
+  name: managedIdentityName
+}
+
+
+resource vmContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = [for i in range(0, node_count): {
+  name: guid(nodes[i].name, 'vm-contributor-role')
+  scope: nodes_vms[i]
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', vmContributorRoleDefinitionId)
+    principalId: msi.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }]
