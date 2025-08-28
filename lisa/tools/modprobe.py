@@ -132,7 +132,7 @@ class Modprobe(Tool):
         verbose: bool = False,
         timeout: int = 60,
         interface: str = "eth0",
-        cleanup_logs: bool = True,
+        cleanup_logs: bool = False,
     ) -> Dict[str, int]:
         lsmod_tool = self.node.tools[Lsmod]
         module_exists = lsmod_tool.module_exists(
@@ -238,7 +238,7 @@ class Modprobe(Tool):
         module_path = re.escape(
             self.node.tools[Modinfo].get_filename(mod_name=mod_name)
         )
-
+        self._log.debug(f"escaped module path: {module_path}")
         rmmod_count = int(
             self.node.execute(
                 f"grep -E 'rmmod {mod_name}' {nohup_output_log_file_name} | wc -l",
