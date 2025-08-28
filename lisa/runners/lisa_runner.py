@@ -851,12 +851,15 @@ class LisaRunner(BaseRunner):
                             orig_count = original_node_requirement.node_count
                             plat_count = platform_requirement.node_count
                             print(f"[DEBUG] merge_req: Orig node_count: {orig_count}")
+                            print(f"[DEBUG] merge_req: Orig node_count type: {type(orig_count)}")
                             print(f"[DEBUG] merge_req: Plat node_count: {plat_count}")
+                            print(f"[DEBUG] merge_req: Plat node_count type: {type(plat_count)}")
                             node_requirement = original_node_requirement.intersect(
                                 platform_requirement
                             )
                             final_count = node_requirement.node_count
                             print(f"[DEBUG] merge_req: Final node_count: {final_count}")
+                            print(f"[DEBUG] merge_req: Final node_count type: {type(final_count)}")
                         except NotMeetRequirementException as e:
                             test_result.set_status(TestStatus.SKIPPED, str(e))
                             break
@@ -888,17 +891,27 @@ class LisaRunner(BaseRunner):
 
     def _create_platform_requirement(self) -> Optional[schema.NodeSpace]:
         if not hasattr(self, "platform"):
+            print("[DEBUG] _create_platform_requirement: No platform attribute")
             return None
 
         platform_requirement_data = cast(
             schema.Platform, self.platform.runbook
         ).requirement
         if platform_requirement_data is None:
+            print("[DEBUG] _create_platform_requirement: No requirement data in platform")
             return None
 
+        print(f"[DEBUG] _create_platform_requirement: Raw requirement data: {platform_requirement_data}")
+        
+        # Use NodeSpace instead of Capability to preserve node_count from runbook
         platform_requirement: schema.NodeSpace = schema.load_by_type(
-            schema.Capability, platform_requirement_data
+            schema.NodeSpace, platform_requirement_data
         )
+        
+        print(f"[DEBUG] _create_platform_requirement: After loading as NodeSpace - node_count: {platform_requirement.node_count}")
+        print(f"[DEBUG] _create_platform_requirement: After loading as NodeSpace - core_count: {platform_requirement.core_count}")
+        print(f"[DEBUG] _create_platform_requirement: After loading as NodeSpace - memory_mb: {platform_requirement.memory_mb}")
+        
         # fill in required fields as max capability. So it can be
         # used as a capability in next steps to merge with test requirement.
         if not platform_requirement.disk:
