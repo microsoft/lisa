@@ -28,7 +28,8 @@ from .azFWConstants import (
     TCPProtocolConstants,
     ICMPProtocolConstants,
     UDPProtocolConstants,
-    NetworkRules
+    NetworkRules,
+    FirewallConstants
 )
 # from lisa.sut_orchestrator.azure.common import add_user_assign_identity
 from lisa import (
@@ -393,28 +394,27 @@ def delFirewallNICRoutes(firewallNICIPAddr,firewallNode, log):
 
 
 def firewallInit(firewallNode, log):
-    firewallNode.execute("sudo tdnf install -y azure-cli", sudo=True)
 
-    result = firewallNode.execute(f"az login --identity --resource-id {StorageConfigurations.GSAMANAGEDIDENTITY}")
-    log.info('Successfully logged into lisa storage', result)
+    installAzureCLI(firewallNode, log)
+    loginAzureCLI(firewallNode, StorageConfigurations.GSAMANAGEDIDENTITY, log)
+
+    downloadFilesFromBlob(firewallNode, FirewallConstants.RUNTIMEDEPSFILENAME, FirewallConstants.RUNTIMEDEPSFILEPATH, StorageConfigurations.LISASTORAGEACCOUNTNAME, StorageConfigurations.LISACONTAINERNAME, log)
+    downloadFilesFromBlob(firewallNode, FirewallConstants.GETVMDETAILSFILENAME, FirewallConstants.GETVMDETAILSFILEPATH, StorageConfigurations.LISASTORAGEACCOUNTNAME, StorageConfigurations.LISACONTAINERNAME, log)
     
-    #download necessary files from blob storage
-    files = ["mdsd.service", "mock_statsd.service", "mock_statsd.py", "mock_mdsd", "install_runtime_deps.sh", "importdatafromjson.py", "cseparams.json", "bootstrap_geneva.sh"]
-    for file in files:
-        firewallNode.execute(f"az storage blob download --auth-mode login --account-name lisatestresourcestorage  -c fwcreateconfigfiles -n {file} -f /tmp/{file}")
+    
 
-    result = firewallNode.execute("chmod 666 /tmp/mdsd.service /tmp/mock_statsd.service /tmp/mock_statsd.py /tmp/mock_mdsd /tmp/install_runtime_deps.sh /tmp/importdatafromjson.py bootstrap_geneva.sh", sudo=True)
-    result = firewallNode.execute("chmod -R 777 /tmp/mdsd.service /tmp/mock_statsd.service /tmp/mock_statsd.py /tmp/mock_mdsd /tmp/install_runtime_deps.sh /tmp/importdatafromjson.py bootstrap_geneva.sh", sudo=True)
+    result = firewallNode.execute("chmod 666 /tmp/install_runtime_deps.sh /tmp/importdatafromjson.py ", sudo=True)
+    result = firewallNode.execute("chmod -R 777 /tmp/install_runtime_deps.sh /tmp/importdatafromjson.py ", sudo=True)
 
     #Generate mdsMetadata.txt file
-    result = firewallNode.execute("python3 /tmp/importdatafromjson.py", sudo=True)
-    log.info("Successfully generated mdsMetadata.txt", result)
+    result = firewallNode.execute(f"python3 {FirewallConstants.GETVMDETAILSFILEPATH}", sudo=True)
+    log.info("Successfully generated mdsMetadata.txt", result.stdout)
     #Upload the mdsMetadata.txt file to blob storage
-    result = firewallNode.execute("az storage blob upload --auth-mode login --account-name lisatestresourcestorage  -c fwcreateconfigfiles -n mdsMetadata.txt -f /tmp/mdsMetadata.txt", sudo=True) # Done 
-    log.info("Successfully uploaded mdsMetadata.txt to blob storage", result) # Done
+    result = firewallNode.execute(f"az storage blob upload --auth-mode login --account-name {StorageConfigurations.GSASTORAGEACCOUNTNAME}  -c {StorageConfigurations.GSACONTAINERNAME} -n {FirewallConstants.MDSMETADATAFILENAME} -f {FirewallConstants.MDSMETADATAFILEPATH}", sudo=True) 
+    log.info("Successfully uploaded mdsMetadata.txt to blob storage", result.stdout)
 
-    result = firewallNode.execute("bash -x /tmp/install_runtime_deps.sh", sudo=True)
-    log.info("Successfully executed install_runtime_deps.sh", result.stdout)
+    result = firewallNode.execute(f"bash -x {FirewallConstants.RUNTIMEDEPSFILEPATH}", sudo=True)
+    log.debug("Successfully executed install_runtime_deps.sh", result.stdout)
     firewallNode.execute("useradd -M -e 2100-01-01 azfwuser", sudo=True)
     
 
@@ -472,7 +472,6 @@ def firewallInit(firewallNode, log):
         }
 
     json_str = json.dumps(json_value)
-    # escaped_json = json_str.replace('"', '\\"')
     command = f"/tmp/bootstrap/drop/vmss/bootstrap.sh '{json_str}'"
     result = firewallNode.execute(f"bash -x {command}", sudo=True)
     log.debug("Result for executing", result.stdout)
