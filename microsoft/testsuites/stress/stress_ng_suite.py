@@ -43,6 +43,7 @@ class StressNgTestSuite(TestSuite):
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
         priority=4,
+        timeout=TIME_OUT,  # Use the class-defined timeout (435600 seconds = 121 hours)
     )
     def stress_ng_jobfile(
         self,
@@ -135,6 +136,7 @@ class StressNgTestSuite(TestSuite):
         deployed through runbook variables for meaningful multi-VM testing.
         """,
         priority=4,
+        timeout=TIME_OUT,  # Use extended timeout for multi-VM stress testing
         requirement=simple_requirement(
             min_count=2,
             min_core_count=1,
