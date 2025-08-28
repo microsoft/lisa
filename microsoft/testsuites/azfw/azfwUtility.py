@@ -8,16 +8,6 @@ async def enableNICIPForwarding(node, nodeNICIPAddr, log):
     log.info(f"Enable IP Forwarding for IP Addr : {nodeNICIPAddr}")
     node.features[NetworkInterface].switch_ip_forwarding(enable=True, private_ip_addr=nodeNICIPAddr)
 
-
-
-# async def verifyConntrackEntry(node, sourceNICIPAddr, destinationNICIPAddr, protocol, mask, log):
-#     log.info(f"Verifying conntrack entry for Protocol {protocol} from {sourceNICIPAddr} to {destinationNICIPAddr}")
-#     result = node.execute(f"bash -c \"conntrack -L | grep '{sourceNICIPAddr}' | grep '{destinationNICIPAddr}' | grep '{protocol}' | grep '{mask}'\"", sudo=True)
-#     if result.stdout.splitlines().length >1:
-#         return True
-#     else:
-#         return False
-
 def enableKeyVaultVMExtension(node, resourceGroupName, firewallVMName, settingsFileName, settingsFilePath, storageAccountName, storageContainerName, log):
 
 
@@ -39,8 +29,8 @@ def downloadFilesFromBlob(node, fileName, filePath, storageAccountName, storageC
 
 def loginAzureCLI(node, managedIdentity, log):
 
-    node.execute("sudo tdnf install -y azure-cli", sudo=True)
     result = node.execute(f"az login --identity --resource-id {managedIdentity}")
+    log.debug(f"Result for logging into Azure with Managed Identity : {managedIdentity} : {result.stdout}")
 
 def installAzureCLI(node, log):
     log.info("Installing Azure CLI")

@@ -41,7 +41,13 @@ class NetworkRules:
         '-A FORWARD -i eth0 -j LOG_DROP_OTHER'
     ]
 
-
+class FirewallConstants:
+    RUNTIMEDEPSFILENAME = "install_runtime_deps.sh"
+    RUNTIMEDEPSFILEPATH = f"/tmp/{RUNTIMEDEPSFILENAME}"
+    GETVMDETAILSFILENAME = "importdatafromjson.py"
+    GETVMDETAILSFILEPATH = f"/tmp/{GETVMDETAILSFILENAME}"
+    MDSMETADATAFILENAME = "mdsMetadata.txt"
+    MDSMETADATAFILEPATH = f"/tmp/{MDSMETADATAFILENAME}"
 
 class StorageConfigurations:
     GSAMANAGEDIDENTITY ="/subscriptions/e7eb2257-46e4-4826-94df-153853fea38f/resourcegroups/gsatestresourcegroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/gsateststorage-blobreader"
