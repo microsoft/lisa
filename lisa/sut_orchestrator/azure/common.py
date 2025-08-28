@@ -2629,7 +2629,7 @@ def check_or_create_gallery_image_version(
                         "hostCaching": host_caching_type,
                         "source": {
                             "uri": vhd_path,
-                            "id": (
+                            "storageAccountId": (
                                 f"/subscriptions/{platform.subscription_id}/"
                                 f"resourceGroups/{vhd_resource_group_name}"
                                 "/providers/Microsoft.Storage/storageAccounts/"
