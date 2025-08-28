@@ -213,12 +213,14 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        port_number: int = 2000
     ) -> Process:
         cmd = ""
         if server_ip:
             cmd += f" -r{server_ip} "
         cmd += (
-            f" -P {ports_count} -t {run_time_seconds} -W {warm_up_time_seconds} "
+            f" -P {ports_count} -t {run_time_seconds} -W {warm_up_time_seconds}"
+            f" -p {port_number} "
             f"-C {cool_down_time_seconds} -b {buffer_size}k "
             f"--show-nic-packets {nic_name} "
         )
@@ -308,6 +310,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        port_number: int = 2000,
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -327,7 +330,7 @@ class Ntttcp(Tool):
         # Examples for differentiator: Hyper-V PCIe MSI, mlx4, Hypervisor callback
         # interrupts
         cmd = (
-            f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
+            f" -s{server_ip} -p {port_number} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
             f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
             f"--show-nic-packets {nic_name} "
         )

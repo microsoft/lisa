@@ -399,6 +399,7 @@ def perf_ntttcp(  # noqa: C901
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
+        port_number=2000
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
@@ -420,6 +421,7 @@ def perf_ntttcp(  # noqa: C901
                 buffer_size=buffer_size,
                 dev_differentiator=dev_differentiator,
                 udp_mode=udp_mode,
+                port_number=port_number,
             )
             client_lagscope_process = client_lagscope.run_as_client_async(
                 server_ip=server.internal_address,
@@ -440,7 +442,9 @@ def perf_ntttcp(  # noqa: C901
                 ports_count=num_threads_p,
                 dev_differentiator=dev_differentiator,
                 udp_mode=udp_mode,
+                port_number=port_number,
             )
+            port_number += 1000
             server.tools[Kill].by_name(server_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
             server_result_temp = server_ntttcp.create_ntttcp_result(
