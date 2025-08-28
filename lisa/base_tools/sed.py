@@ -24,7 +24,11 @@ class Sed(Tool):
         match_lines: str = "",
         sudo: bool = False,
     ) -> None:
-        # always force run, make sure it happens every time.
+        # Escape slashes (must be done before crafting sed expression,
+        # as we want to preserve slashes after)
+        regexp = regexp.replace("/", r"\/")
+        replacement = replacement.replace("/", r"\/")
+
         if match_lines != "":
             expression = f"/{match_lines}/s/{regexp}/{replacement}/g"
         else:

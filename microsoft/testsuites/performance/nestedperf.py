@@ -218,7 +218,7 @@ class KVMPerformance(TestSuite):  # noqa
         ) = parse_nested_image_variables(variables)
 
         # get cpu count
-        cpu_count = node.tools[Lscpu].get_core_count()
+        thread_count = node.tools[Lscpu].get_thread_count()
 
         try:
             # setup bridge
@@ -236,7 +236,7 @@ class KVMPerformance(TestSuite):  # noqa
                 image_name=self._SERVER_IMAGE,
                 nic_model="virtio-net-pci",
                 taps=1,
-                cores=cpu_count,
+                cores=thread_count,
                 bridge=self._BR_NAME,
                 name="server",
                 log=log,
@@ -257,7 +257,7 @@ class KVMPerformance(TestSuite):  # noqa
                 image_name=self._CLIENT_IMAGE,
                 nic_model="virtio-net-pci",
                 taps=1,
-                cores=cpu_count,
+                cores=thread_count,
                 bridge=self._BR_NAME,
                 name="client",
                 stop_existing_vm=False,
@@ -554,8 +554,8 @@ class KVMPerformance(TestSuite):  # noqa
         to the nested VM's port 22.
         2. Forward all traffic on node's eth1 interface to the nested VM.
         """
-        # get core count
-        core_count = node.tools[Lscpu].get_core_count()
+        # get thread count
+        thread_count = node.tools[Lscpu].get_thread_count()
 
         node_eth1_ip = node.nics.get_nic("eth1").ip_addr
         bridge_dhcp_range = f"{guest_internal_ip},{guest_internal_ip}"
@@ -595,7 +595,7 @@ class KVMPerformance(TestSuite):  # noqa
             guest_port,
             guest_image_url,
             taps=1,
-            cores=core_count,
+            cores=thread_count,
             bridge=bridge_name,
             stop_existing_vm=True,
             name=nested_vm_name,
@@ -724,7 +724,7 @@ class KVMPerformance(TestSuite):  # noqa
             l2_vm.capability.network_interface = Synthetic()
 
             # Qemu command exits immediately but the VM requires some time to boot up.
-            l2_vm.tools[Lscpu].get_core_count()
+            l2_vm.tools[Lscpu].get_thread_count()
 
             # Each fio process start jobs equal to the iodepth to read/write from
             # the disks. The max number of jobs can be equal to the core count of
@@ -734,9 +734,9 @@ class KVMPerformance(TestSuite):  # noqa
             # iodepth = 16, core count = 8 => max_jobs = 8
             num_jobs = []
             iodepth_iter = start_iodepth
-            core_count = node.tools[Lscpu].get_core_count()
+            thread_count = node.tools[Lscpu].get_thread_count()
             while iodepth_iter <= max_iodepth:
-                num_jobs.append(min(iodepth_iter, core_count))
+                num_jobs.append(min(iodepth_iter, thread_count))
                 iodepth_iter = iodepth_iter * 2
 
             # Run fio test
@@ -747,7 +747,7 @@ class KVMPerformance(TestSuite):  # noqa
                 max_iodepth,
                 filename,
                 test_name=inspect.stack()[1][3],
-                core_count=core_count,
+                core_count=thread_count,
                 disk_count=l1_data_disk_count,
                 disk_setup_type=DiskSetupType.raid0,
                 disk_type=DiskType.premiumssd,
@@ -824,9 +824,9 @@ class KVMPerformance(TestSuite):  # noqa
             # iodepth = 16, core count = 8 => max_jobs = 8
             num_jobs = []
             iodepth_iter = start_iodepth
-            core_count = node.tools[Lscpu].get_core_count()
+            thread_count = node.tools[Lscpu].get_thread_count()
             while iodepth_iter <= max_iodepth:
-                num_jobs.append(min(iodepth_iter, core_count))
+                num_jobs.append(min(iodepth_iter, thread_count))
                 iodepth_iter = iodepth_iter * 2
 
             # run fio test
@@ -836,7 +836,7 @@ class KVMPerformance(TestSuite):  # noqa
                 max_iodepth,
                 filename,
                 test_name=inspect.stack()[1][3],
-                core_count=core_count,
+                core_count=thread_count,
                 disk_count=1,
                 disk_setup_type=DiskSetupType.raid0,
                 disk_type=DiskType.premiumssd,

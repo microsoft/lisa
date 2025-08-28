@@ -222,11 +222,13 @@ class TimeSync(TestSuite):
                         expected_tsc_str = " constant_tsc "
                     elif CpuType.AMD == lscpu.get_cpu_type():
                         expected_tsc_str = " tsc "
+                    else:
+                        raise UnsupportedCpuArchitectureException(arch)
                     shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
                     assert_that(shown_up_times).described_as(
                         f"Expected {expected_tsc_str} shown up times in cpu flags is"
                         f" equal to cpu count."
-                    ).is_equal_to(lscpu.get_core_count())
+                    ).is_equal_to(lscpu.get_thread_count())
                 else:
                     cpu_info_results = self.__freebsd_tsc_filter.findall(
                         dmesg.get_output()
@@ -235,7 +237,7 @@ class TimeSync(TestSuite):
                     assert_that(count_of_results).described_as(
                         "Expected TSC shown up times in cpu flags is"
                         " equal to cpu count."
-                    ).is_equal_to(lscpu.get_core_count())
+                    ).is_equal_to(lscpu.get_thread_count())
 
             # 3. Check clocksource name shown up in dmesg.
             if not isinstance(node.os, BSD):
@@ -326,26 +328,26 @@ class TimeSync(TestSuite):
             event_handler_name = "hrtimer_interrupt"
             timer_list_result = cat.run("/proc/timer_list", sudo=True)
             lscpu = node.tools[Lscpu]
-            core_count = lscpu.get_core_count()
+            thread_count = lscpu.get_thread_count()
             event_handler_times = timer_list_result.stdout.count(
                 f"{event_handler_name}"
             )
             assert_that(event_handler_times).described_as(
-                f"Expected {event_handler_name} shown up {core_count} times in output "
-                f"of /proc/timer_list, but actual it shows up "
+                f"Expected {event_handler_name} shown up {thread_count} times in"
+                f" output of /proc/timer_list, but actual it shows up "
                 f"{event_handler_times} times."
-            ).is_equal_to(core_count)
+            ).is_equal_to(thread_count)
 
             clock_event_times = timer_list_result.stdout.count(f"{clock_event_name}")
             assert_that(clock_event_times).described_as(
-                f"Expected {clock_event_name} shown up {core_count} times in output "
+                f"Expected {clock_event_name} shown up {thread_count} times in output "
                 f"of /proc/timer_list, but actual it shows up "
                 f"{clock_event_times} times."
-            ).is_equal_to(core_count)
+            ).is_equal_to(thread_count)
 
             # 3. when cpu count is 1 and cpu type is Intel type, unbind current time
             #  clock event, check current time clock event switch to 'lapic'.
-            if CpuType.Intel == lscpu.get_cpu_type() and 1 == core_count:
+            if CpuType.Intel == lscpu.get_cpu_type() and 1 == thread_count:
                 cmd_result = node.execute(
                     f"echo {clock_event_name} > {self.unbind_clockevent}",
                     sudo=True,

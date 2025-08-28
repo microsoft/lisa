@@ -72,7 +72,7 @@ class Nvme(Feature):
             matched_result = self._device_pattern.match(row)
             if matched_result:
                 devices_list.append(matched_result.group("device_name"))
-        return self._remove_nvme_os_disk(devices_list)
+        return self._remove_nvme_remote_disks(devices_list)
 
     def get_namespaces(self) -> List[str]:
         namespaces = []
@@ -86,7 +86,7 @@ class Nvme(Feature):
                 namespaces.append(matched_result.group("namespace"))
         # When disk controller type is NVMe, OS disk will show up as NVMe device.
         # Removing OS disk from the list of NVMe devices which is not an NVMe device.
-        return self._remove_nvme_os_disk(namespaces)
+        return self._remove_nvme_remote_disks(namespaces)
 
     def get_nvme_os_disk_info(self, pattern: Pattern[str]) -> str:
         """
@@ -127,10 +127,10 @@ class Nvme(Feature):
             )
         return self._os_disk_namespace
 
-    # With disk controller type NVMe (ASAP), OS disk along with all remote iSCSI devices
+    # With disk controller type NVMe, OS disk along with all remote iSCSI devices
     # appears as NVMe.
-    # Removing OS disk from the list of NVMe devices will remove all the
-    # remote non-NVME disks.
+    # All remote data disks share the same NVMe controller as OS disk.
+    # This method removes OS disk and all remote disks from the list of NVMe devices.
     # Sample output of lsblk command on a ASAP enabled VM:
     # lisa [ ~ ]$ lsblk
     # NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
@@ -146,22 +146,21 @@ class Nvme(Feature):
     # nvme3n1     259:6    0  440G  0 disk # nvme resource disk
     # nvme4n1     259:7    0  440G  0 disk # nvme resource disk
     # lisa [ ~ ]$
-    def _remove_nvme_os_disk(self, disk_list: List[str]) -> List[str]:
+    def _remove_nvme_remote_disks(self, disk_list: List[str]) -> List[str]:
         if (
             self._node.features[Disk].get_os_disk_controller_type()
             == schema.DiskControllerType.NVME
         ):
             os_disk_nvme_device = self._get_os_disk_nvme_device()
             # Removing OS disk/device from the list.
-            for disk in disk_list:
+            for disk in disk_list.copy():
                 if os_disk_nvme_device in disk:
                     disk_list.remove(disk)
-                    break
         return disk_list
 
     def get_namespaces_from_cli(self) -> List[str]:
         namespaces_list = self._node.tools[Nvmecli].get_namespaces()
-        return self._remove_nvme_os_disk(namespaces_list)
+        return self._remove_nvme_remote_disks(namespaces_list)
 
     def get_os_disk_nvme_namespace(self) -> str:
         node_disk = self._node.features[Disk]

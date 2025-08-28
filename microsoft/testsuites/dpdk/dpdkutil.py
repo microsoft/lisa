@@ -807,8 +807,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
 
     # get core count, quick skip if size is too small.
-    available_cores = forwarder.tools[Lscpu].get_core_count()
-    if available_cores < 8:
+    available_threads = forwarder.tools[Lscpu].get_thread_count()
+    if available_threads < 8:
         raise SkippedException("l3 forward test needs >= 8 cores.")
 
     # ping everything before start
@@ -816,7 +816,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     test_result = environment.source_test_result
     if not test_result:
-        log.warn(
+        log.warning(
             "LISA environment does not have a pointer to the test result object."
             "performance data reporting for this test will be broken!"
         )
@@ -957,7 +957,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # These are minimally error checked, you can accidentally assign
     # cores and queues to unused ports etc. and only get runtime spew.
     queue_count = get_l3fwd_queue_count(
-        available_cores,
+        available_threads,
         force_single_queue=force_single_queue,
         is_mana=fwd_kit.testpmd.is_mana,
     )
@@ -991,7 +991,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
     joined_core_list = ",".join(included_cores)
     fwd_cmd = (
-        f"{server_app_path} {joined_include} -l {joined_core_list}  -- "
+        f"{server_app_path} {joined_include} -l {joined_core_list} -- "
         f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"

@@ -4,7 +4,7 @@ from retry import retry
 
 from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Redhat, Suse
+from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Fedora, Redhat, Suse
 from lisa.util import (
     LisaException,
     ReleaseEndOfLifeException,
@@ -22,7 +22,7 @@ class Docker(Tool):
     def can_install(self) -> bool:
         return True
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def build_image(self, image_name: str, dockerfile: str) -> None:
         # alpine image build need to specify '--network host'
         self.run(
@@ -144,7 +144,7 @@ class Docker(Tool):
                 )
         elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
-        elif isinstance(self.node.os, Suse):
+        elif isinstance(self.node.os, Suse) or isinstance(self.node.os, Fedora):
             self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, BSD):
             raise UnsupportedDistroException(

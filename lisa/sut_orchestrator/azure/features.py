@@ -30,10 +30,10 @@ from azure.mgmt.compute.models import (
     VirtualMachineUpdate,
 )
 from azure.mgmt.core.exceptions import ARMErrorFormat
-from azure.mgmt.network.models import RouteTable  # type: ignore
-from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignore
-from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
-from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
+from azure.mgmt.network.models import RouteTable
+from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient
+from azure.mgmt.serialconsole.models import SerialPort, SerialPortState
+from azure.mgmt.serialconsole.operations import SerialPortsOperations
 from dataclasses_json import dataclass_json
 from retry import retry
 
@@ -51,7 +51,7 @@ from lisa.features.security_profile import (
 from lisa.features.startstop import VMStatus
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
-from lisa.search_space import RequirementMethod
+from lisa.search_space import RequirementMethod, decode_set_space_by_type
 from lisa.secret import add_secret
 from lisa.tools import (
     Cat,
@@ -329,27 +329,27 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
-    @retry(tries=3, delay=5)
+    @retry(tries=3, delay=5)  # type: ignore
     def write(self, data: str) -> None:
         # websocket connection is not stable, so we need to retry
         try:
             self._write(data)
             return
-        except websockets.ConnectionClosed as e:  # type: ignore
+        except websockets.ConnectionClosed as e:
             # If the connection is closed, we need to reconnect
             self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
             self._get_connection()
             raise e
 
-    @retry(tries=3, delay=5)
+    @retry(tries=3, delay=5)  # type: ignore
     def read(self) -> str:
         # websocket connection is not stable, so we need to retry
         try:
             # run command with timeout
             output = self._read()
             return output
-        except websockets.ConnectionClosed as e:  # type: ignore
+        except websockets.ConnectionClosed as e:
             # If the connection is closed, we need to reconnect
             self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
@@ -378,7 +378,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
             # create websocket connection
             ws = self._get_event_loop().run_until_complete(
-                websockets.connect(connection_str)  # type: ignore
+                websockets.connect(connection_str)
             )
 
             token = self._get_access_token()
@@ -642,7 +642,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         release = self._node.os.information.release
         if release not in supported_versions.get(type(self._node.os), []):
             raise UnsupportedOperationException("GPU Extension not supported")
-        if type(self._node.os) == Redhat:
+        if type(self._node.os) is Redhat:
             self._node.os.handle_rhui_issue()
         extension = self._node.features[AzureExtension]
         try:
@@ -1153,12 +1153,12 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def reload_module(self) -> None:
         modprobe_tool = self._node.tools[Modprobe]
-        modprobe_tool.reload(["hv_netvsc"])
+        modprobe_tool.reload("hv_netvsc")
 
     # Subroutine for applying route table to subnet.
     # We don't want to retry the entire routine if we
     # catch an exception in this section.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_update_subnet(
         self,
         virtual_network_name: str,
@@ -1196,7 +1196,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     # Subroutine to create the route table,
     # seperated because the create/apply process has multiple potential timeouts.
     # We don't want to restart the entire process if one step fails.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_create_route_table(
         self,
         em_first_hop: str,
@@ -1252,7 +1252,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         return route_table
 
-    @retry(tries=60, delay=10)
+    @retry(tries=60, delay=10)  # type: ignore
     def _check_sriov_enabled(
         self, enabled: bool, reset_connections: bool = True
     ) -> None:
@@ -1775,6 +1775,7 @@ class Disk(AzureFeatureMixin, features.Disk):
     LUN_PATTERN_BSD = re.compile(
         r"at\s+scbus\d+\s+target\s+\d+\s+lun\s+(\d+)\s+\(.*(da\d+)", re.M
     )
+    _resource_disk_type: Optional[schema.ResourceDiskType] = None
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -1992,7 +1993,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         # create managed disk
         managed_disks = []
         for i in range(count):
-            name = f"lisa_data_disk_{i+current_disk_count}_{self._node.name}"
+            name = f"lisa_data_disk_{i + current_disk_count}_{self._node.name}"
             async_disk_update = compute_client.disks.begin_create_or_update(
                 self._resource_group_name,
                 name,
@@ -2093,12 +2094,14 @@ class Disk(AzureFeatureMixin, features.Disk):
     # function returns the type of resource disk/disks available on the VM
     # raises exception if no resource disk is available
     def get_resource_disk_type(self) -> schema.ResourceDiskType:
-        resource_disks = self.get_resource_disks()
-        if not resource_disks:
-            raise LisaException("No Resource disks are available on VM")
-        return schema.ResourceDiskType(
-            self._node.features[Disk].get_disk_type(disk=resource_disks[0])
-        )
+        if self._resource_disk_type is None:
+            resource_disks = self.get_resource_disks()
+            if not resource_disks:
+                raise LisaException("No Resource disks are available on VM")
+            self._resource_disk_type = schema.ResourceDiskType(
+                self._node.features[Disk].get_disk_type(disk=resource_disks[0])
+            )
+        return self._resource_disk_type
 
     def get_resource_disks(self) -> List[str]:
         resource_disk_list = []
@@ -2621,7 +2624,10 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
         resource_sku: Any = kwargs.get("resource_sku")
-        capabilities: List[SecurityProfileType] = [SecurityProfileType.Standard]
+        security_profile_capabilities: List[SecurityProfileType] = [
+            SecurityProfileType.Standard
+        ]
+        encrypt_capability: List[bool] = [False]
 
         gen_value = raw_capabilities.get("HyperVGenerations", None)
         cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
@@ -2638,17 +2644,18 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 and ("V2" in str(gen_value))
                 and raw_capabilities.get("TrustedLaunchDisabled", "False") == "False"
             ):
-                capabilities.append(SecurityProfileType.SecureBoot)
+                security_profile_capabilities.append(SecurityProfileType.SecureBoot)
 
         if cvm_value and cvm_value.casefold() == "snp":
-            capabilities.append(SecurityProfileType.CVM)
-
+            security_profile_capabilities.append(SecurityProfileType.CVM)
+            encrypt_capability.append(True)
         if cvm_value and cvm_value.casefold() == "tdx":
-            capabilities.append(SecurityProfileType.CVM)
-            capabilities.append(SecurityProfileType.Stateless)
-
+            security_profile_capabilities.append(SecurityProfileType.CVM)
+            security_profile_capabilities.append(SecurityProfileType.Stateless)
+            encrypt_capability.append(True)
         return SecurityProfileSettings(
-            security_profile=search_space.SetSpace(True, capabilities)
+            security_profile=search_space.SetSpace(True, security_profile_capabilities),
+            encrypt_disk=search_space.SetSpace(True, encrypt_capability),
         )
 
     @classmethod
@@ -2656,7 +2663,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        return SecurityProfileSettings(security_profile=image.security_profile)
+        if image.security_profile:
+            return SecurityProfileSettings(security_profile=image.security_profile)
+        return None
 
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
@@ -2675,6 +2684,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 settings = security_profile[0]
                 assert isinstance(settings, SecurityProfileSettings)
                 assert isinstance(settings.security_profile, SecurityProfileType)
+                assert isinstance(settings.encrypt_disk, bool)
                 node_parameters.security_profile[
                     "security_type"
                 ] = cls._security_profile_mapping[settings.security_profile]
@@ -2764,9 +2774,12 @@ class Availability(AzureFeatureMixin, features.Availability):
             availability_settings.availability_type.add(
                 AvailabilityType.AvailabilityZone
             )
-            availability_settings.availability_zones = search_space.SetSpace(
-                is_allow_set=True, items=availability_zones
-            )
+            set_space = decode_set_space_by_type(data=availability_zones, base_type=int)
+            if not isinstance(set_space, search_space.SetSpace):
+                raise LisaException(
+                    f"Failed to parse availability zones: {availability_zones}."
+                )
+            availability_settings.availability_zones = set_space
 
         return availability_settings
 
@@ -3530,7 +3543,9 @@ class Architecture(AzureFeatureMixin, Feature):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        return ArchitectureSettings(arch=image.architecture)
+        if image.architecture:
+            return ArchitectureSettings(arch=image.architecture)
+        return None
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:

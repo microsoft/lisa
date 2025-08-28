@@ -1,0 +1,134 @@
+[
+  {
+    "id": 0,
+    "path": "20250603-153958-212-smoke_test",
+    "error_message": "lisa.util.TcpConnectionException: cannot connect to TCP port: [134.33.26.13:22], error code: 10061, no panic found in serial log during bootup",
+    "ground_truth": {
+      "summary": "In the serial console log, there is an error occurred at line 133 in the file /opt/rsa/am/utils/bin/appliance/network/states.py: 'CursesUI' object has no attribute 'colors'. This issue prevents the network configuration process from completing successfully, resulting in the virtual machine being unable to establish a network connection. Please review and correct the implementation in states.py, then try again.",
+      "problem": "Network configuration script failure prevents VM network connectivity due to missing 'colors' attribute in CursesUI class at states.py line 133.",
+      "problem_keywords": ["network configuration", "AttributeError", "CursesUI", "states.py"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 1,
+    "path": "20250603-160024-053-smoke_test",
+    "error_message": "lisa.util.TcpConnectionException: cannot connect to TCP port: [135.234.115.243:22], error code: 10060, no panic found in serial log during bootup",
+    "ground_truth": {
+      "summary": "There are mutiple lines \"unable to resolve host lisa-51-e221-n0\" in the serial console log. This hostname resolution failure may impact system service initialization or interfere with the execution of network configuration scripts. Please verify that /etc/hostname contains the correct hostname (lisa-51-e221-n0), and ensure that /etc/hosts is properly configured.",
+      "problem": "Hostname resolution failure for lisa-51-e221-n0 prevents proper system service initialization and network configuration.",
+      "problem_keywords": ["hostname resolution", "lisa-51-e221-n0", "network configuration"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 2,
+    "path": "20250603-163353-041-verify_nvme_basic",
+    "error_message": "AssertionError: [nvme devices count should be equal to [vCPU/8].] Expected <['/dev/nvme1n1', '/dev/nvme2n1', '/dev/nvme3n1', '/dev/nvme4n1']> to be of length <16>, but was <4>.",
+    "ground_truth": {
+      "summary": "The NVMe devices count is not equal to the vCPU count / 8. This may be caused by the NVMe driver not being loaded properly. Or the testing VM size is not suitable for the case.",
+      "problem": "NVMe device count mismatch with expected vCPU/8 ratio due to driver or VM size configuration issues.",
+      "problem_keywords": ["NVMe", "device count", "driver", "VM size"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 3,
+    "path": "20250603-164811-072-perf_tcp_ntttcp_sriov",
+    "error_message": "lisa.util.LisaException: OSProvisioningTimedOut: OS Provisioning for VM 'lisa-2N-TestPass2505-09-20250603-063038-227-e59-n0' did not finish in the allotted time. The VM may still finish provisioning successfully. Please check provisioning state later. For details on how to check current provisioning state of Windows VMs, refer to https://aka.ms/WindowsVMLifecycle and Linux VMs, refer to https://aka.ms/LinuxVMLifecycle.",
+    "ground_truth": {
+      "summary": "The VM provisioning timed out. The VM may not be able to boot up successfully due to the kernel issue or other factors. Additionally, no Serial Console log was found in the log folder, which limits our ability to diagnose the issue.",
+      "problem": "VM provisioning timeout with no serial console logs available for diagnosis of boot failure.",
+      "problem_keywords": ["VM provisioning", "timeout", "boot failure", "serial console"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 4,
+    "path": "20250603-165422-848-stress_synthetic_with_max_nics_reboot_from_platform",
+    "error_message": "lisa.util.LisaException: OSProvisioningTimedOut: OS Provisioning for VM 'lisa-2N-TestPass2505-09-20250603-063038-227-e64-n0' did not finish in the allotted time. The VM may still finish provisioning successfully. Please check provisioning state later. For details on how to check current provisioning state of Windows VMs, refer to https://aka.ms/WindowsVMLifecycle and Linux VMs, refer to https://aka.ms/LinuxVMLifecycle.",
+    "ground_truth": {
+      "summary": "The VM provisioning timed out. The VM may not be able to boot up successfully due to the kernel issue or other factors. Additionally, no Serial Console log was found in the log folder, which limits our ability to diagnose the issue.",
+      "problem": "VM provisioning timeout with no serial console logs available for diagnosis of boot failure.",
+      "problem_keywords": ["VM provisioning", "timeout", "boot failure", "serial console"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 5,
+    "path": "20250603-172021-168-smoke_test",
+    "error_message": "lisa.util.LisaException: OSProvisioningTimedOut: OS Provisioning for VM 'lisa-Azure-fleet-smoke-20250603-171025-337-e82-n0' did not finish in the allotted time. The VM may still finish provisioning successfully. Please check provisioning state later. For details on how to check current provisioning state of Windows VMs, refer to https://aka.ms/WindowsVMLifecycle and Linux VMs, refer to https://aka.ms/LinuxVMLifecycle.",
+    "ground_truth": {
+      "summary": "The root partition \"/dev/sda1\" was not found during the process to switch the file system from the initramfs to the disk sda1, which leads to the boot process got stopped.",
+      "problem": "Boot process failure due to missing root partition /dev/sda1 during initramfs to disk transition.",
+      "problem_keywords": ["root partition", "/dev/sda1", "initramfs", "boot failure"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 6,
+    "path": "20250603-172025-596-smoke_test",
+    "error_message": "lisa.util.PassedException: failed to connect SSH port of the VM. It might be due to one of the following reasons: 1. Port 22 is not open. 2. The VM denies other users' access. 3. The VM is refusing the private key authentication. Please modify the relevant configurations and try again. Error details: failed to connect [4.236.18.188:22], ValueError: q must be exactly 160, 224, or 256 bits long",
+    "ground_truth": {
+      "summary": "The VM might be designed to run on Azure with a data disk attached at LUN 0. However, no data disk is currently attached, which may be causing the boot process to fail and preventing SSH access. Please try attaching a data disk to the VM at LUN 0 and rerun the test case.",
+      "problem": "SSH connection failure due to missing data disk attachment at LUN 0 causing boot process issues.",
+      "problem_keywords": ["SSH connection", "data disk", "LUN 0", "boot process"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 7,
+    "path": "20250603-173332-292-verify_dpdk_build_gb_hugepages_netvsc",
+    "error_message": "AssertionError: [any([0, 0, 0]) resolved to false. Test data was empty or all zeroes for dpdktestpmd.tx_pps_data.] Expected <True>, but was not.",
+    "ground_truth": {
+      "summary": "The TX.pps reported by dpdk-testpmd is zero. At this stage, the root cause cannot be determined from the available logs. This issue may be related to configuration problems or other environmental factors. Please review the test case implementation and verify that the test environment is properly configured. Additionally, please check the kernel logs and verify whether any required patches are missing.",
+      "problem": "DPDK testpmd reports zero TX.pps due to configuration or environmental issues with insufficient diagnostic information.",
+      "problem_keywords": ["DPDK", "testpmd", "TX.pps", "configuration"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 8,
+    "path": "20250603-173555-726-perf_dpdk_l3fwd_ntttcp_tcp",
+    "error_message": "lisa.util.LisaException: OSProvisioningTimedOut: KernelPanicException: provision found panic in serial log. You can check the panic details from the serial console log. Please download the test logs and retrieve the serial_log from 'environments' directory, or you can ask support. Detected Panic phrases: ['[    3.100034] Kernel panic - not syncing: Fatal exception in interrupt\\r', '[    3.342728] ---[ end Kernel panic - not syncing: Fatal exception in interrupt ]---\\r', '[    2.966783] RIP: 0010:hv_pkt_iter_first+0x12/0xc0 [hv_vmbus]\\r', '[    3.072639] RIP: 0010:hv_pkt_iter_first+0x12/0xc0 [hv_vmbus]\\r']",
+    "ground_truth": {
+      "summary": "The VM provisioning process timed out due to a kernel panic. Based on the kernel call trace captured in the serial console log, the issue appears to be related to the hv_vmbus module. Please review the kernel logs and verify whether any required patches are missing. This may be a kernel-level issue that needs to be addressed to ensure successful VM boot and provisioning.",
+      "problem": "Kernel panic in hv_vmbus module during VM provisioning causing boot failure and timeout.",
+      "problem_keywords": ["kernel panic", "hv_vmbus", "VM provisioning", "boot failure"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 9,
+    "path": "20250603-174404-147-stress_sriov_with_max_nics_stop_start_from_platform",
+    "error_message": "paramiko.ssh_exception.SSHException: SSH session not active",
+    "ground_truth": {
+      "summary": "After the VM was stopped and started by the platform for the second time, no route was configured for eth7. Running dhclient eth7 did not restore network connectivity, and the SSH session remained inactive. However, this may not be a substantive issue. Please try rerunning the test case to see if the problem persists.",
+      "problem": "Network route configuration missing for eth7 after VM stop/start cycle preventing SSH connectivity.",
+      "problem_keywords": ["network route", "eth7", "VM stop/start", "SSH connectivity"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 10,
+    "path": "20250603-175005-839-verify_private_script_without_sas_run_failed",
+    "error_message": "AssertionError: Expected <enable_extension> to raise <HttpResponseError> when called with ().",
+    "ground_truth": {
+      "summary": "This test case executes the Custom Script VM extension using a private Azure Storage file URI without a SAS token. The expected behavior is for the extension to fail, as access to the storage blob should be denied. However, the extension unexpectedly succeeded,",
+      "problem": "Custom Script VM extension unexpectedly succeeded when accessing private Azure Storage without SAS token instead of expected failure.",
+      "problem_keywords": ["Custom Script", "VM extension", "Azure Storage", "SAS token"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 11,
+    "path": "20250603-180021-126-verify_sriov_single_vf_connection",
+    "error_message": "AssertionError: [Fail to copy file large_file from 10.0.0.18 to 10.0.0.5\\nGet unexpected exit code on cmd ['sh', '-c', 'scp -o BindAddress=10.0.0.18 -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no large_file $USER@10.0.0.5:/tmp/large_file']] Expected <[0]> to contain item <1>, but did not.",
+    "ground_truth": {
+      "summary": "The scp failure might be caused by the wrong route configuration. The current Linux routing table configuration includes two network interfaces (eth0 and eth1) assigned to the same subnet (10.0.0.0/24). This setup can lead to unpredictable behavior, because the kernel may not consistently choose the correct interface for outbound or inbound traffic.",
+      "problem": "SCP file transfer failure due to conflicting network interface routing with eth0 and eth1 on same subnet (10.0.0.0/24).",
+      "problem_keywords": ["SCP failure", "routing configuration", "eth0", "eth1", "subnet conflict"],
+      "code_recommendation": ""
+    }
+  }
+]

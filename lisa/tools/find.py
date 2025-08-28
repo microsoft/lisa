@@ -23,10 +23,43 @@ class Find(Tool):
     def _windows_tool(cls) -> Optional[Type[Tool]]:
         return WindowsFind
 
+    def _build_pattern_conditions(
+        self,
+        pattern: Union[str, List[str]],
+        option_name: str,
+        ignore_case: bool = False,
+    ) -> str:
+        """
+        Build find command conditions for name or path patterns.
+
+        Args:
+            pattern: Single pattern string or list of patterns
+            option_name: The find option name ('name' or 'path')
+            ignore_case: Whether to use case-insensitive matching
+
+        Returns:
+            String with find command conditions, e.g.,
+            "\\( -name '*.txt' -o -name '*.log' \\)"
+        """
+        if not pattern:
+            return ""
+
+        # Ensure pattern is a list
+        if isinstance(pattern, str):
+            pattern = [pattern]
+
+        # Build the pattern conditions with -o (OR) between patterns
+        option_prefix = f"-i{option_name}" if ignore_case else f"-{option_name}"
+        conditions = []
+        for p in pattern:
+            conditions.append(f"{option_prefix} '{p}'")
+
+        return " \\( " + " -o ".join(conditions) + " \\)"
+
     def find_files(
         self,
         start_path: PurePath,
-        name_pattern: str = "",
+        name_pattern: Union[str, List[str]] = "",
         path_pattern: Union[str, List[str]] = "",
         file_type: str = "",
         ignore_case: bool = False,
@@ -41,23 +74,9 @@ class Find(Tool):
                 raise LisaException(f"Path {start_path} does not exist.")
 
         cmd = str(start_path)
-        if name_pattern:
-            if ignore_case:
-                cmd += f" -iname '{name_pattern}'"
-            else:
-                cmd += f" -name '{name_pattern}'"
 
-        if path_pattern:
-            # Ensure path_patterns is a list
-            if isinstance(path_pattern, str):
-                path_pattern = [path_pattern]
-
-            # Build the path pattern part with -o (OR) between patterns
-            path_conditions = []
-            for pattern in path_pattern:
-                path_option = "-ipath" if ignore_case else "-path"
-                path_conditions.append(f"{path_option} '{pattern}'")
-            cmd += " \\( " + " -o ".join(path_conditions) + " \\)"
+        cmd += self._build_pattern_conditions(name_pattern, "name", ignore_case)
+        cmd += self._build_pattern_conditions(path_pattern, "path", ignore_case)
 
         if file_type:
             cmd += f" -type '{file_type}'"
@@ -65,7 +84,7 @@ class Find(Tool):
         # for possibility of newline character in the file/folder name.
         cmd += " -print0"
 
-        result = self.run(cmd, sudo=sudo, force_run=force_run)
+        result = self.run(cmd, sudo=sudo, shell=True, force_run=force_run)
         if ignore_not_exist and "No such file or directory" in result.stdout:
             return []
         else:
@@ -81,7 +100,7 @@ class WindowsFind(Find):
     def find_files(
         self,
         start_path: PurePath,
-        name_pattern: str = "",
+        name_pattern: Union[str, List[str]] = "",
         path_pattern: Union[str, List[str]] = "",
         file_type: str = "",
         ignore_case: bool = False,
@@ -93,7 +112,14 @@ class WindowsFind(Find):
         if start_path:
             cmd += f" /R {start_path}"
 
-        cmd += f" {name_pattern}"
+        # Handle name_pattern as string or list (Windows Find is simpler)
+        if name_pattern:
+            if isinstance(name_pattern, list):
+                # For Windows, we'll just use the first pattern
+                # as the where command doesn't support multiple patterns easily
+                cmd += f" {name_pattern[0]}"
+            else:
+                cmd += f" {name_pattern}"
 
         results = self.run(
             cmd,

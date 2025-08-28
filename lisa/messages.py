@@ -119,7 +119,7 @@ class PerfMessage(MessageBase):
     kernel_version: str = ""
     lis_version: str = ""
     ip_version: str = NetworkProtocol.IPv4
-    protocol_type: str = TransportProtocol.Tcp
+    protocol_type: Optional[str] = None
     data_path: str = ""
     test_date: datetime = datetime.now(timezone.utc)
     role: str = ""
@@ -168,9 +168,12 @@ DiskType = Enum(
     [
         "unknown",
         "nvme",
+        "localnvme",
         "premiumssd",
+        "localssd",
         "premiumv2ssd",
         "ultradisk",
+        "standardssd",
     ],
 )
 
@@ -204,6 +207,7 @@ class NetworkLatencyPerformanceMessage(PerfMessage):
     latency99_percentile_us: Decimal = Decimal(0)
     interval_us: int = 0
     frequency: int = 0
+    protocol_type: Optional[str] = TransportProtocol.Tcp
 
 
 @dataclass
@@ -221,6 +225,7 @@ class NetworkPPSPerformanceMessage(PerfMessage):
     fwd_pps_maximum: Decimal = Decimal(0)
     fwd_pps_average: Decimal = Decimal(0)
     fwd_pps_minimum: Decimal = Decimal(0)
+    protocol_type: Optional[str] = TransportProtocol.Tcp
 
 
 @dataclass
@@ -244,6 +249,7 @@ class NetworkTCPPerformanceMessage(PerfMessage):
     rx_throughput_in_gbps: Decimal = Decimal(0)
     retransmitted_segments: Decimal = Decimal(0)
     congestion_windowsize_kb: Decimal = Decimal(0)
+    protocol_type: Optional[str] = TransportProtocol.Tcp
 
 
 @dataclass
@@ -258,6 +264,7 @@ class NetworkUDPPerformanceMessage(PerfMessage):
     rx_throughput_in_gbps: Decimal = Decimal(0)
     data_loss: Decimal = Decimal(0)
     packet_size_kbytes: Decimal = Decimal(0)
+    protocol_type: Optional[str] = TransportProtocol.Udp
 
 
 @dataclass
@@ -397,12 +404,18 @@ def send_unified_perf_message(
     metric_description: str = "",
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
     tool: str = "",
+    protocol_type: Optional[str] = None,
 ) -> UnifiedPerfMessage:
+    other_fields = {}
+    if protocol_type is not None:
+        other_fields["protocol_type"] = protocol_type
+
     message = create_perf_message(
         message_type=UnifiedPerfMessage,
         node=node,
         test_result=test_result,
         test_case_name=test_case_name,
+        other_fields=other_fields if other_fields else None,
     )
 
     message.metric_name = metric_name

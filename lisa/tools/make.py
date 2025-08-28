@@ -79,7 +79,7 @@ class Make(Tool):
         if thread_count == 0:
             if self._thread_count == 0:
                 lscpu = self.node.tools[Lscpu]
-                self._thread_count = lscpu.get_core_count()
+                self._thread_count = lscpu.get_thread_count()
             thread_count = self._thread_count
 
         if is_clean:

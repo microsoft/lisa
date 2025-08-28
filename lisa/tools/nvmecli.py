@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Type, cast
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Git, Make
-from lisa.util import find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines
 from lisa.util.process import ExecutableResult
 
 
@@ -107,7 +107,20 @@ class Nvmecli(Tool):
         return namespaces_cli
 
     def get_devices(self, force_run: bool = False) -> Any:
-        nvme_list = self.run("list -o json", shell=True, sudo=True, force_run=force_run)
+        # get nvme devices information ignoring stderror
+        nvme_list = self.run(
+            "list -o json 2>/dev/null",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
+        # NVMe list command returns empty string when no NVMe devices are found.
+        if not nvme_list.stdout:
+            raise LisaException(
+                "No NVMe devices found. "
+                "The 'nvme list' command returned an empty string."
+            )
         nvme_devices = json.loads(nvme_list.stdout)
         return nvme_devices["Devices"]
 
@@ -161,6 +174,16 @@ class Nvmecli(Tool):
 
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
         nvme_devices = self.get_devices(force_run=force_run)
+        # Older versions of nvme-cli do not have the NameSpace key in the output
+        # skip the test if NameSpace key is not available
+        if not nvme_devices:
+            raise LisaException("No NVMe devices found. Unable to get namespace ids.")
+        if "NameSpace" not in nvme_devices[0]:
+            raise LisaException(
+                "The version of nvme-cli is too old,"
+                " it doesn't support to get namespace ids."
+            )
+
         return [
             {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
         ]
@@ -170,6 +193,16 @@ class BSDNvmecli(Nvmecli):
     # nvme0ns1 (1831420MB)
     # nvme10ns12 (1831420MB)
     _namespace_cli_pattern = re.compile(r"(?P<namespace>nvme\d+ns\d+)")
+    # nvme0ns1 (10293847MB)
+    _devicename_from_namespace_pattern = re.compile(r"(?P<devicename>nvme\d+)ns\d+")
+    # Total NVM Capacity:          1920383410176 bytes
+    _total_storage_pattern = re.compile(
+        r"Total NVM Capacity:\s+(?P<storage>\d+)\s+bytes"
+    )
+    # Format NVM:                  Supported
+    __format_device_support = "Format NVM:                  Supported"
+    # Namespace Management:        Supported
+    __ns_management_attachement_support = "Namespace Management:        Supported"
 
     @property
     def command(self) -> str:
@@ -196,3 +229,55 @@ class BSDNvmecli(Nvmecli):
                 namespaces_cli.append(f"/dev/{namespace}")
 
         return namespaces_cli
+
+    def support_device_format(self, device_name: str) -> bool:
+        name_without_dev = device_name.replace("/dev/", "")
+        cmd_result = self.run(f"identify {name_without_dev}", shell=True, sudo=True)
+        cmd_result.assert_exit_code(
+            message=f"Failed to identify settings for {device_name}."
+        )
+        return self.__format_device_support in cmd_result.stdout
+
+    def support_ns_manage_attach(self, device_name: str) -> bool:
+        name_without_dev = device_name.replace("/dev/", "")
+        cmd_result = self.run(f"identify {name_without_dev}", shell=True, sudo=True)
+        cmd_result.assert_exit_code()
+        return self.__ns_management_attachement_support in cmd_result.stdout
+
+    def create_namespace(self, namespace: str) -> ExecutableResult:
+        device_name = find_patterns_in_lines(
+            namespace, [self._devicename_from_namespace_pattern]
+        )[0][0]
+        cmd_result = self.run(f"identify {device_name}", shell=True, sudo=True)
+        cmd_result.assert_exit_code(
+            message="Failed to identify devicename and collect"
+            " requirements for namespace creation."
+        )
+        total_storage_space_in_bytes = find_patterns_in_lines(
+            cmd_result.stdout, [self._total_storage_pattern]
+        )[0][0]
+        # Using the same block size as linux tests of 4096 bytes
+        total_storage_space_in_blocks = int(total_storage_space_in_bytes) // 4096
+        cmd_result = self.run(
+            f"ns create -s {total_storage_space_in_blocks} -c "
+            f"{total_storage_space_in_blocks} {device_name}",
+            shell=True,
+            sudo=True,
+        )
+        return cmd_result
+
+    def delete_namespace(self, namespace: str, id_: int) -> ExecutableResult:
+        device_name = find_patterns_in_lines(
+            namespace, [self._devicename_from_namespace_pattern]
+        )[0][0]
+        return self.run(f"ns delete -n {id_} {device_name}", shell=True, sudo=True)
+
+    def detach_namespace(self, namespace: str, id_: int) -> ExecutableResult:
+        device_name = find_patterns_in_lines(
+            namespace, [self._devicename_from_namespace_pattern]
+        )[0][0]
+        return self.run(f"ns detach -n {id_} -c 0 {device_name}", shell=True, sudo=True)
+
+    def format_namespace(self, namespace: str) -> ExecutableResult:
+        name_without_dev = namespace.replace("/dev/", "")
+        return self.run(f"format {name_without_dev}", shell=True, sudo=True)

@@ -1,0 +1,737 @@
+2025-06-03 18:00:21.126[7436][INFO] lisa.case[verify_sriov_single_vf_connection] test case 'Sriov.verify_sriov_single_vf_connection' is running
+2025-06-03 18:00:21.126[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] detecting host_version ...
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] detecting host version from serial log...
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 20348-10.0-3-0.3098
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel_version ...
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel version from serial log...
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 5.15.0-1089-azure
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_version ...
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala agent version from serial log...
+2025-06-03 18:00:21.282[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.298[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 2.2.46
+2025-06-03 18:00:21.298[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_distro ...
+2025-06-03 18:00:21.298[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_platform ...
+2025-06-03 18:00:21.298[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting host_version ...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting host version from serial log...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 20348-10.0-3-0.3098
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel_version ...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel version from serial log...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 5.15.0-1089-azure
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_version ...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala agent version from serial log...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 2.2.46
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_distro ...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_platform ...
+2025-06-03 18:00:21.486[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting host_version ...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting host version from serial log...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 20348-10.0-3-0.3098
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel_version ...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel version from serial log...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 5.15.0-1089-azure
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_version ...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala agent version from serial log...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] load cached serial log
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] captured in serial log: 2.2.46
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_distro ...
+2025-06-03 18:00:21.751[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_platform ...
+2025-06-03 18:00:21.814[7444][DEBUG] lisa.env[generated_264].node[0].cmd[557] cmd: ['sh', '-c', 'command -v ufw'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:22.314[7128][DEBUG] lisa.env[generated_264].node[0].cmd[557].stdout /usr/sbin/ufw
+2025-06-03 18:00:22.314[7444][DEBUG] lisa.env[generated_264].node[0].cmd[557] execution time: 0.493 sec, exit code: 0
+2025-06-03 18:00:22.314[7444][DEBUG] lisa.env[generated_264].node[0].cmd[2242] cmd: ['sudo', 'sh', '-c', 'ufw disable'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:22.549[7492][DEBUG] lisa.env[generated_264].node[0].cmd[2242].stdout Firewall stopped and disabled on system startup
+2025-06-03 18:00:22.560[7444][DEBUG] lisa.env[generated_264].node[0].cmd[2242] execution time: 0.239 sec, exit code: 0
+2025-06-03 18:00:23.040[7444][DEBUG] lisa.env[generated_264].node[0].feature[NetworkInterface] network interface lisa-AHTier3Test-20250603-072010-700-e264-n0-nic-0's accelerated networking default status [True] is consistent with set status [True], no need to update.
+2025-06-03 18:00:23.212[7444][DEBUG] lisa.env[generated_264].node[0].feature[NetworkInterface] network interface lisa-AHTier3Test-20250603-072010-700-e264-n0-nic-1's accelerated networking default status [True] is consistent with set status [True], no need to update.
+2025-06-03 18:00:23.212[7444][DEBUG] lisa.env[generated_264].node[1].cmd[9387] cmd: ['sh', '-c', 'command -v ufw'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:23.723[7332][DEBUG] lisa.env[generated_264].node[1].cmd[9387].stdout /usr/sbin/ufw
+2025-06-03 18:00:23.723[7444][DEBUG] lisa.env[generated_264].node[1].cmd[9387] execution time: 0.509 sec, exit code: 0
+2025-06-03 18:00:23.723[7444][DEBUG] lisa.env[generated_264].node[1].cmd[4082] cmd: ['sudo', 'sh', '-c', 'ufw disable'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:23.954[7752][DEBUG] lisa.env[generated_264].node[1].cmd[4082].stdout Firewall stopped and disabled on system startup
+2025-06-03 18:00:23.974[7444][DEBUG] lisa.env[generated_264].node[1].cmd[4082] execution time: 0.243 sec, exit code: 0
+2025-06-03 18:00:24.595[7444][DEBUG] lisa.env[generated_264].node[1].feature[NetworkInterface] network interface lisa-AHTier3Test-20250603-072010-700-e264-n1-nic-0's accelerated networking default status [True] is consistent with set status [True], no need to update.
+2025-06-03 18:00:24.798[7444][DEBUG] lisa.env[generated_264].node[1].feature[NetworkInterface] network interface lisa-AHTier3Test-20250603-072010-700-e264-n1-nic-1's accelerated networking default status [True] is consistent with set status [True], no need to update.
+2025-06-03 18:00:24.798[7436][DEBUG] lisa.case[verify_sriov_single_vf_connection] before_case end in 2.982 sec
+2025-06-03 18:00:26.048[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3783] cmd: ['uname'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:26.068[5968][DEBUG] lisa.env[generated_264].node[0].cmd[3783].stdout Linux
+2025-06-03 18:00:26.078[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3783] execution time: 0.017 sec, exit code: 0
+2025-06-03 18:00:26.078[4776][DEBUG] lisa.env[generated_264].node[0] loading nic information...
+2025-06-03 18:00:26.078[4776][DEBUG] lisa.env[generated_264].node[0].cmd[2957] cmd: ['sudo', 'sh', '-c', 'ls /sys/class/net/'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:26.127[7756][DEBUG] lisa.env[generated_264].node[0].cmd[2957].stdout enP31819s1  enP41968s2	eth0  eth1  lo
+2025-06-03 18:00:26.128[4776][DEBUG] lisa.env[generated_264].node[0].cmd[2957] execution time: 0.050 sec, exit code: 0
+2025-06-03 18:00:26.128[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4952] cmd: ['sudo', 'sh', '-c', 'ls /sys/devices/virtual/net'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:26.178[2960][DEBUG] lisa.env[generated_264].node[0].cmd[4952].stdout lo
+2025-06-03 18:00:26.188[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4952] execution time: 0.058 sec, exit code: 0
+2025-06-03 18:00:26.188[4776][DEBUG] lisa.env[generated_264].node[0] Gathering NIC information on lisa-AHTier3Test-20250603-072010-700-e264-n0.
+2025-06-03 18:00:26.188[4776][DEBUG] lisa.env[generated_264].node[0].cmd[5110] cmd: ['sh', '-c', 'ls -la /sys/class/net/*/lower*/device'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:26.221[2564][DEBUG] lisa.env[generated_264].node[0].cmd[5110].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth0/lower_enP31819s1/device -> ../../../7c4b:00:02.0
+2025-06-03 18:00:26.221[2564][DEBUG] lisa.env[generated_264].node[0].cmd[5110].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth1/lower_enP41968s2/device -> ../../../a3f0:00:02.0
+2025-06-03 18:00:26.245[4776][DEBUG] lisa.env[generated_264].node[0].cmd[5110] execution time: 0.056 sec, exit code: 0
+2025-06-03 18:00:26.246[4776][DEBUG] lisa.env[generated_264].node[0].cmd[2887] cmd: ['sh', '-c', 'lspci -nks 7c4b:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:26.279[2412][DEBUG] lisa.env[generated_264].node[0].cmd[2887].stdout 7c4b:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:26.279[2412][DEBUG] lisa.env[generated_264].node[0].cmd[2887].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:26.279[2412][DEBUG] lisa.env[generated_264].node[0].cmd[2887].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:26.279[2412][DEBUG] lisa.env[generated_264].node[0].cmd[2887].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:26.296[4776][DEBUG] lisa.env[generated_264].node[0].cmd[2887] execution time: 0.050 sec, exit code: 0
+2025-06-03 18:00:26.296[4776][DEBUG] lisa.env[generated_264].node[0].cmd[7887] cmd: ['sh', '-c', 'lspci -nks a3f0:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:26.326[5904][DEBUG] lisa.env[generated_264].node[0].cmd[7887].stdout a3f0:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:26.326[5904][DEBUG] lisa.env[generated_264].node[0].cmd[7887].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:26.342[5904][DEBUG] lisa.env[generated_264].node[0].cmd[7887].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:26.342[5904][DEBUG] lisa.env[generated_264].node[0].cmd[7887].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:26.348[4776][DEBUG] lisa.env[generated_264].node[0].cmd[7887] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:26.348[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4138] cmd: ['sudo', 'sh', '-c', 'update-pciids'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:26.405[4976][DEBUG] lisa.env[generated_264].node[0].cmd[4138].stdout   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2025-06-03 18:00:26.405[4976][DEBUG] lisa.env[generated_264].node[0].cmd[4138].stdout                                  Dload  Upload   Total   Spent    Left  Speed
+2025-06-03 18:00:27.444[4976][DEBUG] lisa.env[generated_264].node[0].cmd[4138].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:27.444[4976][DEBUG] lisa.env[generated_264].node[0].cmd[4138].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:27.444[4976][DEBUG] lisa.env[generated_264].node[0].cmd[4138].stdout 100  319k  100  319k    0     0   306k      0  0:00:01  0:00:01 --:--:--  306k
+2025-06-03 18:00:27.494[4976][DEBUG] lisa.env[generated_264].node[0].cmd[4138].stdout Done.
+2025-06-03 18:00:27.504[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4138] execution time: 1.155 sec, exit code: 0
+2025-06-03 18:00:27.504[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1084] cmd: ['sudo', 'sh', '-c', 'lspci -nD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.556[3176][DEBUG] lisa.env[generated_264].node[0].cmd[1084].stdout 0000:00:00.0 0600: 8086:7192 (rev 03)
+2025-06-03 18:00:27.556[3176][DEBUG] lisa.env[generated_264].node[0].cmd[1084].stdout 0000:00:07.0 0601: 8086:7110 (rev 01)
+2025-06-03 18:00:27.556[3176][DEBUG] lisa.env[generated_264].node[0].cmd[1084].stdout 0000:00:07.1 0101: 8086:7111 (rev 01)
+2025-06-03 18:00:27.556[3176][DEBUG] lisa.env[generated_264].node[0].cmd[1084].stdout 0000:00:07.3 0680: 8086:7113 (rev 02)
+2025-06-03 18:00:27.556[3176][DEBUG] lisa.env[generated_264].node[0].cmd[1084].stdout 0000:00:08.0 0300: 1414:5353
+2025-06-03 18:00:27.556[3176][DEBUG] lisa.env[generated_264].node[0].cmd[1084].stdout 7c4b:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:27.556[3176][DEBUG] lisa.env[generated_264].node[0].cmd[1084].stdout a3f0:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:27.566[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1084] execution time: 0.061 sec, exit code: 0
+2025-06-03 18:00:27.566[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8682] cmd: ['sudo', 'sh', '-c', 'lspci -mD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.630[4392][DEBUG] lisa.env[generated_264].node[0].cmd[8682].stdout 0000:00:00.0 "Host bridge" "Intel Corporation" "440BX/ZX/DX - 82443BX/ZX/DX Host bridge (AGP disabled)" -r03 "" ""
+2025-06-03 18:00:27.630[4392][DEBUG] lisa.env[generated_264].node[0].cmd[8682].stdout 0000:00:07.0 "ISA bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ISA" -r01 "Microsoft Corporation" "82371AB/EB/MB PIIX4 ISA"
+2025-06-03 18:00:27.630[4392][DEBUG] lisa.env[generated_264].node[0].cmd[8682].stdout 0000:00:07.1 "IDE interface" "Intel Corporation" "82371AB/EB/MB PIIX4 IDE" -r01 -p80 "" ""
+2025-06-03 18:00:27.630[4392][DEBUG] lisa.env[generated_264].node[0].cmd[8682].stdout 0000:00:07.3 "Bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ACPI" -r02 "" ""
+2025-06-03 18:00:27.630[4392][DEBUG] lisa.env[generated_264].node[0].cmd[8682].stdout 0000:00:08.0 "VGA compatible controller" "Microsoft Corporation" "Hyper-V virtual VGA" "" ""
+2025-06-03 18:00:27.630[4392][DEBUG] lisa.env[generated_264].node[0].cmd[8682].stdout 7c4b:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:27.630[4392][DEBUG] lisa.env[generated_264].node[0].cmd[8682].stdout a3f0:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:27.641[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8682] execution time: 0.074 sec, exit code: 0
+2025-06-03 18:00:27.641[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8416] cmd: ['readlink', '-f', '/sys/class/net/eth0/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.667[7520][DEBUG] lisa.env[generated_264].node[0].cmd[8416].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:27.691[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8416] execution time: 0.050 sec, exit code: 0
+2025-06-03 18:00:27.691[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6788] cmd: ['readlink', '-f', '/sys/class/net/eth1/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.730[5652][DEBUG] lisa.env[generated_264].node[0].cmd[6788].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:27.741[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6788] execution time: 0.049 sec, exit code: 0
+2025-06-03 18:00:27.741[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3854] cmd: ['sh', '-c', 'ip addr show'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     inet 127.0.0.1/8 scope host lo
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     inet6 ::1/128 scope host 
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     link/ether 7c:1e:52:3e:f0:ce brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     inet 10.0.0.19/24 metric 100 brd 10.0.0.255 scope global eth0
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     inet6 fe80::7e1e:52ff:fe3e:f0ce/64 scope link 
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout 3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     link/ether 7c:1e:52:3e:f6:cb brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     inet 10.0.0.18/24 metric 200 brd 10.0.0.255 scope global eth1
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     inet6 fe80::7e1e:52ff:fe3e:f6cb/64 scope link 
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout 4: enP31819s1: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth0 state UP group default qlen 1000
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     link/ether 7c:1e:52:3e:f0:ce brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     altname enP31819p0s2
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout 5: enP41968s2: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth1 state UP group default qlen 1000
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     link/ether 7c:1e:52:3e:f6:cb brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:27.778[1404][DEBUG] lisa.env[generated_264].node[0].cmd[3854].stdout     altname enP41968p0s2
+2025-06-03 18:00:27.788[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3854] execution time: 0.046 sec, exit code: 0
+2025-06-03 18:00:27.788[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: lo 00:00:00:00:00:00 127.0.0.1
+2025-06-03 18:00:27.788[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: eth0 7c:1e:52:3e:f0:ce 10.0.0.19
+2025-06-03 18:00:27.788[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: eth1 7c:1e:52:3e:f6:cb 10.0.0.18
+2025-06-03 18:00:27.788[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: enP31819s1 7c:1e:52:3e:f0:ce None
+2025-06-03 18:00:27.788[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: enP41968s2 7c:1e:52:3e:f6:cb None
+2025-06-03 18:00:27.788[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6675] cmd: ['readlink', '/sys/class/net/eth0/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.824[7640][DEBUG] lisa.env[generated_264].node[0].cmd[6675].stdout ../../../7c1e523e-f0ce-7c1e-523e-f0ce7c1e523e
+2025-06-03 18:00:27.837[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6675] execution time: 0.047 sec, exit code: 0
+2025-06-03 18:00:27.837[4776][DEBUG] lisa.env[generated_264].node[0] eth0 UUID:7c1e523e-f0ce-7c1e-523e-f0ce7c1e523e
+2025-06-03 18:00:27.837[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3557] cmd: ['readlink', '/sys/class/net/eth1/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.871[5492][DEBUG] lisa.env[generated_264].node[0].cmd[3557].stdout ../../../7c1e523e-f6cb-7c1e-523e-f6cb7c1e523e
+2025-06-03 18:00:27.871[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3557] execution time: 0.037 sec, exit code: 0
+2025-06-03 18:00:27.871[4776][DEBUG] lisa.env[generated_264].node[0] eth1 UUID:7c1e523e-f6cb-7c1e-523e-f6cb7c1e523e
+2025-06-03 18:00:27.871[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1920] cmd: ['sudo', 'ip', 'route'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.922[7688][DEBUG] lisa.env[generated_264].node[0].cmd[1920].stdout default via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.19 metric 100 
+2025-06-03 18:00:27.922[7688][DEBUG] lisa.env[generated_264].node[0].cmd[1920].stdout 10.0.0.0/24 dev eth0 proto kernel scope link src 10.0.0.19 metric 100 
+2025-06-03 18:00:27.922[7688][DEBUG] lisa.env[generated_264].node[0].cmd[1920].stdout 10.0.0.0/24 dev eth1 proto kernel scope link src 10.0.0.18 metric 200 
+2025-06-03 18:00:27.922[7688][DEBUG] lisa.env[generated_264].node[0].cmd[1920].stdout 168.63.129.16 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.19 metric 100 
+2025-06-03 18:00:27.922[7688][DEBUG] lisa.env[generated_264].node[0].cmd[1920].stdout 169.254.169.254 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.19 metric 100 
+2025-06-03 18:00:27.932[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1920] execution time: 0.056 sec, exit code: 0
+2025-06-03 18:00:27.932[4776][DEBUG] lisa.env[generated_264].node[0] loading nic information...
+2025-06-03 18:00:27.932[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4095] cmd: ['sudo', 'sh', '-c', 'ls /sys/class/net/'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:27.988[7804][DEBUG] lisa.env[generated_264].node[0].cmd[4095].stdout enP31819s1  enP41968s2	eth0  eth1  lo
+2025-06-03 18:00:27.998[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4095] execution time: 0.065 sec, exit code: 0
+2025-06-03 18:00:27.998[4776][DEBUG] lisa.env[generated_264].node[0].cmd[7658] cmd: ['sudo', 'sh', '-c', 'ls /sys/devices/virtual/net'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:28.030[5116][DEBUG] lisa.env[generated_264].node[0].cmd[7658].stdout lo
+2025-06-03 18:00:28.048[4776][DEBUG] lisa.env[generated_264].node[0].cmd[7658] execution time: 0.050 sec, exit code: 0
+2025-06-03 18:00:28.048[4776][DEBUG] lisa.env[generated_264].node[0] Gathering NIC information on lisa-AHTier3Test-20250603-072010-700-e264-n0.
+2025-06-03 18:00:28.048[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8674] cmd: ['sh', '-c', 'ls -la /sys/class/net/*/lower*/device'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:28.094[1424][DEBUG] lisa.env[generated_264].node[0].cmd[8674].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth0/lower_enP31819s1/device -> ../../../7c4b:00:02.0
+2025-06-03 18:00:28.094[1424][DEBUG] lisa.env[generated_264].node[0].cmd[8674].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth1/lower_enP41968s2/device -> ../../../a3f0:00:02.0
+2025-06-03 18:00:28.104[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8674] execution time: 0.055 sec, exit code: 0
+2025-06-03 18:00:28.104[4776][DEBUG] lisa.env[generated_264].node[0].cmd[496] cmd: ['sh', '-c', 'lspci -nks 7c4b:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:28.146[5800][DEBUG] lisa.env[generated_264].node[0].cmd[496].stdout 7c4b:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:28.146[5800][DEBUG] lisa.env[generated_264].node[0].cmd[496].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:28.146[5800][DEBUG] lisa.env[generated_264].node[0].cmd[496].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:28.146[5800][DEBUG] lisa.env[generated_264].node[0].cmd[496].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:28.156[4776][DEBUG] lisa.env[generated_264].node[0].cmd[496] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:28.156[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8553] cmd: ['sh', '-c', 'lspci -nks a3f0:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:28.187[4972][DEBUG] lisa.env[generated_264].node[0].cmd[8553].stdout a3f0:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:28.187[4972][DEBUG] lisa.env[generated_264].node[0].cmd[8553].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:28.187[4972][DEBUG] lisa.env[generated_264].node[0].cmd[8553].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:28.187[4972][DEBUG] lisa.env[generated_264].node[0].cmd[8553].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:28.208[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8553] execution time: 0.052 sec, exit code: 0
+2025-06-03 18:00:28.209[4776][DEBUG] lisa.env[generated_264].node[0].cmd[9394] cmd: ['sudo', 'sh', '-c', 'update-pciids'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:28.263[3984][DEBUG] lisa.env[generated_264].node[0].cmd[9394].stdout   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2025-06-03 18:00:28.263[3984][DEBUG] lisa.env[generated_264].node[0].cmd[9394].stdout                                  Dload  Upload   Total   Spent    Left  Speed
+2025-06-03 18:00:29.307[3984][DEBUG] lisa.env[generated_264].node[0].cmd[9394].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:29.307[3984][DEBUG] lisa.env[generated_264].node[0].cmd[9394].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:29.307[3984][DEBUG] lisa.env[generated_264].node[0].cmd[9394].stdout 100  319k  100  319k    0     0   306k      0  0:00:01  0:00:01 --:--:--  306k
+2025-06-03 18:00:29.355[3984][DEBUG] lisa.env[generated_264].node[0].cmd[9394].stdout Done.
+2025-06-03 18:00:29.365[4776][DEBUG] lisa.env[generated_264].node[0].cmd[9394] execution time: 1.156 sec, exit code: 0
+2025-06-03 18:00:29.365[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8195] cmd: ['sudo', 'sh', '-c', 'lspci -nD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.418[4468][DEBUG] lisa.env[generated_264].node[0].cmd[8195].stdout 0000:00:00.0 0600: 8086:7192 (rev 03)
+2025-06-03 18:00:29.418[4468][DEBUG] lisa.env[generated_264].node[0].cmd[8195].stdout 0000:00:07.0 0601: 8086:7110 (rev 01)
+2025-06-03 18:00:29.418[4468][DEBUG] lisa.env[generated_264].node[0].cmd[8195].stdout 0000:00:07.1 0101: 8086:7111 (rev 01)
+2025-06-03 18:00:29.418[4468][DEBUG] lisa.env[generated_264].node[0].cmd[8195].stdout 0000:00:07.3 0680: 8086:7113 (rev 02)
+2025-06-03 18:00:29.418[4468][DEBUG] lisa.env[generated_264].node[0].cmd[8195].stdout 0000:00:08.0 0300: 1414:5353
+2025-06-03 18:00:29.418[4468][DEBUG] lisa.env[generated_264].node[0].cmd[8195].stdout 7c4b:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:29.418[4468][DEBUG] lisa.env[generated_264].node[0].cmd[8195].stdout a3f0:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:29.426[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8195] execution time: 0.060 sec, exit code: 0
+2025-06-03 18:00:29.426[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8628] cmd: ['sudo', 'sh', '-c', 'lspci -mD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.496[4528][DEBUG] lisa.env[generated_264].node[0].cmd[8628].stdout 0000:00:00.0 "Host bridge" "Intel Corporation" "440BX/ZX/DX - 82443BX/ZX/DX Host bridge (AGP disabled)" -r03 "" ""
+2025-06-03 18:00:29.496[4528][DEBUG] lisa.env[generated_264].node[0].cmd[8628].stdout 0000:00:07.0 "ISA bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ISA" -r01 "Microsoft Corporation" "82371AB/EB/MB PIIX4 ISA"
+2025-06-03 18:00:29.496[4528][DEBUG] lisa.env[generated_264].node[0].cmd[8628].stdout 0000:00:07.1 "IDE interface" "Intel Corporation" "82371AB/EB/MB PIIX4 IDE" -r01 -p80 "" ""
+2025-06-03 18:00:29.496[4528][DEBUG] lisa.env[generated_264].node[0].cmd[8628].stdout 0000:00:07.3 "Bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ACPI" -r02 "" ""
+2025-06-03 18:00:29.496[4528][DEBUG] lisa.env[generated_264].node[0].cmd[8628].stdout 0000:00:08.0 "VGA compatible controller" "Microsoft Corporation" "Hyper-V virtual VGA" "" ""
+2025-06-03 18:00:29.496[4528][DEBUG] lisa.env[generated_264].node[0].cmd[8628].stdout 7c4b:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:29.501[4528][DEBUG] lisa.env[generated_264].node[0].cmd[8628].stdout a3f0:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:29.501[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8628] execution time: 0.075 sec, exit code: 0
+2025-06-03 18:00:29.501[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3795] cmd: ['readlink', '-f', '/sys/class/net/eth0/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.544[5192][DEBUG] lisa.env[generated_264].node[0].cmd[3795].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:29.560[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3795] execution time: 0.057 sec, exit code: 0
+2025-06-03 18:00:29.560[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1765] cmd: ['readlink', '-f', '/sys/class/net/eth1/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.591[2808][DEBUG] lisa.env[generated_264].node[0].cmd[1765].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:29.591[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1765] execution time: 0.041 sec, exit code: 0
+2025-06-03 18:00:29.591[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4257] cmd: ['sh', '-c', 'ip addr show'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.638[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+2025-06-03 18:00:29.638[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2025-06-03 18:00:29.638[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     inet 127.0.0.1/8 scope host lo
+2025-06-03 18:00:29.638[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:29.638[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     inet6 ::1/128 scope host 
+2025-06-03 18:00:29.638[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:29.638[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     link/ether 7c:1e:52:3e:f0:ce brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     inet 10.0.0.19/24 metric 100 brd 10.0.0.255 scope global eth0
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     inet6 fe80::7e1e:52ff:fe3e:f0ce/64 scope link 
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout 3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     link/ether 7c:1e:52:3e:f6:cb brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     inet 10.0.0.18/24 metric 200 brd 10.0.0.255 scope global eth1
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     inet6 fe80::7e1e:52ff:fe3e:f6cb/64 scope link 
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout 4: enP31819s1: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth0 state UP group default qlen 1000
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     link/ether 7c:1e:52:3e:f0:ce brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     altname enP31819p0s2
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout 5: enP41968s2: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth1 state UP group default qlen 1000
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     link/ether 7c:1e:52:3e:f6:cb brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:29.653[5588][DEBUG] lisa.env[generated_264].node[0].cmd[4257].stdout     altname enP41968p0s2
+2025-06-03 18:00:29.660[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4257] execution time: 0.057 sec, exit code: 0
+2025-06-03 18:00:29.660[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: lo 00:00:00:00:00:00 127.0.0.1
+2025-06-03 18:00:29.660[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: eth0 7c:1e:52:3e:f0:ce 10.0.0.19
+2025-06-03 18:00:29.660[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: eth1 7c:1e:52:3e:f6:cb 10.0.0.18
+2025-06-03 18:00:29.660[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: enP31819s1 7c:1e:52:3e:f0:ce None
+2025-06-03 18:00:29.660[4776][DEBUG] lisa.env[generated_264].node[0] Found nic info: enP41968s2 7c:1e:52:3e:f6:cb None
+2025-06-03 18:00:29.660[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8527] cmd: ['readlink', '/sys/class/net/eth0/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.685[6096][DEBUG] lisa.env[generated_264].node[0].cmd[8527].stdout ../../../7c1e523e-f0ce-7c1e-523e-f0ce7c1e523e
+2025-06-03 18:00:29.685[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8527] execution time: 0.037 sec, exit code: 0
+2025-06-03 18:00:29.685[4776][DEBUG] lisa.env[generated_264].node[0] eth0 UUID:7c1e523e-f0ce-7c1e-523e-f0ce7c1e523e
+2025-06-03 18:00:29.685[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8738] cmd: ['readlink', '/sys/class/net/eth1/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.732[8020][DEBUG] lisa.env[generated_264].node[0].cmd[8738].stdout ../../../7c1e523e-f6cb-7c1e-523e-f6cb7c1e523e
+2025-06-03 18:00:29.732[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8738] execution time: 0.047 sec, exit code: 0
+2025-06-03 18:00:29.732[4776][DEBUG] lisa.env[generated_264].node[0] eth1 UUID:7c1e523e-f6cb-7c1e-523e-f6cb7c1e523e
+2025-06-03 18:00:29.732[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4052] cmd: ['sudo', 'ip', 'route'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:29.795[5980][DEBUG] lisa.env[generated_264].node[0].cmd[4052].stdout default via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.19 metric 100 
+2025-06-03 18:00:29.795[5980][DEBUG] lisa.env[generated_264].node[0].cmd[4052].stdout 10.0.0.0/24 dev eth0 proto kernel scope link src 10.0.0.19 metric 100 
+2025-06-03 18:00:29.795[5980][DEBUG] lisa.env[generated_264].node[0].cmd[4052].stdout 10.0.0.0/24 dev eth1 proto kernel scope link src 10.0.0.18 metric 200 
+2025-06-03 18:00:29.795[5980][DEBUG] lisa.env[generated_264].node[0].cmd[4052].stdout 168.63.129.16 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.19 metric 100 
+2025-06-03 18:00:29.795[5980][DEBUG] lisa.env[generated_264].node[0].cmd[4052].stdout 169.254.169.254 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.19 metric 100 
+2025-06-03 18:00:29.805[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4052] execution time: 0.058 sec, exit code: 0
+2025-06-03 18:00:31.076[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9761] cmd: ['uname'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:31.076[6156][DEBUG] lisa.env[generated_264].node[1].cmd[9761].stdout Linux
+2025-06-03 18:00:31.099[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9761] execution time: 0.018 sec, exit code: 0
+2025-06-03 18:00:31.099[4776][DEBUG] lisa.env[generated_264].node[1] loading nic information...
+2025-06-03 18:00:31.099[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5724] cmd: ['sudo', 'sh', '-c', 'ls /sys/class/net/'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:31.155[4396][DEBUG] lisa.env[generated_264].node[1].cmd[5724].stdout enP13864s1  enP44273s2	eth0  eth1  lo
+2025-06-03 18:00:31.161[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5724] execution time: 0.061 sec, exit code: 0
+2025-06-03 18:00:31.161[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4138] cmd: ['sudo', 'sh', '-c', 'ls /sys/devices/virtual/net'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:31.218[6632][DEBUG] lisa.env[generated_264].node[1].cmd[4138].stdout lo
+2025-06-03 18:00:31.223[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4138] execution time: 0.061 sec, exit code: 0
+2025-06-03 18:00:31.223[4776][DEBUG] lisa.env[generated_264].node[1] Gathering NIC information on lisa-AHTier3Test-20250603-072010-700-e264-n1.
+2025-06-03 18:00:31.223[4776][DEBUG] lisa.env[generated_264].node[1].cmd[7656] cmd: ['sh', '-c', 'ls -la /sys/class/net/*/lower*/device'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:31.266[7028][DEBUG] lisa.env[generated_264].node[1].cmd[7656].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth0/lower_enP13864s1/device -> ../../../3628:00:02.0
+2025-06-03 18:00:31.266[7028][DEBUG] lisa.env[generated_264].node[1].cmd[7656].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth1/lower_enP44273s2/device -> ../../../acf1:00:02.0
+2025-06-03 18:00:31.282[4776][DEBUG] lisa.env[generated_264].node[1].cmd[7656] execution time: 0.059 sec, exit code: 0
+2025-06-03 18:00:31.282[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5404] cmd: ['sh', '-c', 'lspci -nks 3628:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:31.313[4568][DEBUG] lisa.env[generated_264].node[1].cmd[5404].stdout 3628:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:31.313[4568][DEBUG] lisa.env[generated_264].node[1].cmd[5404].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:31.313[4568][DEBUG] lisa.env[generated_264].node[1].cmd[5404].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:31.313[4568][DEBUG] lisa.env[generated_264].node[1].cmd[5404].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:31.334[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5404] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:31.334[4776][DEBUG] lisa.env[generated_264].node[1].cmd[1292] cmd: ['sh', '-c', 'lspci -nks acf1:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:31.376[5312][DEBUG] lisa.env[generated_264].node[1].cmd[1292].stdout acf1:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:31.376[5312][DEBUG] lisa.env[generated_264].node[1].cmd[1292].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:31.376[5312][DEBUG] lisa.env[generated_264].node[1].cmd[1292].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:31.376[5312][DEBUG] lisa.env[generated_264].node[1].cmd[1292].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:31.386[4776][DEBUG] lisa.env[generated_264].node[1].cmd[1292] execution time: 0.052 sec, exit code: 0
+2025-06-03 18:00:31.386[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6488] cmd: ['sudo', 'sh', '-c', 'update-pciids'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:31.454[7416][DEBUG] lisa.env[generated_264].node[1].cmd[6488].stdout   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2025-06-03 18:00:31.454[7416][DEBUG] lisa.env[generated_264].node[1].cmd[6488].stdout                                  Dload  Upload   Total   Spent    Left  Speed
+2025-06-03 18:00:32.472[7416][DEBUG] lisa.env[generated_264].node[1].cmd[6488].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:32.472[7416][DEBUG] lisa.env[generated_264].node[1].cmd[6488].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:32.472[7416][DEBUG] lisa.env[generated_264].node[1].cmd[6488].stdout  64  319k   64  207k    0     0   204k      0  0:00:01  0:00:01 --:--:--  204k
+2025-06-03 18:00:32.472[7416][DEBUG] lisa.env[generated_264].node[1].cmd[6488].stdout 100  319k  100  319k    0     0   313k      0  0:00:01  0:00:01 --:--:--  313k
+2025-06-03 18:00:32.522[7416][DEBUG] lisa.env[generated_264].node[1].cmd[6488].stdout Done.
+2025-06-03 18:00:32.532[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6488] execution time: 1.146 sec, exit code: 0
+2025-06-03 18:00:32.532[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4541] cmd: ['sudo', 'sh', '-c', 'lspci -nD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.582[7552][DEBUG] lisa.env[generated_264].node[1].cmd[4541].stdout 0000:00:00.0 0600: 8086:7192 (rev 03)
+2025-06-03 18:00:32.582[7552][DEBUG] lisa.env[generated_264].node[1].cmd[4541].stdout 0000:00:07.0 0601: 8086:7110 (rev 01)
+2025-06-03 18:00:32.582[7552][DEBUG] lisa.env[generated_264].node[1].cmd[4541].stdout 0000:00:07.1 0101: 8086:7111 (rev 01)
+2025-06-03 18:00:32.582[7552][DEBUG] lisa.env[generated_264].node[1].cmd[4541].stdout 0000:00:07.3 0680: 8086:7113 (rev 02)
+2025-06-03 18:00:32.582[7552][DEBUG] lisa.env[generated_264].node[1].cmd[4541].stdout 0000:00:08.0 0300: 1414:5353
+2025-06-03 18:00:32.582[7552][DEBUG] lisa.env[generated_264].node[1].cmd[4541].stdout 3628:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:32.582[7552][DEBUG] lisa.env[generated_264].node[1].cmd[4541].stdout acf1:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:32.592[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4541] execution time: 0.059 sec, exit code: 0
+2025-06-03 18:00:32.592[4776][DEBUG] lisa.env[generated_264].node[1].cmd[321] cmd: ['sudo', 'sh', '-c', 'lspci -mD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.657[1228][DEBUG] lisa.env[generated_264].node[1].cmd[321].stdout 0000:00:00.0 "Host bridge" "Intel Corporation" "440BX/ZX/DX - 82443BX/ZX/DX Host bridge (AGP disabled)" -r03 "" ""
+2025-06-03 18:00:32.660[1228][DEBUG] lisa.env[generated_264].node[1].cmd[321].stdout 0000:00:07.0 "ISA bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ISA" -r01 "Microsoft Corporation" "82371AB/EB/MB PIIX4 ISA"
+2025-06-03 18:00:32.660[1228][DEBUG] lisa.env[generated_264].node[1].cmd[321].stdout 0000:00:07.1 "IDE interface" "Intel Corporation" "82371AB/EB/MB PIIX4 IDE" -r01 -p80 "" ""
+2025-06-03 18:00:32.660[1228][DEBUG] lisa.env[generated_264].node[1].cmd[321].stdout 0000:00:07.3 "Bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ACPI" -r02 "" ""
+2025-06-03 18:00:32.660[1228][DEBUG] lisa.env[generated_264].node[1].cmd[321].stdout 0000:00:08.0 "VGA compatible controller" "Microsoft Corporation" "Hyper-V virtual VGA" "" ""
+2025-06-03 18:00:32.660[1228][DEBUG] lisa.env[generated_264].node[1].cmd[321].stdout 3628:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:32.663[1228][DEBUG] lisa.env[generated_264].node[1].cmd[321].stdout acf1:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:32.673[4776][DEBUG] lisa.env[generated_264].node[1].cmd[321] execution time: 0.080 sec, exit code: 0
+2025-06-03 18:00:32.673[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6940] cmd: ['readlink', '-f', '/sys/class/net/eth0/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.704[7044][DEBUG] lisa.env[generated_264].node[1].cmd[6940].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:32.726[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6940] execution time: 0.053 sec, exit code: 0
+2025-06-03 18:00:32.726[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5174] cmd: ['readlink', '-f', '/sys/class/net/eth1/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.751[5472][DEBUG] lisa.env[generated_264].node[1].cmd[5174].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:32.775[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5174] execution time: 0.048 sec, exit code: 0
+2025-06-03 18:00:32.775[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9878] cmd: ['sh', '-c', 'ip addr show'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.799[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+2025-06-03 18:00:32.799[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2025-06-03 18:00:32.799[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     inet 127.0.0.1/8 scope host lo
+2025-06-03 18:00:32.799[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     inet6 ::1/128 scope host 
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     link/ether 7c:1e:52:3e:f4:80 brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     inet 10.0.0.5/24 metric 100 brd 10.0.0.255 scope global eth0
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     inet6 fe80::7e1e:52ff:fe3e:f480/64 scope link 
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout 3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     link/ether 7c:1e:52:3e:fd:9f brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     inet 10.0.0.20/24 metric 200 brd 10.0.0.255 scope global eth1
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     inet6 fe80::7e1e:52ff:fe3e:fd9f/64 scope link 
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout 4: enP13864s1: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth0 state UP group default qlen 1000
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     link/ether 7c:1e:52:3e:f4:80 brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     altname enP13864p0s2
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout 5: enP44273s2: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth1 state UP group default qlen 1000
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     link/ether 7c:1e:52:3e:fd:9f brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:32.814[6384][DEBUG] lisa.env[generated_264].node[1].cmd[9878].stdout     altname enP44273p0s2
+2025-06-03 18:00:32.822[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9878] execution time: 0.047 sec, exit code: 0
+2025-06-03 18:00:32.822[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: lo 00:00:00:00:00:00 127.0.0.1
+2025-06-03 18:00:32.822[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: eth0 7c:1e:52:3e:f4:80 10.0.0.5
+2025-06-03 18:00:32.822[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: eth1 7c:1e:52:3e:fd:9f 10.0.0.20
+2025-06-03 18:00:32.822[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: enP13864s1 7c:1e:52:3e:f4:80 None
+2025-06-03 18:00:32.822[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: enP44273s2 7c:1e:52:3e:fd:9f None
+2025-06-03 18:00:32.822[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6923] cmd: ['readlink', '/sys/class/net/eth0/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.862[7004][DEBUG] lisa.env[generated_264].node[1].cmd[6923].stdout ../../../7c1e523e-f480-7c1e-523e-f4807c1e523e
+2025-06-03 18:00:32.862[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6923] execution time: 0.049 sec, exit code: 0
+2025-06-03 18:00:32.862[4776][DEBUG] lisa.env[generated_264].node[1] eth0 UUID:7c1e523e-f480-7c1e-523e-f4807c1e523e
+2025-06-03 18:00:32.862[4776][DEBUG] lisa.env[generated_264].node[1].cmd[901] cmd: ['readlink', '/sys/class/net/eth1/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.909[3848][DEBUG] lisa.env[generated_264].node[1].cmd[901].stdout ../../../7c1e523e-fd9f-7c1e-523e-fd9f7c1e523e
+2025-06-03 18:00:32.931[4776][DEBUG] lisa.env[generated_264].node[1].cmd[901] execution time: 0.057 sec, exit code: 0
+2025-06-03 18:00:32.931[4776][DEBUG] lisa.env[generated_264].node[1] eth1 UUID:7c1e523e-fd9f-7c1e-523e-fd9f7c1e523e
+2025-06-03 18:00:32.931[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2265] cmd: ['sudo', 'ip', 'route'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:32.972[7404][DEBUG] lisa.env[generated_264].node[1].cmd[2265].stdout default via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.5 metric 100 
+2025-06-03 18:00:32.972[7404][DEBUG] lisa.env[generated_264].node[1].cmd[2265].stdout 10.0.0.0/24 dev eth0 proto kernel scope link src 10.0.0.5 metric 100 
+2025-06-03 18:00:32.972[7404][DEBUG] lisa.env[generated_264].node[1].cmd[2265].stdout 10.0.0.0/24 dev eth1 proto kernel scope link src 10.0.0.20 metric 200 
+2025-06-03 18:00:32.972[7404][DEBUG] lisa.env[generated_264].node[1].cmd[2265].stdout 168.63.129.16 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.5 metric 100 
+2025-06-03 18:00:32.972[7404][DEBUG] lisa.env[generated_264].node[1].cmd[2265].stdout 169.254.169.254 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.5 metric 100 
+2025-06-03 18:00:32.982[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2265] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:32.982[4776][DEBUG] lisa.env[generated_264].node[1] loading nic information...
+2025-06-03 18:00:32.982[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6937] cmd: ['sudo', 'sh', '-c', 'ls /sys/class/net/'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:33.034[7524][DEBUG] lisa.env[generated_264].node[1].cmd[6937].stdout enP13864s1  enP44273s2	eth0  eth1  lo
+2025-06-03 18:00:33.043[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6937] execution time: 0.059 sec, exit code: 0
+2025-06-03 18:00:33.043[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5184] cmd: ['sudo', 'sh', '-c', 'ls /sys/devices/virtual/net'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:33.097[1624][DEBUG] lisa.env[generated_264].node[1].cmd[5184].stdout lo
+2025-06-03 18:00:33.102[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5184] execution time: 0.059 sec, exit code: 0
+2025-06-03 18:00:33.102[4776][DEBUG] lisa.env[generated_264].node[1] Gathering NIC information on lisa-AHTier3Test-20250603-072010-700-e264-n1.
+2025-06-03 18:00:33.102[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6955] cmd: ['sh', '-c', 'ls -la /sys/class/net/*/lower*/device'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:33.145[2840][DEBUG] lisa.env[generated_264].node[1].cmd[6955].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth0/lower_enP13864s1/device -> ../../../3628:00:02.0
+2025-06-03 18:00:33.145[2840][DEBUG] lisa.env[generated_264].node[1].cmd[6955].stdout lrwxrwxrwx 1 root root 0 Jun  3 17:59 /sys/class/net/eth1/lower_enP44273s2/device -> ../../../acf1:00:02.0
+2025-06-03 18:00:33.166[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6955] execution time: 0.063 sec, exit code: 0
+2025-06-03 18:00:33.166[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6649] cmd: ['sh', '-c', 'lspci -nks 3628:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:33.208[4552][DEBUG] lisa.env[generated_264].node[1].cmd[6649].stdout 3628:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:33.208[4552][DEBUG] lisa.env[generated_264].node[1].cmd[6649].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:33.208[4552][DEBUG] lisa.env[generated_264].node[1].cmd[6649].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:33.208[4552][DEBUG] lisa.env[generated_264].node[1].cmd[6649].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:33.218[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6649] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:33.218[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9913] cmd: ['sh', '-c', 'lspci -nks acf1:00:02.0'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:33.255[7352][DEBUG] lisa.env[generated_264].node[1].cmd[9913].stdout acf1:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:33.255[7352][DEBUG] lisa.env[generated_264].node[1].cmd[9913].stdout 	Subsystem: 15b3:0190
+2025-06-03 18:00:33.255[7352][DEBUG] lisa.env[generated_264].node[1].cmd[9913].stdout 	Kernel driver in use: mlx5_core
+2025-06-03 18:00:33.255[7352][DEBUG] lisa.env[generated_264].node[1].cmd[9913].stdout 	Kernel modules: mlx5_core
+2025-06-03 18:00:33.271[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9913] execution time: 0.052 sec, exit code: 0
+2025-06-03 18:00:33.271[4776][DEBUG] lisa.env[generated_264].node[1].cmd[3954] cmd: ['sudo', 'sh', '-c', 'update-pciids'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:33.322[2728][DEBUG] lisa.env[generated_264].node[1].cmd[3954].stdout   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2025-06-03 18:00:33.332[2728][DEBUG] lisa.env[generated_264].node[1].cmd[3954].stdout                                  Dload  Upload   Total   Spent    Left  Speed
+2025-06-03 18:00:34.371[2728][DEBUG] lisa.env[generated_264].node[1].cmd[3954].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:34.371[2728][DEBUG] lisa.env[generated_264].node[1].cmd[3954].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:34.371[2728][DEBUG] lisa.env[generated_264].node[1].cmd[3954].stdout 100  319k  100  319k    0     0   306k      0  0:00:01  0:00:01 --:--:--  306k
+2025-06-03 18:00:34.418[2728][DEBUG] lisa.env[generated_264].node[1].cmd[3954].stdout Done.
+2025-06-03 18:00:34.428[4776][DEBUG] lisa.env[generated_264].node[1].cmd[3954] execution time: 1.156 sec, exit code: 0
+2025-06-03 18:00:34.428[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6830] cmd: ['sudo', 'sh', '-c', 'lspci -nD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.482[5616][DEBUG] lisa.env[generated_264].node[1].cmd[6830].stdout 0000:00:00.0 0600: 8086:7192 (rev 03)
+2025-06-03 18:00:34.482[5616][DEBUG] lisa.env[generated_264].node[1].cmd[6830].stdout 0000:00:07.0 0601: 8086:7110 (rev 01)
+2025-06-03 18:00:34.482[5616][DEBUG] lisa.env[generated_264].node[1].cmd[6830].stdout 0000:00:07.1 0101: 8086:7111 (rev 01)
+2025-06-03 18:00:34.482[5616][DEBUG] lisa.env[generated_264].node[1].cmd[6830].stdout 0000:00:07.3 0680: 8086:7113 (rev 02)
+2025-06-03 18:00:34.482[5616][DEBUG] lisa.env[generated_264].node[1].cmd[6830].stdout 0000:00:08.0 0300: 1414:5353
+2025-06-03 18:00:34.482[5616][DEBUG] lisa.env[generated_264].node[1].cmd[6830].stdout 3628:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:34.482[5616][DEBUG] lisa.env[generated_264].node[1].cmd[6830].stdout acf1:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:34.492[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6830] execution time: 0.064 sec, exit code: 0
+2025-06-03 18:00:34.492[4776][DEBUG] lisa.env[generated_264].node[1].cmd[1479] cmd: ['sudo', 'sh', '-c', 'lspci -mD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.559[6936][DEBUG] lisa.env[generated_264].node[1].cmd[1479].stdout 0000:00:00.0 "Host bridge" "Intel Corporation" "440BX/ZX/DX - 82443BX/ZX/DX Host bridge (AGP disabled)" -r03 "" ""
+2025-06-03 18:00:34.560[6936][DEBUG] lisa.env[generated_264].node[1].cmd[1479].stdout 0000:00:07.0 "ISA bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ISA" -r01 "Microsoft Corporation" "82371AB/EB/MB PIIX4 ISA"
+2025-06-03 18:00:34.561[6936][DEBUG] lisa.env[generated_264].node[1].cmd[1479].stdout 0000:00:07.1 "IDE interface" "Intel Corporation" "82371AB/EB/MB PIIX4 IDE" -r01 -p80 "" ""
+2025-06-03 18:00:34.561[6936][DEBUG] lisa.env[generated_264].node[1].cmd[1479].stdout 0000:00:07.3 "Bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ACPI" -r02 "" ""
+2025-06-03 18:00:34.561[6936][DEBUG] lisa.env[generated_264].node[1].cmd[1479].stdout 0000:00:08.0 "VGA compatible controller" "Microsoft Corporation" "Hyper-V virtual VGA" "" ""
+2025-06-03 18:00:34.561[6936][DEBUG] lisa.env[generated_264].node[1].cmd[1479].stdout 3628:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:34.561[6936][DEBUG] lisa.env[generated_264].node[1].cmd[1479].stdout acf1:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:34.571[4776][DEBUG] lisa.env[generated_264].node[1].cmd[1479] execution time: 0.078 sec, exit code: 0
+2025-06-03 18:00:34.571[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5374] cmd: ['readlink', '-f', '/sys/class/net/eth0/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.612[4016][DEBUG] lisa.env[generated_264].node[1].cmd[5374].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:34.622[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5374] execution time: 0.050 sec, exit code: 0
+2025-06-03 18:00:34.622[4776][DEBUG] lisa.env[generated_264].node[1].cmd[7695] cmd: ['readlink', '-f', '/sys/class/net/eth1/device/driver'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.653[3676][DEBUG] lisa.env[generated_264].node[1].cmd[7695].stdout /sys/bus/vmbus/drivers/hv_netvsc
+2025-06-03 18:00:34.675[4776][DEBUG] lisa.env[generated_264].node[1].cmd[7695] execution time: 0.052 sec, exit code: 0
+2025-06-03 18:00:34.675[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9333] cmd: ['sh', '-c', 'ip addr show'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     inet 127.0.0.1/8 scope host lo
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     inet6 ::1/128 scope host 
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     link/ether 7c:1e:52:3e:f4:80 brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     inet 10.0.0.5/24 metric 100 brd 10.0.0.255 scope global eth0
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     inet6 fe80::7e1e:52ff:fe3e:f480/64 scope link 
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout 3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     link/ether 7c:1e:52:3e:fd:9f brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     inet 10.0.0.20/24 metric 200 brd 10.0.0.255 scope global eth1
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     inet6 fe80::7e1e:52ff:fe3e:fd9f/64 scope link 
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout        valid_lft forever preferred_lft forever
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout 4: enP13864s1: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth0 state UP group default qlen 1000
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     link/ether 7c:1e:52:3e:f4:80 brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     altname enP13864p0s2
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout 5: enP44273s2: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 qdisc mq master eth1 state UP group default qlen 1000
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     link/ether 7c:1e:52:3e:fd:9f brd ff:ff:ff:ff:ff:ff
+2025-06-03 18:00:34.716[4608][DEBUG] lisa.env[generated_264].node[1].cmd[9333].stdout     altname enP44273p0s2
+2025-06-03 18:00:34.726[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9333] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:34.726[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: lo 00:00:00:00:00:00 127.0.0.1
+2025-06-03 18:00:34.726[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: eth0 7c:1e:52:3e:f4:80 10.0.0.5
+2025-06-03 18:00:34.726[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: eth1 7c:1e:52:3e:fd:9f 10.0.0.20
+2025-06-03 18:00:34.726[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: enP13864s1 7c:1e:52:3e:f4:80 None
+2025-06-03 18:00:34.726[4776][DEBUG] lisa.env[generated_264].node[1] Found nic info: enP44273s2 7c:1e:52:3e:fd:9f None
+2025-06-03 18:00:34.726[4776][DEBUG] lisa.env[generated_264].node[1].cmd[254] cmd: ['readlink', '/sys/class/net/eth0/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.764[7788][DEBUG] lisa.env[generated_264].node[1].cmd[254].stdout ../../../7c1e523e-f480-7c1e-523e-f4807c1e523e
+2025-06-03 18:00:34.779[4776][DEBUG] lisa.env[generated_264].node[1].cmd[254] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:34.779[4776][DEBUG] lisa.env[generated_264].node[1] eth0 UUID:7c1e523e-f480-7c1e-523e-f4807c1e523e
+2025-06-03 18:00:34.779[4776][DEBUG] lisa.env[generated_264].node[1].cmd[3366] cmd: ['readlink', '/sys/class/net/eth1/device'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.811[7152][DEBUG] lisa.env[generated_264].node[1].cmd[3366].stdout ../../../7c1e523e-fd9f-7c1e-523e-fd9f7c1e523e
+2025-06-03 18:00:34.830[4776][DEBUG] lisa.env[generated_264].node[1].cmd[3366] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:34.830[4776][DEBUG] lisa.env[generated_264].node[1] eth1 UUID:7c1e523e-fd9f-7c1e-523e-fd9f7c1e523e
+2025-06-03 18:00:34.830[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9221] cmd: ['sudo', 'ip', 'route'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.874[5640][DEBUG] lisa.env[generated_264].node[1].cmd[9221].stdout default via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.5 metric 100 
+2025-06-03 18:00:34.874[5640][DEBUG] lisa.env[generated_264].node[1].cmd[9221].stdout 10.0.0.0/24 dev eth0 proto kernel scope link src 10.0.0.5 metric 100 
+2025-06-03 18:00:34.874[5640][DEBUG] lisa.env[generated_264].node[1].cmd[9221].stdout 10.0.0.0/24 dev eth1 proto kernel scope link src 10.0.0.20 metric 200 
+2025-06-03 18:00:34.874[5640][DEBUG] lisa.env[generated_264].node[1].cmd[9221].stdout 168.63.129.16 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.5 metric 100 
+2025-06-03 18:00:34.879[5640][DEBUG] lisa.env[generated_264].node[1].cmd[9221].stdout 169.254.169.254 via 10.0.0.1 dev eth0 proto dhcp src 10.0.0.5 metric 100 
+2025-06-03 18:00:34.879[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9221] execution time: 0.048 sec, exit code: 0
+2025-06-03 18:00:34.879[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4322] cmd: ['sudo', 'sh', '-c', 'update-pciids'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:34.896[2864][DEBUG] lisa.env[generated_264].node[0].cmd[4322].stdout   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2025-06-03 18:00:34.896[2864][DEBUG] lisa.env[generated_264].node[0].cmd[4322].stdout                                  Dload  Upload   Total   Spent    Left  Speed
+2025-06-03 18:00:35.925[2864][DEBUG] lisa.env[generated_264].node[0].cmd[4322].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:35.925[2864][DEBUG] lisa.env[generated_264].node[0].cmd[4322].stdout  14  319k   14 48894    0     0  66703      0  0:00:04 --:--:--  0:00:04 66613
+2025-06-03 18:00:35.925[2864][DEBUG] lisa.env[generated_264].node[0].cmd[4322].stdout 100  319k  100  319k    0     0   312k      0  0:00:01  0:00:01 --:--:--  312k
+2025-06-03 18:00:35.971[2864][DEBUG] lisa.env[generated_264].node[0].cmd[4322].stdout Done.
+2025-06-03 18:00:35.981[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4322] execution time: 1.101 sec, exit code: 0
+2025-06-03 18:00:35.981[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1570] cmd: ['sudo', 'sh', '-c', 'lspci -nD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:36.032[2648][DEBUG] lisa.env[generated_264].node[0].cmd[1570].stdout 0000:00:00.0 0600: 8086:7192 (rev 03)
+2025-06-03 18:00:36.032[2648][DEBUG] lisa.env[generated_264].node[0].cmd[1570].stdout 0000:00:07.0 0601: 8086:7110 (rev 01)
+2025-06-03 18:00:36.032[2648][DEBUG] lisa.env[generated_264].node[0].cmd[1570].stdout 0000:00:07.1 0101: 8086:7111 (rev 01)
+2025-06-03 18:00:36.032[2648][DEBUG] lisa.env[generated_264].node[0].cmd[1570].stdout 0000:00:07.3 0680: 8086:7113 (rev 02)
+2025-06-03 18:00:36.032[2648][DEBUG] lisa.env[generated_264].node[0].cmd[1570].stdout 0000:00:08.0 0300: 1414:5353
+2025-06-03 18:00:36.032[2648][DEBUG] lisa.env[generated_264].node[0].cmd[1570].stdout 7c4b:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:36.032[2648][DEBUG] lisa.env[generated_264].node[0].cmd[1570].stdout a3f0:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:36.042[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1570] execution time: 0.061 sec, exit code: 0
+2025-06-03 18:00:36.042[4776][DEBUG] lisa.env[generated_264].node[0].cmd[9334] cmd: ['sudo', 'sh', '-c', 'lspci -mD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:36.103[7428][DEBUG] lisa.env[generated_264].node[0].cmd[9334].stdout 0000:00:00.0 "Host bridge" "Intel Corporation" "440BX/ZX/DX - 82443BX/ZX/DX Host bridge (AGP disabled)" -r03 "" ""
+2025-06-03 18:00:36.107[7428][DEBUG] lisa.env[generated_264].node[0].cmd[9334].stdout 0000:00:07.0 "ISA bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ISA" -r01 "Microsoft Corporation" "82371AB/EB/MB PIIX4 ISA"
+2025-06-03 18:00:36.107[7428][DEBUG] lisa.env[generated_264].node[0].cmd[9334].stdout 0000:00:07.1 "IDE interface" "Intel Corporation" "82371AB/EB/MB PIIX4 IDE" -r01 -p80 "" ""
+2025-06-03 18:00:36.107[7428][DEBUG] lisa.env[generated_264].node[0].cmd[9334].stdout 0000:00:07.3 "Bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ACPI" -r02 "" ""
+2025-06-03 18:00:36.107[7428][DEBUG] lisa.env[generated_264].node[0].cmd[9334].stdout 0000:00:08.0 "VGA compatible controller" "Microsoft Corporation" "Hyper-V virtual VGA" "" ""
+2025-06-03 18:00:36.107[7428][DEBUG] lisa.env[generated_264].node[0].cmd[9334].stdout 7c4b:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:36.107[7428][DEBUG] lisa.env[generated_264].node[0].cmd[9334].stdout a3f0:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:36.117[4776][DEBUG] lisa.env[generated_264].node[0].cmd[9334] execution time: 0.074 sec, exit code: 0
+2025-06-03 18:00:36.117[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6690] cmd: ['sudo', 'sh', '-c', 'grep ^CONFIG_MLX5_CORE=m /boot/config-5.15.0-1089-azure'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:36.166[5796][DEBUG] lisa.env[generated_264].node[0].cmd[6690].stdout CONFIG_MLX5_CORE=m
+2025-06-03 18:00:36.168[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6690] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:36.168[4776][DEBUG] lisa.env[generated_264].node[0].cmd[9226] cmd: ['sudo', 'sh', '-c', 'modprobe --dry-run mlx5_core'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:36.235[4776][DEBUG] lisa.env[generated_264].node[0].cmd[9226] execution time: 0.066 sec, exit code: 0
+2025-06-03 18:00:36.235[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4905] cmd: ['sudo', 'sh', '-c', 'update-pciids'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:36.253[6272][DEBUG] lisa.env[generated_264].node[1].cmd[4905].stdout   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2025-06-03 18:00:36.253[6272][DEBUG] lisa.env[generated_264].node[1].cmd[4905].stdout                                  Dload  Upload   Total   Spent    Left  Speed
+2025-06-03 18:00:37.276[6272][DEBUG] lisa.env[generated_264].node[1].cmd[4905].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:37.276[6272][DEBUG] lisa.env[generated_264].node[1].cmd[4905].stdout   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-06-03 18:00:37.276[6272][DEBUG] lisa.env[generated_264].node[1].cmd[4905].stdout 100  319k  100  319k    0     0   313k      0  0:00:01  0:00:01 --:--:--  313k
+2025-06-03 18:00:37.327[6272][DEBUG] lisa.env[generated_264].node[1].cmd[4905].stdout Done.
+2025-06-03 18:00:37.337[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4905] execution time: 1.101 sec, exit code: 0
+2025-06-03 18:00:37.337[4776][DEBUG] lisa.env[generated_264].node[1].cmd[3179] cmd: ['sudo', 'sh', '-c', 'lspci -nD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.393[2380][DEBUG] lisa.env[generated_264].node[1].cmd[3179].stdout 0000:00:00.0 0600: 8086:7192 (rev 03)
+2025-06-03 18:00:37.393[2380][DEBUG] lisa.env[generated_264].node[1].cmd[3179].stdout 0000:00:07.0 0601: 8086:7110 (rev 01)
+2025-06-03 18:00:37.393[2380][DEBUG] lisa.env[generated_264].node[1].cmd[3179].stdout 0000:00:07.1 0101: 8086:7111 (rev 01)
+2025-06-03 18:00:37.393[2380][DEBUG] lisa.env[generated_264].node[1].cmd[3179].stdout 0000:00:07.3 0680: 8086:7113 (rev 02)
+2025-06-03 18:00:37.393[2380][DEBUG] lisa.env[generated_264].node[1].cmd[3179].stdout 0000:00:08.0 0300: 1414:5353
+2025-06-03 18:00:37.397[2380][DEBUG] lisa.env[generated_264].node[1].cmd[3179].stdout 3628:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:37.397[2380][DEBUG] lisa.env[generated_264].node[1].cmd[3179].stdout acf1:00:02.0 0200: 15b3:1016 (rev 80)
+2025-06-03 18:00:37.407[4776][DEBUG] lisa.env[generated_264].node[1].cmd[3179] execution time: 0.070 sec, exit code: 0
+2025-06-03 18:00:37.407[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2772] cmd: ['sudo', 'sh', '-c', 'lspci -mD'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.468[6760][DEBUG] lisa.env[generated_264].node[1].cmd[2772].stdout 0000:00:00.0 "Host bridge" "Intel Corporation" "440BX/ZX/DX - 82443BX/ZX/DX Host bridge (AGP disabled)" -r03 "" ""
+2025-06-03 18:00:37.468[6760][DEBUG] lisa.env[generated_264].node[1].cmd[2772].stdout 0000:00:07.0 "ISA bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ISA" -r01 "Microsoft Corporation" "82371AB/EB/MB PIIX4 ISA"
+2025-06-03 18:00:37.468[6760][DEBUG] lisa.env[generated_264].node[1].cmd[2772].stdout 0000:00:07.1 "IDE interface" "Intel Corporation" "82371AB/EB/MB PIIX4 IDE" -r01 -p80 "" ""
+2025-06-03 18:00:37.468[6760][DEBUG] lisa.env[generated_264].node[1].cmd[2772].stdout 0000:00:07.3 "Bridge" "Intel Corporation" "82371AB/EB/MB PIIX4 ACPI" -r02 "" ""
+2025-06-03 18:00:37.468[6760][DEBUG] lisa.env[generated_264].node[1].cmd[2772].stdout 0000:00:08.0 "VGA compatible controller" "Microsoft Corporation" "Hyper-V virtual VGA" "" ""
+2025-06-03 18:00:37.468[6760][DEBUG] lisa.env[generated_264].node[1].cmd[2772].stdout 3628:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:37.472[6760][DEBUG] lisa.env[generated_264].node[1].cmd[2772].stdout acf1:00:02.0 "Ethernet controller" "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]" -r80 "Mellanox Technologies" "MT27710 Family [ConnectX-4 Lx Virtual Function]"
+2025-06-03 18:00:37.478[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2772] execution time: 0.071 sec, exit code: 0
+2025-06-03 18:00:37.478[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2091] cmd: ['sudo', 'sh', '-c', 'grep ^CONFIG_MLX5_CORE=m /boot/config-5.15.0-1089-azure'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.520[6696][DEBUG] lisa.env[generated_264].node[1].cmd[2091].stdout CONFIG_MLX5_CORE=m
+2025-06-03 18:00:37.530[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2091] execution time: 0.051 sec, exit code: 0
+2025-06-03 18:00:37.530[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5577] cmd: ['sudo', 'sh', '-c', 'modprobe --dry-run mlx5_core'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.586[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5577] execution time: 0.055 sec, exit code: 0
+2025-06-03 18:00:37.586[4776][DEBUG] lisa.env[generated_264].node[0].tool[ssh] initializing tool [ssh]
+2025-06-03 18:00:37.586[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3046] cmd: ['sh', '-c', 'command -v ssh'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.586[5672][DEBUG] lisa.env[generated_264].node[0].cmd[3046].stdout /usr/bin/ssh
+2025-06-03 18:00:37.604[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3046] execution time: 0.017 sec, exit code: 0
+2025-06-03 18:00:37.604[4776][DEBUG] lisa.env[generated_264].node[0].tool[ssh] installed already
+2025-06-03 18:00:37.604[4776][DEBUG] lisa.env[generated_264].node[1].tool[ssh] initializing tool [ssh]
+2025-06-03 18:00:37.604[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2741] cmd: ['sh', '-c', 'command -v ssh'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.630[6160][DEBUG] lisa.env[generated_264].node[1].cmd[2741].stdout /usr/bin/ssh
+2025-06-03 18:00:37.630[4776][DEBUG] lisa.env[generated_264].node[1].cmd[2741] execution time: 0.028 sec, exit code: 0
+2025-06-03 18:00:37.630[4776][DEBUG] lisa.env[generated_264].node[1].tool[ssh] installed already
+2025-06-03 18:00:37.630[4776][DEBUG] lisa.env[generated_264].node[0].cmd[5630] cmd: ['sh', '-c', "echo | ssh-keygen -t rsa -N ''"], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.648[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout Generating public/private rsa key pair.
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout Enter file in which to save the key (/home/l****t/.ssh/id_rsa): Your identification has been saved in /home/l****t/.ssh/id_rsa
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout Your public key has been saved in /home/l****t/.ssh/id_rsa.pub
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout The key fingerprint is:
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout SHA256:X7PDWpaZezWXJRvXjYGFMxTNp0rWXb2MQqwTjZbx2lY l****t@lisa-00-e264-n0
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout The key's randomart image is:
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout +---[RSA 3072]----+
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |         .*.oB. .|
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |         =.+= + +|
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |        . +. Eo*=|
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |         oo.+.*o*|
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |        S..=+. =o|
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |         ..o.*.oo|
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |          . X  .o|
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |           + o.  |
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout |          . ..   |
+2025-06-03 18:00:37.740[4876][DEBUG] lisa.env[generated_264].node[0].cmd[5630].stdout +----[SHA256]-----+
+2025-06-03 18:00:37.750[4776][DEBUG] lisa.env[generated_264].node[0].cmd[5630] execution time: 0.107 sec, exit code: 0
+2025-06-03 18:00:37.750[4776][DEBUG] lisa.env[generated_264].node[0].tool[cat] initializing tool [cat]
+2025-06-03 18:00:37.750[4776][DEBUG] lisa.env[generated_264].node[0].tool[cat] installed already
+2025-06-03 18:00:37.750[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3635] cmd: ['sh', '-c', 'cat $HOME/.ssh/id_rsa.pub'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.790[2836][DEBUG] lisa.env[generated_264].node[0].cmd[3635].stdout ssh-rsa <REDACTED_SSH_RSA_KEY> l****t@lisa-00-e264-n0
+2025-06-03 18:00:37.800[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3635] execution time: 0.049 sec, exit code: 0
+2025-06-03 18:00:37.800[4776][DEBUG] lisa.env[generated_264].node[1].tool[echo] initializing tool [echo]
+2025-06-03 18:00:37.800[4776][DEBUG] lisa.env[generated_264].node[1].tool[echo] installed already
+2025-06-03 18:00:37.800[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9566] cmd: ['sh', '-c', 'echo "ssh-rsa <REDACTED_SSH_RSA_KEY> l****t@lisa-00-e264-n0" >> "$HOME/.ssh/authorized_keys"'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:37.803[4776][DEBUG] lisa.env[generated_264].node[1].cmd[9566] execution time: 0.007 sec, exit code: 0
+2025-06-03 18:00:37.803[4776][DEBUG] lisa.env[generated_264].node[0].cmd[7635] cmd: ['dd', 'if=/dev/urandom', 'of=large_file', 'bs=1M', 'count=200'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:38.600[1508][DEBUG] lisa.env[generated_264].node[0].cmd[7635].stdout 200+0 records in
+2025-06-03 18:00:38.610[1508][DEBUG] lisa.env[generated_264].node[0].cmd[7635].stdout 200+0 records out
+2025-06-03 18:00:38.610[1508][DEBUG] lisa.env[generated_264].node[0].cmd[7635].stdout 209715200 bytes (210 MB, 200 MiB) copied, 0.767176 s, 273 MB/s
+2025-06-03 18:00:38.620[4776][DEBUG] lisa.env[generated_264].node[0].cmd[7635] execution time: 0.812 sec, exit code: 0
+2025-06-03 18:00:38.620[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4062] cmd: ['sudo', 'ls', '/sys/class/net/enP31819s1/statistics/tx_packets'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:38.666[7064][DEBUG] lisa.env[generated_264].node[0].cmd[4062].stdout /sys/class/net/enP31819s1/statistics/tx_packets
+2025-06-03 18:00:38.668[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4062] execution time: 0.047 sec, exit code: 0
+2025-06-03 18:00:38.668[4776][DEBUG] lisa.env[generated_264].node[0].cmd[493] cmd: ['sh', '-c', 'cat /sys/class/net/enP31819s1/statistics/tx_packets'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:38.714[6568][DEBUG] lisa.env[generated_264].node[0].cmd[493].stdout 14258
+2025-06-03 18:00:38.724[4776][DEBUG] lisa.env[generated_264].node[0].cmd[493] execution time: 0.055 sec, exit code: 0
+2025-06-03 18:00:38.724[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5829] cmd: ['sudo', 'ls', '/sys/class/net/enP13864s1/statistics/rx_packets'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:38.732[7776][DEBUG] lisa.env[generated_264].node[1].cmd[5829].stdout /sys/class/net/enP13864s1/statistics/rx_packets
+2025-06-03 18:00:38.742[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5829] execution time: 0.017 sec, exit code: 0
+2025-06-03 18:00:38.742[4776][DEBUG] lisa.env[generated_264].node[1].tool[cat] initializing tool [cat]
+2025-06-03 18:00:38.742[4776][DEBUG] lisa.env[generated_264].node[1].tool[cat] installed already
+2025-06-03 18:00:38.742[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4468] cmd: ['sh', '-c', 'cat /sys/class/net/enP13864s1/statistics/rx_packets'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:38.776[3992][DEBUG] lisa.env[generated_264].node[1].cmd[4468].stdout 168813
+2025-06-03 18:00:38.799[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4468] execution time: 0.056 sec, exit code: 0
+2025-06-03 18:00:38.799[4776][DEBUG] lisa.env[generated_264].node[0].tool[ping] initializing tool [ping]
+2025-06-03 18:00:38.799[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1224] cmd: ['sh', '-c', 'command -v ping'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:38.799[5432][DEBUG] lisa.env[generated_264].node[0].cmd[1224].stdout /usr/bin/ping
+2025-06-03 18:00:38.799[4776][DEBUG] lisa.env[generated_264].node[0].cmd[1224] execution time: 0.007 sec, exit code: 0
+2025-06-03 18:00:38.799[4776][DEBUG] lisa.env[generated_264].node[0].tool[ping] installed already
+2025-06-03 18:00:38.799[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6603] cmd: ['sudo', 'ping', '10.0.0.5', '-c', '1', '-i', '0.2', '-O', '-I', 'eth0'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:38.875[1756][DEBUG] lisa.env[generated_264].node[0].cmd[6603].stdout PING 10.0.0.5 (10.0.0.5) from 10.0.0.19 eth0: 56(84) bytes of data.
+2025-06-03 18:00:38.875[1756][DEBUG] lisa.env[generated_264].node[0].cmd[6603].stdout 64 bytes from 10.0.0.5: icmp_seq=1 ttl=64 time=1.12 ms
+2025-06-03 18:00:38.875[1756][DEBUG] lisa.env[generated_264].node[0].cmd[6603].stdout --- 10.0.0.5 ping statistics ---
+2025-06-03 18:00:38.875[1756][DEBUG] lisa.env[generated_264].node[0].cmd[6603].stdout 1 packets transmitted, 1 received, 0% packet loss, time 0ms
+2025-06-03 18:00:38.875[1756][DEBUG] lisa.env[generated_264].node[0].cmd[6603].stdout rtt min/avg/max/mdev = 1.120/1.120/1.120/0.000 ms
+2025-06-03 18:00:38.885[4776][DEBUG] lisa.env[generated_264].node[0].cmd[6603] execution time: 0.078 sec, exit code: 0
+2025-06-03 18:00:38.885[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3958] cmd: ['sh', '-c', 'scp -o BindAddress=10.0.0.19 -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no large_file $USER@10.0.0.5:/tmp/large_file'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:39.083[5392][DEBUG] lisa.env[generated_264].node[0].cmd[3958].stdout Warning: Permanently added '10.0.0.5' (ECDSA) to the list of known hosts.
+2025-06-03 18:00:40.457[5392][DEBUG] lisa.env[generated_264].node[0].cmd[3958].stdout large_file                                      0%    0     0.0KB/s   --:-- ETA
+2025-06-03 18:00:40.457[5392][DEBUG] lisa.env[generated_264].node[0].cmd[3958].stdout large_file                                    100%  200MB 229.5MB/s   00:00    
+2025-06-03 18:00:40.466[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3958] execution time: 1.580 sec, exit code: 0
+2025-06-03 18:00:40.466[4776][DEBUG] lisa.env[generated_264].node[0].cmd[222] cmd: ['sudo', 'ls', '/sys/class/net/enP31819s1/statistics/tx_packets'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.513[4352][DEBUG] lisa.env[generated_264].node[0].cmd[222].stdout /sys/class/net/enP31819s1/statistics/tx_packets
+2025-06-03 18:00:40.517[4776][DEBUG] lisa.env[generated_264].node[0].cmd[222] execution time: 0.050 sec, exit code: 0
+2025-06-03 18:00:40.517[4776][DEBUG] lisa.env[generated_264].node[0].cmd[5704] cmd: ['sh', '-c', 'cat /sys/class/net/enP31819s1/statistics/tx_packets'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.562[7796][DEBUG] lisa.env[generated_264].node[0].cmd[5704].stdout 167935
+2025-06-03 18:00:40.572[4776][DEBUG] lisa.env[generated_264].node[0].cmd[5704] execution time: 0.055 sec, exit code: 0
+2025-06-03 18:00:40.572[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4350] cmd: ['sudo', 'ls', '/sys/class/net/enP13864s1/statistics/rx_packets'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.580[7056][DEBUG] lisa.env[generated_264].node[1].cmd[4350].stdout /sys/class/net/enP13864s1/statistics/rx_packets
+2025-06-03 18:00:40.590[4776][DEBUG] lisa.env[generated_264].node[1].cmd[4350] execution time: 0.017 sec, exit code: 0
+2025-06-03 18:00:40.590[4776][DEBUG] lisa.env[generated_264].node[1].cmd[10000] cmd: ['sh', '-c', 'cat /sys/class/net/enP13864s1/statistics/rx_packets'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.623[2344][DEBUG] lisa.env[generated_264].node[1].cmd[10000].stdout 322450
+2025-06-03 18:00:40.647[4776][DEBUG] lisa.env[generated_264].node[1].cmd[10000] execution time: 0.057 sec, exit code: 0
+2025-06-03 18:00:40.647[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4977] cmd: ['sudo', 'ls', '/sys/class/net/enP41968s2/statistics/tx_packets'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.655[6448][DEBUG] lisa.env[generated_264].node[0].cmd[4977].stdout /sys/class/net/enP41968s2/statistics/tx_packets
+2025-06-03 18:00:40.664[4776][DEBUG] lisa.env[generated_264].node[0].cmd[4977] execution time: 0.016 sec, exit code: 0
+2025-06-03 18:00:40.664[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3516] cmd: ['sh', '-c', 'cat /sys/class/net/enP41968s2/statistics/tx_packets'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.702[3104][DEBUG] lisa.env[generated_264].node[0].cmd[3516].stdout 11
+2025-06-03 18:00:40.720[4776][DEBUG] lisa.env[generated_264].node[0].cmd[3516] execution time: 0.056 sec, exit code: 0
+2025-06-03 18:00:40.720[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5172] cmd: ['sudo', 'ls', '/sys/class/net/enP13864s1/statistics/rx_packets'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.734[7952][DEBUG] lisa.env[generated_264].node[1].cmd[5172].stdout /sys/class/net/enP13864s1/statistics/rx_packets
+2025-06-03 18:00:40.738[4776][DEBUG] lisa.env[generated_264].node[1].cmd[5172] execution time: 0.017 sec, exit code: 0
+2025-06-03 18:00:40.738[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6130] cmd: ['sh', '-c', 'cat /sys/class/net/enP13864s1/statistics/rx_packets'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.784[6960][DEBUG] lisa.env[generated_264].node[1].cmd[6130].stdout 322463
+2025-06-03 18:00:40.794[4776][DEBUG] lisa.env[generated_264].node[1].cmd[6130] execution time: 0.056 sec, exit code: 0
+2025-06-03 18:00:40.794[4776][DEBUG] lisa.env[generated_264].node[0].cmd[750] cmd: ['sudo', 'ping', '10.0.0.5', '-c', '1', '-i', '0.2', '-O', '-I', 'eth1'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:00:40.802[7668][DEBUG] lisa.env[generated_264].node[0].cmd[750].stdout PING 10.0.0.5 (10.0.0.5) from 10.0.0.18 eth1: 56(84) bytes of data.
+2025-06-03 18:00:40.802[7668][DEBUG] lisa.env[generated_264].node[0].cmd[750].stdout 64 bytes from 10.0.0.5: icmp_seq=1 ttl=64 time=1.00 ms
+2025-06-03 18:00:40.802[7668][DEBUG] lisa.env[generated_264].node[0].cmd[750].stdout --- 10.0.0.5 ping statistics ---
+2025-06-03 18:00:40.802[7668][DEBUG] lisa.env[generated_264].node[0].cmd[750].stdout 1 packets transmitted, 1 received, 0% packet loss, time 0ms
+2025-06-03 18:00:40.802[7668][DEBUG] lisa.env[generated_264].node[0].cmd[750].stdout rtt min/avg/max/mdev = 1.004/1.004/1.004/0.000 ms
+2025-06-03 18:00:40.812[4776][DEBUG] lisa.env[generated_264].node[0].cmd[750] execution time: 0.016 sec, exit code: 0
+2025-06-03 18:00:40.812[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8737] cmd: ['sh', '-c', 'scp -o BindAddress=10.0.0.18 -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no large_file $USER@10.0.0.5:/tmp/large_file'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 18:02:50.752[1260][DEBUG] lisa.env[generated_264].node[0].cmd[8737].stdout ssh: connect to host 10.0.0.5 port 22: Connection timed out
+2025-06-03 18:02:50.752[1260][DEBUG] lisa.env[generated_264].node[0].cmd[8737].stdout lost connection
+2025-06-03 18:02:50.759[4776][DEBUG] lisa.env[generated_264].node[0].cmd[8737] execution time: 129.953 sec, exit code: 1
+2025-06-03 18:02:50.761[7436][ERROR] lisa.case[verify_sriov_single_vf_connection] case failed
+Traceback (most recent call last):
+  File "C:\lisa\lsg-lisa\lisa\lisa\testsuite.py", line 854, in __run_case
+    _call_with_timeout(
+  File "C:\lisa\lsg-lisa\lisa\lisa\testsuite.py", line 62, in _call_with_timeout
+    func_timeout(
+  File "C:\Python311\Lib\site-packages\func_timeout\dafunc.py", line 108, in func_timeout
+    raise_exception(exception)
+  File "C:\Python311\Lib\site-packages\func_timeout\py3_raise.py", line 7, in raise_exception
+    raise exception[0] from None
+  File "C:\lisa\lsg-lisa\lisa\lisa\testsuite.py", line 600, in wrapper
+    func(*args, **parameters)
+  File "C:\lisa\lsg-lisa\lisa\microsoft\testsuites\network\sriov.py", line 162, in verify_sriov_single_vf_connection
+    sriov_vf_connection_test(environment, vm_nics)
+  File "C:\lisa\lsg-lisa\lisa\microsoft\testsuites\network\common.py", line 168, in sriov_vf_connection_test
+    source_node.execute(
+  File "C:\lisa\lsg-lisa\lisa\lisa\node.py", line 284, in execute
+    return process.wait_result(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "C:\lisa\lsg-lisa\lisa\lisa\util\process.py", line 429, in wait_result
+    self._result.assert_exit_code(
+  File "C:\lisa\lsg-lisa\lisa\lisa\util\process.py", line 91, in assert_exit_code
+    return assert_that(expected_exit_codes, message).contains(self.exit_code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python311\Lib\site-packages\assertpy\contains.py", line 83, in contains
+    self.error('Expected <%s> to contain item <%s>, but did not.' % (self.val, items[0]))
+  File "C:\Python311\Lib\site-packages\assertpy\assertpy.py", line 433, in error
+    raise AssertionError(out)
+AssertionError: [Fail to copy file large_file from 10.0.0.18 to 10.0.0.5
+Get unexpected exit code on cmd ['sh', '-c', 'scp -o BindAddress=10.0.0.18 -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no large_file $USER@10.0.0.5:/tmp/large_file']] Expected <[0]> to contain item <1>, but did not.
+2025-06-03 18:02:50.762[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0] detecting host_version ...
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0] detecting host version from dmesg...
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel_version ...
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_version ...
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala version from waagent...
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-06-03 18:02:50.999[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_distro ...
+2025-06-03 18:02:51.009[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_platform ...
+2025-06-03 18:02:51.009[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware platform from uname...
+2025-06-03 18:02:51.009[7436][DEBUG] lisa.env[generated_264].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 18:02:51.009[7436][DEBUG] lisa.env[generated_264].node[0] detecting lis version...
+2025-06-03 18:02:51.009[7436][DEBUG] lisa.env[generated_264].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-06-03 18:02:51.010[7436][DEBUG] lisa.env[generated_264].node[0] detecting vm generation...
+2025-06-03 18:02:51.010[7436][DEBUG] lisa.env[generated_264].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-06-03 18:02:51.010[7436][DEBUG] lisa.env[generated_264].node[0] vm generation: 1
+2025-06-03 18:02:51.010[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting host_version ...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting host version from dmesg...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel_version ...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_version ...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala version from waagent...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_distro ...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_platform ...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware platform from uname...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting lis version...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting vm generation...
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] vm generation: 1
+2025-06-03 18:02:51.185[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting host_version ...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting host version from dmesg...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting kernel_version ...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_version ...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala version from waagent...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting wala_distro ...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware_platform ...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting hardware platform from uname...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting lis version...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] detecting vm generation...
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0] vm generation: 1
+2025-06-03 18:02:51.458[7436][DEBUG] lisa.env[generated_264].node[0].tool[uname] loaded cached result for command: [uname -vrmo]

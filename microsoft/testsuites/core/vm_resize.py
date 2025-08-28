@@ -164,13 +164,13 @@ class VmResize(TestSuite):
 
     def _verify_core_count(self, node: Node, expected_vm_capability: NodeSpace) -> None:
         lscpu = node.tools[Lscpu]
-        actual_core_count = lscpu.get_core_count(force_run=True)
-        expected_core_count = expected_vm_capability.core_count
-        assert_that(actual_core_count).described_as(
-            "The VM resize succeeded but the amount of cores that the vm has is "
-            f"incorrect. Expected {expected_core_count} cores but actually had "
-            f"{actual_core_count} cores"
-        ).is_equal_to(expected_core_count)
+        actual_thread_count = lscpu.get_thread_count(force_run=True)
+        expected_thread_count = expected_vm_capability.core_count
+        assert_that(actual_thread_count).described_as(
+            "The VM resize succeeded but the amount of threads that the vm has is "
+            f"incorrect. Expected {expected_thread_count} threads but actually had "
+            f"{actual_thread_count} threads"
+        ).is_equal_to(expected_thread_count)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         # resize cases will change vm size

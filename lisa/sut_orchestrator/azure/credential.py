@@ -13,7 +13,7 @@ from azure.identity import (
     WorkloadIdentityCredential,
 )
 from dataclasses_json import dataclass_json
-from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud
 
 from lisa import schema, secret
 from lisa.util import subclasses
@@ -101,7 +101,7 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         if runbook.type:
             self._credential_type = runbook.type
         else:
-            self._credential_type = AzureCredentialType.DefaultAzureCredential
+            self._credential_type = AzureCredentialType.DefaultAzureCredential  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
 
         self._log.debug(f"Credential type: {self._credential_type}")
         self._cloud = cloud

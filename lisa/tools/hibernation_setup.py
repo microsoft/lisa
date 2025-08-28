@@ -91,6 +91,11 @@ class HibernationSetup(Tool):
         offset = get_matched_str(cmdline, self._cmdline_resume_offset_pattern)
         return offset
 
+    def get_hibernate_resume_offset_from_sys_power(self) -> str:
+        cat = self.node.tools[Cat]
+        offset = cat.read("/sys/power/resume_offset", force_run=True, sudo=True)
+        return offset
+
     def _install(self) -> bool:
         if isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])

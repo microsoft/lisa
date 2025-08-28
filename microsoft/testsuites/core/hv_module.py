@@ -19,6 +19,7 @@ from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
+from lisa.tools.kernel_config import ModulesType
 from lisa.util import LisaException, SkippedException
 
 
@@ -61,7 +62,9 @@ class HvModule(TestSuite):
         lis_driver = node.tools[LisDriver]
         lis_version = lis_driver.get_version()
 
-        hv_modules = self._get_not_built_in_modules(node)
+        hv_modules = self._get_modules_by_type(
+            node, module_type=ModulesType.MODULE
+        ) + self._get_modules_by_type(node, module_type=ModulesType.NOT_BUILT)
         for module in hv_modules:
             module_version = VersionInfo.parse(modinfo.get_version(module))
             assert_that(module_version).described_as(
@@ -154,7 +157,9 @@ class HvModule(TestSuite):
     )
     def verify_hyperv_modules(self, log: Logger, environment: Environment) -> None:
         node = environment.nodes[0]
-        hv_modules = self._get_not_built_in_modules(node)
+        hv_modules = self._get_modules_by_type(
+            node, module_type=ModulesType.MODULE
+        ) + self._get_modules_by_type(node, module_type=ModulesType.NOT_BUILT)
         distro_version = node.os.information.version
         if len(hv_modules) == 0:
             raise SkippedException(
@@ -178,20 +183,22 @@ class HvModule(TestSuite):
                 modprobe.run("mlx4_en", sudo=True)
 
         # Counts the Hyper V drivers loaded as modules
-        missing_modules = []
+        missing_modules = set()
         lsmod = node.tools[Lsmod]
         for module in hv_modules:
             if lsmod.module_exists(module):
                 log.info(f"Module {module} present")
             else:
                 log.error(f"Module {module} absent")
-                missing_modules.append(module)
+                missing_modules.add(module)
 
-        if (
-            isinstance(environment.platform, AzurePlatform)
-            and "hid_hyperv" in missing_modules
-        ):
-            missing_modules.remove("hid_hyperv")
+        if isinstance(environment.platform, AzurePlatform):
+            missing_modules.discard("hid_hyperv")
+        if not ("hyperv_fb" in missing_modules and "hyperv_drm" in missing_modules):
+            # as long as both of these modules are not missing, we are OK to pass.
+            missing_modules.discard("hyperv_fb")
+            missing_modules.discard("hyperv_drm")
+
         assert_that(missing_modules).described_as(
             "Not all Hyper V drivers are present."
         ).is_length(0)
@@ -206,10 +213,6 @@ class HvModule(TestSuite):
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
-        # Constants
-        module = "hv_netvsc"
-        loop_count = 100
-
         if isinstance(node.os, Redhat):
             try:
                 log.debug("Checking LIS installation before reload.")
@@ -217,34 +220,98 @@ class HvModule(TestSuite):
             except Exception:
                 log.debug("Updating LIS failed. Moving on to attempt reload.")
 
-        if module not in self._get_not_built_in_modules(node):
-            raise SkippedException(
-                f"{module} is loaded statically into the "
-                "kernel and therefore can not be reloaded"
-            )
-
-        result = node.execute(
-            ("for i in $(seq 1 %i); do " % loop_count)
-            + f"modprobe -r -v {module}; modprobe -v {module}; "
-            "done; sleep 1; "
-            "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
-            sudo=True,
-            shell=True,
+        skipped_modules = []
+        failed_modules = {}
+        passed_modules = []
+        hv_modules = [
+            "hv_vmbus",
+            "hv_netvsc",
+            "hv_storvsc",
+            "hv_utils",
+            "hv_balloon",
+            "hid_hyperv",
+            "hyperv_keyboard",
+            "hyperv_fb",
+            "hyperv_drm",
+        ]
+        loadable_modules = set(
+            self._get_modules_by_type(node, module_type=ModulesType.MODULE)
         )
 
-        if "is in use" in result.stdout:
-            raise SkippedException(
-                f"Module {module} is in use so it cannot be reloaded"
+        for module in hv_modules:
+            if module not in loadable_modules:
+                log.debug(f"{module} is not a reloadable module")
+                skipped_modules.append(module)
+                continue
+            loop_count = 100
+            log.debug(f"Reloading {module} for {loop_count} times")
+            modprobe = node.tools[Modprobe]
+
+            result = modprobe.reload(
+                mod_name=module,
+                times=loop_count,
+                verbose=True,
+                timeout=1800,
             )
+            if not result:
+                failed_modules[
+                    module
+                ] = "Failed to reload module, needs further investigation"
+                continue
+            if not result["module_exists"]:
+                log.info(f"Module {module} does not exist, skipping")
+                continue
+            log.info(f"Reloading module {module} result: {result}")
+            if result["in_use_count"] > 0 or result["busy_count"] > 0:
+                # If the module is in use, it cannot be reloaded.
+                log.debug(f"Module {module} is in use so it cannot be reloaded")
+                skipped_modules.append(module)
+                continue
 
-        assert_that(result.stdout.count("rmmod")).described_as(
-            f"Expected {module} to be removed {loop_count} times"
-        ).is_equal_to(loop_count)
-        assert_that(result.stdout.count("insmod")).described_as(
-            f"Expected {module} to be inserted {loop_count} times"
-        ).is_equal_to(loop_count)
+            if (
+                result["rmmod_count"] != loop_count
+                or result["insmod_count"] != loop_count
+            ):
+                failure_message = (
+                    f"Module {module} was not reloaded {loop_count} times. "
+                    f"rmmod count: {result['rmmod_count']}, "
+                    f"insmod count: {result['insmod_count']}"
+                )
+                failed_modules[module] = failure_message
+            else:
+                passed_modules.append(module)
 
-    def _get_not_built_in_modules(self, node: Node) -> List[str]:
+        result_message = (
+            (
+                "The following modules have reload count mismatch:\n"
+                + ",\n".join(
+                    f"{module}: {msg}" for module, msg in failed_modules.items()
+                )
+            )
+            if failed_modules
+            else ""
+        )
+
+        result_message += (
+            (
+                f"\nThe following modules were skipped during reload: "
+                f"{', '.join(skipped_modules)}. "
+                "This may be due to them being built-in to the kernel or in use."
+            )
+            if skipped_modules
+            else ""
+        )
+
+        if failed_modules:
+            raise LisaException(result_message)
+        if not passed_modules:
+            raise SkippedException(result_message)
+
+    def _get_modules_by_type(
+        self,
+        node: Node,
+        module_type: ModulesType = ModulesType.BUILT_IN,
+    ) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
         therefore would be expected to show up in lsmod.
@@ -264,11 +331,13 @@ class HvModule(TestSuite):
                 "hid_hyperv": "CONFIG_HID_HYPERV_MOUSE",
                 "hv_balloon": "CONFIG_HYPERV_BALLOON",
                 "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
+                "hyperv_fb": "CONFIG_FB_HYPERV",
+                "hyperv_drm": "CONFIG_DRM_HYPERV",
             }
         modules = []
         for module in hv_modules_configuration:
-            if not node.tools[KernelConfig].is_built_in(
-                hv_modules_configuration[module]
+            if node.tools[KernelConfig].is_kernel_config_set_to(
+                config_name=hv_modules_configuration[module], config_value=module_type
             ):
                 modules.append(module)
 

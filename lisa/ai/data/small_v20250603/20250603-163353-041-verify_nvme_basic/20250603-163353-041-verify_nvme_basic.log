@@ -1,0 +1,256 @@
+2025-06-03 16:33:53.041[2212][INFO] lisa.case[verify_nvme_basic] test case 'Nvme.verify_nvme_basic' is running
+2025-06-03 16:33:53.042[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 16:33:53.220[2212][DEBUG] lisa.env[generated_3].node[0] detecting host_version ...
+2025-06-03 16:33:53.221[2212][DEBUG] lisa.env[generated_3].node[0] detecting host version from serial log...
+2025-06-03 16:33:53.221[2212][DEBUG] lisa.env[generated_3].node[0] load cached serial log
+2025-06-03 16:33:53.222[2212][DEBUG] lisa.env[generated_3].node[0] captured in serial log: 10.0.26101.1068-1-0
+2025-06-03 16:33:53.222[2212][DEBUG] lisa.env[generated_3].node[0] detecting kernel_version ...
+2025-06-03 16:33:53.223[2212][DEBUG] lisa.env[generated_3].node[0] detecting kernel version from serial log...
+2025-06-03 16:33:53.223[2212][DEBUG] lisa.env[generated_3].node[0] load cached serial log
+2025-06-03 16:33:53.223[2212][DEBUG] lisa.env[generated_3].node[0] captured in serial log: 6.8.0-1016-azure-nvidia
+2025-06-03 16:33:53.224[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_version ...
+2025-06-03 16:33:53.224[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala agent version from serial log...
+2025-06-03 16:33:53.224[2212][DEBUG] lisa.env[generated_3].node[0] load cached serial log
+2025-06-03 16:33:53.225[2212][DEBUG] lisa.env[generated_3].node[0] captured in serial log:  2.9.0.4
+2025-06-03 16:33:53.225[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_distro ...
+2025-06-03 16:33:53.226[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_platform ...
+2025-06-03 16:33:53.226[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 16:33:53.406[2212][DEBUG] lisa.env[generated_3].node[0] detecting host_version ...
+2025-06-03 16:33:53.406[2212][DEBUG] lisa.env[generated_3].node[0] detecting host version from serial log...
+2025-06-03 16:33:53.408[2212][DEBUG] lisa.env[generated_3].node[0] load cached serial log
+2025-06-03 16:33:53.409[2212][DEBUG] lisa.env[generated_3].node[0] captured in serial log: 10.0.26101.1068-1-0
+2025-06-03 16:33:53.409[2212][DEBUG] lisa.env[generated_3].node[0] detecting kernel_version ...
+2025-06-03 16:33:53.409[2212][DEBUG] lisa.env[generated_3].node[0] detecting kernel version from serial log...
+2025-06-03 16:33:53.409[2212][DEBUG] lisa.env[generated_3].node[0] load cached serial log
+2025-06-03 16:33:53.410[2212][DEBUG] lisa.env[generated_3].node[0] captured in serial log: 6.8.0-1016-azure-nvidia
+2025-06-03 16:33:53.410[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_version ...
+2025-06-03 16:33:53.411[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala agent version from serial log...
+2025-06-03 16:33:53.411[2212][DEBUG] lisa.env[generated_3].node[0] load cached serial log
+2025-06-03 16:33:53.411[2212][DEBUG] lisa.env[generated_3].node[0] captured in serial log:  2.9.0.4
+2025-06-03 16:33:53.411[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_distro ...
+2025-06-03 16:33:53.412[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_platform ...
+2025-06-03 16:33:53.433[2212][DEBUG] lisa.case[verify_nvme_basic] before_case end in 0.000 sec
+2025-06-03 16:33:53.435[1360][DEBUG] lisa.env[generated_3].node[0].cmd[6189] cmd: ['sudo', 'sh', '-c', 'ls -l /dev/nvme*'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:54.795[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout crw------- 1 root root  10, 120 Jun  3 16:31 /dev/nvme-fabrics
+2025-06-03 16:33:54.797[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout crw------- 1 root root 239,   0 Jun  3 16:31 /dev/nvme0
+2025-06-03 16:33:54.797[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   0 Jun  3 16:31 /dev/nvme0n1
+2025-06-03 16:33:54.798[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   1 Jun  3 16:31 /dev/nvme0n1p1
+2025-06-03 16:33:54.799[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   2 Jun  3 16:31 /dev/nvme0n1p15
+2025-06-03 16:33:54.799[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   3 Jun  3 16:31 /dev/nvme0n1p16
+2025-06-03 16:33:54.800[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout crw------- 1 root root 239,   1 Jun  3 16:31 /dev/nvme1
+2025-06-03 16:33:54.800[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   5 Jun  3 16:31 /dev/nvme1n1
+2025-06-03 16:33:54.801[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout crw------- 1 root root 239,   2 Jun  3 16:31 /dev/nvme2
+2025-06-03 16:33:54.802[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   6 Jun  3 16:31 /dev/nvme2n1
+2025-06-03 16:33:54.802[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout crw------- 1 root root 239,   3 Jun  3 16:31 /dev/nvme3
+2025-06-03 16:33:54.803[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   7 Jun  3 16:31 /dev/nvme3n1
+2025-06-03 16:33:54.803[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout crw------- 1 root root 239,   4 Jun  3 16:31 /dev/nvme4
+2025-06-03 16:33:54.804[3264][DEBUG] lisa.env[generated_3].node[0].cmd[6189].stdout brw-rw---- 1 root disk 259,   4 Jun  3 16:31 /dev/nvme4n1
+2025-06-03 16:33:54.805[1360][DEBUG] lisa.env[generated_3].node[0].cmd[6189] execution time: 1.370 sec, exit code: 0
+2025-06-03 16:33:54.806[1360][DEBUG] lisa.env[generated_3].node[0].cmd[9131] cmd: ['sudo', 'ls', '/efi'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:54.992[6368][DEBUG] lisa.env[generated_3].node[0].cmd[9131].stdout ls: cannot access '/efi': No such file or directory
+2025-06-03 16:33:55.008[1360][DEBUG] lisa.env[generated_3].node[0].cmd[9131] execution time: 0.202 sec, exit code: 2
+2025-06-03 16:33:55.009[1360][DEBUG] lisa.env[generated_3].node[0].cmd[8220] cmd: ['mount'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:55.197[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout /dev/nvme0n1p1 on / type ext4 (rw,relatime,discard,errors=remount-ro,commit=30)
+2025-06-03 16:33:55.213[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout devtmpfs on /dev type devtmpfs (rw,nosuid,noexec,relatime,size=452371456k,nr_inodes=7068304,mode=755,inode64)
+2025-06-03 16:33:55.214[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.215[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.215[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout securityfs on /sys/kernel/security type securityfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.216[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout tmpfs on /dev/shm type tmpfs (rw,nosuid,nodev,inode64)
+2025-06-03 16:33:55.217[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout devpts on /dev/pts type devpts (rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000)
+2025-06-03 16:33:55.217[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout tmpfs on /run type tmpfs (rw,nosuid,nodev,size=180951296k,nr_inodes=819200,mode=755,inode64)
+2025-06-03 16:33:55.218[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout tmpfs on /run/lock type tmpfs (rw,nosuid,nodev,noexec,relatime,size=5120k,inode64)
+2025-06-03 16:33:55.218[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot)
+2025-06-03 16:33:55.219[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout pstore on /sys/fs/pstore type pstore (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.220[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout efivarfs on /sys/firmware/efi/efivars type efivarfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.220[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout bpf on /sys/fs/bpf type bpf (rw,nosuid,nodev,noexec,relatime,mode=700)
+2025-06-03 16:33:55.221[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout systemd-1 on /proc/sys/fs/binfmt_misc type autofs (rw,relatime,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=27656)
+2025-06-03 16:33:55.222[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout hugetlbfs on /dev/hugepages type hugetlbfs (rw,nosuid,nodev,relatime,pagesize=512M)
+2025-06-03 16:33:55.222[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout mqueue on /dev/mqueue type mqueue (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.223[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout debugfs on /sys/kernel/debug type debugfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.223[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout tracefs on /sys/kernel/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.224[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout fusectl on /sys/fs/fuse/connections type fusectl (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.225[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout configfs on /sys/kernel/config type configfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.225[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout /dev/nvme0n1p16 on /boot type ext4 (rw,relatime,discard)
+2025-06-03 16:33:55.226[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout /dev/nvme0n1p15 on /boot/efi type vfat (rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro)
+2025-06-03 16:33:55.227[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout binfmt_misc on /proc/sys/fs/binfmt_misc type binfmt_misc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.227[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout sunrpc on /run/rpc_pipefs type rpc_pipefs (rw,relatime)
+2025-06-03 16:33:55.228[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout /dev/sda1 on /mnt type ext4 (rw,relatime,x-systemd.after=cloud-init.service,_netdev)
+2025-06-03 16:33:55.229[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout tmpfs on /run/user/1000 type tmpfs (rw,nosuid,nodev,relatime,size=90475584k,nr_inodes=22618896,mode=700,uid=1000,gid=1000,inode64)
+2025-06-03 16:33:55.229[1248][DEBUG] lisa.env[generated_3].node[0].cmd[8220].stdout tracefs on /sys/kernel/debug/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.230[1360][DEBUG] lisa.env[generated_3].node[0].cmd[8220] execution time: 0.221 sec, exit code: 0
+2025-06-03 16:33:55.230[1360][DEBUG] lisa.env[generated_3].node[0].tool[mount] Found disk partitions : [name: /dev/nvme0n1p1, disk: nvme, mount_point: /, type: ext4, options: rw,relatime,discard,errors=remount-ro,commit=30), name: /dev/nvme0n1p16, disk: nvme, mount_point: /boot, type: ext4, options: rw,relatime,discard), name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat, options: rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro), name: /dev/sda1, disk: sda, mount_point: /mnt, type: ext4, options: rw,relatime,x-systemd.after=cloud-init.service,_netdev)]
+2025-06-03 16:33:55.231[1360][DEBUG] lisa.env[generated_3].node[0].cmd[2930] cmd: ['sudo', 'ls', '/efi'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:55.418[6148][DEBUG] lisa.env[generated_3].node[0].cmd[2930].stdout ls: cannot access '/efi': No such file or directory
+2025-06-03 16:33:55.428[1360][DEBUG] lisa.env[generated_3].node[0].cmd[2930] execution time: 0.197 sec, exit code: 2
+2025-06-03 16:33:55.428[1360][DEBUG] lisa.env[generated_3].node[0].cmd[9488] cmd: ['mount'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:55.630[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout /dev/nvme0n1p1 on / type ext4 (rw,relatime,discard,errors=remount-ro,commit=30)
+2025-06-03 16:33:55.632[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout devtmpfs on /dev type devtmpfs (rw,nosuid,noexec,relatime,size=452371456k,nr_inodes=7068304,mode=755,inode64)
+2025-06-03 16:33:55.632[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.633[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.634[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout securityfs on /sys/kernel/security type securityfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.634[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout tmpfs on /dev/shm type tmpfs (rw,nosuid,nodev,inode64)
+2025-06-03 16:33:55.635[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout devpts on /dev/pts type devpts (rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000)
+2025-06-03 16:33:55.636[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout tmpfs on /run type tmpfs (rw,nosuid,nodev,size=180951296k,nr_inodes=819200,mode=755,inode64)
+2025-06-03 16:33:55.636[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout tmpfs on /run/lock type tmpfs (rw,nosuid,nodev,noexec,relatime,size=5120k,inode64)
+2025-06-03 16:33:55.637[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot)
+2025-06-03 16:33:55.638[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout pstore on /sys/fs/pstore type pstore (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.638[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout efivarfs on /sys/firmware/efi/efivars type efivarfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.639[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout bpf on /sys/fs/bpf type bpf (rw,nosuid,nodev,noexec,relatime,mode=700)
+2025-06-03 16:33:55.639[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout systemd-1 on /proc/sys/fs/binfmt_misc type autofs (rw,relatime,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=27656)
+2025-06-03 16:33:55.640[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout hugetlbfs on /dev/hugepages type hugetlbfs (rw,nosuid,nodev,relatime,pagesize=512M)
+2025-06-03 16:33:55.641[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout mqueue on /dev/mqueue type mqueue (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.641[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout debugfs on /sys/kernel/debug type debugfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.642[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout tracefs on /sys/kernel/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.642[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout fusectl on /sys/fs/fuse/connections type fusectl (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.643[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout configfs on /sys/kernel/config type configfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.643[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout /dev/nvme0n1p16 on /boot type ext4 (rw,relatime,discard)
+2025-06-03 16:33:55.644[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout /dev/nvme0n1p15 on /boot/efi type vfat (rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro)
+2025-06-03 16:33:55.645[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout binfmt_misc on /proc/sys/fs/binfmt_misc type binfmt_misc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.645[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout sunrpc on /run/rpc_pipefs type rpc_pipefs (rw,relatime)
+2025-06-03 16:33:55.646[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout /dev/sda1 on /mnt type ext4 (rw,relatime,x-systemd.after=cloud-init.service,_netdev)
+2025-06-03 16:33:55.646[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout tmpfs on /run/user/1000 type tmpfs (rw,nosuid,nodev,relatime,size=90475584k,nr_inodes=22618896,mode=700,uid=1000,gid=1000,inode64)
+2025-06-03 16:33:55.647[2680][DEBUG] lisa.env[generated_3].node[0].cmd[9488].stdout tracefs on /sys/kernel/debug/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:55.647[1360][DEBUG] lisa.env[generated_3].node[0].cmd[9488] execution time: 0.219 sec, exit code: 0
+2025-06-03 16:33:55.648[1360][DEBUG] lisa.env[generated_3].node[0].tool[mount] Found disk partitions : [name: /dev/nvme0n1p1, disk: nvme, mount_point: /, type: ext4, options: rw,relatime,discard,errors=remount-ro,commit=30), name: /dev/nvme0n1p16, disk: nvme, mount_point: /boot, type: ext4, options: rw,relatime,discard), name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat, options: rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro), name: /dev/sda1, disk: sda, mount_point: /mnt, type: ext4, options: rw,relatime,x-systemd.after=cloud-init.service,_netdev)]
+2025-06-03 16:33:55.649[1360][DEBUG] lisa.env[generated_3].node[0].cmd[4874] cmd: ['sudo', 'ls', '/efi'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:55.845[6032][DEBUG] lisa.env[generated_3].node[0].cmd[4874].stdout ls: cannot access '/efi': No such file or directory
+2025-06-03 16:33:55.856[1360][DEBUG] lisa.env[generated_3].node[0].cmd[4874] execution time: 0.207 sec, exit code: 2
+2025-06-03 16:33:55.856[1360][DEBUG] lisa.env[generated_3].node[0].cmd[8037] cmd: ['mount'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:56.046[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout /dev/nvme0n1p1 on / type ext4 (rw,relatime,discard,errors=remount-ro,commit=30)
+2025-06-03 16:33:56.056[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout devtmpfs on /dev type devtmpfs (rw,nosuid,noexec,relatime,size=452371456k,nr_inodes=7068304,mode=755,inode64)
+2025-06-03 16:33:56.056[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.057[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.058[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout securityfs on /sys/kernel/security type securityfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.059[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout tmpfs on /dev/shm type tmpfs (rw,nosuid,nodev,inode64)
+2025-06-03 16:33:56.059[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout devpts on /dev/pts type devpts (rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000)
+2025-06-03 16:33:56.060[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout tmpfs on /run type tmpfs (rw,nosuid,nodev,size=180951296k,nr_inodes=819200,mode=755,inode64)
+2025-06-03 16:33:56.061[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout tmpfs on /run/lock type tmpfs (rw,nosuid,nodev,noexec,relatime,size=5120k,inode64)
+2025-06-03 16:33:56.061[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot)
+2025-06-03 16:33:56.062[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout pstore on /sys/fs/pstore type pstore (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.063[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout efivarfs on /sys/firmware/efi/efivars type efivarfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.063[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout bpf on /sys/fs/bpf type bpf (rw,nosuid,nodev,noexec,relatime,mode=700)
+2025-06-03 16:33:56.064[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout systemd-1 on /proc/sys/fs/binfmt_misc type autofs (rw,relatime,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=27656)
+2025-06-03 16:33:56.065[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout hugetlbfs on /dev/hugepages type hugetlbfs (rw,nosuid,nodev,relatime,pagesize=512M)
+2025-06-03 16:33:56.065[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout mqueue on /dev/mqueue type mqueue (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.066[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout debugfs on /sys/kernel/debug type debugfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.066[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout tracefs on /sys/kernel/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.067[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout fusectl on /sys/fs/fuse/connections type fusectl (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.068[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout configfs on /sys/kernel/config type configfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.068[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout /dev/nvme0n1p16 on /boot type ext4 (rw,relatime,discard)
+2025-06-03 16:33:56.069[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout /dev/nvme0n1p15 on /boot/efi type vfat (rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro)
+2025-06-03 16:33:56.069[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout binfmt_misc on /proc/sys/fs/binfmt_misc type binfmt_misc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.070[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout sunrpc on /run/rpc_pipefs type rpc_pipefs (rw,relatime)
+2025-06-03 16:33:56.071[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout /dev/sda1 on /mnt type ext4 (rw,relatime,x-systemd.after=cloud-init.service,_netdev)
+2025-06-03 16:33:56.071[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout tmpfs on /run/user/1000 type tmpfs (rw,nosuid,nodev,relatime,size=90475584k,nr_inodes=22618896,mode=700,uid=1000,gid=1000,inode64)
+2025-06-03 16:33:56.072[5764][DEBUG] lisa.env[generated_3].node[0].cmd[8037].stdout tracefs on /sys/kernel/debug/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.072[1360][DEBUG] lisa.env[generated_3].node[0].cmd[8037] execution time: 0.216 sec, exit code: 0
+2025-06-03 16:33:56.073[1360][DEBUG] lisa.env[generated_3].node[0].tool[mount] Found disk partitions : [name: /dev/nvme0n1p1, disk: nvme, mount_point: /, type: ext4, options: rw,relatime,discard,errors=remount-ro,commit=30), name: /dev/nvme0n1p16, disk: nvme, mount_point: /boot, type: ext4, options: rw,relatime,discard), name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat, options: rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro), name: /dev/sda1, disk: sda, mount_point: /mnt, type: ext4, options: rw,relatime,x-systemd.after=cloud-init.service,_netdev)]
+2025-06-03 16:33:56.073[1360][DEBUG] lisa.env[generated_3].node[0].tool[nvmecli] initializing tool [nvmecli]
+2025-06-03 16:33:56.074[1360][DEBUG] lisa.env[generated_3].node[0].cmd[1291] cmd: ['sh', '-c', 'command -v nvme'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:56.249[2976][DEBUG] lisa.env[generated_3].node[0].cmd[1291].stdout /usr/sbin/nvme
+2025-06-03 16:33:56.261[1360][DEBUG] lisa.env[generated_3].node[0].cmd[1291] execution time: 0.187 sec, exit code: 0
+2025-06-03 16:33:56.261[1360][DEBUG] lisa.env[generated_3].node[0].tool[nvmecli] installed already
+2025-06-03 16:33:56.261[1360][DEBUG] lisa.env[generated_3].node[0].cmd[6872] cmd: ['sudo', 'sh', '-c', 'nvme list'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:56.542[6724][DEBUG] lisa.env[generated_3].node[0].cmd[6872].stdout Node                  Generic               SN                   Model                                    Namespace  Usage                      Format           FW Rev  
+2025-06-03 16:33:56.549[6724][DEBUG] lisa.env[generated_3].node[0].cmd[6872].stdout --------------------- --------------------- -------------------- ---------------------------------------- ---------- -------------------------- ---------------- --------
+2025-06-03 16:33:56.550[6724][DEBUG] lisa.env[generated_3].node[0].cmd[6872].stdout /dev/nvme0n1          /dev/ng0n1            SN: 00000            MSFT NVMe Accelerator v1.0               0x1         32.21  GB /  32.21  GB    512   B +  0 B   v1.00000
+2025-06-03 16:33:56.551[6724][DEBUG] lisa.env[generated_3].node[0].cmd[6872].stdout /dev/nvme1n1          /dev/ng1n1            58e97bfb2992f1710002 Microsoft NVMe Direct Disk v2            0x1          3.84  TB /   3.84  TB    512   B +  0 B   NVMDV002
+2025-06-03 16:33:56.552[6724][DEBUG] lisa.env[generated_3].node[0].cmd[6872].stdout /dev/nvme2n1          /dev/ng2n1            58e97bfb2992f1710003 Microsoft NVMe Direct Disk v2            0x1          3.84  TB /   3.84  TB    512   B +  0 B   NVMDV002
+2025-06-03 16:33:56.552[6724][DEBUG] lisa.env[generated_3].node[0].cmd[6872].stdout /dev/nvme3n1          /dev/ng3n1            58e97bfb2992f1710001 Microsoft NVMe Direct Disk v2            0x1          3.84  TB /   3.84  TB    512   B +  0 B   NVMDV002
+2025-06-03 16:33:56.553[6724][DEBUG] lisa.env[generated_3].node[0].cmd[6872].stdout /dev/nvme4n1          /dev/ng4n1            58e97bfb2992f1710004 Microsoft NVMe Direct Disk v2            0x1          3.84  TB /   3.84  TB    512   B +  0 B   NVMDV002
+2025-06-03 16:33:56.554[1360][DEBUG] lisa.env[generated_3].node[0].cmd[6872] execution time: 0.292 sec, exit code: 0
+2025-06-03 16:33:56.554[1360][DEBUG] lisa.env[generated_3].node[0].cmd[8691] cmd: ['sudo', 'ls', '/efi'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:56.761[6936][DEBUG] lisa.env[generated_3].node[0].cmd[8691].stdout ls: cannot access '/efi': No such file or directory
+2025-06-03 16:33:56.771[1360][DEBUG] lisa.env[generated_3].node[0].cmd[8691] execution time: 0.217 sec, exit code: 2
+2025-06-03 16:33:56.772[1360][DEBUG] lisa.env[generated_3].node[0].cmd[346] cmd: ['mount'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-06-03 16:33:56.965[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout /dev/nvme0n1p1 on / type ext4 (rw,relatime,discard,errors=remount-ro,commit=30)
+2025-06-03 16:33:56.966[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout devtmpfs on /dev type devtmpfs (rw,nosuid,noexec,relatime,size=452371456k,nr_inodes=7068304,mode=755,inode64)
+2025-06-03 16:33:56.967[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.968[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.968[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout securityfs on /sys/kernel/security type securityfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.969[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout tmpfs on /dev/shm type tmpfs (rw,nosuid,nodev,inode64)
+2025-06-03 16:33:56.970[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout devpts on /dev/pts type devpts (rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000)
+2025-06-03 16:33:56.970[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout tmpfs on /run type tmpfs (rw,nosuid,nodev,size=180951296k,nr_inodes=819200,mode=755,inode64)
+2025-06-03 16:33:56.971[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout tmpfs on /run/lock type tmpfs (rw,nosuid,nodev,noexec,relatime,size=5120k,inode64)
+2025-06-03 16:33:56.972[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot)
+2025-06-03 16:33:56.972[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout pstore on /sys/fs/pstore type pstore (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.973[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout efivarfs on /sys/firmware/efi/efivars type efivarfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.973[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout bpf on /sys/fs/bpf type bpf (rw,nosuid,nodev,noexec,relatime,mode=700)
+2025-06-03 16:33:56.974[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout systemd-1 on /proc/sys/fs/binfmt_misc type autofs (rw,relatime,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=27656)
+2025-06-03 16:33:56.975[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout hugetlbfs on /dev/hugepages type hugetlbfs (rw,nosuid,nodev,relatime,pagesize=512M)
+2025-06-03 16:33:56.975[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout mqueue on /dev/mqueue type mqueue (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.976[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout debugfs on /sys/kernel/debug type debugfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.976[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout tracefs on /sys/kernel/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.977[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout fusectl on /sys/fs/fuse/connections type fusectl (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.978[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout configfs on /sys/kernel/config type configfs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.979[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout /dev/nvme0n1p16 on /boot type ext4 (rw,relatime,discard)
+2025-06-03 16:33:56.979[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout /dev/nvme0n1p15 on /boot/efi type vfat (rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro)
+2025-06-03 16:33:56.980[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout binfmt_misc on /proc/sys/fs/binfmt_misc type binfmt_misc (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.980[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout sunrpc on /run/rpc_pipefs type rpc_pipefs (rw,relatime)
+2025-06-03 16:33:56.981[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout /dev/sda1 on /mnt type ext4 (rw,relatime,x-systemd.after=cloud-init.service,_netdev)
+2025-06-03 16:33:56.982[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout tmpfs on /run/user/1000 type tmpfs (rw,nosuid,nodev,relatime,size=90475584k,nr_inodes=22618896,mode=700,uid=1000,gid=1000,inode64)
+2025-06-03 16:33:56.982[6276][DEBUG] lisa.env[generated_3].node[0].cmd[346].stdout tracefs on /sys/kernel/debug/tracing type tracefs (rw,nosuid,nodev,noexec,relatime)
+2025-06-03 16:33:56.983[1360][DEBUG] lisa.env[generated_3].node[0].cmd[346] execution time: 0.210 sec, exit code: 0
+2025-06-03 16:33:56.983[1360][DEBUG] lisa.env[generated_3].node[0].tool[mount] Found disk partitions : [name: /dev/nvme0n1p1, disk: nvme, mount_point: /, type: ext4, options: rw,relatime,discard,errors=remount-ro,commit=30), name: /dev/nvme0n1p16, disk: nvme, mount_point: /boot, type: ext4, options: rw,relatime,discard), name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat, options: rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro), name: /dev/sda1, disk: sda, mount_point: /mnt, type: ext4, options: rw,relatime,x-systemd.after=cloud-init.service,_netdev)]
+2025-06-03 16:33:56.984[1360][DEBUG] lisa.env[generated_3].node[0].tool[lscpu] loaded cached result for command: [lscpu]
+2025-06-03 16:33:56.984[2212][ERROR] lisa.case[verify_nvme_basic] case failed
+Traceback (most recent call last):
+  File "C:\app\lsg-lisa\lisa\lisa\testsuite.py", line 854, in __run_case
+    _call_with_timeout(
+  File "C:\app\lsg-lisa\lisa\lisa\testsuite.py", line 62, in _call_with_timeout
+    func_timeout(
+  File "C:\Python\Lib\site-packages\func_timeout\dafunc.py", line 108, in func_timeout
+    raise_exception(exception)
+  File "C:\Python\Lib\site-packages\func_timeout\py3_raise.py", line 7, in raise_exception
+    raise exception[0] from None
+  File "C:\app\lsg-lisa\lisa\lisa\testsuite.py", line 600, in wrapper
+    func(*args, **parameters)
+  File "C:\app\lsg-lisa\lisa\microsoft\testsuites\nvme\nvme.py", line 76, in verify_nvme_basic
+    self._verify_nvme_disk(environment, node)
+  File "C:\app\lsg-lisa\lisa\microsoft\testsuites\nvme\nvme.py", line 408, in _verify_nvme_disk
+    ).is_length(expected_count)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python\Lib\site-packages\assertpy\base.py", line 426, in is_length
+    self.error('Expected <%s> to be of length <%d>, but was <%d>.' % (self.val, length, len(self.val)))
+  File "C:\Python\Lib\site-packages\assertpy\assertpy.py", line 433, in error
+    raise AssertionError(out)
+AssertionError: [nvme devices count should be equal to [vCPU/8].] Expected <['/dev/nvme1n1', '/dev/nvme2n1', '/dev/nvme3n1', '/dev/nvme4n1']> to be of length <16>, but was <4>.
+2025-06-03 16:33:56.986[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 16:33:57.231[2212][DEBUG] lisa.env[generated_3].node[0] detecting host_version ...
+2025-06-03 16:33:57.237[2212][DEBUG] lisa.env[generated_3].node[0] detecting host version from dmesg...
+2025-06-03 16:33:57.237[2212][DEBUG] lisa.env[generated_3].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 16:33:57.237[2212][DEBUG] lisa.env[generated_3].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 16:33:57.237[2212][DEBUG] lisa.env[generated_3].node[0] detecting kernel_version ...
+2025-06-03 16:33:57.238[2212][DEBUG] lisa.env[generated_3].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 16:33:57.238[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_version ...
+2025-06-03 16:33:57.239[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala version from waagent...
+2025-06-03 16:33:57.239[2212][DEBUG] lisa.env[generated_3].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-06-03 16:33:57.239[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_distro ...
+2025-06-03 16:33:57.240[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_platform ...
+2025-06-03 16:33:57.240[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware platform from uname...
+2025-06-03 16:33:57.240[2212][DEBUG] lisa.env[generated_3].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 16:33:57.240[2212][DEBUG] lisa.env[generated_3].node[0] detecting lis version...
+2025-06-03 16:33:57.240[2212][DEBUG] lisa.env[generated_3].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-06-03 16:33:57.241[2212][DEBUG] lisa.env[generated_3].node[0] detecting vm generation...
+2025-06-03 16:33:57.241[2212][DEBUG] lisa.env[generated_3].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-06-03 16:33:57.241[2212][DEBUG] lisa.env[generated_3].node[0] vm generation: 2
+2025-06-03 16:33:57.242[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_disk_controller_type ...
+2025-06-03 16:33:57.430[2212][DEBUG] lisa.env[generated_3].node[0] detecting host_version ...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting host version from dmesg...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting kernel_version ...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_version ...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala version from waagent...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting wala_distro ...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware_platform ...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting hardware platform from uname...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting lis version...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] detecting vm generation...
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0] vm generation: 2
+2025-06-03 16:33:57.434[2212][DEBUG] lisa.env[generated_3].node[0].tool[uname] loaded cached result for command: [uname -vrmo]

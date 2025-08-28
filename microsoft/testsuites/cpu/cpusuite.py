@@ -102,7 +102,7 @@ class CPUSuite(TestSuite):
         try:
             image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
             # Each CPU takes ~10 seconds to toggle offline-online
-            fio_run_time = 300 + (node.tools[Lscpu].get_core_count() * 10)
+            fio_run_time = 300 + (node.tools[Lscpu].get_thread_count() * 10)
             fio_process = node.tools[Fio].launch_async(
                 name="workload",
                 filename=f"{image_folder_path}/fiodata",
@@ -226,10 +226,10 @@ class CPUSuite(TestSuite):
             # get vmbus channels of synthetic network adapter. the synthetic network
             # drivers have class id "f8615163-df3e-46c5-913f-f2d2f965ed0e"
             node.tools[Lsvmbus].get_device_channels(force_run=True)
-            cpu_count = node.tools[Lscpu].get_core_count()
+            thread_count = node.tools[Lscpu].get_thread_count()
 
             # current max channel count need minus count of idle cpus
-            max_channel_count = cpu_count - len(idle_cpus)
+            max_channel_count = thread_count - len(idle_cpus)
 
             first_current_device_channel = (
                 node.tools[Ethtool].get_device_channels_info("eth0", True)
@@ -246,7 +246,7 @@ class CPUSuite(TestSuite):
                 while True:
                     if first_channel_count != first_current_device_channel:
                         break
-                    first_channel_count = random.randint(1, min(cpu_count, 64))
+                    first_channel_count = random.randint(1, min(thread_count, 64))
                 node.tools[Ethtool].change_device_channels_info(
                     "eth0", first_channel_count
                 )
@@ -279,16 +279,16 @@ class CPUSuite(TestSuite):
             # by reloading hv_netvsc driver if hv_netvsc can be reload
             # otherwise reboot vm
             if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
-                node.tools[Modprobe].reload(["hv_netvsc"])
+                node.tools[Modprobe].reload("hv_netvsc")
             else:
                 node.tools[Reboot].reboot()
 
             # change the combined channels count after all cpus online
-            second_channel_count = random.randint(1, min(cpu_count, 64))
+            second_channel_count = random.randint(1, min(thread_count, 64))
             while True:
                 if first_current_device_channel != second_channel_count:
                     break
-                second_channel_count = random.randint(1, min(cpu_count, 64))
+                second_channel_count = random.randint(1, min(thread_count, 64))
             node.tools[Ethtool].change_device_channels_info(
                 "eth0", second_channel_count
             )

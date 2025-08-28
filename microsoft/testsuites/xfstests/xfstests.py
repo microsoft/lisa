@@ -42,6 +42,42 @@ class Xfstests(Tool):
     # Override this via _install method if needed.
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
     branch = "master"
+    # This hash table contains recommended tags for different OS versions
+    # based on our findings that are known to build without issues.
+    # The format for key is either "<vendor>_<release>" or "<vendor>_<major>
+    # NOTE: The vendor field is case sensitive.
+    # This information is derived from node.os.information
+    # Logic : the method "get_os_id_version" will return a string
+    # in the format "<vendor>_<release>"
+    # Example: "SLES_15.5"
+    # Alternatively, a partial lookup for SLES_15.5 can be done against a key
+    # such as "SLES_15" which is used to encompass all SLES 15.x releases.
+    # If you have a specific version of OS with known major and minor version,
+    # please ensure it's added to the top of the hash table above partial match keys
+    # This string is used to lookup the recommended key-value pair from
+    # the hash table. If a match is found, the value is used as the
+    # recommended tag for the OS version.
+    # If the OS Version is not detected, the method "get_os_id_version" will return
+    # "unknown" and a corresponding value will be used from the hash table.
+    # If the OS Version is not found in the hash table,
+    # the default branch will be used from line 45.
+    # NOTE: This table should be updated on a regular basis when the distros
+    # are updated to support newer versions of xfstests.
+    os_recommended_tags: Dict[str, str] = {
+        "SLES_15.5": "v2025.04.27",
+        "SLES_12.5": "v2024.12.22",
+        "Debian GNU/Linux_11": "v2024.12.22",
+        "Debian GNU/Linux_12": "v2024.12.22",
+        "Ubuntu_18": "v2024.12.22",
+        "Ubuntu_20": "v2024.12.22",
+        "Ubuntu_22": "v2024.12.22",
+        "Ubuntu_24": "v2024.12.22",
+        "Red Hat_7": "v2024.02.09",
+        "CentOS_7": "v2024.02.09",
+        "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
+    }
+    # for all other distros not part of the above hash table,
+    # the default branch will be used from line 45
     # these are dependencies for xfstests. Update on regular basis.
     common_dep = [
         "acl",
@@ -71,52 +107,63 @@ class Xfstests(Tool):
         "autoconf",
     ]
     debian_dep = [
+        "exfatprogs",
+        "f2fs-tools",
+        "ocfs2-tools",
+        "udftools",
+        "xfsdump",
+        "xfslibs-dev",
+        "dbench",
         "libacl1-dev",
         "libaio-dev",
-        "libattr1-dev",
+        "libcap-dev",
         "libgdbm-dev",
         "libtool-bin",
+        "liburing-dev",
         "libuuid1",
-        "libuuidm-ocaml-dev",
-        "sqlite3",
+        "psmisc",
+        "python3",
         "uuid-dev",
         "uuid-runtime",
-        "xfslibs-dev",
-        "zlib1g-dev",
-        "btrfs-tools",
-        "btrfs-progs",
+        "linux-headers-generic",
+        "sqlite3",
         "libgdbm-compat-dev",
-        "liburing-dev",
-        "liburing2",
-        "pkg-config",
     ]
     fedora_dep = [
-        "libtool",
-        "libuuid-devel",
-        "libacl-devel",
-        "xfsprogs-devel",
-        "epel-release",
-        "libaio-devel",
-        "libattr-devel",
-        "sqlite",
-        "xfsprogs-qa-devel",
-        "zlib-devel",
-        "btrfs-progs-devel",
-        "llvm-ocaml-devel",
-        "uuid-devel",
-        "libtool",
-        "e2fsprogs-devel",
+        "btrfs-progs",
+        "byacc",
+        "exfatprogs",
+        "f2fs-tools",
+        "gcc-c++",
         "gdbm-devel",
-        "pkgconf-pkg-config",
+        "kernel-devel",
+        "libacl-devel",
+        "libaio-devel",
+        "libcap-devel",
+        "libtool",
+        "liburing-devel",
+        "libuuid-devel",
+        "ocfs2-tools",
+        "psmisc",
+        "python3",
+        "sqlite",
+        "udftools",
+        "xfsprogs-devel",
     ]
     suse_dep = [
         "btrfsprogs",
+        "duperemove",
         "libacl-devel",
         "libaio-devel",
         "libattr-devel",
-        "sqlite",
+        "libbtrfs-devel",
+        "libcap",
+        "libcap-devel",
+        "libtool",
+        "liburing-devel",
+        "libuuid-devel",
+        "sqlite3",
         "xfsprogs-devel",
-        "lib-devel",
     ]
     mariner_dep = [
         "python-iniparse",
@@ -347,7 +394,7 @@ class Xfstests(Tool):
             )
             self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
             self.node.execute(
-                "ln -s /opt/rh/devtoolset-7/root/usr/bin/gcc /bin/gcc",
+                "ln -s /usr/bin/x86_64-redhat-linux-gcc /bin/gcc",
                 sudo=True,
                 shell=True,
             )
@@ -375,8 +422,8 @@ class Xfstests(Tool):
 
     def _install(
         self,
-        branch: Optional[str] = None,
-        repo: Optional[str] = None,
+        branch: str = "",
+        repo: str = "",
     ) -> bool:
         """
         About:This method will download and install XFSTest on a given node.
@@ -392,7 +439,21 @@ class Xfstests(Tool):
                          repo="https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
         )
         """
-        branch = branch or self.branch
+        # Set the branch to the recommended tag for the OS if not provided
+        if not branch:
+            os_id_version = self.get_os_id_version()
+            # First try full match
+            if os_id_version in self.os_recommended_tags:
+                branch = self.os_recommended_tags[os_id_version]
+            else:
+                # Try partial match - check if any key is a prefix of os_id_version
+                # example: "Ubuntu_20.04" match with "Ubuntu_20" from hash table.
+                branch = self.branch  # default fallback
+                for key in self.os_recommended_tags:
+                    if os_id_version.startswith(key):
+                        branch = self.os_recommended_tags[key]
+                        # match found, break loop and exit conditional block
+                        break
         repo = repo or self.repo
         self._install_dep()
         self._add_test_users()
@@ -945,3 +1006,21 @@ class Xfstests(Tool):
                     f"with status {test_status}"
                 )
         return result
+
+    def get_os_id_version(self) -> str:
+        """
+        Extracts OS information from node.os.information.
+        Returns a string in the format "<vendor>_<release>".
+        If OS information is not available, returns "unknown".
+        """
+        try:
+            os_info = self.node.os.information
+            vendor = getattr(os_info, "vendor", "")
+            release = getattr(os_info, "release", "")
+
+            if not vendor or not release:
+                return "unknown"
+
+            return f"{vendor}_{release}"
+        except Exception:
+            return "unknown"

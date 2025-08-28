@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ from typing import (
     Type,
     Union,
 )
+from urllib.parse import urlparse
 
 from assertpy import assert_that
 from retry import retry
@@ -46,6 +48,7 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
     filter_ansi_escape,
+    find_group_in_lines,
     get_matched_str,
     parse_version,
     retry_without_exceptions,
@@ -77,6 +80,7 @@ class CpuArchitecture(str, Enum):
     X64 = "x86_64"
     ARM64 = "aarch64"
     I386 = "i386"
+    UNKNOWN = "unknown"
 
 
 class AzureCoreRepo(str, Enum):
@@ -376,6 +380,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         )
 
         return kernel_information
+
+    def add_repository(self, repo: str, **kwargs: Any) -> None:
+        raise NotImplementedError()
 
     def install_packages(
         self,
@@ -845,11 +852,66 @@ class Debian(Linux):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
 
-    def add_key(self, server_name: str, key: str) -> None:
-        self._node.execute(
-            f"apt-key adv --keyserver {server_name} --recv-keys {key}",
-            sudo=True,
-        )
+    def add_key(self, server_name: str, key: str = "") -> None:
+        # apt-key add is deprecated starting from Ubuntu 2504.
+        # Use gpg to import the key instead.
+        apt_key_available = False
+        if (
+            self._node.execute("command -v apt-key", shell=True, sudo=True).exit_code
+            == 0
+        ):
+            apt_key_available = True
+
+        if key:
+            if apt_key_available:
+                self._node.execute(
+                    cmd=f"apt-key adv --keyserver {server_name} --recv-keys {key}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add apt key",
+                )
+            else:
+                # get the key from server_name, and export it to /etc/apt/trusted.gpg.d
+                self._node.execute(
+                    cmd=f"gpg --keyserver {server_name} --recv-keys {key}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to get gpg key",
+                )
+                self._node.execute(
+                    cmd=f"gpg --export {key} > /etc/apt/trusted.gpg.d/{key}.gpg",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to export gpg key",
+                    shell=True,
+                )
+        else:
+            # Sometimes, the key is not provided, but the server_name
+            # is a URL to download the key file.
+            wget = self._node.tools[Wget]
+            key_file_path = wget.get(
+                url=server_name,
+                file_path=str(self._node.working_path),
+                force_run=True,
+            )
+            if apt_key_available:
+                self._node.execute(
+                    cmd=f"apt-key add {key_file_path}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add apt key",
+                )
+            else:
+                key_basename = os.path.basename(key_file_path)
+                self._node.execute(
+                    cmd=(
+                        f"gpg --dearmor -o /etc/apt/trusted.gpg.d/{key_basename}.gpg "
+                        f"{key_file_path}"
+                    ),
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add gpg key",
+                )
 
     def get_apt_error(self, stdout: str) -> List[str]:
         error_lines: List[str] = []
@@ -955,7 +1017,7 @@ class Debian(Linux):
     def clean_package_cache(self) -> None:
         self._node.execute("apt-get clean", sudo=True, shell=True)
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def remove_repository(
         self,
         repo: str,
@@ -977,29 +1039,19 @@ class Debian(Linux):
         # So, it's needed to run apt update after remove repository.
         self._node.execute("apt-get update", sudo=True)
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def add_repository(
         self,
         repo: str,
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         self._initialize_package_installation()
         if keys_location:
             for key_location in keys_location:
-                wget = self._node.tools[Wget]
-                key_file_path = wget.get(
-                    url=key_location,
-                    file_path=str(self._node.working_path),
-                    force_run=True,
-                )
-                self._node.execute(
-                    cmd=f"apt-key add {key_file_path}",
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message="fail to add apt key",
-                )
+                self.add_key(server_name=key_location)
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
@@ -1007,7 +1059,7 @@ class Debian(Linux):
         apt_repo.add_repository(repo)
 
         # apt update will not be triggered on Debian during add repo
-        if type(self._node.os) == Debian:
+        if type(self._node.os) is Debian:
             self._node.execute("apt-get update", sudo=True)
 
     def is_end_of_life_release(self) -> bool:
@@ -1126,7 +1178,7 @@ class Debian(Linux):
         # vim                                             deinstall
         # vim-common                                      install
         # auoms                                           hold
-        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")
+        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")  # noqa: E201
         if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
             return True
         return False
@@ -1306,6 +1358,11 @@ class Ubuntu(Debian):
         self._node.execute("cloud-init status --wait", sudo=True)
 
     def _get_information(self) -> OsInformation:
+        vendor = ""
+        release = ""
+        codename = ""
+        full_version = ""
+
         cmd_result = self._node.execute(
             cmd="lsb_release -a",
             shell=True,
@@ -1419,6 +1476,23 @@ class FreeBSD(BSD):
         re.DOTALL,
     )
 
+    def get_kernel_information(self, force_run: bool = False) -> KernelInformation:
+        uname = self._node.tools[Uname]
+        uname_result = uname.get_linux_information(force_run=force_run)
+
+        parts: List[str] = [str(x) for x in uname_result.kernel_version]
+        if uname_result.hardware_platform == "arm64":
+            uname_result.hardware_platform = "aarch64"
+        kernel_information = KernelInformation(
+            version=uname_result.kernel_version,
+            raw_version=uname_result.kernel_version_raw,
+            hardware_platform=uname_result.hardware_platform,
+            operating_system=uname_result.operating_system,
+            version_parts=parts,
+        )
+
+        return kernel_information
+
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
         repo_list_str = self._node.execute("pkg -vv", sudo=True).stdout
@@ -1438,7 +1512,7 @@ class FreeBSD(BSD):
 
         return repositories
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def _install_packages(
         self,
         packages: List[str],
@@ -1460,7 +1534,7 @@ class FreeBSD(BSD):
             f"please check the package name and repo are correct or not.\n",
         )
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def _initialize_package_installation(self) -> None:
         result = self._node.execute("env ASSUME_ALWAYS_YES=yes pkg update", sudo=True)
         result.assert_exit_code(message="fail to run pkg update")
@@ -1536,6 +1610,7 @@ class RPMDistro(Linux):
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
 
@@ -1561,7 +1636,7 @@ class RPMDistro(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
-    @retry(tries=3, delay=1)
+    @retry(tries=3, delay=1)  # type: ignore
     def _install_packages(
         self,
         packages: List[str],
@@ -1783,7 +1858,7 @@ class Redhat(Fedora):
             sudo=True,
         )
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
         if "Red Hat" == information.vendor:
@@ -1954,6 +2029,35 @@ class CBLMariner(RPMDistro):
             sudo=True,
         )
 
+    def add_repository(
+        self,
+        repo: str,
+        no_gpgcheck: bool = True,
+        repo_name: Optional[str] = None,
+        keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
+        parsed_url = urlparse(repo)
+        if parsed_url.scheme and parsed_url.netloc:
+            self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
+        else:
+            self._create_local_repo(Path(repo))
+
+    def _create_local_repo(self, source_tarball: Path) -> None:
+        from lisa.tools import CreateRepo, RemoteCopy
+
+        working_path = Path(self._node.get_working_path())
+        tarball_file = source_tarball.name
+        tarball_path = working_path / tarball_file
+
+        # copy tarball to remote node
+        result = self._node.tools[RemoteCopy].copy_to_remote(
+            src=source_tarball, dest=working_path
+        )
+        self._log.debug(f"tarball copied to: {result}")
+
+        self._node.tools[CreateRepo].create_repo_from_tarball(tarball_path)
+
     # Disable KillUserProcesses to avoid test processes being terminated when
     # the SSH session is reset
     def set_kill_user_processes(self) -> None:
@@ -1964,6 +2068,121 @@ class CBLMariner(RPMDistro):
             sudo=True,
         )
         self._node.tools[Service].restart_service("systemd-logind")
+
+    def _replace_default_entry(self, entry: str) -> None:
+        self._log.debug(f"set boot entry to: {entry}")
+
+        # Check if GRUB_DEFAULT already exists in the file
+        grep_result = self._node.execute(
+            "grep -q '^GRUB_DEFAULT=' /etc/default/grub",
+            sudo=True,
+            no_error_log=True,
+        )
+
+        # substitute if GRUB_DEFAULT exists, otherwise append it
+        if grep_result.exit_code == 0:
+            sed = self._node.tools[Sed]
+            sed.substitute(
+                regexp="GRUB_DEFAULT=.*",
+                replacement=f"GRUB_DEFAULT='{entry}'",
+                file="/etc/default/grub",
+                sudo=True,
+            )
+        else:
+            self._node.execute(
+                f"echo \"GRUB_DEFAULT='{entry}'\" >> /etc/default/grub",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to append GRUB_DEFAULT",
+            )
+
+        # output to log for troubleshooting
+        cat = self._node.tools[Cat]
+        cat.run("/etc/default/grub")
+
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        self._log.info(
+            f"Configuring Grub to boot into kernel version: {kernel_version}"
+        )
+
+        # Extract the actual kernel version from RPM package name
+        # Examples:
+        # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
+        # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
+        # kernel-6.6.89-9.azl3.aarch64 -> 6.6.89-9.azl3
+        extracted_version = kernel_version
+        rpm_version_pattern = re.compile(
+            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.(x86_64|aarch64)$"
+        )
+        match_result = find_group_in_lines(
+            kernel_version, rpm_version_pattern, single_line=True
+        )
+        if match_result.get("version"):
+            extracted_version = match_result["version"]
+            self._log.info(
+                f"Extracted kernel version '{extracted_version}' "
+                f"from RPM package '{kernel_version}'"
+            )
+        else:
+            self._log.debug(
+                f"Could not extract version from '{kernel_version}', using as-is"
+            )
+
+        # rebuild GRUB configuration to include the new kernel
+        self._node.execute(
+            "grub2-mkconfig -o /boot/grub2/grub.cfg",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to rebuild GRUB configuration",
+        )
+
+        # Parse the GRUB configuration to find the correct menu entry name
+        grub_cfg_result = self._node.execute(
+            "cat /boot/grub2/grub.cfg",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to read GRUB configuration",
+        )
+        # Examples of potential menu entries:
+        # For kernel-6.6.96-3.cm2.x86_64 => 6.6.96-3.cm2
+        # => menuentry 'AzureLinux GNU/Linux, with Linux 6.6.96-3.cm2'
+        menu_entry_pattern = re.compile(
+            rf"menuentry '(?P<entry>[^']*{re.escape(extracted_version)}\s*)'",
+            re.IGNORECASE,
+        )
+        match_result = find_group_in_lines(
+            grub_cfg_result.stdout, menu_entry_pattern, single_line=True
+        )
+        menu_entry_name = match_result.get("entry")
+
+        if not menu_entry_name:
+            self._log.warning(
+                f"Could not find GRUB menu entry for kernel version "
+                f"'{extracted_version}' (original: '{kernel_version}'). "
+                f"GRUB configuration may not be updated properly."
+            )
+            return
+
+        self._log.info(f"Found GRUB menu entry: {menu_entry_name}")
+
+        # Set the new kernel as default using the existing method
+        self._replace_default_entry(menu_entry_name)
+
+        # Rebuild GRUB configuration to apply the changes
+        self._node.execute(
+            "grub2-mkconfig -o /boot/grub2/grub.cfg",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to rebuild GRUB configuration with new default"
+            ),
+        )
+
+        self._log.info(
+            f"Successfully configured GRUB to boot into kernel version "
+            f"'{extracted_version}' (from RPM package '{kernel_version}')"
+        )
 
 
 @dataclass
@@ -2053,6 +2272,7 @@ class Suse(Linux):
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         self._initialize_package_installation()
         cmd = "zypper ar"
@@ -2186,6 +2406,7 @@ class SlMicro(Suse):
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         raise SkippedException(
             UnsupportedDistroException(

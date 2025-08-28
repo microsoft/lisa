@@ -154,6 +154,7 @@ class Cargo(Tool):
         self,
         sudo: bool = False,
         cwd: Optional[PurePath] = None,
+        expected_exit_code: Optional[int] = None,
     ) -> ExecutableResult:
         echo = self.node.tools[Echo]
         path = echo.run(
@@ -172,7 +173,7 @@ class Cargo(Tool):
             cwd=cwd,
             update_envs={"PATH": path},
             shell=True,
-            expected_exit_code=0,
+            expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message="cargo test failed",
         )
         return result

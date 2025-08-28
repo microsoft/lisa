@@ -6,7 +6,6 @@ from typing import cast
 from assertpy import assert_that
 
 from lisa import Environment, Logger, Node, RemoteNode, features
-from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
 from lisa.operating_system import SLES, AlmaLinux, Debian, Redhat, Ubuntu
@@ -21,6 +20,7 @@ from lisa.tools import (
     ResizePartition,
 )
 from lisa.tools.hwclock import Hwclock
+from lisa.tools.who import Who
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
@@ -33,11 +33,11 @@ def is_distro_supported(node: Node) -> None:
         )
 
     if not (
-        (type(node.os) == Ubuntu and node.os.information.version >= "18.4.0")
-        or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
-        or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
-        or (type(node.os) == SLES and node.os.information.version >= "15.6.0")
-        or (type(node.os) == AlmaLinux and node.os.information.version >= "9.5.0")
+        (type(node.os) is Ubuntu and node.os.information.version >= "18.4.0")
+        or (type(node.os) is Redhat and node.os.information.version >= "8.3.0")
+        or (type(node.os) is Debian and node.os.information.version >= "10.0.0")
+        or (type(node.os) is SLES and node.os.information.version >= "15.6.0")
+        or (type(node.os) is AlmaLinux and node.os.information.version >= "9.5.0")
     ):
         raise SkippedException(
             f"hibernation setup tool doesn't support current distro {node.os.name}, "
@@ -57,7 +57,8 @@ def verify_hibernation(
         resize.expand_os_partition()
     hibernation_setup_tool = node.tools[HibernationSetup]
     startstop = node.features[StartStop]
-    cat = node.tools[Cat]
+    dmesg = node.tools[Dmesg]
+    who = node.tools[Who]
 
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
@@ -74,22 +75,17 @@ def verify_hibernation(
     # the hibernation-setup tool.
     # A sleep(100) also works, but we are unsure of the exact time required.
     # So it is safer to reboot the VM.
-    if type(node.os) == Redhat or type(node.os) == AlmaLinux or type(node.os) == SLES:
+    if type(node.os) in (Redhat, AlmaLinux, SLES):
         node.reboot()
 
-    boot_time_before_hibernation = node.execute(
-        "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
-        sudo=True,
-        shell=True,
-    ).stdout
-
+    boot_time_before_hibernation = who.last_boot()
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
     try:
         startstop.stop(state=features.StopState.Hibernate)
     except Exception as ex:
         try:
-            node.tools[Dmesg].get_output(force_run=True)
+            dmesg.get_output(force_run=True)
         except Exception as e:
             log.debug(f"error on get dmesg output: {e}")
         raise LisaException(f"fail to hibernate: {ex}")
@@ -106,37 +102,37 @@ def verify_hibernation(
 
     startstop.start()
 
-    boot_time_after_hibernation = node.execute(
-        "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
-        sudo=True,
-        shell=True,
-    ).stdout
-
+    boot_time_after_hibernation = who.last_boot()
     log.info(
-        f"Boot time before hibernation: {boot_time_before_hibernation},"
-        f"boot time after hibernation: {boot_time_after_hibernation}"
+        f"Last Boot time before hibernation: {boot_time_before_hibernation}, "
+        f"Last Boot time after hibernation: {boot_time_after_hibernation}"
     )
-    assert_that(boot_time_before_hibernation).described_as(
-        "boot time before hibernation should be equal to boot time after hibernation"
-    ).is_equal_to(boot_time_after_hibernation)
-
-    dmesg = node.tools[Dmesg]
-    dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
-
-    offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
-    offset_from_sys_power = cat.read("/sys/power/resume_offset")
-
-    log.info(
-        f"Hibfile resume offset: {hibfile_offset}, "
-        f"Resume offset from cmdline: {offset_from_cmd}"
-    )
-
-    log.info(f"Resume offset from /sys/power/resume_offset: {offset_from_sys_power}")
 
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
     received_after_hibernation = hibernation_setup_tool.check_received()
     uevent_after_hibernation = hibernation_setup_tool.check_uevent()
+
+    offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
+    offset_from_sys_power = (
+        hibernation_setup_tool.get_hibernate_resume_offset_from_sys_power()
+    )
+
+    log.info(
+        f"Hibfile resume offset: {hibfile_offset}, "
+        f"Resume offset from cmdline: {offset_from_cmd}, "
+        f"Resume offset from /sys/power/resume_offset: {offset_from_sys_power}"
+    )
+
+    try:
+        assert_that(boot_time_before_hibernation).described_as(
+            "boot time before hibernation should be equal to boot time "
+            "after hibernation"
+        ).is_equal_to(boot_time_after_hibernation)
+    except AssertionError:
+        dmesg.check_kernel_errors(force_run=True, throw_error=True)
+        raise
+
     if verify_using_logs:
         assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
             "not find 'hibernation entry'."
@@ -163,18 +159,20 @@ def verify_hibernation(
         "synthetic nics count changes after hibernation."
     ).is_equal_to(len(upper_nics_before_hibernation))
 
+    dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
+
 
 def run_storage_workload(node: Node) -> Decimal:
     fio = node.tools[Fio]
     fiodata = node.get_pure_path("./fiodata")
-    core_count = node.tools[Lscpu].get_core_count()
+    thread_count = node.tools[Lscpu].get_thread_count()
     if node.shell.exists(fiodata):
         node.shell.remove(fiodata)
     fio_result = fio.launch(
         name="workload",
         filename="fiodata",
         mode="readwrite",
-        numjob=core_count,
+        numjob=thread_count,
         iodepth=128,
         time=120,
         block_size="1M",
@@ -185,9 +183,13 @@ def run_storage_workload(node: Node) -> Decimal:
 
 
 def run_network_workload(environment: Environment) -> Decimal:
+    assert_that(len(environment.nodes)).described_as(
+        "Expected environment to have at least 2 nodes"
+    ).is_greater_than_or_equal_to(2)
+
     client_node = cast(RemoteNode, environment.nodes[0])
-    if len(environment.nodes) >= 2:
-        server_node = cast(RemoteNode, environment.nodes[1])
+    server_node = cast(RemoteNode, environment.nodes[1])
+
     iperf3_server = server_node.tools[Iperf3]
     iperf3_client = client_node.tools[Iperf3]
     iperf3_server.run_as_server_async()

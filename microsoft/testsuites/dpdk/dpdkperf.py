@@ -360,14 +360,14 @@ class DpdkPerformance(TestSuite):
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
 
-        core_counts = [
-            n.tools[Lscpu].get_core_count() for n in environment.nodes.list()
+        thread_counts = [
+            n.tools[Lscpu].get_thread_count() for n in environment.nodes.list()
         ]
 
-        assert_that(core_counts).described_as(
+        assert_that(thread_counts).described_as(
             "Nodes contain different core counts, DPDK Suite expects sender "
             "and receiver to have same core count."
-        ).contains_only(core_counts[0])
+        ).contains_only(thread_counts[0])
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")

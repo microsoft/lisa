@@ -1,0 +1,2310 @@
+[    0.000000] Linux version 4.15.0-1045-azure (buildd@lcy01-amd64-006) (gcc version 4.8.4 (Ubuntu 4.8.4-2ubuntu1~14.04.4)) #49~14.04.1-Ubuntu SMP Mon May 13 17:28:17 UTC 2019 (Ubuntu 4.15.0-1045.49~14.04.1-azure 4.15.18)
+[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz-4.15.0-1045-azure root=/dev/sda1 ro console=tty0 console=ttyS0,115200n8 earlyprintk=ttyS0,115200,rootdelay=300
+[    0.000000] KERNEL supported cpus:
+[    0.000000]   Intel GenuineIntel
+[    0.000000]   AMD AuthenticAMD
+[    0.000000]   Centaur CentaurHauls
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x020: 'AVX-512 opmask'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x040: 'AVX-512 Hi256'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x080: 'AVX-512 ZMM_Hi256'
+[    0.000000] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.000000] x86/fpu: xstate_offset[5]:  832, xstate_sizes[5]:   64
+[    0.000000] x86/fpu: xstate_offset[6]:  896, xstate_sizes[6]:  512
+[    0.000000] x86/fpu: xstate_offset[7]: 1408, xstate_sizes[7]: 1024
+[    0.000000] x86/fpu: Enabled xstate features 0xe7, context size is 2432 bytes, using 'compacted' format.
+[    0.000000] e820: BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+[    0.000000] BIOS-e820: [mem 0x000000000009fc00-0x000000000009ffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000000e0000-0x00000000000fffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x000000003ffeffff] usable
+[    0.000000] BIOS-e820: [mem 0x000000003fff0000-0x000000003fffefff] ACPI data
+[    0.000000] BIOS-e820: [mem 0x000000003ffff000-0x000000003fffffff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x0000000100000000-0x000000043fffffff] usable
+[    0.000000] bootconsole [earlyser0] enabled
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] SMBIOS 2.3 present.
+[    0.000000] DMI: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS 090008  12/07/2018
+[    0.000000] Hypervisor detected: Microsoft Hyper-V
+[    0.000000] Hyper-V: features 0x2e7f, hints 0x60c2c
+[    0.000000] Hyper-V Host Build:20348-10.0-3-0.3020
+[    0.000000] Hyper-V: LAPIC Timer Frequency: 0xc3500
+[    0.000000] tsc: Marking TSC unstable due to running on Hyper-V
+[    0.000000] Hyper-V: Using ext hypercall for remote TLB flush
+[    0.000000] e820: last_pfn = 0x440000 max_arch_pfn = 0x400000000
+[    0.000000] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+Memory KASLR using RDRAND RDTSC...
+[    0.000000] e820: last_pfn = 0x3fff0 max_arch_pfn = 0x400000000
+[    0.000000] found SMP MP-table at [mem 0x000ff780-0x000ff78f] mapped at [        (ptrval)]
+[    0.000000] Scanning 1 areas for low memory corruption
+[    0.000000] Using GB pages for direct mapping
+[    0.000000] RAMDISK: [mem 0x36e6a000-0x3772cfff]
+[    0.000000] ACPI: Early table checksum verification disabled
+[    0.000000] ACPI: RSDP 0x00000000000F5C00 000014 (v00 ACPIAM)
+[    0.000000] ACPI: RSDT 0x000000003FFF0000 000040 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+[    0.000000] ACPI: FACP 0x000000003FFF0200 000081 (v02 VRTUAL MICROSFT 12001807 MSFT 00000097)
+[    0.000000] ACPI: DSDT 0x000000003FFF1D24 003CD5 (v01 MSFTVM MSFTVM02 00000002 INTL 02002026)
+[    0.000000] ACPI: FACS 0x000000003FFFF000 000040
+[    0.000000] ACPI: WAET 0x000000003FFF1A80 000028 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+[    0.000000] ACPI: SLIC 0x000000003FFF1AC0 000176 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+[    0.000000] ACPI: OEM0 0x000000003FFF1CC0 000064 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+[    0.000000] ACPI: SRAT 0x000000003FFF0800 000160 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: APIC 0x000000003FFF0300 000072 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+[    0.000000] ACPI: OEMB 0x000000003FFFF040 000064 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+[    0.000000] SRAT: PXM 0 -> APIC 0x00 -> Node 0
+[    0.000000] SRAT: PXM 0 -> APIC 0x01 -> Node 0
+[    0.000000] SRAT: PXM 0 -> APIC 0x02 -> Node 0
+[    0.000000] SRAT: PXM 0 -> APIC 0x03 -> Node 0
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x00000000-0x3fffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x100000000-0x43fffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x440200000-0xfdfffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x1000000000-0xffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x10000200000-0x1ffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x20000200000-0x3ffffffffff] hotplug
+[    0.000000] NUMA: Node 0 [mem 0x00000000-0x3fffffff] + [mem 0x100000000-0x43fffffff] -> [mem 0x00000000-0x43fffffff]
+[    0.000000] NODE_DATA(0) allocated [mem 0x43ffd5000-0x43fffffff]
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+[    0.000000]   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+[    0.000000]   Normal   [mem 0x0000000100000000-0x000000043fffffff]
+[    0.000000]   Device   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000000001000-0x000000000009efff]
+[    0.000000]   node   0: [mem 0x0000000000100000-0x000000003ffeffff]
+[    0.000000]   node   0: [mem 0x0000000100000000-0x000000043fffffff]
+[    0.000000] Reserved but unavailable: 114 pages
+[    0.000000] Initmem setup node 0 [mem 0x0000000000001000-0x000000043fffffff]
+[    0.000000] ACPI: PM-Timer IO Port: 0x408
+[    0.000000] ACPI: LAPIC_NMI (acpi_id[0xff] dfl dfl lint[0x1])
+[    0.000000] IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+[    0.000000] ACPI: INT_SRC_OVR (bus 0 bus_irq 0 global_irq 2 dfl dfl)
+[    0.000000] ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+[    0.000000] Using ACPI (MADT) for SMP configuration information
+[    0.000000] smpboot: Allowing 4 CPUs, 0 hotplug CPUs
+[    0.000000] PM: Registered nosave memory: [mem 0x00000000-0x00000fff]
+[    0.000000] PM: Registered nosave memory: [mem 0x0009f000-0x0009ffff]
+[    0.000000] PM: Registered nosave memory: [mem 0x000a0000-0x000dffff]
+[    0.000000] PM: Registered nosave memory: [mem 0x000e0000-0x000fffff]
+[    0.000000] PM: Registered nosave memory: [mem 0x3fff0000-0x3fffefff]
+[    0.000000] PM: Registered nosave memory: [mem 0x3ffff000-0x3fffffff]
+[    0.000000] PM: Registered nosave memory: [mem 0x40000000-0xffffffff]
+[    0.000000] e820: [mem 0x40000000-0xffffffff] available for PCI devices
+[    0.000000] Booting paravirtualized kernel on bare hardware
+[    0.000000] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645519600211568 ns
+[    0.000000] random: get_random_bytes called from start_kernel+0x8c/0x534 with crng_init=0
+[    0.000000] setup_percpu: NR_CPUS:8192 nr_cpumask_bits:4 nr_cpu_ids:4 nr_node_ids:1
+[    0.000000] percpu: Embedded 45 pages/cpu @        (ptrval) s147456 r8192 d28672 u524288
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 3612537
+[    0.000000] Policy zone: Normal
+[    0.000000] Kernel command line: BOOT_IMAGE=/boot/vmlinuz-4.15.0-1045-azure root=/dev/sda1 ro console=tty0 console=ttyS0,115200n8 earlyprintk=ttyS0,115200,rootdelay=300
+[    0.000000] Memory: 14346540K/14679608K available (12300K kernel code, 2411K rwdata, 4104K rodata, 2296K init, 2372K bss, 333068K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] Kernel/User page tables isolation: enabled
+[    0.000000] ftrace: allocating 39214 entries in 154 pages
+[    0.000000] Hierarchical RCU implementation.
+[    0.000000] 	RCU restricting CPUs from NR_CPUS=8192 to nr_cpu_ids=4.
+[    0.000000] 	Tasks RCU enabled.
+[    0.000000] RCU: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000] NR_IRQS: 524544, nr_irqs: 456, preallocated irqs: 16
+[    0.000000] 	Offload RCU callbacks from CPUs: .
+[    0.000000] Console: colour dummy device 80x25
+[    0.000000] console [tty0] enabled
+[    0.000000] console [ttyS0] enabled
+[    0.000000] console [ttyS0] enabled
+[    0.000000] bootconsole [earlyser0] disabled
+[    0.000000] bootconsole [earlyser0] disabled
+[    0.000000] ACPI: Core revision 20170831
+[    0.000000] ACPI: 1 ACPI AML tables successfully acquired and loaded
+[    0.000000] APIC: Switch to symmetric I/O mode setup
+[    0.000000] Hyper-V: Using ext hypercalls for IPI
+[    0.000000] Hyper-V: Using MSR based APIC access
+[    0.000000] clocksource: hyperv_clocksource_tsc_page: mask: 0xffffffffffffffff max_cycles: 0x24e6a1710, max_idle_ns: 440795202120 ns
+[    0.004000] ..TIMER: vector=0x30 apic1=0 pin1=2 apic2=-1 pin2=-1
+[    0.008000] tsc: Detected 2793.437 MHz processor
+[    0.012000] Calibrating delay loop (skipped), value calculated using timer frequency.. 5586.87 BogoMIPS (lpj=11173748)
+[    0.016006] pid_max: default: 32768 minimum: 301
+[    0.020037] Security Framework initialized
+[    0.022002] Yama: becoming mindful.
+[    0.024021] AppArmor: AppArmor initialized
+[    0.028986] Dentry cache hash table entries: 2097152 (order: 12, 16777216 bytes)
+[    0.033155] Inode-cache hash table entries: 1048576 (order: 11, 8388608 bytes)
+[    0.036057] Mount-cache hash table entries: 32768 (order: 6, 262144 bytes)
+[    0.040036] Mountpoint-cache hash table entries: 32768 (order: 6, 262144 bytes)
+[    0.044249] mce: CPU supports 1 MCE banks
+[    0.048016] Last level iTLB entries: 4KB 0, 2MB 0, 4MB 0
+[    0.050723] Last level dTLB entries: 4KB 0, 2MB 0, 4MB 0, 1GB 0
+[    0.052002] Spectre V2 : Mitigation: Full generic retpoline
+[    0.056001] Spectre V2 : Spectre v2 / SpectreRSB mitigation: Filling RSB on context switch
+[    0.060001] Speculative Store Bypass: Vulnerable
+[    0.062203] MDS: Mitigation: Clear CPU buffers
+[    0.069220] Freeing SMP alternatives memory: 36K
+[    0.072500] smpboot: CPU0: Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz (family: 0x6, model: 0x6a, stepping: 0x6)
+[    0.076067] Performance Events: unsupported p6 CPU model 106 no PMU driver, software events only.
+[    0.080032] Hierarchical SRCU implementation.
+[    0.084626] NMI watchdog: Perf event create on CPU 0 failed with -2
+[    0.088002] NMI watchdog: Perf NMI watchdog permanently disabled
+[    0.090720] smp: Bringing up secondary CPUs ...
+[    0.092095] x86: Booting SMP configuration:
+[    0.093904] .... node  #0, CPUs:      #1 #2 #3
+[    0.094287] smp: Brought up 1 node, 4 CPUs
+[    0.097924] smpboot: Max logical packages: 1
+[    0.100002] smpboot: Total of 4 processors activated (22347.49 BogoMIPS)
+[    0.104470] devtmpfs: initialized
+[    0.105477] x86/mm: Memory block size: 128MB
+[    0.108912] evm: security.selinux
+[    0.110612] evm: security.SMACK64
+[    0.112003] evm: security.SMACK64EXEC
+[    0.113631] evm: security.SMACK64TRANSMUTE
+[    0.116002] evm: security.SMACK64MMAP
+[    0.117559] evm: security.apparmor
+[    0.119001] evm: security.ima
+[    0.120001] evm: security.capability
+[    0.121706] PM: Registering ACPI NVS region [mem 0x3ffff000-0x3fffffff] (4096 bytes)
+[    0.124066] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.128017] futex hash table entries: 1024 (order: 4, 65536 bytes)
+[    0.132086] pinctrl core: initialized pinctrl subsystem
+[    0.136348] RTC time: 16:02:01, date: 06/03/25
+[    0.139053] NET: Registered protocol family 16
+[    0.140071] audit: initializing netlink subsys (disabled)
+[    0.142378] audit: type=2000 audit(1748966521.140:1): state=initialized audit_enabled=0 res=1
+[    0.148005] cpuidle: using governor ladder
+[    0.149851] cpuidle: using governor menu
+[    0.152058] ACPI: bus type PCI registered
+[    0.154317] acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+[    0.156355] PCI: Using configuration type 1 for base access
+[    0.160274] mtrr: your CPUs had inconsistent variable MTRR settings
+[    0.164003] mtrr: probably your BIOS does not setup all CPUs.
+[    0.168003] mtrr: corrected configuration.
+[    0.172039] HugeTLB registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.175726] HugeTLB registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.180107] ACPI: Added _OSI(Module Device)
+[    0.182832] ACPI: Added _OSI(Processor Device)
+[    0.184016] ACPI: Added _OSI(3.0 _SCP Extensions)
+[    0.188009] ACPI: Added _OSI(Processor Aggregator Device)
+[    0.191119] ACPI: Added _OSI(Linux-Dell-Video)
+[    0.192006] ACPI: Added _OSI(Linux-Lenovo-NV-HDMI-Audio)
+[    0.196003] ACPI: Added _OSI(Linux-HPI-Hybrid-Graphics)
+[    0.200646] ACPI: Executed 1 blocks of module-level executable AML code
+[    0.204542] ACPI: Interpreter enabled
+[    0.206619] ACPI: (supports S0 S5)
+[    0.208003] ACPI: Using IOAPIC for interrupt routing
+[    0.211020] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    0.216153] ACPI: Enabled 1 GPEs in block 00 to 0F
+[    0.235237] ACPI: PCI Root Bridge [PCI0] (domain 0000 [bus 00-ff])
+[    0.240012] acpi PNP0A03:00: _OSC: OS supports [ASPM ClockPM Segments MSI]
+[    0.244010] acpi PNP0A03:00: _OSC failed (AE_NOT_FOUND); disabling ASPM
+[    0.247353] acpi PNP0A03:00: fail to add MMCONFIG information, can't access extended PCI configuration space under this bridge.
+[    0.256196] PCI host bridge to bus 0000:00
+[    0.256196] pci_bus 0000:00: root bus resource [mem 0xfe0000000-0xfffffffff window]
+[    0.259802] pci_bus 0000:00: root bus resource [io  0x0000-0x0cf7 window]
+[    0.264005] pci_bus 0000:00: root bus resource [io  0x0d00-0xffff window]
+[    0.268004] pci_bus 0000:00: root bus resource [mem 0x000a0000-0x000bffff window]
+[    0.272005] pci_bus 0000:00: root bus resource [mem 0x40000000-0xfffbffff window]
+[    0.276005] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    0.288538] pci 0000:00:07.1: legacy IDE quirk: reg 0x10: [io  0x01f0-0x01f7]
+[    0.292004] pci 0000:00:07.1: legacy IDE quirk: reg 0x14: [io  0x03f6]
+[    0.296004] pci 0000:00:07.1: legacy IDE quirk: reg 0x18: [io  0x0170-0x0177]
+[    0.300005] pci 0000:00:07.1: legacy IDE quirk: reg 0x1c: [io  0x0376]
+[    0.300503] * Found PM-Timer Bug on the chipset. Due to workarounds for a bug,
+[    0.300503] * this clock source is slow. Consider trying other clock sources
+[    0.310209] pci 0000:00:07.3: quirk: [io  0x0400-0x043f] claimed by PIIX4 ACPI
+[    0.370733] ACPI: PCI Interrupt Link [LNKA] (IRQs 3 4 5 7 9 10 *11 12 14 15)
+[    0.376175] ACPI: PCI Interrupt Link [LNKB] (IRQs 3 4 5 7 9 10 11 12 14 15) *0, disabled.
+[    0.380205] ACPI: PCI Interrupt Link [LNKC] (IRQs 3 4 5 7 9 10 11 12 14 15) *0, disabled.
+[    0.388191] ACPI: PCI Interrupt Link [LNKD] (IRQs 3 4 5 7 9 10 11 12 14 15) *0, disabled.
+[    0.392299] SCSI subsystem initialized
+[    0.392299] pci 0000:00:08.0: vgaarb: setting as boot VGA device
+[    0.395183] pci 0000:00:08.0: vgaarb: VGA device added: decodes=io+mem,owns=io+mem,locks=none
+[    0.400005] pci 0000:00:08.0: vgaarb: bridge control possible
+[    0.404003] vgaarb: loaded
+[    0.408036] pps_core: LinuxPPS API ver. 1 registered
+[    0.410775] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.412007] PTP clock support registered
+[    0.416019] EDAC MC: Ver: 3.0.0
+[    0.420129] hv_vmbus: Vmbus version:4.0
+[    0.421892] PCI: Using ACPI for IRQ routing
+[    0.424468] NetLabel: Initializing
+[    0.426042] NetLabel:  domain hash size = 128
+[    0.428005] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    0.431227] NetLabel:  unlabeled traffic allowed by default
+[    0.436067] clocksource: Switched to clocksource hyperv_clocksource_tsc_page
+[    0.448194] VFS: Disk quotas dquot_6.6.0
+[    0.450260] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.453629] AppArmor: AppArmor Filesystem Enabled
+[    0.455814] pnp: PnP ACPI init
+[    0.459175] system 00:06: [io  0x01e0-0x01ef] has been reserved
+[    0.461950] system 00:06: [io  0x0160-0x016f] has been reserved
+[    0.464735] system 00:06: [io  0x0278-0x027f] has been reserved
+[    0.467544] system 00:06: [io  0x0378-0x037f] has been reserved
+[    0.470253] system 00:06: [io  0x0678-0x067f] has been reserved
+[    0.473115] system 00:06: [io  0x0778-0x077f] has been reserved
+[    0.476066] system 00:06: [io  0x04d0-0x04d1] has been reserved
+[    0.478716] system 00:07: [io  0x0400-0x043f] has been reserved
+[    0.481228] system 00:07: [io  0x0370-0x0371] has been reserved
+[    0.484801] system 00:07: [io  0x0440-0x044f] has been reserved
+[    0.487419] system 00:07: [mem 0xfec00000-0xfec00fff] could not be reserved
+[    0.490935] system 00:07: [mem 0xfee00000-0xfee00fff] has been reserved
+[    0.493925] system 00:08: [mem 0x00000000-0x0009ffff] could not be reserved
+[    0.496868] system 00:08: [mem 0x000c0000-0x000dffff] could not be reserved
+[    0.499801] system 00:08: [mem 0x000e0000-0x000fffff] could not be reserved
+[    0.502761] system 00:08: [mem 0x00100000-0x3fffffff] could not be reserved
+[    0.506039] system 00:08: [mem 0xfffc0000-0xffffffff] has been reserved
+[    0.509033] pnp: PnP ACPI: found 9 devices
+[    0.517726] clocksource: acpi_pm: mask: 0xffffff max_cycles: 0xffffff, max_idle_ns: 2085701024 ns
+[    0.521922] NET: Registered protocol family 2
+[    0.523987] TCP established hash table entries: 131072 (order: 8, 1048576 bytes)
+[    0.527268] TCP bind hash table entries: 65536 (order: 8, 1048576 bytes)
+[    0.530300] TCP: Hash tables configured (established 131072 bind 65536)
+[    0.533168] UDP hash table entries: 8192 (order: 6, 262144 bytes)
+[    0.535815] UDP-Lite hash table entries: 8192 (order: 6, 262144 bytes)
+[    0.540421] NET: Registered protocol family 1
+[    0.542794] pci 0000:00:00.0: Limiting direct PCI/PCI transfers
+[    0.549295] pci 0000:00:08.0: Video device with shadowed ROM at [mem 0x000c0000-0x000dffff]
+[    0.553210] Unpacking initramfs...
+[    0.697482] Freeing initrd memory: 8972K
+[    0.699487] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[    0.702695] software IO TLB [mem 0x3bff0000-0x3fff0000] (64MB) mapped at [        (ptrval)-        (ptrval)]
+[    0.707661] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x28440910e78, max_idle_ns: 440795261560 ns
+[    0.712070] Scanning for low memory corruption every 60 seconds
+[    0.712732] Initialise system trusted keyrings
+[    0.712741] Key type blacklist registered
+[    0.712777] workingset: timestamp_bits=36 max_order=22 bucket_order=0
+[    0.713679] zbud: loaded
+[    0.714160] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.714289] fuse init (API version 7.26)
+[    0.716930] Key type asymmetric registered
+[    0.716931] Asymmetric key parser 'x509' registered
+[    0.716977] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 244)
+[    0.717036] io scheduler noop registered (default)
+[    0.738969] input: Power Button as /devices/LNXSYSTM:00/LNXPWRBN:00/input/input0
+[    0.742276] ACPI: Power Button [PWRF]
+[    0.746422] Serial: 8250/16550 driver, 32 ports, IRQ sharing enabled
+[    0.781785] 00:03: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+[    0.815498] 00:04: ttyS1 at I/O 0x2f8 (irq = 3, base_baud = 115200) is a 16550A
+[    0.821628] Linux agpgart interface v0.103
+[    0.825637] loop: module loaded
+[    0.827694] hv_vmbus: registering driver hv_storvsc
+[    0.832423] scsi host0: storvsc_host_t
+[    0.836994] scsi 0:0:0:0: Direct-Access     Msft     Virtual Disk     1.0  PQ: 0 ANSI: 5
+[    0.845014] scsi host1: storvsc_host_t
+[    0.850266] scsi 1:0:1:0: Direct-Access     Msft     Virtual Disk     1.0  PQ: 0 ANSI: 5
+[    0.856610] scsi host2: storvsc_host_t
+[    0.862798] scsi host3: storvsc_host_t
+[    0.867896] sd 0:0:0:0: Attached scsi generic sg0 type 0
+[    0.868261] sd 0:0:0:0: [sda] 167772160 512-byte logical blocks: (85.9 GB/80.0 GiB)
+[    0.868262] sd 0:0:0:0: [sda] 4096-byte physical blocks
+[    0.868342] sd 0:0:0:0: [sda] Write Protect is off
+[    0.868441] sd 0:0:0:0: [sda] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[    0.882997] sd 1:0:1:0: Attached scsi generic sg1 type 0
+[    0.883064] sd 1:0:1:0: [sdb] 58720256 512-byte logical blocks: (30.1 GB/28.0 GiB)
+[    0.883066] sd 1:0:1:0: [sdb] 4096-byte physical blocks
+[    0.883105] sd 1:0:1:0: [sdb] Write Protect is off
+[    0.883166] sd 1:0:1:0: [sdb] Write cache: disabled, read cache: enabled, supports DPO and FUA
+[    0.883823]  sdb: sdb1
+[    0.885170]  sda: sda1 sda2 < >
+[    0.885517] random: fast init done
+[    0.885690] sd 1:0:1:0: [sdb] Attached SCSI disk
+[    0.885815] sd 0:0:0:0: [sda] Attached SCSI disk
+[    0.909589] ata_piix 0000:00:07.1: Hyper-V Virtual Machine detected, ATA device ignore set
+[    0.915204] scsi host4: ata_piix
+[    0.917116] scsi host5: ata_piix
+[    0.919030] ata1: PATA max UDMA/33 cmd 0x1f0 ctl 0x3f6 bmdma 0xffa0 irq 14
+[    0.922322] ata2: PATA max UDMA/33 cmd 0x170 ctl 0x376 bmdma 0xffa8 irq 15
+[    0.925673] libphy: Fixed MDIO Bus: probed
+[    0.928087] tun: Universal TUN/TAP device driver, 1.6
+[    0.932178] PPP generic driver version 2.4.2
+[    0.935245] i8042: PNP: PS/2 Controller [PNP0303:PS2K,PNP0f03:PS2M] at 0x60,0x64 irq 1,12
+[    0.942696] serio: i8042 KBD port at 0x60,0x64 irq 1
+[    0.945505] serio: i8042 AUX port at 0x60,0x64 irq 12
+[    0.948761] mousedev: PS/2 mouse device common for all mice
+[    0.952084] rtc_cmos 00:00: RTC can wake from S4
+[    0.955812] rtc_cmos 00:00: rtc core: registered rtc_cmos as rtc0
+[    0.959696] rtc_cmos 00:00: alarms up to one month, 114 bytes nvram
+[    0.964197] device-mapper: uevent: version 1.0.3
+[    0.966613] device-mapper: ioctl: 4.37.0-ioctl (2017-09-20) initialised: dm-devel@redhat.com
+[    0.971826] NET: Registered protocol family 10
+[    0.977172] Segment Routing with IPv6
+[    0.980561] NET: Registered protocol family 17
+[    0.982750] Key type dns_resolver registered
+[    0.985164] RAS: Correctable Errors collector initialized.
+[    0.987835] registered taskstats version 1
+[    0.989661] Loading compiled-in X.509 certificates
+[    0.993813] Loaded X.509 cert 'Build time autogenerated kernel key: fceb3f72e6db75f30e33107f6da9a7bd82a87b61'
+[    0.998229] zswap: loaded using pool lzo/zbud
+[    1.000707] input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input1
+[    1.007372] Key type big_key registered
+[    1.009385] Key type trusted registered
+[    1.012730] Key type encrypted registered
+[    1.014594] AppArmor: AppArmor sha1 policy hashing enabled
+[    1.016952] ima: No TPM chip found, activating TPM-bypass! (rc=-19)
+[    1.019629] ima: Allocated hash algorithm: sha1
+[    1.021593] evm: HMAC attrs: 0x1
+[    1.023222]   Magic number: 13:881:33
+[    1.045071] rtc_cmos 00:00: setting system clock to 2025-06-03 16:02:02 UTC (1748966522)
+[    1.048773] BIOS EDD facility v0.16 2004-Jun-25, 0 devices found
+[    1.051366] EDD information not available.
+[    1.279162] ata2.00: ATAPI: Virtual CD, , max MWDMA2
+[    1.283025] ata2.00: configured for MWDMA2
+[    1.286485] scsi 5:0:0:0: CD-ROM            Msft     Virtual CD/ROM   1.0  PQ: 0 ANSI: 5
+[    1.292189] sr 5:0:0:0: [sr0] scsi3-mmc drive: 0x/0x tray
+[    1.294737] cdrom: Uniform CD-ROM driver Revision: 3.20
+[    1.297397] sr 5:0:0:0: Attached scsi generic sg2 type 5
+[    1.586779] Freeing unused kernel image memory: 2296K
+[    1.604029] Write protecting the kernel read-only data: 20480k
+[    1.607934] Freeing unused kernel image memory: 2008K
+[    1.610873] Freeing unused kernel image memory: 2040K
+[    1.618461] x86/mm: Checked W+X mappings: passed, no W+X pages found.
+[    1.621723] x86/mm: Checking user space page tables
+[    1.628938] x86/mm: Checked W+X mappings: passed, no W+X pages found.
+Loading, please wait...
+[    1.643068] systemd-udevd[188]: starting version 204
+Begin: Loading essential drivers ... done.
+Begin: Running /scripts/init-premount ... done.
+[    1.661193] hv_utils: Registering HyperV Utility Driver
+[    1.664059] hv_vmbus: registering driver hv_util
+Begin: Mounting root file system ... [    1.667876] hv_utils: Heartbeat IC version 3.0
+[    1.670163] hv_vmbus: registering driver hv_netvsc
+[    1.672642] hv_utils: Shutdown IC version 3.0
+[    1.672647] hv_utils: TimeSync IC version 4.0
+Begin: Running /scripts/local-top ... done.
+Begin: Running /scripts/local-premount ... done.
+[    8.347483] EXT4-fs (sda1): mounted filesystem with ordered data mode. Opts: (null)
+Begin: Running /scripts/local-bottom ... done.
+done.
+Begin: Running /scripts/init-bottom ... done.
+[   10.420992] random: init: uninitialized urandom read (12 bytes read)
+[   12.327304] random: mountall: uninitialized urandom read (12 bytes read)
+[   12.900370] EXT4-fs (sda1): re-mounted. Opts: errors=remount-ro
+[   14.748114] random: cloud-init: uninitialized urandom read (32 bytes read)
+[   17.366994] random: cloud-init: uninitialized urandom read (32 bytes read)
+[   17.752033] random: crng init done
+[   18.400398] ISOFS: Unable to identify CD-ROM format.
+ * Stopping adjust system clock and timezone[74G[ OK ]
+ * Starting Mount filesystems on boot[74G[ OK ]
+ * Starting Fix-up sensitive /proc filesystem entries[74G[ OK ]
+ * Starting Populate /dev filesystem[74G[ OK ]
+ * Starting Populate and link to /run filesystem[74G[ OK ]
+ * Stopping Populate /dev filesystem[74G[ OK ]
+ * Stopping Fix-up sensitive /proc filesystem entries[74G[ OK ]
+ * Stopping Track if upstart is running in a container[74G[ OK ]
+ * Stopping Populate and link to /run filesystem[74G[ OK ]
+ * Starting Signal sysvinit that the rootfs is mounted[74G[ OK ]
+Cloud-init v. 0.7.5 running 'init-local' at Tue, 03 Jun 2025 16:02:18 +0000. Up 17.37 seconds.
+cloud-init-nonet[18.42]: waiting 10 seconds for network device
+ * Starting Signal sysvinit that virtual filesystems are mounted[74G[ OK ]
+ * Starting Signal sysvinit that virtual filesystems are mounted[74G[ OK ]
+ * Starting set sysctls from /etc/sysctl.conf[74G[ OK ]
+ * Starting Bridge udev events into upstart[74G[ OK ]
+ * Starting Signal sysvinit that remote filesystems are mounted[74G[ OK ]
+ * Starting Clean /tmp directory[74G[ OK ]
+ * Stopping set sysctls from /etc/sysctl.conf[74G[ OK ]
+ * Starting device node and kernel event manager[74G[ OK ]
+ * Starting load modules from /etc/modules[74G[ OK ]
+ * Starting cold plug devices[74G[ OK ]
+ * Starting log initial device creation[74G[ OK ]
+ * Stopping Clean /tmp directory[74G[ OK ]
+ * Stopping load modules from /etc/modules[74G[ OK ]
+ * Starting configure network device security[74G[ OK ]
+ * Starting configure network device security[74G[ OK ]
+ * Starting Mount network filesystems[74G[ OK ]
+ * Stopping Mount network filesystems[74G[ OK ]
+ * Starting Bridge socket events into upstart[74G[ OK ]
+ * Starting configure network device[74G[ OK ]
+ * Starting configure network device security[74G[ OK ]
+ * Starting configure network device[74G[ OK ]
+ * Stopping cold plug devices[74G[ OK ]
+ * Starting set console font[74G[ OK ]
+ * Stopping log initial device creation[74G[ OK ]
+ * Stopping set console font[74G[ OK ]
+ * Starting userspace bootsplash[74G[ OK ]
+The disk drive for /tmp is not ready yet or not present.
+keys:Continue to wait, or Press S to skip mounting or M for manual recovery
+
+keys:
+ * Starting Send an event to indicate plymouth is up[74G[ OK ]
+ * Stopping Send an event to indicate plymouth is up[74G[ OK ]
+ * Stopping userspace bootsplash[74G[ OK ]
+ * Starting Mount network filesystems[74G[ OK ]
+cloud-init-nonet[20.47]: static networking is now up
+ * Starting configure network device[74G[ OK ]
+ * Stopping Mount network filesystems[74G[ OK ]
+Cloud-init v. 0.7.5 running 'init' at Tue, 03 Jun 2025 16:02:21 +0000. Up 20.61 seconds.
+ci-info: +++++++++++++++++++++++++Net device info+++++++++++++++++++++++++
+ci-info: +--------+------+-----------+---------------+-------------------+
+ci-info: | Device |  Up  |  Address  |      Mask     |     Hw-Address    |
+ci-info: +--------+------+-----------+---------------+-------------------+
+ci-info: |   lo   | True | 127.0.0.1 |   255.0.0.0   |         .         |
+ci-info: |  eth1  | True |     .     |       .       | 7c:1e:52:25:71:c4 |
+ci-info: |  eth0  | True |  10.0.0.4 | 255.255.255.0 | 7c:1e:52:25:71:c4 |
+ci-info: +--------+------+-----------+---------------+-------------------+
+ci-info: +++++++++++++++++++++++++++++++++Route info+++++++++++++++++++++++++++++++++
+ci-info: +-------+-----------------+----------+-----------------+-----------+-------+
+ci-info: | Route |   Destination   | Gateway  |     Genmask     | Interface | Flags |
+ci-info: +-------+-----------------+----------+-----------------+-----------+-------+
+ci-info: |   0   |     0.0.0.0     | 10.0.0.1 |     0.0.0.0     |    eth0   |   UG  |
+ci-info: |   1   |     10.0.0.0    | 0.0.0.0  |  255.255.255.0  |    eth0   |   U   |
+ci-info: |   2   |  168.63.129.16  | 10.0.0.1 | 255.255.255.255 |    eth0   |  UGH  |
+ci-info: |   3   | 169.254.169.254 | 10.0.0.1 | 255.255.255.255 |    eth0   |  UGH  |
+ci-info: +-------+-----------------+----------+-----------------+-----------+-------+
+ * Stopping Read required files in advance (for other mountpoints)[74G[ OK ]
++ i=eth0
++ x=0
++ ifdown eth0
+Internet Systems Consortium DHCP Client 4.2.4
+Copyright 2004-2012 Internet Systems Consortium.
+All rights reserved.
+For info, please visit https://www.isc.org/software/dhcp/
+
+parse_option_param: Bad format a
+Listening on LPF/eth0/7c:1e:52:25:71:c4
+Sending on   LPF/eth0/7c:1e:52:25:71:c4
+Sending on   Socket/fallback
+DHCPRELEASE on eth0 to 168.63.129.16 port 67 (xid=0x79125a9c)
++ ifup eth0
+Internet Systems Consortium DHCP Client 4.2.4
+Copyright 2004-2012 Internet Systems Consortium.
+All rights reserved.
+For info, please visit https://www.isc.org/software/dhcp/
+
+Listening on LPF/eth0/7c:1e:52:25:71:c4
+Sending on   LPF/eth0/7c:1e:52:25:71:c4
+Sending on   Socket/fallback
+DHCPDISCOVER on eth0 to 255.255.255.255 port 67 interval 3 (xid=0xb09db557)
+DHCPREQUEST of 10.0.0.4 on eth0 to 255.255.255.255 port 67 (xid=0x57b59db0)
+DHCPOFFER of 10.0.0.4 from 168.63.129.16
+DHCPACK of 10.0.0.4 from 168.63.129.16
+bound to 10.0.0.4 -- renewal in 4294967295 seconds.
+ * Starting Mount network filesystems[74G[ OK ]
+ * Stopping Mount network filesystems[74G[ OK ]
++ exit 0
+ * Starting Windows Azure Linux agent[74G[ OK ]
+2025/06/03 16:02:27.460523 INFO Daemon Azure Linux Agent Version:2.2.32.2
+2025/06/03 16:02:27.532021 INFO Daemon OS: ubuntu 14.04
+2025/06/03 16:02:27.532158 INFO Daemon Python: 3.4.3
+2025/06/03 16:02:27.545768 INFO Daemon Creating cgroup directory /sys/fs/cgroup/cpu/WALinuxAgent/WALinuxAgent
+2025/06/03 16:02:27.603627 INFO Daemon Creating cgroup directory /sys/fs/cgroup/memory/WALinuxAgent/WALinuxAgent
+2025/06/03 16:02:27.604951 INFO Daemon Add daemon process pid 814 to WALinuxAgent cgroup
+2025/06/03 16:02:27.667350 INFO Daemon CGroups: ok
+2025/06/03 16:02:27.669096 INFO Daemon Run daemon
+2025/06/03 16:02:27.731056 INFO Daemon Activate resource disk
+2025/06/03 16:02:27.737811 INFO Daemon Examining partition table
+2025/06/03 16:02:28.053015 INFO Daemon GPT not detected, determining filesystem
+2025/06/03 16:02:28.126191 INFO Daemon sfdisk with --part-type failed [1], retrying with -c
+2025/06/03 16:02:28.129836 INFO Daemon sfdisk -c -f /dev/sdb 1 -n succeeded
+2025/06/03 16:02:28.186082 INFO Daemon The partition is formatted with ntfs, updating partition type to 83
+2025/06/03 16:02:28.188234 INFO Daemon sfdisk with --part-type failed [1], retrying with -c
+2025/06/03 16:02:28.191201 INFO Daemon sfdisk -c  /dev/sdb 1 83 succeeded
+2025/06/03 16:02:28.194277 INFO Daemon Format partition [mkfs.ext4 -F /dev/sdb1]
+2025/06/03 16:02:28.423978 INFO Daemon Mount resource disk [mount /dev/sdb1 /mnt/resource]
+2025/06/03 16:02:28.462172 INFO Daemon Resource disk /dev/sdb is mounted at /mnt/resource with ext4
+2025/06/03 16:02:28.508994 INFO Daemon Enable swap
+ * Stopping Read required files in advance (for other mountpoints)[74G[ OK ]
+2025/06/03 16:02:28.541053 INFO Daemon Create swap file
+2025/06/03 16:02:28.646914 INFO Daemon Enabled 3145728KB of swap at /mnt/resource/swapfile
+2025/06/03 16:02:28.701383 INFO Daemon Clean protocol
+2025/06/03 16:02:28.703874 INFO Daemon Running CloudInit provisioning handler
+2025/06/03 16:02:28.765611 INFO Daemon Detect protocol endpoints
+2025/06/03 16:02:28.821940 INFO Daemon Clean protocol
+2025/06/03 16:02:28.823728 INFO Daemon WireServer endpoint is not found. Rerun dhcp handler
+2025/06/03 16:02:28.882548 INFO Daemon Test for route to 168.63.129.16
+2025/06/03 16:02:28.884024 INFO Daemon Route to 168.63.129.16 exists
+2025/06/03 16:02:28.942248 INFO Daemon Wire server endpoint:168.63.129.16
+2025/06/03 16:02:28.976492 INFO Daemon Fabric preferred wire protocol version:2015-04-05
+2025/06/03 16:02:29.021753 INFO Daemon Wire protocol version:2012-11-30
+2025/06/03 16:02:29.022912 INFO Daemon Server preferred version:2015-04-05
+2025/06/03 16:02:29.677332 INFO Daemon ssh host key found at: /etc/ssh/ssh_host_rsa_key.pub
+2025/06/03 16:02:29.792886 INFO Daemon Thumbprint obtained from : /etc/ssh/ssh_host_rsa_key.pub
+2025/06/03 16:02:29.793749 INFO Daemon Finished provisioning
+2025/06/03 16:02:30.882550 INFO Daemon RDMA capabilities are not enabled, skipping
+2025/06/03 16:02:31.046375 INFO Daemon Determined Agent WALinuxAgent-2.2.40 to be the latest agent
+2025/06/03 16:02:31.484555 INFO ExtHandler Agent WALinuxAgent-2.2.40 is running as the goal state agent
+Generating public/private rsa key pair.
+Your identification has been saved in /etc/ssh/ssh_host_rsa_key.
+Your public key has been saved in /etc/ssh/ssh_host_rsa_key.pub.
+The key fingerprint is:
+a6:aa:7f:01:6b:6e:8e:ab:44:91:0b:1b:e2:95:b1:43 root@lisa-51-e221-n0
+The key's randomart image is:
++--[ RSA 2048]----+
+|   E             |
+|  o +            |
+|+o =             |
+|+o+ o            |
+|.+   o  S        |
+|.   o .o         |
+| . o  ..         |
+|.  .o..          |
+|..+*+.           |
++-----------------+
+Generating public/private dsa key pair.
+Your identification has been saved in /etc/ssh/ssh_host_dsa_key.
+Your public key has been saved in /etc/ssh/ssh_host_dsa_key.pub.
+The key fingerprint is:
+16:cf:63:88:e0:b9:e5:8b:ae:c0:ae:97:b6:86:22:15 root@lisa-51-e221-n0
+The key's randomart image is:
++--[ DSA 1024]----+
+|                 |
+|                 |
+|    .   .        |
+|  E. o . =       |
+|   .o o S =      |
+|. .  + . . .     |
+|.+ .. .          |
+|=.=  . .         |
+|==o+o .          |
++-----------------+
+Generating public/private ecdsa key pair.
+Your identification has been saved in /etc/ssh/ssh_host_ecdsa_key.
+Your public key has been saved in /etc/ssh/ssh_host_ecdsa_key.pub.
+The key fingerprint is:
+a2:9b:1e:08:95:4f:fc:ec:d4:20:25:dc:0c:24:25:ef root@lisa-51-e221-n0
+The key's randomart image is:
++--[ECDSA  256]---+
+|  o+=+.          |
+|   *.oo          |
+|  o = .          |
+| . + + o         |
+|.   E = S        |
+| . . + .         |
+|  . o .          |
+|     +           |
+|   .+            |
++-----------------+
+Generating public/private ed25519 key pair.
+Your identification has been saved in /etc/ssh/ssh_host_ed25519_key.
+Your public key has been saved in /etc/ssh/ssh_host_ed25519_key.pub.
+The key fingerprint is:
+a7:29:b6:33:e4:75:c9:a0:65:72:70:47:a3:87:a3:3b root@lisa-51-e221-n0
+The key's randomart image is:
++--[ED25519  256--+
+|         .o      |
+|      . .o..     |
+|       o+..      |
+|      ..=o       |
+|      .*So..     |
+|      o..++      |
+|     oE.o.       |
+|     .++         |
+|      .o         |
++-----------------+
+ * Starting Signal sysvinit that local filesystems are mounted[74G[ OK ]
+ * Starting configure network device security[74G[ OK ]
+2025/06/03 16:02:31.677077 INFO ExtHandler Wire server endpoint:168.63.129.16
+2025/06/03 16:02:31.699622 INFO ExtHandler Tracking cgroup for WALinuxAgent
+2025/06/03 16:02:31.754137 INFO ExtHandler Start env monitor service.
+2025/06/03 16:02:31.813185 INFO ExtHandler Configure routes
+2025/06/03 16:02:31.814785 INFO ExtHandler Gateway:None
+2025/06/03 16:02:31.878256 INFO ExtHandler Routes:None
+2025/06/03 16:02:31.951920 INFO ExtHandler Wire server endpoint:168.63.129.16
+2025/06/03 16:02:31.955835 INFO ExtHandler WALinuxAgent-2.2.40 running as process 916
+2025/06/03 16:02:32.009040 INFO ExtHandler Wire server endpoint:168.63.129.16
+ * Starting Flush boot log to disk[74G[ OK ]
+ * Starting flush early job output to logs[74G[ OK ]
+ * Stopping Failsafe Boot Delay[74G[ OK ]
+ * Stopping Mount filesystems on boot[74G[ OK ]
+ * Starting System V initialisation compatibility[74G[ OK ]
+ * Starting configure virtual network devices[74G[ OK ]
+ * Stopping flush early job output to logs[74G[ OK ]
+ * Starting Bridge file events into upstart[74G[ OK ]
+2025/06/03 16:02:32.213959 INFO ExtHandler Purging outdated Agent directory /var/lib/waagent/WALinuxAgent-2.2.36
+2025/06/03 16:02:32.255736 INFO ExtHandler Purging outdated Agent directory /var/lib/waagent/WALinuxAgent-2.2.38
+2025/06/03 16:02:32.316236 INFO ExtHandler Purging outdated Agent directory /var/lib/waagent/WALinuxAgent-2.2.37
+2025/06/03 16:02:32.375449 INFO ExtHandler Purging outdated Agent file /var/lib/waagent/WALinuxAgent-2.2.38.zip
+2025/06/03 16:02:32.433231 INFO ExtHandler Purging outdated Agent directory /var/lib/waagent/WALinuxAgent-2.2.34
+2025/06/03 16:02:32.433750 INFO ExtHandler Purging outdated Agent file /var/lib/waagent/WALinuxAgent-2.2.37.zip
+2025/06/03 16:02:32.490250 INFO ExtHandler Purging outdated Agent file /var/lib/waagent/WALinuxAgent-2.2.36.zip
+2025/06/03 16:02:32.490627 INFO ExtHandler Purging outdated Agent file /var/lib/waagent/WALinuxAgent-2.2.34.zip
+2025/06/03 16:02:32.536760 INFO ExtHandler Route table: [{"Iface": "eth0", "Destination": "0.0.0.0", "Gateway": "10.0.0.1", "Mask": "0.0.0.0", "Flags": "0x0003", "Metric": "0"},{"Iface": "eth0", "Destination": "10.0.0.0", "Gateway": "0.0.0.0", "Mask": "255.255.255.0", "Flags": "0x0001", "Metric": "0"},{"Iface": "eth0", "Destination": "168.63.129.16", "Gateway": "10.0.0.1", "Mask": "255.255.255.255", "Flags": "0x0007", "Metric": "0"},{"Iface": "eth0", "Destination": "169.254.169.254", "Gateway": "10.0.0.1", "Mask": "255.255.255.255", "Flags": "0x0007", "Metric": "0"}]
+2025/06/03 16:02:32.550975 INFO ExtHandler Agent WALinuxAgent-2.2.40 discovered update WALinuxAgent-2.13.1.1 -- exiting
+ * Stopping System V initialisation compatibility[74G[ OK ]
+ * Starting system logging daemon[74G[ OK ]
+ * Starting D-Bus system message bus[74G[ OK ]
+ * Starting System V runlevel compatibility[74G[ OK ]
+ * Starting deferred execution scheduler[74G[ OK ]
+ * Starting Hyper-V File Copy Protocol Daemon[74G[ OK ]
+ * Starting regular background program processing daemon[74G[ OK ]
+ * Starting Hyper-V VSS Protocol Daemon[74G[ OK ]
+ * Starting save kernel messages[74G[ OK ]
+ * Starting Hyper-V KVP Protocol Daemon[74G[ OK ]
+ * Starting ACPI daemon[74G[ OK ]
+ * Starting Handle applying cloud-config[74G[ OK ]
+ * Stopping save kernel messages[74G[ OK ]
+ * Stopping Hyper-V File Copy Protocol Daemon[74G[ OK ]
+ * Stopping Hyper-V VSS Protocol Daemon[74G[ OK ]
+ * Stopping Hyper-V KVP Protocol Daemon[74G[ OK ]
+ * Starting SystemD login management service[74G[ OK ]
+Cloud-init v. 0.7.5 running 'modules:config' at Tue, 03 Jun 2025 16:02:33 +0000. Up 31.92 seconds.
+ * Starting CPU interrupts balancing daemon[74G[ OK ]
+Generating locales...
+  en_US.UTF-8... up-to-date
+Generation complete.
+ * Starting OpenSSH server[74G[ OK ]
+ * Stopping Flush boot log to disk[74G[ OK ]
+ * Restoring resolver state...       [80G [74G[ OK ]
+sudo: unable to resolve host lisa-51-e221-n0
+ * Stopping System V runlevel compatibility[74G[ OK ]
+Cloud-init v. 0.7.5 running 'modules:final' at Tue, 03 Jun 2025 16:02:39 +0000. Up 37.95 seconds.
+ci-info: +++Authorized keys from /home/lisatest/.ssh/authorized_keys for user lisatest++++
+ci-info: +---------+-------------------------------------------------+---------+---------+
+ci-info: | Keytype |                Fingerprint (md5)                | Options | Comment |
+ci-info: +---------+-------------------------------------------------+---------+---------+
+ci-info: | ssh-rsa | 77:3d:0a:4a:44:49:d3:ed:7e:89:32:be:f0:6c:80:12 |    -    |    -    |
+ci-info: +---------+-------------------------------------------------+---------+---------+
+ec2: 
+ec2: #############################################################
+ec2: -----BEGIN SSH HOST KEY FINGERPRINTS-----
+ec2: 1024 16:cf:63:88:e0:b9:e5:8b:ae:c0:ae:97:b6:86:22:15  root@lisa-51-e221-n0 (DSA)
+ec2: 256 a2:9b:1e:08:95:4f:fc:ec:d4:20:25:dc:0c:24:25:ef  root@lisa-51-e221-n0 (ECDSA)
+ec2: 256 a7:29:b6:33:e4:75:c9:a0:65:72:70:47:a3:87:a3:3b  root@lisa-51-e221-n0 (ED25519)
+ec2: 2048 a6:aa:7f:01:6b:6e:8e:ab:44:91:0b:1b:e2:95:b1:43  root@lisa-51-e221-n0 (RSA)
+ec2: -----END SSH HOST KEY FINGERPRINTS-----
+ec2: #############################################################
+-----BEGIN SSH HOST KEY KEYS-----
+ecdsa-sha2-nistp256 <REDACTED_ECDSA_KEY> root@lisa-51-e221-n0
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJC+zH5wQUI4ynB5DIaMNGSRtNbSxxdA9e2hjICOXp7a root@lisa-51-e221-n0
+ssh-rsa <REDACTED_SSH_RSA_KEY> root@lisa-51-e221-n0
+-----END SSH HOST KEY KEYS-----
+Cloud-init v. 0.7.5 finished at Tue, 03 Jun 2025 16:02:39 +0000. Datasource DataSourceAzureNet [seed=/dev/sr0].  Up 38.03 seconds
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+
+Ubuntu 14.04.3 LTS lisa-51-e221-n0 ttyS0
+
+lisa-51-e221-n0 login: sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+start: Job is already running: ssh
+2025-06-03 16:02:39: (log.c.166) server started 
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Daemon
+
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+tap0: error fetching interface information: Device not found
+ 
+############################################
+                                            
+          Wanos Networks : v.4.2.8       
+                                            
+          IP Address :                   
+          GW Address :                   
+                                            
+          Press Enter to Login              
+                                            
+############################################
+Routine : Starting NetFlow
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+2025/06/03 16:03:31.143309 INFO Daemon Agent WALinuxAgent-2.2.40 launched with command 'python3 -u bin/WALinuxAgent-2.2.40-py2.7.egg -run-exthandlers' is successfully running
+2025/06/03 16:03:31.147144 INFO Daemon Determined Agent WALinuxAgent-2.13.1.1 to be the latest agent
+2025-06-03T16:03:31.541911Z INFO ExtHandler ExtHandler The agent will now check for updates and then will process extensions. Output to /dev/console will be suspended during those operations.
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 1 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 2 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 3 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 4 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 5 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 6 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 7 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 8 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 9 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCADDRT: Network is unreachable
+Routine : 10 Adding default gateway
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Starting Wanos Service
+
+Routine : Initializing Startup Scripts
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+sudo: unable to resolve host lisa-51-e221-n0
+Routine : Check Configs
+Routine : Updating Configuration
+Routine : Initializing Wanos Click
+sudo: unable to resolve host lisa-51-e221-n0
+SIOCDELRT: No such process
+Routine : Removing default gateway
+                                            

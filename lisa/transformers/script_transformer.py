@@ -4,7 +4,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Type
 
-import simpleeval  # type: ignore
+import simpleeval
 from dataclasses_json import dataclass_json
 
 from lisa import LisaException, schema

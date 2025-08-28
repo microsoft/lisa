@@ -40,7 +40,7 @@ from lisa.util import (
 T = TypeVar("T")
 
 
-class ListableValidator(validate.Validator):
+class ListableValidator(validate.Validator):  # type: ignore[misc]
     default_message = ""
 
     def __init__(
@@ -96,7 +96,7 @@ class ListableValidator(validate.Validator):
 @dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class ExtendableSchemaMixin:
-    extended_schemas: CatchAll = field(default_factory=dict)  # type: ignore
+    extended_schemas: CatchAll = field(default_factory=dict)
 
     def get_extended_runbook(self, runbook_type: Type[T], type_name: str = "") -> T:
         """
@@ -1684,7 +1684,7 @@ def load_by_type(schema_type: Type[T], raw_runbook: Any, many: bool = False) -> 
     """
     Convert dict, list or base typed schema to specified typed schema.
     """
-    if type(raw_runbook) == schema_type:
+    if type(raw_runbook) is schema_type:
         return raw_runbook
 
     if not isinstance(raw_runbook, dict) and not many:

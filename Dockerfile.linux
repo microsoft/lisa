@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0
+FROM mcr.microsoft.com/azurelinux/base/python:3
 
 WORKDIR /app
 
@@ -37,5 +37,5 @@ RUN git clone --depth 1 --branch $(curl --silent "https://api.github.com/repos/m
 
 WORKDIR /app/lisa
 
-RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+RUN python3 -m pip install --no-cache-dir --upgrade pip || true && \
     python3 -m pip install --no-cache-dir --editable .[ado,azure,libvirt,baremetal] --config-settings editable_mode=compat

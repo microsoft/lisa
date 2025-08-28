@@ -2,11 +2,13 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
+from lisa.node import Node
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator import platform_utils
 from lisa.util.logger import Logger
 from lisa.util.subclasses import Factory
 
@@ -15,12 +17,24 @@ from .bootconfig import BootConfig
 from .build import Build
 from .cluster.cluster import Cluster
 from .context import get_build_context, get_node_context
-from .features import SerialConsole, StartStop
+from .features import SecurityProfile, SerialConsole, StartStop
 from .ip_getter import IpGetterChecker
 from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
 from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
+
+
+def convert_to_baremetal_node_space(node_space: schema.NodeSpace) -> None:
+    """
+    Convert generic FeatureSettings to baremetal-specific types.
+    It converts generic FeatureSettings (like SecurityProfile) to platform-specific
+    types that have proper typing and platform-specific behavior.
+    """
+    if not node_space:
+        return
+
+    feature.reload_platform_features(node_space, BareMetalPlatform.supported_features())
 
 
 class BareMetalPlatform(Platform):
@@ -30,13 +44,18 @@ class BareMetalPlatform(Platform):
     ) -> None:
         super().__init__(runbook=runbook)
 
+        self._environment_information_hooks = {
+            platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
+        }
+
     @classmethod
     def type_name(cls) -> str:
         return BAREMETAL
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [StartStop, SerialConsole]
+        return [StartStop, SerialConsole, SecurityProfile]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         baremetal_runbook: BareMetalPlatformSchema = self.runbook.get_extended_runbook(
@@ -61,6 +80,18 @@ class BareMetalPlatform(Platform):
         )
         self.cluster.initialize()
 
+    def _get_node_information(self, node: Node) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        for key, method in self._environment_information_hooks.items():
+            node.log.debug(f"detecting {key} ...")
+            try:
+                value = method(node)
+                if value:
+                    information[key] = value
+            except Exception as e:
+                node.log.exception(f"error on get {key}.", exc_info=e)
+        return information
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
 
@@ -69,9 +100,16 @@ class BareMetalPlatform(Platform):
             # so far only supports one node
             return False
 
+        # Convert test requirements to platform-specific feature types
+        if environment.runbook.nodes_requirement:
+            for node_requirement in environment.runbook.nodes_requirement:
+                convert_to_baremetal_node_space(node_requirement)
+
         return self._check_capability(environment, log, self.cluster.client)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
+        ready_checker: Optional[ReadyChecker] = None
+
         # process the cluster elements from runbook
         self._predeploy_environment(environment, log)
 
@@ -118,6 +156,7 @@ class BareMetalPlatform(Platform):
             self._log.debug("no copied source path specified, skip copy")
 
     def _predeploy_environment(self, environment: Environment, log: Logger) -> None:
+        key_file = ""
         # download source (shared, check if it's copied)
         if self._baremetal_runbook.source:
             if not self.local_artifacts_path:
@@ -184,6 +223,7 @@ class BareMetalPlatform(Platform):
                 not self.cluster.runbook.client[index].connection.password
                 and self.cluster.runbook.client[index].connection.private_key_file == ""
             ):
+                assert key_file, "Expected key_file to be set"
                 self.cluster.runbook.client[
                     index
                 ].connection.private_key_file = key_file

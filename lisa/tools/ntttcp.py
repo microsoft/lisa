@@ -8,10 +8,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.messages import (
+    MetricRelativity,
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
     TransportProtocol,
     create_perf_message,
+    send_unified_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
@@ -403,6 +405,18 @@ class Ntttcp(Tool):
         other_fields["pkts_interrupts"] = client_result.pkts_interrupt
         other_fields["sender_cycles_per_byte"] = client_result.cycles_per_byte
         other_fields["receiver_cycles_rer_byte"] = server_result.cycles_per_byte
+
+        # Send unified performance messages
+        self.send_ntttcp_tcp_unified_perf_messages(
+            server_result,
+            client_result,
+            latency,
+            connections_num,
+            buffer_size,
+            test_case_name,
+            test_result,
+        )
+
         return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
@@ -422,7 +436,6 @@ class Ntttcp(Tool):
     ) -> NetworkUDPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
-        other_fields["protocol_type"] = TransportProtocol.Udp
         other_fields["send_buffer_size"] = Decimal(buffer_size)
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time
@@ -436,12 +449,190 @@ class Ntttcp(Tool):
             * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
             / client_result.throughput_in_gbps
         )
+
+        # Send unified performance messages
+        self.send_ntttcp_udp_unified_perf_messages(
+            server_result,
+            client_result,
+            connections_num,
+            buffer_size,
+            test_case_name,
+            test_result,
+        )
+
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
             test_result,
             test_case_name,
             other_fields,
+        )
+
+    def _send_unified_perf_metrics(
+        self,
+        metrics: List[Dict[str, Any]],
+        test_case_name: str,
+        test_result: "TestResult",
+        protocol_type: str,
+    ) -> None:
+        """Helper method to send unified performance metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
+
+        for metric in metrics:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric["name"],
+                metric_value=metric["value"],
+                metric_unit=metric.get("unit", ""),
+                metric_relativity=metric["relativity"],
+                protocol_type=protocol_type,
+            )
+
+    def send_ntttcp_tcp_unified_perf_messages(
+        self,
+        server_result: NtttcpResult,
+        client_result: NtttcpResult,
+        latency: Decimal,
+        connections_num: str,
+        buffer_size: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for TCP ntttcp metrics."""
+        # Include connections_num in metric names to distinguish results
+        conn_suffix = f"_conn_{connections_num}"
+
+        metrics = [
+            {
+                "name": f"throughput_in_gbps{conn_suffix}",
+                "value": float(client_result.throughput_in_gbps),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
+            },
+            {
+                "name": f"latency_us{conn_suffix}",
+                "value": float(latency),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "microseconds",
+            },
+            {
+                "name": f"buffer_size{conn_suffix}",
+                "value": float(buffer_size),
+                "relativity": MetricRelativity.NA,
+                "unit": "KB",
+            },
+            {
+                "name": f"retrans_segments{conn_suffix}",
+                "value": float(client_result.retrans_segs),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "",
+            },
+            {
+                "name": f"connections_created_time{conn_suffix}",
+                "value": float(client_result.connections_created_time),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "microseconds",
+            },
+            {
+                "name": f"rx_packets{conn_suffix}",
+                "value": float(server_result.rx_packets),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "",
+            },
+            {
+                "name": f"tx_packets{conn_suffix}",
+                "value": float(client_result.tx_packets),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "",
+            },
+            {
+                "name": f"pkts_interrupts{conn_suffix}",
+                "value": float(client_result.pkts_interrupt),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "",
+            },
+            {
+                "name": f"sender_cycles_per_byte{conn_suffix}",
+                "value": float(client_result.cycles_per_byte),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "cycles/byte",
+            },
+            {
+                "name": f"receiver_cycles_per_byte{conn_suffix}",
+                "value": float(server_result.cycles_per_byte),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "cycles/byte",
+            },
+        ]
+
+        self._send_unified_perf_metrics(
+            metrics, test_case_name, test_result, TransportProtocol.Tcp
+        )
+
+    def send_ntttcp_udp_unified_perf_messages(
+        self,
+        server_result: NtttcpResult,
+        client_result: NtttcpResult,
+        connections_num: str,
+        buffer_size: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for UDP ntttcp metrics."""
+        # Include connections_num in metric names to distinguish results
+        conn_suffix = f"_conn_{connections_num}"
+
+        metrics = [
+            {
+                "name": f"tx_throughput_in_gbps{conn_suffix}",
+                "value": float(client_result.throughput_in_gbps),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
+            },
+            {
+                "name": f"rx_throughput_in_gbps{conn_suffix}",
+                "value": float(server_result.throughput_in_gbps),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
+            },
+            {
+                "name": f"data_loss{conn_suffix}",
+                "value": float(
+                    100
+                    * (
+                        client_result.throughput_in_gbps
+                        - server_result.throughput_in_gbps
+                    )
+                    / client_result.throughput_in_gbps
+                ),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "%",
+            },
+            {
+                "name": f"send_buffer_size{conn_suffix}",
+                "value": float(buffer_size),
+                "relativity": MetricRelativity.NA,
+                "unit": "KB",
+            },
+            {
+                "name": f"connections_created_time{conn_suffix}",
+                "value": float(client_result.connections_created_time),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "microseconds",
+            },
+            {
+                "name": f"receiver_cycles_per_byte{conn_suffix}",
+                "value": float(server_result.cycles_per_byte),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "cycles/byte",
+            },
+        ]
+
+        self._send_unified_perf_metrics(
+            metrics, test_case_name, test_result, TransportProtocol.Udp
         )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -626,7 +817,7 @@ class BSDNtttcp(Ntttcp):
         )
         cmd = (
             f" -s{server_ip} -P {ports_count} -n {threads_count}"
-            f" -t {run_time_seconds}  -b {buffer_size}k "
+            f" -t {run_time_seconds} -b {buffer_size}k "
         )
         if udp_mode:
             raise LisaException("UDP mode is not supported in FreeBSD")

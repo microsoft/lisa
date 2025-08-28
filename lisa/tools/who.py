@@ -35,4 +35,4 @@ class Who(Tool):
 
         datetime_output = get_matched_str(command_result.stdout, self.last_time_pattern)
 
-        return parser().parse(datetime_output)
+        return parser().parse(datetime_output)  # type: ignore

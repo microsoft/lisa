@@ -147,6 +147,9 @@ class NvmeTestSuite(TestSuite):
     def verify_nvme_fstrim(self, node: Node) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         mount = node.tools[Mount]
         df = node.tools[Df]
 
@@ -229,6 +232,9 @@ class NvmeTestSuite(TestSuite):
             )
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         mount = node.tools[Mount]
         for namespace in nvme_namespaces:
             mount_point = namespace.rpartition("/")[-1]
@@ -281,6 +287,9 @@ class NvmeTestSuite(TestSuite):
     def verify_nvme_manage_ns(self, node: Node) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         nvme_devices = nvme.get_devices()
         nvme_cli = node.tools[Nvmecli]
         device_format_exit_code = 0
@@ -296,8 +305,9 @@ class NvmeTestSuite(TestSuite):
         if not nvme_cli.support_ns_manage_attach(nvme_devices[0]):
             # for old nvme cli version, it returns 22
             # for new nvme cli version, it returns 1
+            # for nvmecontrol on FreeBSD, it returns 69
             # refer https://github.com/linux-nvme/nvme-cli/issues/1120
-            ns_management_exit_code = [1, 22]
+            ns_management_exit_code = [1, 22, 69]
         for namespace in nvme_namespaces:
             # 2. `nvme format namespace` - format a namespace.
             format_namespace = nvme_cli.format_namespace(namespace)
@@ -404,8 +414,8 @@ class NvmeTestSuite(TestSuite):
         #  actual vCPU count / 8.
         if isinstance(environment.platform, AzurePlatform):
             lscpu_tool = node.tools[Lscpu]
-            core_count = lscpu_tool.get_core_count()
-            expected_count = math.ceil(core_count / 8)
+            thread_count = lscpu_tool.get_thread_count()
+            expected_count = math.ceil(thread_count / 8)
             assert_that(nvme_namespace).described_as(
                 "nvme devices count should be equal to [vCPU/8]."
             ).is_length(expected_count)
@@ -414,6 +424,9 @@ class NvmeTestSuite(TestSuite):
         # Verify the basic function of all NVMe disks
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_namespaces)).described_as(
+            "Could not identify any nvme devices on the test node."
+        ).is_not_zero()
         nvme_cli = node.tools[Nvmecli]
         cat = node.tools[Cat]
         mount = node.tools[Mount]

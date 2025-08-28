@@ -6,7 +6,7 @@ from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
-from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
@@ -334,10 +334,16 @@ class KvpClient(Tool):
         return True
 
     def get_pool_count(self) -> int:
-        output = self.run(
-            expected_exit_code=0,
-            expected_exit_code_failure_message="failed to run kvp_client",
-        ).stdout
+        result = self.run()
+        # kvp_client returns:
+        # 0 -> success, some records read
+        # 5 -> success, but no records available
+        if result.exit_code not in [0, 5]:
+            raise LisaException(
+                f"failed to run kvp_client, exit code: {result.exit_code}, "
+                f"output: {result.stdout}"
+            )
+        output = result.stdout
         matched_lines = find_patterns_in_lines(output, [self._pool_pattern])
         return len(matched_lines[0])
 
@@ -347,7 +353,8 @@ class KvpClient(Tool):
             force_run=force_run,
         )
         # some distro return 4, for example, Ubuntu Server 1804
-        assert_that(result.exit_code).described_as("failed to get pool").is_in(0, 4)
+        # if kvp_client returns 5, it means no records available in mariner 2 arm64
+        assert_that(result.exit_code).described_as("failed to get pool").is_in(0, 4, 5)
         matched_lines = find_patterns_in_lines(result.stdout, [self._key_value_pattern])
         records = {item[0]: item[1] for item in matched_lines[0]}
 
@@ -394,9 +401,9 @@ class KvpClient(Tool):
             self.node.os.install_packages("kernel-headers glibc-devel binutils")
         gcc = self.node.tools[Gcc]
         # in C90, the status returned is undefined
-        # use c99 to make sure the return value is correct
+        # use gnu89 to make sure the return value is correct
         gcc.compile(
-            filename=source_file, output_name=self.command, arguments="-std=c99"
+            filename=source_file, output_name=self.command, arguments="-std=gnu89"
         )
 
 

@@ -18,6 +18,7 @@ from lisa.operating_system import (
     Debian,
     Fedora,
     Linux,
+    Redhat,
     Suse,
 )
 from lisa.sut_orchestrator import AZURE, HYPERV
@@ -121,9 +122,11 @@ class Msr(TestSuite):
     )
     def verify_hyperv_platform_id(self, node: RemoteNode) -> None:
         distro = node.os
-        if isinstance(distro, Fedora):
+        if isinstance(distro, Redhat):
+            # Install EPEL only for RHEL/CentOS, not Fedora
+            # Fedora already has comprehensive package repositories
             distro.install_epel()
-        elif isinstance(distro, (Debian, Suse, CBLMariner)):
+        elif isinstance(distro, (Debian, Suse, CBLMariner, Fedora)):
             # no special setup, same package name
             pass
         else:

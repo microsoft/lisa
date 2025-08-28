@@ -68,7 +68,7 @@ class OSUTestSuite(TestSuite):
                 "Expected device count didn't match actual device count from lspci!"
             ).is_equal_to(expected_count)
 
-            nproc = node.tools[Lscpu].get_core_count()
+            nproc = node.tools[Lscpu].get_thread_count()
             tests = [
                 "allgather",
                 "allreduce",

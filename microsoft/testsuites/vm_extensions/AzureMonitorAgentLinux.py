@@ -1,6 +1,7 @@
 from typing import Any
 
 from assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     Logger,
@@ -57,17 +58,28 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             name=extension_name, ignore_not_found=True
         )
 
-        extension_result = extension.create_or_update(
-            name=extension_name,
-            publisher="Microsoft.Azure.Monitor",
-            type_="AzureMonitorLinuxAgent",
-            type_handler_version="1.0",
-            auto_upgrade_minor_version=True,
-        )
+        try:
+            extension_result = extension.create_or_update(
+                name=extension_name,
+                publisher="Microsoft.Azure.Monitor",
+                type_="AzureMonitorLinuxAgent",
+                type_handler_version="1.0",
+                auto_upgrade_minor_version=True,
+            )
 
-        assert_that(extension_result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
+            assert_that(extension_result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+        except HttpResponseError as e:
+            if "already added" in str(e):
+                node.log.debug(
+                    "AzureMonitorLinuxAgent has been installed in current VM."
+                )
+                is_extension_present = True
+                result = extension.get(extension_name)
+                node.log.debug(f"extension status {result.provisioning_state}")
+            else:
+                raise
 
         if not is_extension_present:
             # if extension installed by test then delete the extension
@@ -100,7 +112,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         }
 
         for distro in supported_major_versions_x86_64:
-            if type(node.os) == distro:
+            if type(node.os) is distro:
                 version_list = None
                 arch = node.os.get_kernel_information().hardware_platform
                 if arch == CpuArchitecture.ARM64:

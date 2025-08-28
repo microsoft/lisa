@@ -5,6 +5,7 @@ from typing import Dict, List
 from assertpy import assert_that
 
 from lisa import (
+    Logger,
     Node,
     TestCaseMetadata,
     TestSuite,
@@ -99,52 +100,85 @@ class LsVmBus(TestSuite):
             - Synthetic network adapter
             - Synthetic SCSI Controller
             - Synthetic IDE Controller (gen1 only)
-            It expects addtional three vmbus device names for non-cvm:
+            It expects additional three vmbus device names for non-cvm:
             - Data Exchange
             - Synthetic mouse
             - Synthetic keyboard
         2. Check that each netvsc and storvsc SCSI device have correct number of vmbus
             channels created and associated.
-            2.1 Check expected channel count of each netvsc is min (num of vcpu, 8).
-                2.1.1 Caculate channel count of each netvsc device.
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/rndis_filter.c#n1548 # noqa: E501
-                2.2.2 Cap of channel count of each netvsc device.
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/hyperv_net.h#n877 noqa: E501
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/rndis_filter.c#n1551 noqa: E501
-
+            2.1 Check expected channel count of each netvsc device.
+                - Legacy logic (before Linux commit 646f071d315b75e87583de290d333478d42ccde1): # noqa: E501
+                  2.1.1 Calculate channel count of each netvsc device.
+                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/rndis_filter.c#n1548 # noqa: E501
+                  2.1.2 Cap of channel count of each netvsc device.
+                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/hyperv_net.h#n877 # noqa: E501
+                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/rndis_filter.c#n1551 # noqa: E501
+                  => Expected channel count = min(num of vCPUs, 8).
+                - New logic (after Linux commit 646f071d315b75e87583de290d333478d42ccde1): # noqa: E501
+                  2.1.3 If vCPU count <= 16, expected channel count = num of vCPUs.
+                  2.1.4 If vCPU count > 16, expected channel count =
+                        min(64, max(16, physical core count / 2)).
+                  Reference:
+                        https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=646f071d315b75e87583de290d333478d42ccde1
+                - Test logic:
+                  The code will first validate against the legacy rule.
+                  If actual channel count does not match, it will then apply the new rule.
             2.2 Check expected channel count of each storvsc SCSI device is min (num of
                  vcpu/4, 64).
-                2.2.1 Caculate channel count of each storvsc SCSI device.
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n368 # noqa: E501
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n1936 # noqa: E501
+                2.2.1 Calculate channel count of each storvsc SCSI device.
+                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n368 # noqa: E501
+                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n1936 # noqa: E501
                 2.2.2 Cap of channel count of each storvsc SCSI device,
-                 it is decided by host storage VSP driver.
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n952 # noqa: E501
+                      it is decided by host storage VSP driver.
+                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n952 # noqa: E501
         """,
         priority=1,
         requirement=simple_requirement(
             supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
         ),
     )
-    def verify_vmbus_devices_channels(self, node: Node) -> None:
+    def verify_vmbus_devices_channels(self, node: Node, log: Logger) -> None:
         # 1. Check expected vmbus device names presented in the lsvmbus output.
         vmbus_devices_list = self._verify_and_get_lsvmbus_devices(node)
 
         # 2. Check that each netvsc and storvsc SCSI device have correct number of
         #  vmbus channels created and associated.
         lscpu_tool = node.tools[Lscpu]
-        core_count = lscpu_tool.get_core_count()
+        thread_count = lscpu_tool.get_thread_count()
         # Each netvsc device should have "the_number_of_vCPUs" channel(s)
         #  with a cap value of 8.
-        expected_network_channel_count = min(core_count, 8)
+        expected_network_channel_count = min(thread_count, 8)
         # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
         #  with a cap value of 64.
         if node.nics.is_mana_device_present():
-            expected_scsi_channel_count = min(core_count, 64)
+            expected_scsi_channel_count = min(thread_count, 64)
         else:
-            expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
+            expected_scsi_channel_count = math.ceil(min(thread_count, 256) / 4)
         for vmbus_device in vmbus_devices_list:
             if vmbus_device.name == "Synthetic network adapter":
+                actual_channels = len(vmbus_device.channel_vp_map)
+                log.info(
+                    f"Device '{vmbus_device.name}' actual channels: {actual_channels}"
+                )
+                # Note: mismatch may occur due to kernel change (commit 646f071d315b).
+                # In that case, validate again using the new logic.
+                if actual_channels != expected_network_channel_count:
+                    if thread_count <= 16:
+                        expected_network_channel_count = thread_count
+                        log.info(
+                            "Applying new logic: expected channels = core_count "
+                            f"({thread_count})"
+                        )
+                    else:
+                        core_count = lscpu_tool.get_core_count()
+                        expected_network_channel_count = min(
+                            64, max(16, core_count // 2)
+                        )
+                        log.info(
+                            "Applying new logic: expected channels = min(64, "
+                            "max(16, physical_core_count // 2)) "
+                            f"= {expected_network_channel_count}"
+                        )
                 assert_that(vmbus_device.channel_vp_map).is_length(
                     expected_network_channel_count
                 )

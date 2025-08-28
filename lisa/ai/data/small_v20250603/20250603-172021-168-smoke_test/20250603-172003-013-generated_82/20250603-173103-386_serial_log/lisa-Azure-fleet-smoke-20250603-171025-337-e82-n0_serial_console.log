@@ -1,0 +1,194 @@
+[H[J[1;1H[H[J[1;1H  Booting `SonicCore default'
+
+early console in extract_kernel
+input_data: 0x00000000024ec3b4
+input_len: 0x00000000027a785f
+output: 0x0000000001000000
+output_len: 0x0000000003c46598
+kernel_total_size: 0x0000000003871000
+booted via startup_32()
+Physical KASLR using RDRAND RDTSC...
+Virtual KASLR using RDRAND RDTSC...
+
+Decompressing Linux... Parsing ELF... Performing relocations... done.
+Booting the kernel.
+[    0.000000] Linux version 4.14.127-soniccore (jenkins@spartacus-26) (gcc version 4.9.4 (Gentoo Hardened 4.9.4 p1.0, pie-0.6.4)) #1 SMP Thu Dec 19 07:34:16 UTC 2024
+[    0.000000] Command line: BOOT_IMAGE=(crypto0)/vmlinuz-a rd.luks.name=a75000be-2dc9-11e8-bddb-67945b040d06=luks-usr mount.usr=/dev/mapper/luks-usr rootflags=rw mount.usrflags=ro consoleblank=0 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 coreos.first_boot=detected coreos.randomize_disk_guid=00000000-0000-0000-0000-000000000001 coreos.oem.id=azure isolcpus=1-15 root=/dev/mapper/root rd.luks.name=9943fac6-37f1-11e8-bbd4-4b1d323a5df2=root rd.luks.name=664f41bc-3bdb-11e8-a9f1-37e7a8e911e8=oem rd.luks.name=77f38900-3d70-11e8-9e8c-8b99c51126e1=oem-config quiet splash vt.handoff=7 systemd.journald.forward_to_console=no loglevel=0 fbcon=map:1 verity.usrhash=3e48de775fe9c41d9f1226b7687c30ae41fe7c8d29b6de2bdb016764f158f468
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x020: 'AVX-512 opmask'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x040: 'AVX-512 Hi256'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x080: 'AVX-512 ZMM_Hi256'
+[    0.000000] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.000000] x86/fpu: xstate_offset[5]:  832, xstate_sizes[5]:   64
+[    0.000000] x86/fpu: xstate_offset[6]:  896, xstate_sizes[6]:  512
+[    0.000000] x86/fpu: xstate_offset[7]: 1408, xstate_sizes[7]: 1024
+[    0.000000] x86/fpu: Enabled xstate features 0xe7, context size is 2432 bytes, using 'compacted' format.
+[    0.000000] e820: BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+[    0.000000] BIOS-e820: [mem 0x000000000009fc00-0x000000000009ffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000000e0000-0x00000000000fffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x000000003ffeffff] usable
+[    0.000000] BIOS-e820: [mem 0x000000003fff0000-0x000000003fffefff] ACPI data
+[    0.000000] BIOS-e820: [mem 0x000000003ffff000-0x000000003fffffff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x0000000100000000-0x000000043fffffff] usable
+[    0.000000] bootconsole [earlyser0] enabled
+Memory KASLR using RDRAND RDTSC...
+[[0;1;39m INFO [0m] Unnecessary job for dev-mapper-oem.device was removed.
+[[0;1;39m INFO [0m] Unnecessary job for dev-mapper-oem\x2dconfig.device was removed.
+[[0;32m  OK  [0m] Listening on Journal Socket (/dev/log).
+[[0;32m  OK  [0m] Listening on udev Control Socket.
+[[0;32m  OK  [0m] Listening on Journal Socket.
+[[0;32m  OK  [0m] Reached target Swap.
+[[0;32m  OK  [0m] Reached target Timers.
+[[0;32m  OK  [0m] Started Dispatch Password Requests to Console Directory Watch.
+[[0;32m  OK  [0m] Reached target Paths.
+[[0;32m  OK  [0m] Created slice System Slice.
+[[0;32m  OK  [0m] Created slice system-disk\x2duuid.slice.
+[[0;32m  OK  [0m] Created slice system-systemd\x2dfsck.slice.
+         Starting Apply Kernel Variables...
+         Starting Create list of required st…ce nodes for the current kernel...
+[[0;32m  OK  [0m] Created slice system-systemd\x2dcryptsetup.slice.
+         Starting dracut cmdline hook...
+[[0;32m  OK  [0m] Listening on Journal Audit Socket.
+         Starting Journal Service...
+[[0;32m  OK  [0m] Reached target Slices.
+[[0;32m  OK  [0m] Listening on udev Kernel Socket.
+[[0;32m  OK  [0m] Reached target Sockets.
+[[0;32m  OK  [0m] Started Apply Kernel Variables.
+[[0;32m  OK  [0m] Started Create list of required sta…vice nodes for the current kernel.
+         Starting Create Static Device Nodes in /dev...
+[[0;32m  OK  [0m] Started Create Static Device Nodes in /dev.
+[[0;32m  OK  [0m] Started Journal Service.
+[[0;32m  OK  [0m] Started dracut cmdline hook.
+         Starting dracut pre-udev hook...
+[[0;32m  OK  [0m] Started dracut pre-udev hook.
+         Starting udev Kernel Device Manager...
+[[0;32m  OK  [0m] Started udev Kernel Device Manager.
+         Starting dracut pre-trigger hook...
+         Starting Network Service...
+[[0;32m  OK  [0m] Started Network Service.
+[[0;32m  OK  [0m] Reached target Network.
+         Starting Network Name Resolution...
+[[0;32m  OK  [0m] Started Network Name Resolution.
+[[0;32m  OK  [0m] Started dracut pre-trigger hook.
+         Starting udev Coldplug all Devices...
+[[0;32m  OK  [0m] Started udev Coldplug all Devices.
+         Starting dracut initqueue hook...
+[[0;32m  OK  [0m] Found device Virtual_Disk.
+         Starting Generate new UUID for disk…000-0000-0000-0000-000000000001...
+[[0;32m  OK  [0m] Found device Virtual_Disk ROOT.
+         Starting Cryptography Setup for root...
+[[0;32m  OK  [0m] Found device Virtual_Disk OEM-CONFIG.
+[[0;32m  OK  [0m] Found device Virtual_Disk OEM.
+         Starting Cryptography Setup for oem...
+         Starting Cryptography Setup for oem-config...
+[[0;32m  OK  [0m] Found device Virtual_Disk USR-A.
+         Starting Cryptography Setup for luks-usr...
+[[0;32m  OK  [0m] Found device Virtual_Disk EFI-SYSTEM.
+[[0;32m  OK  [0m] Started Cryptography Setup for oem-config.
+[[0;32m  OK  [0m] Found device /dev/disk/by-label/OEM-CONFIG.
+[[0;32m  OK  [0m] Started Cryptography Setup for oem.
+[[0;32m  OK  [0m] Started Cryptography Setup for root.
+[[0;32m  OK  [0m] Found device /dev/mapper/root.
+[[0;32m  OK  [0m] Started dracut initqueue hook.
+[[0;32m  OK  [0m] Reached target Remote File Systems (Pre).
+[[0;32m  OK  [0m] Reached target Remote File Systems.
+[[0;32m  OK  [0m] Started Cryptography Setup for luks-usr.
+[[0;32m  OK  [0m] Found device /dev/mapper/luks-usr.
+[[0;32m  OK  [0m] Reached target Encrypted Volumes.
+         Starting dracut pre-mount hook...
+[[0;32m  OK  [0m] Started dracut pre-mount hook.
+[[0m[0;31m*     [0m] A start job is running for Generate…-0000-000000000001 (7s / no limit)[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for Generate…-0000-000000000001 (8s / no limit)[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for Generate…-0000-000000000001 (9s / no limit)[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for Generate…-0000-000000000001 (9s / no limit)[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for Generate…0000-000000000001 (10s / no limit)[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for Generate…0000-000000000001 (10s / no limit)[K[    [0;31m*[0;1;31m*[0m] A start job is running for Generate…0000-000000000001 (11s / no limit)[K[     [0;31m*[0m] A start job is running for Generate…0000-000000000001 (11s / no limit)[K[    [0;31m*[0;1;31m*[0m] A start job is running for Generate…0000-000000000001 (12s / no limit)[K[[0;32m  OK  [0m] Started Generate new UUID for disk …00000-0000-0000-0000-000000000001.
+         Starting Ignition (disks)...
+[[0;32m  OK  [0m] Started Ignition (disks).
+[[0;32m  OK  [0m] Reached target Local File Systems (Pre).
+[[0;32m  OK  [0m] Reached target Local File Systems.
+[[0;32m  OK  [0m] Reached target System Initialization.
+[[0;32m  OK  [0m] Reached target Basic System.
+         Starting File System Check on /dev/mapper/root...
+[[0;32m  OK  [0m] Started File System Check on /dev/mapper/root.
+         Mounting /sysroot...
+[[0;32m  OK  [0m] Mounted /sysroot.
+[[0;32m  OK  [0m] Reached target Initrd Root File System.
+         Mounting /sysroot/usr...
+[[0;32m  OK  [0m] Mounted /sysroot/usr.
+         Starting Root filesystem setup...
+[[0;32m  OK  [0m] Started Root filesystem setup.
+         Starting Ignition (files)...
+         Starting /sysroot/boot...
+[[0;32m  OK  [0m] Started /sysroot/boot.
+         Starting /sysroot/boot/coreos...
+[[0;32m  OK  [0m] Started /sysroot/boot/coreos.
+[[0;32m  OK  [0m] Started Ignition (files).
+         Starting Ignition (record completion)...
+         Starting Reload Configuration from the Real Root...
+[[0;32m  OK  [0m] Started Ignition (record completion).
+[[0;32m  OK  [0m] Started Reload Configuration from the Real Root.
+[[0;32m  OK  [0m] Reached target Initrd File Systems.
+[[0;32m  OK  [0m] Reached target Initrd Default Target.
+         Starting dracut pre-pivot and cleanup hook...
+[   14.920081] dracut-pre-pivot[644]: Device sda1 not found
+[   14.922658] dracut-pre-pivot[644]: Device sda1 not found
+/dev/sda1 failed
+[   14.924554] dracut-pre-pivot[644]: Device sda1 not found
+[[0;32m  OK  [0m] Started dracut pre-pivot and cleanup hook.
+         Starting Cleaning Up and Shutting Down Daemons...
+         Stopping /sysroot/boot/coreos...
+         Stopping Network Name Resolution...
+[[0;32m  OK  [0m] Stopped dracut pre-pivot and cleanup hook.
+[[0;32m  OK  [0m] Stopped dracut pre-mount hook.
+[[0;32m  OK  [0m] Stopped target Remote File Systems.
+[[0;32m  OK  [0m] Stopped target Initrd Default Target.
+[[0;32m  OK  [0m] Stopped target Basic System.
+[[0;32m  OK  [0m] Stopped target Slices.
+[[0;32m  OK  [0m] Stopped target Sockets.
+[[0;32m  OK  [0m] Stopped target System Initialization.
+[[0;32m  OK  [0m] Stopped target Local File Systems.
+[[0;32m  OK  [0m] Stopped target Local File Systems (Pre).
+[[0;32m  OK  [0m] Stopped Generate new UUID for disk …00000-0000-0000-0000-000000000001.
+[[0;32m  OK  [0m] Stopped target Encrypted Volumes.
+[[0;32m  OK  [0m] Stopped target Swap.
+[[0;32m  OK  [0m] Stopped target Paths.
+[[0;32m  OK  [0m] Stopped Dispatch Password Requests to Console Directory Watch.
+[[0;32m  OK  [0m] Stopped target Timers.
+[[0;32m  OK  [0m] Stopped target Remote File Systems (Pre).
+[[0;32m  OK  [0m] Stopped dracut initqueue hook.
+[[0;32m  OK  [0m] Stopped udev Coldplug all Devices.
+[[0;32m  OK  [0m] Stopped dracut pre-trigger hook.
+[[0;32m  OK  [0m] Stopped Network Name Resolution.
+[[0;32m  OK  [0m] Stopped /sysroot/boot/coreos.
+         Stopping /sysroot/boot...
+[[0;32m  OK  [0m] Stopped target Network.
+         Stopping Network Service...
+[[0;32m  OK  [0m] Started Cleaning Up and Shutting Down Daemons.
+[[0;32m  OK  [0m] Stopped /sysroot/boot.
+[[0;32m  OK  [0m] Stopped Network Service.
+         Stopping udev Kernel Device Manager...
+[[0;32m  OK  [0m] Stopped Apply Kernel Variables.
+[[0;32m  OK  [0m] Stopped udev Kernel Device Manager.
+[[0;32m  OK  [0m] Stopped dracut pre-udev hook.
+[[0;32m  OK  [0m] Stopped dracut cmdline hook.
+[[0;32m  OK  [0m] Stopped Create Static Device Nodes in /dev.
+[[0;32m  OK  [0m] Stopped Create list of required sta…vice nodes for the current kernel.
+[[0;32m  OK  [0m] Closed udev Kernel Socket.
+[[0;32m  OK  [0m] Closed udev Control Socket.
+         Starting Cleanup udevd DB...
+[[0;32m  OK  [0m] Started Cleanup udevd DB.
+[[0;32m  OK  [0m] Reached target Switch Root.
+         Starting Switch Root...
+[   37.745787] extend-filesystems[865]: resize2fs 1.42.13 (17-May-2015)
+[   38.223730] extend-filesystems[865]: Filesystem at /dev/mapper/root is mounted on /; on-line resizing required
+[   38.227742] extend-filesystems[865]: old_desc_blocks = 3, new_desc_blocks = 3
+[   38.230437] extend-filesystems[865]: The filesystem on /dev/mapper/root is now 10929147 (4k) blocks long.
+
+This is localhost (Linux x86_64 4.14.127-soniccore) 17:22:44
+SSH host key: SHA256:0qidxwfISdvWZWQmEHKyb7FhA+rAyf82XY2FEWcJS4w (DSA)
+SSH host key: SHA256:G89g8Gvr+3aXcFLP0zOQvNoWnlkFa2TkkqRIsKZuJd8 (ED25519)
+SSH host key: SHA256:d2qJhm8+s8o4H+yxUr2cc1U/kBpVYd9Hg8X2fJBqBDs (ECDSA)
+SSH host key: SHA256:XNBmthX01v9Ee+aSr2FbQDAHasteEteBioFmhEqeONE (RSA)
+enP47671s1:  
+eth0:  fe80::6245:bdff:fee8:caba
+
+localhost login:                                                                                                                                                                                                                                                                                                                                                                                                                  

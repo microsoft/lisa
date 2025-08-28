@@ -4,7 +4,7 @@
 
 from typing import TYPE_CHECKING, Any, Type
 
-from lisa import schema
+from lisa import features, schema, search_space
 from lisa.feature import Feature
 
 if TYPE_CHECKING:
@@ -41,3 +41,27 @@ class SerialConsole(ClusterFeature):
     def _get_inner_type(self) -> Type[Feature]:
         platform: BareMetalPlatform = self._platform  # type: ignore
         return platform.cluster.get_serial_console()
+
+
+class SecurityProfile(features.SecurityProfile):
+    @classmethod
+    def name(cls) -> str:
+        # Use the same name as the base SecurityProfile feature
+        return features.SecurityProfile.name()
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return features.SecurityProfileSettings
+
+    @classmethod
+    def create_setting(cls, *args: Any, **kwargs: Any) -> schema.FeatureSettings:
+        # For baremetal, we only support Standard security profile
+        return features.SecurityProfileSettings(
+            security_profile=search_space.SetSpace(
+                True, [features.SecurityProfileType.Standard]
+            ),
+            encrypt_disk=search_space.SetSpace(True, [False]),
+        )
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)

@@ -9,7 +9,7 @@ import asyncio
 from threading import Event, Lock, Thread
 from typing import Any, Callable, Optional
 
-import libvirtaio  # type: ignore
+import libvirtaio
 
 _callbacks_thread_lock = Lock()
 _callbacks_thread: Optional[Thread] = None

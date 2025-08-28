@@ -132,17 +132,16 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     @property
     def support_sudo(self) -> bool:
         self.initialize()
-
         # self._support_sudo already set, return it directly.
         if self._support_sudo is not None:
             return self._support_sudo
 
-        if not self.is_posix:
-            # Windows or non-POSIX: assume sudo not needed
+        if self.is_posix:
+            self._support_sudo = self._check_sudo_available()
+        else:
+            # set Windows to true to ignore sudo asks.
             self._support_sudo = True
-            return self._support_sudo
 
-        self._support_sudo = self._check_sudo_available()
         return self._support_sudo
 
     def _check_sudo_available(self) -> bool:
@@ -157,8 +156,13 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         process = self._execute("ls", shell=True, sudo=True, no_info_log=True)
         result = process.wait_result(10)
         if result.exit_code != 0:
-            self.log.debug("node doesn't support sudo /bin/sh.")
-            return False
+            # e.g. raw error: "user is not allowed to execute '/bin/sh -c ...'"
+            if "not allowed" in result.stderr:
+                self.log.debug(
+                    "The command 'sudo /bin/sh -c ls' may fail due to SELinux policies"
+                    " that restrict the use of sudo in combination with /bin/sh."
+                )
+                return False
 
         return True
 
@@ -1123,8 +1127,7 @@ class Nodes:
         return self._default
 
     def list(self) -> Iterable[Node]:
-        for node in self._list:
-            yield node
+        yield from self._list
 
     def initialize(self) -> None:
         run_in_parallel([x.initialize for x in self._list])

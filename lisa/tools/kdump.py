@@ -1,29 +1,37 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from __future__ import annotations
 
 import math
 import re
-from pathlib import PurePath, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 from time import sleep
-from typing import TYPE_CHECKING, Any, List, Type
+from typing import TYPE_CHECKING, Any, List, Type, cast
 
+from func_timeout import FunctionTimedOut, func_set_timeout
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
 from lisa.tools import Find, Gcc
+from lisa.tools.df import Df
+from lisa.tools.echo import Echo
+from lisa.tools.free import Free
 from lisa.tools.lsblk import Lsblk
 from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
+from lisa.tools.stat import Stat
 from lisa.tools.sysctl import Sysctl
 from lisa.tools.tar import Tar
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+from lisa.util.perf_timer import create_timer
+from lisa.util.shell import try_connect
 
 from .kernel_config import KernelConfig
 
 if TYPE_CHECKING:
-    from lisa.node import Node
+    from lisa.node import Node, RemoteNode
 
 
 class Kexec(Tool):
@@ -615,8 +623,8 @@ class KdumpCBLMariner(KdumpBase):
 
     def ensure_nr_cpus(self) -> None:
         lscpu = self.node.tools[Lscpu]
-        core_count = lscpu.get_core_count()
-        preferred_nr_cpus = math.ceil(core_count / 56)
+        thread_count = lscpu.get_thread_count()
+        preferred_nr_cpus = math.ceil(thread_count / 56)
         conf_file = "/etc/sysconfig/kdump"
         sed = self.node.tools[Sed]
         # replace nr_cpus=<whatever> to nr_cpus=preferred_nr_cpus
@@ -729,3 +737,300 @@ class KdumpCBLMariner(KdumpBase):
         result = cat.run("/etc/kdump.conf", force_run=True, sudo=True)
         self._log.info(f"Current kdump configuration: {result.stdout}")
         return
+
+
+class KdumpCheck(Tool):
+    # This tool will be wrapperf on top of KdumpBase with pre/post check for crash
+    # kernel operations. We will wrap it around virtual tool of KdumpCheck here.
+    # kdump_test is the function we will expose to trigger the kernel crash.
+
+    # When with large system memory, the dump file can achieve more than 7G. It will
+    # cost about 10min to copy dump file to disk for some distros, such as Ubuntu.
+    # So we set the timeout time 800s to make sure the dump file is completed.
+    timeout_of_dump_crash = 800
+    trigger_kdump_cmd = "echo c > /proc/sysrq-trigger"
+
+    @property
+    def command(self) -> str:
+        return ""
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def kdump_test(
+        self,
+        log_path: Path,
+        is_auto: bool = False,
+        trigger_kdump_cmd: str = "echo c > /proc/sysrq-trigger",
+    ) -> None:
+        try:
+            self._check_supported(is_auto=is_auto)
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
+
+        kdump = self.node.tools[KdumpBase]
+        free = self.node.tools[Free]
+        total_memory = free.get_total_memory()
+        self.crash_kernel = kdump.calculate_crashkernel_size(total_memory)
+        if is_auto:
+            self.crash_kernel = "auto"
+
+        if self._is_system_with_more_memory():
+            # As system memory is more than free os disk size, need to
+            # change the dump path and increase the timeout duration
+            kdump.config_resource_disk_dump_path(self._get_resource_disk_dump_path())
+            self.timeout_of_dump_crash = 1200
+            if "T" in total_memory and float(total_memory.strip("T")) > 6:
+                self.timeout_of_dump_crash = 2000
+
+        kdump.config_crashkernel_memory(self.crash_kernel)
+        kdump.enable_kdump_service()
+        # Cleaning up any previous crash dump files
+        self.node.execute(
+            f"mkdir -p {kdump.dump_path} && rm -rf {kdump.dump_path}/*",
+            shell=True,
+            sudo=True,
+        )
+
+        # Reboot system to make kdump take effect
+        self.node.reboot()
+
+        # Confirm that the kernel dump mechanism is enabled
+        kdump.check_crashkernel_loaded(self.crash_kernel)
+        # Activate the magic SysRq option
+        echo = self.node.tools[Echo]
+        echo.write_to_file(
+            value="1",
+            file=self.node.get_pure_path("/proc/sys/kernel/sysrq"),
+            sudo=True,
+        )
+        self.node.execute("sync", shell=True, sudo=True)
+
+        kdump.capture_info()
+
+        try:
+            # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
+            # We set a timeout time 10.
+            self.node.execute_async(
+                trigger_kdump_cmd,
+                shell=True,
+                sudo=True,
+            )
+        except Exception as e:
+            self._log.debug(f"ignorable ssh exception: {e}")
+
+        # Check if the vmcore file is generated after triggering a crash
+        self._check_kdump_result(log_path, kdump)
+
+        # We should clean up the vmcore file since the test is passed
+        self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
+
+    def trigger_kdump_on_specified_cpu(self, cpu_num: int, log_path: Path) -> None:
+        lscpu = self.node.tools[Lscpu]
+        thread_count = lscpu.get_thread_count()
+        if thread_count > cpu_num:
+            trigger_kdump_cmd = f"taskset -c {cpu_num} echo c > /proc/sysrq-trigger"
+            self.kdump_test(
+                log_path=log_path,
+                trigger_kdump_cmd=trigger_kdump_cmd,
+            )
+        else:
+            raise SkippedException(
+                "The cpu count can't meet the test case's requirement. "
+                f"Expected more than {cpu_num} cpus, actual {thread_count}"
+            )
+
+    def _check_exists(self) -> bool:
+        return True
+
+    # This method might stuck after triggering crash,
+    # so use timeout to recycle it faster.
+    @func_set_timeout(10)  # type: ignore
+    def _try_connect(self, remote_node: RemoteNode) -> Any:
+        return try_connect(remote_node._connection_info)
+
+    def _check_supported(self, is_auto: bool = False) -> None:
+        # Check the kernel config for kdump supported
+        kdump = self.node.tools[KdumpBase]
+        kdump.check_required_kernel_config()
+
+        # Below code aims to check the kernel config for "auto crashkernel" supported.
+        # Redhat/Centos has this "auto crashkernel" feature. For version 7, it needs the
+        # CONFIG_KEXEC_AUTO_RESERVE. For version 8, the ifdefine of that config is
+        # removed. For these changes we can refer to Centos kernel, gotten according
+        # to https://wiki.centos.org/action/show/Sources?action=show&redirect=sources
+        # In addition, we didn't see upstream kernel has the auto crashkernel feature.
+        # It may be a patch owned by Redhat/Centos.
+        # Note that crashkernel=auto option in the boot command line is no longer
+        # supported on RHEL 9 and later releases
+        if not (
+            isinstance(self.node.os, Redhat)
+            and self.node.os.information.version >= "8.0.0-0"
+            and self.node.os.information.version < "9.0.0-0"
+        ):
+            if is_auto and not self.node.tools[KernelConfig].is_built_in(
+                "CONFIG_KEXEC_AUTO_RESERVE"
+            ):
+                raise SkippedException("crashkernel=auto doesn't work for the distro.")
+
+    def _get_resource_disk_dump_path(self) -> str:
+        from lisa.features import Disk
+
+        # Try to access Disk feature (available on Azure platform)
+        try:
+            mount_point = self.node.features[Disk].get_resource_disk_mount_point()
+            dump_path = mount_point + "/crash"
+        except LisaException as e:
+            # Fallback for platforms without resource disk (baremetal, MSHV, etc.)
+            # Use /var/crash as it's the standard kdump path.
+            dump_path = "/var/crash"
+            self._log.debug(
+                f"Resource disk not available on this platform. "
+                f"Using fallback dump path: {dump_path}. Exception: {e}"
+            )
+        return dump_path
+
+    def _is_system_with_more_memory(self) -> bool:
+        free = self.node.tools[Free]
+        total_memory_in_gb = free.get_total_memory_gb()
+
+        df = self.node.tools[Df]
+        available_space_in_os_disk = df.get_filesystem_available_space("/", True)
+
+        if total_memory_in_gb > available_space_in_os_disk:
+            return True
+        return False
+
+    def _is_system_connected(self) -> bool:
+        from lisa.node import RemoteNode as RMNode
+
+        remote_node = cast(RMNode, self.node)
+        try:
+            self._try_connect(remote_node)
+        except FunctionTimedOut as e:
+            # The FunctionTimedOut must be caught separated, or the process will exit.
+            self._log.debug(f"ignorable timeout exception: {e}")
+            return False
+        except Exception as e:
+            self._log.debug(
+                "Fail to connect SSH "
+                f"{remote_node._connection_info.address}:"
+                f"{remote_node._connection_info.port}. "
+                f"{e.__class__.__name__}: {e}. Retry..."
+            )
+            return False
+        return True
+
+    def _is_dump_file_generated(self, kdump: KdumpBase) -> bool:
+        result = self.node.execute(
+            f"find {kdump.dump_path} -type f -size +10M "
+            "\\( -name vmcore -o -name dump.* -o -name vmcore.* \\) "
+            "-exec ls -lh {} \\;",
+            shell=True,
+            sudo=True,
+        )
+        if result.stdout:
+            return True
+        return False
+
+    def _check_incomplete_dump_file_generated(self, kdump: KdumpBase) -> str:
+        # Check if has dump incomplete file
+        result = self.node.execute(
+            f"find {kdump.dump_path} -name '*incomplete*'",
+            shell=True,
+            sudo=True,
+        )
+        return result.stdout
+
+    def _check_kdump_result(self, log_path: Path, kdump: KdumpBase) -> None:
+        # We use this function to check if the dump file is generated.
+        # Steps:
+        # 1. Try to connect the VM;
+        # 2. If connected:
+        #    1). Check if the dump file is generated. If so, then jump the loop.
+        #       The test is passed.
+        #    2). If there is no dump file, check the incomplete file (When dumping
+        #        hasn't completed, the dump file is named as "*incomplete").
+        #           a. If there is no incomplete file either, then raise and exception.
+        #           b. If there is an incomplete file, then check if the file size
+        #              is growing. If so, check it in a loop until the dump completes
+        #              or incomplete file doesn't grow or timeout.
+        # 3. The VM can be connected may just when the crash kernel boots up. When
+        #    dumping or rebooting after dump completes, the VM might be disconnected.
+        #    We need to catch the exception, and retry to connect the VM. Then follow
+        #    the same steps to check.
+        from lisa.features import SerialConsole
+
+        timer = create_timer()
+        has_checked_console_log = False
+        serial_console = self.node.features[SerialConsole]
+        while timer.elapsed(False) < self.timeout_of_dump_crash:
+            if not self._is_system_connected():
+                if not has_checked_console_log and timer.elapsed(False) > 60:
+                    serial_console.check_initramfs(
+                        saved_path=log_path, stage="after_trigger_crash", force_run=True
+                    )
+                    has_checked_console_log = True
+                continue
+
+            # After trigger kdump, the VM will reboot. We need to close the node
+            self.node.close()
+            saved_dumpfile_size = 0
+            max_tries = 20
+            check_incomplete_file_tries = 0
+            check_dump_file_tries = 0
+            # Check in this loop until the dump file is generated or incomplete file
+            # doesn't grow or timeout
+            while True:
+                try:
+                    if self._is_dump_file_generated(kdump):
+                        return
+                    incomplete_file = self._check_incomplete_dump_file_generated(
+                        kdump=kdump,
+                    )
+                    if incomplete_file:
+                        check_dump_file_tries = 0
+                        stat = self.node.tools[Stat]
+                        incomplete_file_size = stat.get_total_size(incomplete_file)
+                except Exception as e:
+                    self._log.debug(
+                        "Fail to execute command. It may be caused by the system kernel"
+                        " reboot after dumping vmcore."
+                        f"{e.__class__.__name__}: {e}. Retry..."
+                    )
+                    # Hit exception, break this loop and re-try to connect the system
+                    break
+                if incomplete_file:
+                    # If the incomplete file doesn't grow in 100s, then raise exception
+                    if incomplete_file_size > saved_dumpfile_size:
+                        saved_dumpfile_size = incomplete_file_size
+                        check_incomplete_file_tries = 0
+                    else:
+                        check_incomplete_file_tries += 1
+                        if check_incomplete_file_tries >= max_tries:
+                            serial_console.get_console_log(
+                                saved_path=log_path, force_run=True
+                            )
+                            self.node.execute("df -h")
+                            raise LisaException(
+                                "The vmcore file is incomplete with file size"
+                                f" {round(incomplete_file_size / 1024 / 1024, 2)}MB"
+                            )
+                else:
+                    # If there is no any dump file in 100s, then raise exception
+                    check_dump_file_tries += 1
+                    if check_dump_file_tries >= max_tries:
+                        serial_console.get_console_log(
+                            saved_path=log_path, force_run=True
+                        )
+                        raise LisaException(
+                            "No vmcore or vmcore-incomplete is found under "
+                            f"{kdump.dump_path} with file size greater than 10M."
+                        )
+                if timer.elapsed(False) > self.timeout_of_dump_crash:
+                    serial_console.get_console_log(saved_path=log_path, force_run=True)
+                    raise LisaException("Timeout to dump vmcore file.")
+                sleep(5)
+        serial_console.get_console_log(saved_path=log_path, force_run=True)
+        raise LisaException("Timeout to connect the VM after triggering kdump.")

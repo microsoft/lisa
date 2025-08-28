@@ -50,7 +50,7 @@ class GDB(TestSuite):
             node.shell.copy(self._test_data_file_path, to_be_compiled_file_path)
 
         # compile code with gdb options
-        if type(node.os) == CBLMariner:
+        if type(node.os) is CBLMariner:
             node.os.install_packages(("binutils", "glibc-devel"))
         node.tools[Gcc].compile(
             str(to_be_compiled_file_path), str(compiled_file_path), "-g -ggdb"

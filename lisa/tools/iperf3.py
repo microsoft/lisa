@@ -12,7 +12,6 @@ from lisa.executable import Tool
 from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
-    TransportProtocol,
     create_perf_message,
 )
 from lisa.operating_system import Posix
@@ -177,7 +176,7 @@ class Iperf3(Tool):
             expected_exit_code_failure_message="fail to launch iperf3 server",
         )
 
-    @retry(tries=10, delay=2)
+    @retry(tries=10, delay=2)  # type: ignore
     def run_as_client_async(  # noqa: C901
         self,
         server_ip: str,
@@ -314,11 +313,12 @@ class Iperf3(Tool):
             udp_mode,
             numberofBytes
         )
-        return process.wait_result(
+        result = process.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to launch iperf3 client",
             timeout=run_time_seconds,
         )
+        return result  # type: ignore
 
     def create_iperf_tcp_performance_message(
         self,
@@ -435,7 +435,6 @@ class Iperf3(Tool):
         )
         other_fields["send_buffer_size"] = Decimal(buffer_length)
         other_fields["connections_num"] = connections_num
-        other_fields["protocol_type"] = TransportProtocol.Udp
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,

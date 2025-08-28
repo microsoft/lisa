@@ -103,16 +103,23 @@ class LogWriter(object):
         self._level = level
         self._log = logger
         self._buffer: str = ""
+        self._flushing: bool = False
 
     def write(self, message: str) -> None:
-        self._buffer = "".join([self._buffer, message])
-        if "\n" in message:
-            self.flush()
+        if not self._flushing:
+            self._buffer = "".join([self._buffer, message])
+            if "\n" in message:
+                self.flush()
 
     def flush(self) -> None:
-        if len(self._buffer) > 0:
-            self._log.lines(self._level, self._buffer)
-            self._buffer = ""
+        if len(self._buffer) > 0 and not self._flushing:
+            self._flushing = True
+            try:
+                buffer = self._buffer
+                self._buffer = ""
+                self._log.lines(self._level, buffer)
+            finally:
+                self._flushing = False
 
     def close(self) -> None:
         self.flush()
@@ -199,7 +206,7 @@ def create_file_handler(
     return file_handler
 
 
-def set_level(level: int) -> None:
+def set_console_level(level: int) -> None:
     _console_handler.setLevel(level)
 
 

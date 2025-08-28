@@ -9,7 +9,7 @@ import pytest
 from _pytest.config import Config
 from _pytest.reports import CollectReport, TestReport
 from dataclasses_json import dataclass_json
-from pytest_html.plugin import HTMLReport  # type: ignore
+from pytest_html.plugin import HTMLReport
 
 from lisa import schema
 from lisa.messages import (

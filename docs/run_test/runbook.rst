@@ -64,6 +64,12 @@ Runbook Reference
          -  `path <#path-2>`__
          -  `auto_open <#auto-open>`__
 
+      -  `junit <#junit>`__
+
+         -  `path <#path-3>`__
+         -  `include_subtest <#include-subtest>`__
+         -  `append_message_id <#append-message-id>`__
+
    -  `environment <#environment>`__
 
       -  `retry <#retry>`__
@@ -608,7 +614,7 @@ For example,
       address: $(bisect_vm_address)
       private_key_file: $(admin_private_key_file)
 
-Refer `Sample runbook <https://github.com/microsoft/lisa/blob/main/examples/runbook/git_bisect.yml>`__
+Refer `Sample runbook <https://github.com/microsoft/lisa/blob/main/microsoft/runbook/examples/git_bisect.yml>`__
 
 notifier
 ~~~~~~~~
@@ -667,6 +673,50 @@ Example of html notifier:
      - type: html
        path: ./lisa.html
        auto_open: true
+
+junit
+^^^^^
+
+Output test results in JUnit XML format. The generated XML file can be used
+for integration with CI/CD systems, dashboards, and other tools that consume
+JUnit test results.
+
+.. _path-3:
+
+path
+''''
+
+type: str, optional, default: lisa.junit.xml
+
+Specify the output file name and path for the JUnit XML report.
+
+include_subtest
+'''''''''''''''
+
+type: bool, optional, default: True
+
+When set to True, subtests will be included as separate test cases in the
+JUnit XML output. When set to False, only main test cases are included.
+
+append_message_id
+'''''''''''''''''
+
+type: bool, optional, default: True
+
+When set to True, the message ID will be appended to test case names in the
+format "test_name (message_id)". This is useful when using combinators to
+distinguish multiple test runs of the same test case. When set to False,
+only the base test case name is used.
+
+Example of junit notifier:
+
+.. code:: yaml
+
+   notifier:
+     - type: junit
+       path: ./results.xml
+       include_subtest: true
+       append_message_id: false
 
 environment
 ~~~~~~~~~~~

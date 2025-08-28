@@ -16,6 +16,7 @@ from lisa import (
     notifier,
     run_in_parallel,
 )
+from lisa.features import Nvme
 from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
@@ -29,6 +30,7 @@ from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
+    Echo,
     Fdisk,
     Fio,
     FIOResult,
@@ -52,6 +54,55 @@ from lisa.tools.ntttcp import (
 )
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
+
+
+def perf_nvme(
+    node: Node,
+    result: TestResult,
+    test_name: str = "",
+    disk_type: DiskType = DiskType.nvme,
+    ioengine: IoEngine = IoEngine.LIBAIO,
+    max_iodepth: int = 256,
+) -> None:
+    nvme = node.features[Nvme]
+    nvme_namespaces = nvme.get_raw_nvme_disks()
+    disk_count = len(nvme_namespaces)
+    assert_that(disk_count).described_as(
+        "At least 1 NVMe disk for fio testing."
+    ).is_greater_than(0)
+    filename = ":".join(nvme_namespaces)
+    echo = node.tools[Echo]
+    # This will have kernel avoid sending IPI to finish I/O on the issuing CPUs
+    # if they are not on the same NUMA node of completion CPU.
+    # This setting will give a better and more stable IOPS.
+    for nvme_namespace in nvme_namespaces:
+        # /dev/nvme0n1 => nvme0n1
+        disk_name = nvme_namespace.split("/")[-1]
+        echo.write_to_file(
+            "0",
+            node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
+            sudo=True,
+        )
+    cpu = node.tools[Lscpu]
+    core_count = cpu.get_core_count()
+    start_iodepth = 1
+    if test_name:
+        test_name = inspect.stack()[1][3]
+
+    perf_disk(
+        node,
+        start_iodepth,
+        max_iodepth,
+        filename,
+        core_count=core_count,
+        disk_count=disk_count,
+        numjob=core_count,
+        test_name=test_name,
+        disk_setup_type=DiskSetupType.raw,
+        disk_type=disk_type,
+        test_result=result,
+        ioengine=ioengine,
+    )
 
 
 def perf_disk(
@@ -227,7 +278,7 @@ def perf_tcp_pps(
     )
 
     cpu = client.tools[Lscpu]
-    core_count = cpu.get_core_count()
+    thread_count = cpu.get_thread_count()
     if "maxpps" == test_type:
         ssh = client.tools[Ssh]
         ssh.set_max_session()
@@ -237,7 +288,7 @@ def perf_tcp_pps(
     for port in ports:
         server_netperf.run_as_server(port)
     for port in ports:
-        client_netperf.run_as_client_async(server.internal_address, core_count, port)
+        client_netperf.run_as_client_async(server.internal_address, thread_count, port)
     client_sar = client.tools[Sar]
     server_sar = server.tools[Sar]
     server_sar.get_statistics_async()
@@ -588,7 +639,7 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
     return total / (len(values) - 2)
 
 
-@retry(exceptions=AssertionError, tries=30, delay=2)
+@retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()

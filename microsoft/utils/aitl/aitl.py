@@ -23,7 +23,7 @@ _api_version = "2023-08-01-preview"
 
 def _generate_example(resource_type: str = "job") -> str:
     return f"""
-        Examples for {resource_type.capitalize() if resource_type == 'job' else 'Job Template' }:
+        Examples for {resource_type.capitalize() if resource_type == 'job' else 'Job Template'}:
         Create a {resource_type}:
             python -m aitl {resource_type} create -s {{subscription_id}} -r {{resource_group}} -n {{template_name}} -b {'@./tier0.json' if resource_type == 'job' else '@./template.json'}
 
@@ -32,7 +32,7 @@ def _generate_example(resource_type: str = "job") -> str:
 
         Get a {resource_type}:
             python -m aitl {resource_type} get -s {{subscription_id}} -r {{resource_group}} -n {{template_name}}
-    """  # noqa: E501
+    """  # noqa: E501,E241
 
 
 def _initialize() -> None:
@@ -223,6 +223,7 @@ def _call_rest_api(method: str, **kwargs: Any) -> Any:
     api_version = kwargs.pop("api_version")
     body = kwargs.pop("body", "")
     resource_type = kwargs.pop("resource")
+    action = kwargs.pop("action", method.lower())
     query = kwargs.pop("query", "")
     output = kwargs.pop("output", "")
 
@@ -285,7 +286,7 @@ if __name__ == "__main__":
     logging.debug(f"starting command with args: {cmd_args}")
 
     kwargs = vars(cmd_args)
-    action = kwargs.pop("action")
+    action = kwargs.get("action")
     resource = kwargs.get("resource")
 
     if action in ["create", "update"]:

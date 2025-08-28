@@ -54,7 +54,7 @@ DEFAULT_EXPORTED_VHD_CONTAINER_NAME = "lisa-vhd-exported"
 DEFAULT_VHD_SUFFIX = "exported"
 
 
-@retry(tries=10, jitter=(1, 2))
+@retry(tries=10, jitter=(1, 2))  # type: ignore
 def _generate_vhd_path(container_client: Any, file_name_part: str = "") -> str:
     path = PurePosixPath(
         f"{get_date_str()}/{get_datetime_path()}_"
@@ -108,6 +108,7 @@ class DeployTransformerSchema(schema.Transformer):
     requirement: schema.Capability = field(default_factory=schema.Capability)
     resource_group_name: str = ""
     deploy: bool = True
+    source_address_prefixes: Optional[Union[str, List[str]]] = field(default=None)
 
 
 @dataclass_json
@@ -346,7 +347,7 @@ class VhdTransformer(Transformer):
             public_ip_address
         ), "cannot find public IP address, make sure the VM is in running status."
 
-        return public_ip_address
+        return public_ip_address  # type: ignore
 
 
 class DeployTransformer(Transformer):
@@ -387,6 +388,12 @@ class DeployTransformer(Transformer):
 
         platform.prepare_environment(environment=environment)
         platform._azure_runbook.deploy = runbook.deploy
+        if runbook.resource_group_name:
+            platform._azure_runbook.resource_group_name = runbook.resource_group_name
+        if runbook.source_address_prefixes:
+            platform._azure_runbook.source_address_prefixes = (
+                runbook.source_address_prefixes
+            )
         platform.deploy_environment(environment)
 
         resource_group_name = get_environment_context(environment).resource_group_name

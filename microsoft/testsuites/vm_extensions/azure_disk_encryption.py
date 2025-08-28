@@ -41,11 +41,6 @@ UnsupportedVersionInfo = List[Dict[str, int]]
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Disk Encryption (ADE) extension",
-    requirement=simple_requirement(
-        min_memory_mb=MIN_REQUIRED_MEMORY_MB,
-        supported_features=[AzureExtension],
-        supported_platform_type=[AZURE],
-    ),
 )
 class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
@@ -124,7 +119,7 @@ class AzureDiskEncryption(TestSuite):
                 log.debug(
                     f"Sleeping for {retry_interval} seconds before checking again"
                 )
-                log.debug(f"Retry #{i+1} of {max_retries}")
+                log.debug(f"Retry #{i + 1} of {max_retries}")
                 time.sleep(retry_interval)
 
         assert_that(os_status).described_as(
@@ -138,7 +133,9 @@ class AzureDiskEncryption(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[CvmDisabled()],
+            min_memory_mb=MIN_REQUIRED_MEMORY_MB,
+            supported_features=[AzureExtension, CvmDisabled()],
+            supported_platform_type=[AZURE],
         ),
     )
     def verify_azure_disk_encryption_provisioned(
@@ -250,12 +247,12 @@ class AzureDiskEncryption(TestSuite):
             return False
 
         for distro, max_supported_version in max_supported_major_versions.items():
-            if type(node.os) == distro:
+            if type(node.os) is distro:
                 if node.os.information.version.major > max_supported_version:
                     return False
 
         for distro, min_supported_version in minimum_supported_major_versions.items():
-            if type(node.os) == distro:
+            if type(node.os) is distro:
                 if node.os.information.version.major >= min_supported_version:
                     return True
 
@@ -273,12 +270,12 @@ class AzureDiskEncryption(TestSuite):
         minor_version = version_info.minor
 
         # ADE support only on Ubuntu LTS images
-        if type(node.os) == Ubuntu:
+        if type(node.os) is Ubuntu:
             if minor_version != 4:
                 return True
 
         for distro, versions in min_supported_versions.items():
-            if type(node.os) == distro:
+            if type(node.os) is distro:
                 for version in versions:
                     if (
                         major_version == version["major"]

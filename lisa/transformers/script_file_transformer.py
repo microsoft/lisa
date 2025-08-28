@@ -81,7 +81,7 @@ class ScriptFileTransformer(DeploymentTransformer):
         failed_scripts = []
 
         for item in runbook.scripts:
-            command = f"{item.interpreter} {item.script} {item.args}"
+            command = f"{item.interpreter.value} {item.script} {item.args}"
             execution_result = self._node.execute(command, sudo=True, shell=True)
             results[item.script] = execution_result
             if item.expected_exit_code is not None:

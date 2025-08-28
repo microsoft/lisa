@@ -38,8 +38,8 @@ class MultipleNodesDemo(TestSuite):
 
         for node in environment.nodes.list():
             lscpu = node.tools[Lscpu]
-            core_count = lscpu.get_core_count()
-            log.info(f"index: {node.index}, core_count: {core_count}")
+            thread_count = lscpu.get_thread_count()
+            log.info(f"index: {node.index}, thread_count: {thread_count}")
 
     @TestCaseMetadata(
         description="""

@@ -55,7 +55,7 @@ class CloudHypervisorTestSuite(TestSuite):
         log.debug(f"Journalctl Docker Logs: {docker_log}")
 
         dmesg = node.tools[Dmesg]
-        dmesg_log = dmesg.get_output(force_run=True)
+        dmesg_log = dmesg.get_output(no_debug_log=True, force_run=True)
         log.debug(f"Dmesg Logs: {dmesg_log}")
 
     @TestCaseMetadata(
@@ -168,7 +168,8 @@ class CloudHypervisorTestSuite(TestSuite):
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
         mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
-        if not virtualization_enabled and not mshv_exists:
+        kvm_exists = node.tools[Ls].path_exists(path="/dev/kvm", sudo=True)
+        if not virtualization_enabled and not mshv_exists and not kvm_exists:
             raise SkippedException("Virtualization is not enabled in hardware")
         # add user to mshv group for access to /dev/mshv
         if mshv_exists:

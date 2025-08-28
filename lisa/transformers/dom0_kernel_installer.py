@@ -51,6 +51,13 @@ class BinaryInstallerSchema(BaseInstallerSchema):
             required=False,
         ),
     )
+    # vmlinux binary local absolute path
+    vmlinux_image_path: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
 
 
 class BinaryInstaller(BaseInstaller):
@@ -80,6 +87,7 @@ class BinaryInstaller(BaseInstaller):
         initrd_image_path: str = runbook.initrd_image_path
         kernel_modules_path: str = runbook.kernel_modules_path
         kernel_config_path: str = runbook.kernel_config_path
+        vmlinux_image_path: str = runbook.vmlinux_image_path
 
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
@@ -89,6 +97,13 @@ class BinaryInstaller(BaseInstaller):
         # Kernel absolute path: /home/user/vmlinuz-5.15.57.1+
         # Naming convention : vmlinuz-<version>
         new_kernel = os.path.basename(kernel_image_path).split("-")[1].strip()
+
+        # if its lvbs kernel, then the new kernel name should be
+        # vmlinuz-<version>-lvbs
+        if "lvbs" in current_kernel:
+            new_kernel = f"{new_kernel}-lvbs"
+
+        self._log.info(f"Installing kernel {new_kernel} on {node.name}")
 
         # Copy the binaries to azure VM from where LISA is running
         err: str = f"Can not find kernel image path: {kernel_image_path}"
@@ -121,9 +136,15 @@ class BinaryInstaller(BaseInstaller):
         # to /usr/lib/firmware/vmlinux
         if "lvbs" in current_kernel:
             # Copy the kernel binary to /usr/lib/firmware/vmlinux
+            err = f"Can not find vmlinux image path: {vmlinux_image_path}"
+            assert os.path.exists(vmlinux_image_path), err
+            node.shell.copy(
+                PurePath(vmlinux_image_path),
+                node.get_pure_path("/var/tmp/vmlinux.bin"),
+            )
             _copy_kernel_binary(
                 node,
-                node.get_pure_path(f"/lib/modules/{new_kernel}/vmlinux.bin"),
+                node.get_pure_path("/var/tmp/vmlinux.bin"),
                 node.get_pure_path("/usr/lib/firmware/vmlinux"),
             )
 

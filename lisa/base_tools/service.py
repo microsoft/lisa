@@ -6,6 +6,8 @@ from time import sleep
 from typing import Optional, Type
 
 from lisa.executable import ExecutableResult, Tool
+from lisa.tools.dmesg import Dmesg
+from lisa.tools.journalctl import Journalctl
 from lisa.tools.powershell import PowerShell
 from lisa.util import (
     LisaException,
@@ -48,6 +50,9 @@ class Service(Tool):
 
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         self._internal_tool.restart_service(name, ignore_exit_code)  # type: ignore
+
+    def start_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        self._internal_tool.start_service(name, ignore_exit_code)  # type: ignore
 
     def stop_service(self, name: str) -> None:
         self._internal_tool.stop_service(name)  # type: ignore
@@ -135,6 +140,14 @@ class Systemctl(Tool):
 
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         cmd_result = self.run(f"restart {name}", shell=True, sudo=True, force_run=True)
+        if cmd_result.exit_code != 0 and cmd_result.exit_code != ignore_exit_code:
+            self._collect_logs(name)
+        _check_error_codes(cmd_result, ignore_exit_code)
+
+    def start_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        cmd_result = self.run(f"start {name}", shell=True, sudo=True, force_run=True)
+        if cmd_result.exit_code != 0 and cmd_result.exit_code != ignore_exit_code:
+            self._collect_logs(name)
         _check_error_codes(cmd_result, ignore_exit_code)
 
     def enable_service(self, name: str) -> None:
@@ -208,6 +221,44 @@ class Systemctl(Tool):
             "could not be found" not in cmd_result.stdout
             or "not-found" in cmd_result.stdout
         ) and 0 == cmd_result.exit_code
+
+    def _collect_logs(self, service_name: str) -> None:
+        self._log.info(f"Collecting logs for service '{service_name}'.")
+
+        # Get detailed status from systemctl status
+        status_cmd = f"status {service_name} --no-pager -n 100"
+        try:
+            _ = self.run(status_cmd, shell=True, sudo=True, force_run=True)
+        except Exception as e_status:
+            self._log.info(f"Failed to get status for {service_name}: {e_status}")
+
+        try:
+            journal_tail_lines = 50
+            journalctl_tool = self.node.tools[Journalctl]
+            journal_output = journalctl_tool.logs_for_unit(unit_name=service_name)
+            journal_lines = journal_output.splitlines()
+            tail_lines = "\n".join(journal_lines[-journal_tail_lines:])
+            self._log.info(
+                f"Last {journal_tail_lines} journal logs for unit '{service_name}':\n"
+                f"{tail_lines}"
+            )
+        except Exception as e_journal:
+            self._log.info(
+                f"Could not retrieve or process journal logs for {service_name}: "
+                f"{e_journal}"
+            )
+
+        try:
+            dmesg_tail_lines = 25
+            dmesg = self.node.tools[Dmesg]
+            dmesg_out = dmesg.get_output(
+                force_run=True, no_debug_log=True, tail_lines=dmesg_tail_lines
+            )
+            self._log.info(
+                f"Last {dmesg_tail_lines} lines of dmesg output:\n{dmesg_out}"
+            )
+        except Exception as e_dmesg:
+            self._log.info(f"Could not retrieve dmesg output: {e_dmesg}")
 
 
 def _check_error_codes(cmd_result: ExecutableResult, error_code: int = 0) -> None:

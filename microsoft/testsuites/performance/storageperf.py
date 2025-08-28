@@ -24,11 +24,13 @@ from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import Debian, Redhat, Suse
+from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.testsuite import TestResult, node_requirement
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
+    perf_nvme,
     reset_partitions,
     reset_raid,
     stop_raid,
@@ -174,6 +176,70 @@ class StoragePerformance(TestSuite):
     )
     def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(node, result, block_size=1024)
+
+    @TestCaseMetadata(
+        description="""
+        This testcase uses fio to test resource disk performance using 1024K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=AzureDiskOptionSettings(has_resource_disk=True),
+        ),
+    )
+    def perf_resource_disk_1024k(self, node: Node, result: TestResult) -> None:
+        self._perf_resource_disks(node, result, block_size=1024)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test resource disk performance using 4K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=AzureDiskOptionSettings(has_resource_disk=True),
+        ),
+    )
+    def perf_resource_disk_4k(self, node: Node, result: TestResult) -> None:
+        self._perf_resource_disks(node, result, block_size=4)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test data disk performance with 4K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                os_disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_iops=search_space.IntRange(min=6000),
+                data_disk_count=search_space.IntRange(min=16),
+            ),
+        ),
+    )
+    def perf_standardssd_datadisks_4k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(node, result, disk_type=DiskType.standardssd)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test data disk performance using 1024K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                os_disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_iops=search_space.IntRange(min=6000),
+                data_disk_count=search_space.IntRange(min=16),
+            ),
+        ),
+    )
+    def perf_standardssd_datadisks_1024k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(
+            node, result, disk_type=DiskType.standardssd, block_size=1024
+        )
 
     @TestCaseMetadata(
         description="""
@@ -353,9 +419,9 @@ class StoragePerformance(TestSuite):
                 max_iodepth = testcase.get("max_iodepth", 1)
                 num_jobs = []
                 iodepth_iter = start_iodepth
-                core_count = node.tools[Lscpu].get_core_count()
+                thread_count = node.tools[Lscpu].get_thread_count()
                 while iodepth_iter <= max_iodepth:
-                    num_jobs.append(min(iodepth_iter, core_count))
+                    num_jobs.append(min(iodepth_iter, thread_count))
                     iodepth_iter = iodepth_iter * 2
 
                 time = testcase.get("time", 240)
@@ -378,7 +444,7 @@ class StoragePerformance(TestSuite):
                     time=time,
                     size_mb=size_mb,
                     overwrite=overwrite,
-                    core_count=core_count,
+                    core_count=thread_count,
                     disk_count=1,
                 )
             except Exception:
@@ -501,9 +567,9 @@ class StoragePerformance(TestSuite):
         # iodepth = 16, core count = 8 => max_jobs = 8
         num_jobs = []
         iodepth_iter = start_iodepth
-        core_count = client_node.tools[Lscpu].get_core_count()
+        thread_count = client_node.tools[Lscpu].get_thread_count()
         while iodepth_iter <= max_iodepth:
-            num_jobs.append(min(iodepth_iter, core_count))
+            num_jobs.append(min(iodepth_iter, thread_count))
             iodepth_iter = iodepth_iter * 2
 
         # setup raid on server
@@ -529,7 +595,7 @@ class StoragePerformance(TestSuite):
                 client_node,
                 server_data_disk_count,
                 client_nfs_mount_dir,
-                core_count,
+                thread_count,
                 num_jobs,
                 start_iodepth=start_iodepth,
                 max_iodepth=max_iodepth,
@@ -564,23 +630,83 @@ class StoragePerformance(TestSuite):
         partition_disks = reset_partitions(node, data_disks)
         filename = ":".join(partition_disks)
         cpu = node.tools[Lscpu]
-        core_count = cpu.get_core_count()
+        thread_count = cpu.get_thread_count()
         perf_disk(
             node,
             start_iodepth,
             max_iodepth,
             filename,
             test_name=inspect.stack()[1][3],
-            core_count=core_count,
+            core_count=thread_count,
             disk_count=disk_count,
             disk_setup_type=disk_setup_type,
             disk_type=disk_type,
-            numjob=core_count,
+            numjob=thread_count,
             block_size=block_size,
             size_mb=8192,
             overwrite=True,
             test_result=test_result,
         )
+
+    def _perf_resource_disks(
+        self,
+        node: Node,
+        test_result: TestResult,
+        disk_setup_type: DiskSetupType = DiskSetupType.raw,
+        block_size: int = 4,
+        start_iodepth: int = 1,
+        max_iodepth: int = 256,
+    ) -> None:
+        disk = node.features[Disk]
+        resource_disks = disk.get_resource_disks()
+        disk_count = len(resource_disks)
+        if disk_count == 0:
+            raise SkippedException(
+                "No resource disk found, skipping resource disk performance test."
+            )
+        resource_disk_type = disk.get_resource_disk_type()
+        if schema.ResourceDiskType.NVME == resource_disk_type:
+            perf_nvme(
+                node,
+                test_result,
+                disk_type=DiskType.localnvme,
+            )
+            return
+        elif schema.ResourceDiskType.SCSI == resource_disk_type:
+            # If there is only one resource disk and its SCSI type,
+            # it will be mounted at /mnt.
+            # Create a file under and use it as fio filename.
+            # If there are multiple resource disks, reset partitions and
+            # use the partition disks as fio filename.
+            if disk_count == 1:
+                filename = f"{disk.get_resource_disk_mount_point()}/fiodata"
+            else:
+                partition_disks = reset_partitions(node, resource_disks)
+                filename = ":".join(partition_disks)
+            core_count = node.tools[Lscpu].get_core_count()
+
+            perf_disk(
+                node,
+                start_iodepth,
+                max_iodepth,
+                filename,
+                test_name=inspect.stack()[1][3],
+                core_count=core_count,
+                disk_count=disk_count,
+                disk_setup_type=disk_setup_type,
+                disk_type=DiskType.localssd,
+                numjob=core_count,
+                block_size=block_size,
+                size_mb=8192,
+                overwrite=True,
+                test_result=test_result,
+            )
+
+        else:
+            raise SkippedException(
+                f"Resource disk type {resource_disk_type} not supported for "
+                f"performance test."
+            )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
