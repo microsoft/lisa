@@ -199,14 +199,16 @@ def generate_send_receive_run_info(
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
         check_nic = sender.node.nics.get_primary_nic().lower
-        maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        maxmtu = int(sender.node.tools[Ip].get_detail(check_nic, "maxmtu"))
         if not maxmtu:
             raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
-        if set_mtu > int(maxmtu):
+        if set_mtu > maxmtu:
             raise SkippedException(
                 "Requested MTU size exceeds max mtu for DPDK mtu test: "
                 f"{set_mtu} > {maxmtu}."
             )
+    else:
+        maxmtu = 0
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
         0,
@@ -215,6 +217,7 @@ def generate_send_receive_run_info(
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
+        mbuf_size=maxmtu,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
@@ -223,6 +226,7 @@ def generate_send_receive_run_info(
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
+        mbuf_size=maxmtu,
     )
 
     kit_cmd_pairs = {
