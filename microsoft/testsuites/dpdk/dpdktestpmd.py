@@ -498,6 +498,7 @@ class DpdkTestpmd(Tool):
         multiple_queues: bool = False,
         service_cores: int = 1,
         mtu: int = 0,
+        mbuf_size: int = 0,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -564,7 +565,7 @@ class DpdkTestpmd(Tool):
         if mtu:
             extra_args += (
                 f" --max-pkt-len={mtu} --txpkts={mtu} --tx-offloads=0x00008000"
-                f" --mbuf-size={mtu}"
+                f" --mbuf-size={mbuf_size}"
             )
 
         assert_that(forwarding_cores).described_as(
