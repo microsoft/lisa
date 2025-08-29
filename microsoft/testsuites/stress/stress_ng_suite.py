@@ -36,7 +36,7 @@ class StressNgTestSuite(TestSuite):
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
         priority=4,
-        timeout=TIME_OUT,  # Use the class constant
+        timeout=TIME_OUT,
     )
     def stress_ng_jobfile(
         self,
