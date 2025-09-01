@@ -31,7 +31,7 @@ class NvmePerformace(TestSuite):
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
-            supported_features=[NvmeSettings(disk_count=8)],
+            supported_features=[NvmeSettings(disk_count=5)],
         ),
     )
     def perf_nvme(self, node: Node, result: TestResult) -> None:
