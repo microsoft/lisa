@@ -84,7 +84,8 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
         "101e",  # Mellanox Technologies [ConnectX Family mlx5Gen Virtual Function]
     ],
     constants.DEVICE_TYPE_NVME: [
-        "b111"  # Microsoft Corporation Device, Local NVMe disks
+        "b111",  # Microsoft Corporation Device, Local NVMe disks
+        "2a59",  # SK hynix Device
     ],
     constants.DEVICE_TYPE_ASAP: [
         "00a9"  # Remote disks connected using NVMe disk controller
