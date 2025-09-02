@@ -55,6 +55,8 @@ failure of high-priority test cases to speed up the analysis.
    impact.
 -  **P4**. The system has obvious but not serious problems on long-haul,
    stress or performance test scenarios.
+-  **P5**. Test cases that require more than 1 day to execute or utility
+   test cases that don't verify meaningful functionality for validation.
 
 Please Note that the above examples do not cover all situations and are
 for reference. For example, in a cloud environment, one host version may
