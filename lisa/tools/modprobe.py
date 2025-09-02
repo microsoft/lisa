@@ -235,9 +235,8 @@ class Modprobe(Tool):
         #  | wc -l
         # in order to get the correct count of insmod commands executed.
 
-        module_path = re.escape(
-            self.node.tools[Modinfo].get_filename(mod_name=mod_name)
-        )
+        module_path_raw = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        module_path = re.escape(module_path_raw)
 
         rmmod_count = int(
             self.node.execute(
@@ -246,13 +245,30 @@ class Modprobe(Tool):
                 shell=True,
             ).stdout.strip()
         )
-        insmod_count = int(
-            self.node.execute(
-                f"grep -E 'insmod {module_path}' {nohup_output_log_file_name} | wc -l",
-                sudo=True,
-                shell=True,
-            ).stdout.strip()
-        )
+        try:
+            insmod_count = int(
+                self.node.execute(
+                    f"grep -E 'insmod {module_path}' "
+                    f"{nohup_output_log_file_name} | wc -l",
+                    sudo=True,
+                    shell=True,
+                ).stdout.strip()
+            )
+        except ValueError as e:
+            self._log.debug(
+                f"Exception caught while getting insmod count: {e} with module"
+                f" path: {module_path} retrying with raw module"
+                f"path path: {module_path_raw}"
+            )
+            insmod_count = int(
+                self.node.execute(
+                    f"grep -E 'insmod {module_path_raw}' "
+                    f"{nohup_output_log_file_name} | wc -l",
+                    sudo=True,
+                    shell=True,
+                ).stdout.strip()
+            )
+
         in_use_count = int(
             self.node.execute(
                 f"grep -o 'is in use' {nohup_output_log_file_name} | wc -l",
