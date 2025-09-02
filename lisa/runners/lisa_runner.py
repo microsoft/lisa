@@ -803,13 +803,40 @@ class LisaRunner(BaseRunner):
 
                 environment_requirement = copy.deepcopy(test_req.environment)
                 if platform_requirement:
-                    for index, node_requirement in enumerate(
-                        environment_requirement.nodes
-                    ):
-                        node_requirement_data: Dict[
-                            str, Any
-                        ] = node_requirement.to_dict()  # type: ignore
+                    node_count = 1
 
+                    if platform_requirement.node_count:
+                        # get minimun node count from the runbook.
+                        node_count = search_space.generate_min_capability_countspace(
+                            platform_requirement.node_count,
+                            platform_requirement.node_count,
+                        )
+
+                        # Reset to 1 since platform_requirement will be used as
+                        # a template for intersecting with individual node
+                        # requirements, not for the entire environment
+                        platform_requirement.node_count = 1
+
+                    # Use the larger node count between test requirements and
+                    # runbook settings to support scaling scenarios where
+                    # runbook overrides test defaults
+                    node_count = max(len(environment_requirement.nodes), node_count)
+                    node_requirement_data: Dict[str, Any] = {}
+                    for index in range(node_count):
+                        if index < len(environment_requirement.nodes):
+                            node_requirement = environment_requirement.nodes[index]
+
+                            node_requirement_data = (
+                                node_requirement.to_dict()  # type: ignore
+                            )
+                        else:
+                            # Runbook has bigger node count, copy from the last
+                            # node space of the environment.
+                            node_requirement = schema.load_by_type(
+                                schema.NodeSpace, node_requirement_data
+                            )
+
+                        assert node_requirement_data, "Node requirement data is missing"
                         original_node_requirement = schema.load_by_type(
                             schema.NodeSpace, node_requirement_data
                         )
@@ -858,7 +885,11 @@ class LisaRunner(BaseRunner):
                             platform_requirement.extended_schemas,
                             node_requirement.extended_schemas,
                         )
-                        environment_requirement.nodes[index] = node_requirement
+                        if index < len(environment_requirement.nodes):
+                            environment_requirement.nodes[index] = node_requirement
+                        else:
+                            # add extra nodes, which is more from runbook.
+                            environment_requirement.nodes.append(node_requirement)
 
             if test_result.can_run:
                 # the requirement may be skipped by high platform requirement.
@@ -888,7 +919,7 @@ class LisaRunner(BaseRunner):
             return None
 
         platform_requirement: schema.NodeSpace = schema.load_by_type(
-            schema.Capability, platform_requirement_data
+            schema.NodeSpace, platform_requirement_data
         )
         # fill in required fields as max capability. So it can be
         # used as a capability in next steps to merge with test requirement.
