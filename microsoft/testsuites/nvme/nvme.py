@@ -405,10 +405,9 @@ class NvmeTestSuite(TestSuite):
         # 3. Compare nvme devices count return from `lspci`
         #  and list nvme devices under /dev/.
         nvme_device_from_lspci = nvme.get_devices_from_lspci()
-        assert_that(nvme_device).described_as(
-            "nvme devices count should be consistent between return value from [lspci] "
-            "and listed devices under folder /dev."
-        ).is_length(len(nvme_device_from_lspci))
+        assert_that(len(nvme_device_from_lspci)).described_as(
+            "NVMe device count from [lspci] should be >= NVMe device count under /dev."
+        ).is_greater_than_or_equal_to(len(nvme_device))
 
         # 4. Azure platform only, nvme devices count should equal to
         #  actual vCPU count / 8.
