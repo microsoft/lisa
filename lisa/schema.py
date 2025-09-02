@@ -861,7 +861,6 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REQUIREMENT,
         metadata=field_metadata(
-            required=True,
             validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REQUIREMENT]),
         ),
     )
