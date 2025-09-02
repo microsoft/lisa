@@ -26,7 +26,8 @@ from lisa.util.process import Process
     """,
 )
 class StressNgTestSuite(TestSuite):
-    TIME_OUT = 3600
+    # Timeout for longhaul stress testing: 435600 seconds (121 hours)
+    TIME_OUT = 435600
     CONFIG_VARIABLE = "stress_ng_jobs"
 
     @TestCaseMetadata(
@@ -35,7 +36,8 @@ class StressNgTestSuite(TestSuite):
         runbook variable named "stress_ng_jobs". For more info about jobfiles refer:
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
-        priority=4,
+        priority=5,
+        timeout=TIME_OUT,
     )
     def stress_ng_jobfile(
         self,
