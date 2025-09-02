@@ -36,7 +36,7 @@ class StressNgTestSuite(TestSuite):
         runbook variable named "stress_ng_jobs". For more info about jobfiles refer:
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
-        priority=4,
+        priority=5,
         timeout=TIME_OUT,
     )
     def stress_ng_jobfile(
