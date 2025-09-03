@@ -6,7 +6,14 @@ from typing import Any, Dict, List, Tuple, cast
 
 import yaml
 
-from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Environment,
+    RemoteNode,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.base_tools import Cat
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
@@ -32,8 +39,9 @@ class StressNgTestSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs a stress-ng jobfile. The path to the jobfile must be specified using a
-        runbook variable named "stress_ng_jobs". For more info about jobfiles refer:
+        Runs a stress-ng jobfile. The path to the jobfile must be specified
+        using a runbook variable named "stress_ng_jobs". For more info about
+        jobfiles refer:
         https://manpages.ubuntu.com/manpages/jammy/man1/stress-ng.1.html
         """,
         priority=5,
@@ -111,6 +119,67 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
     ) -> None:
         self._run_stressor_class(environment, "network")
+
+    @TestCaseMetadata(
+        description="""
+        Multi-VM stress test using stress-ng jobfiles.
+
+        Executes stress-ng jobfiles across multiple VMs to test resource
+        utilization and contention scenarios. Works with the environment
+        provided by the test runner (VMs are deployed via runbook
+        configuration).
+
+        Each VM in the environment runs the specified stress-ng jobfiles
+        to stress host CPU and memory resources simultaneously.
+
+        Required runbook variables:
+        - stress_ng_jobs: Jobfile(s) to execute on each VM
+
+        Optional runbook variables for VM deployment:
+        - stress_ng_node_count: Number of VMs to deploy
+        - stress_ng_cpu_count: CPU cores per VM
+        - stress_ng_memory_mb: Memory per VM in MB
+
+        Note: This test requires an environment with at least 2 nodes for
+        meaningful multi-VM stress testing.
+        """,
+        priority=4,
+        timeout=TIME_OUT,  # Use extended timeout for multi-VM stress testing
+        requirement=simple_requirement(
+            min_count=2,
+            min_core_count=1,
+            min_memory_mb=1024,
+        ),
+    )
+    def multi_vm_stress_test(
+        self,
+        log: Logger,
+        variables: Dict[str, Any],
+        environment: Environment,
+        result: TestResult,
+    ) -> None:
+        """
+        Execute multi-VM stress test across multiple VMs.
+        The runbook controls the actual VM deployment based on variables.
+        This test simply uses whatever environment is provided.
+        """
+
+        log.info("=== STRESS-NG MULTI-VM TEST START ===")
+        log.info(f"Environment has {len(environment.nodes)} nodes")
+
+        # Execute the stress test
+        if self.CONFIG_VARIABLE not in variables:
+            raise SkippedException("No jobfile provided for multi-VM stress test")
+
+        jobs = variables[self.CONFIG_VARIABLE]
+        if not isinstance(jobs, list):
+            jobs = [job.strip() for job in str(jobs).split(",")]
+
+        # Execute each jobfile across all VMs
+        for job_file in jobs:
+            self._run_stress_ng_job(job_file, environment, result, log)
+
+        log.info("Multi-VM stress test completed successfully")
 
     def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
