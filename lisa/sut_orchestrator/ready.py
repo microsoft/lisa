@@ -50,7 +50,8 @@ class ReadyPlatform(Platform):
             features.IsolatedResource,
             features.Nfs,
             features.SecurityProfile,
-            features.SerialConsole,
+            SerialConsole,
+            features.NestedVirtualization,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
