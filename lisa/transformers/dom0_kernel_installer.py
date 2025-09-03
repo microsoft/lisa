@@ -10,11 +10,41 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import CBLMariner
-from lisa.tools import Cat, Cp, Echo, Ln, Ls, Lsblk, Sed, Tar, Uname
+from lisa.tools import Cat, Chmod, Cp, Echo, Ln, Ls, Lsblk, Sed, Tar, Uname
 from lisa.util import UnsupportedDistroException, field_metadata
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
 from .kernel_source_installer import SourceInstaller, SourceInstallerSchema
+
+DEFAULT_ADDITIONAL_GRUB_ENTRY = (
+    "#!/bin/sh\n"
+    "exec tail -n +3 $0\n\n"
+    "menuentry 'Custom Linux Default entry LISA' "
+    "--class azurelinux --class gnu-linux --class gnu --class os "
+    "--id=REPL_MENUENTRY_ID {\n"
+    "    load_video\n"
+    "    set gfxpayload=keep\n"
+    "    insmod gzio\n"
+    "    insmod part_gpt\n"
+    "    insmod ext2\n"
+    "    set root='hd0,gpt2'\n"
+    "    if [ x$feature_platform_search_hint = xy ]; then\n"
+    "        search --no-floppy --fs-uuid --set=root "
+    "--hint-bios=hd0,gpt2 --hint-efi=hd0,gpt2 "
+    "--hint-baremetal=ahci0,gpt2  REPL_UUID\n"
+    "    else\n"
+    "        search --no-floppy --fs-uuid --set=root REPL_UUID\n"
+    "    fi\n"
+    "    echo    'Loading Linux REPL_KERNEL_VERSION ...'\n"
+    "    linux   //boot/REPL_KERNEL_VERSION root=PARTUUID=REPL_PARTUUID ro "
+    "selinux=0 rd.auto=1 net.ifnames=0 lockdown=integrity "
+    "sysctl.kernel.unprivileged_bpf_disabled=1 init=/lib/systemd/systemd ro "
+    "audit=0 console=tty1 console=ttyS0,115200n8 "
+    "crashkernel=512M-32G:256M,32G-:512M $kernelopts\n"
+    "    echo    'Loading initial ramdisk ...'\n"
+    "    initrd /boot/REPL_INITRD_VERSION\n"
+    "}\n"
+)
 
 
 @dataclass_json()
@@ -59,6 +89,20 @@ class BinaryInstallerSchema(BaseInstallerSchema):
         ),
     )
 
+    # additional grub file local absolute path
+    additional_grub_file: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+    menuentry_id: str = field(
+        default="custom_kernel_lisa",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+
 
 class BinaryInstaller(BaseInstaller):
     @classmethod
@@ -87,7 +131,10 @@ class BinaryInstaller(BaseInstaller):
         initrd_image_path: str = runbook.initrd_image_path
         kernel_modules_path: str = runbook.kernel_modules_path
         kernel_config_path: str = runbook.kernel_config_path
+        additional_grub_file: str = runbook.additional_grub_file
+        menuentry_id: str = runbook.menuentry_id
         vmlinux_image_path: str = runbook.vmlinux_image_path
+        target_grub_file_path = "/etc/grub.d/40_custom_kernel_lisa"
 
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
@@ -161,7 +208,7 @@ class BinaryInstaller(BaseInstaller):
                 node.get_pure_path(f"/boot/initrd.img-{new_kernel}"),
             )
         else:
-            if mariner_version == 2:
+            if mariner_version <= 2:
                 # Mariner 2.0 initrd
                 target = f"/boot/initrd.img-{current_kernel}"
                 link = f"/boot/initrd.img-{new_kernel}"
@@ -191,12 +238,105 @@ class BinaryInstaller(BaseInstaller):
                 node.get_pure_path(f"/boot/config-{new_kernel}"),
             )
 
-        _update_mariner_config(
+        if mariner_version <= 2:
+            _update_mariner_v2_config(
+                node,
+                current_kernel,
+                new_kernel,
+                mariner_version,
+            )
+
+            return new_kernel
+
+        if additional_grub_file:
+            tmp_path = "/var/tmp/additional_grub_file"
+            node.shell.copy(
+                PurePath(additional_grub_file),
+                node.get_pure_path(tmp_path),
+            )
+        else:
+            # Create a file with DEFAULT_ADDITIONAL_GRUB_ENTRY contents on the  node
+            tmp_path = str(node.working_path / "additional_grub_file")
+            echo = node.tools[Echo]
+            echo.write_to_file(
+                DEFAULT_ADDITIONAL_GRUB_ENTRY,
+                PurePath(tmp_path),
+            )
+        _copy_kernel_binary(
             node,
-            current_kernel,
-            new_kernel,
-            mariner_version,
+            node.get_pure_path(tmp_path),
+            node.get_pure_path(target_grub_file_path),
         )
+        node.tools[Chmod].chmod(
+            path=target_grub_file_path,
+            permission="755",
+            sudo=True,
+        )
+
+        cat = node.tools[Cat]
+        sed = node.tools[Sed]
+
+        # Replace all the placeholders in the additional grub file
+        vmlinuz_replacement = f"vmlinuz-{new_kernel}"
+        initrd_replacement = f"initramfs-{new_kernel}.img"
+
+        sed.substitute(
+            regexp="REPL_MENUENTRY_ID",
+            replacement=menuentry_id,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="REPL_KERNEL_VERSION",
+            replacement=vmlinuz_replacement,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="REPL_INITRD_VERSION",
+            replacement=initrd_replacement,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+
+        lsblk = node.tools[Lsblk]
+        root_partition = lsblk.find_partition_by_mountpoint("/", force_run=True)
+        sed.substitute(
+            regexp="REPL_UUID",
+            replacement=root_partition.uuid,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="REPL_PARTUUID",
+            replacement=root_partition.part_uuid,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+
+        # Comment out the existing GRUB_DEFAULT line
+        grub_default_file = "/etc/default/grub"
+        sed.substitute(
+            regexp="^GRUB_DEFAULT=",
+            replacement="#GRUB_DEFAULT=",
+            file=grub_default_file,
+            sudo=True,
+        )
+        # Add the new GRUB_DEFAULT line with the new kernel
+        sed.insert_line_beginning(
+            line=f"GRUB_DEFAULT={menuentry_id}",
+            file=grub_default_file,
+            sudo=True,
+        )
+        cat.read(grub_default_file, sudo=True, force_run=True)
+
+        grub_cfg = "/boot/grub2/grub.cfg"
+        node.execute(
+            f"grub2-mkconfig -o {grub_cfg}",
+            sudo=True,
+            shell=True,
+        )
+        cat.read(grub_cfg, sudo=True, force_run=True)
 
         return new_kernel
 
@@ -234,7 +374,7 @@ class Dom0Installer(SourceInstaller):
         current_kernel = uname.get_linux_information().kernel_version_raw
 
         mariner_version = int(node.os.information.version.major)
-        _update_mariner_config(
+        _update_mariner_v2_config(
             node,
             current_kernel,
             new_kernel,
@@ -257,7 +397,7 @@ def _copy_kernel_binary(
     )
 
 
-def _update_mariner_config(
+def _update_mariner_v2_config(
     node: Node,
     current_kernel: str,
     new_kernel: str,
@@ -273,7 +413,7 @@ def _update_mariner_config(
     initrd_regexp = f"initramfs-{current_kernel}.img"
     initrd_replacement = f"initramfs-{new_kernel}.img"
 
-    if isinstance(node.os, CBLMariner) and mariner_version == 2:
+    if isinstance(node.os, CBLMariner) and mariner_version <= 2:
         # Change param for Dom0 2.0 kernel installation
         mariner_config = "/boot/mariner-mshv.cfg"
         initrd_regexp = f"mariner_initrd_mshv=initrd.img-{current_kernel}"

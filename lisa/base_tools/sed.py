@@ -70,6 +70,20 @@ class Sed(Tool):
         )
         result.assert_exit_code(message=result.stdout)
 
+    def insert_line_beginning(
+        self,
+        line: str,
+        file: str,
+        sudo: bool = False,
+    ) -> None:
+        result = self.run(
+            f"-i.bak '1i {line}' {file}",
+            force_run=True,
+            sudo=sudo,
+            shell=True,
+        )
+        result.assert_exit_code(message=result.stdout)
+
     def delete_lines(self, pattern: str, file: PurePath, sudo: bool = False) -> None:
         expression = f"/{pattern}/d"
         cmd = f'-i.bak "{expression}" {file}'
