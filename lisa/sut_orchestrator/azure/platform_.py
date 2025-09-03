@@ -1457,9 +1457,11 @@ class AzurePlatform(Platform):
 
         if azure_node_runbook.marketplace:
             # resolve "latest" to specified version
-            azure_node_runbook.marketplace = self._resolve_marketplace_image(
+            # _resolve_marketplace_image may return a cached result,
+            #   avoid overriding image properties by only setting the version
+            azure_node_runbook.marketplace.version = self._resolve_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
-            )
+            ).version
             image_info = self.get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
@@ -2884,9 +2886,12 @@ class AzurePlatform(Platform):
         for req in nodes_requirement:
             node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
             if node_runbook.location and node_runbook.marketplace:
-                node_runbook.marketplace = self._resolve_marketplace_image(
+                # resolve "latest" to specified version
+                # _resolve_marketplace_image may return a cached result,
+                #   avoid overriding image properties by only setting the version
+                node_runbook.marketplace.version = self._resolve_marketplace_image(
                     node_runbook.location, node_runbook.marketplace
-                )
+                ).version
 
     def find_marketplace_image_location(self) -> List[str]:
         # locations used to query marketplace image information. Some image is not
