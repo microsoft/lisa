@@ -818,7 +818,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     #
     # 3. enjoy the thrill of victory, ship a cloud net applicance.
 
-    l3fwd_app_name = "dpdk-l3fwd"
+    l3fwd_app_name = "l3fwd"
     send_side = 1
     receive_side = 2
     # arbitrarily pick fwd/snd/recv nodes.
@@ -1263,7 +1263,7 @@ class DpdkDevnameInfo:
         # run the application with the device include arguments.
 
         output = self._node.execute(
-            f"{str(self._testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
+            f"{str(self._testpmd.get_example_app_path('devname'))} {nic_args}",
             sudo=True,
             shell=True,
         ).stdout
@@ -1293,7 +1293,11 @@ class DpdkDevnameInfo:
 
 
 def run_dpdk_symmetric_mp(
-    node: Node, log: Logger, variables: Dict[str, Any], trigger_rescind: bool = False
+    node: Node,
+    log: Logger,
+    variables: Dict[str, Any],
+    trigger_rescind: bool = False,
+    rescind_times: int = 1,
 ) -> None:
     # setup and unwrap the resources for this test
     # get a list of the upper non-primary nics and select two of them
@@ -1325,11 +1329,11 @@ def run_dpdk_symmetric_mp(
             "DPDK symmetric_mp test is not implemented for "
             " package manager installation."
         )
-    symmetric_mp_path = testpmd.get_example_app_path("dpdk-symmetric_mp")
+    symmetric_mp_path = testpmd.get_example_app_path("multi_process/symmetric_mp")
 
     # setup the DPDK EAL arguments for netvsc
     devname_info = DpdkDevnameInfo(testpmd=testpmd)
-    port_mask = devname_info.get_port_info(test_nics)
+    port_mask = devname_info.get_port_info(test_nics, expect_ports=2)
     nic_args = devname_info.nic_args
 
     # get the DPDK port IDs for the netvsc devices.
@@ -1350,7 +1354,7 @@ def run_dpdk_symmetric_mp(
     symmetric_mp_args = (
         f"{nic_args} -n 2 "
         "--log-level netvsc,debug --log-level mana,debug "
-        "--log-level eal,debug --log-level mbuf,debug "
+        # "--log-level eal,debug --log-level mbuf,debug "
         "--log-level ethdev,debug --log-level pci,debug "
         "--log-level port,debug "
         "--log-level vmbus,debug "
@@ -1381,6 +1385,8 @@ def run_dpdk_symmetric_mp(
         kill_timeout=35,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
+    # expect 150 pings by default, if we rescind we'll add to this count
+    expected_pings = 150
     ping.ping_async(
         target=test_nics[0].ip_addr,
         nic_name=node.nics.get_primary_nic().name,
@@ -1395,43 +1401,46 @@ def run_dpdk_symmetric_mp(
         interval=0.05,
     )
     if trigger_rescind:
-        # turn SRIOV off
-        for index in [1, 2]:
-            node.features[NetworkInterface].switch_sriov(
-                enable=False, wait=False, reset_connections=False, index=index
-            )
+        # allow multiple rescinds for stress testing
+        while rescind_times > 0:
+            rescind_times -= 1
+            # turn SRIOV off
+            for index in [1, 2]:
+                node.features[NetworkInterface].switch_sriov(
+                    enable=False, wait=False, reset_connections=False, index=index
+                )
 
-        # wait for the RTE_DEV_EVENT_REMOVE message
-        primary.wait_output(
-            "HN_DRIVER: netvsc_hotadd_callback(): "
-            "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
-            delta_only=True,
-        )  # relying on compiler defaults here, not great.
-
-        # turn SRIOV on
-        for index in [1, 2]:
-            node.features[NetworkInterface].switch_sriov(
-                enable=True, wait=False, reset_connections=False, index=index
-            )
-
-        # wait for the RTE_DEV_EVENT_ADD message
-        primary.wait_output(
-            (
+            # wait for the RTE_DEV_EVENT_REMOVE message
+            primary.wait_output(
                 "HN_DRIVER: netvsc_hotadd_callback(): "
-                "Device notification type=0"  # RTE_DEV_EVENT_ADD
-            ),
-            delta_only=True,
-        )  # relying on compiler defaults here, not great.
-        primary.wait_output(
-            (
-                "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, "
-                f"adding device {test_nics[0].pci_slot}"
-            ),
-            delta_only=True,
-        )  # relying on compiler defaults here, not great.
-        primary.wait_output(
-            "mana_dev_start(): TX/RX queues have started", delta_only=True
-        )
+                "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
+                delta_only=True,
+            )  # relying on compiler defaults here, not great.
+
+            # turn SRIOV on
+            for index in [1, 2]:
+                node.features[NetworkInterface].switch_sriov(
+                    enable=True, wait=False, reset_connections=False, index=index
+                )
+            primary.wait_output(
+                "mana_dev_start(): TX/RX queues have started", delta_only=True
+            )
+            ping.ping_async(
+                target=test_nics[0].ip_addr,
+                nic_name=node.nics.get_primary_nic().name,
+                count=100,
+                interval=0.05,
+            )
+            ping.ping(
+                target=test_nics[1].ip_addr,
+                nic_name=node.nics.get_primary_nic().name,
+                count=100,
+                ignore_error=True,
+                interval=0.05,
+            )
+            # expect additional pings for each post-rescind instance
+            expected_pings += 100
+
     ping.ping_async(
         target=test_nics[0].ip_addr,
         nic_name=node.nics.get_primary_nic().name,
@@ -1480,6 +1489,7 @@ def run_dpdk_symmetric_mp(
         # result_regex.search(primary_result.stdout),
     ]
     match_count = 0
+    process_data: List[Dict[str, int]] = []
     for matches in all_matches:
         match_count += 1
         if matches:
@@ -1493,3 +1503,6 @@ def run_dpdk_symmetric_mp(
                     f"(match {match_count}) {port} "
                     f"r:{rx_count} t:{tx_count} d:{drop_count}"
                 )
+                match_data = {"rx": int(rx_count), "tx": int(tx_count)}
+                process_data += [match_data]
+    print(repr(process_data))
