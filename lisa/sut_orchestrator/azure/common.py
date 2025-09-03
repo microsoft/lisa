@@ -312,12 +312,13 @@ class AzureImageSchema(schema.ImageSchema):
 
     def _parse_info(self, raw_features: Dict[str, Any], log: Logger) -> None:
         """Parse raw image tags to AzureImageSchema"""
+        # Always parse hyperv_generation to avoid bad settings from runbook
+        self._parse_hyperv_generation(raw_features, log)
+
         if self.architecture is None:
             self._parse_architecture(raw_features, log)
         if self.disk_controller_type is None:
             self._parse_disk_controller_type(raw_features, log)
-        if self.hyperv_generation is None:
-            self._parse_hyperv_generation(raw_features, log)
         if self.network_data_path is None:
             self._parse_network_data_path(raw_features, log)
         if self.security_profile is None:
