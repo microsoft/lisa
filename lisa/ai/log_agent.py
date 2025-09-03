@@ -297,7 +297,9 @@ def _load_config(selected_flow: str) -> Config:
     general_deployment_name = os.getenv("GENERAL_DEPLOYMENT_NAME")
     software_deployment_name = os.getenv("SOFTWARE_DEPLOYMENT_NAME")
     log_root_path = os.getenv("LOG_ROOT_PATH")
-    code_path = os.getenv("CODE_PATH")
+    # the default folder is the root of LISA code source.
+    code_path = os.getenv("CODE_PATH", "../../")
+
 
     return Config(
         current_directory=current_directory,
