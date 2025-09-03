@@ -106,12 +106,28 @@ def reloadRules(node, ruleConfigName, managedIdentity, log):
     else: 
         return 0
 
+def addIPTableRules(node, ipTable, ipTableRules, log):
+    for ipTableRule in ipTableRules:
+        cmd = f"iptables -t {ipTable} {ipTableRule}"
+        log.debug(f"Adding IP Table Rule {ipTableRule} to IPTables : {cmd}")
+        node.execute(cmd, sudo=True)
+
+def createIPTableChain(node, ipTable, ipTableChains, log):
+    for ipTablechain in ipTableChains:
+        cmd = f"iptables -t {ipTable} -N {ipTablechain}"
+        log.debug(f"Creating new chain {ipTablechain} in IPTables : {cmd}")
+        node.execute(cmd, sudo=True)
+
+def ipTableDump(node, log):
+    iptableumpResult = node.execute("iptables-save", sudo=True)
+    log.debug(f"IPTable Dump Result : {iptableumpResult.stdout}")
+    return iptableumpResult.stdout
 
 async def verifyIPTables(iptablesDump, arraytoMatch, log):
     iptables = iptablesDump.splitlines()
     for ipTableEntry in arraytoMatch:
         if ipTableEntry not in iptables:
-            log.info(f"Not matched  : {ipTableEntry}")
+            log.debug(f"Not matched  : {ipTableEntry}")
             return False
     return True
 

@@ -22,6 +22,21 @@ class VMConfigurations:
     VMCOUNT = 3
     NICCOUNT = 3
 
+class ComponentTestConstants:
+
+    NATTABLE = "nat"
+    NATCHAIN = [
+        "L4_ALLOWED"
+    ]
+    FILTERTABLE = "filter"
+    FILTERCHAIN = [
+        "LOG",
+        "MARK_ALLOWED_AND_ACCEPT",
+        "LOG_DROP_OTHER"
+    ]
+    VMCOUNT = 2
+    NICCOUNT = 2
+
 class NetworkRules:
     PREROUTINGCHAIN = [
         '-A PREROUTING -i eth0 -p tcp -m comment --comment "RC: netRuleCollection Rule: netRule" -j L4_ALLOWED',

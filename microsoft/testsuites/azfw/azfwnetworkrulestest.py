@@ -42,20 +42,9 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface
-from lisa.tools import Ls, Mkdir, Iperf3, Ping
-from lisa.tools import Ip as ip
-from lisa.tools import Ping as ping
-from lisa.tools import Sysctl as sysctl
+from lisa.tools import  Ping
 from time import sleep
-import re
 from lisa.features import NetworkInterface
-from lisa.sut_orchestrator.azure.common import (
-    get_node_context,
-)
-from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from string import Template
-from azure.mgmt.network import NetworkManagementClient
-
 
 @TestSuiteMetadata(
     area="azure-firewall",

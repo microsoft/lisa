@@ -5,7 +5,7 @@ variable:
   - name: location
     value: "westus2"
   - name: rgname
-    value: "setupazfwthreesubnetretry278"
+    value: "setupazfwthreesubnetretry289"
   - name: imagename
     value: "MicrosoftCBLMariner:azure-linux-3:azure-linux-3-gen2:3.20250311.01"
   - name: deploy
@@ -27,7 +27,7 @@ variable:
   - name: vm_size
     value: ""
   - name: test_case_name
-    value: "test_network_rules"
+    value: "network_component_test"
   - name: use_public_address
     value: true
 concurrency: $(concurrency)
