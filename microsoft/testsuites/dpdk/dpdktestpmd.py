@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from pathlib import PurePath, PurePosixPath
+from pathlib import PurePath, PurePosixPath, Path
 from typing import Any, List, Tuple, Type
 
 from assertpy import assert_that, fail
@@ -27,6 +27,7 @@ from lisa.tools import (
     Python,
     Timeout,
     Wget,
+    Make,
 )
 from lisa.util import (
     LisaException,
@@ -703,15 +704,33 @@ class DpdkTestpmd(Tool):
         return self._get_pps_sriov_rescind(self._rx_pps_key)
 
     def get_example_app_path(self, app_name: str) -> PurePath:
-        if isinstance(self.installer, DpdkSourceInstall):
-            return self.installer.dpdk_build_path.joinpath("examples").joinpath(
-                app_name
-            )
-        else:
-            raise AssertionError(
-                "get_example_app_path called for DPDK package manager installation! "
-                f"Trying to find {app_name} when DPDK was not built from source."
-            )
+        source_path = self.node.get_pure_path(
+            f"/usr/local/share/dpdk/examples/{app_name}"
+        )
+        shell = self.node.shell
+        assert_that(shell.exists(source_path)).described_as(
+            "dpdk examples path does not exist, "
+            f"cannot use requested dpdk example: {app_name}"
+        ).is_true()
+        if not shell.exists(source_path.joinpath("build")):
+            local_path = Path(__file__).parent.joinpath(source_path.name)
+            if local_path.exists():
+                remote_tmp_path=self.node.working_path.joinpath(f"{source_path.name}_main.c")
+                self.node.shell.copy(
+                    local_path=PurePath(__file__).parent.joinpath(
+                        f"{local_path}/main.c"
+                    ),
+                    node_path=remote_tmp_path,
+                )
+                self.node.execute(
+                    f"cp {str(remote_tmp_path)} {str(source_path.joinpath("main.c"))}",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="could not copy patched main.c"
+                )
+            self.node.tools[Make].make("static", cwd=source_path, sudo=True)
+        return source_path.joinpath(f"build/{source_path.name}")
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
