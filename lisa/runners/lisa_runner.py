@@ -101,6 +101,9 @@ class LisaRunner(BaseRunner):
     def fetch_task(self) -> Optional[Task[None]]:
         self._prepare_environments()
 
+        # Check for early stop conditions
+        self._should_early_stop()
+
         self._cleanup_deleted_environments()
         self._cleanup_done_results()
 
@@ -953,3 +956,34 @@ class LisaRunner(BaseRunner):
             shutil.copytree(environment_log_path, destination_path, dirs_exist_ok=True)
         except Exception as e:
             self._log.debug(f"Failed to copy environment log to case log: {e}")
+
+    def _should_early_stop(self) -> bool:
+        """
+        Determines if test execution should be stopped early due to a failure,
+        based on the runbook configuration. If so, marks all unstarted tests as skipped.
+        Returns True if early stop is triggered, otherwise False.
+        """
+        early_stop_triggered = False
+        early_stop_reason = ""
+        # Check if the runbook requests to exit on the first failure
+        if self._runbook.exit_on_first_failure:
+            any_failed = any(
+                test_result.status == TestStatus.FAILED
+                for test_result in self.test_results
+            )
+            if any_failed:
+                self._log.info("Early termination: at least one test case failed.")
+                early_stop_triggered = True
+                early_stop_reason = "at least one test case failed."
+
+        if early_stop_triggered:
+            # Mark all not-yet-started test cases as skipped due to early stop
+            for test_result in self.test_results:
+                if test_result.can_run:
+                    test_result.set_status(
+                        TestStatus.SKIPPED,
+                        "Test execution stopped early because the condition was met: "
+                        f"{early_stop_reason}",
+                    )
+
+        return early_stop_triggered

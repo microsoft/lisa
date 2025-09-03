@@ -1636,6 +1636,9 @@ class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
     exit_with_failed_count: bool = True
+    # Exit at the first failed test case, useful for reproducing issues.
+    # When True, all not started test cases will be marked as skipped.
+    exit_on_first_failure: bool = False
     test_project: str = ""
     test_pass: str = ""
     tags: Optional[List[str]] = None
