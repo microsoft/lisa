@@ -2949,6 +2949,12 @@ class AzurePlatform(Platform):
         if node_space.disk:
             self._set_disk_features(node_space, azure_runbook)
 
+        # Make sure the setter function is run on the updated image object,
+        # this syncs the object and the _raw field.
+        azure_runbook.image = image
+        # this syncs the _extended_runbook and the extended_schemas
+        node_space.set_extended_runbook(azure_runbook, AZURE)
+
     def _set_disk_features(
         self, node_space: schema.NodeSpace, azure_runbook: AzureNodeSchema
     ) -> None:
