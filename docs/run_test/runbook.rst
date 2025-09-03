@@ -17,6 +17,7 @@ Runbook Reference
    -  `test_pass <#test-pass>`__
    -  `tags <#tags>`__
    -  `concurrency <#concurrency>`__
+   -  `exit_on_first_failure <#exit-on-first-failure>`__
    -  `include <#include>`__
 
       -  `path <#path>`__
@@ -335,6 +336,24 @@ concurrency
 type: int, optional, default is 1.
 
 The number of concurrent running environments.
+
+exit_on_first_failure
+~~~~~~~~~~~~~~~~~~~~~
+
+type: bool, optional, default is False.
+
+When set to True, LISA will terminate test execution immediately after the first
+test case failure. All remaining queued test cases will be marked as skipped
+with the message "Test execution stops early." This is particularly useful for
+debugging and reproducing specific test failures quickly.
+
+.. code:: yaml
+
+   exit_on_first_failure: true
+
+.. note::
+   This setting only affects test case execution order. Test cases that are already
+   running in parallel when a failure occurs will continue to completion.
 
 include
 ~~~~~~~
@@ -768,7 +787,7 @@ node can be created once the node requirement is met.
 .. _type-1:
 
 type
-    
+
 
 type: str, optional, default value is “requirement”, supported values
 are “requirement”, “remote”, “local”.
