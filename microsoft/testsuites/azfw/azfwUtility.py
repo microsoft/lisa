@@ -106,6 +106,12 @@ def reloadRules(node, ruleConfigName, managedIdentity, log):
     else: 
         return 0
 
+def removeIPTableRules(node, ipTableRules, log):
+    for ipTableRule in ipTableRules:
+        log.info(f"Removing rule {ipTableRule} from iptables")
+        node.execute(f"iptables -D {ipTableRule}", sudo=True)
+
+
 def addIPTableRules(node, ipTable, ipTableRules, log):
     for ipTableRule in ipTableRules:
         cmd = f"iptables -t {ipTable} {ipTableRule}"

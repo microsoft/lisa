@@ -34,8 +34,21 @@ class ComponentTestConstants:
         "MARK_ALLOWED_AND_ACCEPT",
         "LOG_DROP_OTHER"
     ]
-    VMCOUNT = 2
-    NICCOUNT = 2
+    VMCOUNT = 1
+    NICCOUNT = 1
+    CONNMARKACTIVE = "0x100"
+    CONNMARKSRC = "192.168.7.10 "
+    CONNMARKDEST = "10.1.1.1 "
+    CONNMARKPROTO = "2"
+    CONNMARKTIMEOUT = "120"
+    IPSETNAME = "testset"
+    IPSETTESTADDRULE = [
+        f"-A OUTPUT -p icmp -m set --match-set {IPSETNAME} dst -j DROP",
+        "-A OUTPUT -j ACCEPT"
+    ]
+    IPSETTESTDELETERULES = [
+        "OUTPUT -j ACCEPT"
+    ]
 
 class NetworkRules:
     PREROUTINGCHAIN = [

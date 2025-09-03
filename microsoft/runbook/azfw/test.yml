@@ -3,9 +3,9 @@ include:
   - path: /home/bala/lisa/microsoft/runbook/tiers/tier.yml
 variable:
   - name: location
-    value: "westus2"
+    value: "eastus2euap"
   - name: rgname
-    value: "setupazfwthreesubnetretry289"
+    value: "setupazfwthreesubnetretry303"
   - name: imagename
     value: "MicrosoftCBLMariner:azure-linux-3:azure-linux-3-gen2:3.20250311.01"
   - name: deploy
