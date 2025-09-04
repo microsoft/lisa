@@ -97,8 +97,6 @@ class TestResult:
         self._log_file_handler: Optional[logging.FileHandler] = None
         self._case_log_path: Optional[Path] = None
 
-        self.subscribe_log(self.log)
-
     @property
     def is_queued(self) -> bool:
         return self.status == TestStatus.QUEUED
@@ -273,7 +271,6 @@ class TestResult:
         return result
 
     def subscribe_log(self, log: Logger) -> None:
-        # add_handler(self._get_log_file_handler(), log)
         if self._log_file_handler:
             add_handler(self._log_file_handler, log)
         else:
@@ -716,6 +713,8 @@ class TestSuite:
             raise LisaException("after_suite is not supported. Please use after_case")
         #  replace to case's logger temporarily
         for case_result in case_results:
+            case_result.subscribe_log(case_result.log)
+
             case_result.environment = environment
             case_log = case_result.log
             case_result.subscribe_log(environment.log)

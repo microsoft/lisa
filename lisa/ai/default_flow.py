@@ -98,7 +98,9 @@ def _agent_response_callback(
 
 class FileSearchPlugin:
     def __init__(self, paths: List[str], logger: Logger) -> None:
-        self._paths = paths
+        self._paths: List[str] = []
+        for path in paths:
+            self._paths.append(os.path.normpath(path))
         self._logger = logger
 
     @kernel_function(  # type: ignore[misc]
@@ -453,7 +455,7 @@ class FileSearchPlugin:
         """
         norm_path = os.path.normpath(path)
         for allowed_path in self._paths:
-            if norm_path.startswith(os.path.normpath(allowed_path)):
+            if norm_path.startswith(allowed_path):
                 return {}
         return {"error": f"Path is out of allowed directories: {path}"}
 
@@ -729,7 +731,7 @@ async def async_analyze_default(
     general_deployment_name: str,
     software_deployment_name: str,
     code_path: str,
-    log_folder_path: str,
+    log_folder_path: List[str],
     error_message: str,
     logger: Logger,
 ) -> str:
@@ -756,7 +758,7 @@ async def async_analyze_default(
     _logger = logger
 
     log_search_agent = LogSearchAgent(
-        log_paths=[log_folder_path],
+        log_paths=log_folder_path,
         deployment_name=software_deployment_name,
         api_key=azure_openai_api_key,
         base_url=azure_openai_endpoint,

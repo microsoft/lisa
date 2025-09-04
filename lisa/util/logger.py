@@ -201,7 +201,7 @@ def create_file_handler(
     if is_unittest():
         return None  # type: ignore
 
-    file_handler = logging.FileHandler(path, "w", "utf-8")
+    file_handler = logging.FileHandler(path, "a", "utf-8")
     add_handler(file_handler, logger, formatter)
     return file_handler
 
