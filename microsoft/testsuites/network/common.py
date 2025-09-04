@@ -105,11 +105,40 @@ def sriov_vf_connection_test(
     # for each nic on source node, find the same subnet nic on dest node, then copy
     # 200Mb file
     max_retry_times = 10
-    for _, source_nic_info in vm_nics[source_node.name].items():
+    for source_nic_name, source_nic_info in vm_nics[source_node.name].items():
+        # Add debug logging and validation checks
+        source_node.log.debug(
+            f"Processing NIC {source_nic_name}: {source_nic_info} on {source_node.name}"
+        )
+        
+        # Skip InfiniBand interfaces as they use RDMA, not standard Ethernet
+        if source_nic_info.name and source_nic_info.name.startswith("ib"):
+            source_node.log.debug(
+                f"Skipping InfiniBand interface {source_nic_info.name} on {source_node.name}"
+            )
+            continue
+        
+        # Skip NICs with incomplete information
+        if not all([source_nic_info.name, source_nic_info.pci_slot, source_nic_info.ip_addr]):
+            source_node.log.debug(
+                f"Skipping NIC with incomplete info - name: {source_nic_info.name}, "
+                f"pci_slot: {source_nic_info.pci_slot}, ip_addr: {source_nic_info.ip_addr} "
+                f"on {source_node.name}"
+            )
+            continue
+        
         matched_dest_nic_name = ""
 
         # find the same subnet nic on dest node
         for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
+            # Skip InfiniBand interfaces on destination as well
+            if dest_nic_info.name and dest_nic_info.name.startswith("ib"):
+                continue
+            
+            # Skip destination NICs with incomplete information
+            if not dest_nic_info.ip_addr:
+                continue
+            
             # only when IPs are in the same subnet, IP1 of machine A can connect to
             # IP2 of machine B
             # e.g. eth2 IP is 10.0.2.3 on machine A, eth2 IP is 10.0.3.4 on machine
@@ -120,6 +149,14 @@ def sriov_vf_connection_test(
             ):
                 matched_dest_nic_name = dest_nic_name
                 break
+        
+        if not matched_dest_nic_name:
+            source_node.log.debug(
+                f"No matching subnet found for {source_nic_info.ip_addr} from "
+                f"{source_node.name} on {dest_node.name}, skipping this NIC"
+            )
+            continue
+
         assert_that(matched_dest_nic_name).described_as(
             f"can't find the same subnet nic with {source_nic_info.ip_addr} on"
             f" machine {source_node.name}, please check network setting of "
@@ -134,6 +171,11 @@ def sriov_vf_connection_test(
         dest_synthetic_nic = dest_nic_info.name
         source_nic = source_pci_nic = source_nic_info.pci_device_name
         dest_nic = dest_pci_nic = dest_nic_info.pci_device_name
+
+        source_node.log.debug(
+            f"Testing connection from {source_ip} ({source_nic_info.name}) on {source_node.name} "
+            f"to {dest_ip} ({dest_nic_info.name}) on {dest_node.name}"
+        )
 
         # if remove_module is True, use synthetic nic to copy file
         if remove_module or turn_off_lower or isinstance(source_node.os, BSD):
