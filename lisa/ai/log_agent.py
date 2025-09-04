@@ -282,6 +282,9 @@ def setup_logger() -> str:
 def _load_config(selected_flow: str) -> Config:
     """
     Load environment variables and validate required configs.
+
+    Args:
+        selected_flow: The analysis flow to use
     """
 
     # only for individual runs
@@ -300,7 +303,6 @@ def _load_config(selected_flow: str) -> Config:
     # the default folder is the root of LISA code source.
     code_path = os.getenv("CODE_PATH", "../../")
 
-
     return Config(
         current_directory=current_directory,
         azure_openai_api_key=azure_openai_api_key,  # type: ignore
@@ -309,7 +311,7 @@ def _load_config(selected_flow: str) -> Config:
         general_deployment_name=general_deployment_name,  # type: ignore
         software_deployment_name=software_deployment_name,  # type: ignore
         log_root_path=log_root_path,  # type: ignore
-        code_path=code_path,  # type: ignore
+        code_path=code_path,
         selected_flow=selected_flow,
     )
 
@@ -386,8 +388,13 @@ def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
 def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str, Any]:
     """
     Process a single test case and gather results.
+
+    Args:
+        item: Test case data containing path and error_message
+        config: Configuration object
     """
     log_folder_path = os.path.join(config.log_root_path, item["path"])
+
     error_message = item["error_message"]
 
     generated_text = analyze(
@@ -425,11 +432,37 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
     }
 
 
+def _offline_analyze(args: argparse.Namespace, config: Config) -> None:
+    """
+    Run offline analysis on the provided test data.
+    """
+    custom_code_path = getattr(args, "code_path", None)
+    if custom_code_path:
+        config.code_path = custom_code_path
+
+    analyze(
+        config.current_directory,
+        config.azure_openai_api_key,
+        config.azure_openai_endpoint,
+        config.general_deployment_name,
+        config.software_deployment_name,
+        config.code_path,
+        args.log_folders,
+        args.error_message,
+        selected_flow=config.selected_flow,
+        logger=_logger,
+    )
+
+
 def _process_test_cases(
     test_data: List[Dict[str, Any]], config: Config
 ) -> Dict[str, Any]:
     """
     Process all test cases and gather results.
+
+    Args:
+        test_data: List of test case data
+        config: Configuration object
     """
     results: Dict[str, List[Any]] = {
         "similarities": [],
@@ -531,13 +564,16 @@ def main() -> None:
     config = _load_config(args.flow)
     setup_logger()
 
-    # Load and filter test data
-    test_data = _prepare_test_data(args)
+    if args.command == "analyze":
+        _offline_analyze(args, config)
+    else:
+        # Load and filter test data
+        test_data = _prepare_test_data(args)
 
-    # Process test cases
-    results = _process_test_cases(test_data, config)
+        # Process test cases
+        results = _process_test_cases(test_data, config)
 
-    _output_results(results, config)
+        _output_results(results, config)
 
 
 def _add_flow_argument(parser: argparse.ArgumentParser) -> None:
@@ -586,6 +622,31 @@ def parse_args() -> argparse.Namespace:
     )
     _add_flow_argument(single_parser)
 
+    # 'analyze' subcommand
+    analyze_parser = subparsers.add_parser(
+        "analyze", help="Analyze an error message across multiple log folders"
+    )
+    analyze_parser.add_argument(
+        "-l",
+        "--log-folders",
+        nargs="+",
+        required=True,
+        help="List of log folder paths to analyze",
+    )
+    analyze_parser.add_argument(
+        "-e",
+        "--error-message",
+        default="",
+        help="Error message to analyze (optional)",
+    )
+    analyze_parser.add_argument(
+        "-c",
+        "--code-path",
+        default=None,
+        help="Path to the code folder (default: LISA root path)",
+    )
+    _add_flow_argument(analyze_parser)
+
     parser.set_defaults(command="eval")
 
     return parser.parse_args()
@@ -598,7 +659,7 @@ async def _async_analyze_gpt5(
     general_deployment_name: str,
     software_deployment_name: str,
     code_path: str,
-    log_folder_path: str,
+    log_folder_path: List[str],
     error_message: str,
     logger: Logger,
 ) -> str:
@@ -629,7 +690,7 @@ def analyze(
     general_deployment_name: str,
     software_deployment_name: str,
     code_path: str,
-    log_folder_path: str,
+    log_folder_path: Union[str, List[str]],
     error_message: str,
     selected_flow: str,
     logger: Logger,
@@ -644,6 +705,9 @@ def analyze(
         async_analyze_func = _async_analyze_gpt5
     else:  # default flow
         async_analyze_func = async_analyze_default
+
+    if isinstance(log_folder_path, str):
+        log_folder_path = [log_folder_path]
 
     logger.info(f"Using analysis flow: {selected_flow}")
 

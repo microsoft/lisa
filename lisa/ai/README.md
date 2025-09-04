@@ -14,11 +14,13 @@ The LISA AI Log Analyzer consists of:
 ## Features
 
 - **Multi-Agent Analysis**: Combines log analysis and code inspection for comprehensive error diagnosis
+- **Real-world Troubleshooting**: Analyze specific error messages across multiple log folders with the `analyze` command
 - **Intelligent File Search**: Search across log files with extension filtering and path validation
 - **Context-Aware Analysis**: Extracts relevant context around error locations
 - **Similarity Scoring**: Uses embeddings to measure analysis quality
 - **Comprehensive Logging**: Detailed debug logging for troubleshooting
-- **Flexible Input**: Supports both evaluation mode (all test cases) and single test analysis
+- **Flexible Input**: Supports evaluation mode (all test cases), single test analysis, and custom error analysis
+- **Multiple Analysis Flows (TODO)**: Choose between 'default' and 'gpt-5' analysis flows
 
 ## Prerequisites
 
@@ -31,6 +33,27 @@ The LISA AI Log Analyzer consists of:
    ```bash
    pip install python-dotenv semantic-kernel azure-ai-inference
    ```
+
+## Quick Start for Error Analysis
+
+To quickly analyze a test failure using the AI log analyzer:
+
+1. **Set up configuration** (see Setup section below for details)
+2. **Navigate to the LISA directory:**
+   ```bash
+   cd c:\code\lisa
+   ```
+3. **Run the analyze command:**
+   ```pwsh
+   python -m lisa.ai.log_agent analyze -l "C:\path\to\your\log\folder" -e "Your error message here"
+   ```
+
+   Or without an error message to analyze all logs in the folder:
+   ```pwsh
+   python -m lisa.ai.log_agent analyze -l "C:\path\to\your\log\folder"
+   ```
+
+This will provide AI-powered analysis of your error message within the context of your log files and the LISA codebase.
 
 ## Setup
 
@@ -60,24 +83,67 @@ CODE_PATH=/path/to/your/lisa/code/repository
 
 ## Usage
 
+The LISA AI Log Analyzer supports three different modes of operation:
+
+### 1. Evaluation Mode (`eval`)
+Runs analysis on all predefined test cases from `data/small_v20250603/inputs.json`. This mode is primarily used for testing and evaluating the analyzer's performance.
+
+### 2. Single Test Analysis (`single`)
+Analyzes a specific test case by index from the predefined test data. Useful for debugging specific test scenarios.
+
+### 3. Custom Error Analysis (`analyze`)
+**This is the primary mode for real-world troubleshooting.** Analyze specific error messages across your own log folders, or perform general log analysis when no specific error message is provided. This mode is designed for production use when you encounter test failures and need AI-powered analysis.
+
 ### Command Line Interface
 
-From `c:\code\lisa\lisa\ai` after activating the venv:
+From the LISA root directory (`c:\code\lisa`) after activating the venv:
 
 ```pwsh
 # Analyze all cases defined in data/small_v20250603/inputs.json (default command)
-python .\log_agent.py eval
+python -m lisa.ai.log_agent eval
 
 # Analyze a single case by index (0-based, default is 8, range 0-11)
-python .\log_agent.py single -t 6
-python .\log_agent.py single --test-index 6
+python -m lisa.ai.log_agent single -t 6
+python -m lisa.ai.log_agent single --test-index 6
+
+# Analyze an error message across multiple log folders (new analyze command)
+python -m lisa.ai.log_agent analyze -l "C:\path\to\log\folder1" "C:\path\to\log\folder2" -e "Exception: Random test exception occurred"
+
+# Analyze logs without a specific error message (general log analysis)
+python -m lisa.ai.log_agent analyze -l "C:\path\to\log\folder1" "C:\path\to\log\folder2"
 
 # Use a specific analysis flow (choices: 'default', 'gpt-5')
-python .\log_agent.py eval --flow default
-python .\log_agent.py single -t 6 --flow gpt-5
+python -m lisa.ai.log_agent eval --flow default
+python -m lisa.ai.log_agent single -t 6 --flow gpt-5
+python -m lisa.ai.log_agent analyze -l "C:\path\to\logs" -e "Error message" --flow gpt-5
 
 # Help
-python .\log_agent.py --help
+python -m lisa.ai.log_agent --help
+```
+
+#### Analyze Command Details
+
+The `analyze` command is designed for real-world troubleshooting scenarios where you have specific log folders and error messages to investigate:
+
+**Required Parameters:**
+- `-l, --log-folders`: One or more log folder paths to analyze
+
+**Optional Parameters:**
+- `-e, --error-message`: The error message you want to analyze (optional - if not provided, performs general log analysis)
+- `-c, --code-path`: Path to the code folder (defaults to LISA root path)
+- `--flow`: Select the analysis flow ('default' or 'gpt-5', default: 'default')
+
+**Examples:**
+
+```pwsh
+# Analyze with a specific error message
+python -m lisa.ai.log_agent analyze -l "C:\path\to\log1" "C:\path\to\log2" -e "Connection timeout error"
+
+# General log analysis without specific error message
+python -m lisa.ai.log_agent analyze -l "C:\path\to\log1" "C:\path\to\log2"
+
+# Custom code path with specific error
+python -m lisa.ai.log_agent analyze -l "C:\path\to\logs" -e "Import error" -c "C:\custom\path\to\lisa"
 ```
 
 ### Programmatic Usage
@@ -91,7 +157,7 @@ from lisa.util.logger import get_logger
 # Get a logger instance
 logger = get_logger("my_analyzer")
 
-# Analyze a specific error
+# Analyze a specific error across multiple log folders
 result = analyze(
     current_directory="/path/to/lisa/ai",
     azure_openai_api_key="your-api-key",
@@ -99,8 +165,8 @@ result = analyze(
     general_deployment_name="gpt-4o",
     software_deployment_name="gpt-4o",
     code_path="/path/to/lisa/code",
-    log_folder_path="/path/to/test/logs",
-    error_message="Your error message here",
+    log_folder_path=["/path/to/test/logs1", "/path/to/test/logs2"],  # Can be string or list
+    error_message="Your error message here",  # Optional - can be empty string for general analysis
     selected_flow="default",
     logger=logger
 )
@@ -137,7 +203,21 @@ The FileSearchPlugin provides powerful search capabilities:
 
 ## Output
 
-### Console Output
+### Console Output for Analyze Command
+
+When using the `analyze` command, the system will:
+
+1. **Search for the error message** in the provided log folders (if an error message is provided)
+2. **Examine relevant code** if call traces are found
+3. **Generate hypotheses** about the root cause
+4. **Provide actionable insights** and troubleshooting steps
+
+The output includes:
+- **Root cause analysis** of the specific error
+- **Relevant code sections** that may be involved
+- **Contextual log information** around the error or interesting log patterns
+- **Recommended troubleshooting steps**
+- **Potential fixes or workarounds**
 
 ### Debug Logs
 
@@ -166,7 +246,7 @@ When running in evaluation mode, the system outputs:
    - Check deployment names match your Azure OpenAI resource
    - Ensure sufficient quota for your deployments
 
-1. **Path validation errors**
+2. **Path validation errors**
    - Ensure log and code paths exist and are accessible
    - Check that paths don't contain restricted characters
    - Verify directory permissions
