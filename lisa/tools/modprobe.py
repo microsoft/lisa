@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import re
+import os
 import time
 import uuid
 from pathlib import Path
@@ -235,9 +235,8 @@ class Modprobe(Tool):
         #  | wc -l
         # in order to get the correct count of insmod commands executed.
 
-        module_path = re.escape(
-            self.node.tools[Modinfo].get_filename(mod_name=mod_name)
-        )
+        module_path_raw = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
+        module_file_base_name = os.path.basename(module_path_raw)
 
         rmmod_count = int(
             self.node.execute(
@@ -246,13 +245,16 @@ class Modprobe(Tool):
                 shell=True,
             ).stdout.strip()
         )
+
         insmod_count = int(
             self.node.execute(
-                f"grep -E 'insmod {module_path}' {nohup_output_log_file_name} | wc -l",
+                f"grep -E 'insmod .*{module_file_base_name}' "
+                f"{nohup_output_log_file_name} | wc -l",
                 sudo=True,
                 shell=True,
             ).stdout.strip()
         )
+
         in_use_count = int(
             self.node.execute(
                 f"grep -o 'is in use' {nohup_output_log_file_name} | wc -l",
