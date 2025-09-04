@@ -86,12 +86,9 @@ CODE_PATH=/path/to/your/lisa/code/repository
 The LISA AI Log Analyzer supports three different modes of operation:
 
 ### 1. Evaluation Mode (`eval`)
-Runs analysis on all predefined test cases from `data/small_v20250603/inputs.json`. This mode is primarily used for testing and evaluating the analyzer's performance.
+Runs analysis on all predefined test cases from `data/small_v20250603/inputs.json`, or analyzes a specific test case by index if the `-t` option is provided. This mode is primarily used for testing and evaluating the analyzer's performance.
 
-### 2. Single Test Analysis (`single`)
-Analyzes a specific test case by index from the predefined test data. Useful for debugging specific test scenarios.
-
-### 3. Custom Error Analysis (`analyze`)
+### 2. Custom Error Analysis (`analyze`)
 **This is the primary mode for real-world troubleshooting.** Analyze specific error messages across your own log folders, or perform general log analysis when no specific error message is provided. This mode is designed for production use when you encounter test failures and need AI-powered analysis.
 
 ### Command Line Interface
@@ -102,11 +99,11 @@ From the LISA root directory (`c:\code\lisa`) after activating the venv:
 # Analyze all cases defined in data/small_v20250603/inputs.json (default command)
 python -m lisa.ai.log_agent eval
 
-# Analyze a single case by index (0-based, default is 8, range 0-11)
-python -m lisa.ai.log_agent single -t 6
-python -m lisa.ai.log_agent single --test-index 6
+# Analyze a single case by index (0-based, range 0-11)
+python -m lisa.ai.log_agent eval -t 6
+python -m lisa.ai.log_agent eval --test-index 6
 
-# Analyze an error message across multiple log folders (new analyze command)
+# Analyze an error message across multiple log folders (analyze command)
 python -m lisa.ai.log_agent analyze -l "C:\path\to\log\folder1" "C:\path\to\log\folder2" -e "Exception: Random test exception occurred"
 
 # Analyze logs without a specific error message (general log analysis)
@@ -114,7 +111,7 @@ python -m lisa.ai.log_agent analyze -l "C:\path\to\log\folder1" "C:\path\to\log\
 
 # Use a specific analysis flow (choices: 'default', 'gpt-5')
 python -m lisa.ai.log_agent eval --flow default
-python -m lisa.ai.log_agent single -t 6 --flow gpt-5
+python -m lisa.ai.log_agent eval -t 6 --flow gpt-5
 python -m lisa.ai.log_agent analyze -l "C:\path\to\logs" -e "Error message" --flow gpt-5
 
 # Help

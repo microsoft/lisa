@@ -322,7 +322,8 @@ def _prepare_test_data(args: argparse.Namespace) -> List[Dict[str, str]]:
     """
     test_data = _load_test_data()
 
-    if args.command == "single":
+    # Check if test_index is provided for single test case analysis
+    if hasattr(args, "test_index") and args.test_index is not None:
         if not 0 <= args.test_index < len(test_data):
             raise ValueError(
                 f"Test index {args.test_index} is out of range. "
@@ -603,24 +604,25 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AI Log Analyzer Agent")
     subparsers = parser.add_subparsers(dest="command")
 
-    # 'eval' subcommand (default)
+    # 'eval' subcommand (default) - now handles both single and all test cases
     eval_parser = subparsers.add_parser(
-        "eval", help="Run evaluation on all test cases (default)"
+        "eval",
+        help=(
+            "Run evaluation on test cases (default). "
+            "Use -t to analyze a single case, otherwise analyzes all."
+        ),
     )
-    _add_flow_argument(eval_parser)
-
-    # 'single' subcommand
-    single_parser = subparsers.add_parser(
-        "single", help="Run single test case analysis"
-    )
-    single_parser.add_argument(
+    eval_parser.add_argument(
         "-t",
         "--test-index",
         type=int,
-        default=8,
-        help="Index of the test case to analyze (default: 8, ranging 0-11)",
+        default=None,
+        help=(
+            "Index of the test case to analyze. "
+            "If not provided, analyzes all test cases (ranging 0-11)"
+        ),
     )
-    _add_flow_argument(single_parser)
+    _add_flow_argument(eval_parser)
 
     # 'analyze' subcommand
     analyze_parser = subparsers.add_parser(
