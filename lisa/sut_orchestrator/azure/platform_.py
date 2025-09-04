@@ -507,7 +507,7 @@ class AzurePlatform(Platform):
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
-            features.VhdGeneration,
+            features.HyperVGeneration,
             features.Architecture,
             features.Nfs,
             features.Availability,
@@ -1419,11 +1419,6 @@ class AzurePlatform(Platform):
             raise LisaException("vm_size is not detected before deploy")
         if not azure_node_runbook.location:
             raise LisaException("location is not detected before deploy")
-        if azure_node_runbook.hyperv_generation not in [1, 2]:
-            raise LisaException(
-                "hyperv_generation need value 1 or 2, "
-                f"but {azure_node_runbook.hyperv_generation}",
-            )
         if azure_node_runbook.vhd and azure_node_runbook.vhd.vhd_path:
             # vhd is higher priority
             vhd = azure_node_runbook.vhd
@@ -1441,23 +1436,18 @@ class AzurePlatform(Platform):
             azure_node_runbook.shared_gallery = None
             azure_node_runbook.community_gallery_image = None
             log.debug(
-                f"current vhd generation is {azure_node_runbook.hyperv_generation}."
+                "current vhd generation is "
+                f"{azure_node_runbook.vhd.hyperv_generation}."
             )
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
             azure_node_runbook.community_gallery_image = None
             azure_node_runbook.shared_gallery.resolve_version(self)
             azure_node_runbook.update_raw()
-            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
-                azure_node_runbook.shared_gallery.query_platform(self)
-            )
         elif azure_node_runbook.community_gallery_image:
             azure_node_runbook.marketplace = None
             azure_node_runbook.community_gallery_image.resolve_version(self)
             azure_node_runbook.update_raw()
-            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
-                azure_node_runbook.community_gallery_image.query_platform(self)
-            )
         elif not azure_node_runbook.marketplace:
             # set to default marketplace, if nothing specified
             azure_node_runbook.marketplace = AzureVmMarketplaceSchema()
@@ -1467,21 +1457,22 @@ class AzurePlatform(Platform):
 
         if azure_node_runbook.marketplace:
             # resolve "latest" to specified version
-            azure_node_runbook.marketplace = self._resolve_marketplace_image(
+            # _resolve_marketplace_image may return a cached result,
+            #   avoid overriding image properties by only setting the version
+            azure_node_runbook.marketplace.version = self._resolve_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
-            )
+            ).version
             image_info = self.get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
-            # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
-            if image_info:
-                azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
-                # retrieve the os type for arm template.
-                if (
-                    image_info.os_disk_image
-                    and image_info.os_disk_image.operating_system == "Windows"
-                ):
-                    azure_node_runbook.is_linux = False
+            # retrieve the os type for arm template.
+            if (
+                image_info
+                and image_info.os_disk_image
+                and image_info.os_disk_image.operating_system == "Windows"
+            ):
+                # TODO: Move this to an AzureImageSchema property
+                azure_node_runbook.is_linux = False
 
         if azure_node_runbook.is_linux is None:
             # fill it default value
@@ -1555,6 +1546,21 @@ class AzurePlatform(Platform):
                         plan_product=plan_product,
                         plan_publisher=plan_publisher,
                     )
+
+        # Set Hyper-V Generation
+        # Note: Image capability has already been merged with the VM capability
+        hyperv_generation = capability._find_feature_by_type(
+            features.HyperVGenerationSettings.type, capability.features
+        )
+        assert hyperv_generation, "Node space must have Hyper-V Generation defined."
+        assert isinstance(
+            hyperv_generation, features.HyperVGenerationSettings
+        ), f"actual: {type(hyperv_generation)}. Could not determine Hyper-V Generation."
+        assert isinstance(hyperv_generation.gen, int), (
+            f"actual: {type(hyperv_generation.gen)}. "
+            "Could not determine Hyper-V Generation."
+        )
+        arm_parameters.hyperv_generation = hyperv_generation.gen
 
         # Set disk type
         assert capability.disk, "node space must have disk defined."
@@ -2880,9 +2886,12 @@ class AzurePlatform(Platform):
         for req in nodes_requirement:
             node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
             if node_runbook.location and node_runbook.marketplace:
-                node_runbook.marketplace = self._resolve_marketplace_image(
+                # resolve "latest" to specified version
+                # _resolve_marketplace_image may return a cached result,
+                #   avoid overriding image properties by only setting the version
+                node_runbook.marketplace.version = self._resolve_marketplace_image(
                     node_runbook.location, node_runbook.marketplace
-                )
+                ).version
 
     def find_marketplace_image_location(self) -> List[str]:
         # locations used to query marketplace image information. Some image is not
@@ -2924,9 +2933,6 @@ class AzurePlatform(Platform):
         image = azure_runbook.image
         if not image:
             return
-        # Default to provided hyperv_generation,
-        # but will be overrriden if the image is tagged
-        image.hyperv_generation = azure_runbook.hyperv_generation
         image.load_from_platform(self)
 
         # Create Image requirements for each Feature
@@ -2947,6 +2953,12 @@ class AzurePlatform(Platform):
         # Set Disk features
         if node_space.disk:
             self._set_disk_features(node_space, azure_runbook)
+
+        # Make sure the setter function is run on the updated image object,
+        # this syncs the object and the _raw field.
+        azure_runbook.image = image
+        # this syncs the _extended_runbook and the extended_schemas
+        node_space.set_extended_runbook(azure_runbook, AZURE)
 
     def _set_disk_features(
         self, node_space: schema.NodeSpace, azure_runbook: AzureNodeSchema
