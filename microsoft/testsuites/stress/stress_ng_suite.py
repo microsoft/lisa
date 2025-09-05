@@ -174,8 +174,6 @@ class StressNgTestSuite(TestSuite):
         for job_file in jobs:
             self._run_stress_ng_job(job_file, environment, result, log)
 
-        log.info("Multi-VM stress test completed successfully")
-
     def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
         procs: List[Process] = []
