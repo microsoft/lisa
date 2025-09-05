@@ -13,6 +13,7 @@ from lisa.util import (
     get_datetime_path,
     get_matched_str,
 )
+from lisa.util.constants import ENVIRONMENTS_NODES_REMOTE_USERNAME
 
 FEATURE_NAME_SERIAL_CONSOLE = "SerialConsole"
 NAME_SERIAL_CONSOLE_LOG = "serial_console.log"
@@ -189,6 +190,34 @@ class SerialConsole(Feature):
                 f"{stage} found initramfs in serial log: "
                 f"{initramfs_logs} {filesystem_exception_logs}"
             )
+
+    def ensure_login(self) -> None:
+        # Clear the serial console and try to get the login prompt
+        self.read()
+        self.write("\n")
+        serial_output = self.read()
+
+        if "login" not in serial_output:
+            self._log.debug(
+                "No login prompt found, serial console is already logged in."
+            )
+            return
+
+        from lisa.node import RemoteNode
+
+        if not isinstance(self._node, RemoteNode):
+            raise LisaException(
+                "SerialConsole login is only implemented for RemoteNode"
+            )
+
+        username = self._node.connection_info[ENVIRONMENTS_NODES_REMOTE_USERNAME]
+        password = self._node.get_password()
+
+        self.write(f"{username}\n")
+        password_prompt = self.read()
+
+        if "password" in password_prompt.lower():
+            self.write(f"{password}\n")
 
     def read(self) -> str:
         raise NotImplementedError
