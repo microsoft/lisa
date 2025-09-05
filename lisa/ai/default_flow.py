@@ -725,7 +725,6 @@ class CodeSearchAgent(FileSearchAgentBase):
 
 
 async def async_analyze_default(
-    current_directory: str,
     azure_openai_api_key: str,
     azure_openai_endpoint: str,
     general_deployment_name: str,

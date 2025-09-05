@@ -40,7 +40,6 @@ def get_current_directory() -> str:
 class Config:
     """Configuration data class for the log analyzer."""
 
-    current_directory: str
     azure_openai_api_key: str
     azure_openai_endpoint: str
     embedding_endpoint: str
@@ -290,8 +289,7 @@ def _load_config(selected_flow: str) -> Config:
     # only for individual runs
     from dotenv import load_dotenv
 
-    current_directory = get_current_directory()
-    load_dotenv(os.path.join(current_directory, ".env"))
+    load_dotenv(os.path.join(get_current_directory(), ".env"))
 
     # Get environment variables
     azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY")
@@ -304,7 +302,6 @@ def _load_config(selected_flow: str) -> Config:
     code_path = os.getenv("CODE_PATH", "../../")
 
     return Config(
-        current_directory=current_directory,
         azure_openai_api_key=azure_openai_api_key,  # type: ignore
         azure_openai_endpoint=azure_openai_endpoint,  # type: ignore
         embedding_endpoint=embedding_endpoint,  # type: ignore
@@ -399,7 +396,6 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
     error_message = item["error_message"]
 
     generated_text = analyze(
-        config.current_directory,
         config.azure_openai_api_key,
         config.azure_openai_endpoint,
         config.general_deployment_name,
@@ -655,7 +651,6 @@ def parse_args() -> argparse.Namespace:
 
 
 async def _async_analyze_gpt5(
-    current_directory: str,
     azure_openai_api_key: str,
     azure_openai_endpoint: str,
     general_deployment_name: str,
@@ -673,7 +668,6 @@ async def _async_analyze_gpt5(
     # This can be extended with GPT-5 specific logic in the future
     logger.info("Using GPT-5 analysis flow")
     return await async_analyze_default(
-        current_directory,
         azure_openai_api_key,
         azure_openai_endpoint,
         general_deployment_name,
@@ -686,7 +680,6 @@ async def _async_analyze_gpt5(
 
 
 def analyze(
-    current_directory: str,
     azure_openai_api_key: str,
     azure_openai_endpoint: str,
     general_deployment_name: str,
@@ -715,7 +708,6 @@ def analyze(
 
     return asyncio.run(
         async_analyze_func(
-            current_directory,
             azure_openai_api_key,
             azure_openai_endpoint,
             general_deployment_name,
