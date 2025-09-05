@@ -132,7 +132,7 @@ class Modprobe(Tool):
         verbose: bool = False,
         timeout: int = 60,
         interface: str = "eth0",
-        cleanup_logs: bool = True,
+        cleanup_logs: bool = False,
     ) -> Dict[str, int]:
         lsmod_tool = self.node.tools[Lsmod]
         module_exists = lsmod_tool.module_exists(
