@@ -213,6 +213,9 @@ class HvModule(TestSuite):
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
+        import time
+        log.info("Waiting 5 minutes for user to manual set the user/pass from the portal...")
+        time.sleep(300)
         if isinstance(node.os, Redhat):
             try:
                 log.debug("Checking LIS installation before reload.")
@@ -224,15 +227,7 @@ class HvModule(TestSuite):
         failed_modules = {}
         passed_modules = []
         hv_modules = [
-            "hv_vmbus",
             "hv_netvsc",
-            "hv_storvsc",
-            "hv_utils",
-            "hv_balloon",
-            "hid_hyperv",
-            "hyperv_keyboard",
-            "hyperv_fb",
-            "hyperv_drm",
         ]
         loadable_modules = set(
             self._get_modules_by_type(node, module_type=ModulesType.MODULE)

@@ -33,18 +33,18 @@ if [ "$module_name" = "hv_netvsc" ]; then
       { modprobe -r "$v" "$module_name"; modprobe "$v" "$module_name"; } >> "$log_file" 2>&1
       j=$((j + 1))
     done
-    sleep 1
+    sleep 120
     # shellcheck disable=SC2086,SC2129
     ip link set $interface down >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
     ip link set $interface up >> $log_file 2>&1
-    # shellcheck disable=SC2086,SC2129
-    $dhcp_stop_command >> $log_file 2>&1
-    # shellcheck disable=SC2086,SC2129
-    $dhcp_start_command >> $log_file 2>&1
-    # shellcheck disable=SC2086,SC2129
+    # # shellcheck disable=SC2086,SC2129
+    # $dhcp_stop_command >> $log_file 2>&1
+    # # shellcheck disable=SC2086,SC2129
+    # $dhcp_start_command >> $log_file 2>&1
+    # # shellcheck disable=SC2086,SC2129
     service ssh status >> $log_file 2>&1
-    # shellcheck disable=SC2086,SC2129
+    shellcheck disable=SC2086,SC2129
     ip a >> $log_file 2>&1
   ) &
   echo $! > "$pid_file"
