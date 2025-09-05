@@ -164,7 +164,6 @@ result = analyze(
     log_folder_path=["/path/to/test/logs1", "/path/to/test/logs2"],  # Can be string or list
     error_message="Your error message here",  # Optional - can be empty string for general analysis
     selected_flow="default",
-    logger=logger
 )
 
 print(result)
