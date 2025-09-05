@@ -21,7 +21,13 @@ from .hibernation import Hibernation, HibernationEnabled, HibernationSettings
 from .infiniband import Infiniband
 from .isolated_resource import IsolatedResource
 from .nested_virtualization import NestedVirtualization
-from .network_interface import NetworkInterface, Sriov, Synthetic
+from .network_interface import (
+    NetworkInterface,
+    Sriov,
+    SriovIPv6,
+    Synthetic,
+    SyntheticIPv6,
+)
 from .nfs import Nfs
 from .nvme import Nvme, NvmeSettings
 from .password_extension import PasswordExtension
@@ -69,6 +75,8 @@ __all__ = [
     "SecurityProfileSettings",
     "SecurityProfileType",
     "Sriov",
+    "SriovIPv6",
+    "SyntheticIPv6",
     "StopState",
     "VMStatus",
     "Synthetic",

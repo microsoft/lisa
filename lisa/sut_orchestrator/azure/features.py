@@ -783,9 +783,32 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return schema.NetworkInterfaceOptionSettings
 
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        # All Azure VMs support synthetic and SRIOV networking
+        # All Azure VMs can support both IPv4 and IPv6 via ARM template configuration
+        return schema.NetworkInterfaceOptionSettings(
+            data_path=search_space.SetSpace(
+                items=[
+                    schema.NetworkDataPath.Synthetic,
+                    schema.NetworkDataPath.Sriov,
+                ]
+            ),
+            ip_version=search_space.SetSpace(
+                is_allow_set=True,
+                items=[
+                    schema.IPVersion.IPv4,
+                    schema.IPVersion.IPv6,
+                ],
+            ),
+        )
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+        
         all_nics = self._get_all_nics()
         # store extra synthetic and sriov nics count
         # in order to restore nics status after testing which needs change nics
