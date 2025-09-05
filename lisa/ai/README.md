@@ -156,7 +156,6 @@ logger = get_logger("my_analyzer")
 
 # Analyze a specific error across multiple log folders
 result = analyze(
-    current_directory="/path/to/lisa/ai",
     azure_openai_api_key="your-api-key",
     azure_openai_endpoint="https://your-resource.openai.azure.com",
     general_deployment_name="gpt-4o",
