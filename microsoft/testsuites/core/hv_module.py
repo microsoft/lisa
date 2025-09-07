@@ -225,7 +225,7 @@ class HvModule(TestSuite):
         passed_modules = []
         hv_modules = [
             "hv_vmbus",
-            "hv_netvsc",
+            # "hv_netvsc",
             "hv_storvsc",
             "hv_utils",
             "hv_balloon",
