@@ -431,13 +431,17 @@ class FileSearchPlugin:
 
         # Discover files and filter files
         try:
-            files = self._discover_files(folder_path, file_extensions, recursive)
+            files = self._discover_files(
+                folder_path=folder_path,
+                file_extensions=file_extensions,
+                is_recursive=recursive,
+            )
             result = self._paginate_files(
-                files,
-                offset,
-                max_files,
-                file_extensions,
-                folder_path,
+                files=files,
+                offset=offset,
+                max_files=max_files,
+                file_extensions=file_extensions,
+                folder_path=folder_path,
             )
             return result
         except Exception as e:
