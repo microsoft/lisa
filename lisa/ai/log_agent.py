@@ -135,7 +135,11 @@ def _calculate_similarity(text1: str, text2: str, endpoint: str, api_key: str) -
         endpoint: Azure OpenAI endpoint.
         api_key: Azure OpenAI API key.
     """
-    return asyncio.run(_calculate_similarity_async(text1, text2, endpoint, api_key))
+    return asyncio.run(
+        _calculate_similarity_async(
+            text1=text1, text2=text2, endpoint=endpoint, api_key=api_key
+        )
+    )
 
 
 class VerbosityFilter(logging.Filter):
@@ -398,13 +402,13 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
     error_message = item["error_message"]
 
     generated_text = analyze(
-        config.azure_openai_api_key,
-        config.azure_openai_endpoint,
-        config.general_deployment_name,
-        config.software_deployment_name,
-        config.code_path,
-        log_folder_path,
-        error_message,
+        azure_openai_api_key=config.azure_openai_api_key,
+        azure_openai_endpoint=config.azure_openai_endpoint,
+        general_deployment_name=config.general_deployment_name,
+        software_deployment_name=config.software_deployment_name,
+        code_path=config.code_path,
+        log_folder_path=log_folder_path,
+        error_message=error_message,
         selected_flow=config.selected_flow,
     )
 
@@ -417,10 +421,10 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
 
     # Calculate similarity
     similarity = _calculate_similarity(
-        generated_keywords,
-        ground_truth_keywords,
-        config.embedding_endpoint,
-        config.azure_openai_api_key,
+        text1=generated_keywords,
+        text2=ground_truth_keywords,
+        endpoint=config.embedding_endpoint,
+        api_key=config.azure_openai_api_key,
     )
 
     return {
@@ -439,16 +443,14 @@ def _offline_analyze(args: argparse.Namespace, config: Config) -> None:
         config.code_path = custom_code_path
 
     analyze(
-        config.current_directory,
-        config.azure_openai_api_key,
-        config.azure_openai_endpoint,
-        config.general_deployment_name,
-        config.software_deployment_name,
-        config.code_path,
-        args.log_folders,
-        args.error_message,
+        azure_openai_endpoint=config.azure_openai_endpoint,
+        code_path=config.code_path,
+        log_folder_path=args.log_folders,
+        error_message=args.error_message,
+        azure_openai_api_key=config.azure_openai_api_key,
+        general_deployment_name=config.general_deployment_name,
+        software_deployment_name=config.software_deployment_name,
         selected_flow=config.selected_flow,
-        logger=_logger,
     )
 
 
@@ -668,25 +670,25 @@ async def _async_analyze_gpt5(
     # This can be extended with GPT-5 specific logic in the future
     logger.info("Using GPT-5 analysis flow")
     return await async_analyze_default(
-        azure_openai_api_key,
-        azure_openai_endpoint,
-        general_deployment_name,
-        software_deployment_name,
-        code_path,
-        log_folder_path,
-        error_message,
+        azure_openai_api_key=azure_openai_api_key,
+        azure_openai_endpoint=azure_openai_endpoint,
+        general_deployment_name=general_deployment_name,
+        software_deployment_name=software_deployment_name,
+        code_path=code_path,
+        log_folder_path=log_folder_path,
+        error_message=error_message,
     )
 
 
 def analyze(
     azure_openai_api_key: str,
     azure_openai_endpoint: str,
-    general_deployment_name: str,
-    software_deployment_name: str,
     code_path: str,
     log_folder_path: Union[str, List[str]],
     error_message: str,
-    selected_flow: str,
+    general_deployment_name: str = "gpt-4o",
+    software_deployment_name: str = "gpt-4.1",
+    selected_flow: str = "default",
 ) -> str:
     """
     Analyze logs using async agents with asyncio.run for execution.
@@ -706,13 +708,13 @@ def analyze(
 
     return asyncio.run(
         async_analyze_func(
-            azure_openai_api_key,
-            azure_openai_endpoint,
-            general_deployment_name,
-            software_deployment_name,
-            code_path,
-            log_folder_path,
-            error_message,
+            azure_openai_api_key=azure_openai_api_key,
+            azure_openai_endpoint=azure_openai_endpoint,
+            general_deployment_name=general_deployment_name,
+            software_deployment_name=software_deployment_name,
+            code_path=code_path,
+            log_folder_path=log_folder_path,
+            error_message=error_message,
         )
     )
 
