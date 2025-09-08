@@ -7,8 +7,14 @@ from pathlib import Path
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import CentOs, Redhat
+from lisa import (
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.operating_system import BSD, CentOs, Redhat, Windows
 from lisa.tools import Docker, DockerCompose
 from lisa.util import SkippedException, UnsupportedDistroException, get_matched_str
 
@@ -261,3 +267,66 @@ class DockerTestSuite(TestSuite):
             "Fail to run docker run hello-world"
         ).is_equal_to(0)
         node.log.debug(f"VerifyDockerEngine: hello-world output - {result.stdout}")
+
+    @TestCaseMetadata(
+        description="""
+            Verifies a custom Docker seccomp profile is applied and enforced.
+
+            Steps:
+            1. Install Docker on the node
+            2. Create a custom seccomp profile denying chmod
+            3. Run a container with the profile; chmod should fail.
+            4. Run the same command without the profile; chmod should succeed.
+        """,
+        priority=2,
+        requirement=simple_requirement(unsupported_os=[Windows, BSD]),
+    )
+    def verify_docker_seccomp_profile(self, node: Node) -> None:
+        docker_tool = node.tools[Docker]
+        docker_tool.pull_image("alpine:latest")
+        if "seccomp" not in docker_tool.info().lower():
+            raise SkippedException("Seccomp not supported/enabled on this Docker host")
+        # Test with profile: expect failure
+        self._copy_to_node(node, "deny_chmod_seccomp.json")
+        profile_path = node.working_path / "deny_chmod_seccomp.json"
+
+        test_cmd = "sh -c 'touch test_file && chmod 600 test_file'"
+        denied = docker_tool.run_container_v2(
+            "alpine:latest",
+            "seccomp_denied",
+            command=test_cmd,
+            extra_args=f"--security-opt seccomp={profile_path}",
+            ephemeral=True,
+            expected_exit_code=None,
+        )
+        assert_that(denied.exit_code).described_as(
+            "chmod unexpectedly succeeded under denied seccomp profile"
+        ).is_not_equal_to(0)
+        denied_output = (denied.stdout + denied.stderr).lower()
+        assert_that(
+            any(
+                x in denied_output
+                for x in (
+                    "operation not permitted",
+                    "eperm",
+                )
+            )
+        ).described_as(
+            "Did not find expected seccomp denial indicator"
+            " (Operation not permitted/EPERM)"
+        ).is_true()
+
+        # Test without profile: expect success
+        allowed = docker_tool.run_container_v2(
+            "alpine:latest",
+            "seccomp_allowed",
+            command=test_cmd,
+            ephemeral=True,
+            expected_exit_code=0,
+        )
+        allowed_output = (allowed.stdout + allowed.stderr).lower()
+        assert_that(allowed_output).described_as(
+            "Baseline run (no seccomp profile) unexpectedly showed denial text"
+        ).does_not_contain("operation not permitted").does_not_contain("eperm")
+
+        node.log.info("Seccomp profile denial and baseline success validated.")

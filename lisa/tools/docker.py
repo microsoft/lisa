@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from typing import Optional
+
 from retry import retry
 
 from lisa.base_tools import Service, Wget
@@ -11,6 +13,7 @@ from lisa.util import (
     RepoNotExistException,
     UnsupportedDistroException,
 )
+from lisa.util.process import ExecutableResult
 
 
 class Docker(Tool):
@@ -43,9 +46,23 @@ class Docker(Tool):
         self._log.debug(f"Removing Docker Container {container_name}")
         self.run(f"rm {container_name}", sudo=True, force_run=True)
 
+    def pull_image(self, image: str, timeout: int = 600) -> None:
+        self._log.debug(f"Pulling Docker Image {image}")
+        self.run(
+            f"pull {image}",
+            sudo=True,
+            force_run=True,
+            timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to pull image {image}",
+        )
+
     def remove_image(self, image_name: str) -> None:
         self._log.debug(f"Removing Docker Image {image_name}")
         self.run(f"rmi {image_name}", sudo=True, force_run=True)
+
+    def info(self) -> str:
+        return self.run("info", sudo=True, force_run=True).stdout
 
     def run_container(
         self,
@@ -61,6 +78,37 @@ class Docker(Tool):
             force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Docker run failed.",
+        )
+
+    def run_container_v2(
+        self,
+        image_name: str,
+        container_name: str,
+        command: Optional[str] = None,
+        extra_args: Optional[str] = None,
+        ephemeral: bool = False,
+        expected_exit_code: Optional[int] = 0,
+    ) -> ExecutableResult:
+        """Run a named container with optional extra arguments"""
+
+        parts = ["run"]
+        if ephemeral:
+            parts.append("--rm")
+        if extra_args:
+            parts.append(extra_args)
+        parts.append(f"--name {container_name}")
+        parts.append(image_name)
+        if command:
+            parts.append(command)
+        cmd = " ".join(parts)
+
+        return self.run(
+            cmd,
+            sudo=True,
+            shell=True,
+            force_run=True,
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message="Docker run failed",
         )
 
     def start(self) -> None:
