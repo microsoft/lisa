@@ -27,7 +27,12 @@ from lisa.messages import TestStatus
 from lisa.platform_ import PlatformMessage, load_platform
 from lisa.runner import BaseRunner
 from lisa.testselector import select_testcases
-from lisa.testsuite import TestCaseRequirement, TestResult, TestSuite
+from lisa.testsuite import (
+    TestCaseRequirement,
+    TestResult,
+    TestSuite,
+    wait_for_test_result_messages,
+)
 from lisa.util import (
     KernelPanicException,
     LisaException,
@@ -176,6 +181,10 @@ class LisaRunner(BaseRunner):
         return None
 
     def close(self) -> None:
+        # wait for all test result messages are processed and notified
+        self._log.debug("waiting for all test result messages to be processed")
+        wait_for_test_result_messages()
+
         if hasattr(self, "environments") and self.environments:
             for environment in self.environments:
                 self._delete_environment_task(environment, [])
