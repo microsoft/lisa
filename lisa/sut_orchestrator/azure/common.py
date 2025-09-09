@@ -670,10 +670,6 @@ class AzureNodeSchema:
     community_gallery_image_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="community_gallery_image")
     )
-    hyperv_generation: int = field(
-        default=1,
-        metadata=field_metadata(validate=validate.OneOf([1, 2])),
-    )
     # for marketplace image, which need to accept terms
     _purchase_plan: InitVar[Optional[AzureVmPurchasePlanSchema]] = None
 
@@ -1077,6 +1073,7 @@ class AzureNodeSchema:
 @dataclass_json()
 @dataclass
 class AzureNodeArmParameter(AzureNodeSchema):
+    hyperv_generation: int = 2
     nic_count: int = 1
     enable_sriov: bool = False
     os_disk_type: str = ""
