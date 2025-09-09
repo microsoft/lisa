@@ -311,6 +311,9 @@ class RepoInstaller(BaseInstaller):
         # Linux kernel image for Azure systems (kernel.efi).
         # linux-image-azure-fde-6.14/plucky 6.14.0-1012.12 amd64
         # Linux kernel image for Azure systems (kernel.efi).
+        # Note that starting from Ubuntu 2404 \r is seen before the identified line.
+        # The \r is not recognized by ^ in Python.
+        # So [\r\n]+ is used instead of ^ to match the line.
         kernel_version_package_pattern = re.compile(
             f"[\r\n]+{source}/[^ ]+ "  # noqa: E202
             r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*installed.*[\r\n]+",
