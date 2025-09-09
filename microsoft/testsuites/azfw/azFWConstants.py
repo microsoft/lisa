@@ -23,7 +23,6 @@ class VMConfigurations:
     NICCOUNT = 3
 
 class ComponentTestConstants:
-
     NATTABLE = "nat"
     NATCHAIN = [
         "L4_ALLOWED"
