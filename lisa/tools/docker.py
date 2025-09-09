@@ -47,7 +47,6 @@ class Docker(Tool):
         self.run(f"rm {container_name}", sudo=True, force_run=True)
 
     def pull_image(self, image: str, timeout: int = 600) -> None:
-        self._log.debug(f"Pulling Docker Image {image}")
         self.run(
             f"pull {image}",
             sudo=True,
@@ -68,25 +67,9 @@ class Docker(Tool):
         self,
         image_name: str,
         container_name: str,
-        docker_run_output: str,
-    ) -> None:
-        self.run(
-            f"run --name {container_name} {image_name} > {docker_run_output} 2>&1",
-            shell=True,
-            sudo=True,
-            cwd=self.node.working_path,
-            force_run=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Docker run failed.",
-        )
-
-    def run_container_v2(
-        self,
-        image_name: str,
-        container_name: str,
         command: Optional[str] = None,
         extra_args: Optional[str] = None,
-        ephemeral: bool = False,
+        ephemeral: bool = True,
         expected_exit_code: Optional[int] = 0,
     ) -> ExecutableResult:
         """Run a named container with optional extra arguments"""

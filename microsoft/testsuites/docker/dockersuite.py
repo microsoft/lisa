@@ -172,7 +172,6 @@ class DockerTestSuite(TestSuite):
             self._copy_to_node(node, prog_src)
         self._copy_to_node(node, dockerfile)
         self._run_and_verify_results(
-            node,
             docker_tool,
             dockerfile,
             docker_image_name,
@@ -182,29 +181,17 @@ class DockerTestSuite(TestSuite):
 
     def _run_and_verify_results(
         self,
-        node: Node,
         docker_tool: Docker,
         dockerfile_name: str,
         docker_image_name: str,
         docker_container_name: str,
         string_identifier: str,
     ) -> None:
-        docker_run_output_file = "docker_run.log"
-
         docker_tool.build_image(docker_image_name, dockerfile_name)
-        docker_tool.run_container(
-            docker_image_name, docker_container_name, docker_run_output_file
-        )
+        docker_run = docker_tool.run_container(docker_image_name, docker_container_name)
         docker_tool.remove_image(docker_image_name)
-        docker_tool.remove_container(docker_container_name)
 
-        docker_run_output = node.execute(
-            f"cat {docker_run_output_file}",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Docker run output file not found",
-            cwd=node.working_path,
-        ).stdout
+        docker_run_output = (docker_run.stdout + docker_run.stderr).strip()
         assert_that(docker_run_output).described_as(
             "The container didn't output expected result. "
             "There may have been errors when the container was run. "
@@ -286,17 +273,17 @@ class DockerTestSuite(TestSuite):
         docker_tool.pull_image("alpine:latest")
         if "seccomp" not in docker_tool.info().lower():
             raise SkippedException("Seccomp not supported/enabled on this Docker host")
+
         # Test with profile: expect failure
         self._copy_to_node(node, "deny_chmod_seccomp.json")
         profile_path = node.working_path / "deny_chmod_seccomp.json"
 
         test_cmd = "sh -c 'touch test_file && chmod 600 test_file'"
-        denied = docker_tool.run_container_v2(
+        denied = docker_tool.run_container(
             "alpine:latest",
             "seccomp_denied",
             command=test_cmd,
             extra_args=f"--security-opt seccomp={profile_path}",
-            ephemeral=True,
             expected_exit_code=None,
         )
         assert_that(denied.exit_code).described_as(
@@ -317,16 +304,13 @@ class DockerTestSuite(TestSuite):
         ).is_true()
 
         # Test without profile: expect success
-        allowed = docker_tool.run_container_v2(
+        allowed = docker_tool.run_container(
             "alpine:latest",
             "seccomp_allowed",
             command=test_cmd,
-            ephemeral=True,
             expected_exit_code=0,
         )
         allowed_output = (allowed.stdout + allowed.stderr).lower()
         assert_that(allowed_output).described_as(
             "Baseline run (no seccomp profile) unexpectedly showed denial text"
         ).does_not_contain("operation not permitted").does_not_contain("eperm")
-
-        node.log.info("Seccomp profile denial and baseline success validated.")
