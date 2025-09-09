@@ -102,11 +102,15 @@ def sriov_vf_connection_test(
     # generate 200Mb file
     source_node.execute("dd if=/dev/urandom of=large_file bs=1M count=200")
 
+    # Track statistics for validation
+    tested_nic_pairs = 0
+    skipped_infiniband_source = 0
+    skipped_infiniband_dest = 0
+
     # for each nic on source node, find the same subnet nic on dest node, then copy
     # 200Mb file
     max_retry_times = 10
     for source_nic_name, source_nic_info in vm_nics[source_node.name].items():
-        # Add debug logging and validation checks
         source_node.log.debug(
             f"Processing NIC {source_nic_name}: {source_nic_info} on {source_node.name}"
         )
@@ -116,16 +120,25 @@ def sriov_vf_connection_test(
             source_node.log.debug(
                 f"Skipping InfiniBand interface {source_nic_info.name} on {source_node.name}"
             )
+            skipped_infiniband_source += 1
             continue
         
-        # Skip NICs with incomplete information
-        if not all([source_nic_info.name, source_nic_info.pci_slot, source_nic_info.ip_addr]):
-            source_node.log.debug(
-                f"Skipping NIC with incomplete info - name: {source_nic_info.name}, "
-                f"pci_slot: {source_nic_info.pci_slot}, ip_addr: {source_nic_info.ip_addr} "
-                f"on {source_node.name}"
-            )
-            continue
+        # For non-InfiniBand NICs, incomplete information is a test failure
+        assert_that(source_nic_info.name).described_as(
+            f"SR-IOV NIC {source_nic_name} on {source_node.name} is missing name. "
+            f"NIC info: {source_nic_info}"
+        ).is_not_none()
+        
+        assert_that(source_nic_info.pci_slot).described_as(
+            f"SR-IOV NIC {source_nic_name} on {source_node.name} is missing PCI slot. "
+            f"NIC info: {source_nic_info}"
+        ).is_not_none()
+        
+        assert_that(source_nic_info.ip_addr).described_as(
+            f"SR-IOV NIC {source_nic_name} on {source_node.name} is missing IP address. "
+            f"This indicates the NIC was not properly initialized. "
+            f"NIC info: {source_nic_info}"
+        ).is_not_none()
         
         matched_dest_nic_name = ""
 
@@ -133,11 +146,28 @@ def sriov_vf_connection_test(
         for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
             # Skip InfiniBand interfaces on destination as well
             if dest_nic_info.name and dest_nic_info.name.startswith("ib"):
+                dest_node.log.debug(
+                    f"Skipping InfiniBand interface {dest_nic_info.name} on {dest_node.name}"
+                )
+                skipped_infiniband_dest += 1
                 continue
             
-            # Skip destination NICs with incomplete information
-            if not dest_nic_info.ip_addr:
-                continue
+            # For non-InfiniBand destination NICs, validate required fields
+            assert_that(dest_nic_info.name).described_as(
+                f"SR-IOV NIC {dest_nic_name} on {dest_node.name} is missing name. "
+                f"NIC info: {dest_nic_info}"
+            ).is_not_none()
+            
+            assert_that(dest_nic_info.pci_slot).described_as(
+                f"SR-IOV NIC {dest_nic_name} on {dest_node.name} is missing PCI slot. "
+                f"NIC info: {dest_nic_info}"
+            ).is_not_none()
+            
+            assert_that(dest_nic_info.ip_addr).described_as(
+                f"SR-IOV NIC {dest_nic_name} on {dest_node.name} is missing IP address. "
+                f"This indicates the NIC was not properly initialized. "
+                f"NIC info: {dest_nic_info}"
+            ).is_not_none()
             
             # only when IPs are in the same subnet, IP1 of machine A can connect to
             # IP2 of machine B
@@ -151,9 +181,10 @@ def sriov_vf_connection_test(
                 break
         
         if not matched_dest_nic_name:
-            source_node.log.debug(
+            source_node.log.warning(
                 f"No matching subnet found for {source_nic_info.ip_addr} from "
-                f"{source_node.name} on {dest_node.name}, skipping this NIC"
+                f"{source_node.name} on {dest_node.name}. This might indicate "
+                f"a network configuration issue."
             )
             continue
 
@@ -162,6 +193,8 @@ def sriov_vf_connection_test(
             f" machine {source_node.name}, please check network setting of "
             f"machine {dest_node.name}."
         ).is_not_empty()
+
+        tested_nic_pairs += 1
 
         # set source and dest network info
         dest_nic_info = vm_nics[dest_node.name][matched_dest_nic_name]
@@ -239,6 +272,19 @@ def sriov_vf_connection_test(
                 source_node.tools[Ip].up(source_pci_nic)
             if dest_nic_info.lower:
                 dest_node.tools[Ip].up(dest_pci_nic)
+    
+    # After testing all NICs, ensure at least one valid pair was tested
+    assert_that(tested_nic_pairs).described_as(
+        f"No valid SR-IOV NIC pairs were tested. "
+        f"Skipped {skipped_infiniband_source} InfiniBand NICs on source node "
+        f"and {skipped_infiniband_dest} on destination node. "
+        f"This could indicate all NICs are InfiniBand or there are no matching subnets."
+    ).is_greater_than(0)
+    
+    source_node.log.info(
+        f"Successfully tested {tested_nic_pairs} SR-IOV NIC pair(s). "
+        f"Skipped {skipped_infiniband_source + skipped_infiniband_dest} InfiniBand interface(s)."
+    )
 
 
 def cleanup_iperf3(environment: Environment) -> None:
