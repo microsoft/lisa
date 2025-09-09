@@ -89,9 +89,7 @@ def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -
     """Validate NIC and return True if it should be skipped (InfiniBand)."""
     # Skip InfiniBand interfaces as they use RDMA, not standard Ethernet
     if nic_info.name and nic_info.name.startswith("ib"):
-        node.log.debug(
-            f"Skipping InfiniBand interface {nic_info.name} on {node.name}"
-        )
+        node.log.debug(f"Skipping InfiniBand interface {nic_info.name} on {node.name}")
         return True
 
     # For non-InfiniBand NICs, validate required fields
@@ -158,9 +156,9 @@ def _perform_connectivity_test(
 
     # verify tx_packets value of source nic is increased after coping 200Mb file
     #  from source to dest
-    assert_that(
-        int(source_tx_packets), "insufficient TX packets sent"
-    ).is_greater_than(int(source_tx_packets_origin))
+    assert_that(int(source_tx_packets), "insufficient TX packets sent").is_greater_than(
+        int(source_tx_packets_origin)
+    )
 
     # verify rx_packets value of dest nic is increased after receiving 200Mb
     #  file from source to dest
@@ -269,10 +267,13 @@ def sriov_vf_connection_test(
 
         # Perform connectivity test
         _perform_connectivity_test(
-            source_node, dest_node,
-            source_ip, dest_ip,
-            source_nic, dest_nic,
-            source_synthetic_nic
+            source_node,
+            dest_node,
+            source_ip,
+            dest_ip,
+            source_nic,
+            dest_nic,
+            source_synthetic_nic,
         )
 
         # turn on lower device, if turned off before
