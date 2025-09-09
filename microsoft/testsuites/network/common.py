@@ -85,6 +85,90 @@ def sriov_basic_test(environment: Environment) -> None:
                 ).is_true()
 
 
+def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -> bool:
+    """Validate NIC and return True if it should be skipped (InfiniBand)."""
+    # Skip InfiniBand interfaces as they use RDMA, not standard Ethernet
+    if nic_info.name and nic_info.name.startswith("ib"):
+        node.log.debug(
+            f"Skipping InfiniBand interface {nic_info.name} on {node.name}"
+        )
+        return True
+
+    # For non-InfiniBand NICs, validate required fields
+    assert_that(nic_info.name).described_as(
+        f"SR-IOV NIC {nic_name} on {node.name} is missing name. "
+        f"NIC info: {nic_info}"
+    ).is_not_none()
+
+    assert_that(nic_info.pci_slot).described_as(
+        f"SR-IOV NIC {nic_name} on {node.name} is missing PCI slot. "
+        f"NIC info: {nic_info}"
+    ).is_not_none()
+
+    assert_that(nic_info.ip_addr).described_as(
+        f"SR-IOV NIC {nic_name} on {node.name} is missing IP address. "
+        f"This indicates the NIC was not properly initialized. "
+        f"NIC info: {nic_info}"
+    ).is_not_none()
+
+    return False
+
+
+def _perform_connectivity_test(
+    source_node: RemoteNode,
+    dest_node: RemoteNode,
+    source_ip: str,
+    dest_ip: str,
+    source_nic: str,
+    dest_nic: str,
+    source_synthetic_nic: str,
+    max_retry_times: int = 10,
+) -> None:
+    """Perform ping and file transfer test between NICs."""
+    # get origin tx_packets and rx_packets before copy file
+    source_tx_packets_origin = source_node.nics.get_packets(source_nic)
+    dest_tx_packets_origin = dest_node.nics.get_packets(dest_nic, "rx_packets")
+
+    # check the connectivity between source and dest machine using ping
+    for _ in range(max_retry_times):
+        ping_result = source_node.tools[Ping].ping(
+            target=dest_ip, nic_name=source_synthetic_nic, count=1, sudo=True
+        )
+        if ping_result:
+            break
+    assert ping_result, (
+        f"fail to ping {dest_ip} from {source_node.name} to "
+        f"{dest_node.name} after retry {max_retry_times}"
+    )
+
+    # copy 200 Mb file from source ip to dest ip
+    source_node.execute(
+        f"scp -o BindAddress={source_ip} -i $HOME/.ssh/id_rsa -o"
+        f" StrictHostKeyChecking=no large_file "
+        f"$USER@{dest_ip}:/tmp/large_file",
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Fail to copy file large_file from"
+        f" {source_ip} to {dest_ip}",
+    )
+
+    # get tx_packets and rx_packets after copy file
+    source_tx_packets = source_node.nics.get_packets(source_nic)
+    dest_tx_packets = dest_node.nics.get_packets(dest_nic, "rx_packets")
+
+    # verify tx_packets value of source nic is increased after coping 200Mb file
+    #  from source to dest
+    assert_that(
+        int(source_tx_packets), "insufficient TX packets sent"
+    ).is_greater_than(int(source_tx_packets_origin))
+
+    # verify rx_packets value of dest nic is increased after receiving 200Mb
+    #  file from source to dest
+    assert_that(
+        int(dest_tx_packets), "insufficient RX packets received"
+    ).is_greater_than(int(dest_tx_packets_origin))
+
+
 def sriov_vf_connection_test(
     environment: Environment,
     vm_nics: Dict[str, Dict[str, NicInfo]],
@@ -109,69 +193,24 @@ def sriov_vf_connection_test(
 
     # for each nic on source node, find the same subnet nic on dest node, then copy
     # 200Mb file
-    max_retry_times = 10
     for source_nic_name, source_nic_info in vm_nics[source_node.name].items():
         source_node.log.debug(
             f"Processing NIC {source_nic_name}: {source_nic_info} on {source_node.name}"
         )
 
-        # Skip InfiniBand interfaces as they use RDMA, not standard Ethernet
-        if source_nic_info.name and source_nic_info.name.startswith("ib"):
-            source_node.log.debug(
-                f"Skipping InfiniBand interface {source_nic_info.name} "
-                f"on {source_node.name}"
-            )
+        # Use helper function for validation
+        if _validate_and_skip_nic(source_nic_info, source_nic_name, source_node):
             skipped_infiniband_source += 1
             continue
-
-        # For non-InfiniBand NICs, incomplete information is a test failure
-        assert_that(source_nic_info.name).described_as(
-            f"SR-IOV NIC {source_nic_name} on {source_node.name} is missing name. "
-            f"NIC info: {source_nic_info}"
-        ).is_not_none()
-
-        assert_that(source_nic_info.pci_slot).described_as(
-            f"SR-IOV NIC {source_nic_name} on {source_node.name} is missing PCI slot. "
-            f"NIC info: {source_nic_info}"
-        ).is_not_none()
-
-        assert_that(source_nic_info.ip_addr).described_as(
-            f"SR-IOV NIC {source_nic_name} on "
-            f"{source_node.name} is missing IP address. "
-            f"This indicates the NIC was not properly initialized. "
-            f"NIC info: {source_nic_info}"
-        ).is_not_none()
 
         matched_dest_nic_name = ""
 
         # find the same subnet nic on dest node
         for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
-            # Skip InfiniBand interfaces on destination as well
-            if dest_nic_info.name and dest_nic_info.name.startswith("ib"):
-                dest_node.log.debug(
-                    f"Skipping InfiniBand interface {dest_nic_info.name} "
-                    f"on {dest_node.name}"
-                )
+            # Use helper function for validation
+            if _validate_and_skip_nic(dest_nic_info, dest_nic_name, dest_node):
                 skipped_infiniband_dest += 1
                 continue
-
-            # For non-InfiniBand destination NICs, validate required fields
-            assert_that(dest_nic_info.name).described_as(
-                f"SR-IOV NIC {dest_nic_name} on {dest_node.name} is missing name. "
-                f"NIC info: {dest_nic_info}"
-            ).is_not_none()
-
-            assert_that(dest_nic_info.pci_slot).described_as(
-                f"SR-IOV NIC {dest_nic_name} on {dest_node.name} is missing PCI slot. "
-                f"NIC info: {dest_nic_info}"
-            ).is_not_none()
-
-            assert_that(dest_nic_info.ip_addr).described_as(
-                f"SR-IOV NIC {dest_nic_name} on "
-                f"{dest_node.name} is missing IP address. "
-                f"This indicates the NIC was not properly initialized. "
-                f"NIC info: {dest_nic_info}"
-            ).is_not_none()
 
             # only when IPs are in the same subnet, IP1 of machine A can connect to
             # IP2 of machine B
@@ -228,48 +267,13 @@ def sriov_vf_connection_test(
             if dest_nic_info.lower:
                 dest_node.tools[Ip].down(dest_pci_nic)
 
-        # get origin tx_packets and rx_packets before copy file
-        source_tx_packets_origin = source_node.nics.get_packets(source_nic)
-        dest_tx_packets_origin = dest_node.nics.get_packets(dest_nic, "rx_packets")
-
-        # check the connectivity between source and dest machine using ping
-        for _ in range(max_retry_times):
-            ping_result = source_node.tools[Ping].ping(
-                target=dest_ip, nic_name=source_synthetic_nic, count=1, sudo=True
-            )
-            if ping_result:
-                break
-        assert ping_result, (
-            f"fail to ping {dest_ip} from {source_node.name} to "
-            f"{dest_node.name} after retry {max_retry_times}"
+        # Perform connectivity test
+        _perform_connectivity_test(
+            source_node, dest_node,
+            source_ip, dest_ip,
+            source_nic, dest_nic,
+            source_synthetic_nic
         )
-
-        # copy 200 Mb file from source ip to dest ip
-        source_node.execute(
-            f"scp -o BindAddress={source_ip} -i $HOME/.ssh/id_rsa -o"
-            f" StrictHostKeyChecking=no large_file "
-            f"$USER@{dest_ip}:/tmp/large_file",
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Fail to copy file large_file from"
-            f" {source_ip} to {dest_ip}",
-        )
-
-        # get tx_packets and rx_packets after copy file
-        source_tx_packets = source_node.nics.get_packets(source_nic)
-        dest_tx_packets = dest_node.nics.get_packets(dest_nic, "rx_packets")
-
-        # verify tx_packets value of source nic is increased after coping 200Mb file
-        #  from source to dest
-        assert_that(
-            int(source_tx_packets), "insufficient TX packets sent"
-        ).is_greater_than(int(source_tx_packets_origin))
-
-        # verify rx_packets value of dest nic is increased after receiving 200Mb
-        #  file from source to dest
-        assert_that(
-            int(dest_tx_packets), "insufficient RX packets received"
-        ).is_greater_than(int(dest_tx_packets_origin))
 
         # turn on lower device, if turned off before
         if turn_off_lower:
@@ -283,7 +287,8 @@ def sriov_vf_connection_test(
         f"No valid SR-IOV NIC pairs were tested. "
         f"Skipped {skipped_infiniband_source} InfiniBand NICs on source node "
         f"and {skipped_infiniband_dest} on destination node. "
-        f"This could indicate all NICs are InfiniBand or there are no matching subnets."
+        f"This could indicate all NICs are InfiniBand or there are no "
+        f"matching subnets."
     ).is_greater_than(0)
 
     source_node.log.info(
