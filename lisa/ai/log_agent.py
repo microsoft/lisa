@@ -681,7 +681,6 @@ async def _async_analyze_gpt5(
 
 
 def analyze(
-    azure_openai_api_key: str,
     azure_openai_endpoint: str,
     code_path: str,
     log_folder_path: Union[str, List[str]],
