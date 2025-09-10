@@ -300,9 +300,23 @@ class RepoInstaller(BaseInstaller):
         # linux-image-4.18.0-1025-azure/bionic-updates,bionic-security,now
         # 4.18.0-1025.27~18.04.1 amd64 [installed]
         # output 4.18.0-1025
+        # Ubuntu plucky example:
+        # Sorting... 0%
+        # Full Text Search... 50%
+        # linux-image-azure/plucky,now 6.14.0-1012.12 amd64 [installed,automatic]
+        # Linux kernel image for Azure systems (vmlinuz).
+        # linux-image-azure-6.14/plucky 6.14.0-1012.12 amd64
+        # Linux kernel image for Azure systems (vmlinuz).
+        # linux-image-azure-fde/plucky 6.14.0-1012.12 amd64
+        # Linux kernel image for Azure systems (kernel.efi).
+        # linux-image-azure-fde-6.14/plucky 6.14.0-1012.12 amd64
+        # Linux kernel image for Azure systems (kernel.efi).
+        # Note that starting from Ubuntu 2404 \r is seen before the identified line.
+        # The \r is not recognized by ^ in Python.
+        # So [\r\n]+ is used instead of ^ to match the line.
         kernel_version_package_pattern = re.compile(
-            f"^{source}/[^ ]+ "  # noqa: E202
-            r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*[\r\n]+",
+            f"[\r\n]+{source}/[^ ]+ "  # noqa: E202
+            r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*installed.*[\r\n]+",
             re.M,
         )
         result = node.execute(f"apt search {source}", shell=True)
