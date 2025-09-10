@@ -50,6 +50,11 @@ try:
 except ModuleNotFoundError as e:
     print(f"aws package is not installed. [{e}]")
 
+try:
+    import lisa.notifiers.log_agent  # noqa: F401
+except ModuleNotFoundError as e:
+    print(f"ai package is not installed. [{e}]")
+
 if platform.system() == "Linux":
     # libvirt modules
     try:
