@@ -32,9 +32,8 @@ from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import AuthorRole, ChatMessageContent
 from semantic_kernel.functions import KernelArguments, kernel_function
 
-from lisa.ai.common import create_agent_execution_settings, get_current_directory
-
 from . import logger
+from .common import create_agent_execution_settings, get_current_directory
 
 
 def _load_prompt(prompt_filename: str, flow: str) -> str:
