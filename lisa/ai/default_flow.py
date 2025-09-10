@@ -257,7 +257,7 @@ class FileSearchPlugin:
             return {"error": error_message}
 
         result = "\n".join(traceback)
-        self._logger.debug(f"read_text_file result: {result}")
+        self._logger.debug(f"read_text_file result:\n{result}")
         return {"content": result}
 
     def _validate_list_files_input(
