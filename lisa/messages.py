@@ -86,6 +86,7 @@ class TestResultMessage(TestResultMessageBase):
     suite_name: str = ""
     suite_full_name: str = ""
     log_file: str = ""
+    analysis: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

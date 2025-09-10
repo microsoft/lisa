@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
+import json
 import time
 from logging import FileHandler
 from pathlib import Path
@@ -60,6 +61,20 @@ def print_results(
         output_with_ending(
             f"{result_name:>50}: {result_status.name:<8} {test_result.message}"
         )
+
+        analysis: Dict[str, Any] = test_result.analysis  # type: ignore
+        if analysis and "AI" in analysis:
+            try:
+                ai_analysis = json.loads(analysis["AI"])
+            except Exception:
+                ai_analysis = analysis["AI"]
+
+            if isinstance(ai_analysis, dict) and "summary" in ai_analysis:
+                summary = ai_analysis["summary"]
+            else:
+                summary = str(ai_analysis)
+            output_with_ending(f"{'':<61}AI Analysis: {summary}")
+
         result_count = result_count_dict.get(result_status, 0)
         result_count += 1
         result_count_dict[result_status] = result_count
