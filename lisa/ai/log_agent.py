@@ -16,9 +16,8 @@ from semantic_kernel.connectors.ai.azure_ai_inference import (
     AzureAIInferenceTextEmbedding,
 )
 
-from lisa.ai.default_flow import async_analyze_default
-
 from . import logger
+from .default_flow import async_analyze_default
 
 # Constants used in the code
 VERBOSITY_LENGTH_THRESHOLD = 1000  # Max length for verbose log messages
@@ -685,6 +684,7 @@ def analyze(
     code_path: str,
     log_folder_path: Union[str, List[str]],
     error_message: str,
+    azure_openai_api_key: str = "",
     general_deployment_name: str = "gpt-4o",
     software_deployment_name: str = "gpt-4.1",
     selected_flow: str = "default",

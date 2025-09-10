@@ -31,7 +31,7 @@ The LISA AI Log Analyzer consists of:
    - Text-embedding-3-large for similarity calculations
 3. **Required Python packages** (install via pip):
    ```bash
-   pip install python-dotenv semantic-kernel azure-ai-inference
+   pip install python-dotenv semantic-kernel azure-ai-inference, retry
    ```
 
 ## Quick Start for Error Analysis
