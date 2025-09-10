@@ -286,7 +286,17 @@ class RepoInstaller(BaseInstaller):
             # the kernel installation from proposed repos to fail.
             self._log.info("Removing repo: https://esm.ubuntu.com/fips/ubuntu")
             ubuntu.remove_repository("https://esm.ubuntu.com/fips/ubuntu")
+            node.execute(
+                "pro disable fips-updates --assume-yes",
+                sudo=True,
+                shell=True,
+            )
         self._log.info(f"installing kernel package: {full_package_name}")
+        node.execute(
+            f"apt-cache madison {full_package_name}",
+            sudo=True,
+            shell=True,
+        )
         ubuntu.install_packages(full_package_name)
 
         kernel_version = self._get_kernel_version(runbook.source, node)
