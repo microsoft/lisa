@@ -87,7 +87,7 @@ class DockerTestSuite(TestSuite):
     )
     def verify_docker_dotnet31_app(self, node: Node) -> None:
         self._execute_docker_test(
-            node, "dotnetimage", "dotnetapp", "Hello World!", "", "dotnet31.Dockerfile"
+            node, "dotnetimage", "Hello World!", "", "dotnet31.Dockerfile"
         )
 
     @TestCaseMetadata(
@@ -104,7 +104,7 @@ class DockerTestSuite(TestSuite):
     )
     def verify_docker_dotnet50_app(self, node: Node) -> None:
         self._execute_docker_test(
-            node, "dotnetimage", "dotnetapp", "Hello World!", "", "dotnet50.Dockerfile"
+            node, "dotnetimage", "Hello World!", "", "dotnet50.Dockerfile"
         )
 
     @TestCaseMetadata(
@@ -123,7 +123,6 @@ class DockerTestSuite(TestSuite):
         self._execute_docker_test(
             node,
             "javaappimage",
-            "javaapp",
             "Hello world from java",
             "Main.java",
             "java.Dockerfile",
@@ -145,7 +144,6 @@ class DockerTestSuite(TestSuite):
         self._execute_docker_test(
             node,
             "pythonappimage",
-            "pythonapp",
             "Hello world from python",
             "helloworld.py",
             "python.Dockerfile",
@@ -160,14 +158,11 @@ class DockerTestSuite(TestSuite):
         self,
         node: Node,
         docker_image_name: str,
-        docker_container_name: str,
         string_identifier: str,
         prog_src: str,
         dockerfile: str,
     ) -> None:
-        docker_tool = self._verify_and_remove_containers(
-            node, docker_image_name, docker_container_name
-        )
+        docker_tool = self._verify_and_remove_images(node, docker_image_name)
         if prog_src:
             self._copy_to_node(node, prog_src)
         self._copy_to_node(node, dockerfile)
@@ -175,7 +170,6 @@ class DockerTestSuite(TestSuite):
             docker_tool,
             dockerfile,
             docker_image_name,
-            docker_container_name,
             string_identifier,
         )
 
@@ -184,11 +178,10 @@ class DockerTestSuite(TestSuite):
         docker_tool: Docker,
         dockerfile_name: str,
         docker_image_name: str,
-        docker_container_name: str,
         string_identifier: str,
     ) -> None:
         docker_tool.build_image(docker_image_name, dockerfile_name)
-        docker_run = docker_tool.run_container(docker_image_name, docker_container_name)
+        docker_run = docker_tool.run_container(docker_image_name)
         docker_tool.remove_image(docker_image_name)
 
         docker_run_output = (docker_run.stdout + docker_run.stderr).strip()
@@ -205,9 +198,7 @@ class DockerTestSuite(TestSuite):
                 f"Test not supported for RH/CentOS {node.os.information.release}"
             )
 
-    def _verify_and_remove_containers(
-        self, node: Node, docker_image_name: str, docker_container_name: str
-    ) -> Docker:
+    def _verify_and_remove_images(self, node: Node, docker_image_name: str) -> Docker:
         self._skip_if_not_supported(node)
         try:
             docker_tool = node.tools[Docker]
@@ -215,7 +206,6 @@ class DockerTestSuite(TestSuite):
             raise SkippedException(e)
         self._verify_docker_engine(node)
         docker_tool.remove_image(docker_image_name)
-        docker_tool.remove_container(docker_container_name)
         return docker_tool
 
     def _verify_docker_engine(self, node: Node) -> None:
@@ -260,10 +250,13 @@ class DockerTestSuite(TestSuite):
             Verifies a custom Docker seccomp profile is applied and enforced.
 
             Steps:
-            1. Install Docker on the node
-            2. Create a custom seccomp profile denying chmod
-            3. Run a container with the profile; chmod should fail.
-            4. Run the same command without the profile; chmod should succeed.
+            1. Install Docker on the target node
+            2. Copy the custom seccomp profile that explicitly denies the chmod syscall
+            3. Start a container with this custom seccomp profile and try to run chmod;
+               the command should fail, proving the profile is enforced
+            4. Start another container without the custom profile and run the same chmod
+               command; this time it should succeed, proving the restriction only comes
+               from the profile
         """,
         priority=2,
         requirement=simple_requirement(unsupported_os=[Windows, BSD]),
@@ -281,7 +274,6 @@ class DockerTestSuite(TestSuite):
         test_cmd = "sh -c 'touch test_file && chmod 600 test_file'"
         denied = docker_tool.run_container(
             "alpine:latest",
-            "seccomp_denied",
             command=test_cmd,
             extra_args=f"--security-opt seccomp={profile_path}",
             expected_exit_code=None,
@@ -306,7 +298,6 @@ class DockerTestSuite(TestSuite):
         # Test without profile: expect success
         allowed = docker_tool.run_container(
             "alpine:latest",
-            "seccomp_allowed",
             command=test_cmd,
             expected_exit_code=0,
         )

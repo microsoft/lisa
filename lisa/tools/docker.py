@@ -66,20 +66,30 @@ class Docker(Tool):
     def run_container(
         self,
         image_name: str,
-        container_name: str,
+        ephemeral: bool = True,
+        container_name: Optional[str] = None,
         command: Optional[str] = None,
         extra_args: Optional[str] = None,
-        ephemeral: bool = True,
         expected_exit_code: Optional[int] = 0,
     ) -> ExecutableResult:
-        """Run a named container with optional extra arguments"""
+        """
+        Run a container using `docker run`
+
+        :param image_name: Name of the Docker image to run
+        :param ephemeral: Whether the container should be auto removed after exit.
+        :param container_name: Optional name for the container
+        :param command: Optional command to run inside the container
+        :param extra_args: Optional extra arguments to pass to the docker run command
+        :param expected_exit_code: Expected exit code for the docker run command
+        """
 
         parts = ["run"]
         if ephemeral:
             parts.append("--rm")
         if extra_args:
             parts.append(extra_args)
-        parts.append(f"--name {container_name}")
+        if container_name:
+            parts.append(f"--name {container_name}")
         parts.append(image_name)
         if command:
             parts.append(command)
