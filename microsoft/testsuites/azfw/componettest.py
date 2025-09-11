@@ -11,12 +11,12 @@ from lisa import (
     TestCaseMetadata,
     simple_requirement
 )
-from .azFWConstants import (
+from .constants import (
     NetworkRules,
     ComponentTestConstants,
     TrafficConfigurations
 )
-from .azfwUtility import (
+from .utility import (
     addIPTableRules,
     createIPTableChain,
     verifyIPTables,

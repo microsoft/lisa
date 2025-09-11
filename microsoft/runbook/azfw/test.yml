@@ -3,9 +3,9 @@ include:
   - path: /home/bala/lisa/microsoft/runbook/tiers/tier.yml
 variable:
   - name: location
-    value: "eastus2euap"
+    value: "westeurope"
   - name: rgname
-    value: "setupazfwthreesubnetretry303"
+    value: "setupazfwthreesubnetretry323"
   - name: imagename
     value: "MicrosoftCBLMariner:azure-linux-3:azure-linux-3-gen2:3.20250311.01"
   - name: deploy
@@ -27,9 +27,15 @@ variable:
   - name: vm_size
     value: ""
   - name: test_case_name
-    value: "network_component_test"
+    value: "test_network_rules"
   - name: use_public_address
     value: true
+  - name: firewall_app_version
+    value: ""
+    is_case_visible: true
+  - name: managed_identity
+    value: ""
+    is_case_visible: true
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -51,7 +57,7 @@ platform:
         marketplace: $(imagename)
         vhd: $(vhd)
         location: $(location)
-        vm_size: $(vm_size)
+        vm_size: "Standard_DS3_v2"
 testcase:
   - criteria:
       name: $(test_case_name)

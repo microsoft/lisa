@@ -4,7 +4,7 @@ import asyncio
 from retry import retry 
 from assertpy import assert_that
 from typing import TYPE_CHECKING
-from .azfwUtility import (
+from .utility import (
     installAzureCLI,
     loginAzureCLI,
     enableKeyVaultVMExtension,
@@ -18,7 +18,7 @@ from .azfwUtility import (
     ipv4_to_lpm,
     getNodesNICandIPaddr
 )
-from .azFWConstants import (
+from .constants import (
     ProtocolConstants,
     GenevaConfigurationConstants,
     TrafficConfigurations,
@@ -45,6 +45,13 @@ from lisa.features import NetworkInterface
 from lisa.tools import  Ping
 from time import sleep
 from lisa.features import NetworkInterface
+from lisa.sut_orchestrator.azure.common import (
+    add_user_assign_identity
+)
+#Constants 
+gsaManagedIdentity = ""
+firewallAppVersionContainer = ""
+
 
 @TestSuiteMetadata(
     area="azure-firewall",
@@ -69,13 +76,47 @@ class AzureFirewallNetworkRuleTest(TestSuite):
     )
 
 
-    def test_network_rules(self, environment: Environment, log: Logger) -> None:
-    
+    def test_network_rules(self, environment: Environment, log: Logger, variables: dict[str, any]) -> None:
+        global gsaManagedIdentity
+        global firewallAppVersionContainer
+
         firewallNode, clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICName, firewallNICIPAddr = chooseFirewallServerClientVMs(environment, log)
-     
+
+        appVersion =  variables.get("firewall_app_version")
+        firewallAppVersionContainer = f"app-{appVersion}"
+        gsaManagedIdentity = variables.get("managed_identity")
+        log.info(f"Received User Assigned Identity : {gsaManagedIdentity} and App Version {appVersion} from runbook")
 
         resourceGroupName = getResourceGroupName(firewallNode, log)
         log.info(f"Resource Group Name: {resourceGroupName}")
+
+        #Add User Assigned Identity to VMs
+        platform = environment.platform
+        log.info(f"Adding User Assigned Identity to firewall Node : {firewallNode.name}")
+        add_user_assign_identity(
+            platform= platform,
+            resource_group_name= resourceGroupName,
+            vm_name= firewallNode.name,
+            identify_id= gsaManagedIdentity,
+            log= log
+        )
+        log.info(f"Adding User Assigned Identity to client Node : {clientNode.name}")
+        add_user_assign_identity(
+            platform= platform,
+            resource_group_name= resourceGroupName,
+            vm_name= clientNode.name,
+            identify_id= gsaManagedIdentity,
+            log= log            
+        )
+        log.info(f"Adding User Assigned Identity to Server Node : {serverNode.name}")
+        add_user_assign_identity(
+            platform= platform,
+            resource_group_name= resourceGroupName,
+            vm_name= serverNode.name,
+            identify_id= gsaManagedIdentity,
+            log= log            
+        )
+
 
         #Create Route Table to route traffic via Firewall
         asyncio.run(createRouteTable(clientNode, serverNode, clientNICName, clientNICIPAddr, serverNICName, serverNICIPAddr, firewallNICIPAddr, log))
@@ -94,7 +135,7 @@ class AzureFirewallNetworkRuleTest(TestSuite):
         # enableKeyVaultVMExtension(clientNode, firewallResourceGroupName, firewallNode.name, GenevaConfigurationConstants.SETTINGSFILENAME, GenevaConfigurationConstants.SETTINGSFILEPATH, log)
 
         installAzureCLI(clientNode, log)
-        loginAzureCLI(clientNode, StorageConfigurations.GSAMANAGEDIDENTITY, log)
+        loginAzureCLI(clientNode, gsaManagedIdentity, log)
         downloadFilesFromBlob(clientNode, GenevaConfigurationConstants.SETTINGSFILENAME, GenevaConfigurationConstants.SETTINGSFILEPATH, StorageConfigurations.LISASTORAGEACCOUNTNAME, StorageConfigurations.LISACONTAINERNAME, log)
         assert_that(
             enableKeyVaultVMExtension(clientNode, resourceGroupName, firewallNode.name, GenevaConfigurationConstants.SETTINGSFILENAME, GenevaConfigurationConstants.SETTINGSFILEPATH, StorageConfigurations.LISASTORAGEACCOUNTNAME, StorageConfigurations.LISACONTAINERNAME, log)
@@ -105,7 +146,12 @@ class AzureFirewallNetworkRuleTest(TestSuite):
         extractKeyAndCerts(firewallNode, log)
 
         log.info("Setting up Azure Firewall in VM:",firewallNode.name)
+
+        assert_that(
         firewallInit(firewallNode, log)
+        ).described_as(
+            f"Failed with an error while running bootstrap"
+        ).is_equal_to(1)
 
 
         #Add iptable rules to accept traffic on the Server Side(n2)
@@ -152,7 +198,7 @@ def testICMPTraffic(firewallNode, clientNode, clientNICName, clientNICIPAddr, se
     log.info(f"Reloading Firewall Rules {ICMPProtocolConstants.RULEFILENAME}")
 
 
-    assert_that(reloadRules(firewallNode, ICMPProtocolConstants.RULEFILENAME, StorageConfigurations.GSAMANAGEDIDENTITY, log)).described_as(
+    assert_that(reloadRules(firewallNode, ICMPProtocolConstants.RULEFILENAME, gsaManagedIdentity, log)).described_as(
         f"Firewall Rules Reload Failed for {ProtocolConstants.ICMP} while using ruleConfig {ICMPProtocolConstants.RULEFILENAME}"        
     )
 
@@ -245,7 +291,7 @@ def testTCPUDPTraffic(firewallNode,clientNICName, clientNode,serverNode,serverNI
 
 
     log.info(f"Reloading Firewall Rules {ruleFileName}")
-    assert_that(reloadRules(firewallNode, ruleFileName, StorageConfigurations.GSAMANAGEDIDENTITY, log)).described_as(
+    assert_that(reloadRules(firewallNode, ruleFileName, gsaManagedIdentity, log)).described_as(
         f"Firewall Rules Reload Failed for {protocol} while using ruleConfig {ruleFileName}"
     ).is_equal_to(1)
 
@@ -385,7 +431,7 @@ def delFirewallNICRoutes(firewallNICIPAddr,firewallNode, log):
 def firewallInit(firewallNode, log):
 
     installAzureCLI(firewallNode, log)
-    loginAzureCLI(firewallNode, StorageConfigurations.GSAMANAGEDIDENTITY, log)
+    loginAzureCLI(firewallNode, gsaManagedIdentity, log)
 
     downloadFilesFromBlob(firewallNode, FirewallConstants.RUNTIMEDEPSFILENAME, FirewallConstants.RUNTIMEDEPSFILEPATH, StorageConfigurations.LISASTORAGEACCOUNTNAME, StorageConfigurations.LISACONTAINERNAME, log)
     downloadFilesFromBlob(firewallNode, FirewallConstants.GETVMDETAILSFILENAME, FirewallConstants.GETVMDETAILSFILEPATH, StorageConfigurations.LISASTORAGEACCOUNTNAME, StorageConfigurations.LISACONTAINERNAME, log)
@@ -407,25 +453,25 @@ def firewallInit(firewallNode, log):
     firewallNode.execute("useradd -M -e 2100-01-01 azfwuser", sudo=True)
     
 
-    result = firewallNode.execute(f"az storage blob download --auth-mode login --account-name {StorageConfigurations.GSASTORAGEACCOUNTNAME} -c {StorageConfigurations.GSACONTAINERNAME} -n {StorageConfigurations.BOOTSTRAPFILENAME} -f /tmp/bootstrap.tar") #Done
-    log.info("Successfully downloaded bootstrap.tar", result) #Done
+    result = firewallNode.execute(f"az storage blob download --auth-mode login --account-name {StorageConfigurations.GSASTORAGEACCOUNTNAME} -c {StorageConfigurations.GSACONTAINERNAME} -n app/{firewallAppVersionContainer}/bootstrap.tar -f /tmp/bootstrap.tar") #Done
+    log.info("Successfully downloaded bootstrap.tar", result.stdout) #Done
 
     result = firewallNode.execute("sudo chmod 666 /tmp/bootstrap.tar", sudo=True) #Done
-    log.info("Changed permissions for bootstrap.tar", result) #Done
+    log.info("Changed permissions for bootstrap.tar", result.stdout) #Done
 
     result = firewallNode.execute("sudo chmod -R 777 /tmp/bootstrap.tar", sudo=True) #Done
-    log.info("Changed permissions for bootstrap.tar", result) #Done
+    log.info("Changed permissions for bootstrap.tar", result.stdout) #Done
 
 
     result = firewallNode.execute("mkdir /tmp/bootstrap/") #Done
-    log.info("Created Directory /tmp/bootstrap/", result)
+    log.info("Created Directory /tmp/bootstrap/", result.stdout)
 
     result = firewallNode.execute("python -m ensurepip", sudo=True) #done
-    log.info("Successfully installed psutil", result)
+    log.info("Successfully installed psutil", result.stdout)
     result = firewallNode.execute('export PATH="$PATH:/home/lisatest/.local/bin"') #done
-    log.info("Added /home/lisatest/.local/bin to PATH", result)
+    log.info("Added /home/lisatest/.local/bin to PATH", result.stdout)
     result = firewallNode.execute(" python -m pip install psutil", sudo=True) #Done
-    log.info("Successfully installed psutil", result)
+    log.info("Successfully installed psutil", result.stdout)
 
     result = firewallNode.execute("tar -xvf /tmp/bootstrap.tar -C /tmp/bootstrap/", sudo=True) #Done
     log.info("Successfully extracted bootstrap.tar")
@@ -453,9 +499,9 @@ def firewallInit(firewallNode, log):
             "MGMT_SUBNET_PREFIX": "",
             "ROUTE_SERVICE_CONFIG_URL": None,
             "TENANT_KEYVAULT_URL": "https://fwcreationkeyvault.vault.azure.net/",
-            "TENANT_IDENTITY_RESOURCE_ID": f"{StorageConfigurations.GSAMANAGEDIDENTITY}",
+            "TENANT_IDENTITY_RESOURCE_ID": f"{gsaManagedIdentity}",
             "REGIONAL_KEYVAULT_URL": "https://fwcreationkeyvault.vault.azure.net/",
-            "REGIONAL_IDENTITY_RESOURCE_ID": f"{StorageConfigurations.GSAMANAGEDIDENTITY}",
+            "REGIONAL_IDENTITY_RESOURCE_ID": f"{gsaManagedIdentity}",
             "NOSNAT_IPPREFIXES_CONFIG_SAS_URL": None,
             "NOSNAT_IS_AUTO_LEARN_ENABLED": None
         }

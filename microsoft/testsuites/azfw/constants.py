@@ -80,8 +80,6 @@ class StorageConfigurations:
     GSAMANAGEDIDENTITY ="/subscriptions/e7eb2257-46e4-4826-94df-153853fea38f/resourcegroups/gsatestresourcegroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/gsateststorage-blobreader"
     LISASTORAGEACCOUNTNAME = "lisatestresourcestorage"
     LISACONTAINERNAME = "fwcreateconfigfiles"
-    FIREWALLAPPVERSION = "app-15817278"
-    BOOTSTRAPFILENAME = f"app/{FIREWALLAPPVERSION}/bootstrap.tar"
     GSACONTAINERNAME = "app"
     GSAMSICLIENTID = "6f5a4b4b-8ca9-47b8-a65b-50b249dafa6b"
     GSASTORAGEACCOUNTNAME = "gsateststorage"
