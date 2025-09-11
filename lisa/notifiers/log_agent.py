@@ -8,7 +8,6 @@ This module provides intelligent analysis of test failures using Azure OpenAI
 to help developers quickly understand the root cause of test issues.
 """
 
-import json
 import logging
 import os
 import pathlib
@@ -73,6 +72,13 @@ class LogAgentSchema(schema.Notifier):
         metadata=field_metadata(description="Analysis workflow type to execute"),
     )
 
+    skip_duplicate_errors: bool = field(
+        default=True,
+        metadata=field_metadata(
+            description="Skip analysis for errors that have already been analyzed"
+        ),
+    )
+
     def __post_init__(self) -> None:
         add_secret(self.azure_openai_api_key)
 
@@ -103,7 +109,7 @@ class LogAgent(Notifier):
 
     def __init__(self, runbook: schema.TypedSchema) -> None:
         super().__init__(runbook=runbook)
-        self._analysis_results: List[Dict[str, str]] = []
+        self._analysis_results: Dict[str, str] = {}
 
         # Configure dedicated logging for AI operations to prevent interference
         # with test execution logs
@@ -143,7 +149,21 @@ class LogAgent(Notifier):
         if message.status != TestStatus.FAILED:
             return
 
+        # Skip analysis if the same error has already been processed
+        if runbook.skip_duplicate_errors and message.message in self._analysis_results:
+            self._log.debug(
+                f"Skipping AI analysis for test {message.full_name}({message.id_}): "
+                "already processed"
+            )
+            message.analysis[
+                "AI"
+            ] = f"skip same error, refer to {self._analysis_results[message.message]}"
+            return
+
         self._log.info(f"Initiating AI analysis for failed test: {message.full_name}")
+
+        # cache the error message to avoid duplicate analysis
+        self._analysis_results[message.message] = message.id_
 
         try:
             # Construct paths for log analysis
@@ -170,9 +190,7 @@ class LogAgent(Notifier):
             )
 
             # Parse and store analysis results
-            parsed_result = json.loads(analysis_result)
             message.analysis["AI"] = analysis_result
-            self._analysis_results.append(parsed_result)
 
             self._log.info(
                 f"Successfully completed AI analysis for test: {message.full_name}"
