@@ -47,6 +47,7 @@ from lisa.tools import (
     Sysctl,
 )
 from lisa.tools.fio import IoEngine
+from lisa.tools.ip import Ip
 from lisa.tools.ntttcp import (
     NTTTCP_TCP_CONCURRENCY,
     NTTTCP_TCP_CONCURRENCY_BSD,
@@ -309,6 +310,7 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
+    variables: Optional[Dict[str, Any]] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -364,6 +366,18 @@ def perf_ntttcp(  # noqa: C901
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
+        client_nic = client.nics.default_nic
+        server_nic = server.nics.default_nic
+        client_ip = client.tools[Ip]
+        server_ip = server.tools[Ip]
+        mtu = variables.get("perf_ntttcp_mtu", 0) if variables is not None else 0
+        if mtu != 0:
+            # set mtu for default nics
+            client_ip.set_mtu(client_nic, mtu)
+            server_ip.set_mtu(server_nic, mtu)
+        client_mtu = client_ip.get_mtu(client_nic)
+        server_mtu = server_ip.get_mtu(server_nic)
+
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
             if need_reboot:
@@ -382,6 +396,10 @@ def perf_ntttcp(  # noqa: C901
                 else client.nics.get_primary_nic().pci_device_name
             )
             dev_differentiator = "mlx"
+            if mtu != 0:
+                # set mtu for AN nics, MTU needs to be set on both AN and non-AN nics
+                client_ip.set_mtu(client_nic_name, mtu)
+                server_ip.set_mtu(server_nic_name, mtu)
         else:
             server_nic_name = (
                 server_nic_name if server_nic_name else server.nics.default_nic
@@ -461,6 +479,8 @@ def perf_ntttcp(  # noqa: C901
                     buffer_size,
                     test_case_name,
                     test_result,
+                    client_mtu,
+                    server_mtu,
                 )
             else:
                 ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
@@ -471,6 +491,8 @@ def perf_ntttcp(  # noqa: C901
                     buffer_size,
                     test_case_name,
                     test_result,
+                    client_mtu,
+                    server_mtu,
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
