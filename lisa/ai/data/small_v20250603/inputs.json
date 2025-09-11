@@ -4,9 +4,9 @@
     "path": "20250603-153958-212-smoke_test",
     "error_message": "lisa.util.TcpConnectionException: cannot connect to TCP port: [134.33.26.13:22], error code: 10061, no panic found in serial log during bootup",
     "ground_truth": {
-      "summary": "In the serial console log, there is an error occurred at line 133 in the file /opt/rsa/am/utils/bin/appliance/network/states.py: 'CursesUI' object has no attribute 'colors'. This issue prevents the network configuration process from completing successfully, resulting in the virtual machine being unable to establish a network connection. Please review and correct the implementation in states.py, then try again.",
+      "summary": "The error message \"lisa.util.TcpConnectionException: cannot connect to TCP port: [134.33.26.13:22], error code: 10061\" indicates repeated connection refusals when attempting to reach the SSH service on the VM, often due to server unavailability or network issues. \"no panic found in serial log during bootup\" indicates there is no kernel panic during the VM bootup. By searching the Serial Console log, there is an error \"AttributeError: 'CursesUI' object has no attribute 'colors'\" occurred in the file /opt/rsa/am/utils/bin/appliance/network/states.py in the VM. This error occurred while attempting to configure the network which might be the root cause of the network issue. Please review and correct the implementation in states.py, then try again. Another possible reason is the DHCP related issue. Serial Console Log indicate the  DHCP failures (`failed to read /var/lib/dhcp/dhclient.eth0.leases`).",
       "problem": "Network configuration script failure prevents VM network connectivity due to missing 'colors' attribute in CursesUI class at states.py line 133.",
-      "problem_keywords": ["network configuration", "AttributeError", "CursesUI", "states.py"],
+      "problem_keywords": ["connection refusals", "network issues", "AttributeError", "CursesUI", "states.py"],
       "code_recommendation": ""
     }
   },
@@ -15,9 +15,9 @@
     "path": "20250603-160024-053-smoke_test",
     "error_message": "lisa.util.TcpConnectionException: cannot connect to TCP port: [135.234.115.243:22], error code: 10060, no panic found in serial log during bootup",
     "ground_truth": {
-      "summary": "There are mutiple lines \"unable to resolve host lisa-51-e221-n0\" in the serial console log. This hostname resolution failure may impact system service initialization or interfere with the execution of network configuration scripts. Please verify that /etc/hostname contains the correct hostname (lisa-51-e221-n0), and ensure that /etc/hosts is properly configured.",
+      "summary": "The error message \"lisa.util.TcpConnectionException: cannot connect to TCP port: [135.234.115.243:22], error code: 10060\" indicates a connection timeout occurred while attempting to reach the SSH service on the VM.  The message \"no panic found in serial log during bootup\" confirms that the VM booted without encountering a kernel panic, indicating the OS kernel initialized successfully. However, the serial console log reveals repeated messages such as: \"unable to resolve host lisa-51-e221-n0\", \"Network is unreachable\" and \"Adding default gateway\". These suggest hostname resolution issues and network connectivity problems. This hostname resolution failure may impact system service initialization or interfere with the execution of network configuration scripts. To address this, please verify that /etc/hostname contains the correct hostname (lisa-51-e221-n0), and ensure /etc/hosts includes a corresponding entry, such as \"127.0.0.1   localhost lisa-51-e221-n0\"",
       "problem": "Hostname resolution failure for lisa-51-e221-n0 prevents proper system service initialization and network configuration.",
-      "problem_keywords": ["hostname resolution", "lisa-51-e221-n0", "network configuration"],
+      "problem_keywords": ["connection timeout", "hostname resolution", "network issues", "network configuration", "/etc/hosts"],
       "code_recommendation": ""
     }
   },
@@ -26,9 +26,9 @@
     "path": "20250603-163353-041-verify_nvme_basic",
     "error_message": "AssertionError: [nvme devices count should be equal to [vCPU/8].] Expected <['/dev/nvme1n1', '/dev/nvme2n1', '/dev/nvme3n1', '/dev/nvme4n1']> to be of length <16>, but was <4>.",
     "ground_truth": {
-      "summary": "The NVMe devices count is not equal to the vCPU count / 8. This may be caused by the NVMe driver not being loaded properly. Or the testing VM size is not suitable for the case.",
+      "summary": "The error 'AssertionError: [nvme devices count should be equal to [vCPU/8].] Expected <['/dev/nvme1n1', '/dev/nvme2n1', '/dev/nvme3n1', '/dev/nvme4n1']> to be of length <16>, but was <4>.' occurred because only 4 NVMe devices were detected in the system, whereas the test logic expected 16 NVMe devices based on the formula `nvme.disk_count = int(node_space.core_count / 8)` (likely with 128 vCPUs). The logs confirm all enumeration commands executed successfully, and no device detection errors were found, meaning the mismatch is from incorrect system provisioning, where fewer NVMe disks were attached than required. To resolve this, verify the underlying hardware/VM configuration and ensure the NVMe device count matches the expected disk-to-vCPU ratio before running the test.",
       "problem": "NVMe device count mismatch with expected vCPU/8 ratio due to driver or VM size configuration issues.",
-      "problem_keywords": ["NVMe", "device count", "driver", "VM size"],
+      "problem_keywords": ["NVMe device", "device count mismatch", "incorrect provisioning", "hardware configuration"],
       "code_recommendation": ""
     }
   },
@@ -59,9 +59,9 @@
     "path": "20250603-172021-168-smoke_test",
     "error_message": "lisa.util.LisaException: OSProvisioningTimedOut: OS Provisioning for VM 'lisa-Azure-fleet-smoke-20250603-171025-337-e82-n0' did not finish in the allotted time. The VM may still finish provisioning successfully. Please check provisioning state later. For details on how to check current provisioning state of Windows VMs, refer to https://aka.ms/WindowsVMLifecycle and Linux VMs, refer to https://aka.ms/LinuxVMLifecycle.",
     "ground_truth": {
-      "summary": "The root partition \"/dev/sda1\" was not found during the process to switch the file system from the initramfs to the disk sda1, which leads to the boot process got stopped.",
+      "summary": "The error OSProvisioningTimedOut may be caused by either a VM boot issue or a network connectivity problem. From the serial console log, although the message \"Device sda1 not found\" appears, the VM has successfully booted. This is evidenced by the line \"Filesystem at /dev/mapper/root is mounted on /\" which confirms that the root filesystem was mounted correctly. Additionally, the presence of \"localhost login:\" at the end of the log indicates that the system has reached the login prompt, confirming a successful boot. However, the log also shows \"eth0: fe80::6245:bdff:fee8:caba\" which is an IPv6 link-local address. The absence of an IPv4 address suggests that the VM may have failed to obtain an IP via DHCP. This could prevent the VM from communicating with the Azure platform, including accessing the WireServer (168.63.129.16), which is essential for provisioning. Therefore, the lack of IPv4 connectivity is a likely root cause of the OSProvisioningTimedOut error.",
       "problem": "Boot process failure due to missing root partition /dev/sda1 during initramfs to disk transition.",
-      "problem_keywords": ["root partition", "/dev/sda1", "initramfs", "boot failure"],
+      "problem_keywords": ["eth0", "/dev/sda1", "IPv6", "absence of IPv4", "WireServer"],
       "code_recommendation": ""
     }
   },
