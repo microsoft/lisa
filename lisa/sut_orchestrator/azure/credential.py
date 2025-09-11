@@ -169,7 +169,7 @@ class AzureDefaultCredential(AzureCredential):
         return AzureCredential with related schema
         """
         additional_tenants = ["*"] if self._allow_all_tenants else None
-        return DefaultAzureCredential(
+        return DefaultAzureCredential( # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
             cloud=self._cloud,
             additionally_allowed_tenants=additional_tenants,
         )
