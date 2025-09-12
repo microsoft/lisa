@@ -7,8 +7,14 @@ from pathlib import Path
 
 from assertpy import assert_that
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import CentOs, Redhat
+from lisa import (
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.operating_system import BSD, CentOs, Redhat, Windows
 from lisa.tools import Docker, DockerCompose
 from lisa.util import SkippedException, UnsupportedDistroException, get_matched_str
 
@@ -81,7 +87,7 @@ class DockerTestSuite(TestSuite):
     )
     def verify_docker_dotnet31_app(self, node: Node) -> None:
         self._execute_docker_test(
-            node, "dotnetimage", "dotnetapp", "Hello World!", "", "dotnet31.Dockerfile"
+            node, "dotnetimage", "Hello World!", "", "dotnet31.Dockerfile"
         )
 
     @TestCaseMetadata(
@@ -98,7 +104,7 @@ class DockerTestSuite(TestSuite):
     )
     def verify_docker_dotnet50_app(self, node: Node) -> None:
         self._execute_docker_test(
-            node, "dotnetimage", "dotnetapp", "Hello World!", "", "dotnet50.Dockerfile"
+            node, "dotnetimage", "Hello World!", "", "dotnet50.Dockerfile"
         )
 
     @TestCaseMetadata(
@@ -117,7 +123,6 @@ class DockerTestSuite(TestSuite):
         self._execute_docker_test(
             node,
             "javaappimage",
-            "javaapp",
             "Hello world from java",
             "Main.java",
             "java.Dockerfile",
@@ -139,7 +144,6 @@ class DockerTestSuite(TestSuite):
         self._execute_docker_test(
             node,
             "pythonappimage",
-            "pythonapp",
             "Hello world from python",
             "helloworld.py",
             "python.Dockerfile",
@@ -154,51 +158,33 @@ class DockerTestSuite(TestSuite):
         self,
         node: Node,
         docker_image_name: str,
-        docker_container_name: str,
         string_identifier: str,
         prog_src: str,
         dockerfile: str,
     ) -> None:
-        docker_tool = self._verify_and_remove_containers(
-            node, docker_image_name, docker_container_name
-        )
+        docker_tool = self._verify_and_remove_images(node, docker_image_name)
         if prog_src:
             self._copy_to_node(node, prog_src)
         self._copy_to_node(node, dockerfile)
         self._run_and_verify_results(
-            node,
             docker_tool,
             dockerfile,
             docker_image_name,
-            docker_container_name,
             string_identifier,
         )
 
     def _run_and_verify_results(
         self,
-        node: Node,
         docker_tool: Docker,
         dockerfile_name: str,
         docker_image_name: str,
-        docker_container_name: str,
         string_identifier: str,
     ) -> None:
-        docker_run_output_file = "docker_run.log"
-
         docker_tool.build_image(docker_image_name, dockerfile_name)
-        docker_tool.run_container(
-            docker_image_name, docker_container_name, docker_run_output_file
-        )
+        docker_run = docker_tool.run_container(docker_image_name)
         docker_tool.remove_image(docker_image_name)
-        docker_tool.remove_container(docker_container_name)
 
-        docker_run_output = node.execute(
-            f"cat {docker_run_output_file}",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Docker run output file not found",
-            cwd=node.working_path,
-        ).stdout
+        docker_run_output = (docker_run.stdout + docker_run.stderr).strip()
         assert_that(docker_run_output).described_as(
             "The container didn't output expected result. "
             "There may have been errors when the container was run. "
@@ -212,9 +198,7 @@ class DockerTestSuite(TestSuite):
                 f"Test not supported for RH/CentOS {node.os.information.release}"
             )
 
-    def _verify_and_remove_containers(
-        self, node: Node, docker_image_name: str, docker_container_name: str
-    ) -> Docker:
+    def _verify_and_remove_images(self, node: Node, docker_image_name: str) -> Docker:
         self._skip_if_not_supported(node)
         try:
             docker_tool = node.tools[Docker]
@@ -222,7 +206,6 @@ class DockerTestSuite(TestSuite):
             raise SkippedException(e)
         self._verify_docker_engine(node)
         docker_tool.remove_image(docker_image_name)
-        docker_tool.remove_container(docker_container_name)
         return docker_tool
 
     def _verify_docker_engine(self, node: Node) -> None:
@@ -261,3 +244,64 @@ class DockerTestSuite(TestSuite):
             "Fail to run docker run hello-world"
         ).is_equal_to(0)
         node.log.debug(f"VerifyDockerEngine: hello-world output - {result.stdout}")
+
+    @TestCaseMetadata(
+        description="""
+            Verifies a custom Docker seccomp profile is applied and enforced.
+
+            Steps:
+            1. Install Docker on the target node
+            2. Copy the custom seccomp profile that explicitly denies the chmod syscall
+            3. Start a container with this custom seccomp profile and try to run chmod;
+               the command should fail, proving the profile is enforced
+            4. Start another container without the custom profile and run the same chmod
+               command; this time it should succeed, proving the restriction only comes
+               from the profile
+        """,
+        priority=2,
+        requirement=simple_requirement(unsupported_os=[Windows, BSD]),
+    )
+    def verify_docker_seccomp_profile(self, node: Node) -> None:
+        docker_tool = node.tools[Docker]
+        docker_tool.pull_image("alpine:latest")
+        if "seccomp" not in docker_tool.info().lower():
+            raise SkippedException("Seccomp not supported/enabled on this Docker host")
+
+        # Test with profile: expect failure
+        self._copy_to_node(node, "deny_chmod_seccomp.json")
+        profile_path = node.working_path / "deny_chmod_seccomp.json"
+
+        test_cmd = "sh -c 'touch test_file && chmod 600 test_file'"
+        denied = docker_tool.run_container(
+            "alpine:latest",
+            command=test_cmd,
+            extra_args=f"--security-opt seccomp={profile_path}",
+            expected_exit_code=None,
+        )
+        assert_that(denied.exit_code).described_as(
+            "chmod unexpectedly succeeded under denied seccomp profile"
+        ).is_not_equal_to(0)
+        denied_output = (denied.stdout + denied.stderr).lower()
+        assert_that(
+            any(
+                x in denied_output
+                for x in (
+                    "operation not permitted",
+                    "eperm",
+                )
+            )
+        ).described_as(
+            "Did not find expected seccomp denial indicator"
+            " (Operation not permitted/EPERM)"
+        ).is_true()
+
+        # Test without profile: expect success
+        allowed = docker_tool.run_container(
+            "alpine:latest",
+            command=test_cmd,
+            expected_exit_code=0,
+        )
+        allowed_output = (allowed.stdout + allowed.stderr).lower()
+        assert_that(allowed_output).described_as(
+            "Baseline run (no seccomp profile) unexpectedly showed denial text"
+        ).does_not_contain("operation not permitted").does_not_contain("eperm")
