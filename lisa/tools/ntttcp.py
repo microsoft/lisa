@@ -640,13 +640,13 @@ class Ntttcp(Tool):
                 "name": "server_mtu",
                 "value": float(server_result.mtu),
                 "relativity": MetricRelativity.NA,
-                "unit": "KB",
+                "unit": "bytes",
             },
             {
                 "name": "client_mtu",
                 "value": float(client_result.mtu),
                 "relativity": MetricRelativity.NA,
-                "unit": "KB",
+                "unit": "bytes",
             },
         ]
 
