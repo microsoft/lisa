@@ -83,6 +83,7 @@ class NtttcpResult:
     rx_packets: Decimal = Decimal(0)
     pkts_interrupt: Decimal = Decimal(0)
     cycles_per_byte: Decimal = Decimal(0)
+    mtu: int = 0
 
 
 class Ntttcp(Tool):
@@ -437,14 +438,12 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
-        client_mtu: int = -1,
-        server_mtu: int = -1,
     ) -> NetworkUDPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
         other_fields["send_buffer_size"] = Decimal(buffer_size)
-        other_fields["client_mtu"] = client_mtu
-        other_fields["server_mtu"] = server_mtu
+        other_fields["client_mtu"] = client_result.mtu
+        other_fields["server_mtu"] = server_result.mtu
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time
         )
@@ -635,6 +634,18 @@ class Ntttcp(Tool):
                 "name": f"receiver_cycles_per_byte{conn_suffix}",
                 "value": float(server_result.cycles_per_byte),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "cycles/byte",
+            },
+            {
+                "name": f"receiver_cycles_per_byte{conn_suffix}",
+                "value": float(server_result.mtu),
+                "relativity": MetricRelativity.NA,
+                "unit": "cycles/byte",
+            },
+            {
+                "name": f"receiver_cycles_per_byte{conn_suffix}",
+                "value": float(client_result.mtu),
+                "relativity": MetricRelativity.NA,
                 "unit": "cycles/byte",
             },
         ]

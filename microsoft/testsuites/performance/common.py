@@ -466,9 +466,11 @@ def perf_ntttcp(  # noqa: C901
             server_result_temp = server_ntttcp.create_ntttcp_result(
                 server_ntttcp_result
             )
+            server_result_temp.mtu = server_mtu
             client_result_temp = client_ntttcp.create_ntttcp_result(
                 client_ntttcp_result, role="client"
             )
+            client_result_temp.mtu = client_mtu
             client_sar_result = client_lagscope_process.wait_result()
             client_average_latency = client_lagscope.get_average(client_sar_result)
             if udp_mode:
@@ -481,8 +483,6 @@ def perf_ntttcp(  # noqa: C901
                     buffer_size,
                     test_case_name,
                     test_result,
-                    client_mtu,
-                    server_mtu,
                 )
             else:
                 ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
@@ -493,8 +493,6 @@ def perf_ntttcp(  # noqa: C901
                     buffer_size,
                     test_case_name,
                     test_result,
-                    client_mtu,
-                    server_mtu,
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
