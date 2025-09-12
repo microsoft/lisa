@@ -712,23 +712,8 @@ class DpdkTestpmd(Tool):
             "dpdk examples path does not exist, "
             f"cannot use requested dpdk example: {app_name}"
         ).is_true()
+        # if the application has not been built; check if there is a rep
         if not shell.exists(source_path.joinpath("build")):
-            local_path = Path(__file__).parent.joinpath(source_path.name)
-            if local_path.exists():
-                remote_tmp_path=self.node.working_path.joinpath(f"{source_path.name}_main.c")
-                self.node.shell.copy(
-                    local_path=PurePath(__file__).parent.joinpath(
-                        f"{local_path}/main.c"
-                    ),
-                    node_path=remote_tmp_path,
-                )
-                self.node.execute(
-                    f"cp {str(remote_tmp_path)} {str(source_path.joinpath("main.c"))}",
-                    sudo=True,
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message="could not copy patched main.c"
-                )
             self.node.tools[Make].make("static", cwd=source_path, sudo=True)
         return source_path.joinpath(f"build/{source_path.name}")
 
