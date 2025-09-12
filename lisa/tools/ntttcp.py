@@ -637,16 +637,16 @@ class Ntttcp(Tool):
                 "unit": "cycles/byte",
             },
             {
-                "name": f"receiver_cycles_per_byte{conn_suffix}",
+                "name": "server_mtu",
                 "value": float(server_result.mtu),
                 "relativity": MetricRelativity.NA,
-                "unit": "cycles/byte",
+                "unit": "KB",
             },
             {
-                "name": f"receiver_cycles_per_byte{conn_suffix}",
+                "name": "client_mtu",
                 "value": float(client_result.mtu),
                 "relativity": MetricRelativity.NA,
-                "unit": "cycles/byte",
+                "unit": "KB",
             },
         ]
 
