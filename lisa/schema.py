@@ -709,6 +709,11 @@ class NetworkDataPath(str, Enum):
     Sriov = "Sriov"
 
 
+class IPVersion(str, Enum):
+    IPv4 = "IPv4"
+    IPv6 = "IPv6"
+
+
 _network_data_path_priority: List[NetworkDataPath] = [
     NetworkDataPath.Sriov,
     NetworkDataPath.Synthetic,
@@ -740,6 +745,21 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             )
         ),
     )
+    ip_version: Optional[Union[search_space.SetSpace[IPVersion], IPVersion]] = (
+        field(  # type: ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                items=[IPVersion.IPv4, IPVersion.IPv6],
+            ),
+            metadata=field_metadata(
+                decoder=partial(
+                    search_space.decode_nullable_set_space,
+                    base_type=IPVersion,
+                    default_values=[IPVersion.IPv4, IPVersion.IPv6],
+                )
+            ),
+        )
+    )
     # nic_count is used for specifying associated nic count during provisioning vm
     nic_count: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=1),
@@ -762,14 +782,15 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         return (
             self.type == o.type
             and self.data_path == o.data_path
+            and self.ip_version == o.ip_version
             and self.nic_count == o.nic_count
             and self.max_nic_count == o.max_nic_count
         )
 
     def __repr__(self) -> str:
         return (
-            f"data_path:{self.data_path}, nic_count:{self.nic_count},"
-            f" max_nic_count:{self.max_nic_count}"
+            f"data_path:{self.data_path}, ip_version:{self.ip_version}, "
+            f"nic_count:{self.nic_count}, max_nic_count:{self.max_nic_count}"
         )
 
     def __str__(self) -> str:
@@ -807,6 +828,11 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         )
 
         result.merge(
+            search_space.check_setspace(self.ip_version, capability.ip_version),
+            "ip_version",
+        )
+
+        result.merge(
             search_space.check_countspace(self.max_nic_count, capability.max_nic_count),
             "max_nic_count",
         )
@@ -839,6 +865,7 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         value.data_path = getattr(search_space, f"{method.value}_setspace_by_priority")(
             self.data_path, capability.data_path, _network_data_path_priority
         )
+
         return value
 
 
