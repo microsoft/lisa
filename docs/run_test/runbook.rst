@@ -71,6 +71,16 @@ Runbook Reference
          -  `include_subtest <#include-subtest>`__
          -  `append_message_id <#append-message-id>`__
 
+      -  `log_agent <#log-agent>`__
+
+         -  `azure_openai_endpoint <#azure-openai-endpoint>`__
+         -  `azure_openai_api_key <#azure-openai-api-key>`__
+         -  `general_deployment_name <#general-deployment-name>`__
+         -  `software_deployment_name <#software-deployment-name>`__
+         -  `embedding_endpoint <#embedding-endpoint>`__
+         -  `selected_flow <#selected-flow>`__
+         -  `skip_duplicate_errors <#skip-duplicate-errors>`__
+
    -  `environment <#environment>`__
 
       -  `retry <#retry>`__
@@ -736,6 +746,123 @@ Example of junit notifier:
        path: ./results.xml
        include_subtest: true
        append_message_id: false
+
+log_agent
+^^^^^^^^^
+
+AI-powered log analysis notifier for automated test failure investigation.
+This notifier leverages Azure OpenAI to automatically analyze failed test
+cases, providing intelligent insights into potential root causes by examining
+test execution logs and code context from the LISA framework.
+
+The log_agent notifier uses a multi-agent AI system that combines:
+
+- **LogSearchAgent**: Specialized in searching and analyzing log files for error patterns
+- **CodeSearchAgent**: Examines source code files and analyzes implementations related to errors  
+- **Magentic Orchestration**: Coordinates the agents to provide comprehensive analysis
+
+The analysis results are attached to test result messages and made available to
+downstream notifiers and reporting systems.
+
+**Prerequisites:**
+
+1. **Azure OpenAI Access** with the following deployments:
+   - GPT-4.1 or GPT-4o for general analysis
+   - GPT-4.1 for software-specific analysis (optional)
+   - Text-embedding-3-large for similarity calculations (optional)
+
+2. **Required Python packages** (automatically included with LISA):
+   - python-dotenv
+   - semantic-kernel  
+   - azure-ai-inference
+   - retry
+
+azure_openai_endpoint
+'''''''''''''''''''''
+
+type: str, required
+
+Azure OpenAI service endpoint URL for the AI analysis service.
+
+Example: ``https://your-resource.openai.azure.com``
+
+azure_openai_api_key
+''''''''''''''''''''
+
+type: str, optional, default: ""
+
+Azure OpenAI API key for authentication. If not set, the notifier will use 
+default authentication methods available in the environment.
+
+Note: This value is automatically marked as secret and will be masked in logs.
+
+general_deployment_name
+'''''''''''''''''''''''
+
+type: str, optional, default: "gpt-4o"
+
+Primary GPT model deployment name for general analysis tasks. This model is used
+by the orchestration manager to coordinate the analysis and synthesize findings.
+
+software_deployment_name
+''''''''''''''''''''''''
+
+type: str, optional, default: "gpt-4.1"
+
+Specialized GPT model deployment name for software-specific analysis tasks.
+This model is used by the CodeSearchAgent for examining source code.
+
+embedding_endpoint
+''''''''''''''''''
+
+type: str, optional, default: ""
+
+Optional embedding service endpoint for similarity calculations and analysis
+quality measurement.
+
+selected_flow
+'''''''''''''
+
+type: str, optional, default: "default"
+
+Analysis workflow type to execute. Currently supported flows:
+
+- **default**: Standard multi-agent analysis workflow
+- **gpt-5**: Advanced analysis workflow (future enhancement)
+
+skip_duplicate_errors
+'''''''''''''''''''''
+
+type: bool, optional, default: True
+
+When set to True, the notifier will skip analysis for errors that have already
+been analyzed in the current test run, improving performance and avoiding
+redundant processing.
+
+Example of log_agent notifier:
+
+.. code:: yaml
+
+   notifier:
+     - type: log_agent
+       azure_openai_endpoint: https://your-resource.openai.azure.com
+       azure_openai_api_key: $(azure_openai_api_key)
+       general_deployment_name: gpt-4o
+       software_deployment_name: gpt-4.1
+       selected_flow: default
+       skip_duplicate_errors: true
+
+**How it works:**
+
+1. **Failure Detection**: Automatically triggered when test cases fail
+2. **Log Analysis**: Searches through test execution logs for error patterns
+3. **Code Review**: Examines related source code if call traces are available
+4. **Hypothesis Generation**: Generates possible reasons for the failure
+5. **Evidence Gathering**: Searches for supporting evidence in logs
+6. **Root Cause Analysis**: Provides comprehensive analysis with actionable insights
+
+The AI analysis results are stored in the test result message's ``analysis["AI"]`` 
+field and can be consumed by other notifiers like HTML or custom reporting systems.
 
 environment
 ~~~~~~~~~~~
