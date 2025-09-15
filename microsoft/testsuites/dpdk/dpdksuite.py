@@ -658,6 +658,7 @@ class Dpdk(TestSuite):
     @TestCaseMetadata(
         description="""
             Tests a basic sender/receiver setup for the netvsc pmd using jumbo frames.
+            Default is set to request an mtu of 9k, test will skip if it's not possible.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the expected
             order-of-magnitude.
