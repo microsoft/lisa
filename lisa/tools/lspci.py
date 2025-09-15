@@ -69,6 +69,7 @@ VENDOR_ID_INTEL = "8086"  # Intel Corporation
 VENDOR_ID_MELLANOX = "15b3"  # Mellanox Technologies
 VENDOR_ID_MICROSOFT = "1414"  # Microsoft Corporation
 VENDOR_ID_NVIDIA = "10de"  # NVIDIA Corporation
+VENDOR_ID_SAMSUNG = "144d"  # Samsung Electronics Co., Ltd
 
 DEVICE_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: [
@@ -84,7 +85,8 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
         "101e",  # Mellanox Technologies [ConnectX Family mlx5Gen Virtual Function]
     ],
     constants.DEVICE_TYPE_NVME: [
-        "b111"  # Microsoft Corporation Device, Local NVMe disks
+        "b111",  # Microsoft Corporation Device, Local NVMe disks
+        "a826",  # Samsung Electronics Co., Ltd Device, Local NVMe disks
     ],
     constants.DEVICE_TYPE_ASAP: [
         "00a9"  # Remote disks connected using NVMe disk controller
@@ -108,7 +110,7 @@ VENDOR_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_INFINIBAND: [
         VENDOR_ID_MELLANOX,
     ],
-    constants.DEVICE_TYPE_NVME: [VENDOR_ID_MICROSOFT],
+    constants.DEVICE_TYPE_NVME: [VENDOR_ID_MICROSOFT, VENDOR_ID_SAMSUNG],
     constants.DEVICE_TYPE_GPU: [VENDOR_ID_NVIDIA],
     constants.DEVICE_TYPE_AMD_GPU: [VENDOR_ID_AMD],
 }
@@ -345,6 +347,7 @@ class Lspci(Tool):
         if 0 == len(devices):
             raise LisaException(f"No matched device type {device_type} found.")
         for device in devices:
+            self._log.debug(f"Disabling device {device.slot}")
             self.disable_device(device=device)
         return len(devices)
 
