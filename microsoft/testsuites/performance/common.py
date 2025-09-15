@@ -366,17 +366,17 @@ def perf_ntttcp(  # noqa: C901
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        mtu = variables.get("network_mtu", None) if variables is not None else None
-        if not mtu:
-            mtu = None
         client_nic = client.nics.default_nic
         server_nic = server.nics.default_nic
         client_ip = client.tools[Ip]
         server_ip = server.tools[Ip]
-        if mtu is not None:
+        mtu = variables.get("perf_ntttcp_mtu", None) if variables is not None else None
+        if client_ip.is_valid_mtu(mtu) and mtu is not None:
             # set mtu for default nics
             client_ip.set_mtu(client_nic, mtu)
             server_ip.set_mtu(server_nic, mtu)
+        else:
+            mtu = None
         client_mtu = client_ip.get_mtu(client_nic)
         server_mtu = server_ip.get_mtu(server_nic)
 
