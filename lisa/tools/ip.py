@@ -12,7 +12,7 @@ from lisa.operating_system import Posix
 from lisa.tools import Cat
 from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, find_group_in_lines, find_patterns_in_lines
 
 
 class IpInfo:
@@ -468,13 +468,14 @@ class Ip(Tool):
                 "Could not fetch interface details with 'ip -d link show'"
             ),
         ).stdout
-        found = self.__ip_detail_show_regex.match(details)
-        if not found:
-            return ""
-        detail = found.group(attribute)
-        if not detail:
-            return ""
-        return str(detail)
+        try:
+            groups = find_group_in_lines(
+                details, self.__ip_detail_show_regex, single_line=False
+            )
+            detail = groups[attribute]
+        except KeyError:
+            detail = ""
+        return detail
 
     def get_interface_list(self) -> list[str]:
         raise NotImplementedError()
