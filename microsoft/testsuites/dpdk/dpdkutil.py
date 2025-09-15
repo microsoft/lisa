@@ -1506,3 +1506,10 @@ def run_dpdk_symmetric_mp(
                 match_data = {"rx": int(rx_count), "tx": int(tx_count)}
                 process_data += [match_data]
     print(repr(process_data))
+
+    assert_that(process_data[0]["rx"]).described_as(
+        "process 0 port 0 tx and port 1 rx should match"
+    ).is_equal_to(process_data[1]["tx"])
+    assert_that(process_data[2]["rx"]).described_as(
+        "process 1 port_0_tx and port_1_rx should match"
+    ).is_equal_to(process_data[3]["tx"])
