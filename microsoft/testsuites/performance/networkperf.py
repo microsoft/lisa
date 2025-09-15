@@ -164,10 +164,45 @@ class NetworkPerformace(TestSuite):
             )
         ),
     )
+    def perf_tcp_ntttcp_jumbo_synthetic(self, result: TestResult) -> None:
+        perf_ntttcp(result, mtu=9000)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses ntttcp to test sriov tcp network throughput.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=2,
+                memory_mb=search_space.IntRange(min=8192),
+                network_interface=Sriov(),
+            )
+        ),
+    )
+    def perf_tcp_ntttcp_jumbo_sriov(self, result: TestResult) -> None:
+        perf_ntttcp(result, mtu=9000)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses ntttcp to test synthetic tcp network throughput.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=2,
+                memory_mb=search_space.IntRange(min=8192),
+                network_interface=Synthetic(),
+            )
+        ),
+    )
     def perf_tcp_ntttcp_synthetic(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, variables=variables)
+        mtu = variables.get("network_mtu", None) if variables is not None else None
+        perf_ntttcp(result, mtu=mtu)
 
     @TestCaseMetadata(
         description="""
@@ -186,7 +221,8 @@ class NetworkPerformace(TestSuite):
     def perf_tcp_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, variables=variables)
+        mtu = variables.get("network_mtu", None) if variables is not None else None
+        perf_ntttcp(result, mtu=mtu)
 
     @TestCaseMetadata(
         description="""
@@ -203,7 +239,8 @@ class NetworkPerformace(TestSuite):
     def perf_udp_1k_ntttcp_synthetic(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, udp_mode=True, variables=variables)
+        mtu = variables.get("network_mtu", None) if variables is not None else None
+        perf_ntttcp(result, udp_mode=True, mtu=mtu)
 
     @TestCaseMetadata(
         description="""
@@ -220,7 +257,8 @@ class NetworkPerformace(TestSuite):
     def perf_udp_1k_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, udp_mode=True, variables=variables)
+        mtu = variables.get("network_mtu", None) if variables is not None else None
+        perf_ntttcp(result, udp_mode=True, mtu=mtu)
 
     @TestCaseMetadata(
         description="""

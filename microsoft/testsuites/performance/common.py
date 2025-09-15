@@ -310,7 +310,7 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
-    variables: Optional[Dict[str, Any]] = None,
+    mtu: Optional[int] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -366,7 +366,6 @@ def perf_ntttcp(  # noqa: C901
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        mtu = variables.get("network_mtu", None) if variables is not None else None
         if not mtu:
             mtu = None
         client_nic = client.nics.default_nic
