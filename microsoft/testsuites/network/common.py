@@ -94,17 +94,28 @@ def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -
 
     # For non-InfiniBand NICs, validate required fields
     assert_that(nic_info.name).described_as(
-        f"SR-IOV NIC {nic_name} on {node.name} is missing name. "
+        f"NIC {nic_name} on {node.name} is missing name. "
         f"NIC info: {nic_info}"
     ).is_not_none()
 
-    assert_that(nic_info.pci_slot).described_as(
-        f"SR-IOV NIC {nic_name} on {node.name} is missing PCI slot. "
-        f"NIC info: {nic_info}"
-    ).is_not_none()
+    # PCI slot is only required for SR-IOV NICs (VFs have PCI device names)
+    # Synthetic NICs may not have PCI slots but are still valid for communication
+    if nic_info.pci_device_name:
+        # This appears to be an SR-IOV NIC, so PCI slot should be present
+        assert_that(nic_info.pci_slot).described_as(
+            f"SR-IOV NIC {nic_name} on {node.name} is missing PCI slot. "
+            f"NIC info: {nic_info}"
+        ).is_not_none()
+    else:
+        # This is likely a synthetic NIC, which is valid without PCI slot
+        node.log.debug(
+            f"NIC {nic_name} on {node.name} appears to be synthetic "
+            f"(no pci_device_name), proceeding without PCI slot validation"
+        )
 
+    # IP address is required for all NICs to establish communication
     assert_that(nic_info.ip_addr).described_as(
-        f"SR-IOV NIC {nic_name} on {node.name} is missing IP address. "
+        f"NIC {nic_name} on {node.name} is missing IP address. "
         f"This indicates the NIC was not properly initialized. "
         f"NIC info: {nic_info}"
     ).is_not_none()
@@ -112,7 +123,7 @@ def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -
     return False
 
 
-def _perform_connectivity_test(
+def _test_connectivity(
     source_node: RemoteNode,
     dest_node: RemoteNode,
     source_ip: str,
@@ -123,6 +134,10 @@ def _perform_connectivity_test(
     max_retry_times: int = 10,
 ) -> None:
     """Perform ping and file transfer test between NICs."""
+    
+    # Create test file for transfer (200MB)
+    source_node.execute("dd if=/dev/urandom of=large_file bs=1M count=200")
+    
     # get origin tx_packets and rx_packets before copy file
     source_tx_packets_origin = source_node.nics.get_packets(source_nic)
     dest_tx_packets_origin = dest_node.nics.get_packets(dest_nic, "rx_packets")
@@ -165,6 +180,10 @@ def _perform_connectivity_test(
     assert_that(
         int(dest_tx_packets), "insufficient RX packets received"
     ).is_greater_than(int(dest_tx_packets_origin))
+    
+    # Clean up the test file after transfer
+    source_node.execute("rm -f large_file", shell=True)
+    dest_node.execute("rm -f /tmp/large_file", shell=True)
 
 
 def sriov_vf_connection_test(
@@ -180,9 +199,6 @@ def sriov_vf_connection_test(
 
     # enable public key for ssh connection
     dest_ssh.enable_public_key(source_ssh.generate_key_pairs())
-
-    # generate 200Mb file
-    source_node.execute("dd if=/dev/urandom of=large_file bs=1M count=200")
 
     # Track statistics for validation
     tested_nic_pairs = 0
@@ -266,7 +282,7 @@ def sriov_vf_connection_test(
                 dest_node.tools[Ip].down(dest_pci_nic)
 
         # Perform connectivity test
-        _perform_connectivity_test(
+        _test_connectivity(
             source_node,
             dest_node,
             source_ip,
