@@ -794,7 +794,7 @@ class KdumpCheck(Tool):
         )
 
         # Reboot system to make kdump take effect
-        self.node.reboot()
+        self.node.reboot(time_out=600)
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
