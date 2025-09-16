@@ -93,6 +93,8 @@ def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -
         return True
 
     # Skip enslaved VF NICs (they don't have IP addresses in Azure)
+    # In Azure Accelerated Networking, VFs are enslaved to synthetic NICs
+    # Traffic through synthetic NIC automatically uses VF for acceleration
     if nic_info.pci_device_name and not nic_info.ip_addr:
         node.log.debug(
             f"Skipping enslaved VF {nic_name} on {node.name} "
@@ -252,8 +254,26 @@ def sriov_vf_connection_test(
         source_ip = source_nic_info.ip_addr
         source_synthetic_nic = source_nic_info.name
         dest_synthetic_nic = dest_nic_info.name
-        source_nic = source_pci_nic = source_nic_info.pci_device_name
-        dest_nic = dest_pci_nic = dest_nic_info.pci_device_name
+        
+        # Determine which NIC to monitor for packet counts
+        # Handle both SR-IOV accelerated and pure synthetic NICs
+        if source_nic_info.lower and source_nic_info.pci_device_name:
+            # SR-IOV accelerated - monitor the VF for packet counts
+            source_pci_nic = source_nic_info.pci_device_name
+            source_nic = source_pci_nic
+        else:
+            # Pure synthetic - monitor the synthetic NIC
+            source_pci_nic = source_nic_info.name
+            source_nic = source_synthetic_nic
+
+        if dest_nic_info.lower and dest_nic_info.pci_device_name:
+            # SR-IOV accelerated - monitor the VF for packet counts
+            dest_pci_nic = dest_nic_info.pci_device_name
+            dest_nic = dest_pci_nic
+        else:
+            # Pure synthetic - monitor the synthetic NIC
+            dest_pci_nic = dest_nic_info.name
+            dest_nic = dest_synthetic_nic
 
         source_node.log.debug(
             f"Testing connection from {source_ip} ({source_nic_info.name})"
@@ -294,7 +314,7 @@ def sriov_vf_connection_test(
 
     # After testing all NICs, ensure at least one valid pair was tested
     assert_that(tested_nic_pairs).described_as(
-        f"No valid NIC pairs were tested. "
+        f"No valid SR-IOV NIC pairs were tested. "
         f"Skipped {skipped_infiniband_source} InfiniBand NICs on source node "
         f"and {skipped_infiniband_dest} on destination node. "
         f"This could indicate all NICs are InfiniBand or there are no "
@@ -302,7 +322,7 @@ def sriov_vf_connection_test(
     ).is_greater_than(0)
 
     source_node.log.info(
-        f"Successfully tested {tested_nic_pairs} NIC pair(s). "
+        f"Successfully tested {tested_nic_pairs} SR-IOV NIC pair(s). "
         f"Skipped {skipped_infiniband_source + skipped_infiniband_dest} "
         f"InfiniBand interface(s)."
     )
