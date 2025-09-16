@@ -1299,6 +1299,27 @@ def run_dpdk_symmetric_mp(
     trigger_rescind: bool = False,
     rescind_times: int = 1,
 ) -> None:
+    """
+    A runner function for symmetric_mp, one of the
+    dpdk multi_process example apps.
+
+    This program creates one primary and N secondary processes,
+    it assigns forwarding rules between ports for those processes,
+    then begins forwarding.
+
+    The flow of this function is:
+
+    - setup vm
+    - setup symmetric_mp app (builds if needed)
+    - setup dpdk devname app to get port IDs for specific ports
+    - create symmetric_mp command line
+    - start primary
+    - start secondary
+    - ping both
+    - [ recind sriov, optional ]
+    - count packets received on tx/rx side of each process and port
+
+    """
     # setup and unwrap the resources for this test
     # get a list of the upper non-primary nics and select two of them
     test_nics = [
@@ -1308,6 +1329,7 @@ def run_dpdk_symmetric_mp(
     ][:2]
     ping = node.tools[Ping]
     ping.install()
+
     # initialize for netvsc, we rely on the debug messages in this test
     # to identify the hotplug events.
     try:
@@ -1385,6 +1407,7 @@ def run_dpdk_symmetric_mp(
         kill_timeout=35,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
+
     # expect 150 pings by default, if we rescind we'll add to this count
     expected_pings = 150
     ping.ping_async(
@@ -1400,6 +1423,7 @@ def run_dpdk_symmetric_mp(
         ignore_error=True,
         interval=0.05,
     )
+    # optionally trigger rescind
     if trigger_rescind:
         # allow multiple rescinds for stress testing
         while rescind_times > 0:
