@@ -29,7 +29,7 @@ class Wsl(Tool):
     CONFIG_FILE_PATH = r"%USERPROFILE%\.wslconfig"
 
     ENCODING = "utf-16-le"
-    LKG_RELEASE = "https://github.com/microsoft/WSL/releases/download/2.0.4/Microsoft.WSL_2.0.4.0_x64_ARM64.msixbundle"  # noqa: E501
+    LKG_RELEASE = "https://github.com/microsoft/WSL/releases/download/2.6.1/Microsoft.WSL_2.6.1.0_x64_ARM64.msixbundle"  # noqa: E501
     INSTALL_TIMEOUT = 120
 
     def __init__(self, node: "Node", guest: "Node") -> None:

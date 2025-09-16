@@ -117,6 +117,9 @@ class PowerShell(Tool):
 
     def _parse_error_message(self, raw: str) -> str:
         # remove first line, which is "#< CLIXML"
+        if not raw:
+            return ""
+
         leading = "#< CLIXML"
         if raw.startswith(leading):
             raw = raw[len(leading) :]
