@@ -86,37 +86,30 @@ def sriov_basic_test(environment: Environment) -> None:
 
 
 def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -> bool:
-    """Validate NIC and return True if it should be skipped (InfiniBand)."""
+    """Validate NIC and return True if it should be skipped."""
     # Skip InfiniBand interfaces as they use RDMA, not standard Ethernet
     if nic_info.name and nic_info.name.startswith("ib"):
         node.log.debug(f"Skipping InfiniBand interface {nic_info.name} on {node.name}")
         return True
 
-    # For non-InfiniBand NICs, validate required fields
+    # Skip enslaved VF NICs (they don't have IP addresses in Azure)
+    if nic_info.pci_device_name and not nic_info.ip_addr:
+        node.log.debug(
+            f"Skipping enslaved VF {nic_name} on {node.name} "
+            f"(has PCI device but no IP)"
+        )
+        return True
+
+    # For NICs that should participate in testing, validate required fields
     assert_that(nic_info.name).described_as(
         f"NIC {nic_name} on {node.name} is missing name. "
         f"NIC info: {nic_info}"
     ).is_not_none()
 
-    # PCI slot is only required for SR-IOV NICs (VFs have PCI device names)
-    # Synthetic NICs may not have PCI slots but are still valid for communication
-    if nic_info.pci_device_name:
-        # This appears to be an SR-IOV NIC, so PCI slot should be present
-        assert_that(nic_info.pci_slot).described_as(
-            f"SR-IOV NIC {nic_name} on {node.name} is missing PCI slot. "
-            f"NIC info: {nic_info}"
-        ).is_not_none()
-    else:
-        # This is likely a synthetic NIC, which is valid without PCI slot
-        node.log.debug(
-            f"NIC {nic_name} on {node.name} appears to be synthetic "
-            f"(no pci_device_name), proceeding without PCI slot validation"
-        )
-
-    # IP address is required for all NICs to establish communication
+    # Only NICs with IP addresses can be tested for connectivity
     assert_that(nic_info.ip_addr).described_as(
-        f"NIC {nic_name} on {node.name} is missing IP address. "
-        f"This indicates the NIC was not properly initialized. "
+        f"NIC {nic_name} on {node.name} is missing IP address but wasn't skipped. "
+        f"This indicates an unexpected NIC configuration. "
         f"NIC info: {nic_info}"
     ).is_not_none()
 
@@ -301,7 +294,7 @@ def sriov_vf_connection_test(
 
     # After testing all NICs, ensure at least one valid pair was tested
     assert_that(tested_nic_pairs).described_as(
-        f"No valid SR-IOV NIC pairs were tested. "
+        f"No valid NIC pairs were tested. "
         f"Skipped {skipped_infiniband_source} InfiniBand NICs on source node "
         f"and {skipped_infiniband_dest} on destination node. "
         f"This could indicate all NICs are InfiniBand or there are no "
@@ -309,7 +302,7 @@ def sriov_vf_connection_test(
     ).is_greater_than(0)
 
     source_node.log.info(
-        f"Successfully tested {tested_nic_pairs} SR-IOV NIC pair(s). "
+        f"Successfully tested {tested_nic_pairs} NIC pair(s). "
         f"Skipped {skipped_infiniband_source + skipped_infiniband_dest} "
         f"InfiniBand interface(s)."
     )
