@@ -277,7 +277,7 @@ class TimeSync(TestSuite):
         finally:
             # after unbind, need reboot vm to bring the previous time clock source back
             if unbind:
-                node.reboot()
+                node.reboot(time_out=600)
                 remote_node = cast(RemoteNode, node)
                 is_ready, _ = wait_tcp_port_ready(
                     remote_node.connection_info[
