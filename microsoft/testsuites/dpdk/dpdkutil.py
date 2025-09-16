@@ -1405,10 +1405,10 @@ def run_dpdk_symmetric_mp(
         while rescind_times > 0:
             rescind_times -= 1
             # turn SRIOV off
-            for index in [1, 2]:
-                node.features[NetworkInterface].switch_sriov(
-                    enable=False, wait=False, reset_connections=False, index=index
-                )
+
+            node.features[NetworkInterface].switch_sriov(
+                enable=False, wait=False, reset_connections=False
+            )
 
             # wait for the RTE_DEV_EVENT_REMOVE message
             primary.wait_output(
@@ -1418,12 +1418,13 @@ def run_dpdk_symmetric_mp(
             )  # relying on compiler defaults here, not great.
 
             # turn SRIOV on
-            for index in [1, 2]:
-                node.features[NetworkInterface].switch_sriov(
-                    enable=True, wait=False, reset_connections=False, index=index
-                )
+            node.features[NetworkInterface].switch_sriov(
+                enable=True, wait=False, reset_connections=False
+            )
+
             primary.wait_output(
-                "mana_dev_start(): TX/RX queues have started", delta_only=True
+                "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=0",
+                delta_only=True,
             )
             ping.ping_async(
                 target=test_nics[0].ip_addr,
