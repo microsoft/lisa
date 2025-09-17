@@ -8,15 +8,19 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import parse_version
+from lisa.util import LisaVersionInfo
 
 from .ln import Ln
 from .python import Pip
 from .whoami import Whoami
 
 
+def to_semver(lisaver: LisaVersionInfo) -> VersionInfo:
+    return VersionInfo.parse(lisaver.version_str)
+
+
 class Meson(Tool):
-    _minimum_version = parse_version("0.52.0")
+    _minimum_version = VersionInfo.parse("0.52.0")
 
     @property
     def command(self) -> str:
@@ -61,7 +65,7 @@ class Meson(Tool):
         if package_installed:
             # check the installed version before touching anything
             if (
-                posix_os.get_package_information(package_installed, use_cached=False)
+                to_semver(posix_os.get_package_information(pkg, use_cached=False))
                 >= self._minimum_version
             ):
                 # meson is installed and it's the right version
@@ -71,13 +75,13 @@ class Meson(Tool):
         if package_available:
             posix_os.install_packages(package_available)
             # and update the cached version info
-            posix_os.get_package_information(package_available, use_cached=False)
+            posix_os.get_package_information(pkg, use_cached=False)
             package_installed = package_available
 
         # check the version, return if it's good, remove if not
         if package_installed:
             if (
-                posix_os.get_package_information(package_installed)
+                to_semver(posix_os.get_package_information(pkg))
                 >= self._minimum_version
             ):
                 # the right version was in the repo
