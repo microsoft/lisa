@@ -195,7 +195,7 @@ class Modprobe(Tool):
         while (timer.elapsed(False) < timeout) or tried_times < 1:
             tried_times += 1
             try:
-                pid = cat.read(loop_process_pid_file_name, force_run=True)
+                pid = cat.read(loop_process_pid_file_name, sudo=True, force_run=True)
                 r = self.node.execute(
                     f"ps -p {pid} > /dev/null && echo 'running' || echo 'not_running'",
                     sudo=True,
