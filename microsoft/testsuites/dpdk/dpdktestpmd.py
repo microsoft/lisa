@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from pathlib import PurePath, PurePosixPath, Path
+from pathlib import PurePath, PurePosixPath
 from typing import Any, List, Tuple, Type
 
 from assertpy import assert_that, fail
@@ -18,6 +18,7 @@ from lisa.tools import (
     Kill,
     Lscpu,
     Lspci,
+    Make,
     Meson,
     Modprobe,
     Ninja,
@@ -27,7 +28,6 @@ from lisa.tools import (
     Python,
     Timeout,
     Wget,
-    Make,
 )
 from lisa.util import (
     LisaException,
