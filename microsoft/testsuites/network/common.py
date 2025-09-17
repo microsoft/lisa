@@ -179,6 +179,7 @@ def _test_connectivity(
     source_node.execute("rm -f large_file", shell=True)
     dest_node.execute("rm -f /tmp/large_file", shell=True)
 
+
 def _find_matching_dest_nic(
     source_nic_info: NicInfo,
     vm_nics: Dict[str, Dict[str, NicInfo]],
@@ -201,6 +202,7 @@ def _find_matching_dest_nic(
             return dest_nic_name, skipped_infiniband
 
     return "", skipped_infiniband
+
 
 def _setup_nic_monitoring(
     source_nic_info: NicInfo,
@@ -235,6 +237,7 @@ def _setup_nic_monitoring(
         dest_nic = dest_synthetic_nic
 
     return source_nic, dest_nic, source_pci_nic, dest_pci_nic
+
 
 def sriov_vf_connection_test(
     environment: Environment,
