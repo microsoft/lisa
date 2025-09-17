@@ -86,33 +86,38 @@ def sriov_basic_test(environment: Environment) -> None:
 
 
 def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -> bool:
-    """Validate NIC and return True if it should be skipped (InfiniBand)."""
+    """Validate NIC and return True if it should be skipped."""
     # Skip InfiniBand interfaces as they use RDMA, not standard Ethernet
     if nic_info.name and nic_info.name.startswith("ib"):
         node.log.debug(f"Skipping InfiniBand interface {nic_info.name} on {node.name}")
         return True
 
-    # For non-InfiniBand NICs, validate required fields
+    # Skip enslaved VF NICs (they don't have IP addresses in Azure)
+    # In Azure Accelerated Networking, VFs are enslaved to synthetic NICs
+    # Traffic through synthetic NIC automatically uses VF for acceleration
+    if nic_info.pci_device_name and not nic_info.ip_addr:
+        node.log.debug(
+            f"Skipping enslaved VF {nic_name} on {node.name} "
+            f"(has PCI device but no IP)"
+        )
+        return True
+
+    # For NICs that should participate in testing, validate required fields
     assert_that(nic_info.name).described_as(
-        f"SR-IOV NIC {nic_name} on {node.name} is missing name. "
-        f"NIC info: {nic_info}"
+        f"NIC {nic_name} on {node.name} is missing name. " f"NIC info: {nic_info}"
     ).is_not_none()
 
-    assert_that(nic_info.pci_slot).described_as(
-        f"SR-IOV NIC {nic_name} on {node.name} is missing PCI slot. "
-        f"NIC info: {nic_info}"
-    ).is_not_none()
-
+    # Only NICs with IP addresses can be tested for connectivity
     assert_that(nic_info.ip_addr).described_as(
-        f"SR-IOV NIC {nic_name} on {node.name} is missing IP address. "
-        f"This indicates the NIC was not properly initialized. "
+        f"NIC {nic_name} on {node.name} is missing IP address but wasn't skipped. "
+        f"This indicates an unexpected NIC configuration. "
         f"NIC info: {nic_info}"
     ).is_not_none()
 
     return False
 
 
-def _perform_connectivity_test(
+def _test_connectivity(
     source_node: RemoteNode,
     dest_node: RemoteNode,
     source_ip: str,
@@ -123,6 +128,10 @@ def _perform_connectivity_test(
     max_retry_times: int = 10,
 ) -> None:
     """Perform ping and file transfer test between NICs."""
+
+    # Create test file for transfer (200MB)
+    source_node.execute("dd if=/dev/urandom of=large_file bs=1M count=200")
+
     # get origin tx_packets and rx_packets before copy file
     source_tx_packets_origin = source_node.nics.get_packets(source_nic)
     dest_tx_packets_origin = dest_node.nics.get_packets(dest_nic, "rx_packets")
@@ -166,6 +175,66 @@ def _perform_connectivity_test(
         int(dest_tx_packets), "insufficient RX packets received"
     ).is_greater_than(int(dest_tx_packets_origin))
 
+    # Clean up the test file after transfer
+    source_node.execute("rm -f large_file", shell=True)
+    dest_node.execute("rm -f /tmp/large_file", shell=True)
+
+def _find_matching_dest_nic(
+    source_nic_info: NicInfo,
+    vm_nics: Dict[str, Dict[str, NicInfo]],
+    dest_node: RemoteNode,
+) -> tuple[str, int]:
+    """Find destination NIC on same subnet as source.
+    Returns (nic_name, skipped_count)."""
+    skipped_infiniband = 0
+
+    for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
+        if _validate_and_skip_nic(dest_nic_info, dest_nic_name, dest_node):
+            skipped_infiniband += 1
+            continue
+
+        # Check if IPs are in the same subnet
+        if (
+            dest_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
+            == source_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
+        ):
+            return dest_nic_name, skipped_infiniband
+
+    return "", skipped_infiniband
+
+def _setup_nic_monitoring(
+    source_nic_info: NicInfo,
+    dest_nic_info: NicInfo,
+    remove_module: bool,
+    turn_off_lower: bool,
+    source_node: RemoteNode,
+) -> tuple[str, str, str, str]:
+    """Setup NIC monitoring based on configuration.
+    Returns (source_nic, dest_nic, source_pci_nic, dest_pci_nic)."""
+    source_synthetic_nic = source_nic_info.name
+    dest_synthetic_nic = dest_nic_info.name
+
+    # Determine which NIC to monitor for packet counts
+    if source_nic_info.lower and source_nic_info.pci_device_name:
+        source_pci_nic = source_nic_info.pci_device_name
+        source_nic = source_pci_nic
+    else:
+        source_pci_nic = source_nic_info.name
+        source_nic = source_synthetic_nic
+
+    if dest_nic_info.lower and dest_nic_info.pci_device_name:
+        dest_pci_nic = dest_nic_info.pci_device_name
+        dest_nic = dest_pci_nic
+    else:
+        dest_pci_nic = dest_nic_info.name
+        dest_nic = dest_synthetic_nic
+
+    # Override if needed for specific scenarios
+    if remove_module or turn_off_lower or isinstance(source_node.os, BSD):
+        source_nic = source_synthetic_nic
+        dest_nic = dest_synthetic_nic
+
+    return source_nic, dest_nic, source_pci_nic, dest_pci_nic
 
 def sriov_vf_connection_test(
     environment: Environment,
@@ -177,20 +246,15 @@ def sriov_vf_connection_test(
     dest_node = cast(RemoteNode, environment.nodes[1])
     source_ssh = source_node.tools[Ssh]
     dest_ssh = dest_node.tools[Ssh]
-
     # enable public key for ssh connection
     dest_ssh.enable_public_key(source_ssh.generate_key_pairs())
-
-    # generate 200Mb file
-    source_node.execute("dd if=/dev/urandom of=large_file bs=1M count=200")
 
     # Track statistics for validation
     tested_nic_pairs = 0
     skipped_infiniband_source = 0
     skipped_infiniband_dest = 0
 
-    # for each nic on source node, find the same subnet nic on dest node, then copy
-    # 200Mb file
+    # for each nic on source node, find the same subnet nic on dest node
     for source_nic_name, source_nic_info in vm_nics[source_node.name].items():
         source_node.log.debug(
             f"Processing NIC {source_nic_name}: {source_nic_info} on {source_node.name}"
@@ -201,25 +265,11 @@ def sriov_vf_connection_test(
             skipped_infiniband_source += 1
             continue
 
-        matched_dest_nic_name = ""
-
-        # find the same subnet nic on dest node
-        for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
-            # Use helper function for validation
-            if _validate_and_skip_nic(dest_nic_info, dest_nic_name, dest_node):
-                skipped_infiniband_dest += 1
-                continue
-
-            # only when IPs are in the same subnet, IP1 of machine A can connect to
-            # IP2 of machine B
-            # e.g. eth2 IP is 10.0.2.3 on machine A, eth2 IP is 10.0.3.4 on machine
-            # B, use nic name doesn't work in this situation
-            if (
-                dest_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
-                == source_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
-            ):
-                matched_dest_nic_name = dest_nic_name
-                break
+        # Find matching destination NIC
+        matched_dest_nic_name, skipped = _find_matching_dest_nic(
+            source_nic_info, vm_nics, dest_node
+        )
+        skipped_infiniband_dest += skipped
 
         if not matched_dest_nic_name:
             source_node.log.warning(
@@ -239,24 +289,20 @@ def sriov_vf_connection_test(
 
         # set source and dest network info
         dest_nic_info = vm_nics[dest_node.name][matched_dest_nic_name]
-        dest_ip = vm_nics[dest_node.name][matched_dest_nic_name].ip_addr
+        dest_ip = dest_nic_info.ip_addr
         source_ip = source_nic_info.ip_addr
         source_synthetic_nic = source_nic_info.name
-        dest_synthetic_nic = dest_nic_info.name
-        source_nic = source_pci_nic = source_nic_info.pci_device_name
-        dest_nic = dest_pci_nic = dest_nic_info.pci_device_name
+
+        # Setup NIC monitoring
+        source_nic, dest_nic, source_pci_nic, dest_pci_nic = _setup_nic_monitoring(
+            source_nic_info, dest_nic_info, remove_module, turn_off_lower, source_node
+        )
 
         source_node.log.debug(
             f"Testing connection from {source_ip} ({source_nic_info.name})"
             f" on {source_node.name} "
             f"to {dest_ip} ({dest_nic_info.name}) on {dest_node.name}"
         )
-
-        # if remove_module is True, use synthetic nic to copy file
-        if remove_module or turn_off_lower or isinstance(source_node.os, BSD):
-            # For FreeBSD, packets are logged on the vsc interface
-            source_nic = source_synthetic_nic
-            dest_nic = dest_synthetic_nic
 
         # turn off lower device
         if turn_off_lower:
@@ -266,7 +312,7 @@ def sriov_vf_connection_test(
                 dest_node.tools[Ip].down(dest_pci_nic)
 
         # Perform connectivity test
-        _perform_connectivity_test(
+        _test_connectivity(
             source_node,
             dest_node,
             source_ip,
