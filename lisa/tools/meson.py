@@ -4,8 +4,6 @@
 from pathlib import PurePath
 from typing import cast
 
-from semver import VersionInfo
-
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.util import parse_version
@@ -26,7 +24,7 @@ class Meson(Tool):
         result = self.node.execute("meson --version", shell=True)
         return (
             result.exit_code == 0
-            and VersionInfo.parse(result.stdout) >= self._minimum_version
+            and parse_version(result.stdout) >= self._minimum_version
         )
 
     @property
@@ -61,7 +59,7 @@ class Meson(Tool):
         if package_installed:
             # check the installed version before touching anything
             if (
-                posix_os.get_package_information(package_installed, use_cached=False)
+                posix_os.get_package_information(pkg, use_cached=False)
                 >= self._minimum_version
             ):
                 # meson is installed and it's the right version
@@ -71,15 +69,12 @@ class Meson(Tool):
         if package_available:
             posix_os.install_packages(package_available)
             # and update the cached version info
-            posix_os.get_package_information(package_available, use_cached=False)
+            posix_os.get_package_information(pkg, use_cached=False)
             package_installed = package_available
 
         # check the version, return if it's good, remove if not
         if package_installed:
-            if (
-                posix_os.get_package_information(package_installed)
-                >= self._minimum_version
-            ):
+            if posix_os.get_package_information(pkg) >= self._minimum_version:
                 # the right version was in the repo
                 return self._check_exists()
             else:
