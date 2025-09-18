@@ -1530,7 +1530,7 @@ def run_dpdk_symmetric_mp(
                 )
                 match_data = {"rx": int(rx_count), "tx": int(tx_count)}
                 process_data += [match_data]
-    print(repr(process_data))
+    node.log.debug(repr(process_data))
 
     assert_that(process_data[0]["rx"]).described_as(
         "process 0 port 0 tx and port 1 rx should match"
