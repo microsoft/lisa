@@ -125,6 +125,9 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
+    if node.nics.is_mana_device_present():
+        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "v24.11")
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
