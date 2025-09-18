@@ -215,6 +215,18 @@ class Ip(Tool):
             ),
         )
 
+    def is_valid_mtu(self, value: Optional[int] = None) -> bool:
+        if value is None:
+            return False
+        try:
+            mtu = int(value)
+            # typical MTU values are between 576 and 9000
+            # 576 is the minimum possible MTU for IPv4 and 1280 for IPv6
+            # 9000 is a common value for jumbo frames on Ethernet networks
+            return 576 <= mtu <= 9000
+        except ValueError:
+            raise LisaException("MTU value is not an integer")
+
     def get_mtu(self, nic_name: str) -> int:
         cat = self.node.tools[Cat]
         return int(cat.read(f"/sys/class/net/{nic_name}/mtu", force_run=True))
