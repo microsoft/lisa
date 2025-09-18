@@ -468,13 +468,11 @@ class Ip(Tool):
                 "Could not fetch interface details with 'ip -d link show'"
             ),
         ).stdout
-        try:
-            groups = find_group_in_lines(
-                details, self.__ip_detail_show_regex, single_line=False
-            )
-            detail = groups[attribute]
-        except KeyError:
-            detail = ""
+
+        groups = find_group_in_lines(
+            details, self.__ip_detail_show_regex, single_line=False
+        )
+        detail = groups.get(attribute, "")
         return detail
 
     def get_interface_list(self) -> list[str]:
