@@ -18,6 +18,7 @@ from lisa.tools import (
     Kill,
     Lscpu,
     Lspci,
+    Make,
     Meson,
     Modprobe,
     Ninja,
@@ -198,6 +199,8 @@ class DpdkSourceInstall(Installer):
         "l3fwd",
         "multi_process/client_server_mp/mp_server",
         "multi_process/client_server_mp/mp_client",
+        "multi_process/symmetric_mp",
+        "devname",
     ]
 
     def _check_if_installed(self) -> bool:
@@ -255,8 +258,21 @@ class DpdkSourceInstall(Installer):
             "libdpdk", update_cached=True
         )
 
+    __devname_files = ["main.c", "Makefile", "meson.build"]
+
     def _install(self) -> None:
         super()._install()
+        # copy devname application into the examples directory
+        devname_local_folder = PurePath(__file__).parent.joinpath("devname")
+        self._node.shell.mkdir(
+            self.asset_path.joinpath("examples/devname"), parents=False, exist_ok=False
+        )
+        for file in self.__devname_files:
+            self._node.shell.copy(
+                devname_local_folder.joinpath(file),
+                self.asset_path.joinpath(f"examples/devname/{file}"),
+            )
+        # stringify the example app list
         if self._sample_applications:
             sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
         else:
@@ -688,15 +704,20 @@ class DpdkTestpmd(Tool):
         return self._get_pps_sriov_rescind(self._rx_pps_key)
 
     def get_example_app_path(self, app_name: str) -> PurePath:
-        if isinstance(self.installer, DpdkSourceInstall):
-            return self.installer.dpdk_build_path.joinpath("examples").joinpath(
-                app_name
-            )
-        else:
-            raise AssertionError(
-                "get_example_app_path called for DPDK package manager installation! "
-                f"Trying to find {app_name} when DPDK was not built from source."
-            )
+        source_path = self.node.get_pure_path(
+            f"/usr/local/share/dpdk/examples/{app_name}"
+        )
+        shell = self.node.shell
+        assert_that(shell.exists(source_path)).described_as(
+            "dpdk examples path does not exist, "
+            f"cannot use requested dpdk example: {app_name}"
+        ).is_true()
+        # if the application has not been built;
+        # check if there is a build directory and build the application
+        # (if necessary)
+        if not shell.exists(source_path.joinpath("build")):
+            self.node.tools[Make].make("static", cwd=source_path, sudo=True)
+        return source_path.joinpath(f"build/{source_path.name}")
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
