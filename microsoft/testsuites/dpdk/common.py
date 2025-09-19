@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from enum import Enum
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 from urllib.parse import urlparse
@@ -21,6 +22,17 @@ DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
 AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+
+
+class MultipleQueueType(int, Enum):
+    SINGLE = 1
+    DOUBLE = 2
+    MULTIPLE = 4
+
+
+class PmdType(str, Enum):
+    NETVSC = "netvsc"
+    FAILSAFE = "failsafe"
 
 
 # Attempt to clean up the DPDK package dependency mess

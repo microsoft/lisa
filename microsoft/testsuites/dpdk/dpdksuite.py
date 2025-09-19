@@ -30,6 +30,7 @@ from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
+    MultipleQueueType,
     PackageManagerInstall,
     force_dpdk_default_source,
 )
@@ -49,7 +50,6 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
-    verify_dpdk_send_receive_multi_txrx_queue,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
@@ -676,8 +676,14 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "failsafe", result=result
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "failsafe",
+                result=result,
+                hugepage_size=HugePageSize.HUGE_2MB,
+                multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -707,8 +713,15 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result, set_mtu=9000
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "netvsc",
+                result=result,
+                set_mtu=9000,
+                hugepage_size=HugePageSize.HUGE_2MB,
+                multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -737,8 +750,14 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "netvsc",
+                result=result,
+                hugepage_size=HugePageSize.HUGE_2MB,
+                multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -918,6 +937,47 @@ class Dpdk(TestSuite):
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
+        )
+
+    @TestCaseMetadata(
+        description=(
+            """
+                Run the L3 forwarding test for DPDK.
+                This test creates a DPDK port forwarding setup between
+                two NICs on the same VM. It forwards packets from a sender on
+                subnet_a to a receiver on subnet_b. Without l3fwd,
+                packets will not be able to jump the subnets.  This imitates
+                a network virtual appliance setup, firewall, or other data plane
+                tool for managing network traffic with DPDK.
+        """
+        ),
+        priority=3,
+        requirement=simple_requirement(
+            supported_os=[Ubuntu],
+            min_core_count=8,
+            min_count=3,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_l3fwd_ntttcp_tcp_hotplug(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        force_dpdk_default_source(variables)
+        pmd = "netvsc"
+        verify_dpdk_l3fwd_ntttcp_tcp(
+            environment,
+            log,
+            variables,
+            HugePageSize.HUGE_2MB,
+            pmd=pmd,
+            result=result,
+            rescind_sriov=True,
         )
 
     @TestCaseMetadata(
