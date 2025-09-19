@@ -810,6 +810,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     force_single_queue: bool = False,
     is_perf_test: bool = False,
     result: Optional[TestResult] = None,
+    rescind_sriov: bool = False,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
@@ -1061,13 +1062,13 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "L3fwd did not start. Check command output for incorrect flags, "
             "core dumps, or other setup/init issues."
         )
-
+    ntttcp_run_time = 300 if rescind_sriov else 30
     # start ntttcp client and server
     ntttcp_threads_count = 64
     # start the receiver
     receiver_proc = ntttcp[receiver].run_as_server_async(
         subnet_b_nics[receiver].name,
-        run_time_seconds=30,
+        run_time_seconds=ntttcp_run_time,
         buffer_size=1024,
         server_ip=subnet_b_nics[receiver].ip_addr,
     )
@@ -1078,8 +1079,22 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         nic_name=subnet_a_nics[sender].name,
         server_ip=subnet_b_nics[receiver].ip_addr,
         threads_count=ntttcp_threads_count,
-        run_time_seconds=10,
+        run_time_seconds=ntttcp_run_time,
     )
+    if rescind_sriov:
+        forwarder.features[NetworkInterface].switch_sriov(
+            enable=False, wait=True, reset_connections=False
+        )
+        forwarder.features[NetworkInterface].switch_sriov(
+            enable=True, wait=True, reset_connections=False
+        )
+
+        _sender_result_after = ntttcp[sender].run_as_client(
+            nic_name=subnet_a_nics[sender].name,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+            threads_count=ntttcp_threads_count,
+            run_time_seconds=ntttcp_run_time,
+        )
 
     # collect, log, and process results
     receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
