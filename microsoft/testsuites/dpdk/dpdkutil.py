@@ -1,3 +1,4 @@
+import ipaddress
 import itertools
 import re
 import time
@@ -391,7 +392,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    test_nic = node.nics.get_secondary_nic()
+    test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -754,21 +755,25 @@ def get_dpdk_portmask(ports: List[int]) -> str:
 # disconnect two subnets
 # add a new gateway from subnets a -> b through an arbitrary ip address
 def reroute_traffic_and_disable_nic(
-    node: Node, src_nic: NicInfo, dst_nic: NicInfo, new_gateway_nic: NicInfo
+    node: Node,
+    src_nic: NicInfo,
+    dst_nic: NicInfo,
+    new_gateway_nic: NicInfo,
+    unused_nic: NicInfo,
 ) -> None:
     ip_tool = node.tools[Ip]
     forbidden_subnet = ipv4_to_lpm(dst_nic.ip_addr)
 
     # remove any routes through those devices
-    ip_tool.remove_all_routes_for_device(src_nic.name)
+    ip_tool.remove_all_routes_for_device(unused_nic.name)
 
     if not ip_tool.route_exists(prefix=forbidden_subnet, dev=new_gateway_nic.name):
         ip_tool.add_route_to(
-            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=new_gateway_nic.name
+            dest=dst_nic.ip_addr, via=new_gateway_nic.ip_addr, dev=src_nic.name
         )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
-    ip_tool.down(src_nic.name)
+    ip_tool.down(unused_nic.name)
 
 
 # calculate amount of tx/rx queues to use for the l3fwd test
@@ -847,10 +852,23 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # 3. enjoy the thrill of victory, ship a cloud net applicance.
 
     l3fwd_app_name = "l3fwd"
-    send_side = 1
-    receive_side = 2
-    # arbitrarily pick fwd/snd/recv nodes.
-    forwarder, sender, receiver = environment.nodes.list()
+    # pick fwd/send/receive nodes based on well known addresses in our subnets
+    forwarder = [
+        node
+        for node in environment.nodes.list()
+        if node.nics.get_primary_nic().ip_addr.endswith("4")
+    ][0]
+    sender = [
+        node
+        for node in environment.nodes.list()
+        if node.nics.get_primary_nic().ip_addr.endswith("5")
+    ][0]
+    receiver = [
+        node
+        for node in environment.nodes.list()
+        if node.nics.get_primary_nic().ip_addr.endswith("6")
+    ][0]
+    
     if not (
         forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
         and isinstance(forwarder.os, Ubuntu)
@@ -888,34 +906,39 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # Subnet A is actually the secondary NIC.
     #  Subnet B is actually the tertiary NIC.
     # For the test, don't sweat it. A is send side, B is receive side.
+    forwarder.log.debug(f"fwd: {str(forwarder.nics)}")
+    receiver.log.debug(f"rcv: {str(receiver.nics)}")
+    sender.log.debug(f"snd: {str(sender.nics)}")
     subnet_a_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(send_side),
-        sender: sender.nics.get_nic_by_index(send_side),
-        receiver: receiver.nics.get_nic_by_index(send_side),
+        forwarder: forwarder.nics.get_nic_by_subnet("10.0.1.0/24"),
+        sender: sender.nics.get_nic_by_subnet("10.0.1.0/24"),
+        receiver: receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
     }
     subnet_b_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(receive_side),
-        receiver: receiver.nics.get_nic_by_index(receive_side),
-        sender: sender.nics.get_nic_by_index(receive_side),
+        forwarder: forwarder.nics.get_nic_by_subnet("10.0.2.0/24"),
+        receiver: receiver.nics.get_nic_by_subnet("10.0.2.0/24"),
+        sender: sender.nics.get_nic_by_subnet("10.0.2.0/24"),
     }
 
     # We use ntttcp for snd/rcv which will respect the kernel route table.
     # SO: remove the unused interfaces and routes which could skip the forwarder
-    unused_nics = {
+    _unused_nics = {
         sender: subnet_b_nics[sender],
         receiver: subnet_a_nics[receiver],
     }
     reroute_traffic_and_disable_nic(
         node=sender,
-        src_nic=unused_nics[sender],
+        src_nic=subnet_a_nics[sender],
         dst_nic=subnet_b_nics[receiver],
         new_gateway_nic=subnet_a_nics[forwarder],
+        unused_nic=_unused_nics[sender],
     )
     reroute_traffic_and_disable_nic(
         node=receiver,
-        src_nic=unused_nics[receiver],
+        src_nic=subnet_b_nics[receiver],
         dst_nic=subnet_a_nics[sender],
         new_gateway_nic=subnet_b_nics[forwarder],
+        unused_nic=_unused_nics[receiver],
     )
 
     # AZ ROUTING TABLES
@@ -1062,7 +1085,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "L3fwd did not start. Check command output for incorrect flags, "
             "core dumps, or other setup/init issues."
         )
-    ntttcp_run_time = 300 if rescind_sriov else 30
+    ntttcp_run_time = 30
     # start ntttcp client and server
     ntttcp_threads_count = 64
     # start the receiver
@@ -1081,20 +1104,31 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         threads_count=ntttcp_threads_count,
         run_time_seconds=ntttcp_run_time,
     )
+    # rescind sriov and run again
     if rescind_sriov:
         forwarder.features[NetworkInterface].switch_sriov(
-            enable=False, wait=True, reset_connections=False
+            enable=False, wait=False, reset_connections=False
         )
         forwarder.features[NetworkInterface].switch_sriov(
-            enable=True, wait=True, reset_connections=False
+            enable=True, wait=False, reset_connections=False
         )
-
+        fwd_proc.wait_output(
+            "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, adding device",
+            delta_only=True,
+        )
+        _receiver_after = ntttcp[receiver].run_as_server_async(
+            subnet_b_nics[receiver].name,
+            run_time_seconds=ntttcp_run_time,
+            buffer_size=1024,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+        )
         _sender_result_after = ntttcp[sender].run_as_client(
             nic_name=subnet_a_nics[sender].name,
             server_ip=subnet_b_nics[receiver].ip_addr,
             threads_count=ntttcp_threads_count,
             run_time_seconds=ntttcp_run_time,
         )
+        _receiver_after_result = ntttcp[receiver].wait_server_result(_receiver_after)
 
     # collect, log, and process results
     receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
@@ -1108,6 +1142,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
         sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
     }
+    # compare results with those after the rescind if needed
+    if rescind_sriov:
+        _ntttcp_results_after = {
+            receiver: ntttcp[receiver].create_ntttcp_result(
+                _receiver_after_result, role="server"
+            ),
+            sender: ntttcp[sender].create_ntttcp_result(_sender_result_after, "client"),
+        }
+        after = _ntttcp_results_after[sender].throughput_in_gbps
+        before = ntttcp_results[sender].throughput_in_gbps
+        if (after / before) < 0.8:
+            raise LisaException(
+                f"Test failed, throughput after hotplug was far below original. Before {before} Gbps after {after} Gbps"
+            )
     # send result to notifier if we found a test result to report with
     if test_result and is_perf_test:
         msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
