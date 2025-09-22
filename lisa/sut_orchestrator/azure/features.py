@@ -1711,7 +1711,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 min_size = max(req_disk_size.min, cap_disk_size.min)
                 max_size = min(req_disk_size.max, cap_disk_size.max)
 
-                value.data_disk_size = min(
+                compliant_sizes = [
                     size
                     for size, iops, throughput in disk_type_performance
                     if iops >= min_iops
@@ -1720,7 +1720,18 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     and throughput <= max_throughput
                     and size >= min_size
                     and size <= max_size
-                )
+                ]
+                if not compliant_sizes:
+                    raise NotMeetRequirementException(
+                        f"DiskType {value.data_disk_type} cannot "
+                        "achieve the requirement: "
+                        f"{min_iops} <= IOPS <= {max_iops}, "
+                        f"{min_throughput} <= Throughput <= {max_throughput}, "
+                        f"{min_size} <= Disk Size <= {max_size}. "
+                        "Consider specifiying a different disk type, "
+                        "or changing your requirements."
+                    )
+                value.data_disk_size = min(compliant_sizes)
 
                 (
                     value.data_disk_iops,
