@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 
+import ipaddress
 import os
 import re
 from collections import OrderedDict
@@ -250,6 +251,17 @@ class Nics(InitializableMixin):
                 f"Had network interfaces: {self.get_nic_names()}"
             )
         return nic
+
+    def get_nic_by_subnet(self, subnet: str) -> NicInfo:
+        network = ipaddress.ip_network(subnet)
+        for nic in self.nics.values():
+            ip_addr = ipaddress.ip_address(nic.ip_addr)
+            if ip_addr in network:
+                self._node.log.debug(
+                    f"Found matching nic for subnet {subnet}: {str(nic)}"
+                )
+                return nic
+        raise LisaException(f"Could not find a nic for requested subnet: {subnet}")
 
     def unbind(self, nic: NicInfo) -> None:
         # unbind nic from current driver and return the old sysfs path
