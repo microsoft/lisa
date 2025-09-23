@@ -82,6 +82,8 @@ class RunbookBuilder:
 
         builder._import_extensions()
 
+        builder._import_internal_tests()
+
         # remove variables and extensions from data, since it's not used, and may be
         #  confusing in log.
         builder._remove_variables()
@@ -205,6 +207,11 @@ class RunbookBuilder:
             )
 
         return path, name
+
+    def _import_internal_tests(self) -> None:
+        import_internal_tests = self._raw_data.get("import_internal_tests", False)
+        if import_internal_tests:
+            import_package(_lisa_root_path / "lisa/microsoft", "microsoft")
 
     @staticmethod
     def _validate_and_load(data: Any) -> schema.Runbook:
