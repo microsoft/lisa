@@ -9,7 +9,7 @@ from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD
-from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ping, Ssh
+from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ssh
 
 
 @retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
