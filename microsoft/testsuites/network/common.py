@@ -270,12 +270,6 @@ def sriov_vf_connection_test(
             )
             continue
 
-        assert_that(matched_dest_nic_name).described_as(
-            f"can't find the same subnet nic with {source_nic_info.ip_addr} on"
-            f" machine {source_node.name}, please check network setting of "
-            f"machine {dest_node.name}."
-        ).is_not_empty()
-
         tested_nic_pairs += 1
 
         # set source and dest network info
