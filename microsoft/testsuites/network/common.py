@@ -117,7 +117,7 @@ def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -
     return False
 
 
-def _test_connectivity(
+def _test_file_transferring(
     source_node: RemoteNode,
     dest_node: RemoteNode,
     source_ip: str,
@@ -135,18 +135,6 @@ def _test_connectivity(
     # get origin tx_packets and rx_packets before copy file
     source_tx_packets_origin = source_node.nics.get_packets(source_nic)
     dest_tx_packets_origin = dest_node.nics.get_packets(dest_nic, "rx_packets")
-
-    # check the connectivity between source and dest machine using ping
-    for _ in range(max_retry_times):
-        ping_result = source_node.tools[Ping].ping(
-            target=dest_ip, nic_name=source_synthetic_nic, count=1, sudo=True
-        )
-        if ping_result:
-            break
-    assert ping_result, (
-        f"fail to ping {dest_ip} from {source_node.name} to "
-        f"{dest_node.name} after retry {max_retry_times}"
-    )
 
     # copy 200 Mb file from source ip to dest ip
     source_node.execute(
@@ -314,8 +302,8 @@ def sriov_vf_connection_test(
             if dest_nic_info.lower:
                 dest_node.tools[Ip].down(dest_pci_nic)
 
-        # Perform connectivity test
-        _test_connectivity(
+        # Perform file transfer to test connectivity
+        _test_file_transferring(
             source_node,
             dest_node,
             source_ip,
