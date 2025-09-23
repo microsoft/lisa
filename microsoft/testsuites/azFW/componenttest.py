@@ -21,9 +21,6 @@ from lisa import (
     requirement=simple_requirement(min_count=1, min_nic_count=1),
 )
 
-
-
-
 class AzureFirewallComponentTest(TestSuite):
 
     NATTABLE = "nat"
@@ -105,7 +102,6 @@ class AzureFirewallComponentTest(TestSuite):
             f"Azure Firewall Component Test Failed in IpTables"
         ).is_equal_to(True)
 
-
 def testIPSet(self, node, log):
 
     result = node.execute("tdnf -y install ipset", sudo=True)
@@ -131,7 +127,6 @@ def testIPSet(self, node, log):
         return False
     return True
 
-
 def testconntrack(self, node, log):
     
     result = node.execute("tdnf -y install conntrack", sudo=True)
@@ -155,8 +150,6 @@ def testconntrack(self, node, log):
         log.info(f"Failed in updating conntrack entry : {result.stdout}")
         return False
     return verifyConntrackEntry(node, self.CONNMARKSRC, self.CONNMARKDEST, self.CONNMARKPROTO, "0", log)
-
-
 
 def testIPTables(self, node, log):
     log.info("Add Rules To PreRouting Chain and verify the iptables")
@@ -211,5 +204,3 @@ def removeIPTableRules(node, ipTableRules, log):
     for ipTableRule in ipTableRules:
         log.info(f"Removing rule {ipTableRule} from iptables")
         node.execute(f"iptables -D {ipTableRule}", sudo=True)
-
-
