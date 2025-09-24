@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import copy
 import logging
-import threading
 import traceback
 from dataclasses import dataclass, field
-from functools import wraps
+from functools import partial, wraps
 from pathlib import Path
-from queue import Queue
 from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
@@ -44,6 +42,7 @@ from lisa.util.logger import (
     get_logger,
     remove_handler,
 )
+from lisa.util.parallel import Task, TaskManager
 from lisa.util.perf_timer import Timer, create_timer
 
 _all_suites: Dict[str, TestSuiteMetadata] = {}
@@ -372,7 +371,7 @@ class TestResult:
         result_message.suite_full_name = self.runtime_data.metadata.suite.full_name
         result_message.stacktrace = stacktrace
 
-        _queue_test_message(result_message=result_message)
+        _queue_test_message(result=self, result_message=result_message)
 
     @retry(exceptions=FileExistsError, tries=30, delay=0.1)  # type: ignore
     def __create_case_log_path(self) -> Path:
@@ -895,24 +894,18 @@ def get_cases_metadata() -> Dict[str, TestCaseMetadata]:
 
 
 def start_test_result_message_processing() -> None:
-    global __message_thread
-    if not __message_thread:
-        # clear any left messages for UT
-        global __message_queue
-        __message_queue = Queue()
-
-        __message_thread = threading.Thread(target=_message_worker)
-        __message_thread.start()
+    global __test_message_manager
+    if __test_message_manager is None:
+        __test_message_manager = TaskManager(max_workers=1)
     else:
-        raise LisaException("message thread is already created and started")
+        raise LisaException("test message tasks is already initialized")
 
 
 def wait_for_test_result_messages() -> None:
-    __message_queue.put(None)
-    global __message_thread
-    assert __message_thread is not None
-    __message_thread.join()
-    __message_thread = None
+    global __test_message_manager
+    if __test_message_manager is not None:
+        __test_message_manager.wait_for_all_workers()
+        __test_message_manager = None
 
 
 def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
@@ -972,17 +965,8 @@ def _add_case_to_suite(
     test_suite.cases.append(test_case)
 
 
-def _message_worker() -> None:
-    while True:
-        message = __message_queue.get()
-        if message is None:
-            break
-        _send_result_message(message)
-
-
-# process test results message in an order and in background
-__message_thread: Optional[threading.Thread] = None
-__message_queue: Queue[Optional[TestResultMessage]] = Queue()
+# process test results message in an order, so the max_workers is 1
+__test_message_manager: Optional[TaskManager[None]] = None
 
 
 def _send_result_message(result_message: TestResultMessage) -> None:
@@ -990,9 +974,15 @@ def _send_result_message(result_message: TestResultMessage) -> None:
     notifier.notify(message=result_message)
 
 
-def _queue_test_message(result_message: TestResultMessage) -> None:
-    assert result_message is not None
-    __message_queue.put(result_message)
+def _queue_test_message(result: TestResult, result_message: TestResultMessage) -> None:
+    assert __test_message_manager, "test message manager is not initialized"
+    __test_message_manager.submit_task(
+        Task(
+            task_id=0,
+            task=partial(_send_result_message, result_message),
+            parent_logger=result.log,
+        )
+    )
 
 
 plugin_manager.add_hookspecs(TestResult)
