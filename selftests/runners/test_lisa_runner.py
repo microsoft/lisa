@@ -13,7 +13,12 @@ from lisa.notifier import _notifiers, register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RunnerResult
 from lisa.runners.lisa_runner import LisaRunner
-from lisa.testsuite import TestResult, simple_requirement, wait_for_test_result_messages
+from lisa.testsuite import (
+    TestResult,
+    simple_requirement,
+    start_test_result_message_processing,
+    wait_for_test_result_messages,
+)
 from lisa.util.parallel import Task
 from selftests import test_platform, test_testsuite
 from selftests.test_environment import generate_runbook as generate_env_runbook
@@ -59,9 +64,6 @@ class RunnerTestCase(TestCase):
         lisa.environment._global_environment_id = 0
 
     def tearDown(self) -> None:
-        # wait for all test result messages to be processed in the current test case.
-        wait_for_test_result_messages()
-
         test_testsuite.cleanup_cases_metadata()  # Necessary side effects!
 
     def test_merge_req_create_on_new(self) -> None:
@@ -742,13 +744,20 @@ class RunnerTestCase(TestCase):
         results_collector = RunnerResult(schema.Notifier())
         register_notifier(results_collector)
 
-        runner.initialize()
+        start_test_result_message_processing()
 
-        while not runner.is_done:
-            task = runner.fetch_task()
-            if task:
-                if isinstance(task, Task):
-                    task()
+        try:
+            runner.initialize()
+
+            while not runner.is_done:
+                task = runner.fetch_task()
+                if task:
+                    if isinstance(task, Task):
+                        task()
+        finally:
+            # wait for all test result messages to be processed in the current
+            # test case.
+            wait_for_test_result_messages()
 
         runner.close()
         _notifiers.clear()

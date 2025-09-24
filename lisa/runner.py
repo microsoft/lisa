@@ -15,6 +15,10 @@ from lisa.environment import Environment
 from lisa.messages import TestResultMessage, TestResultMessageBase, TestStatus
 from lisa.notifier import register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
+from lisa.testsuite import (
+    start_test_result_message_processing,
+    wait_for_test_result_messages,
+)
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import Task, TaskManager, cancel, set_global_task_manager
@@ -238,6 +242,8 @@ class RootRunner(Action):
         self._runners: List[BaseRunner] = []
         self._runner_count: int = 0
         self._idle_logged: bool = False
+
+        start_test_result_message_processing()
 
     async def start(self) -> None:
         await super().start()
@@ -471,6 +477,10 @@ class RootRunner(Action):
                 runner.close()
         except Exception as e:
             self._log.warning(f"error on close runner: {e}")
+
+        # wait for all test result messages are processed and notified
+        self._log.debug("waiting for all test result messages to be processed")
+        wait_for_test_result_messages()
 
         try:
             transformer.run(self._runbook_builder, constants.TRANSFORMER_PHASE_CLEANUP)
