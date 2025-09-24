@@ -18,7 +18,7 @@ from typing import Any
 
 _fmt = "%(asctime)s.%(msecs)03d[%(thread)d][%(levelname)s] %(name)s %(message)s"
 _datefmt = "%Y-%m-%d %H:%M:%S"
-_api_version = "2023-08-01-preview"
+_api_version = "2025-04-01-preview"
 
 
 def _generate_example(resource_type: str = "job") -> str:
