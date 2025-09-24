@@ -1,4 +1,3 @@
-import ipaddress
 import itertools
 import re
 import time
@@ -1011,8 +1010,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         dpdk_port_b,
     )
 
-    # get binary path and dpdk device include args
-    server_app_path = fwd_kit.testpmd.get_example_app_path(l3fwd_app_name)
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(
@@ -1037,39 +1034,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         is_mana=fwd_kit.testpmd.is_mana,
     )
 
-    config_tups = []
-    included_cores = []
-    last_core = 1
-    # create the list of tuples for p,q,c
-    # 2 ports, N queues, N cores for MANA
-    # 2 ports, N queues, 2N cores for MLX
-    for q in range(queue_count):
-        config_tups.append((dpdk_port_a, q, last_core))
-
-        if not fwd_kit.testpmd.is_mana:
-            included_cores.append(str(last_core))
-            last_core += 1
-        config_tups.append((dpdk_port_b, q, last_core))
-        # add the core ID to our list of cores to include
-        included_cores.append(str(last_core))
-        last_core += 1
-
-    # pick promiscuous mode arg, note mana doesn't support promiscuous mode
-    if fwd_kit.testpmd.is_mana:
-        promiscuous = ""
-    else:
-        promiscuous = "-P"
-
-    # join all our options into strings for use in the commmand
-    joined_configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
-    joined_include = " ".join(include_devices)
-    # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
-    joined_core_list = ",".join(included_cores)
-    fwd_cmd = (
-        f"{server_app_path} {joined_include} -l {joined_core_list} -- "
-        f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
-        f' --lookup=lpm --config="{joined_configs}" '
-        "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
+    fwd_cmd = generate_l3fwd_command(
+        fwd_kit=fwd_kit,
+        dpdk_port_a=dpdk_port_a,
+        dpdk_port_b=dpdk_port_b,
+        include_devices=include_devices,
+        queue_count=queue_count,
     )
     # START THE TEST
     # finally, start the forwarder
@@ -1113,7 +1083,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             enable=True, wait=False, reset_connections=False
         )
         fwd_proc.wait_output(
-            "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, adding device",
+            "HN_DRIVER: netvsc_hotplug_retry(): "
+            "Found matching MAC address, adding device",
             delta_only=True,
         )
         _receiver_after = ntttcp[receiver].run_as_server_async(
@@ -1152,9 +1123,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         }
         after = _ntttcp_results_after[sender].throughput_in_gbps
         before = ntttcp_results[sender].throughput_in_gbps
-        if (after / before) < 0.8:
+        if before == 0 or ((after / before) < 0.8):
             raise LisaException(
-                f"Test failed, throughput after hotplug was far below original. Before {before} Gbps after {after} Gbps"
+                "Test failed, throughput after hotplug was far below original. "
+                f"Before {before} Gbps after {after} Gbps"
             )
     # send result to notifier if we found a test result to report with
     if test_result and is_perf_test:
@@ -1183,6 +1155,51 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         "Verify netvsc was used over failsafe, check netvsc init was succesful "
         "and the DPDK port IDs were correct."
     ).is_greater_than(1)
+
+
+def generate_l3fwd_command(
+    fwd_kit: DpdkTestResources,
+    dpdk_port_a: int,
+    dpdk_port_b: int,
+    queue_count: int,
+    include_devices: List[str],
+) -> str:
+    config_tups = []
+    included_cores = []
+    last_core = 1
+    server_app_path = fwd_kit.testpmd.get_example_app_path("dpdk-l3fwd")
+    # create the list of tuples for p,q,c
+    # 2 ports, N queues, N cores for MANA
+    # 2 ports, N queues, 2N cores for MLX
+    for q in range(queue_count):
+        config_tups.append((dpdk_port_a, q, last_core))
+
+        if not fwd_kit.testpmd.is_mana:
+            included_cores.append(str(last_core))
+            last_core += 1
+        config_tups.append((dpdk_port_b, q, last_core))
+        # add the core ID to our list of cores to include
+        included_cores.append(str(last_core))
+        last_core += 1
+
+    # pick promiscuous mode arg, note mana doesn't support promiscuous mode
+    if fwd_kit.testpmd.is_mana:
+        promiscuous = ""
+    else:
+        promiscuous = "-P"
+
+    # join all our options into strings for use in the commmand
+    joined_configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
+    joined_include = " ".join(include_devices)
+    # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
+    joined_core_list = ",".join(included_cores)
+    fwd_cmd = (
+        f"{server_app_path} {joined_include} -l {joined_core_list} -- "
+        f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
+        f' --lookup=lpm --config="{joined_configs}" '
+        "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
+    )
+    return fwd_cmd
 
 
 def create_l3fwd_rules_files(

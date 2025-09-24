@@ -1176,11 +1176,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # Step 4: once we find the matching subnet, assign the routing table to it.
         if subnet_az.address_prefix is not None:
             az_subnet = subnet_az.address_prefix
-        elif (
-            subnet_az.address_prefix is None
-            and subnet_az.address_prefixes
-        ):
-            az_subnet=""
+        elif subnet_az.address_prefix is None and subnet_az.address_prefixes:
+            az_subnet = ""
             # check subnet address prefixes if there are more than one
             for subnet in subnet_az.address_prefixes:
                 self._log.debug(f"Checking address prefixes: {subnet} == {subnet_mask}")
@@ -1190,15 +1187,18 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             if not az_subnet:
                 self._node.log.debug(
                     "Warning: could not find subnet to update in vnet "
-                    f"{virtual_network_name} skipping updates. Checked subnet prefixes: "
-                    + " ".join(subnet_az.address_prefixes)
+                    f"{virtual_network_name} skipping updates. "
+                    "Checked subnet prefixes: " + " ".join(subnet_az.address_prefixes)
                 )
                 return False
         else:
             # this is a weird situation where a virtual network has no subnets.
             # warn and return. It's unexpected, but we check every vnet in the RG.
-            self._node.log.debug(f"Warning: found a virtual network {virtual_network_name}"
-                                 " with no subnets.")
+            self._node.log.debug(
+                "Warning: found a virtual network "
+                f"{virtual_network_name}"
+                " with no subnets."
+            )
             return False
         self._log.debug(f"Checking subnet: {az_subnet} == {subnet_mask}")
         if az_subnet == subnet_mask:
