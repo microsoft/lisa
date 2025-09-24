@@ -62,9 +62,11 @@ class RunnerTestCase(TestCase):
 
     def setUp(self) -> None:
         lisa.environment._global_environment_id = 0
+        start_test_result_message_processing()
 
     def tearDown(self) -> None:
         test_testsuite.cleanup_cases_metadata()  # Necessary side effects!
+        wait_for_test_result_messages()
 
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
@@ -743,8 +745,6 @@ class RunnerTestCase(TestCase):
     def _run_all_tests(self, runner: LisaRunner) -> List[TestResultMessage]:
         results_collector = RunnerResult(schema.Notifier())
         register_notifier(results_collector)
-
-        start_test_result_message_processing()
 
         try:
             runner.initialize()

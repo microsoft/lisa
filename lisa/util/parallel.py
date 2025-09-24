@@ -1,12 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from concurrent.futures import (
-    ALL_COMPLETED,
-    FIRST_COMPLETED,
-    Future,
-    ThreadPoolExecutor,
-    wait,
-)
+import time
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from queue import Queue
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
 from assertpy import assert_that
@@ -85,6 +81,7 @@ class TaskManager(Generic[T_RESULT]):
         self._cancelled = False
         self._future_task_map: Dict[Future[T_RESULT], Task[T_RESULT]] = {}
         self._is_verbose = is_verbose
+        self._pending_tasks: Queue[Task[T_RESULT]] = Queue()
 
     def __enter__(self) -> Any:
         return self._pool.__enter__()
@@ -97,9 +94,8 @@ class TaskManager(Generic[T_RESULT]):
         return len(self._futures)
 
     def submit_task(self, task: Task[T_RESULT]) -> None:
-        future: Future[T_RESULT] = self._pool.submit(task)
-        self._future_task_map[future] = task
-        self._futures.append(future)
+        self._pending_tasks.put(task)
+        self._process_pending_tasks()
 
     def cancel(self) -> None:
         self._log.info("Called to cancel all tasks.")
@@ -137,8 +133,22 @@ class TaskManager(Generic[T_RESULT]):
                 self._future_task_map.pop(future)
 
     def wait_for_all_workers(self) -> None:
-        remaining_worker_count = self.wait_worker(return_condition=ALL_COMPLETED)
-        assert_that(remaining_worker_count).is_zero()
+        while True:
+            self._process_pending_tasks()
+            has_remaining = not self._pending_tasks.empty() or self.wait_worker()
+            if not has_remaining:
+                break
+            time.sleep(0)
+
+        assert_that(has_remaining).is_false()
+
+    def _process_pending_tasks(self) -> None:
+        while not self._pending_tasks.empty() and self.has_idle_worker():
+            self.check_cancelled()
+            task = self._pending_tasks.get()
+            future: Future[T_RESULT] = self._pool.submit(task)
+            self._future_task_map[future] = task
+            self._futures.append(future)
 
 
 _default_task_manager: Optional[TaskManager[Any]] = None

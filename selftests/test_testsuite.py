@@ -23,6 +23,8 @@ from lisa.testsuite import (
     get_suites_metadata,
     node_requirement,
     simple_requirement,
+    start_test_result_message_processing,
+    wait_for_test_result_messages,
 )
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook
@@ -171,6 +173,10 @@ class TestSuiteTestCase(TestCase):
 
     def setUp(self) -> None:
         cleanup_cases_metadata()
+        start_test_result_message_processing()
+
+    def tearDown(self) -> None:
+        wait_for_test_result_messages()
 
     def test_expanded_nodespace(self) -> None:
         cases = generate_cases_metadata()
