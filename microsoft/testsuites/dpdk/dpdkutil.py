@@ -1302,7 +1302,7 @@ def _apply_workaround_for_symmetric_mp_main(node: Node) -> None:
     symmetric_mp_patched_main_c = "symmetric-mp-patched-main.c"
     node.shell.copy(
         symmetric_mp_local_dir.joinpath(symmetric_mp_patched_main_c),
-        node.working_path,
+        node.working_path.joinpath(symmetric_mp_patched_main_c),
     )
     symmetric_mp_remote = (
         "/usr/local/share/dpdk/examples/multi_process/symmetric_mp/main.c"
