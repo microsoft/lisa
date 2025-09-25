@@ -123,40 +123,31 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian),
-            packages=[
-                "build-essential",
-                "libnuma-dev",
-                "libmnl-dev",
-                "python3-pyelftools",
-                "libelf-dev",
-                "pkg-config",
-            ],
+            packages=["dpdk", "dpdk-dev"],
             stop_on_match=True,
+            build_deps=True,
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Suse),
-            packages=[
-                "psmisc",
-                "libnuma-devel",
-                "numactl",
-                "libmnl-devel meson",
-                "gcc-c++",
-            ],
+            matcher=lambda x: isinstance(x, Suse)
+            and bool(parse_version(x.information.release) == "15.5.0"),
+            packages=["dpdk22", "dpdk22-devel"],
             stop_on_match=True,
+            build_deps=True,
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, (Fedora)),
-            packages=[
-                "psmisc",
-                "numactl-devel",
-                "pkgconfig",
-                "elfutils-libelf-devel",
-                "python3-pip",
-                "kernel-modules-extra",
-                "kernel-headers",
-                "gcc-c++",
-            ],
+            # alma/rocky have started
+            # including testpmd by default in 'dpdk'
+            matcher=lambda x: isinstance(x, Fedora)
+            and not x.is_package_in_repo("dpdk-devel"),
+            packages=["dpdk"],
             stop_on_match=True,
+            build_deps=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, (Fedora, Suse)),
+            packages=["dpdk", "dpdk-devel"],
+            stop_on_match=True,
+            build_deps=True,
         ),
         OsPackageDependencies(matcher=unsupported_os_thrower),
     ]
@@ -225,8 +216,7 @@ class DpdkSourceInstall(Installer):
         # install( Tool ) doesn't seem to install the tool until it's used :\
         # which breaks when another tool checks for it's existence before building...
         # like cmake, meson, make, autoconf, etc.
-        self._node.tools[Ninja].install()
-        self._node.tools[Pip].install_packages("pyelftools")
+        self._os.install_build_deps("dpdk")
 
     def _uninstall(self) -> None:
         # undo source installation (thanks ninja)

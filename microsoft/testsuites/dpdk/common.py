@@ -39,10 +39,12 @@ class OsPackageDependencies:
         matcher: Callable[[Posix], bool],
         packages: Optional[Sequence[Union[str, Tool, Type[Tool]]]] = None,
         stop_on_match: bool = False,
+        build_deps: bool = False,
     ) -> None:
         self.matcher = matcher
         self.packages = packages
         self.stop_on_match = stop_on_match
+        self.build_deps = build_deps
 
 
 class DependencyInstaller:
@@ -64,9 +66,12 @@ class DependencyInstaller:
         packages: List[Union[str, Tool, Type[Tool]]] = []
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
-                packages += requirement.packages
-                if requirement.stop_on_match:
-                    break
+                if requirement.build_deps:
+                    os.install_build_deps(" ".join(str(requirement.packages)))
+                else:
+                    packages += requirement.packages
+                    if requirement.stop_on_match:
+                        break
         os.install_packages(packages=packages, extra_args=extra_args)
 
         # NOTE: It is up to the caller to raise an exception on an invalid OS
