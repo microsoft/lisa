@@ -1543,8 +1543,6 @@ def run_dpdk_symmetric_mp(
     all_matches = [
         result_regex.finditer(secondary_result.stdout),
         result_regex.finditer(primary_result.stdout),
-        # result_regex.search(secondary_result.stdout),
-        # result_regex.search(primary_result.stdout),
     ]
     match_count = 0
     process_data: List[Dict[str, int]] = []
