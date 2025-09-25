@@ -311,7 +311,8 @@ class CloudHypervisorTests(Tool):
 
         # Use enhanced diagnostics for better debugging and monitoring
         skip_args = subtests["skip_args"]
-        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
+        extra = f" -- {skip_args}" if skip_args else ""
+        cmd_args = f"tests --hypervisor {hypervisor} --{test_type}{extra}"
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
@@ -451,12 +452,12 @@ class CloudHypervisorTests(Tool):
         self, testcase: str, hypervisor: str, subtest_timeout: Optional[int]
     ) -> str:
         """Build command arguments for metrics test."""
-        cmd_args = (
-            f"tests --hypervisor {hypervisor} --metrics -- --"
-            f" --test-filter {testcase}"
-        )
+        cmd_args = f"tests --hypervisor {hypervisor} --metrics"
+        # forward only when we actually have passthrough
+        forward = f" -- -- --test-filter {testcase}"
         if subtest_timeout:
-            cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
+            forward += f" --timeout {subtest_timeout}"
+        cmd_args += forward
         return cmd_args
 
     def _get_metrics_timeout(self) -> int:
@@ -742,6 +743,8 @@ sudo sysctl -w kernel.core_pattern=core.%e.%p.%t >/dev/null 2>&1 || true
 
 # sanity
 pwd
+echo "[cmd] scripts/dev_cli.sh {cmd_args}"
+echo "[env] PATH=$PATH"
 echo "[env] RB=$RUST_BACKTRACE RLB=$RUST_LIB_BACKTRACE RLOG=$RUST_LOG"
 echo "[env] CH_IDLE_SECS=${{CH_IDLE_SECS:-600}}"
 echo "[env] CH_HANG_KILL_SECS=${{CH_HANG_KILL_SECS:-1800}}"
@@ -803,7 +806,7 @@ while kill -0 $pid 2>/dev/null; do
           cmd="$(cat "/proc/$child/comm" 2>/dev/null || \\
             ps -p "$child" -o comm= 2>/dev/null || true)"
           case "$cmd" in
-            ""|tee|stdbuf|bash) : ;;      # skip wrappers/empties
+            ""|tee|stdbuf|bash|sh|script|scriptreplay|cat|head|tail|timeout) : ;;
             *) tpid="$child"; break ;;
           esac
         done
@@ -827,12 +830,21 @@ while kill -0 $pid 2>/dev/null; do
     fi
 
     # Then grab a concise live backtrace
-    timeout 30s sudo gdb -batch -p "$tpid" \\
-      -ex "set pagination off" \\
-      -ex "set print elements 0" \\
-      -ex "set backtrace limit 64" \\
-      -ex "thread apply all bt" \\
-      -ex "info threads" > "$live_bt_file" 2>&1 || true
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 30s sudo gdb -batch -p "$tpid" \\
+        -ex "set pagination off" \\
+        -ex "set print elements 0" \\
+        -ex "set backtrace limit 64" \\
+        -ex "thread apply all bt" \\
+        -ex "info threads" > "$live_bt_file" 2>&1 || true
+    else
+      sudo gdb -batch -p "$tpid" \\
+        -ex "set pagination off" \\
+        -ex "set print elements 0" \\
+        -ex "set backtrace limit 64" \\
+        -ex "thread apply all bt" \\
+        -ex "info threads" > "$live_bt_file" 2>&1 || true
+    fi
 
     # Let it run again
     sudo kill -CONT "$tpid" 2>/dev/null || true
@@ -857,7 +869,7 @@ while kill -0 $pid 2>/dev/null; do
           cmd="$(cat "/proc/$child/comm" 2>/dev/null || \\
             ps -p "$child" -o comm= 2>/dev/null || true)"
           case "$cmd" in
-            ""|tee|stdbuf|bash) : ;;      # skip wrappers/empties
+            ""|tee|stdbuf|bash|sh|script|scriptreplay|cat|head|tail|timeout) : ;;
             *) tpid="$child"; break ;;
           esac
         done
@@ -902,10 +914,17 @@ if [ $ec -ne 0 ]; then
     | head -1 || true)
   if [ -n "$core" ] && [ -n "$bin" ]; then
     echo "[diagnostics] Found core: $core, binary: $bin" | tee -a "$log_file"
-    timeout 45s sudo gdb -batch -q "$bin" "$core" \\
-      -ex "set pagination off" \\
-      -ex "thread apply all bt full" \\
-      -ex "info threads" > "$core_bt_file" 2>&1 || true
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 45s sudo gdb -batch -q "$bin" "$core" \\
+        -ex "set pagination off" \\
+        -ex "thread apply all bt full" \\
+        -ex "info threads" > "$core_bt_file" 2>&1 || true
+    else
+      sudo gdb -batch -q "$bin" "$core" \\
+        -ex "set pagination off" \\
+        -ex "thread apply all bt full" \\
+        -ex "info threads" > "$core_bt_file" 2>&1 || true
+    fi
   else
     echo "[diagnostics] No core/bin found for symbolization" | tee -a "$log_file"
   fi
