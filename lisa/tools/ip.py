@@ -390,6 +390,12 @@ class Ip(Tool):
         return matched["ip_addr"]
 
     def get_subnet_address(self, nic_name: str) -> str:
+        """
+        Get the subnet address of a nic from 'ip'.
+        Note these are not always strict subnet addresses, 
+        they usually include the host bits within the subnet mask.
+        ex: '10.0.1.4/24'
+        """
         result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
         matched = self._get_matched_dict(result.stdout)
         assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
