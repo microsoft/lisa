@@ -1173,7 +1173,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             virtual_network_name=virtual_network_name,
             subnet_name=subnet_name,
         )
-        
         # Check the subnet address prefixes to find the desired subnet
         # must handle the case where there is a single address prefix
         # or an array of prefixes. These use distinct property names for some reason
@@ -1181,7 +1180,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             # single prefix is easy, save for later
             az_subnet = subnet_az.address_prefix
         # otherwise, check the prefixes in the array if it exists.
-        elif subnet_az.address_prefix is None and subnet_az.address_prefixes:            
+        elif subnet_az.address_prefix is None and subnet_az.address_prefixes:
             az_subnet = ""
             # check subnet address prefixes if there are more than one
             for subnet in subnet_az.address_prefixes:
