@@ -108,8 +108,6 @@ class CloudHypervisorTests(Tool):
     ) -> Dict[str, Any]:
         """Prepare subtests and skip arguments."""
         subtests = self._list_subtests(hypervisor, test_type)
-        # Store the ordered list for diagnostic purposes
-        self._ordered_subtests = subtests.copy()
 
         if only is not None:
             if not skip:
@@ -121,6 +119,8 @@ class CloudHypervisorTests(Tool):
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
             skip_args = ""
+        # Store final, filtered execution order for diagnostics
+        self._ordered_subtests = subtests.copy()
         self._log.debug(f"Final Subtests list to run: {subtests}")
 
         return {"subtest_set": set(subtests), "skip_args": skip_args}
@@ -718,7 +718,7 @@ class CloudHypervisorTests(Tool):
                 "RUST_BACKTRACE": "full",
                 "RUST_LIB_BACKTRACE": "1",
                 # Tweak if too chatty: e.g., "cloud_hypervisor=debug,virtio=info"
-                "RUST_LOG": os.environ.get("RUST_LOG", "debug"),
+                "RUST_LOG": os.environ.get("RUST_LOG", "info"),
                 "CH_IDLE_SECS": str(idle_secs),
                 "CH_HANG_KILL_SECS": str(hang_kill_secs),
                 "CH_CHECK_INTERVAL": str(check_interval),
@@ -765,8 +765,8 @@ pid=$!
 
 # background watchdog that dumps stacks on inactivity
 idle=0
-total_idle=0
 last_size=0
+last_progress_ts=$(date +%s)
 idle_secs=${{CH_IDLE_SECS:-600}}
 check_interval=${{CH_CHECK_INTERVAL:-30}}
 hang_kill_secs=${{CH_HANG_KILL_SECS:-1800}}
@@ -776,9 +776,9 @@ while kill -0 $pid 2>/dev/null; do
   if [ "$size" -eq "$last_size" ]; then
     idle=$((idle + check_interval))
   else
-    total_idle=$((total_idle + idle))
     idle=0
     last_size=$size
+    last_progress_ts=$(date +%s)
   fi
   if [ "$idle" -ge "$idle_secs" ]; then
     echo "[watchdog] No log growth for ${{idle_secs}}s; dumping live stacks" \\
@@ -789,16 +789,22 @@ while kill -0 $pid 2>/dev/null; do
     ps -eL -o pid,tid,ppid,stat,etime,comm,cmd | head -200 \\
       | tee -a "$log_file" || true
 
-    # Find a good target: prefer the integration test binary; otherwise a child
-    # of the cargo/dev_cli process; otherwise fall back to the main pid.
+    # Find a good target: prefer integration-*; else CH/QEMU; else newest; else parent
     tpid="$(pgrep -n -f 'target/.*/deps/integration-' || true)"
+    [ -z "$tpid" ] && tpid="$(pgrep -n -f 'cloud-hypervisor|qemu-system' || true)"
     if [ -z "$tpid" ]; then
-      # newest child of $pid (often cargo test or the binary)
-      tpid="$(pgrep -P "$pid" | tail -n1 || true)"
+      # try newest child that's not a wrapper process
+      for child in $(pgrep -P "$pid" | tac); do
+        cmd="$(ps -p "$child" -o comm= 2>/dev/null || true)"
+        if [ -n "$cmd" ] && ! echo "$cmd" | grep -q "tee\\|stdbuf\\|bash"; then
+          tpid="$child"
+          break
+        fi
+      done
     fi
     [ -z "$tpid" ] && tpid="$pid"
 
-    # Best-effort freeze to avoid the attach race
+    # Best-effort freeze to avoid attach races
     sudo kill -STOP "$tpid" 2>/dev/null || true
 
     # Snapshot a core ASAP (prefer gcore; fall back to gdb generate-core-file)
@@ -813,7 +819,7 @@ while kill -0 $pid 2>/dev/null; do
     fi
 
     # Then grab a concise live backtrace
-    sudo gdb -batch -p "$tpid" \\
+    timeout 30s sudo gdb -batch -p "$tpid" \\
       -ex "set pagination off" \\
       -ex "set print elements 0" \\
       -ex "set backtrace limit 64" \\
@@ -822,17 +828,25 @@ while kill -0 $pid 2>/dev/null; do
 
     # Let it run again
     sudo kill -CONT "$tpid" 2>/dev/null || true
-    total_idle=$((total_idle + idle))
     idle=0
   fi
-  if [ "$total_idle" -ge "$hang_kill_secs" ]; then
+  now=$(date +%s)
+  if [ $(( now - last_progress_ts )) -ge "$hang_kill_secs" ]; then
     echo "[watchdog] Exceeded ${{hang_kill_secs}}s of inactivity; terminating test" \\
       | tee -a "$log_file"
 
     # Find target using same logic as watchdog
     tpid="$(pgrep -n -f 'target/.*/deps/integration-' || true)"
+    [ -z "$tpid" ] && tpid="$(pgrep -n -f 'cloud-hypervisor|qemu-system' || true)"
     if [ -z "$tpid" ]; then
-      tpid="$(pgrep -P "$pid" | tail -n1 || true)"
+      # try newest child that's not a wrapper process
+      for child in $(pgrep -P "$pid" | tac); do
+        cmd="$(ps -p "$child" -o comm= 2>/dev/null || true)"
+        if [ -n "$cmd" ] && ! echo "$cmd" | grep -q "tee\\|stdbuf\\|bash"; then
+          tpid="$child"
+          break
+        fi
+      done
     fi
     [ -z "$tpid" ] && tpid="$pid"
 
@@ -861,7 +875,8 @@ kill $watchdog_pid 2>/dev/null || true
 if [ $ec -ne 0 ]; then
   core=""
   for dir in . .. /var/crash /cores /var/lib/systemd/coredump /tmp; do
-    c=$(ls -t "$dir"/core.integration-* 2>/dev/null | head -1)
+    # prefer gcore-style names first, then classic core.integration-*
+    c=$(ls -t "$dir"/core.*.* "$dir"/core.integration-* 2>/dev/null | head -1)
     [ -n "$c" ] && core="$c" && break || true
   done
   bin=$(ls -t target/*/deps/integration-* 2>/dev/null | head -1 || true)
@@ -871,7 +886,7 @@ if [ $ec -ne 0 ]; then
     | head -1 || true)
   if [ -n "$core" ] && [ -n "$bin" ]; then
     echo "[diagnostics] Found core: $core, binary: $bin" | tee -a "$log_file"
-    sudo gdb -batch -q "$bin" "$core" \\
+    timeout 45s sudo gdb -batch -q "$bin" "$core" \\
       -ex "set pagination off" \\
       -ex "thread apply all bt full" \\
       -ex "info threads" > "$core_bt_file" 2>&1 || true
@@ -1034,7 +1049,7 @@ exit $ec
             {
                 "RUST_BACKTRACE": "full",
                 "RUST_LIB_BACKTRACE": "1",
-                "RUST_LOG": os.environ.get("RUST_LOG", "debug"),
+                "RUST_LOG": os.environ.get("RUST_LOG", "info"),
             }
         )
         result = self.run(
