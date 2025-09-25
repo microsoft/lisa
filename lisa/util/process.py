@@ -498,6 +498,7 @@ class Process:
         # check if stdout buffers contain the string "keyword" to determine if
         # it is running
         start_time = time.time()
+        searched_len = 0
         while time.time() - start_time < timeout:
             # LogWriter only flushes if "\n" is written, so we need to flush
             # manually.
@@ -505,14 +506,21 @@ class Process:
             self._stderr_writer.flush()
 
             # check if buffer contains the keyword
+            search_buffer = self.log_buffer.getvalue()
             find_pos = self.log_buffer_offset if delta_only else 0
-            if self.log_buffer.getvalue().find(keyword, find_pos) >= 0:
-                self.log_buffer_offset = len(self.log_buffer.getvalue())
+            found_pos = search_buffer.find(keyword, find_pos)
+            if found_pos >= 0:
+                # note: find returns start for slice of search_buffer[start:end]
+                # So calculate end; start+len, as the new offset
+                self.log_buffer_offset = found_pos + len(keyword)
                 return True
-
+            # else, remember amount we've searched so far
+            searched_len = len(search_buffer)
             time.sleep(interval)
 
-        self.log_buffer_offset = len(self.log_buffer.getvalue())
+        # if the keyword was not found, still retain the
+        # buffer length for a second future delta_only caller.
+        self.log_buffer_offset = searched_len
 
         if error_on_missing:
             raise LisaException(
