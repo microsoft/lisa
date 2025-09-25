@@ -1410,7 +1410,6 @@ def run_dpdk_symmetric_mp(
     symmetric_mp_args = (
         f"{nic_args} -n 2 "
         "--log-level netvsc,debug --log-level mana,debug "
-        # "--log-level eal,debug --log-level mbuf,debug "
         "--log-level ethdev,debug --log-level pci,debug "
         "--log-level port,debug "
         "--log-level vmbus,debug "
