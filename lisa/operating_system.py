@@ -446,6 +446,24 @@ class Posix(OperatingSystem, BaseClassMixin):
             self._first_time_installation = False
         return self._is_package_in_repo(package_name)
 
+    def enable_package_build_deps(self) -> None:
+        """
+        Enable apt-get/yum build-deps package build dependency installation by
+        turning on deb-src or srpm repositories.
+        """
+        raise NotImplementedError(
+            "package manager build-deps enabling not implemented for this os."
+        )
+
+    def install_build_deps(self, package: str) -> None:
+        """
+        Install apt-get/yum build-deps package build dependency installation by
+        turning on deb-src or srpm repositories.
+        """
+        raise NotImplementedError(
+            "package manager build-deps installation not implemented for this os."
+        )
+
     def update_packages(
         self,
         packages: Union[str, Tool, Type[Tool], Sequence[Union[str, Tool, Type[Tool]]]],
@@ -933,6 +951,20 @@ class Debian(Linux):
             version_str, self._debian_version_splitter_regex
         )
         return self._cache_and_return_version_info(package_name, version_info)
+
+    def enable_package_build_deps(self) -> None:
+        self._node.tools[Sed].substitute(
+            "# deb-src", "deb-src", "/etc/apt/sources.list", sudo=True
+        )
+        self._initialize_package_installation()
+
+    def install_build_deps(self, package: str) -> None:
+        self._node.execute(
+            f"apt-get build-dep -y {package}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not install apt-get build-dep for {package}",
+        )
 
     def add_azure_core_repo(
         self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
@@ -1449,6 +1481,44 @@ class Ubuntu(Debian):
     def _initialize_package_installation(self) -> None:
         self.wait_cloud_init_finish()
         super()._initialize_package_installation()
+
+    def enable_package_build_deps(self) -> None:
+        # ubuntu has a compat break around 24.04 which created an 'ubuntu.sources'
+        # file in place of the sources.list file. It uses a fancier format, so
+        # requires special handling.
+        node = self._node
+        if node.shell.exists(node.get_pure_path("/etc/apt/ubuntu.sources")):
+            node.tools[Sed].substitute(
+                regexp=r"Types\: deb",
+                replacement=r"Types\: deb deb-src",
+                file="/etc/apt/ubuntu.sources",
+                sudo=True,
+            )
+        else:
+            # for Ubuntu, enable main and main-updates only
+            # there are around 6 other optional repos,
+            # we'll enable just the minimum neccesary to avoid
+            # weird dependency cycles and conflicts.
+            main_repo = (
+                "deb-src "
+                "http://azure.archive.ubuntu.com/ubuntu/ "
+                f"{node.os.information.codename}  main restricted"
+            )
+            updates_repo = (
+                "deb-src "
+                "http://azure.archive.ubuntu.com/ubuntu/ "
+                f"{node.os.information.codename}-updates  "
+                "main restricted"
+            )
+            for repo in [main_repo, updates_repo]:
+                node.execute(
+                    f'echo "{repo}" | sudo tee -a /etc/apt/sources.list',
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"Could not add {repo} to /etc/apt/sources.list"
+                    ),
+                )
 
 
 @dataclass
