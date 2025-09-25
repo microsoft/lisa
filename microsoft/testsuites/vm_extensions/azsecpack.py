@@ -348,8 +348,8 @@ class AzSecPack(TestSuite):
             Redhat: [7, 8, 9],
             CentOs: [7],
             Oracle: [8, 9],
-            Debian: [10, 11],
-            Ubuntu: [20, 22, 18],
+            Debian: [10, 11, 12],
+            Ubuntu: [20, 22, 18, 24],
             SLES: [15],
             AlmaLinux: [8],
             CBLMariner: [2, 3],
@@ -358,7 +358,7 @@ class AzSecPack(TestSuite):
             Redhat: [8, 9],
             CentOs: [7],
             Debian: [11],
-            Ubuntu: [20],
+            Ubuntu: [20, 22, 24],
             CBLMariner: [2, 3],
         }
 
