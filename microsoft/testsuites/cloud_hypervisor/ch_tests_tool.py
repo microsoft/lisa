@@ -792,16 +792,24 @@ while kill -0 $pid 2>/dev/null; do
     # Find a good target: prefer integration-*; else CH/QEMU; else newest; else parent
     tpid="$(pgrep -n -f 'target/.*/deps/integration-' || true)"
     [ -z "$tpid" ] && tpid="$(pgrep -n -f 'cloud-hypervisor|qemu-system' || true)"
-    if [ -z "$tpid" ]; then
-      # try newest child that's not a wrapper process
-      for child in $(pgrep -P "$pid" | tac); do
-        cmd="$(ps -p "$child" -o comm= 2>/dev/null || true)"
-        if [ -n "$cmd" ] && ! echo "$cmd" | grep -q "tee\\|stdbuf\\|bash"; then
-          tpid="$child"
-          break
-        fi
-      done
+
+    if [ -z "$tpid" ] && [ -n "${{pid:-}}" ] && [[ "$pid" =~ ^[0-9]+$ ]]; then
+      # Collect children safely, no pipeline failures
+      children="$(pgrep -P "$pid" 2>/dev/null || true)"
+      if [ -n "$children" ]; then
+        # Iterate newest-first without needing tac
+        for child in $(printf '%s\\n' "$children" | sort -nr); do
+          # Portable command name probe
+          cmd="$(cat "/proc/$child/comm" 2>/dev/null || \\
+            ps -p "$child" -o comm= 2>/dev/null || true)"
+          case "$cmd" in
+            ""|tee|stdbuf|bash) : ;;      # skip wrappers/empties
+            *) tpid="$child"; break ;;
+          esac
+        done
+      fi
     fi
+
     [ -z "$tpid" ] && tpid="$pid"
 
     # Best-effort freeze to avoid attach races
@@ -838,16 +846,24 @@ while kill -0 $pid 2>/dev/null; do
     # Find target using same logic as watchdog
     tpid="$(pgrep -n -f 'target/.*/deps/integration-' || true)"
     [ -z "$tpid" ] && tpid="$(pgrep -n -f 'cloud-hypervisor|qemu-system' || true)"
-    if [ -z "$tpid" ]; then
-      # try newest child that's not a wrapper process
-      for child in $(pgrep -P "$pid" | tac); do
-        cmd="$(ps -p "$child" -o comm= 2>/dev/null || true)"
-        if [ -n "$cmd" ] && ! echo "$cmd" | grep -q "tee\\|stdbuf\\|bash"; then
-          tpid="$child"
-          break
-        fi
-      done
+
+    if [ -z "$tpid" ] && [ -n "${{pid:-}}" ] && [[ "$pid" =~ ^[0-9]+$ ]]; then
+      # Collect children safely, no pipeline failures
+      children="$(pgrep -P "$pid" 2>/dev/null || true)"
+      if [ -n "$children" ]; then
+        # Iterate newest-first without needing tac
+        for child in $(printf '%s\\n' "$children" | sort -nr); do
+          # Portable command name probe
+          cmd="$(cat "/proc/$child/comm" 2>/dev/null || \\
+            ps -p "$child" -o comm= 2>/dev/null || true)"
+          case "$cmd" in
+            ""|tee|stdbuf|bash) : ;;      # skip wrappers/empties
+            *) tpid="$child"; break ;;
+          esac
+        done
+      fi
     fi
+
     [ -z "$tpid" ] && tpid="$pid"
 
     kill -TERM "$tpid" 2>/dev/null || true
