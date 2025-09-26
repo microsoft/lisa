@@ -1189,7 +1189,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     az_subnet = subnet
             # if we could not find any, warn and return.
             if not az_subnet:
-                self._node.log.debug(
+                self._log.debug(
                     "Warning: could not find subnet to update in vnet "
                     f"{virtual_network_name} skipping updates. "
                     "Checked subnet prefixes: " + " ".join(subnet_az.address_prefixes)
@@ -1200,7 +1200,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # so it's possible there's just another one that contains the subnet we want.
         # so just warn and return to the higher function to keep checking.
         else:
-            self._node.log.debug(
+            self._log.debug(
                 "Warning: found a virtual network "
                 f"{virtual_network_name}"
                 " with no subnets."
