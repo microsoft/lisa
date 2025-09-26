@@ -455,13 +455,21 @@ class Posix(OperatingSystem, BaseClassMixin):
             "package manager build-deps enabling not implemented for this os."
         )
 
-    def install_build_deps(self, package: str) -> None:
+    def install_build_deps(
+        self,
+        packages: Union[str, Tool, Type[Tool], Sequence[Union[str, Tool, Type[Tool]]]],
+    ) -> None:
         """
         Install apt-get/yum build-deps package build dependency installation by
         turning on deb-src or srpm repositories.
         """
+        package_names = self._get_package_list(packages)
+        for package in package_names:
+            self._install_build_deps(package)
+
+    def _install_build_deps(self, packages: str) -> None:
         raise NotImplementedError(
-            "package manager build-deps installation not implemented for this os."
+            "package build dep installation not supported on this os."
         )
 
     def update_packages(
@@ -953,17 +961,21 @@ class Debian(Linux):
         return self._cache_and_return_version_info(package_name, version_info)
 
     def enable_package_build_deps(self) -> None:
-        self._node.tools[Sed].substitute(
-            "# deb-src", "deb-src", "/etc/apt/sources.list", sudo=True
-        )
-        self._initialize_package_installation()
+        if getattr(self, "_src_repo_initialized", False):
+            self._node.tools[Sed].substitute(
+                "# deb-src", "deb-src", "/etc/apt/sources.list", sudo=True
+            )
+            self.get_repositories()
+            self._src_repo_initialized = True
 
-    def install_build_deps(self, package: str) -> None:
+    def _install_build_deps(self, packages: str) -> None:
+        self.enable_package_build_deps()
         self._node.execute(
-            f"apt-get build-dep -y {package}",
+            f"apt-get build-dep -y {packages}",
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"Could not install apt-get build-dep for {package}",
+            expected_exit_code_failure_message=f"Could not install apt-get build-dep for {packages}",
+            update_envs={"DEBIAN_FRONTEND": "noninteractive"},
         )
 
     def add_azure_core_repo(
@@ -1519,6 +1531,7 @@ class Ubuntu(Debian):
                         f"Could not add {repo} to /etc/apt/sources.list"
                     ),
                 )
+        self.get_repositories()
 
 
 @dataclass
