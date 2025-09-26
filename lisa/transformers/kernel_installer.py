@@ -277,6 +277,7 @@ class RepoInstaller(BaseInstaller):
         else:
             repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
 
+        repo_entry = "ppa:john-cabaj/mana-catchup"
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
         full_package_name = runbook.source
