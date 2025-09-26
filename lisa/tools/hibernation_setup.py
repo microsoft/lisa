@@ -9,7 +9,7 @@ from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.tools.journalctl import Journalctl
-from lisa.util import find_patterns_in_lines, get_matched_str
+from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 from .git import Git
 from .ls import Ls
@@ -28,6 +28,14 @@ class HibernationSetup(Tool):
     )
     # [  159.898806] hv_utils: Sent hibernation uevent
     _uevent_pattern = re.compile(r"^(.*Sent hibernation uevent.*)$", re.MULTILINE)
+
+    # hibernation-setup-tool: ERROR: System needs a swap area of 322170 MB;
+    # but only has 294382 MB free space on device
+    _insufficient_swap_space_pattern = re.compile(
+        r"hibernation-setup-tool: ERROR: System needs a swap area of \d+ MB; "
+        r"but only has \d+ MB free space on device",
+        re.MULTILINE,
+    )
 
     """
     The below shows an example output of `filefrag -v /hibfile.sys`
@@ -58,11 +66,16 @@ class HibernationSetup(Tool):
         return True
 
     def start(self) -> None:
-        self.run(
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to start",
-        )
+        result = self.run(sudo=True)
+
+        # Analyze stdout for error patterns first
+        self._analyze_stdout_for_errors(result.stdout)
+
+        # If no errors found in stdout but exit code is non-zero, raise generic failure
+        if result.exit_code != 0:
+            raise LisaException(
+                f"hibernation-setup-tool failed with exit code {result.exit_code}"
+            )
 
     def check_entry(self) -> int:
         return self._check(self._entry_pattern)
@@ -75,6 +88,12 @@ class HibernationSetup(Tool):
 
     def check_uevent(self) -> int:
         return self._check(self._uevent_pattern)
+
+    def _analyze_stdout_for_errors(self, stdout: str) -> None:
+        # Check for insufficient swap space error
+        error_message = get_matched_str(stdout, self._insufficient_swap_space_pattern)
+        if error_message:
+            raise LisaException(f"Hibernation setup failed: {error_message}")
 
     def hibernate(self) -> None:
         self.node.tools[Systemctl].hibernate()
