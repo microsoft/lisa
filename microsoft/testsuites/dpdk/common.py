@@ -64,15 +64,19 @@ class DependencyInstaller:
         # find the match for an OS, install the packages.
         # stop on list end or if exclusive_match parameter is true.
         packages: List[Union[str, Tool, Type[Tool]]] = []
+        build_deps: List[Union[str, Tool, Type[Tool]]] = []
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
                 if requirement.build_deps:
-                    os.install_build_deps(" ".join(str(requirement.packages)))
+                    build_deps += requirement.packages
                 else:
                     packages += requirement.packages
-                    if requirement.stop_on_match:
-                        break
-        os.install_packages(packages=packages, extra_args=extra_args)
+                if requirement.stop_on_match:
+                    break
+        if build_deps:
+            os.install_build_deps(build_deps)
+        if packages:
+            os.install_packages(packages=packages, extra_args=extra_args)
 
         # NOTE: It is up to the caller to raise an exception on an invalid OS
 
