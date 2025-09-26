@@ -2379,6 +2379,31 @@ class Suse(Linux):
             repo_name="packages-microsoft-com-azurecore",
         )
 
+    def enable_package_build_deps(self) -> None:
+        repos = self.get_repositories()
+        for repo in repos:
+            if isinstance(repo, SuseRepositoryInfo) and "Source-Pool" in repo.name:
+                self._node.execute(
+                    f"zypper mr -e {repo.alias}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=f"Could not enable source pool for repo: {repo.alias}",
+                )
+        self._node.execute(
+            "zypper refresh -y",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failure to zypper refresh after enabling source repos.",
+        )
+
+    def _install_build_deps(self, packages: str) -> None:
+        self._node.execute(
+            f"zypper si --build-deps-only --force-resolution {packages}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"failed to source install package: {packages}",
+        )
+
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
         service = self._node.tools[Service]
