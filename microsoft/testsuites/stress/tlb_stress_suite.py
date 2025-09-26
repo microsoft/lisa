@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import List, cast
+from typing import Any, Dict, List, cast
 
 from lisa import (
     Environment,
@@ -38,7 +38,7 @@ from lisa.tools import Lscpu, StressNg, TlbStress
     """,
 )
 class TlbStressTestSuite(TestSuite):
-    # Test timeout: Expected ~9 minutes, allowing 3x buffer for CI variability  
+    # Test timeout: Expected ~9 minutes, allowing 3x buffer for CI variability
     TIME_OUT = 3600
 
     def _calculate_optimal_thread_count(self, node: RemoteNode) -> int:
@@ -82,7 +82,9 @@ class TlbStressTestSuite(TestSuite):
         tlb_threads = self._calculate_optimal_thread_count(nodes[0])
         tlb_pages = 1000
 
-        log.info(f"Using {tlb_threads} TLB stress threads based on {nodes[0].tools[Lscpu].get_core_count()} vCPUs")
+        log.info(
+            f"Using {tlb_threads} TLB stress threads based on {nodes[0].tools[Lscpu].get_core_count()} vCPUs"
+        )
 
         try:
             # Deploy and run TLB stress
@@ -153,9 +155,7 @@ class TlbStressTestSuite(TestSuite):
             is_guest = tlb_tool.detect_environment_type()
             thresholds = tlb_tool.get_environment_specific_thresholds(is_guest)
 
-            log.info(
-                f"Environment detected: {'Guest (VM)' if is_guest else 'Host (Bare Metal)'}"
-            )
+            log.info(f"Environment detected: {'Guest (VM)' if is_guest else 'Host (Bare Metal)'}")
             log.debug(
                 f"Performance thresholds: throughput <{thresholds.guest_throughput_degradation_percent}%, "
                 f"latency <{thresholds.guest_p95_latency_increase_percent}%, "
@@ -167,9 +167,7 @@ class TlbStressTestSuite(TestSuite):
             baseline_metrics = tlb_tool.capture_performance_baseline()
 
             # Phase 2: Run combined TLB + stress-ng test with monitoring
-            log.info(
-                "Phase 2: Running combined TLB + stress-ng stressors with monitoring..."
-            )
+            log.info("Phase 2: Running combined TLB + stress-ng stressors with monitoring...")
 
             # Sequential VM memory stressors first (warm-up phase)
             log.debug("Running warm-up stressors sequentially...")
@@ -195,9 +193,7 @@ class TlbStressTestSuite(TestSuite):
             )
 
             # Parallel TLB-intensive stressors with performance monitoring
-            log.info(
-                "Running maximum TLB pressure phase with performance monitoring..."
-            )
+            log.info("Running maximum TLB pressure phase with performance monitoring...")
 
             # Start performance monitoring with portable events
             perf_monitor_process = tlb_tool.node.execute_async(
@@ -222,7 +218,7 @@ class TlbStressTestSuite(TestSuite):
             parallel_vm_workers = self._calculate_stress_workers(nodes[0], base_workers=2)
             parallel_mmap_workers = self._calculate_stress_workers(nodes[0], base_workers=2)
             parallel_mremap_workers = self._calculate_stress_workers(nodes[0], base_workers=2)
-            
+
             log.debug(
                 f"Launching combined stress-ng stressors with scaled workers for 300s: "
                 f"vm={parallel_vm_workers}, mmap={parallel_mmap_workers}, mremap={parallel_mremap_workers}"
@@ -242,9 +238,7 @@ class TlbStressTestSuite(TestSuite):
             for i, process in enumerate(processes):
                 result_obj = process.wait_result(timeout=330)
                 if i == 0:
-                    log.debug(
-                        f"Custom TLB stressor completed: {result_obj.stdout[:200]}..."
-                    )
+                    log.debug(f"Custom TLB stressor completed: {result_obj.stdout[:200]}...")
                 else:
                     log.debug(
                         f"Combined stress-ng stressors completed: {result_obj.stdout[:200]}..."
@@ -255,7 +249,8 @@ class TlbStressTestSuite(TestSuite):
 
             # Phase 3: Capture stress performance metrics and analyze
             log.info("Phase 3: Analyzing performance degradation...")
-            stress_metrics = tlb_tool._capture_current_metrics(log)
+            # Use the same baseline capture method to get consistent metrics
+            stress_metrics = tlb_tool.capture_performance_baseline()
 
             analysis_result = tlb_tool.analyze_performance_degradation(
                 baseline_metrics, stress_metrics
@@ -282,7 +277,7 @@ class TlbStressTestSuite(TestSuite):
 
     def _report_performance_results(
         self,
-        analysis: dict,
+        analysis: Dict[str, Any],
         result: TestResult,
         log: Logger,
     ) -> None:
@@ -308,15 +303,11 @@ class TlbStressTestSuite(TestSuite):
             for failure in analysis["failures"]:
                 summary_lines.append(f"  ❌ {failure}")
 
-        summary_lines.append(
-            f"Overall Result: {'PASS' if analysis['pass'] else 'FAIL'}"
-        )
+        summary_lines.append(f"Overall Result: {'PASS' if analysis['pass'] else 'FAIL'}")
 
         summary_message = "\n".join(summary_lines)
         log.info(summary_message)
 
         # Set test result status
         if not analysis["pass"]:
-            raise Exception(
-                f"Performance degradation detected: {'; '.join(analysis['failures'])}"
-            )
+            raise Exception(f"Performance degradation detected: {'; '.join(analysis['failures'])}")
