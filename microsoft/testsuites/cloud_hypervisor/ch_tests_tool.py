@@ -133,6 +133,23 @@ class CloudHypervisorTests(Tool):
             # Load VDPA kernel module and create devices
             self._configure_vdpa_devices(self.node)
 
+    def _handle_test_failure_with_diagnostics(
+        self,
+        base_message: str,
+        result: ExecutableResult,
+        test_type: str,
+        hypervisor: str,
+        log_path: Path,
+    ) -> None:
+        """Handle test failure with diagnostic context and enhanced error reporting."""
+        diagnostic_info = self._extract_diagnostic_info(
+            log_path, f"ch_{test_type}_{hypervisor}", result
+        )
+        failure_msg = base_message
+        if diagnostic_info:
+            failure_msg += f" | {diagnostic_info}"
+        fail(failure_msg)
+
     def _handle_timeout_failure(
         self,
         result: ExecutableResult,
@@ -142,27 +159,21 @@ class CloudHypervisorTests(Tool):
         log_path: Path,
     ) -> None:
         """Handle timeout with failures."""
-        diagnostic_info = self._extract_diagnostic_info(
-            log_path, f"ch_{test_type}_{hypervisor}", result
-        )
-        timeout_msg = (
+        base_message = (
             f"Timed out after {result.elapsed:.2f}s with failures: {failures[:3]}"
         )
-        if diagnostic_info:
-            timeout_msg += f" | {diagnostic_info}"
-        fail(timeout_msg)
+        self._handle_test_failure_with_diagnostics(
+            base_message, result, test_type, hypervisor, log_path
+        )
 
     def _handle_timeout_only(
         self, result: ExecutableResult, test_type: str, hypervisor: str, log_path: Path
     ) -> None:
         """Handle pure timeout without test failures."""
-        diagnostic_info = self._extract_diagnostic_info(
-            log_path, f"ch_{test_type}_{hypervisor}", result
+        base_message = f"Timed out after {result.elapsed:.2f}s"
+        self._handle_test_failure_with_diagnostics(
+            base_message, result, test_type, hypervisor, log_path
         )
-        timeout_msg = f"Timed out after {result.elapsed:.2f}s"
-        if diagnostic_info:
-            timeout_msg += f" | {diagnostic_info}"
-        fail(timeout_msg)
 
     def _handle_test_failures(
         self,
@@ -173,14 +184,10 @@ class CloudHypervisorTests(Tool):
         result: ExecutableResult,
     ) -> None:
         """Handle test failures with diagnostic context."""
-        diagnostic_info = self._extract_diagnostic_info(
-            log_path, f"ch_{test_type}_{hypervisor}", result
+        base_message = f"Unexpected failures: {failures[:3]}"
+        self._handle_test_failure_with_diagnostics(
+            base_message, result, test_type, hypervisor, log_path
         )
-        # Limit to first 3 failures
-        failure_msg = f"Unexpected failures: {failures[:3]}"
-        if diagnostic_info:
-            failure_msg += f" | {diagnostic_info}"
-        fail(failure_msg)
 
     def _handle_exit_code_failure(
         self, result: ExecutableResult, test_type: str, hypervisor: str, log_path: Path
@@ -190,19 +197,17 @@ class CloudHypervisorTests(Tool):
         failing_test_pattern = r"test (\S+) \.\.\. FAILED"
         failing_tests = re.findall(failing_test_pattern, result.stdout)
 
-        # Get enhanced diagnostic information
-        diagnostic_info = self._extract_diagnostic_info(
-            log_path, f"ch_{test_type}_{hypervisor}", result
-        )
-
         if failing_tests:
-            # We have specific test failures - show both the test names and diagnostics
-            failure_msg = f"Unexpected failures: {failing_tests[:3]}"
-            if diagnostic_info:
-                failure_msg += f" | {diagnostic_info}"
-            fail(failure_msg)
+            # We have specific test failures - use the general handler
+            base_message = f"Unexpected failures: {failing_tests[:3]}"
+            self._handle_test_failure_with_diagnostics(
+                base_message, result, test_type, hypervisor, log_path
+            )
         else:
-            # No specific test failures found, use diagnostic info or fallback
+            # No specific test failures found, get diagnostics and handle differently
+            diagnostic_info = self._extract_diagnostic_info(
+                log_path, f"ch_{test_type}_{hypervisor}", result
+            )
             self._handle_process_crash_or_failure(
                 result, test_type, hypervisor, log_path, diagnostic_info
             )
