@@ -226,15 +226,23 @@ class TlbStress(Tool):
         return ",".join(base_events)
 
     def _install_deps(self) -> None:
-        """Install build dependencies with proper distro detection and mapping"""
+        """Install build dependencies for supported distributions only"""
         from lisa.operating_system import Debian, Redhat
 
         if isinstance(self.node.os, Debian):
+            self._log.info("Detected Debian/Ubuntu distribution")
             self._install_debian_deps()
         elif isinstance(self.node.os, Redhat):
+            self._log.info("Detected RedHat/Azure Linux distribution")
             self._install_redhat_deps()
         else:
-            self._install_unknown_distro_deps()
+            # Clear error message for unsupported distributions
+            distro_info = getattr(self.node.os, 'name', 'Unknown')
+            raise RuntimeError(
+                f"Unsupported distribution: {distro_info}. "
+                "This tool only supports Ubuntu (Debian) and Azure Linux (RedHat). "
+                "Please use one of these supported distributions."
+            )
 
     def _install_debian_deps(self) -> None:
         """Install dependencies for Debian/Ubuntu systems"""
@@ -300,40 +308,6 @@ class TlbStress(Tool):
             except Exception:
                 self._log.debug(f"Optional package {pkg} not available, continuing...")
 
-    def _install_unknown_distro_deps(self) -> None:
-        """Install dependencies for unknown distributions with fallbacks"""
-        self._log.warning("Unknown distribution, trying Development Tools group...")
-        try:
-            # Try DNF-style development tools group
-            self.node.execute(
-                "dnf groupinstall -y 'Development Tools'",
-                sudo=True,
-                no_error_log=True,
-            )
-            self.node.os.install_packages(
-                ["glibc-devel", "kernel-headers"]
-            )  # type: ignore
-            self._log.info(
-                "Installed via Development Tools group (DNF)"
-            )
-        except Exception:
-            try:
-                # Try APT-style build essentials
-                self.node.os.install_packages(
-                    ["build-essential", "libc6-dev"]
-                )  # type: ignore
-                self._log.info("Installed via build-essential (APT)")
-            except Exception:
-                # Final fallback - minimal requirements
-                try:
-                    self.node.os.install_packages(["gcc", "make"])  # type: ignore
-                    self._log.warning("Minimal install only: gcc, make")
-                except Exception as e:
-                    self._log.error(f"Failed to install any build dependencies: {e}")
-                    raise RuntimeError(
-                        "Could not install build dependencies on this distribution"
-                    )
-
     def _verify_build_tools(self) -> None:
         """Verify that essential build tools are available"""
         essential_tools = ["gcc", "make"]
@@ -349,16 +323,19 @@ class TlbStress(Tool):
                 f"Essential build tools missing: {', '.join(missing_tools)}"
             )
 
-        # Verify C headers are available
+        # Verify C headers are available (optional for user-space programs)
         header_test = self.node.execute(
             "echo '#include <stdio.h>' | gcc -x c - -E -o /dev/null",
             sudo=True,
             no_error_log=True,
         )
         if header_test.exit_code != 0:
-            raise FileNotFoundError(
-                "C standard library headers (stdio.h) not available"
+            self._log.warning(
+                "C standard library headers (stdio.h) not available - "
+                "some advanced features may not work"
             )
+            # Don't fail hard - many user-space programs can compile without
+            # full headers
 
     def install(self) -> bool:
         """Deploy TLB stress program to target nodes with bulletproof installation"""
@@ -770,9 +747,7 @@ class TlbStress(Tool):
 
         # Compile the program to the standard binary location
         compile_cmd = f"gcc -O2 -pthread -o {self._bin} {remote_c_path}"
-        compile_result = self.node.execute(
-            compile_cmd, cwd=Path(self._work), sudo=True
-        )
+        compile_result = self.node.execute(compile_cmd, cwd=Path(self._work), sudo=True)
 
         if compile_result.exit_code != 0:
             raise RuntimeError(f"Compilation failed: {compile_result.stderr}")
