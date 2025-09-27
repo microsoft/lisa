@@ -9,10 +9,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
+from lisa.node import RemoteNode
 from lisa.tools import Dmesg
 
 if TYPE_CHECKING:
-    from lisa.node import Node, RemoteNode
+    from lisa.node import Node
 
 
 @dataclass
@@ -124,7 +125,6 @@ class TlbStress(Tool):
         result = self.node.execute(
             f"test -x {self._bin}", shell=True, no_error_log=True
         )
-        return result.exit_code == 0
         exists = result.exit_code == 0
 
         if exists:
@@ -227,21 +227,20 @@ class TlbStress(Tool):
 
     def _install_deps(self) -> None:
         """Install build dependencies for supported distributions only"""
-        from lisa.operating_system import Debian, Redhat
+        from lisa.operating_system import CBLMariner, Debian
 
         if isinstance(self.node.os, Debian):
             self._log.info("Detected Debian/Ubuntu distribution")
             self._install_debian_deps()
-        elif isinstance(self.node.os, Redhat):
-            self._log.info("Detected RedHat/Azure Linux distribution")
-            self._install_redhat_deps()
+        elif isinstance(self.node.os, CBLMariner):
+            self._log.info("Detected Azure Linux/CBL Mariner distribution")
+            self._install_azurelinux_deps()
         else:
             # Clear error message for unsupported distributions
             distro_info = getattr(self.node.os, 'name', 'Unknown')
             raise RuntimeError(
                 f"Unsupported distribution: {distro_info}. "
-                "This tool only supports Ubuntu (Debian) and Azure Linux (RedHat). "
-                "Please use one of these supported distributions."
+                "This tool only supports Ubuntu (Debian) and Azure Linux "
             )
 
     def _install_debian_deps(self) -> None:
@@ -262,8 +261,8 @@ class TlbStress(Tool):
         self.node.os.install_packages(packages)
         self._log.info("Successfully installed Debian/Ubuntu build dependencies")
 
-    def _install_redhat_deps(self) -> None:
-        """Install dependencies for RedHat/CentOS/Fedora systems"""
+    def _install_azurelinux_deps(self) -> None:
+        """Install dependencies for Azure Linux/CBL Mariner systems"""
         essential_packages = ["gcc", "make", "glibc-devel"]
 
         # Try optional packages
@@ -271,12 +270,14 @@ class TlbStress(Tool):
         self._try_install_kernel_headers(essential_packages)
 
         # Install essential packages
-        self._log.info("Installing RedHat/Azure Linux build dependencies...")
+        self._log.info("Installing Azure Linux/CBL Mariner build dependencies...")
         self.node.os.install_packages(essential_packages)  # type: ignore
 
         # Try optional packages
         self._install_optional_packages()
-        self._log.info("Successfully installed RedHat/Azure Linux build dependencies")
+        self._log.info(
+            "Successfully installed Azure Linux/CBL Mariner build dependencies"
+        )
 
     def _try_install_package(self, package: str, package_list: List[str]) -> None:
         """Try to install a package and add to list if successful"""
