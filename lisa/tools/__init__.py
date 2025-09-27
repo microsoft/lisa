@@ -124,6 +124,7 @@ from .tee import Tee
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
+from .tlb_stress import TlbStress
 from .tpm2 import Tpm2
 from .unzip import Unzip
 from .uptime import Uptime
@@ -255,6 +256,7 @@ __all__ = [
     "Stat",
     "Strace",
     "StressNg",
+    "TlbStress",
     "Swap",
     "Sysctl",
     "SystemdAnalyze",
