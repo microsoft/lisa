@@ -22,18 +22,18 @@ from lisa.tools import Lscpu, StressNg, TlbStress
     category="stress",
     description="""
     TLB (Translation Lookaside Buffer) stress testing suite.
-    
+
     This test suite focuses on creating intensive TLB pressure to reveal
     performance degradation under heavy virtual memory operations.
     TLB stress testing is crucial for:
-    
+
     - Validating TLB performance under memory pressure scenarios
     - Detecting performance regressions in virtual memory subsystems
     - Stress testing VM environments with intensive memory operations
     - Benchmarking TLB efficiency across different CPU architectures
-    
+
     The suite combines custom TLB flush programs with stress-ng stressors
-    to create comprehensive TLB pressure through frequent memory 
+    to create comprehensive TLB pressure through frequent memory
     unmapping/remapping operations.
     """,
 )
@@ -57,8 +57,8 @@ class TlbStressTestSuite(TestSuite):
     @TestCaseMetadata(
         description="""
         Execute basic TLB stress test with custom memory pressure.
-        
-        This test creates intensive TLB pressure through rapid memory 
+
+        This test creates intensive TLB pressure through rapid memory
         mapping/unmapping operations combined with stress-ng VM stressors.
         Validates system stability under heavy TLB activity.
         """,
@@ -83,7 +83,8 @@ class TlbStressTestSuite(TestSuite):
         tlb_pages = 1000
 
         log.info(
-            f"Using {tlb_threads} TLB stress threads based on {nodes[0].tools[Lscpu].get_core_count()} vCPUs"
+            f"Using {tlb_threads} TLB stress threads based on "
+            f"{nodes[0].tools[Lscpu].get_core_count()} vCPUs"
         )
 
         try:
@@ -117,7 +118,7 @@ class TlbStressTestSuite(TestSuite):
     @TestCaseMetadata(
         description="""
         Comprehensive TLB stress test with performance monitoring.
-        
+
         This test combines custom TLB flush operations with stress-ng stressors
         to create maximum TLB pressure while monitoring performance degradation.
         Features baseline/stress comparison with configurable thresholds to detect
@@ -155,9 +156,13 @@ class TlbStressTestSuite(TestSuite):
             is_guest = tlb_tool.detect_environment_type()
             thresholds = tlb_tool.get_environment_specific_thresholds(is_guest)
 
-            log.info(f"Environment detected: {'Guest (VM)' if is_guest else 'Host (Bare Metal)'}")
             log.debug(
-                f"Performance thresholds: throughput <{thresholds.guest_throughput_degradation_percent}%, "
+                f"Environment detected: "
+                f"{'Guest (VM)' if is_guest else 'Host (Bare Metal)'}"
+            )
+            log.debug(
+                f"Performance thresholds: "
+                f"throughput <{thresholds.guest_throughput_degradation_percent}%, "
                 f"latency <{thresholds.guest_p95_latency_increase_percent}%, "
                 f"steal <{thresholds.guest_steal_time_increase_points}%"
             )
@@ -167,7 +172,9 @@ class TlbStressTestSuite(TestSuite):
             baseline_metrics = tlb_tool.capture_performance_baseline()
 
             # Phase 2: Run combined TLB + stress-ng test with monitoring
-            log.info("Phase 2: Running combined TLB + stress-ng stressors with monitoring...")
+            log.info(
+                "Phase 2: Running combined TLB + stress-ng stressors with monitoring..."
+            )
 
             # Sequential VM memory stressors first (warm-up phase)
             log.debug("Running warm-up stressors sequentially...")
@@ -187,17 +194,21 @@ class TlbStressTestSuite(TestSuite):
             # Memory mapping stressor (scaled workers, 256MB, 60s)
             log.debug(f"Running mmap stressor: {mmap_workers} workers, 256MB, 60s")
             stress_ng.run(
-                f"--mmap {mmap_workers} --mmap-bytes 256M --mmap-file --timeout 60 --metrics-brief",
+                f"--mmap {mmap_workers} --mmap-bytes 256M --mmap-file "
+                f"--timeout 60 --metrics-brief",
                 force_run=True,
                 timeout=70,
             )
 
             # Parallel TLB-intensive stressors with performance monitoring
-            log.info("Running maximum TLB pressure phase with performance monitoring...")
+            log.info(
+                "Running maximum TLB pressure phase with performance monitoring..."
+            )
 
             # Start performance monitoring with portable events
             perf_monitor_process = tlb_tool.node.execute_async(
-                "perf stat -e cycles,instructions,cache-misses,page-faults,context-switches "
+                "perf stat -e cycles,instructions,cache-misses,page-faults,"
+                "context-switches "
                 "-I 1000 --append -o perf_stress_output.txt sleep 300",
                 cwd=tlb_tool.node.get_working_path(),
                 sudo=True,
@@ -208,24 +219,35 @@ class TlbStressTestSuite(TestSuite):
 
             # Custom TLB flush stressor with optimal thread count and 300s duration
             optimal_threads = self._calculate_optimal_thread_count(nodes[0])
-            log.debug(f"Launching custom TLB stressor: {optimal_threads} threads, 1000 pages, 300s")
+            log.debug(
+                f"Launching custom TLB stressor: {optimal_threads} threads, "
+                f"1000 pages, 300s"
+            )
             tlb_cmd = f"{tlb_tool.command} -t {optimal_threads} -p 1000 -d 300"
             tlb_proc = nodes[0].execute_async(tlb_cmd)
             processes.append(tlb_proc)
 
             # Combined stress-ng stressors running in parallel (300s)
             # Scale workers for larger SKUs
-            parallel_vm_workers = self._calculate_stress_workers(nodes[0], base_workers=2)
-            parallel_mmap_workers = self._calculate_stress_workers(nodes[0], base_workers=2)
-            parallel_mremap_workers = self._calculate_stress_workers(nodes[0], base_workers=2)
+            parallel_vm_workers = self._calculate_stress_workers(
+                nodes[0], base_workers=2
+            )
+            parallel_mmap_workers = self._calculate_stress_workers(
+                nodes[0], base_workers=2
+            )
+            parallel_mremap_workers = self._calculate_stress_workers(
+                nodes[0], base_workers=2
+            )
 
             log.debug(
                 f"Launching combined stress-ng stressors with scaled workers for 300s: "
-                f"vm={parallel_vm_workers}, mmap={parallel_mmap_workers}, mremap={parallel_mremap_workers}"
+                f"vm={parallel_vm_workers}, mmap={parallel_mmap_workers}, "
+                f"mremap={parallel_mremap_workers}"
             )
             combined_stress_cmd = (
                 f"--vm {parallel_vm_workers} --vm-bytes 64M --vm-populate "
-                f"--mmap {parallel_mmap_workers} --mmap-bytes 128M --mmap-file --mmap-async "
+                f"--mmap {parallel_mmap_workers} --mmap-bytes 128M "
+                f"--mmap-file --mmap-async "
                 f"--mremap {parallel_mremap_workers} --mremap-bytes 128M "
                 "--madvise 1 "
                 "--timeout 300 --metrics-brief"
@@ -238,10 +260,13 @@ class TlbStressTestSuite(TestSuite):
             for i, process in enumerate(processes):
                 result_obj = process.wait_result(timeout=330)
                 if i == 0:
-                    log.debug(f"Custom TLB stressor completed: {result_obj.stdout[:200]}...")
+                    log.debug(
+                        f"Custom TLB stressor completed: {result_obj.stdout[:200]}..."
+                    )
                 else:
                     log.debug(
-                        f"Combined stress-ng stressors completed: {result_obj.stdout[:200]}..."
+                        f"Combined stress-ng stressors completed: "
+                        f"{result_obj.stdout[:200]}..."
                     )
 
             # Wait for performance monitoring to complete
@@ -260,7 +285,8 @@ class TlbStressTestSuite(TestSuite):
             self._report_performance_results(analysis_result, result, log)
 
             log.info(
-                "Comprehensive TLB stress test with performance monitoring completed successfully"
+                "Comprehensive TLB stress test with performance monitoring "
+                "completed successfully"
             )
 
         except Exception as e:
@@ -303,11 +329,15 @@ class TlbStressTestSuite(TestSuite):
             for failure in analysis["failures"]:
                 summary_lines.append(f"  ❌ {failure}")
 
-        summary_lines.append(f"Overall Result: {'PASS' if analysis['pass'] else 'FAIL'}")
+        summary_lines.append(
+            f"Overall Result: {'PASS' if analysis['pass'] else 'FAIL'}"
+        )
 
         summary_message = "\n".join(summary_lines)
         log.info(summary_message)
 
         # Set test result status
         if not analysis["pass"]:
-            raise Exception(f"Performance degradation detected: {'; '.join(analysis['failures'])}")
+            raise AssertionError(
+                f"Performance degradation detected: {'; '.join(analysis['failures'])}"
+            )

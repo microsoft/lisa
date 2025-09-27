@@ -114,7 +114,6 @@ from .start_configuration import StartConfiguration
 from .stat import Stat
 from .strace import Strace
 from .stress_ng import StressNg
-from .tlb_stress import TlbStress
 from .swap import Swap
 from .sysctl import Sysctl
 from .systemd_analyze import SystemdAnalyze
@@ -125,6 +124,7 @@ from .tee import Tee
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
+from .tlb_stress import TlbStress
 from .tpm2 import Tpm2
 from .unzip import Unzip
 from .uptime import Uptime

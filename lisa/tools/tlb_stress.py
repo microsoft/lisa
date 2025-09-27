@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
@@ -61,8 +61,8 @@ class SystemMetricsSnapshot:
     """Lightweight system state snapshot for regression checks"""
 
     # Performance counters from perf (if available)
-    dTLB_load_misses: float = 0.0
-    iTLB_load_misses: float = 0.0
+    dtlb_load_misses: float = 0.0
+    itlb_load_misses: float = 0.0
     context_switches: float = 0.0
     cpu_migrations: float = 0.0
 
@@ -121,8 +121,10 @@ class TlbStress(Tool):
 
     def _check_exists(self) -> bool:
         """Bulletproof detection using absolute path"""
-        # Use test -x for reliable binary detection
-        result = self.node.execute(f"test -x {self._bin}", no_error_log=True, no_info_log=True)
+        result = self.node.execute(
+            f"test -x {self._bin}", shell=True, no_error_log=True
+        )
+        return result.exit_code == 0
         exists = result.exit_code == 0
 
         if exists:
@@ -143,7 +145,8 @@ class TlbStress(Tool):
 
             if current_value != "-1":
                 self._log.info(
-                    f"Setting kernel.perf_event_paranoid=-1 (was {current_value}) to fully unlock perf counters for guests"
+                    f"Setting kernel.perf_event_paranoid=-1 (was {current_value}) "
+                    "to fully unlock perf counters for guests"
                 )
                 self.node.execute("sysctl -w kernel.perf_event_paranoid=-1", sudo=True)
             else:
@@ -173,7 +176,10 @@ class TlbStress(Tool):
             try:
                 # Quick test: perf stat -e EVENT -- /bin/true
                 result = self.node.execute(
-                    f"perf stat -e {event} -- /bin/true", sudo=True, no_error_log=True, timeout=10
+                    f"perf stat -e {event} -- /bin/true",
+                    sudo=True,
+                    no_error_log=True,
+                    timeout=10,
                 )
                 # If no error and doesn't contain "<not supported>", event is supported
                 supported = (
@@ -183,7 +189,8 @@ class TlbStress(Tool):
                 )
                 event_support[event] = supported
                 self._log.debug(
-                    f"Perf event {event}: {'supported' if supported else 'not supported'}"
+                    f"Perf event {event}: "
+                    f"{'supported' if supported else 'not supported'}"
                 )
             except Exception:
                 event_support[event] = False
@@ -212,97 +219,120 @@ class TlbStress(Tool):
         # If no events supported, use minimal set
         if not base_events:
             base_events = ["context-switches", "page-faults"]
-            self._log.warning("No perf events detected as supported, using minimal fallback set")
+            self._log.warning(
+                "No perf events detected as supported, using minimal fallback set"
+            )
 
         return ",".join(base_events)
 
     def _install_deps(self) -> None:
         """Install build dependencies with proper distro detection and mapping"""
-        # Import OS types for distro-specific handling
         from lisa.operating_system import Debian, Redhat
 
-        # Determine distro first and use appropriate packages
         if isinstance(self.node.os, Debian):
-            # Debian/Ubuntu/APT-based systems
-            packages = [
-                "build-essential",
-                "libc6-dev",
-                "linux-headers-generic",
-                "stress-ng",
-                "numactl",
-            ]
-            try:
-                packages.append("linux-tools-generic")  # For perf
-            except Exception:
-                pass  # perf package optional
-
-            self._log.info("Installing Debian/Ubuntu build dependencies...")
-            self.node.os.install_packages(packages)
-            self._log.info("Successfully installed Debian/Ubuntu build dependencies")
-
+            self._install_debian_deps()
         elif isinstance(self.node.os, Redhat):
-            # RHEL/CentOS/Fedora/Azure Linux (DNF-based)
-            # Essential packages that must be installed
-            essential_packages = ["gcc", "make", "glibc-devel"]
-
-            # Try glibc-headers (some distros have this separate)
-            try:
-                self.node.os.install_packages(["glibc-headers"])
-                essential_packages.append("glibc-headers")
-            except Exception:
-                self._log.debug("glibc-headers not available as separate package")
-
-            # Try kernel headers
-            try:
-                self.node.os.install_packages(["kernel-headers"])
-                essential_packages.append("kernel-headers")
-            except Exception:
-                try:
-                    self.node.os.install_packages(["kernel-devel"])
-                    essential_packages.append("kernel-devel")
-                except Exception:
-                    self._log.debug("kernel headers not available")
-
-            # Install essential packages
-            self.node.os.install_packages(essential_packages)
-
-            # Try to add optional packages (non-fatal if they fail)
-            optional_packages = ["gcc-c++", "stress-ng", "numactl", "perf"]
-            for pkg in optional_packages:
-                try:
-                    self.node.os.install_packages([pkg])
-                    self._log.debug(f"Successfully installed optional package: {pkg}")
-                except Exception:
-                    self._log.debug(f"Optional package {pkg} not available, continuing...")
-
-            self._log.info("Successfully installed RedHat/Azure Linux build dependencies")
-
+            self._install_redhat_deps()
         else:
-            # Unknown distribution - try Development Tools group first, then fallback
-            self._log.warning("Unknown distribution, trying Development Tools group...")
-            try:
-                # Try DNF-style development tools group
-                self.node.execute(
-                    "dnf groupinstall -y 'Development Tools'", sudo=True, no_error_log=True
-                )
-                self.node.os.install_packages(["glibc-devel", "kernel-headers"])  # type: ignore
-                self._log.info("Installed via Development Tools group (DNF)")
-            except Exception:
-                try:
-                    # Try APT-style build essentials
-                    self.node.os.install_packages(["build-essential", "libc6-dev"])  # type: ignore
-                    self._log.info("Installed via build-essential (APT)")
-                except Exception:
-                    # Final fallback - minimal requirements
-                    try:
-                        self.node.os.install_packages(["gcc", "make"])  # type: ignore
-                        self._log.warning("Minimal install only: gcc, make")
-                    except Exception as e:
-                        self._log.error(f"Failed to install any development packages: {e}")
-                        raise
+            self._install_unknown_distro_deps()
 
-        # Verify essential tools are available
-        self._verify_build_tools()
+    def _install_debian_deps(self) -> None:
+        """Install dependencies for Debian/Ubuntu systems"""
+        packages = [
+            "build-essential",
+            "libc6-dev",
+            "linux-headers-generic",
+            "stress-ng",
+            "numactl",
+        ]
+        try:
+            packages.append("linux-tools-generic")  # For perf
+        except Exception:
+            pass  # perf package optional
+
+        self._log.info("Installing Debian/Ubuntu build dependencies...")
+        self.node.os.install_packages(packages)
+        self._log.info("Successfully installed Debian/Ubuntu build dependencies")
+
+    def _install_redhat_deps(self) -> None:
+        """Install dependencies for RedHat/CentOS/Fedora systems"""
+        essential_packages = ["gcc", "make", "glibc-devel"]
+
+        # Try optional packages
+        self._try_install_package("glibc-headers", essential_packages)
+        self._try_install_kernel_headers(essential_packages)
+
+        # Install essential packages
+        self._log.info("Installing RedHat/Azure Linux build dependencies...")
+        self.node.os.install_packages(essential_packages)  # type: ignore
+
+        # Try optional packages
+        self._install_optional_packages()
+        self._log.info("Successfully installed RedHat/Azure Linux build dependencies")
+
+    def _try_install_package(self, package: str, package_list: List[str]) -> None:
+        """Try to install a package and add to list if successful"""
+        try:
+            self.node.os.install_packages([package])  # type: ignore
+            package_list.append(package)
+        except Exception:
+            self._log.debug(f"{package} not available as separate package")
+
+    def _try_install_kernel_headers(self, package_list: List[str]) -> None:
+        """Try to install kernel headers (kernel-headers or kernel-devel)"""
+        try:
+            self.node.os.install_packages(["kernel-headers"])  # type: ignore
+            package_list.append("kernel-headers")
+        except Exception:
+            try:
+                self.node.os.install_packages(["kernel-devel"])  # type: ignore
+                package_list.append("kernel-devel")
+            except Exception:
+                self._log.warning("No kernel headers package found")
+
+    def _install_optional_packages(self) -> None:
+        """Install optional packages for enhanced functionality"""
+        optional_packages = ["gcc-c++", "stress-ng", "numactl", "perf"]
+        for pkg in optional_packages:
+            try:
+                self.node.os.install_packages([pkg])  # type: ignore
+                self._log.debug(f"Successfully installed optional package: {pkg}")
+            except Exception:
+                self._log.debug(f"Optional package {pkg} not available, continuing...")
+
+    def _install_unknown_distro_deps(self) -> None:
+        """Install dependencies for unknown distributions with fallbacks"""
+        self._log.warning("Unknown distribution, trying Development Tools group...")
+        try:
+            # Try DNF-style development tools group
+            self.node.execute(
+                "dnf groupinstall -y 'Development Tools'",
+                sudo=True,
+                no_error_log=True,
+            )
+            self.node.os.install_packages(
+                ["glibc-devel", "kernel-headers"]
+            )  # type: ignore
+            self._log.info(
+                "Installed via Development Tools group (DNF)"
+            )
+        except Exception:
+            try:
+                # Try APT-style build essentials
+                self.node.os.install_packages(
+                    ["build-essential", "libc6-dev"]
+                )  # type: ignore
+                self._log.info("Installed via build-essential (APT)")
+            except Exception:
+                # Final fallback - minimal requirements
+                try:
+                    self.node.os.install_packages(["gcc", "make"])  # type: ignore
+                    self._log.warning("Minimal install only: gcc, make")
+                except Exception as e:
+                    self._log.error(f"Failed to install any build dependencies: {e}")
+                    raise RuntimeError(
+                        "Could not install build dependencies on this distribution"
+                    )
 
     def _verify_build_tools(self) -> None:
         """Verify that essential build tools are available"""
@@ -315,14 +345,20 @@ class TlbStress(Tool):
                 missing_tools.append(tool)
 
         if missing_tools:
-            raise Exception(f"Essential build tools missing: {', '.join(missing_tools)}")
+            raise FileNotFoundError(
+                f"Essential build tools missing: {', '.join(missing_tools)}"
+            )
 
         # Verify C headers are available
         header_test = self.node.execute(
-            "echo '#include <stdio.h>' | gcc -x c - -E -o /dev/null", sudo=True, no_error_log=True
+            "echo '#include <stdio.h>' | gcc -x c - -E -o /dev/null",
+            sudo=True,
+            no_error_log=True,
         )
         if header_test.exit_code != 0:
-            raise Exception("C standard library headers (stdio.h) not available")
+            raise FileNotFoundError(
+                "C standard library headers (stdio.h) not available"
+            )
 
     def install(self) -> bool:
         """Deploy TLB stress program to target nodes with bulletproof installation"""
@@ -337,7 +373,9 @@ class TlbStress(Tool):
                 self._log.info(f"TLB stress tool successfully installed at {self._bin}")
                 return True
             else:
-                self._log.error(f"TLB stress installation failed - binary not found at {self._bin}")
+                self._log.error(
+                    f"TLB stress installation failed - binary not found at {self._bin}"
+                )
                 return False
 
         except Exception as e:
@@ -374,7 +412,9 @@ class TlbStress(Tool):
             cat = self.node.tools[Cat]
             cpuinfo = cat.read("/proc/cpuinfo")
             if "hypervisor" in cpuinfo.lower():
-                self._log.debug("Detected guest environment via /proc/cpuinfo hypervisor flag")
+                self._log.debug(
+                    "Detected guest environment via /proc/cpuinfo hypervisor flag"
+                )
                 self._is_guest_environment = True
                 return True
         except Exception:
@@ -385,7 +425,9 @@ class TlbStress(Tool):
         self._is_guest_environment = False
         return False
 
-    def get_environment_specific_thresholds(self, is_guest: bool) -> PerformanceThresholds:
+    def get_environment_specific_thresholds(
+        self, is_guest: bool
+    ) -> PerformanceThresholds:
         """
         Get performance thresholds adjusted for environment type.
 
@@ -398,16 +440,23 @@ class TlbStress(Tool):
         thresholds = PerformanceThresholds()
 
         if is_guest:
-            # Guest environment - more lenient on host metrics, stricter on guest metrics
+            # Guest environment - more lenient on host metrics, stricter
+            # on guest metrics
             thresholds.guest_throughput_degradation_percent = 15.0  # Stricter
             thresholds.guest_p95_latency_increase_percent = 25.0  # Stricter
             thresholds.guest_steal_time_increase_points = 3.0  # Guest-specific
-            thresholds.host_dtlb_misses_increase_percent = 50.0  # More lenient (virtualized)
+            thresholds.host_dtlb_misses_increase_percent = (
+                50.0  # More lenient (virtualized)
+            )
             thresholds.host_ipis_increase_percent = 40.0  # More lenient (virtualized)
         else:
             # Host environment - stricter on host metrics, ignore guest-specific metrics
-            thresholds.guest_throughput_degradation_percent = 20.0  # Slightly more lenient
-            thresholds.guest_p95_latency_increase_percent = 30.0  # Slightly more lenient
+            thresholds.guest_throughput_degradation_percent = (
+                20.0  # Slightly more lenient
+            )
+            thresholds.guest_p95_latency_increase_percent = (
+                30.0  # Slightly more lenient
+            )
             thresholds.guest_steal_time_increase_points = 999.0  # Effectively disabled
             thresholds.host_dtlb_misses_increase_percent = 25.0  # Stricter (bare metal)
             thresholds.host_ipis_increase_percent = 15.0  # Stricter (bare metal)
@@ -527,7 +576,9 @@ class TlbStress(Tool):
             supported_events = self._get_fallback_events(event_support)
 
             # Start background perf monitoring with supported events
-            perf_cmd = f"perf stat -a -e {supported_events} " f"--timeout {duration * 1000}"
+            perf_cmd = (
+                f"perf stat -a -e {supported_events} " f"--timeout {duration * 1000}"
+            )
             perf_monitor_process = self.node.execute_async(perf_cmd, sudo=True)
 
             # Capture interrupts before stress
@@ -538,7 +589,9 @@ class TlbStress(Tool):
             self._log.debug(f"Capturing dmesg start marker: {start_time}")
 
             # Run the actual TLB stress test
-            self._run_tlb_stress_program(duration, tlb_threads, tlb_pages, use_numa, use_hugepages)
+            self._run_tlb_stress_program(
+                duration, tlb_threads, tlb_pages, use_numa, use_hugepages
+            )
 
             # Capture interrupts after stress
             interrupts_after = self._get_proc_interrupts()
@@ -549,16 +602,22 @@ class TlbStress(Tool):
 
                 # Parse supported events with fallback
                 if event_support.get("dTLB-load-misses", False):
-                    stress_metrics.dtlb_load_misses_per_sec = self._parse_perf_stat_rate(
-                        perf_result.stderr, "dTLB-load-misses", duration
+                    stress_metrics.dtlb_load_misses_per_sec = (
+                        self._parse_perf_stat_rate(
+                            perf_result.stderr, "dTLB-load-misses", duration
+                        )
                     )
                 if event_support.get("iTLB-load-misses", False):
-                    stress_metrics.itlb_load_misses_per_sec = self._parse_perf_stat_rate(
-                        perf_result.stderr, "iTLB-load-misses", duration
+                    stress_metrics.itlb_load_misses_per_sec = (
+                        self._parse_perf_stat_rate(
+                            perf_result.stderr, "iTLB-load-misses", duration
+                        )
                     )
                 if event_support.get("context-switches", False):
-                    stress_metrics.context_switches_per_sec = self._parse_perf_stat_rate(
-                        perf_result.stderr, "context-switches", duration
+                    stress_metrics.context_switches_per_sec = (
+                        self._parse_perf_stat_rate(
+                            perf_result.stderr, "context-switches", duration
+                        )
                     )
 
             # Calculate IPI deltas
@@ -607,7 +666,12 @@ class TlbStress(Tool):
         Returns:
             Dictionary with analysis results
         """
-        analysis: Dict[str, Any] = {"pass": True, "warnings": [], "failures": [], "metrics": {}}
+        analysis: Dict[str, Any] = {
+            "pass": True,
+            "warnings": [],
+            "failures": [],
+            "metrics": {},
+        }
 
         # Get environment-specific thresholds
         is_guest = self.detect_environment_type()
@@ -628,11 +692,15 @@ class TlbStress(Tool):
                 )
 
         # IPI increase analysis
-        ipi_total_before = baseline.resched_ipis_delta + baseline.call_function_ipis_delta
+        ipi_total_before = (
+            baseline.resched_ipis_delta + baseline.call_function_ipis_delta
+        )
         ipi_total_stress = stress.resched_ipis_delta + stress.call_function_ipis_delta
 
         if ipi_total_before > 0:
-            ipi_increase_pct = ((ipi_total_stress - ipi_total_before) / ipi_total_before) * 100
+            ipi_increase_pct = (
+                (ipi_total_stress - ipi_total_before) / ipi_total_before
+            ) * 100
             analysis["metrics"]["ipi_increase_percent"] = ipi_increase_pct
 
             if ipi_increase_pct > thresholds.host_ipis_increase_percent:
@@ -643,12 +711,15 @@ class TlbStress(Tool):
 
         # Guest steal time analysis (only relevant for guest environments)
         if is_guest:
-            steal_time_increase = stress.steal_time_percent - baseline.steal_time_percent
+            steal_time_increase = (
+                stress.steal_time_percent - baseline.steal_time_percent
+            )
             analysis["metrics"]["steal_time_increase"] = steal_time_increase
 
             if steal_time_increase > thresholds.guest_steal_time_increase_points:
                 analysis["failures"].append(
-                    f"Guest steal time increased by {steal_time_increase:.1f} percentage points "
+                    f"Guest steal time increased by "
+                    f"{steal_time_increase:.1f} percentage points "
                     f"(threshold: {thresholds.guest_steal_time_increase_points})"
                 )
                 analysis["pass"] = False
@@ -659,7 +730,9 @@ class TlbStress(Tool):
             analysis["failures"].extend(kernel_issues)
             analysis["pass"] = False
 
-        self._log.info(f"Performance analysis: {'PASS' if analysis['pass'] else 'FAIL'}")
+        self._log.info(
+            f"Performance analysis: {'PASS' if analysis['pass'] else 'FAIL'}"
+        )
         if analysis["warnings"]:
             self._log.warning(f"Warnings: {'; '.join(analysis['warnings'])}")
         if analysis["failures"]:
@@ -670,11 +743,8 @@ class TlbStress(Tool):
     # === Private Helper Methods ===
 
     def _deploy_tlb_program(self) -> None:
-        """Deploy TLB flush stress program to the target node with bulletproof installation"""
-        from typing import cast
-
-        from lisa.node import RemoteNode
-
+        """Deploy TLB flush stress program to the target node with
+        bulletproof installation"""
         remote_node = cast(RemoteNode, self.node)
 
         self._log.info(f"Installing TLB stress tool to {self._bin}")
@@ -684,7 +754,8 @@ class TlbStress(Tool):
 
         # Get the C program content from the test suite directory
         c_program_path = (
-            Path(__file__).parent.parent.parent / "microsoft/testsuites/stress/tlb_flush_stress.c"
+            Path(__file__).parent.parent.parent
+            / "microsoft/testsuites/stress/tlb_flush_stress.c"
         )
 
         # Copy the C program to the working directory
@@ -699,10 +770,12 @@ class TlbStress(Tool):
 
         # Compile the program to the standard binary location
         compile_cmd = f"gcc -O2 -pthread -o {self._bin} {remote_c_path}"
-        compile_result = self.node.execute(compile_cmd, cwd=Path(self._work), sudo=True)
+        compile_result = self.node.execute(
+            compile_cmd, cwd=Path(self._work), sudo=True
+        )
 
         if compile_result.exit_code != 0:
-            raise Exception(f"Compilation failed: {compile_result.stderr}")
+            raise RuntimeError(f"Compilation failed: {compile_result.stderr}")
 
         # Set proper permissions on the binary
         self.node.execute(f"chmod 755 {self._bin}", sudo=True)
@@ -715,11 +788,17 @@ class TlbStress(Tool):
         self._log.debug(f"Compilation output: {compile_result.stdout}")
 
     def _run_tlb_stress_program(
-        self, duration: int, tlb_threads: int, tlb_pages: int, use_numa: bool, use_hugepages: bool
+        self,
+        duration: int,
+        tlb_threads: int,
+        tlb_pages: int,
+        use_numa: bool,
+        use_hugepages: bool,
     ) -> None:
         """Execute the TLB stress program with NUMA and hugepage optimizations"""
         self._log.info(
-            f"Starting TLB stress: {tlb_threads} threads, {tlb_pages} pages, {duration}s duration"
+            f"Starting TLB stress: {tlb_threads} threads, {tlb_pages} pages, "
+            f"{duration}s duration"
         )
 
         # Build command with flag arguments (C program expects -t -p -d -i flags)
@@ -728,7 +807,9 @@ class TlbStress(Tool):
         # Add NUMA interleaving to reduce false regressions from locality imbalance
         if use_numa:
             tlb_cmd = f"numactl --interleave=all {tlb_cmd}"
-            self._log.debug("Using NUMA interleaving to reduce locality-based false regressions")
+            self._log.debug(
+                "Using NUMA interleaving to reduce locality-based false regressions"
+            )
 
         # Add hugepage flags for worst-case TLB shootdown scenarios
         if use_hugepages:
@@ -741,7 +822,9 @@ class TlbStress(Tool):
 
         self._log.debug(f"TLB stress output: {tlb_result.stdout}")
 
-    def _parse_perf_stat_rate(self, perf_output: str, event_name: str, duration: float) -> float:
+    def _parse_perf_stat_rate(
+        self, perf_output: str, event_name: str, duration: float
+    ) -> float:
         """Parse perf stat output to extract event rate per second."""
         try:
             # Look for lines like "     1,234,567      dTLB-load-misses"
@@ -766,10 +849,14 @@ class TlbStress(Tool):
                 if "resched" in line.lower():
                     # Sum across all CPUs
                     numbers = re.findall(r"\d+", line)
-                    interrupts["resched"] = sum(int(n) for n in numbers[1:] if n.isdigit())
+                    interrupts["resched"] = sum(
+                        int(n) for n in numbers[1:] if n.isdigit()
+                    )
                 elif "call_function" in line.lower() or "function_call" in line.lower():
                     numbers = re.findall(r"\d+", line)
-                    interrupts["call_function"] = sum(int(n) for n in numbers[1:] if n.isdigit())
+                    interrupts["call_function"] = sum(
+                        int(n) for n in numbers[1:] if n.isdigit()
+                    )
 
             return interrupts
         except Exception:
@@ -801,7 +888,8 @@ class TlbStress(Tool):
             cat = self.node.tools[Cat]
             stat_output = cat.read("/proc/stat")
 
-            # Parse first CPU line: cpu  user nice system idle iowait irq softirq steal guest
+            # Parse first CPU line: cpu user nice system idle iowait irq
+            # softirq steal guest
             cpu_line = stat_output.split("\n")[0]
             values = cpu_line.split()[1:]  # Skip 'cpu' label
 
@@ -813,13 +901,16 @@ class TlbStress(Tool):
             pass
         return 0.0
 
-    def _check_kernel_health_issues(self, start_time: Optional[str] = None) -> List[str]:
+    def _check_kernel_health_issues(
+        self, start_time: Optional[str] = None
+    ) -> List[str]:
         """
         Check for kernel health issues using time-windowed dmesg scanning.
 
         Args:
             log: Logger instance
-            start_time: Unix timestamp to start scanning from (eliminates historical noise)
+            start_time: Unix timestamp to start scanning from (eliminates
+                historical noise)
 
         Returns:
             List of critical kernel issues found
@@ -828,17 +919,29 @@ class TlbStress(Tool):
         try:
             if start_time:
                 # Use journalctl with time window to eliminate historical noise
-                scan_cmd = f"journalctl -k --since '@{start_time}' | egrep -i 'oom|rcu|softlockup|watchdog|hung|stall|panic|bug:|oops|call trace' || true"
+                scan_cmd = (
+                    f"journalctl -k --since '@{start_time}' | "
+                    "egrep -i 'oom|rcu|softlockup|watchdog|hung|stall|panic|"
+                    "bug:|oops|call trace' || true"
+                )
                 self._log.debug(f"Scanning kernel logs since timestamp {start_time}")
             else:
                 # Fallback to LISA's built-in dmesg tool
                 dmesg = self.node.tools[Dmesg]
-                kernel_errors = dmesg.check_kernel_errors(force_run=True, throw_error=False)
+                kernel_errors = dmesg.check_kernel_errors(
+                    force_run=True, throw_error=False
+                )
 
                 if kernel_errors:
                     error_lines = kernel_errors.strip().split("\n")
-                    self._log.warning(f"Found {len(error_lines)} kernel errors in dmesg")
-                    return [f"Kernel error: {line.strip()}" for line in error_lines if line.strip()]
+                    self._log.warning(
+                        f"Found {len(error_lines)} kernel errors in dmesg"
+                    )
+                    return [
+                        f"Kernel error: {line.strip()}"
+                        for line in error_lines
+                        if line.strip()
+                    ]
                 return []
 
             # Execute time-windowed scan
@@ -846,7 +949,9 @@ class TlbStress(Tool):
 
             if result.stdout.strip():
                 error_lines = result.stdout.strip().split("\n")
-                self._log.warning(f"Found {len(error_lines)} kernel issues since start time")
+                self._log.warning(
+                    f"Found {len(error_lines)} kernel issues since start time"
+                )
 
                 # Filter and categorize critical issues
                 critical_patterns = [
@@ -867,13 +972,18 @@ class TlbStress(Tool):
                     if error_line.strip():
                         # Check if this is a critical error
                         is_critical = any(
-                            pattern.lower() in error_line.lower() for pattern in critical_patterns
+                            pattern.lower() in error_line.lower()
+                            for pattern in critical_patterns
                         )
 
                         if is_critical:
-                            issues.append(f"Critical kernel error: {error_line.strip()}")
+                            issues.append(
+                                f"Critical kernel error: {error_line.strip()}"
+                            )
                         else:
-                            self._log.debug(f"Non-critical kernel message: {error_line.strip()}")
+                            self._log.debug(
+                                f"Non-critical kernel message: {error_line.strip()}"
+                            )
             else:
                 self._log.debug("No kernel health issues detected in time window")
 
@@ -882,13 +992,17 @@ class TlbStress(Tool):
 
         return issues
 
-    def _capture_current_metrics(self, log: Optional[str] = None) -> SystemMetricsSnapshot:
+    def _capture_current_metrics(
+        self, log: Optional[str] = None
+    ) -> SystemMetricsSnapshot:
         """Lightweight snapshot of system state for regression checks."""
         snapshot = SystemMetricsSnapshot()
         node = self.node
 
         # Try to collect perf counters (best-effort)
-        perf_check = node.execute("command -v perf", shell=True, sudo=True, no_error_log=True)
+        perf_check = node.execute(
+            "command -v perf", shell=True, sudo=True, no_error_log=True
+        )
         if perf_check.exit_code == 0:
             # Use capability probing for supported events
             event_support = self._probe_perf_events()
@@ -904,8 +1018,8 @@ class TlbStress(Tool):
             perf_metrics = self._parse_perf_csv(r.stderr)
 
             # Map perf metrics to snapshot attributes
-            snapshot.dTLB_load_misses = perf_metrics.get("dTLB-load-misses", 0.0)
-            snapshot.iTLB_load_misses = perf_metrics.get("iTLB-load-misses", 0.0)
+            snapshot.dtlb_load_misses = perf_metrics.get("dTLB-load-misses", 0.0)
+            snapshot.itlb_load_misses = perf_metrics.get("iTLB-load-misses", 0.0)
             snapshot.context_switches = perf_metrics.get("context-switches", 0.0)
             snapshot.cpu_migrations = perf_metrics.get("cpu-migrations", 0.0)
             snapshot.perf_available = True
@@ -913,12 +1027,16 @@ class TlbStress(Tool):
             snapshot.perf_available = False
 
         # Interrupts snapshot (useful to see IPI pressure)
-        irq = node.execute("cat /proc/interrupts", shell=True, sudo=True, no_error_log=True)
+        irq = node.execute(
+            "cat /proc/interrupts", shell=True, sudo=True, no_error_log=True
+        )
         snapshot.interrupts_snapshot = irq.stdout
 
         # If the runner produced a telemetry CSV, record its path
         if log:
-            exists = node.execute(f"test -f {log}", shell=True, sudo=True, no_error_log=True)
+            exists = node.execute(
+                f"test -f {log}", shell=True, sudo=True, no_error_log=True
+            )
             if exists.exit_code == 0:
                 snapshot.telemetry_path = log
 
