@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
-from lisa.node import RemoteNode
 from lisa.tools import Dmesg
 
 if TYPE_CHECKING:
@@ -237,7 +236,7 @@ class TlbStress(Tool):
             self._install_azurelinux_deps()
         else:
             # Clear error message for unsupported distributions
-            distro_info = getattr(self.node.os, 'name', 'Unknown')
+            distro_info = getattr(self.node.os, "name", "Unknown")
             raise RuntimeError(
                 f"Unsupported distribution: {distro_info}. "
                 "This tool only supports Ubuntu (Debian) and Azure Linux "
@@ -258,7 +257,7 @@ class TlbStress(Tool):
             pass  # perf package optional
 
         self._log.info("Installing Debian/Ubuntu build dependencies...")
-        self.node.os.install_packages(packages)
+        self.node.os.install_packages(packages)  # type: ignore
         self._log.info("Successfully installed Debian/Ubuntu build dependencies")
 
     def _install_azurelinux_deps(self) -> None:
@@ -723,6 +722,8 @@ class TlbStress(Tool):
     def _deploy_tlb_program(self) -> None:
         """Deploy TLB flush stress program to the target node with
         bulletproof installation"""
+        from lisa.node import RemoteNode
+
         remote_node = cast(RemoteNode, self.node)
 
         self._log.info(f"Installing TLB stress tool to {self._bin}")
