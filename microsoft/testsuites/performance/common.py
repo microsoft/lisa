@@ -637,9 +637,7 @@ def perf_sockperf(
             "sockperf: Warmup stage",
             timeout=30,
         )
-        client_output = client.tools[Sockperf].run_client(
-            mode, server.nics.get_primary_nic().ip_addr
-        )
+        client_output = client.tools[Sockperf].run_client(mode, server.internal_address)
         client.tools[Sockperf].create_latency_performance_message(
             client_output, test_case_name, test_result
         )
