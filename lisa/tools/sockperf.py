@@ -21,6 +21,7 @@ from .git import Git
 from .make import Make
 
 if TYPE_CHECKING:
+    from lisa import RemoteNode
     from lisa.testsuite import TestResult
 
 SOCKPERF_TCP = "tcp"
@@ -172,7 +173,8 @@ class Sockperf(Tool):
         )
 
     def start_server_async(self, mode: str, timeout: int = 30) -> Process:
-        self_ip = self.node.nics.get_primary_nic().ip_addr
+        server = cast("RemoteNode", self.node)
+        self_ip = server.internal_address
         protocol_flag = self._get_protocol_flag(mode)
         return self.start(command=f"server {protocol_flag} -i {self_ip}")
 
