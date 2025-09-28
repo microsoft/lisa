@@ -81,12 +81,14 @@ class Dns(TestSuite):
         try:
             ping.ping(target="bing.com")
         except Exception as e:
-            if ping.no_sendmsg_permission_pattern.findall(str(e)):
-                # ping ICMP packet might be blocked by control plane ACL
-                # Use "nslookup bing.com" command to check
-                node.execute("nslookup bing.com", expected_exit_code=0, timeout=30)
-            else:
-                raise LisaException(e)
+            node.log.debug(f"ping bing.com failed: {e}")
+            # ping ICMP packet might be blocked by control plane ACL
+            # Use "nslookup bing.com" command to check
+            cmd_execute = node.execute("nslookup bing.com", timeout=30)
+            if cmd_execute.exit_code != 0:
+                raise LisaException(
+                    f"DNS name resolution failed by nslookup: {cmd_execute.stdout}"
+                )
 
     def _upgrade_system(self, node: Node) -> None:
         if not isinstance(node.os, Posix):
