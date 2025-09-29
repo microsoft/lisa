@@ -924,9 +924,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 )
 
             except Exception as e:
-                error_msg = f"Failed to add route to table: {str(e)}"
-                self._log.error(error_msg)
-                raise LisaException(error_msg) from e        
+                raise LisaException(f"Failed to add route {route_name} to route table {routeTableName}, {str(e)}")    
         
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
