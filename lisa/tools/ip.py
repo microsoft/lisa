@@ -12,7 +12,7 @@ from lisa.operating_system import Posix
 from lisa.tools import Cat
 from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 
 class IpInfo:
@@ -340,11 +340,19 @@ class Ip(Tool):
         # start interface
         self.up(name)
 
-    def get_ip_address(self, nic_name: str) -> str:
-        result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
-        matched = self._get_matched_dict(result.stdout)
-        assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
-        return matched["ip_addr"]
+    def get_ip_address(self, nic_name: str, ipv6: bool = False) -> str:
+        if ipv6:
+            result = self.run(f"-6 addr show {nic_name}", force_run=True, sudo=True)
+            # Regex to match IPv6 addresses with global scope
+            # Example: inet6 2001:db8::5/128 scope global dynamic noprefixroute
+            ipv6_pattern = re.compile(r"inet6\s+([0-9a-fA-F:]+)\/\d+\s+scope\s+global")
+            ipv6_address = get_matched_str(result.stdout, ipv6_pattern)
+            return ipv6_address
+        else:
+            result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
+            matched = self._get_matched_dict(result.stdout)
+            assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
+            return matched["ip_addr"]
 
     def get_default_route_info(self) -> tuple[str, str]:
         result = self.run("route", force_run=True, sudo=True)
@@ -462,7 +470,10 @@ class IpFreebsd(Ip):
         assert_that(matched).described_as("could not find mac address").is_length(1)
         return str(matched[0][0])
 
-    def get_ip_address(self, nic_name: str) -> str:
+    def get_ip_address(self, nic_name: str, ipv6: bool = False) -> str:
+        if ipv6:
+            raise NotImplementedError("IPv6 support not implemented for FreeBSD")
+        
         output = self.run(
             nic_name,
             force_run=True,
