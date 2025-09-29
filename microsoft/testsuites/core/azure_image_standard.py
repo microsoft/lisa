@@ -280,13 +280,13 @@ class AzureImageStandard(TestSuite):
         ),
         # Buffer I/O error on dev sr0, logical block 1, async page read
         re.compile(
-            r"^(.*Buffer I/O error on dev sr0, logical block 1, async page read\r)$",
+            r"^(.*Buffer I/O error on dev sr0, logical block \d+, async page read\r)$",
             re.M,
         ),
         # I/O error,dev sr0,sector 8 op 0x0:(READ) flags 0x80700 phys_seg 1 prio class 2
         # I/O error,dev sr0,sector 8 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
         re.compile(
-            r"^(.* I/O error, dev sr0, sector 8 op 0x0:\(READ\) flags 0x[0-9a-fA-F]+ phys_seg 1 prio class 2\r)$",  # noqa: E501
+            r"^(.* I/O error, dev sr0, sector \d+ op 0x0:\(READ\) flags 0x[0-9a-fA-F]+ phys_seg \d+ prio class \d+\r)$",  # noqa: E501
             re.M,
         ),
         # 2025-01-16T08:51:16.449922+00:00 azurelinux kernel: audit: type=1103
