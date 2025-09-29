@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 import re
 import time
 from decimal import Decimal
@@ -216,6 +217,8 @@ class Ntttcp(Tool):
     ) -> Process:
         cmd = ""
         if server_ip:
+            if ipaddress.ip_address(server_ip).version == 6:
+                cmd += " -6 "
             cmd += f" -r{server_ip} "
         cmd += (
             f" -P {ports_count} -t {run_time_seconds} -W {warm_up_time_seconds} "
@@ -326,7 +329,10 @@ class Ntttcp(Tool):
         # the devices specified by the differentiator
         # Examples for differentiator: Hyper-V PCIe MSI, mlx4, Hypervisor callback
         # interrupts
-        cmd = (
+        cmd = ""
+        if ipaddress.ip_address(server_ip).version == 6:
+            cmd += " -6 "
+        cmd += (
             f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
             f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
             f"--show-nic-packets {nic_name} "
@@ -779,7 +785,10 @@ class BSDNtttcp(Ntttcp):
         )
 
         # Setup command
-        cmd = (
+        cmd = ""
+        if ipaddress.ip_address(server_ip).version == 6:
+            cmd += " -6 "
+        cmd += (
             f" -r{server_ip} -P {ports_count} -t {run_time_seconds} -b {buffer_size}k "
         )
         if run_as_daemon:
@@ -815,7 +824,10 @@ class BSDNtttcp(Ntttcp):
             "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
             "use_epoll and dev_differentiator are not supported in FreeBSD"
         )
-        cmd = (
+        cmd = ""
+        if ipaddress.ip_address(server_ip).version == 6:
+            cmd += " -6 "
+        cmd += (
             f" -s{server_ip} -P {ports_count} -n {threads_count}"
             f" -t {run_time_seconds} -b {buffer_size}k "
         )

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
@@ -134,8 +135,11 @@ class Lagscope(Tool, KillableMixin):
     def run_as_server_async(self, ip: str = "") -> Process:
         # -r: run as a receiver
         # -rip: run as server mode with specified ip address
+        # -6: use IPv6
         cmd = ""
         if ip:
+            if ipaddress.ip_address(ip).version == 6:
+                cmd += " -6 "
             cmd += f" -r{ip}"
         else:
             cmd += " -r"
@@ -171,7 +175,11 @@ class Lagscope(Tool, KillableMixin):
         # -c: count of histogram intervals
         # -R: dumps raw latencies into csv file
         # -D: run as daemon
-        cmd = f"{self.command} -s{server_ip} "
+        # -6: use IPv6
+        cmd = f"{self.command}"
+        if ipaddress.ip_address(server_ip).version == 6:
+            cmd += " -6 "
+        cmd += f" -s{server_ip} "
         if run_time_seconds:
             cmd += f" -t{run_time_seconds} "
         if count_of_histogram_intervals:
