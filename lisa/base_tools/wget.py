@@ -68,7 +68,6 @@ class Wget(Tool):
         download_pure_path = self.node.get_pure_path(download_path)
         if overwrite and self.node.shell.exists(download_pure_path):
             self.node.shell.remove(download_pure_path, recursive=True)
-            force_run = True
         command = f"'{url}' --no-check-certificate"
         if filename:
             command = f"{command} -O {download_path}"
@@ -82,7 +81,7 @@ class Wget(Tool):
             no_error_log=True,
             shell=True,
             sudo=sudo,
-            force_run=force_run,
+            force_run=True,
             timeout=timeout,
         )
 
