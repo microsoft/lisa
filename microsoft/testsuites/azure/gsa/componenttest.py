@@ -15,12 +15,11 @@ from lisa import (
 
 @TestSuiteMetadata(
     area="component_test",
-    category="ComponentTest",
+    category="functional",
     description="""
     This test suite verifies that the required network security components are functioning correctly.
     """
 )
-
 class ComponentTest(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: RemoteNode = kwargs["node"] 
@@ -83,7 +82,6 @@ class ComponentTest(TestSuite):
         """,
         priority=2
     )
-
     def verify_network_component(self, environment: Environment, log: Logger) -> None:
 
         test_node = cast(RemoteNode, environment.nodes[0])
