@@ -312,7 +312,11 @@ class AzurePlatformSchema:
     tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
     create_public_address: bool = field(default=True)
+    # use_ipv6 should be deprecated, use use_ipv6_internal
+    # and use_ipv6_public instead
     use_ipv6: bool = field(default=False)
+    use_ipv6_internal: bool = field(default=False)
+    use_ipv6_public: bool = field(default=False)
     ip_service_tags: Optional[Dict[str, str]] = field(default=None)
     # Default outbound access is disabled for better security and control.
     # As of September 30, 2025, default outbound access for new deployments
@@ -376,6 +380,8 @@ class AzurePlatformSchema:
                 "subnet_prefix",
                 "use_public_address",
                 "use_ipv6",
+                "use_ipv6_public",
+                "use_ipv6_internal",
                 "enable_vm_nat",
                 "source_address_prefixes",
                 "create_public_address",
@@ -1211,6 +1217,8 @@ class AzurePlatform(Platform):
             self._azure_runbook.virtual_network_name or AZURE_VIRTUAL_NETWORK_NAME
         )
         arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
+        arm_parameters.use_ipv6_public = self._azure_runbook.use_ipv6_public
+        arm_parameters.use_ipv6_internal = self._azure_runbook.use_ipv6_internal
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
@@ -1306,6 +1314,25 @@ class AzurePlatform(Platform):
                 for f in node.capability.features:
                     if f.type not in features_settings:
                         features_settings[f.type] = f
+
+            # Check for IPv6 network interface requirements and set deployment flags
+            if (
+                node.capability.network_interface
+                and hasattr(node.capability.network_interface, 'ip_version')
+                and node.capability.network_interface.ip_version is not None
+            ):
+                # Handle both single value and SetSpace cases
+                ip_version = node.capability.network_interface.ip_version
+                if hasattr(ip_version, 'items'):
+                    # SetSpace case - check if IPv6 is in the set
+                    ipv6_required = schema.IpProtocol.ipv6 in ip_version.items
+                else:
+                    # Single value case
+                    ipv6_required = ip_version == schema.IpProtocol.ipv6
+                
+                if ipv6_required:
+                    log.info("IPv6 network interface requirement detected, enabling IPv6 internal")
+                    arm_parameters.use_ipv6_internal = True
 
             log.info(f"vm setting: {azure_node_runbook}")
 

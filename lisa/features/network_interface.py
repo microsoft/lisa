@@ -70,3 +70,13 @@ Sriov = partial(NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath
 Synthetic = partial(
     NetworkInterfaceOptionSettings, data_path=schema.NetworkDataPath.Synthetic
 )
+SriovIpv6Internal = partial(
+    NetworkInterfaceOptionSettings,
+    data_path=schema.NetworkDataPath.Sriov,
+    ip_version=schema.IpProtocol.ipv6,
+)
+SyntheticIpv6Internal = partial(
+    NetworkInterfaceOptionSettings,
+    data_path=schema.NetworkDataPath.Synthetic,
+    ip_version=schema.IpProtocol.ipv6,
+)

@@ -49,8 +49,14 @@ param is_ultradisk bool = false
 @description('IP Service Tags')
 param ip_service_tags object
 
-@description('whether to use ipv6')
+@description('whether to use ipv6 (legacy parameter for backward compatibility)')
 param use_ipv6 bool = false
+
+@description('whether to use ipv6 for public addresses')
+param use_ipv6_public bool = false
+
+@description('whether to use ipv6 for internal/private addresses')
+param use_ipv6_internal bool = false
 
 @description('whether to enable network outbound access')
 param enable_vm_nat bool
@@ -233,6 +239,8 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
     enable_sriov: nodes[i].enable_sriov
     tags: tags
     use_ipv6: use_ipv6
+    use_ipv6_public: use_ipv6_public
+    use_ipv6_internal: use_ipv6_internal
     create_public_address: create_public_address
   }
   dependsOn: [
@@ -249,7 +257,7 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
     addressSpace: {
       addressPrefixes: concat(
         ['10.0.0.0/16'],
-        use_ipv6 ? ['2001:db8::/32'] : []
+        (use_ipv6 || use_ipv6_internal) ? ['2001:db8::/32'] : []
       )
     }
     subnets: [for j in range(0, subnet_count): {
@@ -257,7 +265,7 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
       properties: {
         addressPrefixes: concat(
           ['10.0.${j}.0/24'],
-          use_ipv6 ? ['2001:db8:${j}::/64'] : []
+          (use_ipv6 || use_ipv6_internal) ? ['2001:db8:${j}::/64'] : []
         )
         defaultOutboundAccess: enable_vm_nat
         networkSecurityGroup: {
@@ -345,7 +353,7 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
   zones: (use_availability_zones ? availability_zones : null)
 }]
 
-resource nodes_public_ip_ipv6 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): if (use_ipv6 && create_public_address) {
+resource nodes_public_ip_ipv6 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): if ((use_ipv6 || use_ipv6_public) && create_public_address) {
   name: '${nodes[i].name}-public-ipv6'
   location: location
   tags: tags

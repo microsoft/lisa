@@ -1126,11 +1126,6 @@ class DiskPlacementType(str, Enum):
     NVME = "NvmeDisk"
 
 
-class IpProtocol(str, Enum):
-    ipv4 = "IPv4"
-    ipv6 = "IPv6"
-
-
 def get_disk_placement_priority() -> List[DiskPlacementType]:
     return [
         DiskPlacementType.NVME,
@@ -1214,6 +1209,8 @@ class AzureArmParameter:
     subnet_prefix: str = AZURE_SUBNET_PREFIX
     is_ultradisk: bool = False
     use_ipv6: bool = False
+    use_ipv6_public: bool = False
+    use_ipv6_internal: bool = False
     enable_vm_nat: bool = False
     create_public_address: bool = True
     source_address_prefixes: List[str] = field(default_factory=list)
@@ -2274,7 +2271,10 @@ def get_primary_ip_addresses(
                 nic_index = 1
 
             ip_config = nic.ip_configurations[nic_index]
-            if use_ipv6 and ip_config.private_ip_address_version != IpProtocol.ipv6:
+            if (
+                use_ipv6
+                and ip_config.private_ip_address_version != schema.IpProtocol.ipv6
+            ):
                 raise LisaException(f"private address is not IPv6 in nic {nic.name}")
             private_ip = ip_config.private_ip_address
 
@@ -2291,7 +2291,8 @@ def get_primary_ip_addresses(
                 )
                 if (
                     use_ipv6
-                    and public_ip_address.public_ip_address_version != IpProtocol.ipv6
+                    and public_ip_address.public_ip_address_version
+                    != schema.IpProtocol.ipv6
                 ):
                     raise LisaException(f"public address is not IPv6 in nic {nic.name}")
 

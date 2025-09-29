@@ -25,6 +25,7 @@ from lisa import (
 )
 from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
+from lisa.features.network_interface import SriovIpv6Internal
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD, Posix, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
@@ -33,6 +34,7 @@ from lisa.tools import (
     Ethtool,
     Firewall,
     InterruptInspector,
+    Ip,
     Iperf3,
     Journalctl,
     Lscpu,
@@ -160,6 +162,28 @@ class Sriov(TestSuite):
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
+
+    @TestCaseMetadata(
+        description="""
+        Verify IPv6 networking functionality with SR-IOV
+        1. Create an Azure VM with AN Enabled and IPv6 enabled
+        2. Verify that the NIC has an IPv6 address
+        """,
+        priority=2,
+        use_new_environment=True,
+        requirement=simple_requirement(
+            network_interface=SriovIpv6Internal(),
+        ),
+    )
+    def verify_sriov_ipv6_basic(self, node: Node, log: Logger) -> None:
+        ip = node.tools[Ip]
+        # for each nic, verify that ipv6 exists using nic name
+        for nic in node.nics.nics.keys():
+            nic_ipv6 = ip.get_ip_address(nic, ipv6=True)
+            assert_that(
+                nic_ipv6,
+                f"Expected IPv6 address but found none on nic {nic}",
+            ).is_not_empty()
 
     @TestCaseMetadata(
         description="""

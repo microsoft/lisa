@@ -1,7 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from assertpy import assert_that
+
 from lisa import (
     Environment,
+    Logger,
+    Node,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -9,6 +13,8 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, StartStop
+from lisa.features.network_interface import SyntheticIpv6Internal
+from lisa.tools import Ip
 
 from .common import initialize_nic_info, remove_extra_nics, restore_extra_nics
 
@@ -191,3 +197,26 @@ class Synthetic(TestSuite):
                     initialize_nic_info(environment, is_sriov=False)
         finally:
             restore_extra_nics(environment)
+
+    @TestCaseMetadata(
+        description="""
+        Verify IPv6 networking functionality with synthetic network interfaces
+        1. Create an Azure VM with IPv6 enabled
+        2. Verify that each NIC has an IPv6 address
+        """,
+        priority=2,
+        use_new_environment=True,
+        requirement=simple_requirement(
+            network_interface=SyntheticIpv6Internal(),
+        ),
+    )
+    def verify_synthetic_ipv6_basic(self, node: Node, log: Logger) -> None:
+        ip = node.tools[Ip]
+        # for each nic, verify that ipv6 exists using nic name
+        for nic in node.nics.nics.keys():
+            nic_ipv6 = ip.get_ip_address(nic, ipv6=True)
+            assert_that(
+                nic_ipv6,
+                f"Expected IPv6 address but found none on nic {nic}",
+            ).is_not_empty()
+

@@ -709,6 +709,11 @@ class NetworkDataPath(str, Enum):
     Sriov = "Sriov"
 
 
+class IpProtocol(str, Enum):
+    ipv4 = "IPv4"
+    ipv6 = "IPv6"
+
+
 _network_data_path_priority: List[NetworkDataPath] = [
     NetworkDataPath.Sriov,
     NetworkDataPath.Synthetic,
@@ -751,6 +756,21 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         default_factory=partial(search_space.IntRange, min=1),
         metadata=field_metadata(
             allow_none=True, decoder=search_space.decode_count_space
+        ),
+    )
+    ip_version: Optional[Union[search_space.SetSpace[IpProtocol], IpProtocol]] = field(
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[IpProtocol.ipv4, IpProtocol.ipv6],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=IpProtocol,
+                default_values=[IpProtocol.ipv4, IpProtocol.ipv6],
+            ),
+            required=False,
+            allow_none=True,
         ),
     )
 
