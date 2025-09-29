@@ -872,7 +872,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             "routing table was not assigned to any subnet! "
             f"targeted subnet: {subnet_mask} with route table: {route_table}"
         )
-        
+
     def add_route_to_table(
             self,
             route_name: str,
@@ -880,52 +880,54 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             next_hop_type: str,
             dest_hop: str,
             em_first_hop: str = "",
-            routeTableName: str = ""
-        ) -> None:
-            try:
-                # Get platform instance
-                platform: AzurePlatform = self._platform  # type: ignore
-                network_client = get_network_client(platform)
+            route_table_name: str = ""
+    ) -> None:
+        try:
+            # Get platform instance
+            platform: AzurePlatform = self._platform  # type: ignore
+            network_client = get_network_client(platform)
 
-                # Set up first hop routing rule
-                address_prefix = em_first_hop if em_first_hop else subnet_mask
+            # Set up first hop routing rule
+            address_prefix = em_first_hop if em_first_hop else subnet_mask
 
-                # Get existing route table
-                route_table = network_client.route_tables.get(
-                    resource_group_name=self._resource_group_name,
-                    route_table_name=routeTableName
-                )
+            # Get existing route table
+            route_table = network_client.route_tables.get(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name
+            )
 
-                # Create new route
-                new_route = {
-                    "name": f"{route_name}-route",
-                    "properties": {
-                        "addressPrefix": address_prefix,
-                        "nextHopType": next_hop_type,
-                        "nextHopIpAddress": dest_hop,
-                    }
+            # Create new route
+            new_route = {
+                "name": f"{route_name}-route",
+                "properties": {
+                    "addressPrefix": address_prefix,
+                    "nextHopType": next_hop_type,
+                    "nextHopIpAddress": dest_hop,
                 }
+            }
 
-                # Add new route to existing routes
-                if not route_table.routes:
-                    route_table.routes = []
-                route_table.routes.append(new_route)
+            # Add new route to existing routes
+            if not route_table.routes:
+                route_table.routes = []
+            route_table.routes.append(new_route)
 
-                # Update route table
-                result = network_client.route_tables.begin_create_or_update(
-                    resource_group_name=self._resource_group_name,
-                    route_table_name=routeTableName,
-                    parameters=route_table
-                ).result()
+            # Update route table
+            result = network_client.route_tables.begin_create_or_update(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name,
+                parameters=route_table
+            ).result()
 
-                self._log.info(
-                    f'Added route "{route_name}" to route table "{routeTableName}"'
-                    f' with result: "{result}"'
-                )
+            self._log.info(
+                f'Added route "{route_name}" to route table "{route_table_name}"'
+                f' with result: "{result}"'
+            )
 
-            except Exception as e:
-                raise LisaException(f"Failed to add route {route_name} to route table {routeTableName}, {str(e)}")    
-        
+        except Exception as e:
+            raise LisaException(
+                f"Failed to add route {route_name} to route table {route_table_name}, {str(e)}"
+            )
+
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)

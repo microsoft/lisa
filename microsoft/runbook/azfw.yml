@@ -1,0 +1,61 @@
+name: azurefirewallcomponenttest
+include:
+  - path: /home/bala/lisa/microsoft/runbook/tiers/tier.yml
+variable:
+  - name: location
+    value: "westeurope"
+  - name: rgname
+    value: "azFWComponentTests"
+  - name: subscription
+    value: "11764614-ffac-4e4d-8506-bdf64388ce6c"
+  - name: imagename
+    value: "MicrosoftCBLMariner:azure-linux-3:azure-linux-3-gen2:3.20250311.01"
+  - name: deploy
+    value: true
+  - name: concurrency
+    value: 1
+  - name: waitdelete
+    value: false
+  - name: admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: admin_password
+    value: ""
+    is_secret: true
+  - name: keep_environment
+    value: "always"
+  - name: vhd
+    value: ""
+  - name: vm_size
+    value: ""
+  - name: test_case_name
+    value: "verify_network_component"
+  - name: use_public_address
+    value: true
+    is_case_visible: true
+    is_case_visible: true
+concurrency: $(concurrency)
+notifier:
+  - type: html
+  - type: env_stats
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    admin_password: $(admin_password)              
+    keep_environment: $(keep_environment)
+    azure:
+      resource_group_name: $(rgname)
+      deploy: $(deploy)
+      subscription_id: $(subscription)
+      wait_delete: $(waitdelete)
+    requirement:
+      core_count:
+        min: 2
+      azure:
+        marketplace: $(imagename)
+        vhd: $(vhd)
+        location: $(location)
+        vm_size: "Standard_DS3_v2"
+testcase:
+  - criteria:
+      name: $(test_case_name)
