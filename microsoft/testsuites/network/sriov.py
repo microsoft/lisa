@@ -694,6 +694,8 @@ class Sriov(TestSuite):
         ),
     )
     def verify_irqbalance(self, environment: Environment, log: Logger) -> None:
+        err_msg: str = ""
+
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
@@ -712,8 +714,13 @@ class Sriov(TestSuite):
                     "irqbalance version: "
                     f"{server_node.os.get_package_information('irqbalance')}"
                 )
-            except Exception:
+            except Exception as e:
                 log.debug("irqbalance version: not found")
+                err_msg += (
+                    "\nPotential issues getting irqbalance version, "
+                    "check logs for details."
+                )
+                log.debug("Exception: " + str(e))
 
         server_node.tools[Service].stop_service("irqbalance")
 
@@ -723,19 +730,27 @@ class Sriov(TestSuite):
         client_iperf3 = client_node.tools[Iperf3]
 
         server_iperf3.run_as_server_async()
-        client_iperf3.run_as_client(
-            server_ip=server_node.internal_address,
-            run_time_seconds=240,
-            parallel_number=128,
-            client_ip=client_node.internal_address,
-        )
+        try:
+            client_iperf3.run_as_client(
+                server_ip=server_node.internal_address,
+                run_time_seconds=240,
+                parallel_number=128,
+                client_ip=client_node.internal_address,
+            )
+        except AssertionError as e:
+            # We don't care about the iperf3 results, we just want to generate
+            # network traffic.
+            log.debug(f"iperf3 failed: {e}")
+            err_msg += "\nPotential issues running iperf3, check logs for details."
 
         irqbalance.kill()
         result = irqbalance.wait_result()
         assert re.search(
             "Selecting irq [0-9]+ for rebalancing",
             result.stdout,
-        ), "irqbalance is not rebalancing irqs"
+        ), (
+            "irqbalance is not rebalancing irqs" + err_msg
+        )
 
     @TestCaseMetadata(
         description="""
