@@ -1834,6 +1834,95 @@ class AzurePlatform(Platform):
             ]
         )
 
+        # Probe and set actual GPU count if capability was unknown (0 / None)
+        run_in_parallel(
+            [
+                partial(self._probe_and_set_gpu_count, node=x)
+                for x in environment.nodes.list()
+            ]
+        )
+
+    def _probe_and_set_gpu_count(self, node: Node) -> None:
+        # Only attempt on remote (Linux or Windows) nodes
+        if not isinstance(node, RemoteNode):
+            return
+        # Skip if already a positive int
+        current = getattr(node.capability, "gpu_count", None)
+        needs_probe = False
+        if current in (None, 0):
+            needs_probe = True
+        # If it's a range object, we still want a concrete value
+        from lisa import search_space  # local import to avoid cyclic at top
+        if isinstance(current, search_space.IntRange):
+            # Treat unset/min=0 as needing probe
+            if (current.min or 0) == 0 and (current.max is None):
+                needs_probe = True
+        if not needs_probe:
+            return
+
+        try:
+            detected = self._probe_gpu_count(node)
+            if detected and detected > 0:
+                # Normalize to plain int
+                node.capability.gpu_count = detected
+                node.log.debug(f"Runtime GPU probe set gpu_count={detected}")
+            else:
+                node.log.debug("Runtime GPU probe found no GPUs.")
+        except Exception as e:
+            node.log.debug(f"GPU probe failed: {e}")
+
+    def _probe_gpu_count(self, node: Node) -> int:
+        """
+        Best‑effort GPU enumeration:
+        1. Vendor tool (nvidia-smi) if present
+        2. lspci scan for VGA/3D controllers with known GPU vendors
+        3. /sys/class/drm card* filtering
+        """
+        count = 0
+        log = node.log
+        # Try vendor-specific first
+        try:
+            from lisa.tools import NvidiaSmi  # optional
+            nvidia = node.tools.get(NvidiaSmi, None)
+            if nvidia:
+                count = nvidia.get_gpu_count()
+                if count:
+                    return count
+        except Exception:
+            pass
+
+        # lspci fallback
+        try:
+            from lisa.tools import Lspci
+            lspci = node.tools.get(Lspci, None)
+            if lspci:
+                lines = lspci.run().stdout.splitlines()
+                gpu_lines = [
+                    ln for ln in lines
+                    if (" VGA " in ln or "3D controller" in ln)
+                    and any(v in ln.lower() for v in ("nvidia", "amd", "advanced micro devices", "intel"))
+                ]
+                if gpu_lines:
+                    return len(gpu_lines)
+        except Exception:
+            pass
+
+        # /sys/class/drm fallback (Linux only)
+        try:
+            result = node.execute("ls -1 /sys/class/drm", shell=True, sudo=True)
+            if result.exit_code == 0:
+                cards = [
+                    ln for ln in result.stdout.splitlines()
+                    if ln.startswith("card") and "-" not in ln  # skip card0-DP-x connectors
+                ]
+                if cards:
+                    return len(cards)
+        except Exception:
+            pass
+
+        log.debug("GPU probe returned 0 (no devices detected).")
+        return count
+
     @classmethod
     def _resource_sku_to_capability(  # noqa: C901
         cls, location: str, resource_sku: ResourceSku, log: Logger
