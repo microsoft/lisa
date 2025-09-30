@@ -41,6 +41,7 @@ class Meson(Tool):
         # since it's actually just a python package.
         # But now we have a bunch of annoying cases.
         # 1.  meson is installed and it's the right version
+        #     ^ covered by initial check_exists call before install()
         # 2. 'meson' is installed but the wrong version
         # 3. meson is not installed and the right version is in the repo
         # 4. meson is not installed and the wrong version is in the repo
@@ -56,14 +57,15 @@ class Meson(Tool):
             if package_installed or package_available:
                 break
 
-        # otherwise, install the available package from the repo
+        # if an update is available, install the available package from the repo
         if package_available:
             posix_os.install_packages(package_available)
             # and update the cached version info
             posix_os.get_package_information(pkg, use_cached=False)
             package_installed = package_available
 
-        # check the version, return if it's good, remove if not
+        # check the version, return if it's good, remove if not.
+        # we'll use pip as a fallback method to get a later version.
         if package_installed:
             if posix_os.get_package_information(pkg) >= self._minimum_version:
                 # the right version was in the repo
