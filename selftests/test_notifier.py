@@ -69,7 +69,6 @@ class NotifierPriorityTestCase(TestCase):
         # Clear the global notifier lists
         notifier._notifiers.clear()
         notifier._messages.clear()
-        notifier._message_queue.clear()
 
         # Reset call order tracking
         MockNotifierA.call_order.clear()
@@ -79,7 +78,6 @@ class NotifierPriorityTestCase(TestCase):
         """Clean up after each test"""
         notifier._notifiers.clear()
         notifier._messages.clear()
-        notifier._message_queue.clear()
         MockNotifierA.call_order.clear()
         MockNotifierB.call_order.clear()
 
