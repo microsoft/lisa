@@ -127,13 +127,18 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
             stop_on_match=True,
             build_deps=True,
         ),
-        # todo: suse build-dep sucks for noninteractive, roll this back before pr
+        # todo: suse build-dep is tricky for noninteractive
+        #       so just use the old 'list of package names' for dependencies
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Suse)
-            and bool(parse_version(x.information.release) == "15.5.0"),
-            packages=["dpdk22", "dpdk22-devel"],
+            matcher=lambda x: isinstance(x, Suse),
+            packages=[
+                "psmisc",
+                "libnuma-devel",
+                "numactl",
+                "libmnl-devel meson",
+                "gcc-c++",
+            ],
             stop_on_match=True,
-            build_deps=True,
         ),
         OsPackageDependencies(
             # alma/rocky have started
