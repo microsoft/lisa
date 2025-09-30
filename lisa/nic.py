@@ -251,6 +251,7 @@ class Nics(InitializableMixin):
                 f"Had network interfaces: {self.get_nic_names()}"
             )
         return nic
+
     # find nic by subnet address.
     # ie: find me the nic for '10.0.1.0/24'
     #     will return the nic with an address in that subnet
