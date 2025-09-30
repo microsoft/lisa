@@ -392,7 +392,7 @@ class Ip(Tool):
     def get_subnet_address(self, nic_name: str) -> str:
         """
         Get the subnet address of a nic from 'ip'.
-        Note these are not always strict subnet addresses, 
+        Note these are not always strict subnet addresses,
         they usually include the host bits within the subnet mask.
         ex: '10.0.1.4/24'
         """
