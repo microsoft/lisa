@@ -874,13 +874,13 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         )
 
     def add_route_to_table(
-            self,
-            route_name: str,
-            subnet_mask: str,
-            next_hop_type: str,
-            dest_hop: str,
-            em_first_hop: str = "",
-            route_table_name: str = ""
+        self,
+        route_name: str,
+        subnet_mask: str,
+        next_hop_type: str,
+        dest_hop: str,
+        em_first_hop: str = "",
+        route_table_name: str = "",
     ) -> None:
         try:
             # Get platform instance
@@ -893,7 +893,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             # Get existing route table
             route_table = network_client.route_tables.get(
                 resource_group_name=self._resource_group_name,
-                route_table_name=route_table_name
+                route_table_name=route_table_name,
             )
 
             # Create new route
@@ -903,7 +903,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     "addressPrefix": address_prefix,
                     "nextHopType": next_hop_type,
                     "nextHopIpAddress": dest_hop,
-                }
+                },
             }
 
             # Add new route to existing routes
@@ -915,7 +915,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             result = network_client.route_tables.begin_create_or_update(
                 resource_group_name=self._resource_group_name,
                 route_table_name=route_table_name,
-                parameters=route_table
+                parameters=route_table,
             ).result()
 
             self._log.info(
@@ -925,7 +925,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         except Exception as e:
             raise LisaException(
-                f"Failed to add route {route_name} to route table {route_table_name}, {str(e)}"
+                f"Fail to add route {route_name} to route table {route_table_name}, {e}"
             )
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
