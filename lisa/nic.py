@@ -455,6 +455,9 @@ class Nics(InitializableMixin):
     def is_mana_driver_enabled(self) -> bool:
         return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
 
+    def is_mana_ib_driver_enabled(self) -> bool:
+        return self._node.tools[KernelConfig].is_enabled("CONFIG_MANA_INFINIBAND")
+
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
         self.default_nic_route: str = ""
