@@ -5,7 +5,7 @@ import copy
 import threading
 from datetime import datetime, timezone
 from functools import partial
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa import schema
 from lisa.messages import MessageBase
@@ -76,6 +76,15 @@ def initialize(runbooks: List[schema.Notifier]) -> None:
 
         notifier = factory.create_by_runbook(runbook=runbook)
         register_notifier(notifier)
+
+    # Sort notifiers by priority (smaller priority first)
+    _notifiers.sort(key=lambda x: cast(schema.Notifier, x.runbook).priority)
+
+    # Sort notifiers in each message type list by priority
+    for message_type in _messages:
+        _messages[message_type].sort(
+            key=lambda x: cast(schema.Notifier, x.runbook).priority
+        )
 
 
 def register_notifier(notifier: Notifier) -> None:
