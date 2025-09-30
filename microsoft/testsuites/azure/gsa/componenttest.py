@@ -1,7 +1,7 @@
 import asyncio
 from typing import cast, Any
 from assertpy import assert_that
-from lisa.tools import Ping
+from lisa.tools import Ping, Conntrack, Ipset, Iptables
 from lisa.operating_system import CBLMariner
 from lisa.util import UnsupportedDistroException, SkippedException, LisaException
 from lisa import (
@@ -17,10 +17,11 @@ from lisa import (
     area="component_test",
     category="functional",
     description="""
-    This test suite verifies that the required network security components are functioning correctly.
+    This test suite validates the core functionality of network security components such as conntrack, ipset, and iptables. 
+    It ensures that connection tracking, IP-based filtering, and custom rule management operate as expected
     """
 )
-class ComponentTest(TestSuite):
+class NetworkComponentTest(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: RemoteNode = kwargs["node"] 
         if not isinstance(node.os, CBLMariner) or node.os.information.version < "3.0.0":
@@ -46,8 +47,9 @@ class ComponentTest(TestSuite):
     CONNMARKACTIVE = "0x100"
     CONNMARKSRC = "10.0.0.0"
     CONNMARKDEST = "10.0.0.1"
-    CONNMARKPROTO = "2"
-    CONNMARKTIMEOUT = "120"
+    CONNMARKPROTO = 2
+    CONNMARKTIMEOUT = 120
+    IPSETIP = "8.8.8.8"
     IPSETNAME = "testset"
     IPSETTESTADDRULE = [
         f"-A OUTPUT -p icmp -m set --match-set {IPSETNAME} dst -j DROP",
@@ -76,116 +78,115 @@ class ComponentTest(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test suite validates the creation and management of 
-        iptables chains, ipset operations, and conntrack entries to ensure that 
-        network policy rules are enforced as expected.
+        This test case will validate that conntrack can successfully create a connection entry for an unknown protocol 
+        with a specified connection mark, and verify that the mark can be reset correctly for such unknown protocol 
+        entries.
         """,
         priority=2
     )
-    def verify_network_component(self, environment: Environment, log: Logger) -> None:
+    def verify_conntrack(self, environment: Environment, log: Logger) -> None:
+
+        test_node = cast(RemoteNode, environment.nodes[0])
+        conntrack = test_node.tools[Conntrack]
+
+        #Install conntrack tools in the test VM
+        log.info("Install conntrack tool")
+        conntrack.install()
+
+        #Insert a entry to conntrack table with protocol number 2(ESP) which is not a known protocol for conntrack, with a mark
+        log.info(f"Create a conntrack entry for unknown protocol {self.CONNMARKPROTO} with mark {self.CONNMARKACTIVE}")
+        conntrack.create_entry(
+            src_ip=self.CONNMARKSRC,
+            dst_ip=self.CONNMARKDEST,
+            protonum=self.CONNMARKPROTO,
+            timeout=self.CONNMARKTIMEOUT,   
+            mark=self.CONNMARKACTIVE
+        )
+
+        #Reset the mark for all the entries to 0
+        log.info("Reset the mark for all the conntrack entries to 0")
+        conntrack.update_entry(mark=f"0/{self.CONNMARKACTIVE}")
+
+        log.info("Successfully verified the conntrack entry for unknown protocol with mark reset to 0")
+
+    @TestCaseMetadata(
+        description="""
+        This test will verify ipset functionality by ensuring IP-based blocking via iptables is correctly enforced.
+        """,
+        priority=2
+    )
+    def verify_ipset(self, environment: Environment, log: Logger) -> None:
+
+        test_node = cast(RemoteNode, environment.nodes[0])
+        ipset = test_node.tools[Ipset]
+        iptables = test_node.tools[Iptables]
+        #Install ipset tool in the test VM
+        log.info("Install ipset tool")
+        ipset.install()
+
+        #Create a new ipset of type hash ip
+        log.info(f"Creating new ipset named {self.IPSETNAME}")
+        ipset.create_ipset(
+            set_name=self.IPSETNAME,
+            set_type="ip"
+        )
+
+        #Add a new ip to the created ipset
+        log.info(f"Adding new ip {self.IPSETIP} to ipset {self.IPSETNAME}")
+        ipset.add_ip(
+            set_name=self.IPSETNAME,
+            ip_address=self.IPSETIP
+        )
+
+        #Add and remove specific iptables rule to block the outgoing traffic
+        log.info(f"Remove {self.IPSETTESTDELETERULES} and Add {self.IPSETTESTADDRULE} to block the outgoing traffic to 8.8.8.8")
+        iptables.add_iptable_rules(
+            table_name=self.FILTERTABLE,
+            rules=self.IPSETTESTADDRULE
+        )
+        iptables.remove_iptable_rules(
+            rules=self.IPSETTESTDELETERULES
+        )
+        
+        #Send traffic to destination to verify whether traffic is being blocked using ipset or not
+        log.info(f"Send ICMP traffic to destination {self.IPSETIP} to verify whether traffic is blocked using ipset")    
+        ping = test_node.tools[Ping]
+        result = ping.ping_async(target=self.IPSETIP, count=self.PACKETCOUNT, sudo=True)
+        ping_result = result.wait_result()
+        log.debug(f"ICMP traffic result for destination {self.IPSETIP} : {ping_result} ")
+        if "100% packet loss" not in ping_result.stdout:
+            raise LisaException("ICMP traffic is being allowed eventhough the IPTables rules has been added to drop it")
+
+    @TestCaseMetadata(
+        description="""
+        This test will verify iptables functionality by ensuring that custom chains
+        and rules can be created with log prefixes
+        """,
+        priority=2
+    )
+    def verify_iptables(self, environment: Environment, log: Logger) -> None:
 
         test_node = cast(RemoteNode, environment.nodes[0])
 
-        required_components = ["conntrack", "ipset"]
-        for component in required_components:
-            test_node.os.install_packages(component)
-        
-        #conntrack test
-        log.info(f"Running conntrack test in node : {test_node.name}")
-        test_conntrack(self, test_node,log)
+        iptables = test_node.tools[Iptables]
 
-        #ipset test
-        log.info(f"Running ipset test in node : {test_node.name}")
-        test_ipset(self, test_node, log)
+        #Create a new chain in nat table
+        log.info(f"Create new chain {self.NATCHAIN} in {self.NATTABLE} table")
+        iptables.create_iptable_chain(
+            table_name=self.NATTABLE,
+            chain_names=self.NATCHAIN
+        )
 
-        #IPTableTest
-        log.info(f"Running IPTables test in node : {test_node.name}")
-        test_iptables(self, test_node, log)
+        #Add rules to prerouting chain in nat table
+        log.info(f"Add rules {self.PREROUTINGCHAIN} to PREROUTING chain in {self.NATTABLE} table")
+        iptables.add_iptable_rules(
+            table_name=self.NATTABLE,
+            rules=self.PREROUTINGCHAIN
+        )
 
-def test_ipset(self, node: RemoteNode, log: Logger):
-
-    log.info("Adding new ip set")
-    cmd = f"ipset create {self.IPSETNAME} hash:ip"
-    log.info(f"Creating set named {cmd} in ipset")
-    result = node.execute(cmd, sudo=True)
-    cmd = f"ipset add {self.IPSETNAME} 8.8.8.8"
-    log.info(f"Adding ip 8.8.8.8 in ipset {self.IPSETNAME} {cmd}")
-    result = node.execute(cmd, sudo=True)
-    log.info(f"Remove {self.IPSETTESTDELETERULES} and Add {self.IPSETTESTADDRULE} to block the outgoing traffic to 8.8.8.8")
-    __add_iptable_rules(node, self.FILTERTABLE, self.IPSETTESTADDRULE, log)
-    __remove_iptable_rules(node, self.IPSETTESTDELETERULES, log)
-    log.info(f"Added IPTable Rule in OUTPUT Chain to block outgoing traffic to 8.8.8.8")
-    log.info(f"Send ICMP traffic to destination 8.8.8.8 to verify whether traffic is blocked using ipset")    
-    result = node.tools[Ping].ping_async(target="8.8.8.8", count=self.PACKETCOUNT, sudo=True)
-    ping_result = result.wait_result()
-    log.debug(f"ICMP traffic result for destination 8.8.8.8 : {ping_result} ")
-    if "100% packet loss" not in ping_result.stdout:
-        raise LisaException("ICMP traffic is being allowed eventhough the IPTables rules has been added to drop it")
-
-def test_conntrack(self, node: RemoteNode, log: Logger):
-
-    log.info("Adding entry in conntrack ")
-    cmd = f"conntrack -I -s {self.CONNMARKSRC} -d {self.CONNMARKDEST} --protonum {self.CONNMARKPROTO} --timeout {self.CONNMARKTIMEOUT} --mark={self.CONNMARKACTIVE}"
-    log.info(f"Adding this entry {cmd} to conntrack")
-    result = node.execute(cmd, sudo=True)
-    log.debug(f'Result for adding conntrack entry : {result.stdout}')
-    if "1 flow entries have been created" not in result.stdout:
-        raise LisaException(f"Failed in adding entry to conntrack, Result: {result}")
-    log.info("Successfully added entry to conntrack, now update the entry")
-    cmd = f"conntrack -U --mark 0/{self.CONNMARKACTIVE}"
-    log.info(f"Update the conntrack entry with command : {cmd}")
-    result = node.execute(cmd, sudo=True)
-    if "flow entries have been updated" not in result.stdout:
-        raise LisaException(f"Failed in updating conntrack entry, Result: {result}")
-    __verify_conntrack_entry(node, self.CONNMARKSRC, self.CONNMARKDEST, self.CONNMARKPROTO, "0", log)
-
-def test_iptables(self, node: RemoteNode, log: Logger):
-    
-    log.info("Add Rules To PreRouting Chain and verify the iptables")
-    __create_iptable_chain(node, self.NATTABLE, self.NATCHAIN, log)
-    __add_iptable_rules(node, self.NATTABLE, self.PREROUTINGCHAIN, log)
-    if not asyncio.run(__verify_iptables(__iptable_dump(node, log), self.PREROUTINGCHAIN, log)):
-       raise LisaException("IPTables test failed in PreRouting Chain")
-    log.info("Add Rules To Forward Chain and verify the iptables")
-    __create_iptable_chain(node, self.FILTERTABLE, self.FILTERCHAIN, log)
-    __add_iptable_rules(node, self.FILTERTABLE, self.FORWARDCHAIN, log)
-    if not asyncio.run(__verify_iptables(__iptable_dump(node, log), self.FORWARDCHAIN, log)):
-        raise LisaException("IPTables test failed in Forwarding Chain")
-
-def __add_iptable_rules(node: RemoteNode, ipTable: str, iptable_rules: list[str], log: Logger):
-    for iptable_rule in iptable_rules:
-        cmd = f"iptables -t {ipTable} {iptable_rule}"
-        log.debug(f"Adding IP Table Rule {iptable_rule} to IPTables : {cmd}")
-        node.execute(cmd, sudo=True)
-
-def __create_iptable_chain(node: RemoteNode, ipTable: str, iptable_chains: list[str], log: Logger):
-    for iptable_chain in iptable_chains:
-        cmd = f"iptables -t {ipTable} -N {iptable_chain}"
-        log.debug(f"Creating new chain {iptable_chain} in IPTables : {cmd}")
-        node.execute(cmd, sudo=True)
-
-async def __verify_iptables(iptables_dump: str, array_to_match: list[str], log: Logger):
-    iptables = iptables_dump.splitlines()
-    for iptable_entry in array_to_match:
-        if iptable_entry not in iptables:
-            log.debug(f"Not matched  : {iptable_entry}")
-            return False
-    return True
-
-def __iptable_dump(node: RemoteNode, log: Logger):
-    iptable_dump_result = node.execute("iptables-save", sudo=True)
-    log.debug(f"IPTable Dump Result : {iptable_dump_result.stdout}")
-    return iptable_dump_result.stdout
-
-def __verify_conntrack_entry(node: RemoteNode, client_nic_ipaddr: str, server_nic_ipaddr: str, protocol: str, mask: str, log: Logger):
-    log.info(f"Verifying conntrack entry for Protocol {protocol} from {client_nic_ipaddr} to {server_nic_ipaddr} in node {node.name}")
-    result = node.execute(f"bash -c \"conntrack -L | grep '{client_nic_ipaddr}' | grep '{server_nic_ipaddr}' | grep '{protocol}' | grep '{mask}'\"", sudo=True)
-    if len(result.stdout.splitlines()) > 1:
-        log.info("Conntrack Entry Found")
-    else:
-        raise Exception(f"Conntrack entry not found for Protocol {protocol} from {client_nic_ipaddr} to {server_nic_ipaddr}")
-
-def __remove_iptable_rules(node: RemoteNode, iptable_rules: list[str], log: Logger):
-    for iptable_rule in iptable_rules:
-        log.info(f"Removing rule {iptable_rule} from iptables")
-        node.execute(f"iptables -D {iptable_rule}", sudo=True)
+        #Add rules to forward chain in filter table
+        log.info(f"Add rules {self.FORWARDCHAIN} to FORWARD chain in {self.FILTERTABLE} table")
+        iptables.add_iptable_rules(
+            table_name=self.FILTERTABLE,
+            rules=self.FORWARDCHAIN
+        )
