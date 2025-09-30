@@ -1,6 +1,7 @@
-from lisa.base_tools import Service 
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 from lisa.executable import Tool
-from lisa.util import LisaException
 
 
 class Ipset(Tool):
@@ -19,29 +20,27 @@ class Ipset(Tool):
     def create_ipset(
         self,
         set_name: str,
-        set_type: str = "ip"
+        set_type: str = "ip",
     ) -> None:
-        
         cmd = f"create {set_name} hash:{set_type}"
 
         self.run(
             cmd,
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"Failed to create ipset {set_name}",
+            expected_exit_code_failure_message="Failed to create ipset",
         )
-    
+
     def add_ip(
         self,
         set_name: str,
-        ip_address: str
+        ip_address: str,
     ) -> None:
-        
         cmd = f"add {set_name} {ip_address}"
 
         self.run(
             cmd,
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"Failed to add ip {ip_address} to ipset {set_name}"
+            expected_exit_code_failure_message="Failed to add ip to ipset",
         )
