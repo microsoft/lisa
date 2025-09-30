@@ -127,6 +127,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
             stop_on_match=True,
             build_deps=True,
         ),
+        # todo: suse build-dep sucks for noninteractive, roll this back before pr
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Suse)
             and bool(parse_version(x.information.release) == "15.5.0"),
@@ -788,7 +789,9 @@ class DpdkTestpmd(Tool):
             # bionic needs to update to latest first
             node.os.update_packages("")
         if self.is_mana and not (
-            isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)
+            isinstance(node.os, Ubuntu)
+            or isinstance(node.os, Fedora)
+            or (isinstance(node.os, Debian) and node.os.information.version >= "13.0.0")
         ):
             raise SkippedException("MANA DPDK test is not supported on this OS")
 
