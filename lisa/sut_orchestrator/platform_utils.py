@@ -44,9 +44,22 @@ def get_mshv_version(node: Node) -> str:
             node.log.debug("detecting mshv version...")
             try:
                 dmesg = node.tools[Dmesg]
-                result = get_matched_str(
-                    dmesg.get_output(), MSHV_VERSION_PATTERN, first_match=False
+                dmesg_output = dmesg.get_output()
+
+                # Debug: Check if the pattern exists in dmesg
+                if "Hyper-V: Host Build" in dmesg_output:
+                    node.log.debug("Found 'Hyper-V: Host Build' in dmesg")
+                else:
+                    node.log.debug("'Hyper-V: Host Build' NOT found in dmesg")
+
+                matched = get_matched_str(
+                    dmesg_output, MSHV_VERSION_PATTERN, first_match=False
                 )
+                if matched:
+                    result = matched
+                    node.log.debug(f"MSHV version detected: {result}")
+                else:
+                    node.log.debug("No MSHV version match found")
             except Exception as e:
                 node.log.debug(f"error on run dmesg: {e}")
     except Exception as e:
