@@ -28,7 +28,7 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
             packages=["linux-modules-extra-azure"],
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, (Fedora, Debian, Suse)),
+            matcher=lambda x: isinstance(x, (Fedora, Debian)),
             packages=["rdma-core"],
             stop_on_match=True,
             build_deps=True,
