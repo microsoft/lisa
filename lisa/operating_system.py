@@ -451,9 +451,8 @@ class Posix(OperatingSystem, BaseClassMixin):
         Enable apt-get/yum build-deps package build dependency installation by
         turning on deb-src or srpm repositories.
         """
-        raise NotImplementedError(
-            "package manager build-deps enabling not implemented for this os."
-        )
+        self._enable_package_build_deps()
+        self._src_repo_initialized = True
 
     def install_build_deps(
         self,
@@ -463,14 +462,12 @@ class Posix(OperatingSystem, BaseClassMixin):
         Install apt-get/yum build-deps package build dependency installation by
         turning on deb-src or srpm repositories.
         """
+        if not getattr(self, "_src_repo_initialized", False):
+            self.enable_package_build_deps()
+
         package_names = self._get_package_list(packages)
         for package in package_names:
             self._install_build_deps(package)
-
-    def _install_build_deps(self, packages: str) -> None:
-        raise NotImplementedError(
-            "package build dep installation not supported on this os."
-        )
 
     def update_packages(
         self,
@@ -586,6 +583,12 @@ class Posix(OperatingSystem, BaseClassMixin):
         raise NotImplementedError()
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
+        raise NotImplementedError()
+
+    def _enable_package_build_deps(self) -> None:
+        raise NotImplementedError()
+
+    def _install_build_deps(self, packages: str) -> None:
         raise NotImplementedError()
 
     def _package_exists(self, package: str) -> bool:
@@ -960,8 +963,8 @@ class Debian(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
-    def enable_package_build_deps(self) -> None:
-        if getattr(self, "_src_repo_initialized", False):
+    def _enable_package_build_deps(self) -> None:
+        if not getattr(self, "_src_repo_initialized", False):
             self._node.tools[Sed].substitute(
                 "# deb-src", "deb-src", "/etc/apt/sources.list", sudo=True
             )
@@ -969,7 +972,6 @@ class Debian(Linux):
             self._src_repo_initialized = True
 
     def _install_build_deps(self, packages: str) -> None:
-        self.enable_package_build_deps()
         self._node.execute(
             f"apt-get build-dep -y {packages}",
             sudo=True,
@@ -1494,7 +1496,7 @@ class Ubuntu(Debian):
         self.wait_cloud_init_finish()
         super()._initialize_package_installation()
 
-    def enable_package_build_deps(self) -> None:
+    def _enable_package_build_deps(self) -> None:
         # ubuntu has a compat break around 24.04 which created an 'ubuntu.sources'
         # file in place of the sources.list file. It uses a fancier format, so
         # requires special handling.
@@ -1790,6 +1792,14 @@ class RPMDistro(Linux):
             command += " ".join(packages)
         self._node.execute(command, sudo=True, timeout=3600)
 
+    def _install_build_deps(self, packages: str) -> None:
+        self._node.execute(
+            f"{self._dnf_tool()} build-dep -y {packages}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not install build-deps for packages, check if source repos are enabled: {packages}",
+        )
+
 
 class Fedora(RPMDistro):
     # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
@@ -1876,6 +1886,9 @@ class Fedora(RPMDistro):
         )
 
         return information
+
+    def _enable_package_build_deps(self) -> None:
+        self.install_epel()
 
 
 class Redhat(Fedora):
@@ -2067,7 +2080,31 @@ class Oracle(Redhat):
 class AlmaLinux(Redhat):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^AlmaLinux")
+        return re.compile("^AlmaLinux|almalinux")
+
+    def _dnf_tool(self) -> str:
+        if self._node.shell.exists(self._node.get_pure_path("/usr/bin/dnf")):
+            return "dnf"
+        else:
+            return "yum"
+
+    def _enable_package_build_deps(self) -> None:
+        # enable epel first
+        super()._enable_package_build_deps()
+        self._node.execute("dnf install -y almalinux-release-devel")
+        # then enable crb (code ready builder) using alma tool
+        # this enables some needed package build dependency srpms
+        if int(self.information.version.major) == 8:
+            pkg = "powertools"
+        elif int(self.information.version.major) == 9:
+            pkg = "crb"
+        self._node.execute(
+            f"dnf config-manager --set-enabled {pkg}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not enable source build repo/pkg: {pkg}",
+        )
+        self._node.execute("/usr/bin/crb enable", sudo=True)
 
 
 class CBLMariner(RPMDistro):
@@ -2379,7 +2416,7 @@ class Suse(Linux):
             repo_name="packages-microsoft-com-azurecore",
         )
 
-    def enable_package_build_deps(self) -> None:
+    def _enable_package_build_deps(self) -> None:
         repos = self.get_repositories()
         for repo in repos:
             if isinstance(repo, SuseRepositoryInfo) and "Source-Pool" in repo.name:
