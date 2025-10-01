@@ -728,7 +728,13 @@ class DpdkTestpmd(Tool):
             "dpdk examples path does not exist, "
             f"cannot use requested dpdk example: {app_name}"
         ).is_true()
+<<<<<<< HEAD
         # if the application has not been built; check if there is a rep
+=======
+        # if the application has not been built;
+        # check if there is a build directory and build the application
+        # (if necessary)
+>>>>>>> b46630e91 ([dpdk] add symmetric_mp test (#3629))
         if not shell.exists(source_path.joinpath("build")):
             self.node.tools[Make].make("static", cwd=source_path, sudo=True)
         return source_path.joinpath(f"build/{source_path.name}")

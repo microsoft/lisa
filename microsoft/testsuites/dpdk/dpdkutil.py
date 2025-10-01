@@ -5,6 +5,7 @@ from collections import deque
 from decimal import Decimal
 from enum import Enum
 from functools import partial
+from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that, fail
@@ -30,6 +31,7 @@ from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Cp,
     Dmesg,
     Echo,
     Firewall,
@@ -1317,6 +1319,33 @@ class DpdkDevnameInfo:
         return self.port_mask
 
 
+# TODO: remove this method in 2028 when all updated versions are LTS
+def _apply_workaround_for_symmetric_mp_main(node: Node) -> None:
+    # workaround for unmerged code in dpdk project
+    # replace symmetric_mp main.c with patched version
+    symmetric_mp_local_dir = PurePath(__file__).parent.joinpath("symmetric_mp")
+    symmetric_mp_patched_main_c = "symmetric-mp-patched-main.c"
+    node.shell.copy(
+        symmetric_mp_local_dir.joinpath(symmetric_mp_patched_main_c),
+        node.working_path.joinpath(symmetric_mp_patched_main_c),
+    )
+    symmetric_mp_remote = (
+        "/usr/local/share/dpdk/examples/multi_process/symmetric_mp/main.c"
+    )
+    node.tools[Cp].run(
+        (
+            f"{str(node.working_path.joinpath(symmetric_mp_patched_main_c))} "
+            f"{symmetric_mp_remote}"
+        ),
+        force_run=True,
+        sudo=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message=(
+            "Could not copy patched symmetric_mp main.c to examples folder."
+        ),
+    )
+
+
 def run_dpdk_symmetric_mp(
     node: Node,
     log: Logger,
@@ -1376,6 +1405,11 @@ def run_dpdk_symmetric_mp(
             "DPDK symmetric_mp test is not implemented for "
             " package manager installation."
         )
+
+    # NOTE: apply workaround for unmerged change to main.c
+    # needed to run symmetric_mp on MANA for now.
+    _apply_workaround_for_symmetric_mp_main(node)
+
     symmetric_mp_path = testpmd.get_example_app_path("multi_process/symmetric_mp")
 
     # setup the DPDK EAL arguments for netvsc
@@ -1401,7 +1435,6 @@ def run_dpdk_symmetric_mp(
     symmetric_mp_args = (
         f"{nic_args} -n 2 "
         "--log-level netvsc,debug --log-level mana,debug "
-        # "--log-level eal,debug --log-level mbuf,debug "
         "--log-level ethdev,debug --log-level pci,debug "
         "--log-level port,debug "
         "--log-level vmbus,debug "
@@ -1535,8 +1568,6 @@ def run_dpdk_symmetric_mp(
     all_matches = [
         result_regex.finditer(secondary_result.stdout),
         result_regex.finditer(primary_result.stdout),
-        # result_regex.search(secondary_result.stdout),
-        # result_regex.search(primary_result.stdout),
     ]
     match_count = 0
     process_data: List[Dict[str, int]] = []
@@ -1555,7 +1586,7 @@ def run_dpdk_symmetric_mp(
                 )
                 match_data = {"rx": int(rx_count), "tx": int(tx_count)}
                 process_data += [match_data]
-    print(repr(process_data))
+    node.log.debug(repr(process_data))
 
     assert_that(process_data[0]["rx"]).described_as(
         "process 0 port 0 tx and port 1 rx should match"
