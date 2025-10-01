@@ -19,8 +19,8 @@ class Conntrack(Tool):
 
     def create_entry(
         self,
-        src_ip: str = "10.0.0.0",
-        dst_ip: str = "10.0.0.1",
+        src_ip: str,
+        dst_ip: str,
         protonum: int = 6,
         timeout: int = 0,
         mark: str = "",

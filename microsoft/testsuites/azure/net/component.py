@@ -83,13 +83,9 @@ class NetworkComponentTest(TestSuite):
         """,
         priority=2,
     )
-    def verify_conntrack(self, environment: Environment, log: Logger) -> None:
+    def verify_net_conntrack(self, environment: Environment, log: Logger) -> None:
         test_node = cast(RemoteNode, environment.nodes[0])
         conntrack = test_node.tools[Conntrack]
-
-        # Install conntrack tools in the test VM
-        log.info("Install conntrack tool")
-        conntrack.install()
 
         # Insert a entry to conntrack table with unknown protocol entry with mark
         log.info(
@@ -120,13 +116,10 @@ class NetworkComponentTest(TestSuite):
         """,
         priority=2,
     )
-    def verify_ipset(self, environment: Environment, log: Logger) -> None:
+    def verify_net_ipset(self, environment: Environment, log: Logger) -> None:
         test_node = cast(RemoteNode, environment.nodes[0])
         ipset = test_node.tools[Ipset]
         iptables = test_node.tools[Iptables]
-        # Install ipset tool in the test VM
-        log.info("Install ipset tool")
-        ipset.install()
 
         # Create a new ipset of type hash ip
         log.info(f"Creating new ipset named {self.IPSETNAME}")
@@ -172,7 +165,7 @@ class NetworkComponentTest(TestSuite):
         """,
         priority=2,
     )
-    def verify_iptables(self, environment: Environment, log: Logger) -> None:
+    def verify_net_iptables(self, environment: Environment, log: Logger) -> None:
         test_node = cast(RemoteNode, environment.nodes[0])
 
         iptables = test_node.tools[Iptables]
