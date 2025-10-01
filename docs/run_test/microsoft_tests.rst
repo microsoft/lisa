@@ -119,8 +119,8 @@ an image or existing environment.
 
 .. note::
    To access Microsoft's internal test cases, you need to set
-   ``import_internal_tests: true`` in your runbook. This will import
-   proprietary test cases from the ``lisa/microsoft`` directory.
+   ``import_builtin_tests: true`` in your runbook. This will import
+   built-in test cases from the ``lisa/microsoft`` directory.
    See :doc:`runbook reference <runbook>` for more details.
 
 LISA comes with a set of test suites to verify Linux distro/kernel
