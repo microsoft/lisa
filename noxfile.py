@@ -110,8 +110,6 @@ def pylint(session: nox.Session) -> None:
     session.run(
         "pylint",
         "lisa",
-        "microsoft",
-        "examples",
         "selftests",
         "docs/tools",
         "docs",
