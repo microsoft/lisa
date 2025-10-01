@@ -1,12 +1,14 @@
 import itertools
+import re
 import time
 from collections import deque
 from decimal import Decimal
 from enum import Enum
 from functools import partial
+from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from assertpy import assert_that
+from assertpy import assert_that, fail
 from semver import VersionInfo
 
 from lisa import (
@@ -29,6 +31,7 @@ from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Cp,
     Dmesg,
     Echo,
     Firewall,
@@ -54,6 +57,7 @@ from microsoft.testsuites.dpdk.common import (
     Downloader,
     GitDownloader,
     Installer,
+    PackageManagerInstall,
     TarDownloader,
     check_dpdk_support,
     is_url_for_git_repo,
@@ -229,7 +233,7 @@ UIO_HV_GENERIC_SYSFS_PATH = "/sys/bus/vmbus/drivers/uio_hv_generic"
 HV_NETVSC_SYSFS_PATH = "/sys/bus/vmbus/drivers/hv_netvsc"
 
 
-def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
+def enable_uio_hv_generic(node: Node) -> None:
     # hv_uio_generic driver uuid, a constant value used by vmbus.
     # https://doc.dpdk.org/guides/nics/netvsc.html#installation
     hv_uio_generic_uuid = "f8615163-df3e-46c5-913f-f2d2f965ed0e"
@@ -267,21 +271,29 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
 
 
 def do_pmd_driver_setup(
-    node: Node, test_nic: NicInfo, testpmd: DpdkTestpmd, pmd: str = "failsafe"
+    node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: str = "failsafe"
 ) -> None:
     if pmd == "netvsc":
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
-        enable_uio_hv_generic_for_nic(node, test_nic)
-        node.nics.unbind(test_nic)
-        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+        enable_uio_hv_generic(node)
+        # bound vmbus device may be the same when using vports
+        # ie... MANA. So track which devices we've already unbound to avoid
+        # doing things twice.
+        bound: List[str] = []
+        for nic in test_nics:
+            if nic.dev_uuid not in bound:
+                node.nics.unbind(nic)
+                node.nics.bind(nic, UIO_HV_GENERIC_SYSFS_PATH)
+                bound.append(nic.dev_uuid)
 
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
     if testpmd.is_mana:
         ip = node.tools[Ip]
-        if test_nic.lower and ip.is_device_up(test_nic.lower):
-            ip.down(test_nic.lower)
+        for test_nic in test_nics:
+            if test_nic.lower and ip.is_device_up(test_nic.lower):
+                ip.down(test_nic.lower)
 
 
 def initialize_node_resources(
@@ -291,7 +303,7 @@ def initialize_node_resources(
     pmd: str,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
-    extra_nics: Union[List[NicInfo], None] = None,
+    test_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
@@ -372,10 +384,12 @@ def initialize_node_resources(
     ).is_equal_to("hv_netvsc")
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
-    do_pmd_driver_setup(node=node, test_nic=test_nic, testpmd=testpmd, pmd=pmd)
-    if extra_nics:
-        for extra_nic in extra_nics:
-            do_pmd_driver_setup(node=node, test_nic=extra_nic, testpmd=testpmd, pmd=pmd)
+
+    # Allow user to pass in an explicit list of nics to use for the test.
+    if test_nics is None:
+        test_nics = [node.nics.get_secondary_nic()]
+
+    do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
 
@@ -477,7 +491,9 @@ def init_nodes_concurrent(
     pmd: str,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
+    test_nic_count: int = 1,
 ) -> List[DpdkTestResources]:
+    assert test_nic_count > 0, "Test Bug: test_nic_count must be > 0"
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
     # are established before handing all control over to testpmd.
@@ -495,6 +511,11 @@ def init_nodes_concurrent(
                     pmd,
                     hugepage_size=hugepage_size,
                     sample_apps=sample_apps,
+                    test_nics=[
+                        nic
+                        for nic in node.nics.nics.values()
+                        if nic is not node.nics.get_primary_nic()
+                    ][:test_nic_count],
                 )
                 for node in environment.nodes.list()
             ],
@@ -799,7 +820,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     #
     # 3. enjoy the thrill of victory, ship a cloud net applicance.
 
-    l3fwd_app_name = "dpdk-l3fwd"
+    l3fwd_app_name = "l3fwd"
     send_side = 1
     receive_side = 2
     # arbitrarily pick fwd/snd/recv nodes.
@@ -906,7 +927,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             pmd,
             hugepage_size,
             sample_apps=["l3fwd"],
-            extra_nics=[subnet_b_nics[forwarder]],
+            test_nics=[subnet_b_nics[forwarder]],
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
@@ -1199,3 +1220,352 @@ def annotate_dpdk_test_result(
         log.debug(f"Adding nic version: {nic_hw}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")
+
+
+devname_port_regex = re.compile(
+    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+)
+
+
+class DpdkDevnameInfo:
+    """
+    dpdk-devname is a small example app written by github.com/mcgov
+    It just prints the DPDK eth_dev info for each device
+    detected by the DPDK EAL.
+    We need these port_ids when using the netvsc PMD; so
+    devname makes the choices visible and unambiguous.
+    """
+
+    def __init__(self, testpmd: DpdkTestpmd) -> None:
+        self._node = testpmd.node
+        self._testpmd = testpmd
+
+    def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
+        # since we only need this for netvsc, we'll only generate
+        # the device inclusion info for netvsc cases.
+        # This is needed because the port_ids will change
+        # depending on how many NICs are present _and_ enabled
+        # by the EAL.
+        if self._node.nics.is_mana_device_present():
+            # mana needs a vdev argument of pci info
+            # followed by kv pairs for mac addresses.
+            # https://doc.dpdk.org/guides/nics/mana.html
+            nic_args = (
+                ",".join(
+                    [f'--vdev="{nics[0].pci_slot}']
+                    + [f"mac={nic.mac_addr}" for nic in nics],
+                )
+                + '"'
+            )
+        else:
+            # mlx nics; we get to cheat and just disallow the SSH interface.
+            # the driver and EAL handles the rest.
+            nic_args = f"-b {self._node.nics.get_primary_nic().pci_slot}"
+        self.nic_args = nic_args
+        # run the application with the device include arguments.
+
+        output = self._node.execute(
+            f"{str(self._testpmd.get_example_app_path('devname'))} {nic_args}",
+            sudo=True,
+            shell=True,
+        ).stdout
+
+        # find all the matches for devices bound to net_netvsc PMD
+        matches = devname_port_regex.findall(output)
+        if not matches:
+            fail(f"dpdk-devname could not find port ids in: {output}")
+
+        # then create the port mask in hex from the port ids
+        port_mask = 0
+        self.port_ids = []
+        found_ports = 0
+        for match in matches:
+            found_ports += 1
+            port_id = int(match)
+            self.port_ids += [port_id]
+            port_mask ^= 1 << (port_id)
+        if found_ports != expect_ports:
+            self._node.execute("dmesg", sudo=True)
+            fail(
+                "Could not find expected number of DPDK ports! "
+                "Application will fail. Bailing..."
+            )
+        self.port_mask = hex(port_mask)[2:]
+        return self.port_mask
+
+
+# TODO: remove this method in 2028 when all updated versions are LTS
+def _apply_workaround_for_symmetric_mp_main(node: Node) -> None:
+    # workaround for unmerged code in dpdk project
+    # replace symmetric_mp main.c with patched version
+    symmetric_mp_local_dir = PurePath(__file__).parent.joinpath("symmetric_mp")
+    symmetric_mp_patched_main_c = "symmetric-mp-patched-main.c"
+    node.shell.copy(
+        symmetric_mp_local_dir.joinpath(symmetric_mp_patched_main_c),
+        node.working_path.joinpath(symmetric_mp_patched_main_c),
+    )
+    symmetric_mp_remote = (
+        "/usr/local/share/dpdk/examples/multi_process/symmetric_mp/main.c"
+    )
+    node.tools[Cp].run(
+        (
+            f"{str(node.working_path.joinpath(symmetric_mp_patched_main_c))} "
+            f"{symmetric_mp_remote}"
+        ),
+        force_run=True,
+        sudo=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message=(
+            "Could not copy patched symmetric_mp main.c to examples folder."
+        ),
+    )
+
+
+def run_dpdk_symmetric_mp(
+    node: Node,
+    log: Logger,
+    variables: Dict[str, Any],
+    trigger_rescind: bool = False,
+    rescind_times: int = 1,
+) -> None:
+    """
+    A runner function for symmetric_mp, one of the
+    dpdk multi_process example apps.
+
+    This program creates one primary and N secondary processes,
+    it assigns forwarding rules between ports for those processes,
+    then begins forwarding.
+
+    The flow of this function is:
+
+    - setup vm
+    - setup symmetric_mp app (builds if needed)
+    - setup dpdk devname app to get port IDs for specific ports
+    - create symmetric_mp command line
+    - start primary
+    - start secondary
+    - ping both
+    - [ recind sriov, optional ]
+    - count packets received on tx/rx side of each process and port
+
+    """
+    # setup and unwrap the resources for this test
+    # get a list of the upper non-primary nics and select two of them
+    test_nics = [
+        nic
+        for nic in node.nics.nics.values()
+        if nic != node.nics.get_primary_nic() and nic.lower
+    ][:2]
+    ping = node.tools[Ping]
+    ping.install()
+
+    # initialize for netvsc, we rely on the debug messages in this test
+    # to identify the hotplug events.
+    try:
+        test_kit = initialize_node_resources(
+            node,
+            log,
+            variables,
+            "netvsc",
+            HugePageSize.HUGE_2MB,
+            test_nics=test_nics,
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
+    testpmd = test_kit.testpmd
+    if isinstance(testpmd.installer, PackageManagerInstall):
+        # The Testpmd tool doesn't get re-initialized
+        # even if you invoke it with new arguments.
+        raise SkippedException(
+            "DPDK symmetric_mp test is not implemented for "
+            " package manager installation."
+        )
+
+    # NOTE: apply workaround for unmerged change to main.c
+    # needed to run symmetric_mp on MANA for now.
+    _apply_workaround_for_symmetric_mp_main(node)
+
+    symmetric_mp_path = testpmd.get_example_app_path("multi_process/symmetric_mp")
+
+    # setup the DPDK EAL arguments for netvsc
+    devname_info = DpdkDevnameInfo(testpmd=testpmd)
+    port_mask = devname_info.get_port_info(test_nics, expect_ports=2)
+    nic_args = devname_info.nic_args
+
+    # get the DPDK port IDs for the netvsc devices.
+    # Don't assume which port is which since there are more than one.
+
+    node.log.debug(f"Port mask: {port_mask}")
+
+    # Port 2: RX - 0, TX - 100, Drop - 0
+    # wait for the process to exit
+    result_regex = re.compile(
+        r"Port (?P<port_id>[0-9]+): "
+        r"RX - (?P<rx_count>[0-9]+), "
+        r"TX - (?P<tx_count>[0-9]+), "
+        r"Drop - (?P<drop_count>[0-9]+).*"
+    )
+
+    # create the shared section of the symmetric_mp commandline invocation
+    symmetric_mp_args = (
+        f"{nic_args} -n 2 "
+        "--log-level netvsc,debug --log-level mana,debug "
+        "--log-level ethdev,debug --log-level pci,debug "
+        "--log-level port,debug "
+        "--log-level vmbus,debug "
+        f"-- -p {port_mask} --num-procs 2"
+    )
+    # start the first process (id 0) on core 1
+    primary = node.tools[Timeout].start_with_timeout(
+        command=(
+            f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
+            f"{symmetric_mp_args} --proc-id 0"
+        ),
+        timeout=660,
+        signal=SIGINT,
+        kill_timeout=30,
+    )
+
+    # wait for it to start
+    primary.wait_output("APP: Finished Process Init", timeout=20)
+
+    # create the second process (id 1) on core 2
+    secondary = node.tools[Timeout].start_with_timeout(
+        command=(
+            f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
+            f"{symmetric_mp_args} --proc-id 1"
+        ),
+        timeout=600,
+        signal=SIGINT,
+        kill_timeout=35,
+    )
+    secondary.wait_output("APP: Finished Process Init", timeout=20)
+
+    # expect 150 pings by default, if we rescind we'll add to this count
+    expected_pings = 150
+    ping.ping_async(
+        target=test_nics[0].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=50,
+        interval=0.05,
+    )
+    ping.ping(
+        target=test_nics[1].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=50,
+        ignore_error=True,
+        interval=0.05,
+    )
+    # optionally trigger rescind
+    if trigger_rescind:
+        # allow multiple rescinds for stress testing
+        while rescind_times > 0:
+            rescind_times -= 1
+            # turn SRIOV off
+
+            node.features[NetworkInterface].switch_sriov(
+                enable=False, wait=False, reset_connections=False
+            )
+
+            # wait for the RTE_DEV_EVENT_REMOVE message
+            primary.wait_output(
+                "HN_DRIVER: netvsc_hotadd_callback(): "
+                "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
+                delta_only=True,
+            )  # relying on compiler defaults here, not great.
+
+            # turn SRIOV on
+            node.features[NetworkInterface].switch_sriov(
+                enable=True, wait=False, reset_connections=False
+            )
+
+            primary.wait_output(
+                "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=0",
+                delta_only=True,
+            )
+            ping.ping_async(
+                target=test_nics[0].ip_addr,
+                nic_name=node.nics.get_primary_nic().name,
+                count=100,
+                interval=0.05,
+            )
+            ping.ping(
+                target=test_nics[1].ip_addr,
+                nic_name=node.nics.get_primary_nic().name,
+                count=100,
+                ignore_error=True,
+                interval=0.05,
+            )
+            # expect additional pings for each post-rescind instance
+            expected_pings += 100
+
+    ping.ping_async(
+        target=test_nics[0].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=100,
+        interval=0.05,
+    )
+    ping.ping(
+        target=test_nics[1].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=100,
+        ignore_error=True,
+        interval=0.05,
+    )
+    test_kit.dmesg.check_kernel_errors(force_run=True)
+
+    # kill the processes with SIGINT, there's a timeout if this fails
+    process_name = (
+        symmetric_mp_path.name if symmetric_mp_path.name else str(symmetric_mp_path)
+    )
+    node.tools[Kill].by_name(f"{process_name}", signum=SIGINT, ignore_not_exist=True)
+
+    # check the exit codes
+    primary_result = primary.wait_result()
+    secondary_result = secondary.wait_result()
+
+    node.log.debug(
+        f"Primary process:\n\n{primary_result.stdout}\n"
+        f"\nprimary stderr:\n{primary_result.stderr}"
+    )
+    node.log.debug(
+        f"Secondary system:\n\n{secondary_result.stdout}\n"
+        f"secondary stderr:\n{secondary_result.stderr}"
+    )
+    assert_that(primary_result.exit_code).described_as(
+        f"Primary process failure: {primary_result.stdout}"
+    ).is_zero()
+    assert_that(secondary_result.exit_code).described_as(
+        f"Secondary process failure: {secondary_result.stdout}"
+    ).is_zero()
+
+    # check for the packets we sent
+    all_matches = [
+        result_regex.finditer(secondary_result.stdout),
+        result_regex.finditer(primary_result.stdout),
+    ]
+    match_count = 0
+    process_data: List[Dict[str, int]] = []
+    for matches in all_matches:
+        match_count += 1
+        if matches:
+            node.log.debug(str(matches))
+            for match in matches:
+                port = match.group("port_id")
+                rx_count = match.group("rx_count")
+                tx_count = match.group("tx_count")
+                drop_count = match.group("drop_count")
+                node.log.debug(
+                    f"(match {match_count}) {port} "
+                    f"r:{rx_count} t:{tx_count} d:{drop_count}"
+                )
+                match_data = {"rx": int(rx_count), "tx": int(tx_count)}
+                process_data += [match_data]
+    node.log.debug(repr(process_data))
+
+    assert_that(process_data[0]["rx"]).described_as(
+        "process 0 port 0 tx and port 1 rx should match"
+    ).is_equal_to(process_data[1]["tx"])
+    assert_that(process_data[2]["rx"]).described_as(
+        "process 1 port_0_tx and port_1_rx should match"
+    ).is_equal_to(process_data[3]["tx"])

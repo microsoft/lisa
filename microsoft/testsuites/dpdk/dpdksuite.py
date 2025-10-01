@@ -40,10 +40,11 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
-    enable_uio_hv_generic_for_nic,
+    enable_uio_hv_generic,
     generate_send_receive_run_info,
     init_nodes_concurrent,
     initialize_node_resources,
+    run_dpdk_symmetric_mp,
     run_testpmd_concurrent,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
@@ -102,6 +103,32 @@ class Dpdk(TestSuite):
         verify_dpdk_build(
             node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
         )
+
+    @TestCaseMetadata(
+        description="""
+            netvsc pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_symmetric_mp(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        run_dpdk_symmetric_mp(node, log, variables)
 
     @TestCaseMetadata(
         description="""
@@ -925,7 +952,7 @@ class Dpdk(TestSuite):
         nic = node.nics.get_secondary_nic()
         node.nics.get_nic_driver(nic.name)
         if nic.module_name == "hv_netvsc":
-            enable_uio_hv_generic_for_nic(node, nic)
+            enable_uio_hv_generic(node)
 
         original_driver = nic.driver_sysfs_path
         node.nics.unbind(nic)
