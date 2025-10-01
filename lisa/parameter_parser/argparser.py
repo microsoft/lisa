@@ -9,6 +9,9 @@ from lisa.util import constants
 
 
 def support_runbook(parser: ArgumentParser, required: bool = True) -> None:
+    default_path = Path(__file__).parent.parent.joinpath(
+        "examples/runbook/hello_world.yml"
+    )
     parser.add_argument(
         "--runbook",
         "-r",
@@ -16,7 +19,7 @@ def support_runbook(parser: ArgumentParser, required: bool = True) -> None:
         required=required,
         help="Specify the path of runbook. "
         "It can be an absolute path or a relative path.",
-        default=Path("examples/runbook/hello_world.yml").absolute(),
+        default=default_path.absolute(),
     )
 
 
