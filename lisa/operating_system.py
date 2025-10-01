@@ -981,11 +981,31 @@ class Debian(Linux):
         # debian uses apt sources.list.
         # we only need to uncomment the standard source repos
         # in that file
-        sources_list = self._node.get_pure_path("/etc/apt/sources.list")
-        if self._node.shell.exists(sources_list):
-            self._node.tools[Sed].substitute(
-                "# deb-src", "deb-src", str(sources_list), sudo=True
+        node = self._node
+        sources_list = node.get_pure_path("/etc/apt/sources.list")
+        if node.shell.exists(sources_list):
+            # we'll enable just the minimum neccesary to avoid
+            # weird dependency cycles, conflicts, missing release files, etc.
+            main_repo = (
+                "deb-src "
+                "http://azure.archive.ubuntu.com/ubuntu/ "
+                f"{node.os.information.codename}  main restricted"
             )
+            updates_repo = (
+                "deb-src "
+                "http://azure.archive.ubuntu.com/ubuntu/ "
+                f"{node.os.information.codename}-updates  "
+                "main restricted"
+            )
+            for repo in [main_repo, updates_repo]:
+                node.execute(
+                    f'echo "{repo}" | sudo tee -a /etc/apt/sources.list',
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"Could not add {repo} to /etc/apt/sources.list"
+                    ),
+                )
             self.get_repositories()
 
     def _install_build_deps(self, packages: str) -> None:
@@ -1529,30 +1549,7 @@ class Ubuntu(Debian):
                 sudo=True,
             )
         else:
-            # for Ubuntu, enable main and main-updates only
-            # there are around 6 other optional repos,
-            # we'll enable just the minimum neccesary to avoid
-            # weird dependency cycles and conflicts.
-            main_repo = (
-                "deb-src "
-                "http://azure.archive.ubuntu.com/ubuntu/ "
-                f"{node.os.information.codename}  main restricted"
-            )
-            updates_repo = (
-                "deb-src "
-                "http://azure.archive.ubuntu.com/ubuntu/ "
-                f"{node.os.information.codename}-updates  "
-                "main restricted"
-            )
-            for repo in [main_repo, updates_repo]:
-                node.execute(
-                    f'echo "{repo}" | sudo tee -a /etc/apt/sources.list',
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        f"Could not add {repo} to /etc/apt/sources.list"
-                    ),
-                )
+            super()._enable_package_build_deps()
         self.get_repositories()
 
 
