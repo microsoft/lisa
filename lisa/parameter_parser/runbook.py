@@ -193,20 +193,26 @@ class RunbookBuilder:
         # are moved to under lisa/lisa for packaging, and they will be imported
         # always. So it doesn't need to list them again.
         path = path.absolute().resolve()
-        if path.is_relative_to(_old_microsoft_path) or path.is_relative_to(
-            _old_examples_path
-        ):
-            old_name = name
-            old_path = path
-            name = path.name
-            path = path.parent / "lisa" / path.name
-            self._log.info(
-                f"Fixing extension path for old code layout, "
-                f"from '{old_path}' to '{path}', "
-                f"and name from '{old_name}' to '{name}'",
+        old_name = name
+        old_path = path
+        if path.is_relative_to(_old_microsoft_path):
+            path = _lisa_root_path.joinpath(
+                "lisa", "microsoft", path.relative_to(_old_microsoft_path)
             )
+        elif path.is_relative_to(_old_examples_path):
+            path = _lisa_root_path.joinpath(
+                "lisa", "examples", path.relative_to(_old_examples_path)
+            )
+        else:
+            return path, name
 
-        return path, name
+        self._log.info(
+            f"Fixing extension path for old code layout, "
+            f"from '{old_path}' to '{path}', "
+            f"and name from '{old_name}' to '{path.name}'",
+        )
+
+        return path, path.name
 
     def _import_builtin_tests(self) -> None:
         import_builtin_tests = self._raw_data.get("import_builtin_tests", False)
