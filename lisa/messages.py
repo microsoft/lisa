@@ -251,8 +251,6 @@ class NetworkTCPPerformanceMessage(PerfMessage):
     retransmitted_segments: Decimal = Decimal(0)
     congestion_windowsize_kb: Decimal = Decimal(0)
     protocol_type: Optional[str] = TransportProtocol.Tcp
-    client_mtu: int = -1
-    server_mtu: int = -1
 
 
 @dataclass
@@ -268,8 +266,6 @@ class NetworkUDPPerformanceMessage(PerfMessage):
     data_loss: Decimal = Decimal(0)
     packet_size_kbytes: Decimal = Decimal(0)
     protocol_type: Optional[str] = TransportProtocol.Udp
-    client_mtu: int = -1
-    server_mtu: int = -1
 
 
 @dataclass
