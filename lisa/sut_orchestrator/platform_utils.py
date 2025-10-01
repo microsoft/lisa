@@ -10,8 +10,10 @@ from lisa.util.logger import filter_ansi_escape
 VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
 
 # MSHV version:
-# [    2.353669] misc mshv: Versions: current: 27818  min: 27744  max: 27751
-MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
+# [    0.929461] Hyper-V: Host Build 10.0.27924.1000-1-0
+MSHV_VERSION_PATTERN = re.compile(
+    r"Hyper-V: Host Build \d+\.\d+\.(?P<mshv_version>\d+\.\d+)", re.M
+)
 
 KEY_VMM_VERSION = "vmm_version"
 KEY_MSHV_VERSION = "mshv_version"
