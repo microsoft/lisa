@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from pathlib import Path
+from threading import Lock
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -354,6 +355,16 @@ class Posix(OperatingSystem, BaseClassMixin):
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_posix=True)
         self._first_time_installation: bool = True
+        # instance variables to check if source repositories are enabled
+        # some distros make this easier than others,
+        # but all allow use of source code packages which are compiled
+        # on the local machine instead of binary packages.
+        # slower, but allows local optimization and auditing.
+        # lucky for us! those packages contain build dependency metadata.
+        # we can use this to avoid keeping long lists
+        # of constantly changing package names for each distro.
+        self._source_installation_initialized = False
+        self._lock = Lock()
 
     @classmethod
     def type_name(cls) -> str:
@@ -452,7 +463,6 @@ class Posix(OperatingSystem, BaseClassMixin):
         turning on deb-src or srpm repositories.
         """
         self._enable_package_build_deps()
-        self._src_repo_initialized = True
 
     def install_build_deps(
         self,
@@ -462,8 +472,12 @@ class Posix(OperatingSystem, BaseClassMixin):
         Install apt-get/yum build-deps package build dependency installation by
         turning on deb-src or srpm repositories.
         """
-        if not getattr(self, "_src_repo_initialized", False):
-            self.enable_package_build_deps()
+        # lock this to prevent double initialization;
+        # some methods involve directly writing to a file
+        with self._lock:
+            if not self._source_installation_initialized:
+                self.enable_package_build_deps()
+                self._source_installation_initialized = True
 
         package_names = self._get_package_list(packages)
         for package in package_names:
@@ -964,14 +978,19 @@ class Debian(Linux):
         return self._cache_and_return_version_info(package_name, version_info)
 
     def _enable_package_build_deps(self) -> None:
-        if not getattr(self, "_src_repo_initialized", False):
+        # debian uses apt sources.list.
+        # we only need to uncomment the standard source repos
+        # in that file
+        sources_list = self._node.get_pure_path("/etc/apt/sources.list")
+        if self._node.shell.exists(sources_list):
             self._node.tools[Sed].substitute(
-                "# deb-src", "deb-src", "/etc/apt/sources.list", sudo=True
+                "# deb-src", "deb-src", str(sources_list), sudo=True
             )
             self.get_repositories()
-            self._src_repo_initialized = True
 
     def _install_build_deps(self, packages: str) -> None:
+        # apt-get build-dep installs the listed build dependencies
+        # from the src .deb for a given package.
         self._node.execute(
             f"apt-get build-dep -y {packages}",
             sudo=True,
@@ -1501,11 +1520,12 @@ class Ubuntu(Debian):
         # file in place of the sources.list file. It uses a fancier format, so
         # requires special handling.
         node = self._node
-        if node.shell.exists(node.get_pure_path("/etc/apt/ubuntu.sources")):
+        ubuntu_sources = node.get_pure_path("/etc/apt/ubuntu.sources")
+        if node.shell.exists(ubuntu_sources):
             node.tools[Sed].substitute(
                 regexp=r"Types\: deb",
                 replacement=r"Types\: deb deb-src",
-                file="/etc/apt/ubuntu.sources",
+                file=str(ubuntu_sources),
                 sudo=True,
             )
         else:
@@ -1888,6 +1908,7 @@ class Fedora(RPMDistro):
         return information
 
     def _enable_package_build_deps(self) -> None:
+        # epel enbables source repos by default
         self.install_epel()
 
 
@@ -2091,13 +2112,16 @@ class AlmaLinux(Redhat):
     def _enable_package_build_deps(self) -> None:
         # enable epel first
         super()._enable_package_build_deps()
+        # almalinux has a few different source repos, they are easy to enable
         self._node.execute("dnf install -y almalinux-release-devel")
         # then enable crb (code ready builder) using alma tool
         # this enables some needed package build dependency srpms
+        # this was formerly known as the 'powertools' repo.
         if int(self.information.version.major) == 8:
             pkg = "powertools"
         elif int(self.information.version.major) == 9:
             pkg = "crb"
+        # set the repo as enabled
         self._node.execute(
             f"dnf config-manager --set-enabled {pkg}",
             sudo=True,
@@ -2417,28 +2441,42 @@ class Suse(Linux):
         )
 
     def _enable_package_build_deps(self) -> None:
+        # zypper seems more suited to interactive use
+        # to enable source repos, list the defaults and select the source repos
         repos = self.get_repositories()
         for repo in repos:
             if isinstance(repo, SuseRepositoryInfo) and "Source-Pool" in repo.name:
+                # if it's a source repo, enable it
                 self._node.execute(
                     f"zypper mr -e {repo.alias}",
                     sudo=True,
                     expected_exit_code=0,
-                    expected_exit_code_failure_message=f"Could not enable source pool for repo: {repo.alias}",
+                    expected_exit_code_failure_message=(
+                        f"Could not enable source pool for repo: {repo.alias}"
+                    ),
                 )
+        # then refresh the repo status to fetch the new metadata
         self._node.execute(
             "zypper refresh -y",
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Failure to zypper refresh after enabling source repos.",
+            expected_exit_code_failure_message=(
+                "Failure to zypper refresh after enabling source repos."
+            ),
         )
 
     def _install_build_deps(self, packages: str) -> None:
+        # zypper sourceinstall the packages
+        # if there are missing dependencies, you can attempt to
+        # force zypper to work out the problem. It seems to assume
+        # interactive usage for these even with the -n flag so YMMV.
         self._node.execute(
             f"zypper si --build-deps-only --force-resolution {packages}",
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"failed to source install package: {packages}",
+            expected_exit_code_failure_message=(
+                f"failed to source install package: {packages}"
+            ),
         )
 
     def _initialize_package_installation(self) -> None:
