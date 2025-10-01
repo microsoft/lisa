@@ -504,6 +504,8 @@ class DpdkTestpmd(Tool):
         extra_args: str = "",
         multiple_queues: bool = False,
         service_cores: int = 1,
+        mtu: int = 0,
+        mbuf_size: int = 0,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -567,6 +569,12 @@ class DpdkTestpmd(Tool):
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 
+        if mtu:
+            extra_args += (
+                f" --max-pkt-len={mtu} --txpkts={mtu} --tx-offloads=0x00008000"
+                f" --mbuf-size={mbuf_size}"
+            )
+
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
         ).is_greater_than(0)
@@ -581,7 +589,6 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
-            "--mbuf-size=2048,8096"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:

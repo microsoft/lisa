@@ -202,9 +202,23 @@ def generate_send_receive_run_info(
     receiver: DpdkTestResources,
     multiple_queues: bool = False,
     use_service_cores: int = 1,
+    set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
-
+    # for MTU test: check that we can fetch the max MTU size for the NIC
+    if set_mtu:
+        check_nic = sender.node.nics.get_primary_nic().lower
+        maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        if not maxmtu:
+            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+        maxmtu_int = int(maxmtu)
+        if set_mtu > maxmtu_int:
+            raise SkippedException(
+                "Requested MTU size exceeds max mtu for DPDK mtu test: "
+                f"{set_mtu} > {maxmtu}."
+            )
+    else:
+        maxmtu_int = 0
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
         0,
@@ -212,6 +226,8 @@ def generate_send_receive_run_info(
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
@@ -219,6 +235,8 @@ def generate_send_receive_run_info(
         "rxonly",
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
     )
 
     kit_cmd_pairs = {
@@ -574,6 +592,7 @@ def verify_dpdk_send_receive(
     use_service_cores: int = 1,
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
+    set_mtu: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -584,6 +603,9 @@ def verify_dpdk_send_receive(
             ]
         else:
             raise SkippedException()
+        # skip MTU test if not on MANA (for now).
+        if set_mtu and not node.nics.is_mana_device_present():
+            raise SkippedException("set mtu test is intended for MANA VMs only.")
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
     # get test duration variable if set
@@ -607,6 +629,7 @@ def verify_dpdk_send_receive(
         receiver,
         use_service_cores=use_service_cores,
         multiple_queues=multiple_queues,
+        set_mtu=set_mtu,
     )
     receive_timeout = kill_timeout + 10
     receive_result = receiver.node.tools[Timeout].start_with_timeout(
@@ -657,6 +680,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     variables: Dict[str, Any],
     pmd: str,
     result: Optional[TestResult] = None,
+    set_mtu: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -669,6 +693,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         use_service_cores=1,
         multiple_queues=True,
         result=result,
+        set_mtu=set_mtu,
     )
 
 
