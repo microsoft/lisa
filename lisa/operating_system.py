@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from pathlib import Path
+from threading import Lock
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -354,6 +355,16 @@ class Posix(OperatingSystem, BaseClassMixin):
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_posix=True)
         self._first_time_installation: bool = True
+        # instance variables to check if source repositories are enabled
+        # some distros make this easier than others,
+        # but all allow use of source code packages which are compiled
+        # on the local machine instead of binary packages.
+        # slower, but allows local optimization and auditing.
+        # lucky for us! those packages contain build dependency metadata.
+        # we can use this to avoid keeping long lists
+        # of constantly changing package names for each distro.
+        self._source_installation_initialized = False
+        self._lock = Lock()
 
     @classmethod
     def type_name(cls) -> str:
@@ -445,6 +456,32 @@ class Posix(OperatingSystem, BaseClassMixin):
             self._initialize_package_installation()
             self._first_time_installation = False
         return self._is_package_in_repo(package_name)
+
+    def enable_package_build_deps(self) -> None:
+        """
+        Enable apt-get/yum build-deps package build dependency installation by
+        turning on deb-src or srpm repositories.
+        """
+        self._enable_package_build_deps()
+
+    def install_build_deps(
+        self,
+        packages: Union[str, Tool, Type[Tool], Sequence[Union[str, Tool, Type[Tool]]]],
+    ) -> None:
+        """
+        Install apt-get/yum build-deps package build dependency installation by
+        turning on deb-src or srpm repositories.
+        """
+        # lock this to prevent double initialization;
+        # some methods involve directly writing to a file
+        with self._lock:
+            if not self._source_installation_initialized:
+                self.enable_package_build_deps()
+                self._source_installation_initialized = True
+
+        package_names = self._get_package_list(packages)
+        for package in package_names:
+            self._install_build_deps(package)
 
     def update_packages(
         self,
@@ -560,6 +597,12 @@ class Posix(OperatingSystem, BaseClassMixin):
         raise NotImplementedError()
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
+        raise NotImplementedError()
+
+    def _enable_package_build_deps(self) -> None:
+        raise NotImplementedError()
+
+    def _install_build_deps(self, packages: str) -> None:
         raise NotImplementedError()
 
     def _package_exists(self, package: str) -> bool:
@@ -933,6 +976,48 @@ class Debian(Linux):
             version_str, self._debian_version_splitter_regex
         )
         return self._cache_and_return_version_info(package_name, version_info)
+
+    def _enable_package_build_deps(self) -> None:
+        # debian uses apt sources.list.
+        # we only need to uncomment the standard source repos
+        # in that file
+        node = self._node
+        sources_list = node.get_pure_path("/etc/apt/sources.list")
+        if node.shell.exists(sources_list):
+            # we'll enable just the minimum neccesary to avoid
+            # weird dependency cycles, conflicts, missing release files, etc.
+            main_repo = (
+                "deb-src "
+                "http://azure.archive.ubuntu.com/ubuntu/ "
+                f"{node.os.information.codename}  main restricted"
+            )
+            updates_repo = (
+                "deb-src "
+                "http://azure.archive.ubuntu.com/ubuntu/ "
+                f"{node.os.information.codename}-updates  "
+                "main restricted"
+            )
+            for repo in [main_repo, updates_repo]:
+                node.execute(
+                    f'echo "{repo}" | sudo tee -a /etc/apt/sources.list',
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"Could not add {repo} to /etc/apt/sources.list"
+                    ),
+                )
+            self.get_repositories()
+
+    def _install_build_deps(self, packages: str) -> None:
+        # apt-get build-dep installs the listed build dependencies
+        # from the src .deb for a given package.
+        self._node.execute(
+            f"apt-get build-dep -y {packages}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not install apt-get build-dep for {packages}",
+            update_envs={"DEBIAN_FRONTEND": "noninteractive"},
+        )
 
     def add_azure_core_repo(
         self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
@@ -1450,6 +1535,23 @@ class Ubuntu(Debian):
         self.wait_cloud_init_finish()
         super()._initialize_package_installation()
 
+    def _enable_package_build_deps(self) -> None:
+        # ubuntu has a compat break around 24.04 which created an 'ubuntu.sources'
+        # file in place of the sources.list file. It uses a fancier format, so
+        # requires special handling.
+        node = self._node
+        ubuntu_sources = node.get_pure_path("/etc/apt/ubuntu.sources")
+        if node.shell.exists(ubuntu_sources):
+            node.tools[Sed].substitute(
+                regexp=r"Types\: deb",
+                replacement=r"Types\: deb deb-src",
+                file=str(ubuntu_sources),
+                sudo=True,
+            )
+        else:
+            super()._enable_package_build_deps()
+        self.get_repositories()
+
 
 @dataclass
 # Repositories:
@@ -1707,6 +1809,14 @@ class RPMDistro(Linux):
             command += " ".join(packages)
         self._node.execute(command, sudo=True, timeout=3600)
 
+    def _install_build_deps(self, packages: str) -> None:
+        self._node.execute(
+            f"{self._dnf_tool()} build-dep -y {packages}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not install build-deps for packages, check if source repos are enabled: {packages}",
+        )
+
 
 class Fedora(RPMDistro):
     # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
@@ -1793,6 +1903,10 @@ class Fedora(RPMDistro):
         )
 
         return information
+
+    def _enable_package_build_deps(self) -> None:
+        # epel enbables source repos by default
+        self.install_epel()
 
 
 class Redhat(Fedora):
@@ -1984,7 +2098,34 @@ class Oracle(Redhat):
 class AlmaLinux(Redhat):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^AlmaLinux")
+        return re.compile("^AlmaLinux|almalinux")
+
+    def _dnf_tool(self) -> str:
+        if self._node.shell.exists(self._node.get_pure_path("/usr/bin/dnf")):
+            return "dnf"
+        else:
+            return "yum"
+
+    def _enable_package_build_deps(self) -> None:
+        # enable epel first
+        super()._enable_package_build_deps()
+        # almalinux has a few different source repos, they are easy to enable
+        self._node.execute("dnf install -y almalinux-release-devel")
+        # then enable crb (code ready builder) using alma tool
+        # this enables some needed package build dependency srpms
+        # this was formerly known as the 'powertools' repo.
+        if int(self.information.version.major) == 8:
+            pkg = "powertools"
+        elif int(self.information.version.major) == 9:
+            pkg = "crb"
+        # set the repo as enabled
+        self._node.execute(
+            f"dnf config-manager --set-enabled {pkg}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Could not enable source build repo/pkg: {pkg}",
+        )
+        self._node.execute("/usr/bin/crb enable", sudo=True)
 
 
 class CBLMariner(RPMDistro):
@@ -2294,6 +2435,45 @@ class Suse(Linux):
         self.add_repository(
             repo="https://packages.microsoft.com/yumrepos/azurecore/",
             repo_name="packages-microsoft-com-azurecore",
+        )
+
+    def _enable_package_build_deps(self) -> None:
+        # zypper seems more suited to interactive use
+        # to enable source repos, list the defaults and select the source repos
+        repos = self.get_repositories()
+        for repo in repos:
+            if isinstance(repo, SuseRepositoryInfo) and "Source-Pool" in repo.name:
+                # if it's a source repo, enable it
+                self._node.execute(
+                    f"zypper mr -e {repo.alias}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"Could not enable source pool for repo: {repo.alias}"
+                    ),
+                )
+        # then refresh the repo status to fetch the new metadata
+        self._node.execute(
+            "zypper refresh -y",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failure to zypper refresh after enabling source repos."
+            ),
+        )
+
+    def _install_build_deps(self, packages: str) -> None:
+        # zypper sourceinstall the packages
+        # if there are missing dependencies, you can attempt to
+        # force zypper to work out the problem. It seems to assume
+        # interactive usage for these even with the -n flag so YMMV.
+        self._node.execute(
+            f"zypper si --build-deps-only --force-resolution {packages}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to source install package: {packages}"
+            ),
         )
 
     def _initialize_package_installation(self) -> None:

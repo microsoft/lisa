@@ -124,16 +124,12 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian),
-            packages=[
-                "build-essential",
-                "libnuma-dev",
-                "libmnl-dev",
-                "python3-pyelftools",
-                "libelf-dev",
-                "pkg-config",
-            ],
+            packages=["dpdk", "dpdk-dev"],
             stop_on_match=True,
+            build_deps=True,
         ),
+        # todo: suse build-dep is tricky for noninteractive
+        #       so just use the old 'list of package names' for dependencies
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Suse),
             packages=[
@@ -146,18 +142,19 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, (Fedora)),
-            packages=[
-                "psmisc",
-                "numactl-devel",
-                "pkgconfig",
-                "elfutils-libelf-devel",
-                "python3-pip",
-                "kernel-modules-extra",
-                "kernel-headers",
-                "gcc-c++",
-            ],
+            # alma/rocky have started
+            # including testpmd by default in 'dpdk'
+            matcher=lambda x: isinstance(x, Fedora)
+            and not x.is_package_in_repo("dpdk-devel"),
+            packages=["dpdk"],
             stop_on_match=True,
+            build_deps=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, (Fedora, Suse)),
+            packages=["dpdk", "dpdk-devel"],
+            stop_on_match=True,
+            build_deps=True,
         ),
         OsPackageDependencies(matcher=unsupported_os_thrower),
     ]
@@ -228,8 +225,7 @@ class DpdkSourceInstall(Installer):
         # install( Tool ) doesn't seem to install the tool until it's used :\
         # which breaks when another tool checks for it's existence before building...
         # like cmake, meson, make, autoconf, etc.
-        self._node.tools[Ninja].install()
-        self._node.tools[Pip].install_packages("pyelftools")
+        self._os.install_build_deps("dpdk")
 
     def _uninstall(self) -> None:
         # undo source installation (thanks ninja)
@@ -826,7 +822,9 @@ class DpdkTestpmd(Tool):
             # bionic needs to update to latest first
             node.os.update_packages("")
         if self.is_mana and not (
-            isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)
+            isinstance(node.os, Ubuntu)
+            or isinstance(node.os, Fedora)
+            or (isinstance(node.os, Debian) and node.os.information.version >= "13.0.0")
         ):
             raise SkippedException("MANA DPDK test is not supported on this OS")
 

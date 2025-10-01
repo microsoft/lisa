@@ -12,7 +12,7 @@ from urllib3.util.url import parse_url
 from lisa import Node
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Oracle, Posix, Suse, Ubuntu
-from lisa.tools import Git, Lscpu, Tar, Wget
+from lisa.tools import Git, Lscpu, Lsmod, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException
 
@@ -39,10 +39,12 @@ class OsPackageDependencies:
         matcher: Callable[[Posix], bool],
         packages: Optional[Sequence[Union[str, Tool, Type[Tool]]]] = None,
         stop_on_match: bool = False,
+        build_deps: bool = False,
     ) -> None:
         self.matcher = matcher
         self.packages = packages
         self.stop_on_match = stop_on_match
+        self.build_deps = build_deps
 
 
 class DependencyInstaller:
@@ -62,12 +64,19 @@ class DependencyInstaller:
         # find the match for an OS, install the packages.
         # stop on list end or if exclusive_match parameter is true.
         packages: List[Union[str, Tool, Type[Tool]]] = []
+        build_deps: List[Union[str, Tool, Type[Tool]]] = []
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
-                packages += requirement.packages
+                if requirement.build_deps:
+                    build_deps += requirement.packages
+                else:
+                    packages += requirement.packages
                 if requirement.stop_on_match:
                     break
-        os.install_packages(packages=packages, extra_args=extra_args)
+        if build_deps:
+            os.install_build_deps(build_deps)
+        if packages:
+            os.install_packages(packages=packages, extra_args=extra_args)
 
         # NOTE: It is up to the caller to raise an exception on an invalid OS
 
@@ -346,13 +355,18 @@ def check_dpdk_support(node: Node) -> None:
         isinstance(node.os, (Debian, Fedora, Suse, Fedora))
         and node.nics.is_mana_device_present()
     ):
-        # NOTE: Kernel backport examples are available for lower kernels.
-        # HOWEVER: these are not suitable for general testing and should be installed
-        # in the image _before_ starting the test.
-        # ex: make a SIG image first using the kernel build transformer.
-        if node.os.get_kernel_information().version < "5.15.0":
+        # don't assume kernel version, check for the drivers.
+        # This modprobe call is truly a "don't care".
+        # It will load mana_ib if it's present so this next check can run.
+        node.execute("modprobe mana_ib", sudo=True)
+        if not (
+            node.nics.is_mana_driver_enabled()
+            and node.nics.is_mana_ib_driver_enabled()
+            and node.tools[Lsmod].module_exists("mana_ib", force_run=True)
+        ):
             raise UnsupportedDistroException(
-                node.os, "MANA driver is not available for kernel < 5.15"
+                node.os,
+                "mana/mana_ib driver is not available on this image.",
             )
     if not supported:
         raise UnsupportedDistroException(
