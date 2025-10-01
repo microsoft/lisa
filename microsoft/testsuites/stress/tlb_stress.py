@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
+from lisa.messages import TestStatus, send_sub_test_result_message
+from lisa.testsuite import TestResult
 from lisa.tools import Dmesg
+from lisa.util import LisaException
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -109,7 +112,6 @@ class TlbStress(Tool):
     def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
         super().__init__(node, *args, **kwargs)
         self._is_guest_environment: Optional[bool] = None
-        self._performance_thresholds = PerformanceThresholds()
 
     @property
     def command(self) -> str:
@@ -125,11 +127,6 @@ class TlbStress(Tool):
         )
         exists = result.exit_code == 0
 
-        if exists:
-            self._log.debug(f"TLB stress binary detected at {self._bin}")
-        else:
-            self._log.debug(f"TLB stress binary not found at {self._bin}")
-
         return exists
 
     def _unlock_perf_counters(self) -> None:
@@ -142,15 +139,9 @@ class TlbStress(Tool):
             current_value = result.stdout.strip()
 
             if current_value != "-1":
-                self._log.debug(
-                    f"Setting kernel.perf_event_paranoid=-1 (was {current_value}) "
-                    "to fully unlock perf counters for guests"
-                )
                 self.node.execute("sysctl -w kernel.perf_event_paranoid=-1", sudo=True)
-            else:
-                self._log.debug("Perf counters already fully unlocked (paranoid=-1)")
         except Exception as e:
-            self._log.warning(
+            self._log.debug(
                 f"Failed to unlock perf counters: {e}. Will use sudo for perf commands."
             )
 
@@ -186,10 +177,6 @@ class TlbStress(Tool):
                     and "not supported" not in result.stderr
                 )
                 event_support[event] = supported
-                self._log.debug(
-                    f"Perf event {event}: "
-                    f"{'supported' if supported else 'not supported'}"
-                )
             except Exception:
                 event_support[event] = False
 
@@ -217,7 +204,7 @@ class TlbStress(Tool):
         # If no events supported, use minimal set
         if not base_events:
             base_events = ["context-switches", "page-faults"]
-            self._log.warning(
+            self._log.debug(
                 "No perf events detected as supported, using minimal fallback set"
             )
 
@@ -228,10 +215,8 @@ class TlbStress(Tool):
         from lisa.operating_system import CBLMariner, Debian
 
         if isinstance(self.node.os, Debian):
-            self._log.debug("Detected Debian/Ubuntu distribution")
             self._install_debian_deps()
         elif isinstance(self.node.os, CBLMariner):
-            self._log.debug("Detected Azure Linux/CBL Mariner distribution")
             self._install_azurelinux_deps()
         else:
             # Clear error message for unsupported distributions
@@ -239,6 +224,7 @@ class TlbStress(Tool):
             raise RuntimeError(
                 f"Unsupported distribution: {distro_info}. "
                 "This tool only supports Ubuntu (Debian) and Azure Linux "
+                "(CBL Mariner) distributions."
             )
 
     def _install_debian_deps(self) -> None:
@@ -249,63 +235,57 @@ class TlbStress(Tool):
             "linux-headers-generic",
             "stress-ng",
             "numactl",
+            "linux-tools-generic",
         ]
-        try:
-            packages.append("linux-tools-generic")
-        except Exception:
-            pass
 
-        self._log.debug("Installing Debian/Ubuntu build dependencies...")
         self.node.os.install_packages(packages)  # type: ignore
-        self._log.debug("Successfully installed Debian/Ubuntu build dependencies")
 
     def _install_azurelinux_deps(self) -> None:
         """Install dependencies for Azure Linux/CBL Mariner systems"""
+        # Install essential packages first
         essential_packages = ["gcc", "make", "glibc-devel"]
-
-        # Try optional packages
-        self._try_install_package("glibc-headers", essential_packages)
-        self._try_install_kernel_headers(essential_packages)
-
-        # Install essential packages
-        self._log.debug("Installing Azure Linux/CBL Mariner build dependencies...")
         self.node.os.install_packages(essential_packages)  # type: ignore
 
-        # Try optional packages
-        self._install_optional_packages()
-        self._log.debug(
-            "Successfully installed Azure Linux/CBL Mariner build dependencies"
-        )
+        # Try optional packages (best-effort)
+        self._try_install_package("glibc-headers")
 
-    def _try_install_package(self, package: str, package_list: List[str]) -> None:
-        """Try to install a package and add to list if successful"""
+        # Try kernel headers - Azure Linux may have either package name
+        if not self._try_install_package("kernel-headers"):
+            if not self._try_install_package("kernel-devel"):
+                self._log.debug("No kernel headers package found")
+
+        # Try additional required packages
+        self._install_additional_packages()
+
+    def _try_install_package(self, package: str) -> bool:
+        """
+        Try to install a package on a best-effort basis.
+
+        Returns:
+            True if installation succeeded, False otherwise
+        """
         try:
             self.node.os.install_packages([package])  # type: ignore
-            package_list.append(package)
+            return True
         except Exception:
-            self._log.debug(f"{package} not available as separate package")
+            return False
 
-    def _try_install_kernel_headers(self, package_list: List[str]) -> None:
-        """Try to install kernel headers (kernel-headers or kernel-devel)"""
-        try:
-            self.node.os.install_packages(["kernel-headers"])  # type: ignore
-            package_list.append("kernel-headers")
-        except Exception:
-            try:
-                self.node.os.install_packages(["kernel-devel"])  # type: ignore
-                package_list.append("kernel-devel")
-            except Exception:
-                self._log.warning("No kernel headers package found")
-
-    def _install_optional_packages(self) -> None:
-        """Install optional packages for enhanced functionality"""
-        optional_packages = ["gcc-c++", "stress-ng", "numactl", "perf"]
-        for pkg in optional_packages:
+    def _install_additional_packages(self) -> None:
+        """
+        Install additional required packages that may not be available in all repos.
+        These packages are needed for full test functionality. Installation
+        is attempted on a best-effort basis since package names may vary by
+        distribution.
+        """
+        required_packages = ["gcc-c++", "stress-ng", "numactl", "perf"]
+        for pkg in required_packages:
             try:
                 self.node.os.install_packages([pkg])  # type: ignore
-                self._log.debug(f"Successfully installed optional package: {pkg}")
             except Exception:
-                self._log.debug(f"Optional package {pkg} not available, continuing...")
+                self._log.info(
+                    f"Package {pkg} not available in this distribution - "
+                    "some functionality may be limited"
+                )
 
     def _verify_build_tools(self) -> None:
         """Verify that essential build tools are available"""
@@ -318,7 +298,7 @@ class TlbStress(Tool):
                 missing_tools.append(tool)
 
         if missing_tools:
-            raise FileNotFoundError(
+            raise LisaException(
                 f"Essential build tools missing: {', '.join(missing_tools)}"
             )
 
@@ -329,7 +309,7 @@ class TlbStress(Tool):
             no_error_log=True,
         )
         if header_test.exit_code != 0:
-            self._log.warning(
+            self._log.info(
                 "C standard library headers (stdio.h) not available - "
                 "some advanced features may not work"
             )
@@ -338,27 +318,18 @@ class TlbStress(Tool):
 
     def install(self) -> bool:
         """Deploy TLB stress program to target nodes with bulletproof installation"""
-        try:
-            # Install build dependencies first
-            self._install_deps()
+        # Install build dependencies first
+        self._install_deps()
 
-            self._deploy_tlb_program()
+        self._deploy_tlb_program()
 
-            # Verify installation was successful
-            if self._check_exists():
-                self._log.debug(
-                    f"TLB stress tool successfully installed at {self._bin}"
-                )
-                return True
-            else:
-                self._log.error(
-                    f"TLB stress installation failed - binary not found at {self._bin}"
-                )
-                return False
+        # Verify installation was successful
+        if not self._check_exists():
+            raise LisaException(
+                f"TLB stress installation failed - binary not found at {self._bin}"
+            )
 
-        except Exception as e:
-            self._log.error(f"TLB stress installation failed with exception: {e}")
-            return False
+        return True
 
     def detect_environment_type(self) -> bool:
         """
@@ -373,7 +344,6 @@ class TlbStress(Tool):
 
         # Use LISA's built-in guest/host detection via node.parent
         if self.node.parent is not None:
-            self._log.debug("Detected guest environment via LISA node.parent property")
             self._is_guest_environment = True
             return True
 
@@ -381,7 +351,6 @@ class TlbStress(Tool):
         from lisa.node import GuestNode
 
         if isinstance(self.node, GuestNode):
-            self._log.debug("Detected guest environment via LISA GuestNode type")
             self._is_guest_environment = True
             return True
 
@@ -390,16 +359,12 @@ class TlbStress(Tool):
             cat = self.node.tools[Cat]
             cpuinfo = cat.read("/proc/cpuinfo")
             if "hypervisor" in cpuinfo.lower():
-                self._log.debug(
-                    "Detected guest environment via /proc/cpuinfo hypervisor flag"
-                )
                 self._is_guest_environment = True
                 return True
         except Exception:
             pass
 
         # Default to host environment
-        self._log.debug("No guest indicators found - assuming host environment")
         self._is_guest_environment = False
         return False
 
@@ -448,23 +413,19 @@ class TlbStress(Tool):
         Returns:
             PerformanceMetrics with baseline measurements
         """
-        self._log.debug("Capturing baseline performance metrics...")
-
         # Unlock perf counters for detailed TLB/context-switch monitoring
         self._unlock_perf_counters()
 
-        duration = self._performance_thresholds.perf_measurement_duration
+        thresholds = PerformanceThresholds()
+        duration = thresholds.perf_measurement_duration
         baseline = PerformanceMetrics(measurement_duration=duration)
 
         try:
             # Probe which perf events are supported
             event_support = self._probe_perf_events()
             supported_events = self._get_fallback_events(event_support)
-            self._log.debug(f"Using perf events: {supported_events}")
 
             # Capture host perf metrics (TLB misses, context switches)
-            self._log.debug("Starting perf stat for baseline TLB metrics...")
-
             # Run perf stat with supported events
             perf_cmd = (
                 f"perf stat -a -e {supported_events} "
@@ -505,17 +466,10 @@ class TlbStress(Tool):
             is_guest = self.detect_environment_type()
             baseline.steal_time_percent = self._get_steal_time_percent(is_guest)
 
-            self._log.debug(
-                f"Baseline metrics captured: "
-                f"dTLB misses/s={baseline.dtlb_load_misses_per_sec:.2f}, "
-                f"context switches/s={baseline.context_switches_per_sec:.2f}, "
-                f"steal%={baseline.steal_time_percent:.2f}"
-            )
-
             return baseline
 
         except Exception as e:
-            self._log.warning(f"Failed to capture complete baseline metrics: {e}")
+            self._log.debug(f"Failed to capture complete baseline metrics: {e}")
             return baseline
 
     def run_stress_with_monitoring(
@@ -562,10 +516,6 @@ class TlbStress(Tool):
             # Capture interrupts before stress
             interrupts_before = self._get_proc_interrupts()
 
-            # Capture start time for time-windowed dmesg scanning
-            start_time = str(int(time.time()))
-            self._log.debug(f"Capturing dmesg start marker: {start_time}")
-
             # Run the actual TLB stress test
             self._run_tlb_stress_program(
                 duration, tlb_threads, tlb_pages, use_numa, use_hugepages
@@ -610,27 +560,21 @@ class TlbStress(Tool):
             is_guest = self.detect_environment_type()
             stress_metrics.steal_time_percent = self._get_steal_time_percent(is_guest)
 
-            self._log.debug(
-                f"Stress metrics captured: "
-                f"dTLB misses/s={stress_metrics.dtlb_load_misses_per_sec:.2f}, "
-                f"context switches/s={stress_metrics.context_switches_per_sec:.2f}, "
-                f"steal%={stress_metrics.steal_time_percent:.2f}"
-            )
-
             return stress_metrics
 
-        except Exception as e:
+        except Exception:
             if perf_monitor_process:
                 try:
                     perf_monitor_process.terminate()  # type: ignore
                 except Exception:
                     pass
-            raise e
+            raise
 
     def analyze_performance_degradation(
         self,
         baseline: PerformanceMetrics,
         stress: PerformanceMetrics,
+        test_result: Optional[TestResult] = None,
         start_time: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -639,7 +583,8 @@ class TlbStress(Tool):
         Args:
             baseline: Baseline performance metrics
             stress: Stress test performance metrics
-            log: Logger instance
+            test_result: Optional TestResult for notifier integration
+            start_time: Optional start time for time-windowed kernel health checks
 
         Returns:
             Dictionary with analysis results
@@ -712,11 +657,49 @@ class TlbStress(Tool):
             f"Performance analysis: {'PASS' if analysis['pass'] else 'FAIL'}"
         )
         if analysis["warnings"]:
-            self._log.warning(f"Warnings: {'; '.join(analysis['warnings'])}")
+            self._log.debug(f"Warnings: {'; '.join(analysis['warnings'])}")
         if analysis["failures"]:
-            self._log.error(f"Failures: {'; '.join(analysis['failures'])}")
+            failure_msg = (
+                f"Performance test failures: {'; '.join(analysis['failures'])}"
+            )
+            raise LisaException(failure_msg)
+
+        # Send performance results to notifier for database storage
+        if test_result:
+            self._send_performance_notification(test_result, analysis)
 
         return analysis
+
+    def _send_performance_notification(
+        self, test_result: TestResult, analysis: Dict[str, Any]
+    ) -> None:
+        """Send performance analysis results to notifier."""
+        summary_lines = ["=== TLB Stress Performance Analysis ==="]
+        if "metrics" in analysis:
+            summary_lines.append("Performance Metrics:")
+            for key, value in analysis["metrics"].items():
+                summary_lines.append(f"  {key}: {value:.2f}")
+        if analysis["warnings"]:
+            summary_lines.append("Warnings:")
+            for warning in analysis["warnings"]:
+                summary_lines.append(f"  ⚠ {warning}")
+        if analysis["failures"]:
+            summary_lines.append("Failures:")
+            for failure in analysis["failures"]:
+                summary_lines.append(f"  ❌ {failure}")
+        summary_lines.append(
+            f"Overall Result: {'PASS' if analysis['pass'] else 'FAIL'}"
+        )
+        summary_message = "\n".join(summary_lines)
+
+        test_status = TestStatus.PASSED if analysis["pass"] else TestStatus.FAILED
+        send_sub_test_result_message(
+            test_result=test_result,
+            test_case_name="stress_tlb_performance",
+            test_status=test_status,
+            test_message=summary_message,
+            other_fields={"performance_metrics": analysis.get("metrics", {})},
+        )
 
     # === Private Helper Methods ===
 
@@ -727,16 +710,11 @@ class TlbStress(Tool):
 
         remote_node = cast(RemoteNode, self.node)
 
-        self._log.debug(f"Installing TLB stress tool to {self._bin}")
-
         # Create working directory
         self.node.execute(f"mkdir -p {self._work}", sudo=True)
 
-        # Get the C program content from the test suite directory
-        c_program_path = (
-            Path(__file__).parent.parent.parent
-            / "microsoft/testsuites/stress/tlb_flush_stress.c"
-        )
+        # Get the C program from the same directory
+        c_program_path = Path(__file__).parent / "tlb_flush_stress.c"
 
         # Copy the C program to the working directory
         remote_c_path = f"{self._work}/tlb_flush_stress.c"
@@ -761,10 +739,6 @@ class TlbStress(Tool):
         # Cleanup temporary files
         self.node.execute(f"rm -f {temp_local_path}", no_error_log=True)
 
-        self._log.debug(f"TLB stress binary compiled and installed at {self._bin}")
-        self._log.debug(f"Working directory: {self._work}")
-        self._log.debug(f"Compilation output: {compile_result.stdout}")
-
     def _run_tlb_stress_program(
         self,
         duration: int,
@@ -774,31 +748,27 @@ class TlbStress(Tool):
         use_hugepages: bool,
     ) -> None:
         """Execute the TLB stress program with NUMA and hugepage optimizations"""
-        self._log.debug(
-            f"Starting TLB stress: {tlb_threads} threads, {tlb_pages} pages, "
-            f"{duration}s duration"
-        )
-
         # Build command with flag arguments (C program expects -t -p -d -i flags)
         tlb_cmd = f"{self._bin} -t {tlb_threads} -p {tlb_pages} -d {duration}"
 
         # Add NUMA interleaving to reduce false regressions from locality imbalance
         if use_numa:
-            tlb_cmd = f"numactl --interleave=all {tlb_cmd}"
-            self._log.debug(
-                "Using NUMA interleaving to reduce locality-based false regressions"
-            )
+            # Check if numactl is available before using it
+            numactl_check = self.node.execute("command -v numactl", no_error_log=True)
+            if numactl_check.exit_code == 0:
+                tlb_cmd = f"numactl --interleave=all {tlb_cmd}"
+            else:
+                self._log.info(
+                    "numactl not available - running without NUMA interleaving"
+                )
 
         # Add hugepage flags for worst-case TLB shootdown scenarios
         if use_hugepages:
             # Set transparent hugepages to 'always' for this process
             hugepage_setup = "echo always > /sys/kernel/mm/transparent_hugepage/enabled"
             self.node.execute(hugepage_setup, sudo=True)
-            self._log.debug("Enabled hugepages for worst-case TLB shootdown testing")
 
-        tlb_result = self.node.execute(tlb_cmd, timeout=duration + 300)
-
-        self._log.debug(f"TLB stress output: {tlb_result.stdout}")
+        self.node.execute(tlb_cmd, timeout=duration + 300)
 
     def _parse_perf_stat_rate(
         self, perf_output: str, event_name: str, duration: float
@@ -899,10 +869,9 @@ class TlbStress(Tool):
                 # Use journalctl with time window to eliminate historical noise
                 scan_cmd = (
                     f"journalctl -k --since '@{start_time}' | "
-                    "egrep -i 'oom|rcu|softlockup|watchdog|hung|stall|panic|"
+                    "grep -E -i 'oom|rcu|softlockup|watchdog|hung|stall|panic|"
                     "bug:|oops|call trace' || true"
                 )
-                self._log.debug(f"Scanning kernel logs since timestamp {start_time}")
             else:
                 # Fallback to LISA's built-in dmesg tool
                 dmesg = self.node.tools[Dmesg]
@@ -912,9 +881,7 @@ class TlbStress(Tool):
 
                 if kernel_errors:
                     error_lines = kernel_errors.strip().split("\n")
-                    self._log.warning(
-                        f"Found {len(error_lines)} kernel errors in dmesg"
-                    )
+                    self._log.debug(f"Found {len(error_lines)} kernel errors in dmesg")
                     return [
                         f"Kernel error: {line.strip()}"
                         for line in error_lines
@@ -927,7 +894,7 @@ class TlbStress(Tool):
 
             if result.stdout.strip():
                 error_lines = result.stdout.strip().split("\n")
-                self._log.warning(
+                self._log.debug(
                     f"Found {len(error_lines)} kernel issues since start time"
                 )
 
@@ -958,15 +925,11 @@ class TlbStress(Tool):
                             issues.append(
                                 f"Critical kernel error: {error_line.strip()}"
                             )
-                        else:
-                            self._log.debug(
-                                f"Non-critical kernel message: {error_line.strip()}"
-                            )
             else:
-                self._log.debug("No kernel health issues detected in time window")
+                pass
 
         except Exception as e:
-            self._log.warning(f"Failed to check kernel health: {e}")
+            self._log.debug(f"Failed to check kernel health: {e}")
 
         return issues
 

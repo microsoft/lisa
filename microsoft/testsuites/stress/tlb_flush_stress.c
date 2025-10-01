@@ -22,6 +22,7 @@
 #define DEFAULT_PAGES_PER_THREAD 1024
 #define DEFAULT_DURATION_SECONDS 60
 #define DEFAULT_ITERATIONS_PER_CYCLE 100
+#define DEFAULT_SLEEP_MICROSECONDS 1000  // 1ms between cycles
 
 static volatile int keep_running = 1;
 static long total_tlb_flushes = 0;
@@ -32,6 +33,7 @@ struct thread_data {
     int pages_per_thread;
     int duration_seconds;
     int iterations_per_cycle;
+    int sleep_microseconds;
     long thread_tlb_flushes;
 };
 
@@ -82,7 +84,12 @@ void *tlb_flush_worker(void *arg) {
             for (j = 0; j < data->pages_per_thread; j++) {
                 volatile char *page = (char*)memory_regions[i] + (j * PAGE_SIZE);
                 *page = (char)(i + j);  // Write to force page mapping
-                __builtin_prefetch((const void*)page, 1, 0);  // Prefetch for write
+                
+                // Prefetch next page while processing current one for better performance
+                if (j + 1 < data->pages_per_thread) {
+                    volatile char *next_page = (char*)memory_regions[i] + ((j + 1) * PAGE_SIZE);
+                    __builtin_prefetch((const void*)next_page, 1, 0);  // Prefetch for write
+                }
             }
         }
         
@@ -113,8 +120,10 @@ void *tlb_flush_worker(void *arg) {
             memory_regions[i] = MAP_FAILED;
         }
         
-        // Brief pause to allow system to process TLB flushes
-        usleep(1000);  // 1ms
+        // Brief pause to allow system to process TLB flushes (configurable)
+        if (data->sleep_microseconds > 0) {
+            usleep(data->sleep_microseconds);
+        }
     }
     
     // Cleanup any remaining mapped regions
@@ -144,6 +153,7 @@ void print_usage(const char *program_name) {
     printf("  -p PAGES      Pages per thread (default: %d)\n", DEFAULT_PAGES_PER_THREAD);
     printf("  -d DURATION   Test duration in seconds (default: %d)\n", DEFAULT_DURATION_SECONDS);
     printf("  -i ITERATIONS Iterations per cycle (default: %d)\n", DEFAULT_ITERATIONS_PER_CYCLE);
+    printf("  -s SLEEP_US   Sleep between cycles in microseconds (default: %d, 0=no sleep)\n", DEFAULT_SLEEP_MICROSECONDS);
     printf("  -h            Show this help\n\n");
     printf("This test stresses the Translation Lookaside Buffer (TLB) by repeatedly\n");
     printf("mapping, accessing, and unmapping memory regions across multiple threads.\n");
@@ -154,10 +164,11 @@ int main(int argc, char *argv[]) {
     int pages_per_thread = DEFAULT_PAGES_PER_THREAD;
     int duration_seconds = DEFAULT_DURATION_SECONDS;
     int iterations_per_cycle = DEFAULT_ITERATIONS_PER_CYCLE;
+    int sleep_microseconds = DEFAULT_SLEEP_MICROSECONDS;
     int opt;
     
     // Parse command line arguments
-    while ((opt = getopt(argc, argv, "t:p:d:i:h")) != -1) {
+    while ((opt = getopt(argc, argv, "t:p:d:i:s:h")) != -1) {
         switch (opt) {
             case 't':
                 num_threads = atoi(optarg);
@@ -187,6 +198,13 @@ int main(int argc, char *argv[]) {
                     return 1;
                 }
                 break;
+            case 's':
+                sleep_microseconds = atoi(optarg);
+                if (sleep_microseconds < 0 || sleep_microseconds > 1000000) {
+                    fprintf(stderr, "Invalid sleep duration: %d (0-1000000 microseconds)\n", sleep_microseconds);
+                    return 1;
+                }
+                break;
             case 'h':
                 print_usage(argv[0]);
                 return 0;
@@ -202,6 +220,7 @@ int main(int argc, char *argv[]) {
            pages_per_thread, pages_per_thread * 4);
     printf("Duration: %d seconds\n", duration_seconds);
     printf("Iterations per cycle: %d\n", iterations_per_cycle);
+    printf("Sleep between cycles: %d microseconds\n", sleep_microseconds);
     printf("Total memory per cycle: %ld MB\n", 
            (long)num_threads * pages_per_thread * iterations_per_cycle * 4 / 1024);
     printf("\nStarting TLB stress test...\n");
@@ -227,6 +246,7 @@ int main(int argc, char *argv[]) {
         thread_data[i].pages_per_thread = pages_per_thread;
         thread_data[i].duration_seconds = duration_seconds;
         thread_data[i].iterations_per_cycle = iterations_per_cycle;
+        thread_data[i].sleep_microseconds = sleep_microseconds;
         thread_data[i].thread_tlb_flushes = 0;
         
         if (pthread_create(&threads[i], NULL, tlb_flush_worker, &thread_data[i]) != 0) {
