@@ -873,6 +873,61 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             f"targeted subnet: {subnet_mask} with route table: {route_table}"
         )
 
+    def add_route_to_table(
+        self,
+        route_name: str,
+        subnet_mask: str,
+        next_hop_type: str,
+        dest_hop: str,
+        em_first_hop: str = "",
+        route_table_name: str = "",
+    ) -> None:
+        try:
+            # Get platform instance
+            platform: AzurePlatform = self._platform  # type: ignore
+            network_client = get_network_client(platform)
+
+            # Set up first hop routing rule
+            address_prefix = em_first_hop if em_first_hop else subnet_mask
+
+            # Get existing route table
+            route_table = network_client.route_tables.get(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name,
+            )
+
+            # Create new route
+            new_route = {
+                "name": f"{route_name}-route",
+                "properties": {
+                    "addressPrefix": address_prefix,
+                    "nextHopType": next_hop_type,
+                    "nextHopIpAddress": dest_hop,
+                },
+            }
+
+            # Add new route to existing routes
+            if not route_table.routes:
+                route_table.routes = []
+            route_table.routes.append(new_route)
+
+            # Update route table
+            result = network_client.route_tables.begin_create_or_update(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name,
+                parameters=route_table,
+            ).result()
+
+            self._log.info(
+                f'Added route "{route_name}" to route table "{route_table_name}"'
+                f' with result: "{result}"'
+            )
+
+        except Exception as e:
+            raise LisaException(
+                f"Fail to add route {route_name} to route table {route_table_name}, {e}"
+            )
+
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -1118,22 +1173,23 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             virtual_network_name=virtual_network_name,
             subnet_name=subnet_name,
         )
-        self._log.debug(f"Checking subnet: {subnet_az.address_prefix} == {subnet_mask}")
         # Step 4: once we find the matching subnet, assign the routing table to it.
-        if subnet_az.address_prefix == subnet_mask:
-            subnet_az.route_table = route_table
-            result = network_client.subnets.begin_create_or_update(
-                resource_group_name=self._resource_group_name,
-                virtual_network_name=virtual_network_name,
-                subnet_name=subnet_name,
-                subnet_parameters=subnet_az,
-            ).result()
-            # log the subnets we're finding along the way...
-            self._log.info(
-                f'Assigned routing table "{route_table}" to subnet: "{subnet_az}"'
-                f' with result: "{result}"'
-            )
-            return True
+        for address_prefix in subnet_az.address_prefixes:
+            self._log.debug(f"Checking subnet: {address_prefix} == {subnet_mask}")
+            if address_prefix == subnet_mask:
+                subnet_az.route_table = route_table
+                result = network_client.subnets.begin_create_or_update(
+                    resource_group_name=self._resource_group_name,
+                    virtual_network_name=virtual_network_name,
+                    subnet_name=subnet_name,
+                    subnet_parameters=subnet_az,
+                ).result()
+                # log the subnets we're finding along the way...
+                self._log.info(
+                    f'Assigned routing table "{route_table}" to subnet: "{subnet_az}"'
+                    f' with result: "{result}"'
+                )
+                return True
         return False
 
     # Subroutine to create the route table,
