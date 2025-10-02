@@ -816,14 +816,17 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     result: Optional[TestResult] = None,
     rescind_sriov: bool = False,
 ) -> None:
+    
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
     # Current usage is checking for regressions in the host, not validating all distros.
-    #
-    #  l3 forward is also _not_ intuitive, and Azure net routing doesn't help.
-    #  Azure primarily considers IP and not ethernet addresses.
-    #  It's weirdly normal to see ARP requests providing inaccurate MAC addresses.
-    #  Why? Beyond me at this time. -mm
+    # with this in mind, restrict this test to newer ubuntu
+    if not (
+        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
+        and isinstance(forwarder.os, Ubuntu)
+        and forwarder.os.information.version >= "22.4.0"
+    ):
+        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
     #
     # SUMMARY:
     #  The test attempts to change this initial default LISA setup:
@@ -868,12 +871,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         if node.nics.get_primary_nic().ip_addr.endswith("6")
     ][0]
     
-    if not (
-        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
-        and isinstance(forwarder.os, Ubuntu)
-        and forwarder.os.information.version >= "22.4.0"
-    ):
-        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
+
 
     # get core count, quick skip if size is too small.
     available_threads = forwarder.tools[Lscpu].get_thread_count()
