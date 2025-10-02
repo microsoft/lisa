@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from pathlib import Path
+from pathlib import Path, PurePath
 from threading import Lock
 from typing import (
     TYPE_CHECKING,
@@ -53,6 +53,7 @@ from lisa.util import (
     get_matched_str,
     parse_version,
     retry_without_exceptions,
+    to_bool,
 )
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
@@ -818,29 +819,126 @@ class Alpine(Linux):
         return re.compile("^Alpine|alpine|alpaquita")
 
 
-@dataclass
-# `apt-get update` repolist is of the form `<status>:<id> <uri> <name> <metadata>`
-# Example:
-# Get:5 http://azure.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [1298 kB] # noqa: E501
-class DebianRepositoryInfo(RepositoryInfo):
-    # status for the repository. Examples: `Hit`, `Get`
-    status: str
+# from man sources.list
+# THE DEB AND DEB-SRC TYPES: GENERAL FORMAT
+#        The deb type references a typical two-level Debian archive, distribution/component.
+#        The distribution is generally a suite name like stable or testing or a
+#        codename like bullseye or bookworm while component is one of main, contrib or non-free.
+#        The deb-src type references a Debian distribution's source code in the
+#        same form as the deb type. A deb-src line is required to fetch source indexes.
 
-    # id for the repository. Examples : 1, 2
-    id: str
+#        The format for two one-line-style entries using the deb and deb-src types is:
+
+#            deb [ option1=value1 option2=value2 ] uri suite [component1] [component2] [...]
+#            deb-src [ option1=value1 option2=value2 ] uri suite [component1] [component2] [...]
+
+#        Alternatively the equivalent entry in deb822 style looks like this:
+
+
+#                 Types: deb deb-src
+#                 URIs: uri
+#                 Suites: suite
+#                 Components: [component1] [component2] [...]
+#                 option1: value1
+#                 option2: value2
+_deb822_sources_entry_pattern = re.compile(
+    r"Types:\s*(?P<type>[\w\s\-]+)\s*"
+    r"URIs:\s*(?P<uri>\S+)\s*"
+    r"Suites:\s*(?P<suite>.*)\n"
+    r"Components:\s*(?P<components>.+?)\s*"
+    r"(?P<options>((?:\S+:\s*.+)\n?)*)$"
+    r"\n?",
+    re.MULTILINE | re.DOTALL,
+)
+_deb822_option_entry_pattern = re.compile(r"(?P<key>\S+):\s+(?P<value>.+)$")
+
+
+@dataclass
+# Example:
+# deb-src http://debian-archive.trafficmanager.net/debian-security bullseye-security main restricted
+class DebianRepositoryInfo(RepositoryInfo):
+    # type, deb or deb-src
+    type: str
+
+    # options, eg: arch=amd64
+    options: str
 
     # uri for the repository. Example: `http://azure.archive.ubuntu.com/ubuntu`
     uri: str
 
-    # metadata for the repository. Example: `amd64 Packages [1298 kB]`
-    metadata: str
+    # suite eg: focal-updates
+    suite: str
+
+    # copmonents eg: main restricted
+    components: str
+
+    enabled: bool
+
+    # note: params in constructor are out of order compared to their placement in the file
+    # required for optional python params coming last
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        uri: str,
+        suite: str,
+        options: str = "",
+        components: str = "",
+    ) -> None:
+        super().__init__(name)
+        self.type = type
+        self.options = options
+        self.uri = uri
+        self.suite = suite
+        self.components = components
+        # deb822 subclass can set this, sources.list we'll just assume they're enabled.
+        # we won't parse commented lines in them
+        self.enabled = True
+
+    def __str__(self) -> str:
+        return f"{self.type} {self.options} {self.uri} {self.suite} {self.components}"
+
+
+@dataclass
+# Example:
+# deb-src http://debian-archive.trafficmanager.net/debian-security bullseye-security main restricted
+class DebianDeb822RepositoryInfo(DebianRepositoryInfo):
+    # deb822 lets you add an enabled field which will be respected.
+    enabled: bool
+
+    # note: params in constructor are out of order compared to their placement in the file
+    # required for optional python params coming last
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        uri: str,
+        suite: str,
+        options: str = "",
+        components: str = "",
+        enabled: bool = True,
+    ) -> None:
+        super().__init__(name, type, uri, suite, options, components)
+        self.enabled = enabled
+
+    def __str__(self) -> str:
+        return (
+            f"Types:{self.type}\n"
+            f"Suites:{self.uri}\n"
+            f"Suites:{self.suite}\n"
+            f"{self.components}"
+        )
 
 
 class Debian(Linux):
-    # Get:5 http://azure.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [1298 kB] # noqa: E501
+    # see sources.list
+    # deb [ option1=value1 option2=value2 ] uri suite [component1] [component2] [...]
     _debian_repository_info_pattern = re.compile(
-        r"(?P<status>\S+):(?P<id>\d+)\s+(?P<uri>\S+)\s+(?P<name>\S+)"
-        r"\s+(?P<metadata>.*)\s*"
+        r"^(?P<type>deb(?:-src)?)\s+"  # deb or deb-src
+        r"(?P<options>(?:\w+=\w+\s?)*)\s"  # [option1=value1 ...]
+        r"(?P<uri>\S+)\s+"  # uri
+        r"(?P<suite>\S+)\s+"  # suite
+        r"(?P<components>.*)$",  # optional components
     )
 
     # ex: 3.10
@@ -982,31 +1080,38 @@ class Debian(Linux):
         # we only need to uncomment the standard source repos
         # in that file
         node = self._node
-        sources_list = node.get_pure_path("/etc/apt/sources.list")
-        if node.shell.exists(sources_list):
-            # we'll enable just the minimum neccesary to avoid
-            # weird dependency cycles, conflicts, missing release files, etc.
-            main_repo = (
-                "deb-src "
-                "http://azure.archive.ubuntu.com/ubuntu/ "
-                f"{node.os.information.codename}  main restricted"
-            )
-            updates_repo = (
-                "deb-src "
-                "http://azure.archive.ubuntu.com/ubuntu/ "
-                f"{node.os.information.codename}-updates  "
-                "main restricted"
-            )
-            for repo in [main_repo, updates_repo]:
-                node.execute(
-                    f'echo "{repo}" | sudo tee -a /etc/apt/sources.list',
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        f"Could not add {repo} to /etc/apt/sources.list"
-                    ),
-                )
-            self.get_repositories()
+        repos = self.get_repositories()
+        codename = self.information.codename
+        # if [
+        #     repo
+        #     for repo in repos
+        #     if (
+        #         isinstance(repo, (DebianRepositoryInfo, DebianDeb822RepositoryInfo))
+        #         and repo.enabled
+        #         and (repo.name == codename or repo.name == f"{codename}-updates")
+        #         and repo.type == "deb-src"
+        #     )
+        # ]:
+        #     return
+        for repo in repos:
+            if isinstance(
+                repo, (DebianRepositoryInfo, DebianDeb822RepositoryInfo)
+            ) and (codename in repo.name):
+                # split the name and components
+                # deb822 allows multiple suites in a single entry
+                # old style is one per line, so split will give either one or more
+                for name in repo.name.split():
+                    if name == codename or name == f"{codename}-updates":
+                        enable_repo = f"deb-src {repo.uri} {name}  {repo.components}"
+                        node.execute(
+                            f'echo "{enable_repo}" | sudo tee -a /etc/apt/sources.list',
+                            shell=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                f"Could not add {repo} to /etc/apt/sources.list"
+                            ),
+                        )
+        self.get_repositories()
 
     def _install_build_deps(self, packages: str) -> None:
         # apt-get build-dep installs the listed build dependencies
@@ -1079,24 +1184,76 @@ class Debian(Linux):
         if timeout < timer.elapsed():
             raise LisaTimeoutException("timeout to wait previous dpkg process stop.")
 
-    def get_repositories(self) -> List[RepositoryInfo]:
-        self._initialize_package_installation()
-        repo_list_str = self._node.execute("apt-get update", sudo=True).stdout
+    def _parse_deb822_sources_file(
+        self, sources_file: PurePath
+    ) -> List[RepositoryInfo]:
+        repo_list_str = self._node.execute(f"cat {str(sources_file)}", sudo=True).stdout
+        repositories: List[RepositoryInfo] = []
+        for match in _deb822_sources_entry_pattern.finditer(repo_list_str):
+            groups = match.groupdict()
+            options_long = groups.get("options", "")
+            # smush 'a : b' to 'a=b'
+            options_list = []
+            enabled = True
+            for option_match in _deb822_option_entry_pattern.finditer(options_long):
+                option_matches = option_match.groupdict()
+                key = option_matches.get("key", "")
+                value = option_matches.get("value", "")
+                options_list += [f"{key}={value}"]
+                if key == "Enabled":
+                    enabled = to_bool(value)
+
+            repositories.append(
+                DebianDeb822RepositoryInfo(
+                    type=groups.get("type", "").strip(),
+                    uri=groups.get("uri", "").strip(),
+                    options=" ".join(options_list),
+                    name=groups.get("suite", "").strip(),
+                    suite=groups.get("suite", "").strip(),
+                    components=groups.get("components", "").strip(),
+                    enabled=enabled,
+                )
+            )
+        return repositories
+
+    def parse_single_line_sources_list(
+        self, sources_file: PurePath
+    ) -> List[RepositoryInfo]:
+        repo_list_str = self._node.execute(f"cat {str(sources_file)}", sudo=True).stdout
 
         repositories: List[RepositoryInfo] = []
         for line in repo_list_str.splitlines():
             matched = self._debian_repository_info_pattern.search(line)
             if matched:
+                groups = matched.groupdict()
                 repositories.append(
                     DebianRepositoryInfo(
-                        name=matched.group("name"),
-                        status=matched.group("status"),
-                        id=matched.group("id"),
-                        uri=matched.group("uri"),
-                        metadata=matched.group("metadata"),
+                        type=groups.get("type", ""),
+                        uri=groups.get("uri", ""),
+                        options=groups.get("options", ""),
+                        name=groups.get(
+                            "suite", ""
+                        ),  # need to provide name for lisa parent class
+                        suite=groups.get("suite", ""),
+                        components=groups.get("components", ""),
                     )
                 )
+        return repositories
 
+    def get_repositories(self) -> List[RepositoryInfo]:
+        self._initialize_package_installation()
+        node = self._node
+        repositories: List[RepositoryInfo] = list()
+        sources_list = node.get_pure_path("/etc/apt/sources.list")
+        if node.shell.exists(sources_list):
+            repositories += self.parse_single_line_sources_list(sources_list)
+        sources_fragments = node.execute(
+            "ls -1 /etc/apt/sources.list.d/*.sources", sudo=True, shell=True
+        ).stdout.splitlines()
+        for source_fragment in sources_fragments:
+            repositories += self._parse_deb822_sources_file(
+                node.get_pure_path(source_fragment)
+            )
         return repositories
 
     def clean_package_cache(self) -> None:
@@ -1534,23 +1691,6 @@ class Ubuntu(Debian):
     def _initialize_package_installation(self) -> None:
         self.wait_cloud_init_finish()
         super()._initialize_package_installation()
-
-    def _enable_package_build_deps(self) -> None:
-        # ubuntu has a compat break around 24.04 which created an 'ubuntu.sources'
-        # file in place of the sources.list file. It uses a fancier format, so
-        # requires special handling.
-        node = self._node
-        ubuntu_sources = node.get_pure_path("/etc/apt/ubuntu.sources")
-        if node.shell.exists(ubuntu_sources):
-            node.tools[Sed].substitute(
-                regexp=r"Types\: deb",
-                replacement=r"Types\: deb deb-src",
-                file=str(ubuntu_sources),
-                sudo=True,
-            )
-        else:
-            super()._enable_package_build_deps()
-        self.get_repositories()
 
 
 @dataclass
