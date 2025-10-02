@@ -326,19 +326,21 @@ def check_dpdk_support(node: Node) -> None:
         raise UnsupportedDistroException(
             node.os, "ARM64 tests are only supported on Ubuntu + failsafe."
         )
-    if isinstance(node.os, Debian):
-        if isinstance(node.os, Ubuntu):
-            node.log.debug(
-                "Checking Ubuntu release: "
-                f"is_latest_or_prerelease? ({is_ubuntu_latest_or_prerelease(node.os)})"
-                f" is_lts_version? ({is_ubuntu_lts_version(node.os)})"
-            )
-            # TODO: undo special casing for 18.04 when it's usage is less common
-            supported = (
-                node.os.information.version == "18.4.0"
-                or is_ubuntu_latest_or_prerelease(node.os)
-                or is_ubuntu_lts_version(node.os)
-            )
+    if isinstance(node.os, Ubuntu):
+        node.log.debug(
+            "Checking Ubuntu release: "
+            f"is_latest_or_prerelease? ({is_ubuntu_latest_or_prerelease(node.os)})"
+            f" is_lts_version? ({is_ubuntu_lts_version(node.os)})"
+        )
+        # TODO: undo special casing for 18.04 when it's usage is less common
+        supported = (
+            node.os.information.version == "18.4.0"
+            or is_ubuntu_latest_or_prerelease(node.os)
+            or is_ubuntu_lts_version(node.os)
+        )
+    elif isinstance(node.os, Debian):
+        if node.nics.is_mana_device_present():
+            supported = node.os.information.version >= "13.0.0"
         else:
             supported = node.os.information.version >= "11.0.0"
     elif isinstance(node.os, Fedora) and not isinstance(node.os, Oracle):
@@ -361,8 +363,8 @@ def check_dpdk_support(node: Node) -> None:
         node.execute("modprobe mana_ib", sudo=True)
         if not (
             node.nics.is_mana_driver_enabled()
+            # risk of driver not being installed until after an update here
             and node.nics.is_mana_ib_driver_enabled()
-            and node.tools[Lsmod].module_exists("mana_ib", force_run=True)
         ):
             raise UnsupportedDistroException(
                 node.os,
