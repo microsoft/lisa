@@ -816,17 +816,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     result: Optional[TestResult] = None,
     rescind_sriov: bool = False,
 ) -> None:
-    
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
     # Current usage is checking for regressions in the host, not validating all distros.
-    # with this in mind, restrict this test to newer ubuntu
-    if not (
-        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
-        and isinstance(forwarder.os, Ubuntu)
-        and forwarder.os.information.version >= "22.4.0"
-    ):
-        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
     #
     # SUMMARY:
     #  The test attempts to change this initial default LISA setup:
@@ -844,6 +836,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     #  With the goal of guaranteeing that snv_VM cannot reach
     #  rcv_VM on Subnet B/C without traffic being forwarded through
     #  DPDK on  fwd_VM
+    #
+    #  There are a fetch catches; one must enable ip forwarding at the azure
+    #  network level and also set up a similar virutal network routing setup.
+    #  You must have a matching topology from the guest and cloud perspectives
+    #  or traffic will be dropped at the mismatched layer.
     #
     # Our key objectives are:
     # 1. intercepting traffic from  snd_nic_a bound for rcv_nic_b,
@@ -871,7 +868,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         if node.nics.get_primary_nic().ip_addr.endswith("6")
     ][0]
     
-
+    if not (
+        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
+        and isinstance(forwarder.os, Ubuntu)
+        and forwarder.os.information.version >= "22.4.0"
+    ):
+        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
 
     # get core count, quick skip if size is too small.
     available_threads = forwarder.tools[Lscpu].get_thread_count()
