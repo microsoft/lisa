@@ -898,6 +898,9 @@ class DebianRepositoryInfo(RepositoryInfo):
     def __str__(self) -> str:
         return f"{self.type} {self.options} {self.uri} {self.suite} {self.components}"
 
+    def source_repo_enabled(self) -> bool:
+        return "deb-src" in self.type and self.enabled
+
 
 @dataclass
 # Example:
@@ -1101,7 +1104,11 @@ class Debian(Linux):
                 # deb822 allows multiple suites in a single entry
                 # old style is one per line, so split will give either one or more
                 for name in repo.name.split():
-                    if name == codename or name == f"{codename}-updates":
+                    if (
+                        name == codename
+                        or name == f"{codename}-updates"
+                        and not repo.source_repo_enabled()
+                    ):
                         enable_repo = f"deb-src {repo.uri} {name}  {repo.components}"
                         node.execute(
                             f'echo "{enable_repo}" | sudo tee -a /etc/apt/sources.list',
