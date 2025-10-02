@@ -22,7 +22,7 @@ from lisa.ai.log_agent import analyze
 from lisa.messages import MessageBase, TestResultMessage, TestStatus
 from lisa.notifier import Notifier
 from lisa.secret import add_secret
-from lisa.util import constants, field_metadata, hookimpl, logger, plugin_manager
+from lisa.util import constants, field_metadata, logger, plugin_manager
 
 
 @dataclass_json()
@@ -202,8 +202,7 @@ class LogAgent(Notifier):
                 f"AI analysis failed for test {message.full_name}({message.id_}: {e}"
             )
 
-    @hookimpl
-    def update_test_result_message(self, message: TestResultMessage) -> None:
+    def _modify_message(self, message: MessageBase) -> None:
         """
         Hook implementation for processing test result updates.
 
@@ -214,5 +213,8 @@ class LogAgent(Notifier):
         Args:
             message: Test result message that may require analysis.
         """
-        if message.status == TestStatus.FAILED:
+        if (
+            isinstance(message, TestResultMessage)
+            and message.status == TestStatus.FAILED
+        ):
             self._analyze_test_failure(message)
