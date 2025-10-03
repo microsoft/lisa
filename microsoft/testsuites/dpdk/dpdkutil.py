@@ -391,7 +391,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    test_nic = node.nics.get_secondary_nic()
+    test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -489,7 +489,7 @@ def start_testpmd_concurrent(
         output[result[0]] = result[1]
 
     def _run_command_with_testkit(
-        run_kit: Tuple[DpdkTestResources, str]
+        run_kit: Tuple[DpdkTestResources, str],
     ) -> Tuple[DpdkTestResources, str]:
         testkit, cmd = run_kit
         return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
@@ -754,21 +754,25 @@ def get_dpdk_portmask(ports: List[int]) -> str:
 # disconnect two subnets
 # add a new gateway from subnets a -> b through an arbitrary ip address
 def reroute_traffic_and_disable_nic(
-    node: Node, src_nic: NicInfo, dst_nic: NicInfo, new_gateway_nic: NicInfo
+    node: Node,
+    src_nic: NicInfo,
+    dst_nic: NicInfo,
+    new_gateway_nic: NicInfo,
+    unused_nic: NicInfo,
 ) -> None:
     ip_tool = node.tools[Ip]
     forbidden_subnet = ipv4_to_lpm(dst_nic.ip_addr)
 
     # remove any routes through those devices
-    ip_tool.remove_all_routes_for_device(src_nic.name)
+    ip_tool.remove_all_routes_for_device(unused_nic.name)
 
     if not ip_tool.route_exists(prefix=forbidden_subnet, dev=new_gateway_nic.name):
         ip_tool.add_route_to(
-            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=new_gateway_nic.name
+            dest=dst_nic.ip_addr, via=new_gateway_nic.ip_addr, dev=src_nic.name
         )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
-    ip_tool.down(src_nic.name)
+    ip_tool.down(unused_nic.name)
 
 
 # calculate amount of tx/rx queues to use for the l3fwd test
@@ -810,15 +814,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     force_single_queue: bool = False,
     is_perf_test: bool = False,
     result: Optional[TestResult] = None,
+    rescind_sriov: bool = False,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
     # Current usage is checking for regressions in the host, not validating all distros.
-    #
-    #  l3 forward is also _not_ intuitive, and Azure net routing doesn't help.
-    #  Azure primarily considers IP and not ethernet addresses.
-    #  It's weirdly normal to see ARP requests providing inaccurate MAC addresses.
-    #  Why? Beyond me at this time. -mm
     #
     # SUMMARY:
     #  The test attempts to change this initial default LISA setup:
@@ -837,6 +837,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     #  rcv_VM on Subnet B/C without traffic being forwarded through
     #  DPDK on  fwd_VM
     #
+    #  There are a fetch catches; one must enable ip forwarding at the azure
+    #  network level and also set up a similar virutal network routing setup.
+    #  You must have a matching topology from the guest and cloud perspectives
+    #  or traffic will be dropped at the mismatched layer.
+    #
     # Our key objectives are:
     # 1. intercepting traffic from  snd_nic_a bound for rcv_nic_b,
     #      sending it to f_nic2 (az routing table)
@@ -846,10 +851,23 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # 3. enjoy the thrill of victory, ship a cloud net applicance.
 
     l3fwd_app_name = "l3fwd"
-    send_side = 1
-    receive_side = 2
-    # arbitrarily pick fwd/snd/recv nodes.
-    forwarder, sender, receiver = environment.nodes.list()
+    # pick fwd/send/receive nodes based on well known addresses in our subnets
+    forwarder = [
+        node
+        for node in environment.nodes.list()
+        if node.nics.get_primary_nic().ip_addr.endswith("4")
+    ][0]
+    sender = [
+        node
+        for node in environment.nodes.list()
+        if node.nics.get_primary_nic().ip_addr.endswith("5")
+    ][0]
+    receiver = [
+        node
+        for node in environment.nodes.list()
+        if node.nics.get_primary_nic().ip_addr.endswith("6")
+    ][0]
+
     if not (
         forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
         and isinstance(forwarder.os, Ubuntu)
@@ -887,34 +905,39 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # Subnet A is actually the secondary NIC.
     #  Subnet B is actually the tertiary NIC.
     # For the test, don't sweat it. A is send side, B is receive side.
+    forwarder.log.debug(f"fwd: {str(forwarder.nics)}")
+    receiver.log.debug(f"rcv: {str(receiver.nics)}")
+    sender.log.debug(f"snd: {str(sender.nics)}")
     subnet_a_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(send_side),
-        sender: sender.nics.get_nic_by_index(send_side),
-        receiver: receiver.nics.get_nic_by_index(send_side),
+        forwarder: forwarder.nics.get_nic_by_subnet("10.0.1.0/24"),
+        sender: sender.nics.get_nic_by_subnet("10.0.1.0/24"),
+        receiver: receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
     }
     subnet_b_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(receive_side),
-        receiver: receiver.nics.get_nic_by_index(receive_side),
-        sender: sender.nics.get_nic_by_index(receive_side),
+        forwarder: forwarder.nics.get_nic_by_subnet("10.0.2.0/24"),
+        receiver: receiver.nics.get_nic_by_subnet("10.0.2.0/24"),
+        sender: sender.nics.get_nic_by_subnet("10.0.2.0/24"),
     }
 
     # We use ntttcp for snd/rcv which will respect the kernel route table.
     # SO: remove the unused interfaces and routes which could skip the forwarder
-    unused_nics = {
+    _unused_nics = {
         sender: subnet_b_nics[sender],
         receiver: subnet_a_nics[receiver],
     }
     reroute_traffic_and_disable_nic(
         node=sender,
-        src_nic=unused_nics[sender],
+        src_nic=subnet_a_nics[sender],
         dst_nic=subnet_b_nics[receiver],
         new_gateway_nic=subnet_a_nics[forwarder],
+        unused_nic=_unused_nics[sender],
     )
     reroute_traffic_and_disable_nic(
         node=receiver,
-        src_nic=unused_nics[receiver],
+        src_nic=subnet_b_nics[receiver],
         dst_nic=subnet_a_nics[sender],
         new_gateway_nic=subnet_b_nics[forwarder],
+        unused_nic=_unused_nics[receiver],
     )
 
     # AZ ROUTING TABLES
@@ -987,8 +1010,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         dpdk_port_b,
     )
 
-    # get binary path and dpdk device include args
-    server_app_path = fwd_kit.testpmd.get_example_app_path(l3fwd_app_name)
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(
@@ -1013,9 +1034,140 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         is_mana=fwd_kit.testpmd.is_mana,
     )
 
+    fwd_cmd = generate_l3fwd_command(
+        fwd_kit=fwd_kit,
+        dpdk_port_a=dpdk_port_a,
+        dpdk_port_b=dpdk_port_b,
+        include_devices=include_devices,
+        queue_count=queue_count,
+    )
+    # START THE TEST
+    # finally, start the forwarder
+    fwd_proc = forwarder.execute_async(
+        fwd_cmd,
+        sudo=True,
+        shell=True,
+    )
+    try:
+        fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
+    except LisaException:
+        raise LisaException(
+            "L3fwd did not start. Check command output for incorrect flags, "
+            "core dumps, or other setup/init issues."
+        )
+    ntttcp_run_time = 30
+    # start ntttcp client and server
+    ntttcp_threads_count = 64
+    # start the receiver
+    receiver_proc = ntttcp[receiver].run_as_server_async(
+        subnet_b_nics[receiver].name,
+        run_time_seconds=ntttcp_run_time,
+        buffer_size=1024,
+        server_ip=subnet_b_nics[receiver].ip_addr,
+    )
+
+    # start the sender
+
+    sender_result = ntttcp[sender].run_as_client(
+        nic_name=subnet_a_nics[sender].name,
+        server_ip=subnet_b_nics[receiver].ip_addr,
+        threads_count=ntttcp_threads_count,
+        run_time_seconds=ntttcp_run_time,
+    )
+    # rescind sriov and run again
+    if rescind_sriov:
+        forwarder.features[NetworkInterface].switch_sriov(
+            enable=False, wait=False, reset_connections=False
+        )
+        forwarder.features[NetworkInterface].switch_sriov(
+            enable=True, wait=False, reset_connections=False
+        )
+        fwd_proc.wait_output(
+            "HN_DRIVER: netvsc_hotplug_retry(): "
+            "Found matching MAC address, adding device",
+            delta_only=True,
+        )
+        _receiver_after = ntttcp[receiver].run_as_server_async(
+            subnet_b_nics[receiver].name,
+            run_time_seconds=ntttcp_run_time,
+            buffer_size=1024,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+        )
+        _sender_result_after = ntttcp[sender].run_as_client(
+            nic_name=subnet_a_nics[sender].name,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+            threads_count=ntttcp_threads_count,
+            run_time_seconds=ntttcp_run_time,
+        )
+        _receiver_after_result = ntttcp[receiver].wait_server_result(_receiver_after)
+
+    # collect, log, and process results
+    receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
+    log.debug(f"result: {receiver_result.stdout}")
+    log.debug(f"result: {sender_result.stdout}")
+    # kill l3fwd on forwarder
+    forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
+    forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
+    forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
+    ntttcp_results = {
+        receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
+        sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
+    }
+    # compare results with those after the rescind if needed
+    if rescind_sriov:
+        _ntttcp_results_after = {
+            receiver: ntttcp[receiver].create_ntttcp_result(
+                _receiver_after_result, role="server"
+            ),
+            sender: ntttcp[sender].create_ntttcp_result(_sender_result_after, "client"),
+        }
+        after = _ntttcp_results_after[sender].throughput_in_gbps
+        before = ntttcp_results[sender].throughput_in_gbps
+        if before == 0 or ((after / before) < 0.8):
+            raise LisaException(
+                "Test failed, throughput after hotplug was far below original. "
+                f"Before {before} Gbps after {after} Gbps"
+            )
+    # send result to notifier if we found a test result to report with
+    if test_result and is_perf_test:
+        msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
+            server_result=ntttcp_results[receiver],
+            client_result=ntttcp_results[sender],
+            latency=Decimal(0),
+            connections_num="64",
+            buffer_size=64,
+            test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
+            test_result=test_result,
+        )
+        notifier.notify(msg)
+
+    # check the throughput and fail if it was unexpectedly low.
+    # NOTE: only checking 0 and < 1 now. Once we have more data
+    # there should be more stringest checks for each NIC type.
+    throughput = ntttcp_results[receiver].throughput_in_gbps
+    forwarder.tools[Dmesg].check_kernel_errors(force_run=True)
+    assert_that(throughput).described_as(
+        "l3fwd test found 0Gbps througput. "
+        "Either the test or DPDK forwarding is broken."
+    ).is_greater_than(0)
+    assert_that(throughput).described_as(
+        f"l3fwd has very low throughput: {throughput}Gbps! "
+        "Verify netvsc was used over failsafe, check netvsc init was succesful "
+        "and the DPDK port IDs were correct."
+    ).is_greater_than(1)
+
+
+def generate_l3fwd_command(
+    fwd_kit: DpdkTestResources,
+    dpdk_port_a: int,
+    dpdk_port_b: int,
+    queue_count: int,
+    include_devices: List[str],
+) -> str:
     config_tups = []
     included_cores = []
     last_core = 1
+    server_app_path = fwd_kit.testpmd.get_example_app_path("dpdk-l3fwd")
     # create the list of tuples for p,q,c
     # 2 ports, N queues, N cores for MANA
     # 2 ports, N queues, 2N cores for MLX
@@ -1047,79 +1199,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
-    # START THE TEST
-    # finally, start the forwarder
-    fwd_proc = forwarder.execute_async(
-        fwd_cmd,
-        sudo=True,
-        shell=True,
-    )
-    try:
-        fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
-    except LisaException:
-        raise LisaException(
-            "L3fwd did not start. Check command output for incorrect flags, "
-            "core dumps, or other setup/init issues."
-        )
-
-    # start ntttcp client and server
-    ntttcp_threads_count = 64
-    # start the receiver
-    receiver_proc = ntttcp[receiver].run_as_server_async(
-        subnet_b_nics[receiver].name,
-        run_time_seconds=30,
-        buffer_size=1024,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-    )
-
-    # start the sender
-
-    sender_result = ntttcp[sender].run_as_client(
-        nic_name=subnet_a_nics[sender].name,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-        threads_count=ntttcp_threads_count,
-        run_time_seconds=10,
-    )
-
-    # collect, log, and process results
-    receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
-    log.debug(f"result: {receiver_result.stdout}")
-    log.debug(f"result: {sender_result.stdout}")
-    # kill l3fwd on forwarder
-    forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
-    forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
-    forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
-    ntttcp_results = {
-        receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
-        sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
-    }
-    # send result to notifier if we found a test result to report with
-    if test_result and is_perf_test:
-        msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
-            server_result=ntttcp_results[receiver],
-            client_result=ntttcp_results[sender],
-            latency=Decimal(0),
-            connections_num="64",
-            buffer_size=64,
-            test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
-            test_result=test_result,
-        )
-        notifier.notify(msg)
-
-    # check the throughput and fail if it was unexpectedly low.
-    # NOTE: only checking 0 and < 1 now. Once we have more data
-    # there should be more stringest checks for each NIC type.
-    throughput = ntttcp_results[receiver].throughput_in_gbps
-    forwarder.tools[Dmesg].check_kernel_errors(force_run=True)
-    assert_that(throughput).described_as(
-        "l3fwd test found 0Gbps througput. "
-        "Either the test or DPDK forwarding is broken."
-    ).is_greater_than(0)
-    assert_that(throughput).described_as(
-        f"l3fwd has very low throughput: {throughput}Gbps! "
-        "Verify netvsc was used over failsafe, check netvsc init was succesful "
-        "and the DPDK port IDs were correct."
-    ).is_greater_than(1)
+    return fwd_cmd
 
 
 def create_l3fwd_rules_files(
