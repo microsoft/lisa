@@ -54,6 +54,7 @@ from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_asy
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
     DPDK_STABLE_GIT_REPO,
+    PmdType,
     MultipleQueueType,
     Downloader,
     GitDownloader,
@@ -986,13 +987,14 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # get binary path and dpdk device include args
     server_app_path = fwd_kit.testpmd.get_example_app_path(l3fwd_app_name)
+    
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
+            subnet_a_nics[forwarder], dpdk_port_a
         ),
         fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
+            subnet_b_nics[forwarder], dpdk_port_b
         ),
     ]
 
