@@ -23,8 +23,8 @@ from lisa.tools import Lscpu
 from lisa.tools.hugepages import HugePageSize
 from lisa.util import constants
 from microsoft.testsuites.dpdk.common import (
-    force_dpdk_default_source,
     MultipleQueueType,
+    force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
@@ -289,6 +289,7 @@ class DpdkPerformance(TestSuite):
                     variables,
                     pmd,
                     result=test_result,
+                    hugepage_size=HugePageSize.HUGE_2MB,
                     multiple_queues=MultipleQueueType.MULTIPLE,
                 )
             else:

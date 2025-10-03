@@ -571,7 +571,7 @@ def verify_dpdk_build(
     variables: Dict[str, Any],
     pmd: str,
     hugepage_size: HugePageSize,
-    multiple_queues: bool = False,
+    queue_count: MultipleQueueType = MultipleQueueType.SINGLE,
     result: Optional[TestResult] = None,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
@@ -589,7 +589,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic, 0, "txonly", queue_count=multiple_queues
+        test_nic, 0, "txonly", queue_count=queue_count
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
