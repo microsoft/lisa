@@ -30,8 +30,8 @@ from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
-    PackageManagerInstall,
     MultipleQueueType,
+    PackageManagerInstall,
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -682,6 +682,7 @@ class Dpdk(TestSuite):
                 variables,
                 "failsafe",
                 result=result,
+                hugepage_size=HugePageSize.HUGE_2MB,
                 multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
@@ -719,6 +720,7 @@ class Dpdk(TestSuite):
                 "netvsc",
                 result=result,
                 set_mtu=9000,
+                hugepage_size=HugePageSize.HUGE_2MB,
                 multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
@@ -754,6 +756,7 @@ class Dpdk(TestSuite):
                 variables,
                 "netvsc",
                 result=result,
+                hugepage_size=HugePageSize.HUGE_2MB,
                 multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
