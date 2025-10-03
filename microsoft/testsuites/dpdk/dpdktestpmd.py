@@ -39,6 +39,7 @@ from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
     Downloader,
+    PmdType,
     GitDownloader,
     Installer,
     OsPackageDependencies,
@@ -435,7 +436,7 @@ class DpdkTestpmd(Tool):
             return False
 
     def generate_testpmd_include(
-        self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
+        self, node_nic: NicInfo, vdev_id: int
     ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
@@ -460,50 +461,51 @@ class DpdkTestpmd(Tool):
 
         include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
+
+        if node_nic.module_name == "uio_hv_generic":
+            pmd = PmdType.NETVSC
+        if node_nic.module_name == "hv_netvsc":
+            pmd = PmdType.FAILSAFE
+        else:
+            raise LisaException("Error: the NIC requested is bound to a driver other than hv_netvsc or uio_hv_generic. LISA cannot infer the PMD type.")
         # build pmd argument
-        if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
-            pmd_name = "net_failsafe"
-            pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
-        elif self.is_mana:
-            # mana selects by mac, just return the vdev info directly
-            if node_nic.module_name == "uio_hv_generic" or force_netvsc:
-                return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
-            # if mana_ib is present, use mana friendly args
-            elif self.node.tools[Modprobe].module_exists("mana_ib"):
+        
+        # split by nic just to keep the logic seperation clean
+        if self.is_mana:
+            if pmd==PmdType.FAILSAFE:
                 return (
-                    f' --vdev="net_vdev_netvsc0,mac={node_nic.mac_addr}"'
+                    f' --vdev="net_vdev_netvsc{vdev_id},mac={node_nic.mac_addr}"'
                     f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
                 )
+            elif pmd==PmdType.NETVSC:
+                return f'--vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}"'
+        
+        # else, mlx
+        if pmd==PmdType.FAILSAFE:
+            if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
+                pmd_name = "net_failsafe"
+                pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
             else:
-                # use eth interface for failsafe otherwise
-                # test will probably fail due to low throughput
+                # confusingly named pmd, net_*vdev*_netvsc will pick a pmd for you
+                # and if net_failsafe is available, it will use it
                 pmd_name = "net_vdev_netvsc"
-                pmd_flags = f"iface={node_nic.name}"
-                # reset include flag for MANA since there is only one interface
-                include_flag = ""
-        else:
-            # mlnx setup for failsafe
-            pmd_name = "net_vdev_netvsc"
-            pmd_flags = f"iface={node_nic.name},force=1"
-        if node_nic.module_name == "hv_netvsc":
-            # primary/upper/master nic is bound to hv_netvsc
-            # when using net_failsafe implicitly or explicitly.
-            # Set up net_failsafe/net_vdev_netvsc args here
+                pmd_flags = f"iface={node_nic.name},force=1"
+            
             return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
-        elif node_nic.module_name == "uio_hv_generic":
-            # if using netvsc pmd, just let -w or -a select
-            # which device to use. No other args are needed.
+
+        # mlx netvsc, by far the easiest to set up. You can just block the ssh interface.
+        # we'll include each explicitly instead to avoid picking up extras
+        if pmd==PmdType.NETVSC:
             return include_flag
-        else:
-            # if we're all the way through and haven't picked a pmd, something
-            # has gone wrong. fail fast
-            raise LisaException(
-                (
-                    f"Unknown driver({node_nic.module_name}) bound to "
-                    f"{node_nic.name}/{node_nic.lower}."
-                    "Cannot generate testpmd include arguments."
-                )
+        
+        
+        raise LisaException(
+            (
+                f"Unknown driver({node_nic.module_name}) bound to "
+                f"{node_nic.name}/{node_nic.lower}."
+                "Cannot generate testpmd include arguments."
             )
+        )
 
     def get_core_list(
         self, need_lcores: int = 2, start_at: int = 0, stride: int = 0

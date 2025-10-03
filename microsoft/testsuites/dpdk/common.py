@@ -23,6 +23,17 @@ DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
 
 
+class MultipleQueueType(Enum):
+    SINGLE=1
+    DOUBLE=2
+    MULTIPLE=4
+
+
+class PmdType(Enum):
+    NETVSC="netvsc"
+    FAILSAFE="failsafe"
+
+
 # Attempt to clean up the DPDK package dependency mess
 # Make a Installer class that implements the common steps
 # for installing DPDK/rdma-core, either from source or the package manager.
