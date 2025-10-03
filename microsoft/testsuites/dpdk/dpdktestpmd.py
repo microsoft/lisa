@@ -533,7 +533,7 @@ class DpdkTestpmd(Tool):
         assert_that(max(core_list)).described_as(
             f"needed lcore index {max_core} is out of range for available lcores: {threads}"
         ).is_less_than(threads)
-        return ",".join(core_list)
+        return ",".join(map(str, core_list))
 
     def generate_testpmd_command(
         self,
