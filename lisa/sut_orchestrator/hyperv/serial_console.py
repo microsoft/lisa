@@ -7,13 +7,38 @@ from typing import Optional
 from lisa import RemoteNode, features
 from lisa.tools import PowerShell
 from lisa.util import filter_ansi_escape
-from lisa.util.logger import Logger
+from lisa.util.logger import Logger, get_logger
 from lisa.util.process import Process
 
 from .context import get_node_context
 
 
 class SerialConsole(features.SerialConsole):
+    def _decode_without_bom(self, data: bytes, vm_name: str) -> str:
+        """
+        Decode console log data without BOM using fallback chain.
+        Tries: UTF-8 -> UTF-16-LE -> CP1252 -> UTF-8 with replacement
+        """
+        encodings = ["utf-8", "utf-16-le", "cp1252"]
+
+        for encoding in encodings:
+            try:
+                return data.decode(encoding, errors="strict")
+            except UnicodeDecodeError:
+                continue
+
+        # Last resort: decode with replacement to avoid crash
+        log = data.decode("utf-8", errors="replace")
+        repl = log.count("\ufffd")
+        if repl:
+            _logger = get_logger("serial_console")
+            _logger.debug(
+                f"Console log for VM '{vm_name}' required {repl} "
+                f"replacement characters during decode "
+                f"(possible non-UTF encoding or binary content)."
+            )
+        return log
+
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         node = self._node
         node_ctx = get_node_context(node)
@@ -26,8 +51,23 @@ class SerialConsole(features.SerialConsole):
         console_log_local_path = server_node.local_log_path / f"{vm_name}-console.log"
         server_node.shell.copy_back(console_log_path, PurePath(console_log_local_path))
 
-        with open(console_log_local_path, mode="r", encoding="utf-8") as f:
-            log = f.read()
+        # Read bytes first so we can honor BOMs and handle non-UTF8 logs
+        # from Windows hosts.
+        data = console_log_local_path.read_bytes()
+
+        # Detect BOMs and decode accordingly
+        if data.startswith(b"\xef\xbb\xbf"):
+            # UTF-8 with BOM
+            log = data[3:].decode("utf-8", errors="strict")
+        elif data.startswith(b"\xff\xfe"):
+            # UTF-16 LE (typical for Windows PowerShell 5.x)
+            log = data[2:].decode("utf-16-le", errors="strict")
+        elif data.startswith(b"\xfe\xff"):
+            # UTF-16 BE
+            log = data[2:].decode("utf-16-be", errors="strict")
+        else:
+            # No BOM - try different encodings with fallback chain
+            log = self._decode_without_bom(data, vm_name)
 
         log = filter_ansi_escape(log)
 
