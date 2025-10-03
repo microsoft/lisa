@@ -31,6 +31,7 @@ from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
+    MultipleQueueType,
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -49,7 +50,6 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
-    verify_dpdk_send_receive_multi_txrx_queue,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
@@ -676,8 +676,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "failsafe", result=result
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "failsafe",
+                result=result,
+                multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -707,8 +712,14 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result, set_mtu=9000
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "netvsc",
+                result=result,
+                set_mtu=9000,
+                multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -737,8 +748,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "netvsc",
+                result=result,
+                multiple_queues=MultipleQueueType.MULTIPLE,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)

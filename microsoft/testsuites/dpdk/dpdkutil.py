@@ -54,6 +54,7 @@ from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_asy
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
     DPDK_STABLE_GIT_REPO,
+    MultipleQueueType,
     Downloader,
     GitDownloader,
     Installer,
@@ -200,7 +201,7 @@ def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    multiple_queues: bool = False,
+    queue_count: MultipleQueueType = MultipleQueueType.SINGLE,
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
@@ -219,21 +220,40 @@ def generate_send_receive_run_info(
             )
     else:
         maxmtu_int = 0
+
+    if queue_count == MultipleQueueType.SINGLE:
+        use_queues = 1
+    elif queue_count == MultipleQueueType.DOUBLE:
+        use_queues = 2
+    # multiple queues > 2
+    # for mana i get better pps using 8 receiver and 4 sender
+    # mlx is a little easier to juice max pps
+    else:  # queue_count == MultipleQueueType.MULTIPLE
+        use_queues = 8
+
+    queue_counts = {sender: use_queues, receiver: use_queues}
+
+    # mana special handling to get max pps, less sender queues
+    if MultipleQueueType.MULTIPLE and sender.testpmd.is_mana:
+        queue_counts[sender] = 4
+
+    # generate the testpmd command
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
         0,
         "txonly",
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-        multiple_queues=multiple_queues,
+        queue_count=queue_counts[sender],
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
     )
+
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
         0,
         "rxonly",
-        multiple_queues=multiple_queues,
+        queue_count=queue_counts[receiver],
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -489,7 +509,7 @@ def start_testpmd_concurrent(
         output[result[0]] = result[1]
 
     def _run_command_with_testkit(
-        run_kit: Tuple[DpdkTestResources, str]
+        run_kit: Tuple[DpdkTestResources, str],
     ) -> Tuple[DpdkTestResources, str]:
         testkit, cmd = run_kit
         return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
@@ -568,7 +588,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic, 0, "txonly", multiple_queues=multiple_queues
+        test_nic, 0, "txonly", queue_count=multiple_queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -590,7 +610,7 @@ def verify_dpdk_send_receive(
     pmd: str,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
-    multiple_queues: bool = False,
+    multiple_queues: MultipleQueueType = MultipleQueueType.SINGLE,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
@@ -628,7 +648,7 @@ def verify_dpdk_send_receive(
         sender,
         receiver,
         use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
+        queue_count=multiple_queues,
         set_mtu=set_mtu,
     )
     receive_timeout = kill_timeout + 10
@@ -672,29 +692,6 @@ def verify_dpdk_send_receive(
     ).is_greater_than(2**20)
 
     return sender, receiver
-
-
-def verify_dpdk_send_receive_multi_txrx_queue(
-    environment: Environment,
-    log: Logger,
-    variables: Dict[str, Any],
-    pmd: str,
-    result: Optional[TestResult] = None,
-    set_mtu: int = 0,
-) -> Tuple[DpdkTestResources, DpdkTestResources]:
-    # get test duration variable if set
-    # enables long-running tests to shakeQoS and SLB issue
-    return verify_dpdk_send_receive(
-        environment,
-        log,
-        variables,
-        pmd,
-        HugePageSize.HUGE_2MB,
-        use_service_cores=1,
-        multiple_queues=True,
-        result=result,
-        set_mtu=set_mtu,
-    )
 
 
 def do_parallel_cleanup(environment: Environment) -> None:

@@ -505,16 +505,46 @@ class DpdkTestpmd(Tool):
                 )
             )
 
+    def get_core_list(
+        self, need_lcores: int = 2, start_at: int = 0, stride: int = 0
+    ) -> str:
+        current_core = start_at
+        cores = self.node.tools[Lscpu].get_core_count()
+        threads = self.node.tools[Lscpu].get_thread_count()
+        assert_that(threads).described_as(
+            "lscpu returned that 0 threads are available, something is broken."
+        ).is_greater_than_or_equal_to(0)
+        assert_that(cores).described_as(
+            "lscpu returned that 0 cores are available, something is broken."
+        ).is_greater_than_or_equal_to(0)
+        assert_that(threads).described_as(
+            "lscpu returned that there are more cores than threads available,"
+            " something is broken."
+        ).is_greater_than_or_equal_to(cores)
+        stride = stride if stride else threads // cores
+        core_list = []
+        while need_lcores > 0:
+            current_core += stride
+            need_lcores -= 1
+            core_list.append(current_core)
+        max_core = max(core_list)
+        assert_that(max(core_list)).described_as(
+            f"needed lcore index {max_core} is out of range for available lcores: {threads}"
+        ).is_less_than(threads)
+        return ",".join(core_list)
+
     def generate_testpmd_command(
         self,
         nic_to_include: NicInfo,
         vdev_id: int,
         mode: str,
         extra_args: str = "",
-        multiple_queues: bool = False,
+        queue_count: int = 1,
         service_cores: int = 1,
+        txd: int = 64,
         mtu: int = 0,
         mbuf_size: int = 0,
+        core_list: str = "",
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -529,52 +559,33 @@ class DpdkTestpmd(Tool):
 
         # pick amount of queues for tx/rx (txq/rxq flag)
         # our tests use equal amounts for rx and tx
-        if multiple_queues:
-            if self.is_mana:
-                queues = 8
-            else:
-                queues = 4
-        else:
-            queues = 1
 
-        # MANA needs a file descriptor argument, mlnx doesn't.
-        txd = 128
+        # allow caller to set
+        if self.queue_count:
+            queues = self.queue_count
+        else:
+            queues = queue_count
 
         # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
-        # infer core count to assign based on number of queues
-        threads_available = self.node.tools[Lscpu].get_thread_count()
-        assert_that(threads_available).described_as(
-            "DPDK tests need more than 4 threads, recommended more than 8 threads"
-        ).is_greater_than(4)
-
+        # label these for use in the arguments below
         queues_and_servicing_core = queues + service_cores
+        forwarding_cores = queues
 
-        while queues_and_servicing_core > (threads_available - 2):
-            # if less, split the number of queues
-            queues = queues // 2
-            queues_and_servicing_core = queues + service_cores
-            txd = 64  # txd has to be >= 64 for MANA.
-            assert_that(queues).described_as(
-                "txq value must be greater than 1"
-            ).is_greater_than_or_equal_to(1)
+        # generate a core list based on the number of queues needed
+        # allow an override by the caller
+        # this function checks the arguments to assert if not enough are available
+        if not core_list:
+            core_list = self.get_core_list(need_lcores=queues_and_servicing_core)
 
-        # label core index for future use
-        max_core_index = queues_and_servicing_core
-
-        # service cores excluded from forwarding cores count
-        forwarding_cores = max_core_index - service_cores
-
-        # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        # allow extra arguments to be added by caller
         if extra_args:
             extra_args = extra_args.strip()
-        else:
-            extra_args = ""
+
         # mana pmd needs tx/rx descriptors declared.
         if self.is_mana:
-            extra_args += f" --txd={txd} --rxd={txd} --stats 2"
+            extra_args += f" --txd={txd} --rxd={txd}"
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 
@@ -587,13 +598,12 @@ class DpdkTestpmd(Tool):
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
         ).is_greater_than(0)
-        assert_that(max_core_index).described_as(
-            "Test needs at least 1 core for servicing and one core for forwarding"
-        ).is_greater_than(0)
+
         assert_that(self._testpmd_install_path).described_as(
             "Testpmd install path was not set, this indicates a logic"
             " error in the DPDK installation process."
         ).is_not_empty()
+
         return (
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
@@ -689,6 +699,9 @@ class DpdkTestpmd(Tool):
             self._tx_pps_key, self._last_run_output
         )
 
+    def set_queue_count(self, queues: int) -> None:
+        self.queue_count = queues
+
     def get_mean_rx_pps(self) -> int:
         self._check_pps_data("RX")
         return _mean(self.rx_pps_data)
@@ -741,6 +754,7 @@ class DpdkTestpmd(Tool):
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
+        self.queue_count = kwargs.pop("use_queues", 0)
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
         self._determine_network_hardware()
