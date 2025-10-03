@@ -231,7 +231,7 @@ class AzureDiskEncryption(TestSuite):
             Redhat: 7,
             CentOs: 7,
             Oracle: 8,
-            Ubuntu: 18,
+            Ubuntu: 24,
             CBLMariner: 2,
         }
         # Remove after automatic major version support is released to ADE
@@ -239,7 +239,7 @@ class AzureDiskEncryption(TestSuite):
             Redhat: 9,
             CentOs: 8,
             Oracle: 8,
-            Ubuntu: 22,
+            Ubuntu: 24,
             CBLMariner: 2,
         }
 
