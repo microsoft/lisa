@@ -489,7 +489,7 @@ def start_testpmd_concurrent(
         output[result[0]] = result[1]
 
     def _run_command_with_testkit(
-        run_kit: Tuple[DpdkTestResources, str]
+        run_kit: Tuple[DpdkTestResources, str],
     ) -> Tuple[DpdkTestResources, str]:
         testkit, cmd = run_kit
         return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
@@ -867,7 +867,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         for node in environment.nodes.list()
         if node.nics.get_primary_nic().ip_addr.endswith("6")
     ][0]
-    
+
     if not (
         forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
         and isinstance(forwarder.os, Ubuntu)
