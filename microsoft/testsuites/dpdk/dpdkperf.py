@@ -22,7 +22,10 @@ from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.tools.hugepages import HugePageSize
 from lisa.util import constants
-from microsoft.testsuites.dpdk.common import force_dpdk_default_source
+from microsoft.testsuites.dpdk.common import (
+    force_dpdk_default_source,
+    MultipleQueueType,
+)
 from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
     SkippedException,
@@ -31,7 +34,6 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
-    verify_dpdk_send_receive_multi_txrx_queue,
 )
 
 
@@ -281,12 +283,13 @@ class DpdkPerformance(TestSuite):
         self._validate_core_counts_are_equal(test_result)
         try:
             if use_queues:
-                send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
+                send_kit, receive_kit = verify_dpdk_send_receive(
                     environment,
                     log,
                     variables,
                     pmd,
                     result=test_result,
+                    multiple_queues=MultipleQueueType.MULTIPLE,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
