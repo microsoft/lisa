@@ -5,7 +5,7 @@ import time
 from typing import Any, cast
 
 from assertpy import assert_that
-from func_timeout import FunctionTimedOut, func_timeout
+from func_timeout import func_timeout
 
 from lisa import (
     Environment,
@@ -415,7 +415,8 @@ class Power(TestSuite):
                 # Check if low disk space might be causing issues
                 if available_gb < 1.0:  # Less than 1GB available
                     log.info(
-                        f"LOW DISK SPACE WARNING: Only {available_gb:.2f}GB available on OS disk"
+                        f"LOW DISK SPACE WARNING: Only {available_gb:.2f}GB "
+                        f"available on OS disk"
                     )
                 elif used_percent > 90:  # More than 90% used
                     log.info(
@@ -439,7 +440,8 @@ class Power(TestSuite):
         except Exception as cleanup_ex:
             elapsed_time = timer.elapsed()
             log.info(
-                f"Environment cleanup failed after {elapsed_time:.2f} seconds: {cleanup_ex}"
+                f"Environment cleanup failed after {elapsed_time:.2f} seconds: "
+                f"{cleanup_ex}"
             )
             # Mark all nodes as dirty since cleanup failed
             for node in environment.nodes.list():
