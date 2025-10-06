@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, List, Type
+from typing import Any, Dict, List, Type
 
 from dataclasses_json import dataclass_json
 
@@ -135,20 +135,87 @@ class Gpu(Feature):
             else:
                 raise LisaException(f"{driver} is not a valid value of ComputeSDK")
 
-    def get_gpu_count_with_lsvmbus(self) -> int:
-        lsvmbus_device_count = 0
-        bridge_device_count = 0
+    def get_gpu_device_ids_dynamically(self) -> Dict[str, str]:
+        """
+        Get GPU device IDs dynamically from the system
+        Returns a dictionary of {device_name: device_id}
+        """
+        gpu_device_map = {}
+        
+        # Get GPU devices from lspci (no need to initialize lspci_tool separately)
+        gpu_devices = self._get_gpu_from_lspci()
+        
+        for device in gpu_devices:
+            # Use the device info and device_id that are already available in PciDevice
+            device_name = f"{device.vendor} {device.device_info}"
+            gpu_device_map[device_name] = device.device_id
+            self._log.debug(f"Found GPU device: {device_name} with ID: {device.device_id}")
+        
+        # Also try to correlate with nvidia-smi if available
+        try:
+            nvidiasmi = self._node.tools[NvidiaSmi]
+            gpu_info = nvidiasmi.get_gpu_device_info()
+            for name, uuid in gpu_info:
+                # Add nvidia-smi reported names with their UUIDs
+                # Using a different key format to avoid conflicts
+                gpu_device_map[f"NVIDIA {name}"] = uuid
+                self._log.debug(f"Found GPU via nvidia-smi: {name} with UUID: {uuid}")
+        except Exception as e:
+            self._log.debug(f"Could not get nvidia-smi info: {e}")
+        
+        return gpu_device_map
 
+    def get_gpu_count_with_lsvmbus(self) -> int:
         lsvmbus_tool = self._node.tools[Lsvmbus]
         device_list = lsvmbus_tool.get_device_channels()
+        
+        # First try dynamic detection
+        gpu_count = 0
+        detected_devices = set()  # To avoid counting same device twice
+        
+        # Try to get dynamic GPU device IDs
+        try:
+            gpu_device_ids = self.get_gpu_device_ids_dynamically()
+            if gpu_device_ids:
+                # We have dynamic GPU info, use it for matching
+                for device in device_list:
+                    # Check against dynamically detected device IDs
+                    for gpu_name, gpu_id in gpu_device_ids.items():
+                        # Check if gpu_id (4 chars) is found in device.device_id
+                        if gpu_id.lower() in device.device_id.lower() and device.device_id not in detected_devices:
+                            gpu_count += 1
+                            detected_devices.add(device.device_id)
+                            self._log.debug(f"GPU device {gpu_name} (ID: {gpu_id}) found in lsvmbus device {device.device_id}!")
+                            break
+                
+                if gpu_count > 0:
+                    return gpu_count
+                
+                # If no matches with device IDs, try broader pattern matching
+                for device in device_list:
+                    # Check if any known GPU pattern matches in device_id
+                    if any(keyword in device.device_id.lower() 
+                        for keyword in ['gpu', 'nvidia', 'display', 'vgpu', '3d']) and device.device_id not in detected_devices:
+                        gpu_count += 1
+                        detected_devices.add(device.device_id)
+                
+                if gpu_count > 0:
+                    return gpu_count
+        except Exception as e:
+            self._log.debug(f"Could not use dynamic GPU detection: {e}")
+        
+        # Fallback to legacy static method if dynamic detection fails
+        lsvmbus_device_count = 0
+        bridge_device_count = 0
+        
         for device in device_list:
             for name, id_, bridge_count in NvidiaSmi.gpu_devices:
                 if id_ in device.device_id:
                     lsvmbus_device_count += 1
                     bridge_device_count = bridge_count
-                    self._log.debug(f"GPU device {name} found!")
+                    self._log.debug(f"GPU device {name} found using static list!")
                     break
-
+        
         return lsvmbus_device_count - bridge_device_count
 
     def get_gpu_count_with_lspci(self) -> int:
