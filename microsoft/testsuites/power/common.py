@@ -46,7 +46,11 @@ def is_distro_supported(node: Node) -> None:
 
 
 def verify_hibernation(
-    node: Node, log: Logger, throw_error: bool = True, verify_using_logs: bool = True
+    node: Node,
+    log: Logger,
+    throw_error: bool = True,
+    verify_using_logs: bool = True,
+    use_hibernation_setup_tool: bool = True,
 ) -> None:
     if isinstance(node.os, Redhat):
         # Hibernation tests are run with higher os disk size.
@@ -55,7 +59,7 @@ def verify_hibernation(
         # partition size.
         resize = node.tools[ResizePartition]
         resize.expand_os_partition()
-    hibernation_setup_tool = node.tools[HibernationSetup]
+
     startstop = node.features[StartStop]
     dmesg = node.tools[Dmesg]
     who = node.tools[Who]
@@ -63,23 +67,30 @@ def verify_hibernation(
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
     upper_nics_before_hibernation = node_nic.get_nic_names()
-    entry_before_hibernation = hibernation_setup_tool.check_entry()
-    exit_before_hibernation = hibernation_setup_tool.check_exit()
-    received_before_hibernation = hibernation_setup_tool.check_received()
-    uevent_before_hibernation = hibernation_setup_tool.check_uevent()
 
-    # only set up hibernation setup tool for the first time
-    hibernation_setup_tool.start()
-    # This is a temporary workaround for a bug observed in Redhat Distros
-    # where the VM is not able to hibernate immediately after installing
-    # the hibernation-setup tool.
-    # A sleep(100) also works, but we are unsure of the exact time required.
-    # So it is safer to reboot the VM.
-    if type(node.os) in (Redhat, AlmaLinux, SLES):
-        node.reboot()
+    if use_hibernation_setup_tool:
+        hibernation_setup_tool = node.tools[HibernationSetup]
+        # Get initial counts before hibernation
+        entry_before_hibernation = hibernation_setup_tool.check_entry()
+        exit_before_hibernation = hibernation_setup_tool.check_exit()
+        received_before_hibernation = hibernation_setup_tool.check_received()
+        uevent_before_hibernation = hibernation_setup_tool.check_uevent()
+
+        # only set up hibernation setup tool for the first time
+        hibernation_setup_tool.start()
+        # This is a temporary workaround for a bug observed in Redhat Distros
+        # where the VM is not able to hibernate immediately after installing
+        # the hibernation-setup tool.
+        # A sleep(100) also works, but we are unsure of the exact time required.
+        # So it is safer to reboot the VM.
+        if type(node.os) in (Redhat, AlmaLinux, SLES):
+            node.reboot()
+
+        hibfile_offset = (
+            hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
+        )
 
     boot_time_before_hibernation = who.last_boot()
-    hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
     try:
         startstop.stop(state=features.StopState.Hibernate)
@@ -108,21 +119,38 @@ def verify_hibernation(
         f"Last Boot time after hibernation: {boot_time_after_hibernation}"
     )
 
-    entry_after_hibernation = hibernation_setup_tool.check_entry()
-    exit_after_hibernation = hibernation_setup_tool.check_exit()
-    received_after_hibernation = hibernation_setup_tool.check_received()
-    uevent_after_hibernation = hibernation_setup_tool.check_uevent()
+    # Verify hibernation-specific logs and metrics if hibernation setup tool was used
+    if use_hibernation_setup_tool and hibernation_setup_tool:
+        entry_after_hibernation = hibernation_setup_tool.check_entry()
+        exit_after_hibernation = hibernation_setup_tool.check_exit()
+        received_after_hibernation = hibernation_setup_tool.check_received()
+        uevent_after_hibernation = hibernation_setup_tool.check_uevent()
 
-    offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
-    offset_from_sys_power = (
-        hibernation_setup_tool.get_hibernate_resume_offset_from_sys_power()
-    )
+        offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
+        offset_from_sys_power = (
+            hibernation_setup_tool.get_hibernate_resume_offset_from_sys_power()
+        )
 
-    log.info(
-        f"Hibfile resume offset: {hibfile_offset}, "
-        f"Resume offset from cmdline: {offset_from_cmd}, "
-        f"Resume offset from /sys/power/resume_offset: {offset_from_sys_power}"
-    )
+        log.info(
+            f"Hibfile resume offset: {hibfile_offset}, "
+            f"Resume offset from cmdline: {offset_from_cmd}, "
+            f"Resume offset from /sys/power/resume_offset: {offset_from_sys_power}"
+        )
+
+        # Verify hibernation logs if requested
+        if verify_using_logs:
+            assert_that(
+                entry_after_hibernation - entry_before_hibernation
+            ).described_as("not find 'hibernation entry'.").is_equal_to(1)
+            assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
+                "not find 'hibernation exit'."
+            ).is_equal_to(1)
+            assert_that(
+                received_after_hibernation - received_before_hibernation
+            ).described_as("not find 'Hibernation request received'.").is_equal_to(1)
+            assert_that(
+                uevent_after_hibernation - uevent_before_hibernation
+            ).described_as("not find 'Sent hibernation uevent'.").is_equal_to(1)
 
     try:
         assert_that(boot_time_before_hibernation).described_as(
@@ -132,20 +160,6 @@ def verify_hibernation(
     except AssertionError:
         dmesg.check_kernel_errors(force_run=True, throw_error=True)
         raise
-
-    if verify_using_logs:
-        assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
-            "not find 'hibernation entry'."
-        ).is_equal_to(1)
-        assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
-            "not find 'hibernation exit'."
-        ).is_equal_to(1)
-        assert_that(
-            received_after_hibernation - received_before_hibernation
-        ).described_as("not find 'Hibernation request received'.").is_equal_to(1)
-        assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
-            "not find 'Sent hibernation uevent'."
-        ).is_equal_to(1)
 
     node_nic = node.nics
     node_nic.initialize()

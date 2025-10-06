@@ -18,9 +18,10 @@ from lisa.features import Disk, HibernationEnabled, Sriov, Synthetic
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
 from lisa.operating_system import BSD, Windows
+from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.testsuite import simple_requirement
-from lisa.tools import Date, Hwclock, StressNg
-from lisa.util import SkippedException
+from lisa.tools import Cat, Date, Hwclock, Ls, StressNg
+from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 from microsoft.testsuites.power.common import (
     cleanup_env,
@@ -256,6 +257,135 @@ class Power(TestSuite):
         assert_that(data_disks_before_hibernation).described_as(
             "data disks are inconsistent after hibernation"
         ).is_length(len(data_disks_after_hibernation))
+
+    @TestCaseMetadata(
+        description="""
+            This case is to verify vm hibernation using LinuxHibernateExtension.
+
+            Steps,
+            1. Install LinuxHibernateExtension to prepare prerequisite for vm
+             hibernation.
+            2. Get nics info before hibernation.
+            3. Hibernate vm using Stop-Hibernate.
+            4. Check vm is inaccessible (deallocated status).
+            5. Resume vm by starting vm.
+            6. Check vm hibernation successfully by verifying boot time consistency.
+            7. Get nics info after hibernation.
+            8. Fail the case if nics count and info changes after vm resume.
+            9. Uninstall the extension.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
+        ),
+    )
+    def verify_hibernation_using_extension(self, node: Node, log: Logger) -> None:
+        is_distro_supported(node)
+
+        # Get Azure extension feature
+        azure_extension = node.features[AzureExtension]
+        extension_name = "LinuxHibernateExtension"
+
+        try:
+            # Install LinuxHibernateExtension
+            log.info("Installing LinuxHibernateExtension...")
+            extension_result = azure_extension.create_or_update(
+                type_="LinuxHibernateExtension",
+                name=extension_name,
+                publisher="Microsoft.CPlat.Core",
+                type_handler_version="1.0",
+                auto_upgrade_minor_version=True,
+                timeout=60 * 15,  # 15 minutes timeout
+            )
+
+            log.debug(f"Extension installation result: {extension_result}")
+
+            # Verify the extension installation was successful
+            if extension_result is None or "provisioning_state" not in extension_result:
+                raise LisaException(
+                    "Hibernation Extension result should not be None and"
+                    " should contain 'provisioning_state' key"
+                )
+
+            provisioning_state = extension_result["provisioning_state"]
+            assert_that(provisioning_state).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+
+            verify_hibernation(
+                node, log, use_hibernation_setup_tool=False, verify_using_logs=False
+            )
+            try:
+                azure_extension.delete(name=extension_name, ignore_not_found=True)
+                log.info("Extension uninstalled successfully")
+            except Exception as cleanup_ex:
+                log.info(
+                    f"Failed to uninstall extension after successful test: {cleanup_ex}"
+                )
+                node.mark_dirty()
+
+        except Exception as test_ex:
+            # Test failed - collect extension logs for debugging
+            log.error(f"Hibernation extension test failed: {test_ex}")
+            self._collect_hibernation_extension_logs(node, log)
+            log.info("Marking node as dirty due to hibernation extension test failure")
+            node.mark_dirty()
+            raise
+
+    def _collect_hibernation_extension_logs(self, node: Node, log: Logger) -> None:
+        """Collect and print LinuxHibernateExtension logs for debugging"""
+        try:
+            extension_log_dir = (
+                "/var/log/azure/Microsoft.CPlat.Core.LinuxHibernateExtension"
+            )
+            extension_log_path = node.get_pure_path(extension_log_dir)
+
+            # Check if the log directory exists
+            if not node.shell.exists(extension_log_path):
+                log.info(f"Extension log directory {extension_log_path} does not exist")
+                return
+            ls = node.tools[Ls]
+            cat = node.tools[Cat]
+
+            try:
+                log_files = ls.list_dir(extension_log_dir, sudo=True)
+                log_files.sort()
+            except Exception as ls_ex:
+                log.debug(f"Failed to list extension log files: {ls_ex}")
+                return
+
+            if not log_files:
+                log.info("No extension log files found")
+                return
+
+            log.debug(
+                f"Found {len(log_files)} extension log files: {', '.join(log_files)}"
+            )
+
+            # Print contents of each log file
+            for log_file in log_files:
+                if not log_file.strip():
+                    continue
+
+                log_file_path = f"{extension_log_dir}/{log_file.strip()}"
+
+                # Check if it's a directory and skip it
+                if node.shell.is_dir(node.get_pure_path(log_file_path)):
+                    log.debug(f"Skipping {log_file} (directory)")
+                    continue
+
+                log.info(f"=== Contents of {log_file} ===")
+
+                try:
+                    content = cat.read(log_file_path, sudo=True)
+                    log.info(f"{log_file} content:\n{content}")
+                except Exception as cat_ex:
+                    log.debug(f"Failed to read {log_file}: {cat_ex}")
+
+                log.info(f"=== End of {log_file} ===")
+
+        except Exception as log_ex:
+            log.info(f"Failed to collect extension logs: {log_ex}")
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
