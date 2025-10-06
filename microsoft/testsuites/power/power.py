@@ -5,6 +5,7 @@ import time
 from typing import Any, cast
 
 from assertpy import assert_that
+from func_timeout import FunctionTimedOut, func_timeout
 
 from lisa import (
     Environment,
@@ -20,7 +21,7 @@ from lisa.node import Node
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.testsuite import simple_requirement
-from lisa.tools import Cat, Date, Hwclock, Ls, StressNg
+from lisa.tools import Cat, Date, Df, Hwclock, Ls, StressNg
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 from microsoft.testsuites.power.common import (
@@ -274,9 +275,13 @@ class Power(TestSuite):
             8. Fail the case if nics count and info changes after vm resume.
             9. Uninstall the extension.
         """,
-        priority=3,
+        priority=2,
         requirement=simple_requirement(
-            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
+            supported_features=[
+                HibernationEnabled(),
+                AvailabilityTypeNoRedundancy(),
+                AzureExtension,
+            ],
         ),
     )
     def verify_hibernation_using_extension(self, node: Node, log: Logger) -> None:
@@ -325,8 +330,9 @@ class Power(TestSuite):
                 node.mark_dirty()
 
         except Exception as test_ex:
-            # Test failed - collect extension logs for debugging
+            # Test failed - collect extension logs and disk space info for debugging
             log.error(f"Hibernation extension test failed: {test_ex}")
+            self._check_os_disk_space(node, log)
             self._collect_hibernation_extension_logs(node, log)
             log.info("Marking node as dirty due to hibernation extension test failure")
             node.mark_dirty()
@@ -348,7 +354,7 @@ class Power(TestSuite):
             cat = node.tools[Cat]
 
             try:
-                log_files = ls.list_dir(extension_log_dir, sudo=True)
+                log_files = ls.list(extension_log_dir, sudo=True)
                 log_files.sort()
             except Exception as ls_ex:
                 log.debug(f"Failed to list extension log files: {ls_ex}")
@@ -367,26 +373,75 @@ class Power(TestSuite):
                 if not log_file.strip():
                     continue
 
-                log_file_path = f"{extension_log_dir}/{log_file.strip()}"
+                log_file_path = log_file.strip()
 
                 # Check if it's a directory and skip it
-                if node.shell.is_dir(node.get_pure_path(log_file_path)):
-                    log.debug(f"Skipping {log_file} (directory)")
+                if not ls.is_file(node.get_pure_path(log_file_path), sudo=True):
+                    log.debug(f"Skipping {log_file_path} (directory)")
                     continue
 
-                log.info(f"=== Contents of {log_file} ===")
+                # Extract just the filename for display
+                log_filename = log_file_path.split("/")[-1]
+                log.info(f"=== Contents of {log_filename} ===")
 
                 try:
                     content = cat.read(log_file_path, sudo=True)
-                    log.info(f"{log_file} content:\n{content}")
+                    log.info(f"{log_filename} content:\n{content}")
                 except Exception as cat_ex:
-                    log.debug(f"Failed to read {log_file}: {cat_ex}")
+                    log.debug(f"Failed to read {log_file_path}: {cat_ex}")
 
-                log.info(f"=== End of {log_file} ===")
+                log.info(f"=== End of {log_filename} ===")
 
         except Exception as log_ex:
             log.info(f"Failed to collect extension logs: {log_ex}")
 
+    def _check_os_disk_space(self, node: Node, log: Logger) -> None:
+        try:
+            df = node.tools[Df]
+            root_partition = df.get_partition_by_mountpoint("/")
+            if root_partition:
+                available_gb = (
+                    root_partition.available_blocks / 1024 / 1024
+                )  # Convert from KB to GB
+                used_percent = root_partition.percentage_blocks_used
+                total_gb = (
+                    root_partition.total_blocks / 1024 / 1024
+                )  # Convert from KB to GB
+
+                log.info(
+                    f"OS Disk Space (/) - Total: {total_gb:.2f}GB, "
+                    f"Used: {used_percent}%, Available: {available_gb:.2f}GB"
+                )
+                # Check if low disk space might be causing issues
+                if available_gb < 1.0:  # Less than 1GB available
+                    log.info(
+                        f"LOW DISK SPACE WARNING: Only {available_gb:.2f}GB available on OS disk"
+                    )
+                elif used_percent > 90:  # More than 90% used
+                    log.info(
+                        f"HIGH DISK USAGE WARNING: {used_percent}% of OS disk is used"
+                    )
+            else:
+                log.debug("Could not get root partition space information")
+        except Exception as ex:
+            log.info(f"Failed to check OS disk space: {ex}")
+
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        cleanup_env(environment)
+
+        # Add timeout for cleanup environment operation (5 minutes)
+        cleanup_timeout = 300
+        timer = create_timer()
+
+        try:
+            func_timeout(timeout=cleanup_timeout, func=cleanup_env, args=(environment,))
+            elapsed_time = timer.elapsed()
+        except Exception as cleanup_ex:
+            elapsed_time = timer.elapsed()
+            log.info(
+                f"Environment cleanup failed after {elapsed_time:.2f} seconds: {cleanup_ex}"
+            )
+            # Mark all nodes as dirty since cleanup failed
+            for node in environment.nodes.list():
+                if isinstance(node, RemoteNode):
+                    node.mark_dirty()
