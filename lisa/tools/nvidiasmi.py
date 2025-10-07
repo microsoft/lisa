@@ -4,6 +4,7 @@
 
 from lisa.executable import Tool
 from lisa.util import LisaException
+from typing import List
 
 
 class NvidiaSmi(Tool):
@@ -41,3 +42,46 @@ class NvidiaSmi(Tool):
             device_count += result.stdout.count(gpu_type)
 
         return device_count
+    
+    def get_gpu_info(self) -> List[tuple]:
+        """
+        Get GPU information dynamically from nvidia-smi.
+        Returns list of tuples (name, device_id_pattern, bridge_count).
+        Falls back to hardcoded list if detection fails.
+        """
+        try:
+            # Try to get GPU info dynamically
+            result = self.run("--query-gpu=name --format=csv,noheader")
+            if result.exit_code != 0 or not result.stdout:
+                result = self.run("--query-gpu=name --format=csv,noheader", sudo=True)
+            
+            if result.exit_code == 0 and result.stdout:
+                gpu_names = result.stdout.strip().split('\n')
+                dynamic_devices = []
+                
+                for gpu_name in gpu_names:
+                    # Clean up the name (remove extra spaces, model info)
+                    gpu_name = gpu_name.strip().split()[0]
+                    
+                    # Try to find a matching entry in our known list
+                    matched = False
+                    for known_name, device_id, bridge_count in self.gpu_devices:
+                        if known_name.lower() in gpu_name.lower():
+                            dynamic_devices.append((gpu_name, device_id, bridge_count))
+                            matched = True
+                            break
+                    
+                    if not matched:
+                        # New GPU model - add with generic pattern
+                        # This ensures new GPUs work even without hardcoded entries
+                        dynamic_devices.append((gpu_name, "", 0))
+                
+                if dynamic_devices:
+                    self._log.debug(f"Dynamically detected GPUs: {dynamic_devices}")
+                    return dynamic_devices
+        except Exception as e:
+            self._log.debug(f"Dynamic GPU info detection failed: {e}")
+        
+        # Fall back to hardcoded list
+        self._log.debug("Using hardcoded GPU device list")
+        return self.gpu_devices

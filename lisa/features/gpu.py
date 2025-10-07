@@ -136,19 +136,121 @@ class Gpu(Feature):
                 raise LisaException(f"{driver} is not a valid value of ComputeSDK")
 
     def get_gpu_count_with_lsvmbus(self) -> int:
+        """
+        Dynamically count GPU devices using lsvmbus by matching against
+        actual PCI GPU devices found on the system. Falls back to hardcoded
+        list if dynamic detection fails.
+        """
+        lsvmbus_tool = self._node.tools[Lsvmbus]
+        lspci_tool = self._node.tools[Lspci]
+        
+        # Get all VMBus devices
+        vmbus_devices = lsvmbus_tool.get_device_channels()
+        self._log.debug(f"Found {len(vmbus_devices)} VMBus devices")
+        
+        # First try dynamic detection
+        gpu_count = self._get_gpu_count_dynamic(vmbus_devices, lspci_tool)
+        
+        if gpu_count > 0:
+            self._log.debug(f"Dynamic GPU detection found {gpu_count} GPU(s)")
+            return gpu_count
+        
+        # Fall back to hardcoded list if dynamic detection returns 0
+        self._log.debug("Dynamic detection found no GPUs, falling back to hardcoded list")
+        gpu_count = self._get_gpu_count_hardcoded(vmbus_devices)
+        
+        if gpu_count > 0:
+            self._log.debug(f"Hardcoded list detection found {gpu_count} GPU(s)")
+        else:
+            self._log.debug("No GPU devices found in lsvmbus using either method")
+        
+        return gpu_count
+    
+    def _get_gpu_count_dynamic(self, vmbus_devices: List[Any], lspci_tool: Lspci) -> int:
+        """
+        Dynamic GPU detection using actual PCI devices.
+        """
+        try:
+            # Get actual GPU devices from lspci
+            pci_gpu_devices = self._get_gpu_from_lspci()
+            
+            if not pci_gpu_devices:
+                self._log.debug("No PCI GPU devices found for dynamic detection")
+                return 0
+            
+            # Extract vendor and device IDs from actual GPUs
+            gpu_id_patterns = set()
+            for pci_device in pci_gpu_devices:
+                # Get device details from lspci output
+                # Format: XXXX:XX:XX.X Class_ID: Vendor_ID:Device_ID
+                device_info = lspci_tool.run(
+                    f"-n -s {pci_device.slot}", 
+                    force_run=True
+                ).stdout.strip()
+                
+                if device_info:
+                    # Parse vendor:device ID (e.g., "10de:2330" for NVIDIA H100)
+                    parts = device_info.split()
+                    for part in parts:
+                        if ":" in part and len(part.split(":")) == 2:
+                            vendor, device = part.split(":")
+                            if len(vendor) == 4 and len(device) == 4:
+                                gpu_id_patterns.add(part.lower())
+                                self._log.debug(f"Found GPU ID pattern: {part}")
+            
+            if not gpu_id_patterns:
+                self._log.debug("Could not extract GPU ID patterns from PCI devices")
+                return 0
+            
+            # Count VMBus devices that match GPU patterns
+            gpu_count = 0
+            bridge_count = 0
+            
+            for vmbus_device in vmbus_devices:
+                device_id_lower = vmbus_device.device_id.lower()
+                # Remove hyphens from device ID for matching
+                device_id_clean = device_id_lower.replace("-", "")
+                
+                for pattern in gpu_id_patterns:
+                    # Check various formats of the pattern in device ID
+                    pattern_clean = pattern.replace(":", "")
+                    if pattern_clean in device_id_clean:
+                        gpu_count += 1
+                        self._log.debug(
+                            f"Matched VMBus device {vmbus_device.name} "
+                            f"with pattern {pattern}"
+                        )
+                        # Check if it's a bridge device
+                        if "bridge" in vmbus_device.name.lower():
+                            bridge_count += 1
+                            self._log.debug(f"Device {vmbus_device.name} is a bridge")
+                        break
+            
+            return gpu_count - bridge_count
+        
+        except Exception as e:
+            self._log.debug(f"Dynamic GPU detection failed: {e}")
+            return 0
+        
+    def _get_gpu_count_hardcoded(self, vmbus_devices: List[Any]) -> int:
+        """
+        Fallback to hardcoded list for known GPU devices.
+        This maintains backward compatibility.
+        """
         lsvmbus_device_count = 0
         bridge_device_count = 0
-
-        lsvmbus_tool = self._node.tools[Lsvmbus]
-        device_list = lsvmbus_tool.get_device_channels()
-        for device in device_list:
+        
+        for device in vmbus_devices:
             for name, id_, bridge_count in NvidiaSmi.gpu_devices:
                 if id_ in device.device_id:
                     lsvmbus_device_count += 1
                     bridge_device_count = bridge_count
-                    self._log.debug(f"GPU device {name} found!")
+                    self._log.debug(
+                        f"GPU device {name} found using hardcoded list! "
+                        f"Device ID: {device.device_id}"
+                    )
                     break
-
+        
         return lsvmbus_device_count - bridge_device_count
 
     def get_gpu_count_with_lspci(self) -> int:
