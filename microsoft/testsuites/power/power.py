@@ -21,8 +21,8 @@ from lisa.node import Node
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.testsuite import simple_requirement
-from lisa.tools import Cat, Date, Df, Hwclock, Ls, StressNg
-from lisa.util import LisaException, SkippedException
+from lisa.tools import Date, Hwclock, StressNg
+from lisa.util import SkippedException
 from lisa.util.perf_timer import create_timer
 from microsoft.testsuites.power.common import (
     cleanup_env,
@@ -284,148 +284,11 @@ class Power(TestSuite):
             ],
         ),
     )
-    def verify_hibernation_using_extension(self, node: Node, log: Logger) -> None:
+    def verify_hibernation_with_vm_extension(self, node: Node, log: Logger) -> None:
         is_distro_supported(node)
-
-        # Get Azure extension feature
-        azure_extension = node.features[AzureExtension]
-        extension_name = "LinuxHibernateExtension"
-
-        try:
-            # Install LinuxHibernateExtension
-            log.info("Installing LinuxHibernateExtension...")
-            extension_result = azure_extension.create_or_update(
-                type_="LinuxHibernateExtension",
-                name=extension_name,
-                publisher="Microsoft.CPlat.Core",
-                type_handler_version="1.0",
-                auto_upgrade_minor_version=True,
-                timeout=60 * 15,  # 15 minutes timeout
-            )
-
-            log.debug(f"Extension installation result: {extension_result}")
-
-            # Verify the extension installation was successful
-            if extension_result is None or "provisioning_state" not in extension_result:
-                raise LisaException(
-                    "Hibernation Extension result should not be None and"
-                    " should contain 'provisioning_state' key"
-                )
-
-            provisioning_state = extension_result["provisioning_state"]
-            assert_that(provisioning_state).described_as(
-                "Expected the extension to succeed"
-            ).is_equal_to("Succeeded")
-
-            verify_hibernation(
-                node, log, use_hibernation_setup_tool=False, verify_using_logs=False
-            )
-            try:
-                azure_extension.delete(name=extension_name, ignore_not_found=True)
-                log.info("Extension uninstalled successfully")
-            except Exception as cleanup_ex:
-                log.info(
-                    f"Failed to uninstall extension after successful test: {cleanup_ex}"
-                )
-                node.mark_dirty()
-
-        except Exception as test_ex:
-            # Test failed - collect extension logs and disk space info for debugging
-            log.error(f"Hibernation extension test failed: {test_ex}")
-            self._check_os_disk_space(node, log)
-            self._collect_hibernation_extension_logs(node, log)
-            log.info("Marking node as dirty due to hibernation extension test failure")
-            node.mark_dirty()
-            raise
-
-    def _collect_hibernation_extension_logs(self, node: Node, log: Logger) -> None:
-        """Collect and print LinuxHibernateExtension logs for debugging"""
-        try:
-            extension_log_dir = (
-                "/var/log/azure/Microsoft.CPlat.Core.LinuxHibernateExtension"
-            )
-            extension_log_path = node.get_pure_path(extension_log_dir)
-
-            # Check if the log directory exists
-            if not node.shell.exists(extension_log_path):
-                log.info(f"Extension log directory {extension_log_path} does not exist")
-                return
-            ls = node.tools[Ls]
-            cat = node.tools[Cat]
-
-            try:
-                log_files = ls.list(extension_log_dir, sudo=True)
-                log_files.sort()
-            except Exception as ls_ex:
-                log.debug(f"Failed to list extension log files: {ls_ex}")
-                return
-
-            if not log_files:
-                log.info("No extension log files found")
-                return
-
-            log.debug(
-                f"Found {len(log_files)} extension log files: {', '.join(log_files)}"
-            )
-
-            # Print contents of each log file
-            for log_file in log_files:
-                if not log_file.strip():
-                    continue
-
-                log_file_path = log_file.strip()
-
-                # Check if it's a directory and skip it
-                if not ls.is_file(node.get_pure_path(log_file_path), sudo=True):
-                    log.debug(f"Skipping {log_file_path} (directory)")
-                    continue
-
-                # Extract just the filename for display
-                log_filename = log_file_path.split("/")[-1]
-                log.info(f"=== Contents of {log_filename} ===")
-
-                try:
-                    content = cat.read(log_file_path, sudo=True)
-                    log.info(f"{log_filename} content:\n{content}")
-                except Exception as cat_ex:
-                    log.debug(f"Failed to read {log_file_path}: {cat_ex}")
-
-                log.info(f"=== End of {log_filename} ===")
-
-        except Exception as log_ex:
-            log.info(f"Failed to collect extension logs: {log_ex}")
-
-    def _check_os_disk_space(self, node: Node, log: Logger) -> None:
-        try:
-            df = node.tools[Df]
-            root_partition = df.get_partition_by_mountpoint("/")
-            if root_partition:
-                available_gb = (
-                    root_partition.available_blocks / 1024 / 1024
-                )  # Convert from KB to GB
-                used_percent = root_partition.percentage_blocks_used
-                total_gb = (
-                    root_partition.total_blocks / 1024 / 1024
-                )  # Convert from KB to GB
-
-                log.info(
-                    f"OS Disk Space (/) - Total: {total_gb:.2f}GB, "
-                    f"Used: {used_percent}%, Available: {available_gb:.2f}GB"
-                )
-                # Check if low disk space might be causing issues
-                if available_gb < 1.0:  # Less than 1GB available
-                    log.info(
-                        f"LOW DISK SPACE WARNING: Only {available_gb:.2f}GB "
-                        f"available on OS disk"
-                    )
-                elif used_percent > 90:  # More than 90% used
-                    log.info(
-                        f"HIGH DISK USAGE WARNING: {used_percent}% of OS disk is used"
-                    )
-            else:
-                log.debug("Could not get root partition space information")
-        except Exception as ex:
-            log.info(f"Failed to check OS disk space: {ex}")
+        verify_hibernation(
+            node, log, use_hibernation_setup_tool=False, verify_using_logs=False
+        )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
@@ -436,7 +299,6 @@ class Power(TestSuite):
 
         try:
             func_timeout(timeout=cleanup_timeout, func=cleanup_env, args=(environment,))
-            elapsed_time = timer.elapsed()
         except Exception as cleanup_ex:
             elapsed_time = timer.elapsed()
             log.info(
