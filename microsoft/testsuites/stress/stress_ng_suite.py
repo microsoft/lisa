@@ -22,6 +22,7 @@ from lisa.tools import StressNg
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
+from microsoft.utils.console_log_helper import configure_console_logging
 
 
 @TestSuiteMetadata(
@@ -161,6 +162,23 @@ class StressNgTestSuite(TestSuite):
         The runbook controls the actual VM deployment based on variables.
         This test simply uses whatever environment is provided.
         """
+
+        # Configure console logging on all nodes to ensure verbose output
+        # This helps capture detailed kernel logs during stress testing
+        nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
+        for node in nodes:
+            try:
+                configure_console_logging(
+                    node,
+                    log,
+                    loglevel=8,  # Maximum verbosity
+                    persistent=False,  # Only for this test session
+                )
+            except Exception as e:
+                log.warning(
+                    f"Failed to configure console logging on {node.name}: {e}. "
+                    f"Console logs may be incomplete."
+                )
 
         # Execute the stress test
         if self.CONFIG_VARIABLE not in variables:
