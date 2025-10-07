@@ -42,7 +42,7 @@ platform:
     azure:
       resource_group_name: $(rgname)
       deploy: $(deploy)
-      subscription_id: "11764614-ffac-4e4d-8506-bdf64388ce6c"
+      subscription_id: ""
       wait_delete: $(waitdelete)
     requirement:
       core_count:
