@@ -4,11 +4,13 @@
 import base64
 import time
 import xml.etree.ElementTree as ETree
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import Any, Optional, Type
 
 import redfish
 from assertpy import assert_that
+from retry import retry
 
 from lisa import features, schema
 from lisa.environment import Environment
@@ -23,6 +25,20 @@ from .cluster import Cluster
 VIRTUAL_MEDIA_EJECT_TIMEOUT = 30
 IDRAC_RESET_TIMEOUT = 120
 VIRTUAL_MEDIA_INSERTION_POLL_TIMEOUT = 30
+
+
+@dataclass
+class VirtualMediaState:
+    """Represents the state of a virtual media device."""
+
+    inserted: bool
+    """Whether media is currently inserted in the device."""
+
+    image_name: Optional[str] = None
+    """Name of the inserted image file, if any."""
+
+    write_protected: Optional[bool] = None
+    """Whether the media is write-protected."""
 
 
 class IdracStartStop(features.StartStop):
@@ -128,7 +144,7 @@ class Idrac(Cluster):
             self.reset("On", force_run=True)
         finally:
             # Ensure logout happens even if deployment fails
-            self._safe_logout()
+            self.logout()
 
     def cleanup(self) -> None:
         try:
@@ -142,7 +158,7 @@ class Idrac(Cluster):
                 f"sessions are exhausted): {e}"
             )
         finally:
-            self._safe_logout()
+            self.logout()
 
     def get_client_capability(self, client: ClientSchema) -> schema.Capability:
         if client.capability:
@@ -219,14 +235,11 @@ class Idrac(Cluster):
         self._log.debug(f"Login to {self.redfish_instance.get_base_url()} successful.")
 
     def logout(self) -> None:
-        self._log.debug("Logging out...")
-        self.redfish_instance.logout()
-
-    def _safe_logout(self) -> None:
         """Safely logout, catching and logging any errors."""
         try:
             if hasattr(self, "redfish_instance") and self.redfish_instance:
-                self.logout()
+                self._log.debug("Logging out...")
+                self.redfish_instance.logout()
         except Exception as e:
             self._log.debug(f"Error during logout (session may already be closed): {e}")
 
@@ -259,33 +272,47 @@ class Idrac(Cluster):
         if response.status in [200, 202, 204]:
             self._wait_for_completion(response)
 
-    def _get_vm_state(self, device_name: str = "CD") -> Dict[str, Any]:
+    def _get_vm_state(self, device_name: str = "CD") -> VirtualMediaState:
         """Get virtual media state for specified device."""
         response = self.redfish_instance.get(
             f"/redfish/v1/Managers/iDRAC.Embedded.1/VirtualMedia/{device_name}"
         )
-        result: Dict[str, Any] = response.dict
-        return result
+        data = response.dict
+        return VirtualMediaState(
+            inserted=data.get("Inserted", False),
+            image_name=data.get("ImageName"),
+            write_protected=data.get("WriteProtected"),
+        )
 
     def _ensure_vm_cleared(self) -> None:
         """Ensure both CD and RemovableDisk are ejected and wait for completion."""
         for device in ("CD", "RemovableDisk"):
             state = self._get_vm_state(device)
-            if state.get("Inserted"):
+            if state.inserted:
                 self._log.debug(f"Ejecting {device}...")
                 self._eject_vm(device)
 
         # Poll up to 30s for both devices to show Inserted=false
-        start_time = time.time()
-        while time.time() - start_time < VIRTUAL_MEDIA_EJECT_TIMEOUT:
-            cd_state = self._get_vm_state("CD").get("Inserted", False)
-            rd_state = self._get_vm_state("RemovableDisk").get("Inserted", False)
+        def _check_vm_cleared() -> bool:
+            cd_state = self._get_vm_state("CD").inserted
+            rd_state = self._get_vm_state("RemovableDisk").inserted
             if not cd_state and not rd_state:
                 self._log.debug("All virtual media ejected successfully")
-                return
-            time.sleep(1)
+                return True
+            return False
 
-        self._log.debug("VirtualMedia still appears inserted after ejects; continuing.")
+        try:
+            check_till_timeout(
+                _check_vm_cleared,
+                timeout_message="Virtual media still inserted after ejection",
+                timeout=VIRTUAL_MEDIA_EJECT_TIMEOUT,
+                interval=1,
+            )
+        except Exception:
+            # Don't fail if media appears stuck; log and continue
+            self._log.debug(
+                "VirtualMedia still appears inserted after ejects; continuing."
+            )
 
     def _reset_idrac(self) -> None:
         """Reset iDRAC to clear stale virtual media state."""
@@ -297,21 +324,25 @@ class Idrac(Cluster):
         self._wait_for_completion(response)
 
         # Poll manager until Enabled (up to 2 minutes)
-        start_time = time.time()
-        while time.time() - start_time < IDRAC_RESET_TIMEOUT:
+        def _check_idrac_ready() -> bool:
             try:
                 mgr_state = self.redfish_instance.get(
                     "/redfish/v1/Managers/iDRAC.Embedded.1"
                 ).dict
                 if mgr_state.get("Status", {}).get("State") == "Enabled":
                     self._log.info("iDRAC reset completed successfully")
-                    return
+                    return True
             except Exception:
                 # iDRAC may be restarting, ignore connection errors
                 pass
-            time.sleep(2)
+            return False
 
-        raise LisaException("iDRAC did not come back after Manager.Reset")
+        check_till_timeout(
+            _check_idrac_ready,
+            timeout_message="iDRAC did not come back after Manager.Reset",
+            timeout=IDRAC_RESET_TIMEOUT,
+            interval=2,
+        )
 
     def _insert_virtual_media(self, iso_http_url: str) -> None:
         """Insert virtual media with robust error handling and retry logic."""
@@ -324,55 +355,67 @@ class Idrac(Cluster):
         time.sleep(5)
 
         # Step 3: Try insert with retries and iDRAC reset if needed
-        max_attempts = 3
-        for attempt in range(1, max_attempts + 1):
-            try:
-                # Explicitly specify NFS protocol (helps across firmware revisions)
-                body = {"Image": iso_http_url, "TransferProtocolType": "NFS"}
-                response = self.redfish_instance.post(
-                    "/redfish/v1/Managers/iDRAC.Embedded.1/VirtualMedia/CD/"
-                    "Actions/VirtualMedia.InsertMedia",
-                    body=body,
-                )
-                self._wait_for_completion(response)
+        self._insert_virtual_media_with_retry(iso_http_url)
 
-                # Step 4: Verify insertion by polling CD state
-                start_time = time.time()
-                while time.time() - start_time < VIRTUAL_MEDIA_INSERTION_POLL_TIMEOUT:
-                    if self._get_vm_state("CD").get("Inserted"):
-                        self._log.info("Virtual media insertion completed successfully")
-                        return
-                    time.sleep(1)
+    @retry(tries=3, delay=0)  # type: ignore
+    def _insert_virtual_media_with_retry(self, iso_http_url: str) -> None:
+        """Perform virtual media insertion with automatic retry."""
+        try:
+            # Explicitly specify NFS protocol (helps across firmware revisions)
+            body = {"Image": iso_http_url, "TransferProtocolType": "NFS"}
+            response = self.redfish_instance.post(
+                "/redfish/v1/Managers/iDRAC.Embedded.1/VirtualMedia/CD/"
+                "Actions/VirtualMedia.InsertMedia",
+                body=body,
+            )
+            self._wait_for_completion(response)
 
-                raise LisaException(
+            # Verify insertion by polling CD state
+            def _check_media_inserted() -> bool:
+                if self._get_vm_state("CD").inserted:
+                    self._log.info("Virtual media insertion completed successfully")
+                    return True
+                return False
+
+            check_till_timeout(
+                _check_media_inserted,
+                timeout_message=(
                     "Insert reported success but CD not showing as Inserted"
-                )
+                ),
+                timeout=VIRTUAL_MEDIA_INSERTION_POLL_TIMEOUT,
+                interval=1,
+            )
 
-            except LisaException as e:
-                error_msg = str(e)
-                # Check for RAC0904 or reachability errors
-                is_reachability_error = (
-                    "RAC0904" in error_msg or "not accessible or reachable" in error_msg
-                )
+        except LisaException as e:
+            error_msg = str(e)
+            # Check for RAC0904 or reachability errors that need iDRAC reset
+            is_reachability_error = (
+                "RAC0904" in error_msg or "not accessible or reachable" in error_msg
+            )
 
-                if is_reachability_error and attempt < max_attempts:
-                    self._log.debug(
-                        f"RAC0904/reachability error on attempt {attempt}. "
-                        "Ejecting media, resetting iDRAC, and retrying..."
-                    )
-                    # Clear virtual media again
-                    self._ensure_vm_cleared()
-                    # Reset iDRAC to clear stale state
-                    self._reset_idrac()
-                    continue
-
-                # Final attempt failed or non-reachability error
-                # Include the original iDRAC error response for clarity
-                raise LisaException(
-                    f"Failed to insert virtual media from '{iso_http_url}' "
-                    f"after {attempt} attempt(s). Ensure the iDRAC can reach this "
-                    f"URL and the file exists. iDRAC error: {error_msg}"
+            if is_reachability_error:
+                # RAC0904 errors occur when iDRAC has stale NFS/HTTP handles from
+                # previous operations. This is a known iDRAC firmware quirk where the
+                # controller caches connection state even after media is ejected.
+                # Clearing media ensures no residual handles exist, and resetting
+                # iDRAC clears its internal cache, allowing the next insert attempt
+                # to establish a fresh connection to the NFS/HTTP server.
+                self._log.debug(
+                    "RAC0904/reachability error detected. "
+                    "Ejecting media, resetting iDRAC, and retrying..."
                 )
+                # Clear virtual media and reset iDRAC to clear stale state
+                self._ensure_vm_cleared()
+                self._reset_idrac()
+                # Re-raise to trigger retry
+                raise
+
+            # Non-reachability error - include original error details
+            raise LisaException(
+                f"Failed to insert virtual media from '{iso_http_url}'. "
+                f"Ensure the iDRAC can reach this URL and the file exists. "
+                f"iDRAC error: {error_msg}"
+            )
 
     def _change_boot_order_once(self, boot_from: str) -> None:
         self._log.debug(f"Updating boot source to {boot_from}")
