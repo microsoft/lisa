@@ -46,6 +46,28 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
     def _libvirt_uri_schema(self) -> str:
         return "ch"
 
+    def _artifact_dir(self, environment: Environment, node_name: str) -> Path:
+        """
+        Best-effort resolve of a debug artifacts directory for this node.
+        Falls back to ./runtime/debug if environment doesn't expose log_path.
+        """
+        base = None
+        # Prefer LISA's per-run log directory if available
+        if hasattr(environment, "log_path") and environment.log_path:
+            base = Path(str(environment.log_path))
+        else:
+            base = Path.cwd() / "runtime" / "debug"
+        out = base / "libvirt" / environment.name / node_name
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+
+    def _write_text(self, log: Logger, path: Path, content: str) -> None:
+        try:
+            path.write_text(content)
+            log.info(f"Saved debug artifact: {path}")
+        except Exception as e:
+            log.warning(f"Failed to write {path}: {e}")
+
     def _configure_node(
         self,
         node: Node,
@@ -95,6 +117,10 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 Path(node_context.kernel_source_path),
                 Path(node_context.kernel_path),
             )
+
+        # Store environment and node for artifact collection after domain creation
+        node_context.environment = environment
+        node_context.node = node
 
         super()._create_node(
             node,
@@ -147,6 +173,15 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_type.text = "hvm"
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
+
+        # Kernel cmdline for ttyS0 serial console
+        # No GRUB config needed - cmdline set directly in domain XML for first boot
+        # console=ttyS0,115200: Use UART port 0 at 115200 baud
+        # ignore_loglevel: Show all kernel log levels
+        # printk.time=1: Add timestamps to kernel messages
+        os_cmdline = ET.SubElement(os, "cmdline")
+        os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
+
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
@@ -172,12 +207,13 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 node_context,
             )
 
-        console = ET.SubElement(devices, "console")
-        console.attrib["type"] = "pty"
-
-        console_target = ET.SubElement(console, "target")
-        console_target.attrib["type"] = "serial"
-        console_target.attrib["port"] = "0"
+        # Serial device: PTY-backed UART (guest sees /dev/ttyS0)
+        # Port 0 = ttyS0, no <console> element to avoid ambiguity
+        # libvirt's virDomainOpenConsole() will automatically attach to this serial
+        serial = ET.SubElement(devices, "serial")
+        serial.attrib["type"] = "pty"
+        serial_target = ET.SubElement(serial, "target")
+        serial_target.attrib["port"] = "0"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
@@ -207,6 +243,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         )
 
         xml = ET.tostring(domain, "unicode")
+
+        # ---- DEBUG: save the generated XML before define/start ----
+        debug_dir = self._artifact_dir(environment, node.name)
+        self._write_text(log, debug_dir / "guest_xml_generated.xml", xml)
+
         return xml
 
     def _get_domain_undefine_flags(self) -> int:
@@ -223,6 +264,65 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context.console_logger.attach(
             node_context.domain, node_context.console_log_file_path
         )
+
+        # ---- DEBUG: capture live XML + native argv + libvirt log ----
+        # Use CH-specific virsh connection and consistent artifact directory
+        vm_name = node_context.vm_name
+        environment = getattr(node_context, "environment", None)
+        node = getattr(node_context, "node", None)
+
+        if environment and node:
+            try:
+                debug_dir = self._artifact_dir(environment, node.name)
+
+                def _v(cmd: str) -> str:
+                    """Helper to add CH connection to virsh commands"""
+                    return f"virsh --connect ch:///system {cmd}"
+
+                # Capture live XML
+                r = self.host_node.execute(
+                    _v(f"dumpxml {vm_name}"),
+                    sudo=True,
+                    shell=True,
+                    no_error_log=True,
+                )
+                if r.exit_code == 0:
+                    (debug_dir / "guest_xml_live.xml").write_text(r.stdout)
+                    self._log.info(
+                        f"Saved live XML: {debug_dir / 'guest_xml_live.xml'}"
+                    )
+
+                # Capture native argv (may not be supported; best-effort)
+                r = self.host_node.execute(
+                    _v(f"domxml-to-native qemu-argv --domain {vm_name}"),
+                    sudo=True,
+                    shell=True,
+                    no_error_log=True,
+                )
+                if r.exit_code == 0:
+                    (debug_dir / "qemu_argv.txt").write_text(r.stdout)
+                    self._log.info(f"Saved qemu argv: {debug_dir / 'qemu_argv.txt'}")
+
+                # Capture libvirt log (if it exists)
+                r = self.host_node.execute(
+                    f"cat /var/log/libvirt/qemu/{vm_name}.log",
+                    sudo=True,
+                    shell=True,
+                    no_error_log=True,
+                )
+                if r.exit_code == 0:
+                    (debug_dir / "libvirt_qemu.log").write_text(r.stdout)
+                    self._log.info(
+                        f"Saved libvirt log: {debug_dir / 'libvirt_qemu.log'}"
+                    )
+
+                self._log.info(
+                    f"Captured libvirt artifacts for {vm_name} under: {debug_dir}"
+                )
+            except Exception as e:
+                self._log.warning(
+                    f"Failed to capture libvirt artifacts for {vm_name}: {e}"
+                )
 
         if len(node_context.passthrough_devices) > 0:
             # Once libvirt domain is created, check if driver attached to device

@@ -22,6 +22,7 @@ from lisa.tools import StressNg
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
+from microsoft.utils.console_log_helper import configure_console_logging
 
 
 @TestSuiteMetadata(
@@ -162,7 +163,97 @@ class StressNgTestSuite(TestSuite):
         This test simply uses whatever environment is provided.
         """
 
-        # Execute the stress test
+        nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
+
+        # Phase 1: Verify console configuration (no modifications, no reboots)
+        # Kernel cmdline is set in domain XML, so we only verify it's applied correctly
+        log.info("Phase 1: Verifying console configuration on all VMs...")
+        for node in nodes:
+            try:
+                # Read /proc/cmdline to verify console=ttyS0 is present
+                cmdline_result = node.execute(
+                    "cat /proc/cmdline", sudo=True, no_error_log=True
+                )
+
+                # Read /proc/consoles to verify ttyS0 is writeable (-W- flag)
+                console_result = node.execute(
+                    "cat /proc/consoles", sudo=True, no_error_log=True
+                )
+
+                cmdline = cmdline_result.stdout.strip()
+                consoles = console_result.stdout.strip()
+
+                log.info(f"{node.name} /proc/cmdline: {cmdline}")
+                log.info(f"{node.name} /proc/consoles: {consoles}")
+
+                # Verify console=ttyS0 is in kernel cmdline
+                if "console=ttyS0" not in cmdline:
+                    log.warning(
+                        f"⚠ {node.name} missing console=ttyS0 in /proc/cmdline. "
+                        f"Console logging may not work correctly. "
+                        f"Expected domain XML cmdline to include console=ttyS0."
+                    )
+                else:
+                    log.info(f"✓ {node.name} has console=ttyS0 in kernel cmdline")
+
+                # Verify ttyS0 appears in /proc/consoles with -W- (writeable) flag
+                # Expected format: "ttyS0                -W- (EC p a)    4:64"
+                if "ttyS0" not in consoles:
+                    log.warning(
+                        f"⚠ {node.name} missing ttyS0 in /proc/consoles. "
+                        f"Console device may not be available."
+                    )
+                elif "-W-" not in consoles or "ttyS0" not in consoles:
+                    log.warning(
+                        f"⚠ {node.name} ttyS0 may not be writeable in /proc/consoles. "
+                        f"Check for -W- flag next to ttyS0."
+                    )
+                else:
+                    log.info(f"✓ {node.name} ttyS0 is writeable in /proc/consoles")
+
+                # Optional: loopback sanity check - send test string to serial
+                # This should appear in the libvirt console capture
+                try:
+                    node.execute(
+                        'echo "LISA_CONSOLE_TEST_$(date +%s)" | sudo tee /dev/ttyS0',
+                        sudo=True,
+                        shell=True,
+                        no_error_log=True,
+                    )
+                    log.info(
+                        f"{node.name}: Sent test message to /dev/ttyS0 "
+                        f"(check console logs for LISA_CONSOLE_TEST_*)"
+                    )
+                except Exception as loopback_error:
+                    log.warning(
+                        f"{node.name}: Could not write to /dev/ttyS0: {loopback_error}"
+                    )
+
+            except Exception as e:
+                log.warning(
+                    f"Failed to verify console configuration on {node.name}: {e}. "
+                    f"Console logs may be incomplete."
+                )
+
+        # Phase 2: Configure console logging
+        log.info("Phase 2: Configuring console logging...")
+        for node in nodes:
+            try:
+                configure_console_logging(
+                    node,
+                    log,
+                    loglevel=8,  # Maximum verbosity
+                    persistent=False,  # Cmdline already set in domain XML
+                    expected_console=None,  # Auto-detect (hvc0, ttyS0, or ttyS1)
+                )
+            except Exception as e:
+                log.warning(
+                    f"Failed to configure console logging on {node.name}: {e}. "
+                    f"Console logs may be incomplete."
+                )
+
+        # Phase 3: Execute the stress test
+        log.info("Phase 3: Running stress tests...")
         if self.CONFIG_VARIABLE not in variables:
             raise SkippedException("No jobfile provided for multi-VM stress test")
 
@@ -185,6 +276,9 @@ class StressNgTestSuite(TestSuite):
         except Exception as e:
             self._check_panic(nodes)
             raise e
+        finally:
+            # Always save serial console logs for debugging
+            self._save_serial_console_logs(nodes, class_name, environment.log)
 
     def _run_stress_ng_job(
         self,
@@ -228,6 +322,9 @@ class StressNgTestSuite(TestSuite):
             raise execution_error
 
         finally:
+            # Always save serial console logs for debugging, regardless of test result
+            self._save_serial_console_logs(nodes, job_file_name, log)
+
             self._report_test_results(
                 test_result, job_file_name, execution_status, execution_summary
             )
@@ -359,6 +456,34 @@ class StressNgTestSuite(TestSuite):
     def _check_panic(self, nodes: List[RemoteNode]) -> None:
         for node in nodes:
             node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+
+    def _save_serial_console_logs(
+        self, nodes: List[RemoteNode], job_file_name: str, log: Logger
+    ) -> None:
+        """
+        Save serial console logs for all nodes.
+
+        This captures console logs regardless of test pass/fail status
+        to aid in debugging console logging issues.
+
+        Args:
+            nodes: List of nodes to capture console logs from
+            job_file_name: Name of the job file (used in log path)
+            log: Logger instance
+        """
+        for node in nodes:
+            try:
+                if node.features.is_supported(SerialConsole):
+                    serial_console = node.features[SerialConsole]
+                    log_dir = (
+                        node.local_log_path
+                        / f"serial_console_{node.name}_{job_file_name}"
+                    )
+                    log_dir.mkdir(parents=True, exist_ok=True)
+                    serial_console.get_console_log(log_dir, force_run=True)
+                    log.debug(f"Saved serial console log for {node.name} to {log_dir}")
+            except Exception as e:
+                log.warning(f"Failed to save serial console log for {node.name}: {e}")
 
     def _process_yaml_output(
         self,
