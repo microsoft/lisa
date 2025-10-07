@@ -407,6 +407,14 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
 
     __install_driver_using_sdk(node, log, log_path)
 
+    # Enabling nvidia persistence mode which is recommended by NVIDIA
+    node.execute(
+        "nvidia-persistenced --persistence-mode",
+        sudo=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="fail to enable nvidia persistence mode",
+    )
+
 
 def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     lspci = node.tools[Lspci]
