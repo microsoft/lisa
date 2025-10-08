@@ -137,105 +137,99 @@ class Gpu(Feature):
 
     def get_gpu_count_with_lsvmbus(self) -> int:
         """
-        Dynamically count GPU devices using lsvmbus by matching against
-        actual PCI GPU devices found on the system. Falls back to hardcoded
-        list if dynamic detection fails.
+        Count GPU devices using lsvmbus.
+        First tries hardcoded list, then groups devices by last segment of device ID.
         """
         lsvmbus_tool = self._node.tools[Lsvmbus]
-        lspci_tool = self._node.tools[Lspci]
         
         # Get all VMBus devices
         vmbus_devices = lsvmbus_tool.get_device_channels()
         self._log.debug(f"Found {len(vmbus_devices)} VMBus devices")
         
-        # First try dynamic detection
-        gpu_count = self._get_gpu_count_dynamic(vmbus_devices, lspci_tool)
-        
-        if gpu_count > 0:
-            self._log.debug(f"Dynamic GPU detection found {gpu_count} GPU(s)")
-            return gpu_count
-        
-        # Fall back to hardcoded list if dynamic detection returns 0
-        self._log.debug("Dynamic detection found no GPUs, falling back to hardcoded list")
+        # First try the hardcoded list (original approach)
         gpu_count = self._get_gpu_count_hardcoded(vmbus_devices)
         
         if gpu_count > 0:
-            self._log.debug(f"Hardcoded list detection found {gpu_count} GPU(s)")
+            self._log.debug(f"Found {gpu_count} GPU(s) using hardcoded list")
+            return gpu_count
+        
+        # If no matches in hardcoded list, group by last segment
+        self._log.debug("No GPUs found in hardcoded list, trying last-segment grouping")
+        gpu_count = self._get_gpu_count_by_last_segment(vmbus_devices)
+        
+        if gpu_count > 0:
+            self._log.debug(f"Found {gpu_count} GPU(s) using last-segment grouping")
         else:
-            self._log.debug("No GPU devices found in lsvmbus using either method")
+            self._log.debug("No GPU devices found in lsvmbus")
         
         return gpu_count
     
-    def _get_gpu_count_dynamic(self, vmbus_devices: List[Any], lspci_tool: Lspci) -> int:
+    def _get_gpu_count_by_last_segment(self, vmbus_devices: List[Any]) -> int:
         """
-        Dynamic GPU detection using actual PCI devices.
+        Group VMBus devices by last segment of device ID and find GPU group.
+        GPUs typically share the same last segment (e.g., '423331303142' for GB200).
         """
         try:
-            # Get actual GPU devices from lspci
-            pci_gpu_devices = self._get_gpu_from_lspci()
+            # Get actual GPU count from nvidia-smi
+            nvidia_smi = self._node.tools[NvidiaSmi]
+            actual_gpu_count = nvidia_smi.get_gpu_count()
             
-            if not pci_gpu_devices:
-                self._log.debug("No PCI GPU devices found for dynamic detection")
+            if actual_gpu_count == 0:
+                self._log.debug("nvidia-smi reports 0 GPUs")
                 return 0
             
-            # Extract vendor and device IDs from actual GPUs
-            gpu_id_patterns = set()
-            for pci_device in pci_gpu_devices:
-                # Get device details from lspci output
-                # Format: XXXX:XX:XX.X Class_ID: Vendor_ID:Device_ID
-                device_info = lspci_tool.run(
-                    f"-n -s {pci_device.slot}", 
-                    force_run=True
-                ).stdout.strip()
-                
-                if device_info:
-                    # Parse vendor:device ID (e.g., "10de:2330" for NVIDIA H100)
-                    parts = device_info.split()
-                    for part in parts:
-                        if ":" in part and len(part.split(":")) == 2:
-                            vendor, device = part.split(":")
-                            if len(vendor) == 4 and len(device) == 4:
-                                gpu_id_patterns.add(part.lower())
-                                self._log.debug(f"Found GPU ID pattern: {part}")
+            self._log.debug(f"nvidia-smi reports {actual_gpu_count} GPU(s)")
             
-            if not gpu_id_patterns:
-                self._log.debug("Could not extract GPU ID patterns from PCI devices")
-                return 0
+            # Group devices by last segment of device ID
+            last_segment_groups = {}
             
-            # Count VMBus devices that match GPU patterns
-            gpu_count = 0
-            bridge_count = 0
+            for device in vmbus_devices:
+                device_id = device.device_id
+                # Device ID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                # Extract last segment after the last hyphen
+                id_parts = device_id.split('-')
+                if len(id_parts) >= 5:
+                    last_segment = id_parts[-1].lower()
+                    if last_segment not in last_segment_groups:
+                        last_segment_groups[last_segment] = []
+                    last_segment_groups[last_segment].append(device)
             
-            for vmbus_device in vmbus_devices:
-                device_id_lower = vmbus_device.device_id.lower()
-                # Remove hyphens from device ID for matching
-                device_id_clean = device_id_lower.replace("-", "")
-                
-                for pattern in gpu_id_patterns:
-                    # Check various formats of the pattern in device ID
-                    pattern_clean = pattern.replace(":", "")
-                    if pattern_clean in device_id_clean:
-                        gpu_count += 1
+            # Find a group with exactly the GPU count
+            for last_segment, devices in last_segment_groups.items():
+                if len(devices) == actual_gpu_count:
+                    # Additional validation: all should be PCI Express pass-through devices
+                    all_pci_passthrough = all(
+                        "PCI Express pass-through" in device.name 
+                        for device in devices
+                    )
+                    
+                    if all_pci_passthrough:
                         self._log.debug(
-                            f"Matched VMBus device {vmbus_device.name} "
-                            f"with pattern {pattern}"
+                            f"Found {len(devices)} PCI Express pass-through devices "
+                            f"with last segment '{last_segment}' matching GPU count"
                         )
-                        # Check if it's a bridge device
-                        if "bridge" in vmbus_device.name.lower():
-                            bridge_count += 1
-                            self._log.debug(f"Device {vmbus_device.name} is a bridge")
-                        break
+                        # Log the matched devices for debugging
+                        for device in devices:
+                            self._log.debug(f"  GPU device: {device.device_id}")
+                        return actual_gpu_count
             
-            return gpu_count - bridge_count
-        
+            # If no exact match, log what we found for debugging
+            self._log.debug(f"No device group with last segment matches GPU count {actual_gpu_count}")
+            for last_segment, devices in last_segment_groups.items():
+                # Only log groups with PCI Express pass-through devices
+                pci_devices = [d for d in devices if "PCI Express pass-through" in d.name]
+                if pci_devices:
+                    self._log.debug(f"  Last segment '{last_segment}': {len(pci_devices)} PCI devices")
+            
+            return 0
+            
         except Exception as e:
-            self._log.debug(f"Dynamic GPU detection failed: {e}")
+            self._log.debug(f"Last-segment grouping failed: {e}")
             return 0
         
     def _get_gpu_count_hardcoded(self, vmbus_devices: List[Any]) -> int:
         """
-        Fallback to hardcoded list for known GPU devices.
-        This maintains backward compatibility.
+        Original method - check against hardcoded list.
         """
         lsvmbus_device_count = 0
         bridge_device_count = 0
