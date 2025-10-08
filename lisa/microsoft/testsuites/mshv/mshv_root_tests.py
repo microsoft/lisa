@@ -96,9 +96,11 @@ class MshvHostTestSuite(TestSuite):
                 break
             time.sleep(1)
 
-        assert_that(mshvlog_logfile_size).described_as(
-            "mshvlog logfile should not be empty"
-        ).is_greater_than(0)
+        # mshvlog file will be empty on L1VH parent partitions.
+        if not self._is_l1vh_partition(node, log):
+            assert_that(mshvlog_logfile_size).described_as(
+                "mshvlog logfile should not be empty"
+            ).is_greater_than(0)
 
         dmesg_logs = node.tools[Dmesg].get_output()
         mshvdiag_dmesg_logs = re.search(self.mshvdiag_dmesg_pattern, dmesg_logs)
@@ -323,3 +325,19 @@ class MshvHostTestSuite(TestSuite):
         dmesg_path = log_path / "dmesg"
         with open(str(dmesg_path), "w", encoding="utf-8") as f:
             f.write(dmesg_str)
+
+    def _is_l1vh_partition(self, node: Node, log: Logger) -> bool:
+        """Check if the node is L1VH parent partition."""
+
+        # This pattern matches a line like below in dmesg:
+        # [    1.234567] Hyper-V: running as L1VH partition
+        l1vh_pattern = re.compile(
+            r"\[\s+\d+.\d+\]\s+Hyper-V: running as L1VH partition"
+        )
+        dmesg_logs = node.tools[Dmesg].get_output()
+        l1vh_dmesg_logs = re.search(l1vh_pattern, dmesg_logs)
+        if l1vh_dmesg_logs is not None:
+            log.debug("Node is running as L1VH partition.")
+            return True
+        log.debug("Node is NOT running as L1VH partition.")
+        return False
