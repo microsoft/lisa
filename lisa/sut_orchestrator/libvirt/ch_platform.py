@@ -93,6 +93,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 "grep -q 'console=ttyS0' /etc/default/grub || sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&console=ttyS0,115200 printk.time=1 ignore_loglevel /' /etc/default/grub",  # noqa: E501
                 "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg || true",
             ],
+            "runcmd": [
+                # Reboot to apply GRUB changes (runs after cloud-init completes)
+                # This ensures enhanced console logging is active before tests run
+                "shutdown -r +1 'Rebooting to apply console logging settings' || reboot",  # noqa: E501
+            ],
         }
         node_context.extra_cloud_init_user_data.append(console_config)
 
@@ -161,6 +166,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
 
+        # Ensure console params apply on FIRST boot (without waiting for reboot)
+        # This makes console logging work immediately
+        os_cmdline = ET.SubElement(os, "cmdline")
+        os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
+
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
@@ -186,16 +196,19 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 node_context,
             )
 
-        # Add explicit serial device for UART (ttyS0)
-        # This ensures the guest has a 16550 UART that the kernel can write to
+        # 16550 UART backed by a PTY (guest sees this as /dev/ttyS0)
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
 
         serial_target = ET.SubElement(serial, "target")
         serial_target.attrib["port"] = "0"
 
-        # Add console device that connects to the serial port
-        # This allows libvirt to capture the serial output
+        # Optional: specify ISA serial model
+        # (some drivers ignore this, safe to omit if unsupported)
+        serial_model = ET.SubElement(serial, "model")
+        serial_model.attrib["name"] = "isa-serial"
+
+        # Console hooked to the UART above so virsh/libvirt loggers can read it
         console = ET.SubElement(devices, "console")
         console.attrib["type"] = "pty"
 

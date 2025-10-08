@@ -57,9 +57,9 @@ def _parse_active_consoles(text: str) -> dict[str, str]:
 
 def _guess_console_device(node: Node) -> Optional[str]:
     """
-    Guess the expected console device by checking what exists.
+    Guess the expected console device by checking /proc/consoles.
 
-    Prefers hvc0 (virtio-console, used by Cloud Hypervisor) over ttyS0 (UART).
+    Returns the first write-enabled console device found.
 
     Args:
         node: The target node
@@ -67,9 +67,16 @@ def _guess_console_device(node: Node) -> Optional[str]:
     Returns:
         Device name (e.g., "hvc0", "ttyS0") or None if nothing found
     """
+    # Check /proc/consoles to see what's actually active and write-enabled
+    active_text = _read_file(node, "/proc/consoles")
+    active = _parse_active_consoles(active_text)
+
+    # Return the first write-enabled console (checking in priority order)
     for dev in ("hvc0", "ttyS0", "ttyS1"):
-        if node.execute(f"test -e /dev/{dev}", sudo=True).exit_code == 0:
+        flags = active.get(dev, "")
+        if "W" in flags:  # Write-enabled
             return dev
+
     return None
 
 
