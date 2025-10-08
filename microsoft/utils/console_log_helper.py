@@ -15,6 +15,145 @@ from typing import Optional
 
 from lisa import Logger, Node
 from lisa.operating_system import Posix
+from lisa.util import LisaException
+
+
+def _read_file(node: Node, path: str) -> str:
+    """
+    Read a file from the node, returning empty string on failure.
+
+    Args:
+        node: The target node
+        path: Path to the file to read
+
+    Returns:
+        File contents or empty string if read fails
+    """
+    result = node.execute(f"cat {path}", sudo=True, shell=True)
+    return result.stdout if result.exit_code == 0 else ""
+
+
+def _parse_active_consoles(text: str) -> dict[str, str]:
+    """
+    Parse /proc/consoles to extract active console devices and their flags.
+
+    /proc/consoles format (one device per line):
+        ttyS0    -W- (EC p a)    4:64
+        hvc0     -W- (EC p  )   229:0
+
+    Returns:
+        Dict mapping device name to flags string (e.g., {"hvc0": "-W-"})
+    """
+    active = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        dev = parts[0]
+        flags = parts[1] if len(parts) > 1 else ""
+        active[dev] = flags
+    return active
+
+
+def _guess_console_device(node: Node) -> Optional[str]:
+    """
+    Guess the expected console device by checking what exists.
+
+    Prefers hvc0 (virtio-console, used by Cloud Hypervisor) over ttyS0 (UART).
+
+    Args:
+        node: The target node
+
+    Returns:
+        Device name (e.g., "hvc0", "ttyS0") or None if nothing found
+    """
+    for dev in ("hvc0", "ttyS0", "ttyS1"):
+        if node.execute(f"test -e /dev/{dev}", sudo=True).exit_code == 0:
+            return dev
+    return None
+
+
+def _assert_kernel_console_wired(
+    node: Node, log: Logger, expected_console: Optional[str] = None
+) -> None:
+    """
+    Verify that the kernel is configured to send output to the serial console.
+
+    This checks:
+    1. /proc/cmdline has console= parameter
+    2. The expected console device is listed in cmdline
+    3. /proc/consoles shows the device is active and write-enabled
+
+    Fails fast with LisaException if console is not properly wired.
+
+    Args:
+        node: The target node to check
+        log: Logger instance
+        expected_console: Expected console device (e.g., "hvc0", "ttyS0")
+                         If None, will auto-detect based on /dev presence
+
+    Raises:
+        LisaException: If kernel console is not properly configured
+    """
+    cmdline = _read_file(node, "/proc/cmdline").strip()
+
+    # Extract all console= parameters from cmdline
+    # Example: console=hvc0,115200 console=tty0 -> ["hvc0", "tty0"]
+    consoles = [p.split("=", 1)[1] for p in cmdline.split() if p.startswith("console=")]
+    consoles = [c.split(",")[0] for c in consoles]  # Strip speed like ,115200
+    consoles_set = set(consoles)
+
+    active_text = _read_file(node, "/proc/consoles")
+    active = _parse_active_consoles(active_text)
+
+    # Determine expected console (explicit or auto-detect)
+    guess = expected_console or _guess_console_device(node)
+
+    log.debug(f"Kernel cmdline: {cmdline}")
+    log.debug(f"/proc/consoles:\n{active_text}")
+
+    # Fail fast if no console= parameter at all
+    if not consoles_set:
+        raise LisaException(
+            "Kernel cmdline has no 'console=' parameter. "
+            "Serial console logs will be empty. "
+            "Add e.g. 'console=hvc0,115200' (virtio-console/Cloud Hypervisor) "
+            "or 'console=ttyS0,115200' (UART/QEMU)."
+        )
+
+    # Fail fast if expected console is not in cmdline
+    if guess and guess not in consoles_set:
+        raise LisaException(
+            f"Kernel cmdline consoles {sorted(consoles_set)} do not include "
+            f"expected '{guess}'. "
+            f"Serial console logs will be empty. "
+            f"Fix kernel cmdline to include 'console={guess},115200'."
+        )
+
+    # NEW: Verify the console is actually active and write-enabled
+    if guess:
+        flags = active.get(guess, "")
+        if not flags:
+            raise LisaException(
+                f"Expected console '{guess}' not present in /proc/consoles. "
+                "Driver may be missing or device not initialized. "
+                f"Active consoles: {list(active.keys())}"
+            )
+        if "W" not in flags:
+            raise LisaException(
+                f"Console '{guess}' present but not write-enabled (flags='{flags}'). "
+                "Kernel output will not be captured."
+            )
+
+    # Build dict of active consoles that are in cmdline for logging
+    active_cmdline_consoles = {k: v for k, v in active.items() if k in consoles_set}
+
+    log.info(
+        f"✓ Kernel console wired correctly: "
+        f"cmdline={sorted(consoles_set)}, "
+        f"active={active_cmdline_consoles}, "
+        f"expected={guess or 'auto'}"
+    )
 
 
 def configure_console_logging(
@@ -22,12 +161,17 @@ def configure_console_logging(
     log: Logger,
     loglevel: int = 8,
     persistent: bool = False,
+    expected_console: Optional[str] = None,
 ) -> None:
     """
     Configure kernel console logging to ensure verbose output is captured.
 
-    This function sets the kernel printk log level to ensure all kernel messages
-    are sent to the console device and can be captured by serial console loggers.
+    This function:
+    1. Verifies kernel is wired to serial console (fails fast if not)
+    2. Sets kernel printk log level for verbose output
+
+    CRITICAL: The kernel MUST have console=<device> in boot parameters.
+    This function will raise LisaException if not properly configured.
 
     Args:
         node: The target node to configure
@@ -35,6 +179,11 @@ def configure_console_logging(
         loglevel: Kernel log level (0-8, default 8 for maximum verbosity)
                   0 = emergency only, 8 = debug and higher
         persistent: If True, also configure GRUB to persist across reboots
+        expected_console: Expected console device (e.g., "hvc0" for Cloud Hypervisor,
+                         "ttyS0" for QEMU). If None, will auto-detect.
+
+    Raises:
+        LisaException: If kernel console is not properly configured
 
     Common log levels:
         0 (KERN_EMERG)   : System is unusable
@@ -49,7 +198,8 @@ def configure_console_logging(
 
     Example:
         # Before running stress tests, enable verbose console logging
-        configure_console_logging(node, log, loglevel=8, persistent=False)
+        # This will fail fast if console= is not in kernel cmdline
+        configure_console_logging(node, log, loglevel=8, expected_console="hvc0")
 
         # Run test that may cause crashes/panics
         stress_test.run()
@@ -63,6 +213,10 @@ def configure_console_logging(
         return
 
     log.info(f"Configuring console logging with loglevel={loglevel}")
+
+    # FAIL FAST: Verify kernel console is properly wired
+    # This will raise LisaException if console= is missing or wrong
+    _assert_kernel_console_wired(node, log, expected_console)
 
     # Set current kernel printk log level (immediate effect, not persistent)
     # Format: console_loglevel default_message_loglevel minimum_console_loglevel
