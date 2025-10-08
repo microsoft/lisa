@@ -530,7 +530,7 @@ class DpdkTestpmd(Tool):
         # pick amount of queues for tx/rx (txq/rxq flag)
         # our tests use equal amounts for rx and tx
         if multiple_queues:
-            if self.is_mana:
+            if self.is_mana and mode == "txonly":
                 queues = 8
             else:
                 queues = 4
@@ -538,7 +538,7 @@ class DpdkTestpmd(Tool):
             queues = 1
 
         # MANA needs a file descriptor argument, mlnx doesn't.
-        txd = 128
+        txd = 256
 
         # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
@@ -583,6 +583,9 @@ class DpdkTestpmd(Tool):
                 f" --max-pkt-len={mtu} --txpkts={mtu} --tx-offloads=0x00008000"
                 f" --mbuf-size={mbuf_size}"
             )
+
+        if mode == "txonly":
+            extra_args += " --txonly-multi-flow"
 
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
