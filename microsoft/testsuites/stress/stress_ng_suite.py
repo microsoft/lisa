@@ -203,6 +203,9 @@ class StressNgTestSuite(TestSuite):
         except Exception as e:
             self._check_panic(nodes)
             raise e
+        finally:
+            # Always save serial console logs for debugging
+            self._save_serial_console_logs(nodes, class_name, environment.log)
 
     def _run_stress_ng_job(
         self,
@@ -246,6 +249,9 @@ class StressNgTestSuite(TestSuite):
             raise execution_error
 
         finally:
+            # Always save serial console logs for debugging, regardless of test result
+            self._save_serial_console_logs(nodes, job_file_name, log)
+
             self._report_test_results(
                 test_result, job_file_name, execution_status, execution_summary
             )
@@ -377,6 +383,34 @@ class StressNgTestSuite(TestSuite):
     def _check_panic(self, nodes: List[RemoteNode]) -> None:
         for node in nodes:
             node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+
+    def _save_serial_console_logs(
+        self, nodes: List[RemoteNode], job_file_name: str, log: Logger
+    ) -> None:
+        """
+        Save serial console logs for all nodes.
+
+        This captures console logs regardless of test pass/fail status
+        to aid in debugging console logging issues.
+
+        Args:
+            nodes: List of nodes to capture console logs from
+            job_file_name: Name of the job file (used in log path)
+            log: Logger instance
+        """
+        for node in nodes:
+            try:
+                if node.features.is_supported(SerialConsole):
+                    serial_console = node.features[SerialConsole]
+                    log_dir = (
+                        node.local_log_path
+                        / f"serial_console_{node.name}_{job_file_name}"
+                    )
+                    log_dir.mkdir(parents=True, exist_ok=True)
+                    serial_console.get_console_log(log_dir, force_run=True)
+                    log.debug(f"Saved serial console log for {node.name} to {log_dir}")
+            except Exception as e:
+                log.warning(f"Failed to save serial console log for {node.name}: {e}")
 
     def _process_yaml_output(
         self,
