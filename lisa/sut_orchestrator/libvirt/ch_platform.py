@@ -83,6 +83,19 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         else:
             node_context.host_data = secrets.token_hex(32)
 
+        # Configure serial console logging for Cloud-Hypervisor
+        # This ensures kernel output goes to the console we're capturing
+        # Note: Cloud-Hypervisor uses ttyS0 (UART serial) by default
+        console_config = {
+            "bootcmd": [
+                # Add console params to kernel cmdline via GRUB (idempotent)
+                # printk.time=1: timestamps, ignore_loglevel: show all messages
+                "grep -q 'console=ttyS0' /etc/default/grub || sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&console=ttyS0,115200 printk.time=1 ignore_loglevel /' /etc/default/grub",  # noqa: E501
+                "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg || true",
+            ],
+        }
+        node_context.extra_cloud_init_user_data.append(console_config)
+
     def _create_node(
         self,
         node: Node,
@@ -147,6 +160,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_type.text = "hvm"
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
+
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
@@ -172,6 +186,16 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 node_context,
             )
 
+        # Add explicit serial device for UART (ttyS0)
+        # This ensures the guest has a 16550 UART that the kernel can write to
+        serial = ET.SubElement(devices, "serial")
+        serial.attrib["type"] = "pty"
+
+        serial_target = ET.SubElement(serial, "target")
+        serial_target.attrib["port"] = "0"
+
+        # Add console device that connects to the serial port
+        # This allows libvirt to capture the serial output
         console = ET.SubElement(devices, "console")
         console.attrib["type"] = "pty"
 

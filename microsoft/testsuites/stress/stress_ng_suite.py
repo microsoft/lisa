@@ -173,7 +173,7 @@ class StressNgTestSuite(TestSuite):
                     log,
                     loglevel=8,  # Maximum verbosity
                     persistent=False,  # Only for this test session
-                    expected_console="ttyS0",  # UART serial (legacy/QEMU compat mode)
+                    expected_console=None,  # Auto-detect (hvc0, ttyS0, or ttyS1)
                 )
             except Exception as e:
                 log.warning(
