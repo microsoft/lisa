@@ -172,7 +172,8 @@ class Gpu(Feature):
         try:
             # Get actual GPU count from nvidia-smi
             nvidia_smi = self._node.tools[NvidiaSmi]
-            actual_gpu_count = nvidia_smi.get_gpu_count()
+            # Get GPU count from nvidia-smi without using pre-existing list
+            actual_gpu_count = nvidia_smi.get_gpu_count_from_nvidia_smi()
             
             if actual_gpu_count == 0:
                 self._log.debug("nvidia-smi reports 0 GPUs")
