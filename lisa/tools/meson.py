@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
-from typing import cast
+from typing import List, Optional, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -97,9 +97,18 @@ class Meson(Tool):
 
         return self._check_exists()
 
-    def setup(self, args: str, cwd: PurePath, build_dir: str = "build") -> PurePath:
+    def setup(
+        self,
+        args: str,
+        cwd: PurePath,
+        build_dir: str = "build",
+        variables: Optional[List[str]] = None,
+    ) -> PurePath:
+        variable_defs = ""
+        if variables:
+            variable_defs = " ".join([f"-D{x}" for x in variables])
         self.run(
-            f"{args} {build_dir}",
+            f"{args} {build_dir} {variable_defs}",
             force_run=True,
             shell=True,
             cwd=cwd,
