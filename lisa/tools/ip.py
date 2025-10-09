@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+import ipaddress
 import re
 from typing import Dict, List, Optional, Type, cast
 
@@ -68,7 +69,7 @@ class Ip(Tool):
         (
             r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband|loopback)"
             r" (?P<mac>[0-9a-z:]+)( .+\n(?:(?:.+\n\s+|.*)altname \w+))?"
-            r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n))?"
+            r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/(?P<subnet_mask>\d+).*\n))?"
         )
     )
     # capturing from ip route show
@@ -167,6 +168,7 @@ class Ip(Tool):
             "name": matched.group("name"),
             "mac": matched.group("mac"),
             "ip_addr": matched.group("ip_addr"),
+            "subnet_mask": matched.group("subnet_mask"),
         }
 
     def is_device_up(self, nic_name: str) -> bool:
@@ -387,6 +389,20 @@ class Ip(Tool):
         assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
         return matched["ip_addr"]
 
+    def get_subnet_address(self, nic_name: str) -> str:
+        """
+        Get the subnet address of a nic from 'ip'.
+        Note these are not always strict subnet addresses,
+        they usually include the host bits within the subnet mask.
+        ex: '10.0.1.4/24'
+        """
+        result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
+        matched = self._get_matched_dict(result.stdout)
+        assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
+        assert "subnet_mask" in matched, f"not find subnet_mask for nic {nic_name}"
+
+        return matched["ip_addr"] + "/" + matched["subnet_mask"]
+
     def get_default_route_info(self) -> tuple[str, str]:
         result = self.run("route", force_run=True, sudo=True)
         result.assert_exit_code()
@@ -427,8 +443,13 @@ class Ip(Tool):
             ),
         ).stdout.splitlines()
         delete_routes = []
+        subnet_addr = self.get_subnet_address(device)
+        # parse non-strict subnet address returned by ip addr
+        # to get the parent subnet
+        subnet = ipaddress.ip_network(subnet_addr, strict=False)
+
         for route in all_routes:
-            if f"dev {device}" in route:
+            if f"dev {device}" in route or str(subnet) in route:
                 delete_routes.append(route)
         if len(delete_routes) == 0:
             self._log.warn(
