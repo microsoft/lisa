@@ -165,137 +165,86 @@ class StressNgTestSuite(TestSuite):
 
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
 
-        # Phase 1: Ensure GRUB has console parameters and do controlled reboot
-        # This ensures console logging works reliably (XML cmdline may be ignored)
-        # Reboot happens BEFORE stress tests to avoid killing stress-ng mid-run
-        log.info("Phase 1: Configuring console parameters in GRUB and rebooting VMs...")
+        # Phase 1: Verify console configuration (no modifications, no reboots)
+        # Kernel cmdline is set in domain XML, so we only verify it's applied correctly
+        log.info("Phase 1: Verifying console configuration on all VMs...")
         for node in nodes:
             try:
-                # Check if all required console parameters are present in GRUB
-                check_result = node.execute(
-                    "grep -Eq 'console=ttyS0' /etc/default/grub && "
-                    "grep -Eq 'ignore_loglevel' /etc/default/grub && "
-                    "grep -Eq 'printk\\.time=1' /etc/default/grub",
-                    sudo=True,
-                    shell=True,
-                    no_error_log=True,
+                # Read /proc/cmdline to verify console=ttyS0 is present
+                cmdline_result = node.execute(
+                    "cat /proc/cmdline", sudo=True, no_error_log=True
                 )
 
-                if check_result.exit_code != 0:
-                    log.info(
-                        f"Console parameters missing in GRUB on {node.name}. "
-                        f"Adding and rebooting..."
+                # Read /proc/consoles to verify ttyS0 is writeable (-W- flag)
+                console_result = node.execute(
+                    "cat /proc/consoles", sudo=True, no_error_log=True
+                )
+
+                cmdline = cmdline_result.stdout.strip()
+                consoles = console_result.stdout.strip()
+
+                log.info(f"{node.name} /proc/cmdline: {cmdline}")
+                log.info(f"{node.name} /proc/consoles: {consoles}")
+
+                # Verify console=ttyS0 is in kernel cmdline
+                if "console=ttyS0" not in cmdline:
+                    log.warning(
+                        f"⚠ {node.name} missing console=ttyS0 in /proc/cmdline. "
+                        f"Console logging may not work correctly. "
+                        f"Expected domain XML cmdline to include console=ttyS0."
                     )
-
-                    # Remove any existing console= parameters to prevent duplicates
-                    # Then add ONLY ttyS0 (no hvc0) to eliminate ambiguity
-                    # ttyS0 is the guaranteed UART that Cloud-Hypervisor supports
-                    # Libvirt reads from ttyS0 via <console target="serial">
-                    node.execute(
-                        "sed -i 's/console=[^ ]*//g' /etc/default/grub && "
-                        "sed -i 's/ignore_loglevel//g' /etc/default/grub && "
-                        "sed -i 's/printk\\.time=[^ ]*//g' /etc/default/grub && "
-                        "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
-                        "console=ttyS0,115200 ignore_loglevel printk.time=1 /' "
-                        "/etc/default/grub",
-                        sudo=True,
-                        shell=True,
-                        expected_exit_code=0,
-                    )
-
-                    # Update GRUB configuration
-                    node.execute(
-                        "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg",
-                        sudo=True,
-                        shell=True,
-                    )
-
-                    # Immediate deterministic reboot (not scheduled)
-                    log.info(f"Rebooting {node.name} immediately...")
-                    node.reboot()
-
-                    # Wait for cloud-init to complete before proceeding
-                    node.execute(
-                        "cloud-init status --wait || true",
-                        sudo=True,
-                        shell=True,
-                        timeout=300,
-                    )
-                    log.info(f"{node.name} reboot complete, cloud-init finished")
-
-                    # Verify console configuration after reboot
-                    try:
-                        cmdline_result = node.execute(
-                            "cat /proc/cmdline", sudo=True, no_error_log=True
-                        )
-                        console_result = node.execute(
-                            "cat /proc/consoles", sudo=True, no_error_log=True
-                        )
-                        log.info(
-                            f"{node.name} /proc/cmdline: "
-                            f"{cmdline_result.stdout.strip()}"
-                        )
-                        log.info(
-                            f"{node.name} /proc/consoles: "
-                            f"{console_result.stdout.strip()}"
-                        )
-
-                        # Verify ttyS0 is present in cmdline (ONLY console)
-                        cmdline = cmdline_result.stdout
-                        if "console=ttyS0" in cmdline:
-                            log.info(
-                                f"✓ {node.name} console config correct: "
-                                f"ttyS0 present"
-                            )
-                            if "console=hvc0" in cmdline:
-                                log.warning(
-                                    f"⚠ {node.name} has hvc0 in cmdline "
-                                    f"(expected ttyS0 ONLY)"
-                                )
-                    except Exception as verify_error:
-                        log.warning(
-                            f"Could not verify console config on {node.name}: "
-                            f"{verify_error}"
-                        )
                 else:
+                    log.info(f"✓ {node.name} has console=ttyS0 in kernel cmdline")
+
+                # Verify ttyS0 appears in /proc/consoles with -W- (writeable) flag
+                # Expected format: "ttyS0                -W- (EC p a)    4:64"
+                if "ttyS0" not in consoles:
+                    log.warning(
+                        f"⚠ {node.name} missing ttyS0 in /proc/consoles. "
+                        f"Console device may not be available."
+                    )
+                elif "-W-" not in consoles or "ttyS0" not in consoles:
+                    log.warning(
+                        f"⚠ {node.name} ttyS0 may not be writeable in /proc/consoles. "
+                        f"Check for -W- flag next to ttyS0."
+                    )
+                else:
+                    log.info(f"✓ {node.name} ttyS0 is writeable in /proc/consoles")
+
+                # Optional: loopback sanity check - send test string to serial
+                # This should appear in the libvirt console capture
+                try:
+                    node.execute(
+                        'echo "LISA_CONSOLE_TEST_$(date +%s)" | sudo tee /dev/ttyS0',
+                        sudo=True,
+                        shell=True,
+                        no_error_log=True,
+                    )
                     log.info(
-                        f"GRUB already has full console args on {node.name}, "
-                        f"skipping reboot"
+                        f"{node.name}: Sent test message to /dev/ttyS0 "
+                        f"(check console logs for LISA_CONSOLE_TEST_*)"
+                    )
+                except Exception as loopback_error:
+                    log.warning(
+                        f"{node.name}: Could not write to /dev/ttyS0: {loopback_error}"
                     )
 
-                    # Cancel any pending scheduled shutdowns from previous attempts
-                    node.execute(
-                        "shutdown -c || true", sudo=True, shell=True, no_error_log=True
-                    )
             except Exception as e:
                 log.warning(
-                    f"Failed to configure GRUB on {node.name}: {e}. "
+                    f"Failed to verify console configuration on {node.name}: {e}. "
                     f"Console logs may be incomplete."
                 )
 
-        # Phase 2: Configure console logging and verify
-        log.info("Phase 2: Configuring console logging and verifying...")
+        # Phase 2: Configure console logging
+        log.info("Phase 2: Configuring console logging...")
         for node in nodes:
             try:
                 configure_console_logging(
                     node,
                     log,
                     loglevel=8,  # Maximum verbosity
-                    persistent=False,  # Already persisted via GRUB
+                    persistent=False,  # Cmdline already set in domain XML
                     expected_console=None,  # Auto-detect (hvc0, ttyS0, or ttyS1)
-                )
-
-                # Smoke test: Write to ttyS0 to verify console logger is working
-                # If wiring is correct, "LISA_CONSOLE_SMOKE" will appear in logs
-                node.execute(
-                    "echo LISA_CONSOLE_SMOKE | sudo tee /dev/ttyS0 >/dev/null",
-                    sudo=True,
-                    shell=True,
-                    no_error_log=True,
-                )
-                log.info(
-                    f"{node.name}: Sent LISA_CONSOLE_SMOKE to /dev/ttyS0 "
-                    f"(check console logs for confirmation)"
                 )
             except Exception as e:
                 log.warning(

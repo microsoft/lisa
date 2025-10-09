@@ -105,26 +105,6 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         else:
             node_context.host_data = secrets.token_hex(32)
 
-        # Configure serial console logging for Cloud-Hypervisor
-        # Using ttyS0 (UART) as the ONLY console to eliminate ambiguity
-        # Cloud-Hypervisor guarantees UART support; virtio-console may vary
-        # Test suite (stress_ng_suite.py) handles GRUB config and reboot
-        console_config = {
-            "bootcmd": [
-                # Add ttyS0 console params to GRUB (idempotent)
-                # ignore_loglevel: show all log levels
-                # printk.time=1: add timestamps
-                (
-                    "grep -q 'console=ttyS0' /etc/default/grub || "
-                    "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
-                    "console=ttyS0,115200 ignore_loglevel printk.time=1 /' "
-                    "/etc/default/grub"
-                ),
-                "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg || true",
-            ],
-        }
-        node_context.extra_cloud_init_user_data.append(console_config)
-
     def _create_node(
         self,
         node: Node,
@@ -194,9 +174,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
 
-        # Set kernel cmdline: ttyS0 ONLY (no hvc0)
-        # This eliminates console ordering/ambiguity issues
-        # GRUB config in stress_ng_suite.py ensures persistence across reboots
+        # Kernel cmdline for ttyS0 serial console
+        # No GRUB config needed - cmdline set directly in domain XML for first boot
+        # console=ttyS0,115200: Use UART port 0 at 115200 baud
+        # ignore_loglevel: Show all kernel log levels
+        # printk.time=1: Add timestamps to kernel messages
         os_cmdline = ET.SubElement(os, "cmdline")
         os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
 
@@ -226,21 +208,12 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
 
         # Serial device: PTY-backed UART (guest sees /dev/ttyS0)
-        # This is the real hardware UART that the kernel writes to
+        # Port 0 = ttyS0, no <console> element to avoid ambiguity
+        # libvirt's virDomainOpenConsole() will automatically attach to this serial
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
         serial_target = ET.SubElement(serial, "target")
         serial_target.attrib["port"] = "0"
-
-        # Console: Wire libvirt console to the UART (ttyS0)
-        # Cloud-Hypervisor only supports a single console device
-        # Libvirt's virDomainOpenConsole() reads from this PTY,
-        # ensuring the logger captures the same stream the kernel writes to
-        console = ET.SubElement(devices, "console")
-        console.attrib["type"] = "pty"
-        console_target = ET.SubElement(console, "target")
-        console_target.attrib["type"] = "serial"
-        console_target.attrib["port"] = "0"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
