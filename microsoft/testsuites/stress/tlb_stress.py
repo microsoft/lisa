@@ -12,7 +12,7 @@ from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg
-from lisa.util import LisaException
+from lisa.util import LisaException, UnsupportedDistroException
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -219,12 +219,12 @@ class TlbStress(Tool):
         elif isinstance(self.node.os, CBLMariner):
             self._install_azurelinux_deps()
         else:
-            # Clear error message for unsupported distributions
-            distro_info = getattr(self.node.os, "name", "Unknown")
-            raise RuntimeError(
-                f"Unsupported distribution: {distro_info}. "
-                "This tool only supports Ubuntu (Debian) and Azure Linux "
-                "(CBL Mariner) distributions."
+            # Raise UnsupportedDistroException for unsupported distributions
+            # Test cases will catch this and convert to SkippedException
+            raise UnsupportedDistroException(
+                self.node.os,
+                "TLB stress test only supports Ubuntu (Debian) and "
+                "Azure Linux (CBL Mariner) distributions.",
             )
 
     def _install_debian_deps(self) -> None:
