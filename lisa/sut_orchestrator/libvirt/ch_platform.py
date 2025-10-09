@@ -84,24 +84,24 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             node_context.host_data = secrets.token_hex(32)
 
         # Configure serial console logging for Cloud-Hypervisor
-        # Bulletproof strategy: target BOTH ttyS0 (UART) and hvc0 (virtio)
+        # Cloud-Hypervisor uses virtio-console (hvc0) as primary console
         #
         # Why both consoles:
-        # - ttyS0: Traditional 16550 UART (works with most CH configs)
-        # - hvc0: Virtio console (works if CH uses virtio-console)
+        # - hvc0: Virtio-console (primary for Cloud-Hypervisor)
+        # - ttyS0: Traditional UART (fallback compatibility)
         # - Kernel sends output to ALL listed consoles
         #
-        # Two-phase approach:
-        # 1. XML cmdline tries to set it immediately (may be ignored)
-        # 2. GRUB bootcmd ensures persistence (honored after reboot)
-        # 3. Test suite does controlled reboot before stress tests
+        # CRITICAL: hvc0 listed LAST so it becomes /dev/console
+        # (Linux uses the last console= parameter as the primary)
+        # Test suite (stress_ng_suite.py) handles GRUB config and reboot
         console_config = {
             "bootcmd": [
                 # Add both console params to GRUB (idempotent)
+                # ttyS0 first, hvc0 LAST (hvc0 becomes /dev/console)
                 # ignore_loglevel: show all log levels
                 # printk.time=1: add timestamps
                 (
-                    "grep -q 'console=ttyS0' /etc/default/grub || "
+                    "grep -q 'console=hvc0' /etc/default/grub || "
                     "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
                     "console=ttyS0,115200 console=hvc0,115200 "
                     "ignore_loglevel printk.time=1 /' /etc/default/grub"
@@ -177,7 +177,8 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel.text = node_context.kernel_path
 
         # Attempt to set console params via XML cmdline (may be ignored)
-        # Covers both UART (ttyS0) and virtio-console (hvc0) for compatibility
+        # ttyS0 first, hvc0 LAST - hvc0 becomes /dev/console (primary)
+        # Cloud-Hypervisor uses virtio-console (hvc0) as primary
         os_cmdline = ET.SubElement(os, "cmdline")
         os_cmdline.text = (
             "console=ttyS0,115200 console=hvc0,115200 " "ignore_loglevel printk.time=1"
@@ -209,16 +210,18 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
 
         # Serial device: PTY-backed UART (guest sees /dev/ttyS0)
+        # Kept for compatibility even though Cloud-Hypervisor prefers virtio
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
         serial_target = ET.SubElement(serial, "target")
         serial_target.attrib["port"] = "0"
 
-        # Console: wired to serial device so libvirt logger can capture it
+        # Console: virtio-console (hvc0) for Cloud-Hypervisor
+        # This is what libvirt console logger attaches to
         console = ET.SubElement(devices, "console")
         console.attrib["type"] = "pty"
         console_target = ET.SubElement(console, "target")
-        console_target.attrib["type"] = "serial"
+        console_target.attrib["type"] = "virtio"
         console_target.attrib["port"] = "0"
 
         network_interface = ET.SubElement(devices, "interface")

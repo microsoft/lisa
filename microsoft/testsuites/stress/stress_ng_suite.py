@@ -167,47 +167,108 @@ class StressNgTestSuite(TestSuite):
 
         # Phase 1: Ensure GRUB has console parameters and do controlled reboot
         # This ensures console logging works reliably (XML cmdline may be ignored)
+        # Reboot happens BEFORE stress tests to avoid killing stress-ng mid-run
         log.info("Phase 1: Configuring console parameters in GRUB and rebooting VMs...")
         for node in nodes:
             try:
-                # Robust GRUB configuration with grubby (RHEL/SUSE) fallback to sed
-                # This ensures ALL required parameters are present
-                grub_config_cmd = r"""
-if command -v grubby >/dev/null 2>&1; then
-  # Use grubby on RHEL/SUSE (idempotent)
-  grubby --update-kernel=ALL \
-         --args 'console=ttyS0,115200 console=hvc0,115200 ignore_loglevel printk.time=1' \
-         --remove-args 'quiet splash' || true  # noqa: E501
-  echo "grubby_used"
-else
-  # Fallback for Ubuntu/Debian: check if ALL parameters present
-  if ! (grep -Eq 'console=ttyS0' /etc/default/grub && \
-        grep -Eq 'console=hvc0' /etc/default/grub && \
-        grep -Eq 'ignore_loglevel' /etc/default/grub && \
-        grep -Eq 'printk\.time=1' /etc/default/grub); then
-    sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&console=ttyS0,115200 console=hvc0,115200 ignore_loglevel printk.time=1 /' /etc/default/grub  # noqa: E501
-    update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg || true
-    echo "grub_updated"
-  else
-    echo "grub_already_complete"
-  fi
-fi
-"""
-                result = node.execute(
-                    grub_config_cmd,
+                # Check if all required console parameters are present in GRUB
+                check_result = node.execute(
+                    "grep -Eq 'console=ttyS0' /etc/default/grub && "
+                    "grep -Eq 'console=hvc0' /etc/default/grub && "
+                    "grep -Eq 'ignore_loglevel' /etc/default/grub && "
+                    "grep -Eq 'printk\\.time=1' /etc/default/grub",
                     sudo=True,
                     shell=True,
+                    no_error_log=True,
                 )
 
-                # Check if we need to reboot
-                output = result.stdout.strip()
-                if "grubby_used" in output or "grub_updated" in output:
-                    log.info(f"GRUB configuration updated on {node.name}. Rebooting...")
+                if check_result.exit_code != 0:
+                    log.info(
+                        f"Console parameters missing in GRUB on {node.name}. "
+                        f"Adding and rebooting..."
+                    )
+
+                    # Remove any existing console= parameters to prevent duplicates
+                    # Then add them in the correct order (ttyS0 first, hvc0 LAST)
+                    # hvc0 last makes it the primary /dev/console
+                    node.execute(
+                        "sed -i 's/console=[^ ]*//g' /etc/default/grub && "
+                        "sed -i 's/ignore_loglevel//g' /etc/default/grub && "
+                        "sed -i 's/printk\\.time=[^ ]*//g' /etc/default/grub && "
+                        "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
+                        "console=ttyS0,115200 console=hvc0,115200 "
+                        "ignore_loglevel printk.time=1 /' /etc/default/grub",
+                        sudo=True,
+                        shell=True,
+                        expected_exit_code=0,
+                    )
+
+                    # Update GRUB configuration
+                    node.execute(
+                        "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg",
+                        sudo=True,
+                        shell=True,
+                    )
+
+                    # Immediate deterministic reboot (not scheduled)
+                    log.info(f"Rebooting {node.name} immediately...")
                     node.reboot()
+
+                    # Wait for cloud-init to complete before proceeding
+                    node.execute(
+                        "cloud-init status --wait || true",
+                        sudo=True,
+                        shell=True,
+                        timeout=300,
+                    )
+                    log.info(f"{node.name} reboot complete, cloud-init finished")
+
+                    # Verify console configuration after reboot
+                    try:
+                        cmdline_result = node.execute(
+                            "cat /proc/cmdline", sudo=True, no_error_log=True
+                        )
+                        console_result = node.execute(
+                            "cat /proc/consoles", sudo=True, no_error_log=True
+                        )
+                        log.info(
+                            f"{node.name} /proc/cmdline: "
+                            f"{cmdline_result.stdout.strip()}"
+                        )
+                        log.info(
+                            f"{node.name} /proc/consoles: "
+                            f"{console_result.stdout.strip()}"
+                        )
+
+                        # Verify hvc0 appears after ttyS0 in cmdline (hvc0 is primary)
+                        cmdline = cmdline_result.stdout
+                        if "console=hvc0" in cmdline and "console=ttyS0" in cmdline:
+                            hvc0_pos = cmdline.rfind("console=hvc0")
+                            ttyS0_pos = cmdline.rfind("console=ttyS0")
+                            if hvc0_pos > ttyS0_pos:
+                                log.info(
+                                    f"✓ {node.name} console ordering correct: "
+                                    f"hvc0 is last (primary)"
+                                )
+                            else:
+                                log.warning(
+                                    f"⚠ {node.name} console ordering incorrect: "
+                                    f"hvc0 should be after ttyS0"
+                                )
+                    except Exception as verify_error:
+                        log.warning(
+                            f"Could not verify console config on {node.name}: "
+                            f"{verify_error}"
+                        )
                 else:
                     log.info(
                         f"GRUB already has full console args on {node.name}, "
                         f"skipping reboot"
+                    )
+
+                    # Cancel any pending scheduled shutdowns from previous attempts
+                    node.execute(
+                        "shutdown -c || true", sudo=True, shell=True, no_error_log=True
                     )
             except Exception as e:
                 log.warning(
