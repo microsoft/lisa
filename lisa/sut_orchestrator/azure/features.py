@@ -26,6 +26,8 @@ from azure.mgmt.compute.models import (
     DiskCreateOptionTypes,
     HardwareProfile,
     NetworkInterfaceReference,
+    RunCommandInput,
+    RunCommandResult,
     VirtualMachineExtension,
     VirtualMachineUpdate,
 )
@@ -3863,3 +3865,77 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 sudo=True,
                 append=True,
             )
+
+
+class RunCommand(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    @classmethod
+    def can_disable(cls) -> bool:
+        return False
+
+    def is_enabled(self) -> bool:
+        # RunCommand is always enabled for Azure
+        return True
+
+    def execute(self, commands: List[str]) -> str:
+        """
+        Executes a list of commands on the Azure VM using RunCommand.
+
+        :param commands: A list of shell commands to execute.
+        :return: The output of the commands.
+        """
+        context = get_node_context(self._node)
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+
+        # Prepare the RunCommandInput for Azure
+        run_command_input = RunCommandInput(
+            command_id="RunShellScript",
+            script=self._add_echo_before_command(commands),
+        )
+
+        # Execute the command on the VM
+        operation = compute_client.virtual_machines.begin_run_command(
+            resource_group_name=context.resource_group_name,
+            vm_name=context.vm_name,
+            parameters=run_command_input,
+        )
+        result = wait_operation(operation=operation, failure_identity="run command")
+        value = result.get("value")
+        if value and value[0].get("message"):
+            message = value[0]["message"]
+        else:
+            raise LisaException(
+                "RunCommand did not run successfully. "
+                f"Got response: '{value}'. Expected response to contain `value[0]['message']`"
+            )
+
+        return message
+
+    def _add_echo_before_command(self, commands: List[str]) -> List[str]:
+        """
+        Adds an echo command before each command in the list to ensure
+        that the output of each command is captured in the logs.
+        """
+        return [f"echo 'Running command: {cmd}' && {cmd}" for cmd in commands]
+
+
+class NonSshExecutor(AzureFeatureMixin, features.NonSshExecutor):
+    def execute(self, commands: List[str]) -> List[str]:
+        # RunCommand does not require password login, hence attempt to use it first.
+        # RunCommand has a limitation on 4KB of output.
+        try:
+            result = []
+            for command in commands:
+                out = self._node.features[RunCommand].execute([command])
+                result.append(out)
+            return result
+        except Exception as e:
+            self._log.info(f"RunCommand failed: {e}")
+            # Fallback to the default non-SSH executor behavior
+            return super().execute(commands)
