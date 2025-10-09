@@ -15,6 +15,7 @@ from lisa import (
 )
 from lisa.features import SerialConsole
 from lisa.tools import Lscpu, StressNg
+from lisa.util import SkippedException, UnsupportedDistroException
 
 from .tlb_stress import TlbStress
 
@@ -91,8 +92,10 @@ class TlbStressTestSuite(TestSuite):
             tlb_tool: TlbStress = nodes[0].tools[TlbStress]
             stress_ng = nodes[0].tools[StressNg]
             tlb_tool.install()
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
 
-            # Guest workload probe to exercise throughput/latency gate
+        try:
             stress_ng.run(
                 "--matrix 1 --matrix-size 128 --timeout 30 --metrics-brief",
                 force_run=True,
@@ -134,8 +137,10 @@ class TlbStressTestSuite(TestSuite):
             stress_ng = nodes[0].tools[StressNg]
             tlb_tool: TlbStress = nodes[0].tools[TlbStress]
             tlb_tool.install()
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
 
-            # Guest workload probe to exercise throughput/latency gate
+        try:
             stress_ng.run(
                 "--matrix 1 --matrix-size 128 --timeout 30 --metrics-brief",
                 force_run=True,
