@@ -226,7 +226,9 @@ class Installer:
         )
 
     # run the defined setup and installation steps.
-    def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
+    def do_installation(
+        self, required_version: Optional[VersionInfo] = None, **kwargs: Any
+    ) -> None:
         self._setup_node()
         if self._should_install():
             self._uninstall()
@@ -238,6 +240,7 @@ class Installer:
         node: Node,
         os_dependencies: Optional[DependencyInstaller] = None,
         downloader: Optional[Downloader] = None,
+        **kwargs: Any,
     ) -> None:
         self._node = node
         if not isinstance(self._node.os, Posix):
@@ -248,6 +251,9 @@ class Installer:
         self._package_manager_extra_args: List[str] = []
         self._os_dependencies = os_dependencies
         self._downloader = downloader
+        self._kwargs = kwargs
+        # default to no asan, it's applicable for source builds only
+        self.use_asan = bool(kwargs.pop("use_asan", False))
 
 
 # Base class for package manager installation
@@ -377,6 +383,10 @@ def is_url_for_tarball(url: str) -> bool:
         return False
     # check if '.tar' in [ '.tar', '.gz' ]
     return ".tar" in suffixes
+
+
+def find_libasan_so(node: Node) -> str:
+    return node.execute("find /usr/lib/ -name libasan.so", sudo=True, shell=True).stdout
 
 
 def is_url_for_git_repo(url: str) -> bool:
