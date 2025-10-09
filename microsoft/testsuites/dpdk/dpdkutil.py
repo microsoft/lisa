@@ -60,6 +60,7 @@ from microsoft.testsuites.dpdk.common import (
     PackageManagerInstall,
     TarDownloader,
     check_dpdk_support,
+    find_libasan_so,
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
@@ -1264,6 +1265,7 @@ class DpdkDevnameInfo:
     def __init__(self, testpmd: DpdkTestpmd) -> None:
         self._node = testpmd.node
         self._testpmd = testpmd
+        self.env_args = None
 
     def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
         # since we only need this for netvsc, we'll only generate
@@ -1271,6 +1273,15 @@ class DpdkDevnameInfo:
         # This is needed because the port_ids will change
         # depending on how many NICs are present _and_ enabled
         # by the EAL.
+        self.env_args = (
+            {
+                "ASAN_OPTIONS": "detect_leaks=false",
+                f"LD_PRELOAD": f"{find_libasan_so(self._node)}",
+            }
+            if self._testpmd.installer.is_asan
+            else None
+        )
+
         if self._node.nics.is_mana_device_present():
             # mana needs a vdev argument of pci info
             # followed by kv pairs for mac addresses.
@@ -1290,9 +1301,10 @@ class DpdkDevnameInfo:
         # run the application with the device include arguments.
 
         output = self._node.execute(
-            f"{str(self._testpmd.get_example_app_path('devname'))} {nic_args}",
+            (f"{str(self._testpmd.get_example_app_path('devname'))} {nic_args}"),
             sudo=True,
             shell=True,
+            update_envs=self.env_args,
         ).stdout
 
         # find all the matches for devices bound to net_netvsc PMD
@@ -1440,6 +1452,16 @@ def run_dpdk_symmetric_mp(
         "--log-level vmbus,debug "
         f"-- -p {port_mask} --num-procs 2"
     )
+    libasan_so = find_libasan_so(test_kit.node)
+    assert libasan_so != ""
+    symmetric_mp_envs = (
+        {
+            "LD_PRELOAD": libasan_so,
+            "ASAN_OPTIONS": "detect_leaks=false ",
+        }
+        if test_kit.testpmd.installer.is_asan
+        else None
+    )
     # start the first process (id 0) on core 1
     primary = node.tools[Timeout].start_with_timeout(
         command=(
@@ -1449,6 +1471,7 @@ def run_dpdk_symmetric_mp(
         timeout=660,
         signal=SIGINT,
         kill_timeout=30,
+        update_envs=symmetric_mp_envs,
     )
 
     # wait for it to start
@@ -1463,6 +1486,7 @@ def run_dpdk_symmetric_mp(
         timeout=600,
         signal=SIGINT,
         kill_timeout=35,
+        update_envs=symmetric_mp_envs,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
 

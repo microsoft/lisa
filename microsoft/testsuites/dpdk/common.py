@@ -179,6 +179,7 @@ class Installer:
     # Generic 'Installer' parent class for DpdkTestpmd/rdma-core
     # NOTE: This should not be instantiated directly.
     _err_msg = "not implemented for this installation type."
+    is_asan = False
 
     # setup the node before starting
     # ex: updating the kernel, enabling features, checking drivers, etc.
@@ -377,6 +378,10 @@ def is_url_for_tarball(url: str) -> bool:
         return False
     # check if '.tar' in [ '.tar', '.gz' ]
     return ".tar" in suffixes
+
+
+def find_libasan_so(node: Node) -> str:
+    return node.execute("find /usr/lib/ -name libasan.so", sudo=True, shell=True).stdout
 
 
 def is_url_for_git_repo(url: str) -> bool:

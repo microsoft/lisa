@@ -44,6 +44,7 @@ from microsoft.testsuites.dpdk.common import (
     OsPackageDependencies,
     PackageManagerInstall,
     TarDownloader,
+    find_libasan_so,
     get_debian_backport_repo_args,
     is_url_for_git_repo,
     is_url_for_tarball,
@@ -289,8 +290,12 @@ class DpdkSourceInstall(Installer):
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
+        self.is_asan = True
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=sample_apps,
+            build_dir="build",
+            cwd=self.asset_path,
+            variables=["b_sanitize=address", "buildtype=debug"],
         )
         install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -732,7 +737,18 @@ class DpdkTestpmd(Tool):
         # check if there is a build directory and build the application
         # (if necessary)
         if not shell.exists(source_path.joinpath("build")):
-            self.node.tools[Make].make("static", cwd=source_path, sudo=True)
+            libasan_so = find_libasan_so(self.node)
+            assert libasan_so != "", "couldn't find libasan"
+            self.node.tools[Make].make(
+                "",
+                cwd=source_path,
+                sudo=True,
+                update_envs={
+                    "CFLAGS": "-fsanitize=address",
+                    "ASAN_OPTIONS": "detect_leaks=false",
+                    "LD_PRELOAD": libasan_so,
+                },
+            )
         return source_path.joinpath(f"build/{source_path.name}")
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
