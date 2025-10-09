@@ -174,7 +174,6 @@ class StressNgTestSuite(TestSuite):
                 # Check if all required console parameters are present in GRUB
                 check_result = node.execute(
                     "grep -Eq 'console=ttyS0' /etc/default/grub && "
-                    "grep -Eq 'console=hvc0' /etc/default/grub && "
                     "grep -Eq 'ignore_loglevel' /etc/default/grub && "
                     "grep -Eq 'printk\\.time=1' /etc/default/grub",
                     sudo=True,
@@ -189,16 +188,16 @@ class StressNgTestSuite(TestSuite):
                     )
 
                     # Remove any existing console= parameters to prevent duplicates
-                    # Then add them in the correct order (hvc0 first, ttyS0 LAST)
-                    # ttyS0 last makes it the primary /dev/console
+                    # Then add ONLY ttyS0 (no hvc0) to eliminate ambiguity
+                    # ttyS0 is the guaranteed UART that Cloud-Hypervisor supports
                     # Libvirt reads from ttyS0 via <console target="serial">
                     node.execute(
                         "sed -i 's/console=[^ ]*//g' /etc/default/grub && "
                         "sed -i 's/ignore_loglevel//g' /etc/default/grub && "
                         "sed -i 's/printk\\.time=[^ ]*//g' /etc/default/grub && "
                         "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
-                        "console=hvc0,115200 console=ttyS0,115200 "
-                        "ignore_loglevel printk.time=1 /' /etc/default/grub",
+                        "console=ttyS0,115200 ignore_loglevel printk.time=1 /' "
+                        "/etc/default/grub",
                         sudo=True,
                         shell=True,
                         expected_exit_code=0,
@@ -241,20 +240,17 @@ class StressNgTestSuite(TestSuite):
                             f"{console_result.stdout.strip()}"
                         )
 
-                        # Verify hvc0 appears after ttyS0 in cmdline (hvc0 is primary)
+                        # Verify ttyS0 is present in cmdline (ONLY console)
                         cmdline = cmdline_result.stdout
-                        if "console=hvc0" in cmdline and "console=ttyS0" in cmdline:
-                            hvc0_pos = cmdline.rfind("console=hvc0")
-                            ttyS0_pos = cmdline.rfind("console=ttyS0")
-                            if ttyS0_pos > hvc0_pos:
-                                log.info(
-                                    f"✓ {node.name} console ordering correct: "
-                                    f"ttyS0 is last (primary)"
-                                )
-                            else:
+                        if "console=ttyS0" in cmdline:
+                            log.info(
+                                f"✓ {node.name} console config correct: "
+                                f"ttyS0 present"
+                            )
+                            if "console=hvc0" in cmdline:
                                 log.warning(
-                                    f"⚠ {node.name} console ordering incorrect: "
-                                    f"ttyS0 should be after hvc0"
+                                    f"⚠ {node.name} has hvc0 in cmdline "
+                                    f"(expected ttyS0 ONLY)"
                                 )
                     except Exception as verify_error:
                         log.warning(
@@ -287,6 +283,19 @@ class StressNgTestSuite(TestSuite):
                     loglevel=8,  # Maximum verbosity
                     persistent=False,  # Already persisted via GRUB
                     expected_console=None,  # Auto-detect (hvc0, ttyS0, or ttyS1)
+                )
+
+                # Smoke test: Write to ttyS0 to verify console logger is working
+                # If wiring is correct, "LISA_CONSOLE_SMOKE" will appear in logs
+                node.execute(
+                    "echo LISA_CONSOLE_SMOKE | sudo tee /dev/ttyS0 >/dev/null",
+                    sudo=True,
+                    shell=True,
+                    no_error_log=True,
+                )
+                log.info(
+                    f"{node.name}: Sent LISA_CONSOLE_SMOKE to /dev/ttyS0 "
+                    f"(check console logs for confirmation)"
                 )
             except Exception as e:
                 log.warning(
