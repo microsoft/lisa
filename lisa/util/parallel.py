@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from queue import Queue
@@ -85,8 +84,6 @@ class TaskManager(Generic[T_RESULT]):
         self._future_task_map: Dict[Future[T_RESULT], Task[T_RESULT]] = {}
         self._is_verbose = is_verbose
         self._pending_tasks: Queue[Task[T_RESULT]] = Queue()
-        self._process_lock = threading.Lock()
-        self._stored_exceptions: Queue[Future[T_RESULT]] = Queue()
 
     def __enter__(self) -> Any:
         return self._pool.__enter__()
@@ -122,8 +119,23 @@ class TaskManager(Generic[T_RESULT]):
 
         wait(self._futures[:], return_when=return_condition)
         self._process_done_futures()
-        self.join_exceptions()
         return len(self._futures) > 0
+
+    def _process_done_futures(self) -> None:
+        for future in self._futures[:]:
+            if future.done():
+                # join exceptions of subthreads to main thread
+                result = future.result()
+                # removed finished threads
+                self._futures.remove(future)
+                # exception will throw at this point
+                if self._callback:
+                    self._callback(result)
+                self._future_task_map[future].close()
+                task = self._future_task_map.pop(future)
+
+                # set result back for tracking order
+                task.result = result
 
     def wait_for_all_workers(self) -> None:
         while True:
@@ -135,57 +147,13 @@ class TaskManager(Generic[T_RESULT]):
 
         assert_that(has_remaining).is_false()
 
-    def join_exceptions(self) -> None:
-        # Delay join exceptions to main thread.
-        while not self._stored_exceptions.empty():
-            future = self._stored_exceptions.get()
-            # exception will throw at this point
-            future.result()
-
-    def _process_done_futures(self) -> None:
-        for future in self._futures[:]:
-            if future.done():
-                success = False
-                try:
-                    result = future.result()
-                    success = True
-                except Exception:
-                    # save exceptions of subthreads to main thread
-                    self._stored_exceptions.put(future)
-                finally:
-                    # removed finished threads
-                    self._futures.remove(future)
-                task = self._future_task_map.pop(future)
-                task.close()
-                if success:
-                    # set result back for tracking order
-                    task.result = result
-
-                    # exception will throw at this point
-                    if self._callback:
-                        self._callback(result)
-
     def _process_pending_tasks(self) -> None:
-        new_futures: List[Future[T_RESULT]] = []
-        with self._process_lock:
-            while not self._pending_tasks.empty() and self.has_idle_worker():
-                self.check_cancelled()
-                task = self._pending_tasks.get()
-                future: Future[T_RESULT] = self._pool.submit(task)
-                self._future_task_map[future] = task
-                self._futures.append(future)
-                new_futures.append(future)
-
-        # Add a callback to trigger scheduling when this future completes
-        # It cannot be in the lock, because if it's finished the done callback will
-        # be called immediately. It causes deadlock.
-        for future in new_futures:
-            future.add_done_callback(self._on_future_done)
-
-    def _on_future_done(self, future: Future[T_RESULT]) -> None:
-        # Process the completed future and schedule next task. This runs in the
-        # worker thread that completed the task.
-        self._process_pending_tasks()
+        while not self._pending_tasks.empty() and self.has_idle_worker():
+            self.check_cancelled()
+            task = self._pending_tasks.get()
+            future: Future[T_RESULT] = self._pool.submit(task)
+            self._future_task_map[future] = task
+            self._futures.append(future)
 
 
 _default_task_manager: Optional[TaskManager[Any]] = None
