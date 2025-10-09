@@ -46,6 +46,22 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
     def _libvirt_uri_schema(self) -> str:
         return "ch"
 
+    def _get_artifact_dir(self, environment: Environment, node_name: str) -> Path:
+        """
+        Resolve artifact directory for saving console logs and debug files.
+        Falls back to ./runtime/artifacts if environment doesn't expose log_path.
+        """
+        base = None
+        # Prefer LISA's per-run log directory if available
+        if hasattr(environment, "log_path") and environment.log_path:
+            base = Path(str(environment.log_path))
+        else:
+            base = Path.cwd() / "runtime" / "artifacts"
+
+        artifact_path = base / "console_logs" / environment.name / node_name
+        artifact_path.mkdir(parents=True, exist_ok=True)
+        return artifact_path
+
     def _configure_node(
         self,
         node: Node,
@@ -95,6 +111,10 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 Path(node_context.kernel_source_path),
                 Path(node_context.kernel_path),
             )
+
+        # Store environment and node for artifact collection
+        node_context.environment = environment
+        node_context.node = node
 
         super()._create_node(
             node,
@@ -262,6 +282,45 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             self.device_pool._verify_device_passthrough_post_boot(
                 node_context=node_context,
             )
+
+    def _delete_node(self, node: Node, log: Logger) -> None:
+        """
+        Override to copy console log to artifacts before deleting the VM.
+        """
+        node_context = get_node_context(node)
+
+        # Copy console log to artifact directory before deletion
+        try:
+            console_log_path = Path(node_context.console_log_file_path)
+            if console_log_path.exists():
+                environment = getattr(node_context, "environment", None)
+                if environment:
+                    artifact_dir = self._get_artifact_dir(environment, node.name)
+                    artifact_log = artifact_dir / "console.log"
+
+                    # Copy the console log file
+                    import shutil
+
+                    shutil.copy2(console_log_path, artifact_log)
+                    log.info(
+                        f"Console log saved to artifact: {artifact_log} "
+                        f"(size: {artifact_log.stat().st_size} bytes)"
+                    )
+                else:
+                    log.warning(
+                        "Environment not found in node_context, "
+                        "skipping console log artifact copy"
+                    )
+            else:
+                log.warning(
+                    f"Console log file not found: {console_log_path}, "
+                    "skipping artifact copy"
+                )
+        except Exception as e:
+            log.warning(f"Failed to copy console log to artifacts: {e}")
+
+        # Call parent's delete method
+        super()._delete_node(node, log)
 
     # Create the OS disk.
     def _create_node_os_disk(
