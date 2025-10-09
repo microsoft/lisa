@@ -84,19 +84,29 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             node_context.host_data = secrets.token_hex(32)
 
         # Configure serial console logging for Cloud-Hypervisor
-        # This ensures kernel output goes to the console we're capturing
-        # Note: Cloud-Hypervisor uses ttyS0 (UART serial) by default
+        # Bulletproof strategy: target BOTH ttyS0 (UART) and hvc0 (virtio)
+        #
+        # Why both consoles:
+        # - ttyS0: Traditional 16550 UART (works with most CH configs)
+        # - hvc0: Virtio console (works if CH uses virtio-console)
+        # - Kernel sends output to ALL listed consoles
+        #
+        # Two-phase approach:
+        # 1. XML cmdline tries to set it immediately (may be ignored)
+        # 2. GRUB bootcmd ensures persistence (honored after reboot)
+        # 3. Test suite does controlled reboot before stress tests
         console_config = {
             "bootcmd": [
-                # Add console params to kernel cmdline via GRUB (idempotent)
-                # printk.time=1: timestamps, ignore_loglevel: show all messages
-                "grep -q 'console=ttyS0' /etc/default/grub || sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&console=ttyS0,115200 printk.time=1 ignore_loglevel /' /etc/default/grub",  # noqa: E501
+                # Add both console params to GRUB (idempotent)
+                # ignore_loglevel: show all log levels
+                # printk.time=1: add timestamps
+                (
+                    "grep -q 'console=ttyS0' /etc/default/grub || "
+                    "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
+                    "console=ttyS0,115200 console=hvc0,115200 "
+                    "ignore_loglevel printk.time=1 /' /etc/default/grub"
+                ),
                 "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg || true",
-            ],
-            "runcmd": [
-                # Reboot to apply GRUB changes (runs after cloud-init completes)
-                # This ensures enhanced console logging is active before tests run
-                "shutdown -r +1 'Rebooting to apply console logging settings' || reboot",  # noqa: E501
             ],
         }
         node_context.extra_cloud_init_user_data.append(console_config)
@@ -166,10 +176,12 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
 
-        # Ensure console params apply on FIRST boot (without waiting for reboot)
-        # This makes console logging work immediately
+        # Attempt to set console params via XML cmdline (may be ignored)
+        # Covers both UART (ttyS0) and virtio-console (hvc0) for compatibility
         os_cmdline = ET.SubElement(os, "cmdline")
-        os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
+        os_cmdline.text = (
+            "console=ttyS0,115200 console=hvc0,115200 " "ignore_loglevel printk.time=1"
+        )
 
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
@@ -196,22 +208,15 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 node_context,
             )
 
-        # 16550 UART backed by a PTY (guest sees this as /dev/ttyS0)
+        # Serial device: PTY-backed UART (guest sees /dev/ttyS0)
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
-
         serial_target = ET.SubElement(serial, "target")
         serial_target.attrib["port"] = "0"
 
-        # Optional: specify ISA serial model
-        # (some drivers ignore this, safe to omit if unsupported)
-        serial_model = ET.SubElement(serial, "model")
-        serial_model.attrib["name"] = "isa-serial"
-
-        # Console hooked to the UART above so virsh/libvirt loggers can read it
+        # Console: wired to serial device so libvirt logger can capture it
         console = ET.SubElement(devices, "console")
         console.attrib["type"] = "pty"
-
         console_target = ET.SubElement(console, "target")
         console_target.attrib["type"] = "serial"
         console_target.attrib["port"] = "0"

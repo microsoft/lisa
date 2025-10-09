@@ -163,16 +163,67 @@ class StressNgTestSuite(TestSuite):
         This test simply uses whatever environment is provided.
         """
 
-        # Configure console logging on all nodes to ensure verbose output
-        # This helps capture detailed kernel logs during stress testing
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
+
+        # Phase 1: Ensure GRUB has console parameters and do controlled reboot
+        # This ensures console logging works reliably (XML cmdline may be ignored)
+        log.info("Phase 1: Configuring console parameters in GRUB and rebooting VMs...")
+        for node in nodes:
+            try:
+                # Robust GRUB configuration with grubby (RHEL/SUSE) fallback to sed
+                # This ensures ALL required parameters are present
+                grub_config_cmd = r"""
+if command -v grubby >/dev/null 2>&1; then
+  # Use grubby on RHEL/SUSE (idempotent)
+  grubby --update-kernel=ALL \
+         --args 'console=ttyS0,115200 console=hvc0,115200 ignore_loglevel printk.time=1' \
+         --remove-args 'quiet splash' || true  # noqa: E501
+  echo "grubby_used"
+else
+  # Fallback for Ubuntu/Debian: check if ALL parameters present
+  if ! (grep -Eq 'console=ttyS0' /etc/default/grub && \
+        grep -Eq 'console=hvc0' /etc/default/grub && \
+        grep -Eq 'ignore_loglevel' /etc/default/grub && \
+        grep -Eq 'printk\.time=1' /etc/default/grub); then
+    sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&console=ttyS0,115200 console=hvc0,115200 ignore_loglevel printk.time=1 /' /etc/default/grub  # noqa: E501
+    update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg || true
+    echo "grub_updated"
+  else
+    echo "grub_already_complete"
+  fi
+fi
+"""
+                result = node.execute(
+                    grub_config_cmd,
+                    sudo=True,
+                    shell=True,
+                )
+
+                # Check if we need to reboot
+                output = result.stdout.strip()
+                if "grubby_used" in output or "grub_updated" in output:
+                    log.info(f"GRUB configuration updated on {node.name}. Rebooting...")
+                    node.reboot()
+                else:
+                    log.info(
+                        f"GRUB already has full console args on {node.name}, "
+                        f"skipping reboot"
+                    )
+            except Exception as e:
+                log.warning(
+                    f"Failed to configure GRUB on {node.name}: {e}. "
+                    f"Console logs may be incomplete."
+                )
+
+        # Phase 2: Configure console logging and verify
+        log.info("Phase 2: Configuring console logging and verifying...")
         for node in nodes:
             try:
                 configure_console_logging(
                     node,
                     log,
                     loglevel=8,  # Maximum verbosity
-                    persistent=False,  # Only for this test session
+                    persistent=False,  # Already persisted via GRUB
                     expected_console=None,  # Auto-detect (hvc0, ttyS0, or ttyS1)
                 )
             except Exception as e:
@@ -181,7 +232,8 @@ class StressNgTestSuite(TestSuite):
                     f"Console logs may be incomplete."
                 )
 
-        # Execute the stress test
+        # Phase 3: Execute the stress test
+        log.info("Phase 3: Running stress tests...")
         if self.CONFIG_VARIABLE not in variables:
             raise SkippedException("No jobfile provided for multi-VM stress test")
 
