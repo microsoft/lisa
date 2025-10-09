@@ -217,23 +217,15 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         serial_target = ET.SubElement(serial, "target")
         serial_target.attrib["port"] = "0"
 
-        # Console 1 (PRIMARY): Wire libvirt console to the UART (ttyS0)
-        # CRITICAL: This must be the FIRST <console> element!
-        # Libvirt's virDomainOpenConsole() attaches to the first console,
-        # ensuring the logger reads from the same stream the kernel writes to
-        console_serial = ET.SubElement(devices, "console")
-        console_serial.attrib["type"] = "pty"
-        console_serial_target = ET.SubElement(console_serial, "target")
-        console_serial_target.attrib["type"] = "serial"
-        console_serial_target.attrib["port"] = "0"
-
-        # Console 2 (OPTIONAL): Virtio console for debugging/tools
-        # This is the SECOND console, so won't be used by default logger
-        console_virtio = ET.SubElement(devices, "console")
-        console_virtio.attrib["type"] = "pty"
-        console_virtio_target = ET.SubElement(console_virtio, "target")
-        console_virtio_target.attrib["type"] = "virtio"
-        console_virtio_target.attrib["port"] = "1"
+        # Console: Wire libvirt console to the UART (ttyS0)
+        # Cloud-Hypervisor only supports a single console device
+        # Libvirt's virDomainOpenConsole() reads from this PTY,
+        # ensuring the logger captures the same stream the kernel writes to
+        console = ET.SubElement(devices, "console")
+        console.attrib["type"] = "pty"
+        console_target = ET.SubElement(console, "target")
+        console_target.attrib["type"] = "serial"
+        console_target.attrib["port"] = "0"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
