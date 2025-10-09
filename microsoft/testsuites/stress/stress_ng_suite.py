@@ -189,14 +189,15 @@ class StressNgTestSuite(TestSuite):
                     )
 
                     # Remove any existing console= parameters to prevent duplicates
-                    # Then add them in the correct order (ttyS0 first, hvc0 LAST)
-                    # hvc0 last makes it the primary /dev/console
+                    # Then add them in the correct order (hvc0 first, ttyS0 LAST)
+                    # ttyS0 last makes it the primary /dev/console
+                    # Libvirt reads from ttyS0 via <console target="serial">
                     node.execute(
                         "sed -i 's/console=[^ ]*//g' /etc/default/grub && "
                         "sed -i 's/ignore_loglevel//g' /etc/default/grub && "
                         "sed -i 's/printk\\.time=[^ ]*//g' /etc/default/grub && "
                         "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
-                        "console=ttyS0,115200 console=hvc0,115200 "
+                        "console=hvc0,115200 console=ttyS0,115200 "
                         "ignore_loglevel printk.time=1 /' /etc/default/grub",
                         sudo=True,
                         shell=True,
@@ -245,15 +246,15 @@ class StressNgTestSuite(TestSuite):
                         if "console=hvc0" in cmdline and "console=ttyS0" in cmdline:
                             hvc0_pos = cmdline.rfind("console=hvc0")
                             ttyS0_pos = cmdline.rfind("console=ttyS0")
-                            if hvc0_pos > ttyS0_pos:
+                            if ttyS0_pos > hvc0_pos:
                                 log.info(
                                     f"✓ {node.name} console ordering correct: "
-                                    f"hvc0 is last (primary)"
+                                    f"ttyS0 is last (primary)"
                                 )
                             else:
                                 log.warning(
                                     f"⚠ {node.name} console ordering incorrect: "
-                                    f"hvc0 should be after ttyS0"
+                                    f"ttyS0 should be after hvc0"
                                 )
                     except Exception as verify_error:
                         log.warning(

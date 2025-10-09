@@ -84,26 +84,27 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             node_context.host_data = secrets.token_hex(32)
 
         # Configure serial console logging for Cloud-Hypervisor
-        # Cloud-Hypervisor uses virtio-console (hvc0) as primary console
+        # The kernel writes to ttyS0 (16550 UART), and libvirt console
+        # logger reads from the same serial device via <console target="serial">
         #
-        # Why both consoles:
-        # - hvc0: Virtio-console (primary for Cloud-Hypervisor)
-        # - ttyS0: Traditional UART (fallback compatibility)
+        # Console ordering strategy:
+        # - hvc0: Optional virtio console (for tools/debug)
+        # - ttyS0: Primary UART console (kernel output goes here)
         # - Kernel sends output to ALL listed consoles
         #
-        # CRITICAL: hvc0 listed LAST so it becomes /dev/console
+        # CRITICAL: ttyS0 listed LAST so it becomes /dev/console
         # (Linux uses the last console= parameter as the primary)
         # Test suite (stress_ng_suite.py) handles GRUB config and reboot
         console_config = {
             "bootcmd": [
                 # Add both console params to GRUB (idempotent)
-                # ttyS0 first, hvc0 LAST (hvc0 becomes /dev/console)
+                # hvc0 first, ttyS0 LAST (ttyS0 becomes /dev/console)
                 # ignore_loglevel: show all log levels
                 # printk.time=1: add timestamps
                 (
-                    "grep -q 'console=hvc0' /etc/default/grub || "
+                    "grep -q 'console=ttyS0' /etc/default/grub || "
                     "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/&"
-                    "console=ttyS0,115200 console=hvc0,115200 "
+                    "console=hvc0,115200 console=ttyS0,115200 "
                     "ignore_loglevel printk.time=1 /' /etc/default/grub"
                 ),
                 "update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg || true",
@@ -177,11 +178,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel.text = node_context.kernel_path
 
         # Attempt to set console params via XML cmdline (may be ignored)
-        # ttyS0 first, hvc0 LAST - hvc0 becomes /dev/console (primary)
-        # Cloud-Hypervisor uses virtio-console (hvc0) as primary
+        # hvc0 first, ttyS0 LAST - ttyS0 becomes /dev/console (primary)
+        # The libvirt console logger reads from ttyS0 via <console target="serial">
         os_cmdline = ET.SubElement(os, "cmdline")
         os_cmdline.text = (
-            "console=ttyS0,115200 console=hvc0,115200 " "ignore_loglevel printk.time=1"
+            "console=hvc0,115200 console=ttyS0,115200 " "ignore_loglevel printk.time=1"
         )
 
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
@@ -210,19 +211,29 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
 
         # Serial device: PTY-backed UART (guest sees /dev/ttyS0)
-        # Kept for compatibility even though Cloud-Hypervisor prefers virtio
+        # This is the real hardware UART that the kernel writes to
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
         serial_target = ET.SubElement(serial, "target")
         serial_target.attrib["port"] = "0"
 
-        # Console: virtio-console (hvc0) for Cloud-Hypervisor
-        # This is what libvirt console logger attaches to
-        console = ET.SubElement(devices, "console")
-        console.attrib["type"] = "pty"
-        console_target = ET.SubElement(console, "target")
-        console_target.attrib["type"] = "virtio"
-        console_target.attrib["port"] = "0"
+        # Console 1 (PRIMARY): Wire libvirt console to the UART (ttyS0)
+        # CRITICAL: This must be the FIRST <console> element!
+        # Libvirt's virDomainOpenConsole() attaches to the first console,
+        # ensuring the logger reads from the same stream the kernel writes to
+        console_serial = ET.SubElement(devices, "console")
+        console_serial.attrib["type"] = "pty"
+        console_serial_target = ET.SubElement(console_serial, "target")
+        console_serial_target.attrib["type"] = "serial"
+        console_serial_target.attrib["port"] = "0"
+
+        # Console 2 (OPTIONAL): Virtio console for debugging/tools
+        # This is the SECOND console, so won't be used by default logger
+        console_virtio = ET.SubElement(devices, "console")
+        console_virtio.attrib["type"] = "pty"
+        console_virtio_target = ET.SubElement(console_virtio, "target")
+        console_virtio_target.attrib["type"] = "virtio"
+        console_virtio_target.attrib["port"] = "1"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
