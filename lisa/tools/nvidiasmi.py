@@ -4,7 +4,6 @@
 
 from lisa.executable import Tool
 from lisa.util import LisaException
-from typing import List
 
 
 class NvidiaSmi(Tool):
@@ -15,7 +14,9 @@ class NvidiaSmi(Tool):
         ("Tesla", "47505500", 0),
         ("A100", "44450000", 6),
         ("H100", "44453233", 0),
+        ("A10-4Q", "56475055", 0),
         ("A10-8Q", "3e810200", 0),
+        ("GB200", "42333130", 0),
     )
 
     @property
@@ -40,10 +41,11 @@ class NvidiaSmi(Tool):
             device_count += result.stdout.count(gpu_type)
 
         return device_count
-    
-    def get_gpu_count_from_nvidia_smi(self) -> int:
+
+    def get_gpu_count_without_list(self) -> int:
         """
-        Get GPU count directly from nvidia-smi output without using hardcoded device list.
+        Get GPU count directly from nvidia-smi output without
+        using hardcoded device list.
         Counts the number of GPU entries in the nvidia-smi -L output.
         """
         result = self.run("-L")
@@ -53,11 +55,15 @@ class NvidiaSmi(Tool):
                 raise LisaException(
                     f"nvidia-smi command exited with exit_code {result.exit_code}"
                 )
-        gpu_lines = [line for line in result.stdout.splitlines() if line.strip().startswith("GPU ")]
+        gpu_lines = [
+            line
+            for line in result.stdout.splitlines()
+            if line.strip().startswith("GPU ")
+        ]
         gpu_count = len(gpu_lines)
-        
+
         self._log.debug(f"nvidia-smi detected {gpu_count} GPU(s)")
         for line in gpu_lines:
             self._log.debug(f"  {line}")
-        
+
         return gpu_count

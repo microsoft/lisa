@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, List, Type
+from typing import Any, Dict, List, Type
 
 from dataclasses_json import dataclass_json
 
@@ -141,29 +141,29 @@ class Gpu(Feature):
         First tries hardcoded list, then groups devices by last segment of device ID.
         """
         lsvmbus_tool = self._node.tools[Lsvmbus]
-        
+
         # Get all VMBus devices
         vmbus_devices = lsvmbus_tool.get_device_channels()
         self._log.debug(f"Found {len(vmbus_devices)} VMBus devices")
-        
+
         # First try the hardcoded list (original approach)
         gpu_count = self._get_gpu_count_hardcoded(vmbus_devices)
-        
+
         if gpu_count > 0:
             self._log.debug(f"Found {gpu_count} GPU(s) using hardcoded list")
             return gpu_count
-        
+
         # If no matches in hardcoded list, group by last segment
         self._log.debug("No GPUs found in hardcoded list, trying last-segment grouping")
         gpu_count = self._get_gpu_count_by_last_segment(vmbus_devices)
-        
+
         if gpu_count > 0:
             self._log.debug(f"Found {gpu_count} GPU(s) using last-segment grouping")
         else:
             self._log.debug("No GPU devices found in lsvmbus")
-        
+
         return gpu_count
-    
+
     def _get_gpu_count_by_last_segment(self, vmbus_devices: List[Any]) -> int:
         """
         Group VMBus devices by last segment of device ID and find GPU group.
@@ -173,37 +173,36 @@ class Gpu(Feature):
             # Get actual GPU count from nvidia-smi
             nvidia_smi = self._node.tools[NvidiaSmi]
             # Get GPU count from nvidia-smi without using pre-existing list
-            actual_gpu_count = nvidia_smi.get_gpu_count_from_nvidia_smi()
-            
+            actual_gpu_count = nvidia_smi.get_gpu_count_without_list()
+
             if actual_gpu_count == 0:
                 self._log.debug("nvidia-smi reports 0 GPUs")
                 return 0
-            
+
             self._log.debug(f"nvidia-smi reports {actual_gpu_count} GPU(s)")
-            
+
             # Group devices by last segment of device ID
-            last_segment_groups = {}
-            
+            last_segment_groups: Dict[str, List[Any]] = {}
+
             for device in vmbus_devices:
                 device_id = device.device_id
                 # Device ID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
                 # Extract last segment after the last hyphen
-                id_parts = device_id.split('-')
+                id_parts = device_id.split("-")
                 if len(id_parts) >= 5:
                     last_segment = id_parts[-1].lower()
                     if last_segment not in last_segment_groups:
                         last_segment_groups[last_segment] = []
                     last_segment_groups[last_segment].append(device)
-            
+
             # Find a group with exactly the GPU count
             for last_segment, devices in last_segment_groups.items():
                 if len(devices) == actual_gpu_count:
-                    # Additional validation: all should be PCI Express pass-through devices
+                    # all should be PCI Express pass-through devices
                     all_pci_passthrough = all(
-                        "PCI Express pass-through" in device.name 
-                        for device in devices
+                        "PCI Express pass-through" in device.name for device in devices
                     )
-                    
+
                     if all_pci_passthrough:
                         self._log.debug(
                             f"Found {len(devices)} PCI Express pass-through devices "
@@ -213,28 +212,36 @@ class Gpu(Feature):
                         for device in devices:
                             self._log.debug(f"  GPU device: {device.device_id}")
                         return actual_gpu_count
-            
+
             # If no exact match, log what we found for debugging
-            self._log.debug(f"No device group with last segment matches GPU count {actual_gpu_count}")
+            self._log.debug(
+                f"No device group with last segment matches "
+                f"GPU count {actual_gpu_count}"
+            )
             for last_segment, devices in last_segment_groups.items():
                 # Only log groups with PCI Express pass-through devices
-                pci_devices = [d for d in devices if "PCI Express pass-through" in d.name]
+                pci_devices = [
+                    d for d in devices if "PCI Express pass-through" in d.name
+                ]
                 if pci_devices:
-                    self._log.debug(f"  Last segment '{last_segment}': {len(pci_devices)} PCI devices")
-            
+                    self._log.debug(
+                        f"  Last segment '{last_segment}': "
+                        f"{len(pci_devices)} PCI devices"
+                    )
+
             return 0
-            
+
         except Exception as e:
             self._log.debug(f"Last-segment grouping failed: {e}")
             return 0
-        
+
     def _get_gpu_count_hardcoded(self, vmbus_devices: List[Any]) -> int:
         """
         Original method - check against hardcoded list.
         """
         lsvmbus_device_count = 0
         bridge_device_count = 0
-        
+
         for device in vmbus_devices:
             for name, id_, bridge_count in NvidiaSmi.gpu_devices:
                 if id_ in device.device_id:
@@ -245,7 +252,7 @@ class Gpu(Feature):
                         f"Device ID: {device.device_id}"
                     )
                     break
-        
+
         return lsvmbus_device_count - bridge_device_count
 
     def get_gpu_count_with_lspci(self) -> int:
@@ -253,7 +260,7 @@ class Gpu(Feature):
 
     def get_gpu_count_with_vendor_cmd(self) -> int:
         nvidiasmi = self._node.tools[NvidiaSmi]
-        return nvidiasmi.get_gpu_count()
+        return nvidiasmi.get_gpu_count_without_list()
 
     def get_supported_driver(self) -> List[ComputeSDK]:
         raise NotImplementedError()
