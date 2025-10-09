@@ -1547,6 +1547,20 @@ def run_dpdk_symmetric_mp(
             )
             # expect additional pings for each post-rescind instance
             expected_pings += 100
+            any_errors = True
+            if test_kit.dmesg.check_kernel_errors(force_run=True):
+                dmesg_tail = test_kit.dmesg.get_output(tail_lines=50)
+                test_kit.node.log.debug(f"dmesg tail:\n{dmesg_tail}\n\n")
+            elif not primary.is_running():
+                test_kit.node.log.debug(f"Primary process early exit!!")
+            elif not secondary.is_running():
+                test_kit.node.log.debug("Secondary early exit!")
+            else:
+                any_errors = False
+            if any_errors:
+                raise LisaException(
+                    "symmetric_mp failed, check test output for error logs."
+                )
 
     ping.ping_async(
         target=test_nics[0].ip_addr,
