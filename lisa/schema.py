@@ -334,11 +334,6 @@ class Notifier(TypedSchema, ExtendableSchemaMixin):
     # variables.
     enabled: bool = True
 
-    # priority is used to decide the order of calling notifiers, the order is for
-    # modifying messages. If multiple notifiers modify the message, the
-    # smaller priority will be called first.
-    priority: int = 100
-
 
 @dataclass_json()
 @dataclass()

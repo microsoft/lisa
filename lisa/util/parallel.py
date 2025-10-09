@@ -32,8 +32,6 @@ class Task(Generic[T_RESULT]):
         if self._is_verbose:
             self._log.debug(f"Generate task: {self}")
 
-        self.result: Optional[T_RESULT] = None
-
     def close(self) -> None:
         self._lifecycle_timer.elapsed()
         wait_after_call = (
@@ -132,10 +130,7 @@ class TaskManager(Generic[T_RESULT]):
                 if self._callback:
                     self._callback(result)
                 self._future_task_map[future].close()
-                task = self._future_task_map.pop(future)
-
-                # set result back for tracking order
-                task.result = result
+                self._future_task_map.pop(future)
 
     def wait_for_all_workers(self) -> None:
         while True:
@@ -193,25 +188,17 @@ def run_in_parallel(
     tasks: List[Callable[[], T_RESULT]], log: Optional[Logger] = None
 ) -> List[T_RESULT]:
     """
-    Run tasks in parallel, wait for all to complete, and return the results in the same
-    order as the input tasks.
+    The simple version of concurrency task. It wait all task complete
     """
-    # set a fixed size list to keep the order of results
-    results: List[Optional[T_RESULT]] = [None] * len(tasks)
-    wrapped_tasks: List[Task[T_RESULT]] = []
+    results: List[T_RESULT] = []
 
-    task_manager = TaskManager[T_RESULT](
-        max_workers=len(tasks), callback=lambda _: None
-    )
+    def simple_collect_result(result: T_RESULT) -> None:
+        """
+        Because the task is wait for all completed, and then call back the result, so
+        the results are ordered.
+        """
+        results.append(result)
 
-    for index, task in enumerate(tasks):
-        task = Task(task_id=index, task=task, parent_logger=log)
-        wrapped_tasks.append(task)
-        task_manager.submit_task(task)
-
+    task_manager = run_in_parallel_async(tasks, simple_collect_result, log)
     task_manager.wait_for_all_workers()
-
-    for wrapped_task in wrapped_tasks:
-        results[wrapped_task.id] = wrapped_task.result
-
-    return results  # type: ignore
+    return results

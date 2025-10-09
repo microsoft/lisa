@@ -2,15 +2,16 @@
 # Licensed under the MIT license.
 
 import copy
+import threading
 from datetime import datetime, timezone
 from functools import partial
-from typing import Any, Dict, List, Type, cast
+from typing import Any, Dict, List, Optional, Type
 
 from lisa import schema
 from lisa.messages import MessageBase
 from lisa.util import InitializableMixin, constants, subclasses
 from lisa.util.logger import get_logger
-from lisa.util.parallel import Task, TaskManager, run_in_parallel
+from lisa.util.parallel import run_in_parallel
 
 _get_init_logger = partial(get_logger, "init", "notifier")
 
@@ -48,19 +49,14 @@ class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         """
         pass
 
-    def _modify_message(self, message: MessageBase) -> None:
-        """
-        Called before _received_message, can be used to modify messages for all
-        notifiers.
-        """
-        pass
-
 
 _notifiers: List[Notifier] = []
 _messages: Dict[type, List[Notifier]] = {}
+# prevent concurrent message conflict.
+_message_queue: List[MessageBase] = []
+_message_queue_lock = threading.Lock()
+_notifying_lock = threading.Lock()
 _system_notifiers = [constants.NOTIFIER_CONSOLE, constants.NOTIFIER_FILE]
-# process test results message in an order, so the max_workers is 1
-_message_manager: TaskManager[None] = TaskManager(max_workers=1)
 
 
 def initialize(runbooks: List[schema.Notifier]) -> None:
@@ -80,15 +76,6 @@ def initialize(runbooks: List[schema.Notifier]) -> None:
 
         notifier = factory.create_by_runbook(runbook=runbook)
         register_notifier(notifier)
-
-    # Sort notifiers by priority (smaller priority first)
-    _notifiers.sort(key=lambda x: cast(schema.Notifier, x.runbook).priority)
-
-    # Sort notifiers in each message type list by priority
-    for message_type in _messages:
-        _messages[message_type].sort(
-            key=lambda x: cast(schema.Notifier, x.runbook).priority
-        )
 
 
 def register_notifier(notifier: Notifier) -> None:
@@ -119,45 +106,36 @@ def notify(message: MessageBase) -> None:
         # if time is not set, set it to now
         message.time = datetime.now(timezone.utc)
 
-    _message_manager.submit_task(
-        Task(
-            task_id=0,
-            task=partial(_notify, message),
-            parent_logger=_get_init_logger(),
-        )
-    )
-
-
-def _notify(message: MessageBase) -> None:
-    message_types = type(message).__mro__
-    for message_type in message_types:
-        notifiers = _messages.get(message_type, [])
-        for notifier in notifiers:
-            notifier._modify_message(message)
-
-        if notifiers:
-            run_in_parallel(
-                [
-                    partial(
-                        x._received_message,
-                        message=copy.deepcopy(message),
-                    )
-                    for x in notifiers
-                ]
-            )
-        if message_type == MessageBase:
-            # skip base class type: object
-            break
-
-
-def flush_notifications() -> None:
-    assert _message_manager, "The message manager is not initialized"
-    _message_manager.wait_for_all_workers()
+    # to make sure message get order as possible, use a queue to hold messages.
+    with _message_queue_lock:
+        _message_queue.append(message)
+    while len(_message_queue) > 0:
+        # send message one by one
+        with _notifying_lock:
+            with _message_queue_lock:
+                current_message: Optional[MessageBase] = None
+                if len(_message_queue) > 0:
+                    current_message = _message_queue.pop()
+            if current_message:
+                message_types = type(current_message).__mro__
+                for message_type in message_types:
+                    notifiers = _messages.get(message_type, [])
+                    if notifiers:
+                        run_in_parallel(
+                            [
+                                partial(
+                                    x._received_message,
+                                    message=copy.deepcopy(current_message),
+                                )
+                                for x in notifiers
+                            ]
+                        )
+                    if message_type == MessageBase:
+                        # skip the object type
+                        break
 
 
 def finalize() -> None:
-    flush_notifications()
-
     for notifier in _notifiers:
         try:
             notifier.finalize()

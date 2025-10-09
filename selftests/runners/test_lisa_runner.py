@@ -9,11 +9,16 @@ import lisa
 from lisa import LisaException, constants, schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.messages import TestResultMessage, TestStatus
-from lisa.notifier import _notifiers, flush_notifications, register_notifier
+from lisa.notifier import _notifiers, register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RunnerResult
 from lisa.runners.lisa_runner import LisaRunner
-from lisa.testsuite import TestResult, simple_requirement
+from lisa.testsuite import (
+    TestResult,
+    simple_requirement,
+    start_test_result_message_processing,
+    wait_for_test_result_messages,
+)
 from lisa.util.parallel import Task
 from selftests import test_platform, test_testsuite
 from selftests.test_environment import generate_runbook as generate_env_runbook
@@ -57,10 +62,11 @@ class RunnerTestCase(TestCase):
 
     def setUp(self) -> None:
         lisa.environment._global_environment_id = 0
+        start_test_result_message_processing()
 
     def tearDown(self) -> None:
         test_testsuite.cleanup_cases_metadata()  # Necessary side effects!
-        flush_notifications()
+        wait_for_test_result_messages()
 
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
@@ -751,7 +757,7 @@ class RunnerTestCase(TestCase):
         finally:
             # wait for all test result messages to be processed in the current
             # test case.
-            flush_notifications()
+            wait_for_test_result_messages()
 
         runner.close()
         _notifiers.clear()
