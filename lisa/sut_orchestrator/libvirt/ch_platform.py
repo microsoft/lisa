@@ -112,6 +112,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context = get_node_context(node)
 
         domain = ET.Element("domain")
+        domain.attrib["xmlns:qemu"] = "http://libvirt.org/schemas/domain/qemu/1.0"
 
         libvirt_version = self._get_libvirt_version()
         if parse_version(libvirt_version) > "10.0.2":
@@ -206,6 +207,27 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             vcpu_count,
         )
 
+        # Use Cloud-Hypervisor's native --serial path=/path/to/file
+        # This writes console output directly to a file, bypassing libvirt's PTY
+        # Store the path in node_context for later retrieval
+        console_log_file = str(node_context.console_log_file_path)
+        node_context.ch_serial_log_file = console_log_file
+
+        # Add <qemu:commandline> to pass --serial argument to Cloud-Hypervisor
+        qemu_commandline = ET.SubElement(
+            domain, "{http://libvirt.org/schemas/domain/qemu/1.0}commandline"
+        )
+        qemu_arg = ET.SubElement(
+            qemu_commandline, "{http://libvirt.org/schemas/domain/qemu/1.0}arg"
+        )
+        qemu_arg.attrib["value"] = "--serial"
+        qemu_arg2 = ET.SubElement(
+            qemu_commandline, "{http://libvirt.org/schemas/domain/qemu/1.0}arg"
+        )
+        qemu_arg2.attrib["value"] = f"path={console_log_file}"
+
+        log.info(f"Cloud-Hypervisor will write console to: {console_log_file}")
+
         xml = ET.tostring(domain, "unicode")
         return xml
 
@@ -219,10 +241,19 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         assert node_context.domain
         node_context.domain.createWithFlags(0)
 
-        node_context.console_logger = QemuConsoleLogger()
-        node_context.console_logger.attach(
-            node_context.domain, node_context.console_log_file_path
+        # Cloud-Hypervisor writes console directly to file via --serial path=...
+        # No need for libvirt's PTY-based console logger
+        # The file path is already set in node_context.console_log_file_path
+        # and passed to CH via <qemu:commandline>
+        self._log.info(
+            f"Cloud-Hypervisor writing console directly to: "
+            f"{node_context.console_log_file_path}"
         )
+
+        # Create a dummy console logger to satisfy the base class expectations
+        # but don't attach it (CH writes directly to the file)
+        node_context.console_logger = QemuConsoleLogger()
+        # Note: NOT calling console_logger.attach() - CH handles the file directly
 
         if len(node_context.passthrough_devices) > 0:
             # Once libvirt domain is created, check if driver attached to device
