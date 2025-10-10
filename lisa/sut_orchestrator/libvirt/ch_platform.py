@@ -147,6 +147,13 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_type.text = "hvm"
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
+
+        # Ensure kernel logs go to UART (ttyS0) on first boot
+        # - console=ttyS0,115200  : log to the ISA UART
+        # - ignore_loglevel       : show all kernel messages
+        # - printk.time=1         : add timestamps to kernel messages
+        os_cmdline = ET.SubElement(os, "cmdline")
+        os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
@@ -172,12 +179,13 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 node_context,
             )
 
-        console = ET.SubElement(devices, "console")
-        console.attrib["type"] = "pty"
+        # Provide a PTY-backed ISA UART so guest sees /dev/ttyS0
+        # virDomainOpenConsole(devname=None) will attach to this serial by default
+        serial = ET.SubElement(devices, "serial")
+        serial.attrib["type"] = "pty"
 
-        console_target = ET.SubElement(console, "target")
-        console_target.attrib["type"] = "serial"
-        console_target.attrib["port"] = "0"
+        serial_target = ET.SubElement(serial, "target")
+        serial_target.attrib["port"] = "0"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
