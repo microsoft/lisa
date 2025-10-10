@@ -5,6 +5,7 @@ import base64
 import os
 import re
 import secrets
+import shutil
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import List, Type
@@ -239,6 +240,31 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             self.device_pool._verify_device_passthrough_post_boot(
                 node_context=node_context,
             )
+
+    def _delete_node(self, node: Node, log: Logger) -> None:
+        """
+        Override to preserve console log for every test run (not just failures).
+        """
+        node_context = get_node_context(node)
+
+        # Copy console log to node's log directory before closing it
+        # This ensures we capture console output for ALL tests, not just failures
+        if node_context.console_log_file_path:
+            try:
+                src = Path(node_context.console_log_file_path)
+                if src.exists():
+                    dst = node.local_log_path / "ch-console.log"
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    log.debug(
+                        f"Copied console log from {src} to {dst} "
+                        f"(size: {dst.stat().st_size} bytes)"
+                    )
+            except Exception as e:
+                log.warning(f"Failed to preserve console log for {node.name}: {e}")
+
+        # Call parent implementation to handle cleanup
+        super()._delete_node(node, log)
 
     # Create the OS disk.
     def _create_node_os_disk(
