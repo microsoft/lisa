@@ -5,6 +5,7 @@ import time
 from typing import Any, cast
 
 from assertpy import assert_that
+from func_timeout import func_timeout
 
 from lisa import (
     Environment,
@@ -18,6 +19,7 @@ from lisa.features import Disk, HibernationEnabled, Sriov, Synthetic
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
 from lisa.operating_system import BSD, Windows
+from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.testsuite import simple_requirement
 from lisa.tools import Date, Hwclock, StressNg
 from lisa.util import SkippedException
@@ -257,6 +259,53 @@ class Power(TestSuite):
             "data disks are inconsistent after hibernation"
         ).is_length(len(data_disks_after_hibernation))
 
+    @TestCaseMetadata(
+        description="""
+            This case is to verify vm hibernation using LinuxHibernateExtension.
+
+            Steps,
+            1. Install LinuxHibernateExtension to prepare prerequisite for vm
+             hibernation.
+            2. Get nics info before hibernation.
+            3. Hibernate vm using Stop-Hibernate.
+            4. Check vm is inaccessible (deallocated status).
+            5. Resume vm by starting vm.
+            6. Check vm hibernation successfully by verifying boot time consistency.
+            7. Get nics info after hibernation.
+            8. Fail the case if nics count and info changes after vm resume.
+            9. Uninstall the extension.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_features=[
+                HibernationEnabled(),
+                AvailabilityTypeNoRedundancy(),
+                AzureExtension,
+            ],
+        ),
+    )
+    def verify_hibernation_with_vm_extension(self, node: Node, log: Logger) -> None:
+        is_distro_supported(node)
+        verify_hibernation(
+            node, log, use_hibernation_setup_tool=False, verify_using_logs=False
+        )
+
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        cleanup_env(environment)
+
+        # Add timeout for cleanup environment operation (5 minutes)
+        cleanup_timeout = 300
+        timer = create_timer()
+
+        try:
+            func_timeout(timeout=cleanup_timeout, func=cleanup_env, args=(environment,))
+        except Exception as cleanup_ex:
+            elapsed_time = timer.elapsed()
+            log.info(
+                f"Environment cleanup failed after {elapsed_time:.2f} seconds: "
+                f"{cleanup_ex}"
+            )
+            # Mark all nodes as dirty since cleanup failed
+            for node in environment.nodes.list():
+                if isinstance(node, RemoteNode):
+                    node.mark_dirty()
