@@ -16,7 +16,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features.security_profile import CvmDisabled
+from lisa.features import SecurityProfile
 from lisa.operating_system import BSD, Windows
 from lisa.tools import KdumpCheck, Lscpu
 
@@ -43,6 +43,12 @@ class KdumpCrash(TestSuite):
         node: Node = kwargs["node"]
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
+        # Skip kdump tests on CVMs (Confidential VMs) as they are not supported
+        if node.features.is_supported(SecurityProfile):
+            raise SkippedException(
+                "Kdump is not supported on Confidential VMs (CVMs). "
+                "Skipping test on nodes with SecurityProfile feature."
+            )
         self.kdump_util = node.tools[KdumpCheck]
 
     @TestCaseMetadata(
@@ -75,7 +81,6 @@ class KdumpCrash(TestSuite):
             node=schema.NodeSpace(
                 core_count=1, memory_mb=search_space.IntRange(min=2048)
             ),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_single_core(
@@ -94,7 +99,6 @@ class KdumpCrash(TestSuite):
             node=schema.NodeSpace(
                 core_count=search_space.IntRange(min=2, max=8),
             ),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_smp(self, node: Node, log_path: Path, log: Logger) -> None:
@@ -107,9 +111,7 @@ class KdumpCrash(TestSuite):
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
         priority=1,
-        requirement=simple_requirement(
-            supported_features=[CvmDisabled()],
-        ),
+        requirement=simple_requirement(),
     )
     def verify_kdumpcrash_on_random_cpu(
         self, node: Node, log_path: Path, log: Logger
@@ -131,7 +133,6 @@ class KdumpCrash(TestSuite):
         priority=2,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=33, max=192)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu32(
@@ -151,7 +152,6 @@ class KdumpCrash(TestSuite):
         priority=2,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=193, max=415)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu192(
@@ -171,7 +171,6 @@ class KdumpCrash(TestSuite):
         priority=4,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=416)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu415(
@@ -188,9 +187,7 @@ class KdumpCrash(TestSuite):
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[CvmDisabled()],
-        ),
+        requirement=simple_requirement(),
     )
     def verify_kdumpcrash_auto_size(
         self, node: Node, log_path: Path, log: Logger
@@ -209,7 +206,6 @@ class KdumpCrash(TestSuite):
         priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(memory_mb=search_space.IntRange(min=2097152)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_large_memory_auto_size(
