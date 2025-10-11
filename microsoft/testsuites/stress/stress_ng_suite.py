@@ -174,6 +174,11 @@ class StressNgTestSuite(TestSuite):
         # Execute each jobfile across all VMs
         for job_file in jobs:
             self._run_stress_ng_job(job_file, environment, result, log)
+        
+        # Trigger artificial panic during test for panic detection testing
+        # TODO: Remove this before production deployment
+        nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
+        self._trigger_artificial_panic(nodes, log)
 
     def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
@@ -356,6 +361,45 @@ class StressNgTestSuite(TestSuite):
             test_status=execution_status,
             test_message=execution_summary,
         )
+
+    def _trigger_artificial_panic(self, nodes: List[RemoteNode], log: Logger) -> None:
+        """
+        Trigger artificial kernel panic for testing panic detection.
+
+        Uses sysrq-trigger to cause a controlled kernel panic.
+        This is for testing only and should be removed before production use.
+        
+        NOTE: This will crash the VM and cause the test to fail.
+        """
+        log.warning("⚠️  TRIGGERING ARTIFICIAL PANIC FOR TESTING - REMOVE BEFORE PRODUCTION")
+
+        try:
+            # Enable sysrq - use tee with shell=True and sudo=True
+            nodes[0].execute(
+                "echo 1 | tee /proc/sys/kernel/sysrq",
+                shell=True,
+                sudo=True,
+                timeout=10,
+            )
+            log.info("Enabled sysrq on test node")
+
+            # Trigger panic - use tee to write as root
+            # This will cause immediate kernel panic
+            log.info("Triggering kernel panic via sysrq-trigger...")
+            nodes[0].execute(
+                "echo c | tee /proc/sysrq-trigger",
+                shell=True,
+                sudo=True,
+                timeout=10,
+            )
+        except Exception as e:
+            # Expected - VM will panic and connection will be lost
+            log.info(f"Expected exception after panic trigger: {type(e).__name__}: {e}")
+
+        # Wait for panic to occur and be captured
+        import time
+        log.info("Waiting 30 seconds for panic to be captured in console logs...")
+        time.sleep(30)
 
     def _process_yaml_output(
         self,

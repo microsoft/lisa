@@ -103,7 +103,12 @@ class TlbStressTestSuite(TestSuite):
                 timeout=40,
             )
 
-            # Run stress test
+            # Trigger artificial panic during test for panic detection testing
+            # TODO: Remove this before production deployment
+            log.warning("⚠️  Injecting artificial panic during TLB stress test")
+            self._trigger_artificial_panic(nodes, log)
+
+            # Run stress test (this won't execute due to panic above)
             tlb_tool.run_stress_with_monitoring(
                 duration=test_duration,
                 tlb_threads=tlb_threads,
@@ -240,6 +245,45 @@ class TlbStressTestSuite(TestSuite):
             check_panic(nodes, result)
 
     # === Private Helper Methods ===
+
+    def _trigger_artificial_panic(self, nodes: List[RemoteNode], log: Logger) -> None:
+        """
+        Trigger artificial kernel panic for testing panic detection.
+
+        Uses sysrq-trigger to cause a controlled kernel panic.
+        This is for testing only and should be removed before production use.
+        
+        NOTE: This will crash the VM and cause the test to fail.
+        """
+        log.warning("⚠️  TRIGGERING ARTIFICIAL PANIC FOR TESTING - REMOVE BEFORE PRODUCTION")
+
+        try:
+            # Enable sysrq - use tee with shell=True and sudo=True
+            nodes[0].execute(
+                "echo 1 | tee /proc/sys/kernel/sysrq",
+                shell=True,
+                sudo=True,
+                timeout=10,
+            )
+            log.info("Enabled sysrq on test node")
+
+            # Trigger panic - use tee to write as root
+            # This will cause immediate kernel panic
+            log.info("Triggering kernel panic via sysrq-trigger...")
+            nodes[0].execute(
+                "echo c | tee /proc/sysrq-trigger",
+                shell=True,
+                sudo=True,
+                timeout=10,
+            )
+        except Exception as e:
+            # Expected - VM will panic and connection will be lost
+            log.info(f"Expected exception after panic trigger: {type(e).__name__}: {e}")
+
+        # Wait for panic to occur and be captured
+        import time
+        log.info("Waiting 30 seconds for panic to be captured in console logs...")
+        time.sleep(30)
 
     def _report_performance_results(
         self,
