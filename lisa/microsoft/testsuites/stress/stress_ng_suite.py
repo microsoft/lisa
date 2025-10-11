@@ -171,8 +171,17 @@ class StressNgTestSuite(TestSuite):
             jobs = [job.strip() for job in str(jobs).split(",")]
 
         # Execute each jobfile across all VMs
-        for job_file in jobs:
+        for index, job_file in enumerate(jobs):
             self._run_stress_ng_job(job_file, environment, result, log)
+
+            # TODO: Remove before production. Inject panic mid-test after first job.
+            if index == 0 and len(jobs) > 1:
+                nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
+                log.warning(
+                    "TRIGGERING ARTIFICIAL PANIC MID-TEST (after first job) – "
+                    "REMOVE BEFORE PRODUCTION"
+                )
+                self._trigger_artificial_panic(nodes, log)
 
     def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
@@ -363,6 +372,51 @@ class StressNgTestSuite(TestSuite):
             test_status=execution_status,
             test_message=execution_summary,
         )
+
+    def _trigger_artificial_panic(self, nodes: List[RemoteNode], log: Logger) -> None:
+        """Force a kernel panic to exercise detection plumbing."""
+        if not nodes:
+            log.warning("Panic injection skipped: no nodes available")
+            return
+
+        log.warning(
+            "TRIGGERING ARTIFICIAL PANIC FOR TESTING – REMOVE BEFORE PRODUCTION"
+        )
+
+        try:
+            nodes[0].execute(
+                "echo 1 | tee /proc/sys/kernel/sysrq",
+                shell=True,
+                sudo=True,
+                timeout=10,
+            )
+            log.info("Enabled sysrq on test node")
+        except Exception as exc:
+            log.warning(
+                "Failed to enable sysrq prior to panic injection: %s: %s",
+                type(exc).__name__,
+                exc,
+            )
+        finally:
+            try:
+                log.info("Triggering kernel panic via sysrq-trigger")
+                nodes[0].execute(
+                    "echo c | tee /proc/sysrq-trigger",
+                    shell=True,
+                    sudo=True,
+                    timeout=10,
+                )
+            except Exception as exc:
+                log.info(
+                    "Expected exception after panic trigger: %s: %s",
+                    type(exc).__name__,
+                    exc,
+                )
+
+        import time
+
+        log.info("Waiting 30 seconds for panic capture")
+        time.sleep(30)
 
     def _process_yaml_output(
         self,
