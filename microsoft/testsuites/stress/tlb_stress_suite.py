@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict, cast
+from typing import Any, Dict, List, cast
 
 from lisa import (
     Environment,
@@ -101,6 +101,12 @@ class TlbStressTestSuite(TestSuite):
                 force_run=True,
                 timeout=40,
             )
+
+            # TODO: Remove before production. Temporary panic injection for testing.
+            log.warning(
+                "TRIGGERING ARTIFICIAL PANIC DURING TLB TEST – REMOVE BEFORE PRODUCTION"
+            )
+            self._trigger_artificial_panic(nodes, log)
 
             # Run stress test
             tlb_tool.run_stress_with_monitoring(
@@ -280,3 +286,44 @@ class TlbStressTestSuite(TestSuite):
             raise AssertionError(
                 f"Performance degradation detected: {'; '.join(analysis['failures'])}"
             )
+
+    def _trigger_artificial_panic(self, nodes: List[RemoteNode], log: Logger) -> None:
+        """Force a kernel panic to validate panic detection handling."""
+        if not nodes:
+            log.warning("Panic injection skipped: no nodes available")
+            return
+
+        try:
+            nodes[0].execute(
+                "echo 1 | tee /proc/sys/kernel/sysrq",
+                shell=True,
+                sudo=True,
+                timeout=10,
+            )
+            log.info("Enabled sysrq on test node")
+        except Exception as exc:
+            log.warning(
+                "Failed to enable sysrq prior to panic injection: %s: %s",
+                type(exc).__name__,
+                exc,
+            )
+        finally:
+            try:
+                log.info("Triggering kernel panic via sysrq-trigger")
+                nodes[0].execute(
+                    "echo c | tee /proc/sysrq-trigger",
+                    shell=True,
+                    sudo=True,
+                    timeout=10,
+                )
+            except Exception as exc:
+                log.info(
+                    "Expected exception after panic trigger: %s: %s",
+                    type(exc).__name__,
+                    exc,
+                )
+
+        import time
+
+        log.info("Waiting 30 seconds for panic capture")
+        time.sleep(30)
