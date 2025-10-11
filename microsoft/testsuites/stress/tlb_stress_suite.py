@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, cast
 
 from lisa import (
     Environment,
@@ -13,9 +13,9 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import SerialConsole
 from lisa.tools import Lscpu, StressNg
 from lisa.util import SkippedException, UnsupportedDistroException
+from lisa.util.panic_helpers import check_panic
 
 from .tlb_stress import TlbStress
 
@@ -109,7 +109,7 @@ class TlbStressTestSuite(TestSuite):
                 tlb_pages=tlb_pages,
             )
         finally:
-            self._check_panic(nodes)
+            check_panic(nodes, result)
 
     @TestCaseMetadata(
         description="""
@@ -236,14 +236,9 @@ class TlbStressTestSuite(TestSuite):
             # Report comprehensive results
             self._report_performance_results(analysis_result, result, log)
         finally:
-            self._check_panic(nodes)
+            check_panic(nodes, result)
 
     # === Private Helper Methods ===
-
-    def _check_panic(self, nodes: List[RemoteNode]) -> None:
-        """Check for kernel panic on all nodes"""
-        for node in nodes:
-            node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
 
     def _report_performance_results(
         self,
