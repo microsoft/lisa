@@ -13,9 +13,9 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.features import SerialConsole
 from lisa.tools import Lscpu, StressNg
-from lisa.util import SkippedException, UnsupportedDistroException
-from lisa.util.panic_helpers import check_panic
+from lisa.util import KernelPanicException, SkippedException, UnsupportedDistroException
 
 from .tlb_stress import TlbStress
 
@@ -109,7 +109,16 @@ class TlbStressTestSuite(TestSuite):
                 tlb_pages=tlb_pages,
             )
         finally:
-            check_panic(nodes, result)
+            for node in nodes:
+                panic_info = node.features[SerialConsole].check_panic(
+                    saved_path=None, force_run=True
+                )
+                if panic_info:
+                    node.features[SerialConsole].log_panic_details(panic_info)
+                    node.features[SerialConsole].attach_panic_to_test_result(
+                        result, panic_info
+                    )
+                    raise KernelPanicException("", panic_info.panic_phrases)
 
     @TestCaseMetadata(
         description="""
@@ -236,7 +245,16 @@ class TlbStressTestSuite(TestSuite):
             # Report comprehensive results
             self._report_performance_results(analysis_result, result, log)
         finally:
-            check_panic(nodes, result)
+            for node in nodes:
+                panic_info = node.features[SerialConsole].check_panic(
+                    saved_path=None, force_run=True
+                )
+                if panic_info:
+                    node.features[SerialConsole].log_panic_details(panic_info)
+                    node.features[SerialConsole].attach_panic_to_test_result(
+                        result, panic_info
+                    )
+                    raise KernelPanicException("", panic_info.panic_phrases)
 
     # === Private Helper Methods ===
 
