@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 from pathlib import Path
 from random import randint
-from typing import Any
+from typing import Any, cast
 
 from lisa import (
     Logger,
@@ -17,6 +17,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import SecurityProfile
+from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
 from lisa.operating_system import BSD, Windows
 from lisa.tools import KdumpCheck, Lscpu
 
@@ -44,11 +45,21 @@ class KdumpCrash(TestSuite):
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
         # Skip kdump tests on CVMs (Confidential VMs) as they are not supported
+        # Only skip if SecurityProfile is present AND it's CVM or Stateless type
+        # Platforms without SecurityProfile support (e.g., Hyper-V) will run kdump tests
         if node.features.is_supported(SecurityProfile):
-            raise SkippedException(
-                "Kdump is not supported on Confidential VMs (CVMs). "
-                "Skipping test on nodes with SecurityProfile feature."
+            security_profile_settings = cast(
+                SecurityProfileSettings, node.features[SecurityProfile].get_settings()
             )
+            if security_profile_settings.security_profile in [
+                SecurityProfileType.CVM,
+                SecurityProfileType.Stateless,
+            ]:
+                raise SkippedException(
+                    f"Kdump is not supported on Confidential VMs. "
+                    f"Skipping test due to security profile type: "
+                    f"{security_profile_settings.security_profile}"
+                )
         self.kdump_util = node.tools[KdumpCheck]
 
     @TestCaseMetadata(
