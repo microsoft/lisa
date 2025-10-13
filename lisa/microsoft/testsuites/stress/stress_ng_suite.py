@@ -15,12 +15,12 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat
+from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
 from lisa.util import SkippedException
 from lisa.util.logger import Logger
-from lisa.util.panic_helpers import check_panic
 from lisa.util.process import Process
 
 
@@ -183,7 +183,11 @@ class StressNgTestSuite(TestSuite):
             for proc in procs:
                 proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
         except Exception as e:
-            check_panic(nodes)
+            for node in nodes:
+                # check_panic will automatically log and raise if panic detected
+                node.features[SerialConsole].check_panic(
+                    saved_path=None, force_run=True
+                )
             raise e
 
     def _run_stress_ng_job(
@@ -224,7 +228,11 @@ class StressNgTestSuite(TestSuite):
             execution_summary = (
                 f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
-            check_panic(nodes, test_result)
+            for node in nodes:
+                # check_panic automatically logs, attaches to result, and raises
+                node.features[SerialConsole].check_panic(
+                    saved_path=None, force_run=True, test_result=test_result
+                )
             raise execution_error
 
         finally:
