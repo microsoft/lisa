@@ -328,6 +328,13 @@ class CloudHypervisorTests(Tool):
                 log_path=log_path,
                 test_name=test_name,
             )
+        except Exception:
+            # Check for kernel panic before re-raising
+            if self.node.features.is_supported(SerialConsole):
+                self.node.features[SerialConsole].check_panic(
+                    saved_path=log_path, force_run=True, test_result=test_result
+                )
+            raise
         finally:
             # Always copy back artifacts, even on failure/timeout
             self._copy_back_artifacts(log_path, test_name)
@@ -373,6 +380,13 @@ class CloudHypervisorTests(Tool):
             self._write_testcase_log(log_path, testcase, trace)
 
         self._save_kernel_logs(log_path)
+
+        # Check for kernel panic after all tests complete
+        if self.node.features.is_supported(SerialConsole):
+            self.node.features[SerialConsole].check_panic(
+                saved_path=log_path, force_run=True, test_result=test_result
+            )
+
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
         ).is_empty()
@@ -447,6 +461,19 @@ class CloudHypervisorTests(Tool):
             status = TestStatus.FAILED
             trace = str(e)
             result = None
+
+            # Check for kernel panic when test fails
+            if self.node.features.is_supported(SerialConsole):
+                panic_info = self.node.features[SerialConsole].check_panic(
+                    saved_path=log_path, force_run=True
+                )
+                if panic_info:
+                    # Append panic information to the trace
+                    panic_msg = (
+                        f"Kernel Panic Detected: {panic_info.panic_type} "
+                        f"({panic_info.error_codes})"
+                    )
+                    trace = f"{trace}\n{panic_msg}"
 
         # Store result for log writing
         self._last_result = result
