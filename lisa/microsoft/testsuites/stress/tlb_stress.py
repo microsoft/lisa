@@ -898,35 +898,10 @@ class TlbStress(Tool):
                     f"Found {len(error_lines)} kernel issues since start time"
                 )
 
-                # Filter and categorize critical issues
-                critical_patterns = [
-                    "BUG:",
-                    "soft lockup",
-                    "hard lockup",
-                    "rcu_sched",
-                    "kernel NULL pointer",
-                    "unable to handle",
-                    "Call Trace",
-                    "Kernel panic",
-                    "hung task",
-                    "watchdog",
-                    "stall",
-                ]
-
+                # Add all found issues (grep already filtered for critical patterns)
                 for error_line in error_lines:
                     if error_line.strip():
-                        # Check if this is a critical error
-                        is_critical = any(
-                            pattern.lower() in error_line.lower()
-                            for pattern in critical_patterns
-                        )
-
-                        if is_critical:
-                            issues.append(
-                                f"Critical kernel error: {error_line.strip()}"
-                            )
-            else:
-                pass
+                        issues.append(f"Critical kernel error: {error_line.strip()}")
 
         except Exception as e:
             self._log.debug(f"Failed to check kernel health: {e}")
