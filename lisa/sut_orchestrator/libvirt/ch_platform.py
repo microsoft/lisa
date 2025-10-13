@@ -5,6 +5,7 @@ import base64
 import os
 import re
 import secrets
+import shutil
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import List, Type
@@ -147,6 +148,13 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_type.text = "hvm"
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
+
+        # Ensure kernel logs go to UART (ttyS0) on first boot
+        # - console=ttyS0,115200  : log to the ISA UART
+        # - ignore_loglevel       : show all kernel messages
+        # - printk.time=1         : add timestamps to kernel messages
+        os_cmdline = ET.SubElement(os, "cmdline")
+        os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
@@ -172,12 +180,13 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 node_context,
             )
 
-        console = ET.SubElement(devices, "console")
-        console.attrib["type"] = "pty"
+        # Provide a PTY-backed ISA UART so guest sees /dev/ttyS0
+        # virDomainOpenConsole(devname=None) will attach to this serial by default
+        serial = ET.SubElement(devices, "serial")
+        serial.attrib["type"] = "pty"
 
-        console_target = ET.SubElement(console, "target")
-        console_target.attrib["type"] = "serial"
-        console_target.attrib["port"] = "0"
+        serial_target = ET.SubElement(serial, "target")
+        serial_target.attrib["port"] = "0"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
@@ -231,6 +240,31 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             self.device_pool._verify_device_passthrough_post_boot(
                 node_context=node_context,
             )
+
+    def _delete_node(self, node: Node, log: Logger) -> None:
+        """
+        Override to preserve console log for every test run (not just failures).
+        """
+        node_context = get_node_context(node)
+
+        # Copy console log to node's log directory before closing it
+        # This ensures we capture console output for ALL tests, not just failures
+        if node_context.console_log_file_path:
+            try:
+                src = Path(node_context.console_log_file_path)
+                if src.exists():
+                    dst = node.local_log_path / "ch-console.log"
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    log.debug(
+                        f"Copied console log from {src} to {dst} "
+                        f"(size: {dst.stat().st_size} bytes)"
+                    )
+            except Exception as e:
+                log.warning(f"Failed to preserve console log for {node.name}: {e}")
+
+        # Call parent implementation to handle cleanup
+        super()._delete_node(node, log)
 
     # Create the OS disk.
     def _create_node_os_disk(
