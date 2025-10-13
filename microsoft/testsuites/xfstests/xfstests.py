@@ -19,7 +19,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Pgrep, Rm, Sed
+from lisa.tools import Cat, Chmod, Cp, Diff, Echo, Git, Make, Pgrep, Rm, Sed
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
 
@@ -128,6 +128,7 @@ class Xfstests(Tool):
         "linux-headers-generic",
         "sqlite3",
         "libgdbm-compat-dev",
+        "pkg-config",
     ]
     fedora_dep = [
         "btrfs-progs",
@@ -460,16 +461,30 @@ class Xfstests(Tool):
         tool_path = self.get_tool_path(use_global=True)
         git = self.node.tools[Git]
         git.clone(url=repo, cwd=tool_path, ref=branch)
+
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")
-
         self.node.tools[Rm].remove_file(str(code_path / "src" / "splice2pipe.c"))
         self.node.tools[Sed].substitute(
             regexp="splice2pipe",
             replacement="",
             file=str(code_path / "src" / "Makefile"),
         )
-
+        # Copy the install-sh script provided by automake into the project directory.
+        # Some projects require this script to handle installation of files correctly.
+        self.node.tools[Cp].copy(
+            self.node.get_pure_path("/usr/share/automake-*/install-sh"),
+            PurePath("./install-sh"),
+            sudo=True,
+            cwd=code_path,
+        )
+        self.node.tools[Chmod].chmod(str(code_path / "install-sh"), "a+x", sudo=True)
+        # Run autoreconf to regenerate the configure script and other helper files.
+        # Then run ./configure This sets up the build system.
+        # So the project can be compiled.
+        self.node.execute(
+            "autoreconf -fiv && ./configure", cwd=code_path, sudo=True, shell=True
+        )
         make.make_install(code_path)
         return True
 
