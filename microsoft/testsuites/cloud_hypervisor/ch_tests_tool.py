@@ -92,6 +92,7 @@ class CloudHypervisorTests(Tool):
     _numa_selected_node: int = 0
     _numa_cpu_range: str = ""
     _numa_tool_name: str = "none"
+    _numa_policy: str = "none"  # "strict" or "interleave"
 
     @property
     def command(self) -> str:
@@ -362,7 +363,8 @@ class CloudHypervisorTests(Tool):
         subtest_timeout: Optional[int] = None,
     ) -> None:
         # Setup NUMA affinity for stable test results on multi-NUMA systems
-        self._setup_numa_affinity()
+        # For metrics tests, require numactl (don't fall back to taskset)
+        self._setup_numa_affinity(require_numactl=True)
 
         self._setup_disk_for_metrics(log_path)
 
@@ -432,6 +434,9 @@ class CloudHypervisorTests(Tool):
         metrics: str = ""
         trace: str = ""
         result = None
+
+        # Apply test-specific NUMA policy based on test type
+        self._apply_numa_policy_for_test(testcase)
 
         self._set_block_size_env_var(testcase)
         cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
@@ -1332,10 +1337,13 @@ exit $ec
             if block_size:
                 self.env_vars[block_size_env_var] = block_size
 
-    def _setup_numa_affinity(self) -> None:
+    def _setup_numa_affinity(self, require_numactl: bool = False) -> None:  # noqa: C901
         """
         Set up NUMA affinity for Cloud Hypervisor tests.
         This ensures both CPU and memory are allocated from the same NUMA node.
+
+        Args:
+            require_numactl: If True, fail if numactl is unavailable (for perf tests)
         """
         try:
             lscpu = self.node.tools[Lscpu]
@@ -1347,14 +1355,19 @@ exit $ec
                 self._log.debug("NUMA binding skipped: single node system")
                 return
 
-            # Try to use numactl first, fallback to taskset
-            selected_node = 0
-            cpu_range = ""
-
+            # Try to use numactl (required for performance testing)
             try:
                 numa_tool = self.node.tools[NumaCtl]
-                # Get the best NUMA node (most free memory)
-                selected_node, cpu_range = numa_tool.get_best_numa_node()
+
+                # Get device NUMA locality if available
+                device_node = self._get_device_numa_node()
+
+                # Get the best NUMA node (prefer device node, else most free memory)
+                selected_node, cpu_range = numa_tool.get_best_numa_node(
+                    preferred_node=device_node
+                )
+
+                # Default to strict binding (will be adjusted per test)
                 self._numa_bind_prefix = numa_tool.bind_to_node(
                     selected_node, ""
                 ).strip()
@@ -1362,16 +1375,26 @@ exit $ec
                 self._numa_selected_node = selected_node
                 self._numa_cpu_range = cpu_range
                 self._numa_tool_name = "numactl"
+                self._numa_policy = "strict"
 
+                device_info = (
+                    f" device_node={device_node}" if device_node is not None else ""
+                )
                 self._log.info(
-                    f"NUMA enabled tool=numactl node={selected_node} cpus={cpu_range}"
+                    f"NUMA enabled tool=numactl node={selected_node} "
+                    f"cpus={cpu_range} policy=strict{device_info}"
                 )
 
             except Exception as e:
+                if require_numactl:
+                    raise LisaException(
+                        "numactl is required for performance testing but unavailable. "
+                        f"Error: {e}"
+                    )
+
                 self._log.debug(f"numactl not available: {e}")
                 try:
-                    # Fallback to taskset for CPU affinity only
-                    # Select the same best node that numactl would have chosen
+                    # Fallback to taskset for CPU affinity only (non-perf tests)
                     taskset = self.node.tools[TaskSet]
 
                     # Find node with most free memory for consistency
@@ -1402,6 +1425,7 @@ exit $ec
                     self._numa_selected_node = selected_node
                     self._numa_cpu_range = cpu_range
                     self._numa_tool_name = "taskset"
+                    self._numa_policy = "strict"
 
                     self._log.info(
                         f"NUMA enabled tool=taskset node={selected_node} "
@@ -1413,6 +1437,81 @@ exit $ec
 
         except Exception as e:
             self._log.debug(f"NUMA setup failed: {e}")
+
+    def _get_device_numa_node(self) -> Optional[int]:
+        """
+        Detect NUMA node of the primary test device (NVMe or NIC).
+        Returns None if device NUMA cannot be determined.
+        """
+        # Check for NVMe devices (block tests)
+        try:
+            result = self.node.execute(
+                "cat /sys/class/nvme/nvme*/device/numa_node 2>/dev/null | head -1",
+                shell=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip():
+                numa_node = int(result.stdout.strip())
+                if numa_node >= 0:  # -1 means no NUMA affinity
+                    self._log.debug(f"Detected NVMe on NUMA node {numa_node}")
+                    return numa_node
+        except Exception:
+            pass
+
+        # Check for primary network interface (network tests)
+        # Try to detect the interface being used for testing
+        try:
+            # Look for interfaces with device/numa_node (excludes loopback, virtual)
+            result = self.node.execute(
+                "for iface in /sys/class/net/*/device/numa_node; do "
+                '[ -f "$iface" ] && cat "$iface" && break; done',
+                shell=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip():
+                numa_node = int(result.stdout.strip())
+                if numa_node >= 0:
+                    self._log.debug(f"Detected NIC on NUMA node {numa_node}")
+                    return numa_node
+        except Exception:
+            pass
+
+        self._log.debug("Device NUMA node not detected, using memory-based selection")
+        return None
+
+    def _apply_numa_policy_for_test(self, testcase: str) -> None:
+        """
+        Apply test-specific NUMA policy based on test characteristics.
+
+        Single-queue tests: Use strict binding (--cpunodebind=N --membind=N)
+        Multi-queue tests: Use interleave policy (--interleave=all)
+        """
+        if not self._numa_enabled or self._numa_tool_name != "numactl":
+            return
+
+        # Detect multi-queue tests by name pattern
+        is_multi_queue = "multi_queue" in testcase.lower()
+
+        try:
+            numa_tool = self.node.tools[NumaCtl]
+
+            if is_multi_queue:
+                # Multi-queue: use interleave for better distribution
+                self._numa_bind_prefix = numa_tool.bind_interleave()
+                self._numa_policy = "interleave"
+                self._log.info(
+                    f"NUMA policy=interleave test={testcase} " f"(multi-queue detected)"
+                )
+            else:
+                # Single-queue: use strict binding
+                self._numa_bind_prefix = numa_tool.bind_to_node(
+                    self._numa_selected_node, ""
+                ).strip()
+                self._numa_policy = "strict"
+                self._log.debug(
+                    f"NUMA policy=strict test={testcase} "
+                    f"node={self._numa_selected_node}"
+                )
+        except Exception as e:
+            self._log.debug(f"Failed to apply NUMA policy for {testcase}: {e}")
 
     def _save_numa_metadata(self, log_path: Path, test_name: str) -> None:
         """
@@ -1428,6 +1527,7 @@ exit $ec
             "selected_node": self._numa_selected_node,
             "cpu_range": self._numa_cpu_range,
             "tool": self._numa_tool_name,
+            "policy": self._numa_policy,
         }
 
         meta_file = log_path / f"{test_name}_numa_meta.json"

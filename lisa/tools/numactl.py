@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Tuple
+from typing import Optional, Tuple
 
 from lisa.executable import Tool
 from lisa.tools import Lscpu
@@ -22,11 +22,21 @@ class NumaCtl(Tool):
             return True
         return False
 
-    def get_best_numa_node(self) -> Tuple[int, str]:
+    def get_best_numa_node(
+        self, preferred_node: Optional[int] = None
+    ) -> Tuple[int, str]:
         """
-        Get the best NUMA node to use for binding by selecting the node
-        with the most free memory to avoid hot/fragmented nodes.
-        Returns tuple of (node_id, cpu_range_string).
+        Get the best NUMA node to use for binding.
+
+        Selection strategy:
+        1. If preferred_node is provided and has sufficient memory, use it
+        2. Otherwise, select the node with the most free memory
+
+        Args:
+            preferred_node: Preferred NUMA node (e.g., device locality)
+
+        Returns:
+            Tuple of (node_id, cpu_range_string)
         """
         lscpu = self.node.tools[Lscpu]
         numa_node_count = lscpu.get_numa_node_count()
@@ -34,10 +44,8 @@ class NumaCtl(Tool):
         if numa_node_count <= 1:
             raise LisaException("System has only one NUMA node")
 
-        # Select node with most free memory for better stability
-        best_node = 0
-        max_free_memory = 0
-
+        # Collect free memory for all nodes
+        node_memory: dict[int, int] = {}
         for node_id in range(numa_node_count):
             try:
                 result = self.node.execute(
@@ -45,20 +53,42 @@ class NumaCtl(Tool):
                     shell=True,
                 )
                 if result.exit_code == 0:
-                    # Parse MemFree from output
                     for line in result.stdout.split("\n"):
                         if "MemFree:" in line:
-                            # Extract memory in kB
                             free_kb = int(line.split()[3])
-                            if free_kb > max_free_memory:
-                                max_free_memory = free_kb
-                                best_node = node_id
+                            node_memory[node_id] = free_kb
                             break
             except Exception:
-                # If we can't read meminfo for this node, skip it
                 continue
 
-        selected_node = best_node
+        if not node_memory:
+            raise LisaException("Could not determine free memory for any NUMA node")
+
+        # Select node with strategy
+        selected_node = 0
+
+        if preferred_node is not None and preferred_node in node_memory:
+            # Use preferred node if it has > 10% of max free memory
+            max_free = max(node_memory.values())
+            preferred_free = node_memory[preferred_node]
+
+            if preferred_free > max_free * 0.1:  # At least 10% of max
+                selected_node = preferred_node
+                self._log.debug(
+                    f"Using preferred NUMA node {preferred_node} "
+                    f"(free={preferred_free}KB, max={max_free}KB)"
+                )
+            else:
+                # Preferred node too fragmented, use best available
+                selected_node = max(node_memory, key=node_memory.get)  # type: ignore
+                self._log.debug(
+                    f"Preferred node {preferred_node} has low memory "
+                    f"({preferred_free}KB), using node {selected_node} instead"
+                )
+        else:
+            # No preference or invalid node, use node with most free memory
+            selected_node = max(node_memory, key=node_memory.get)  # type: ignore
+
         start_cpu, end_cpu = lscpu.get_cpu_range_in_numa_node(selected_node)
         cpu_range = f"{start_cpu}-{end_cpu}"
 
@@ -66,11 +96,23 @@ class NumaCtl(Tool):
 
     def bind_to_node(self, node_id: int, command: str) -> str:
         """
-        Generate numactl command to bind both CPU and memory to a specific NUMA node.
+        Generate numactl command for strict binding (CPU + memory to one node).
         """
         # --cpunodebind binds CPUs from the specified node
         # --membind binds memory allocation to the specified node
         numa_prefix = f"{self.command} --cpunodebind={node_id} --membind={node_id}"
+
+        if command.strip():
+            return f"{numa_prefix} {command}"
+        else:
+            return numa_prefix
+
+    def bind_interleave(self, command: str = "") -> str:
+        """
+        Generate numactl command for interleaved memory policy across all nodes.
+        This is better for multi-queue workloads that span multiple NUMA nodes.
+        """
+        numa_prefix = f"{self.command} --interleave=all"
 
         if command.strip():
             return f"{numa_prefix} {command}"
