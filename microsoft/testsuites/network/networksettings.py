@@ -34,12 +34,12 @@ from microsoft.testsuites.network.common import cleanup_iperf3
     description="""
     This test suite runs the ethtool related network test cases.
     """,
-)
-class NetworkSettings(TestSuite):
-    # regex for filtering per vmbus channel stats from the full device statistics.
-    # [{'name': 'tx_scattered', 'value': '0'},
-    #  {'name': 'tx_no_memory', 'value': '0'},
-    #  {'name': 'tx_no_space', 'value': '0'},
+        requirement=simple_requirement(
+            min_nic_count=1,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
     #  {'name': 'tx_too_big', 'value': '0'},
     #  {'name': 'vf_rx_packets', 'value': '228'},
     #  {'name': 'vf_rx_bytes', 'value': '1158450'},
