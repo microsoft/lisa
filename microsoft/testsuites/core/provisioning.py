@@ -321,7 +321,6 @@ class Provisioning(TestSuite):
 
         grub_config = node.tools[GrubConfig]
         grub_config.set_kernel_cmdline_arg("swiotlb", "force")
-
         node.features[StartStop].restart(wait=True)
 
         cmdline_result = node.execute("cat /proc/cmdline", sudo=True)
