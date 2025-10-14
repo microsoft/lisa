@@ -60,6 +60,29 @@ class GrubConfig(Tool):
         posix_os.install_packages(self._package)
         return self._check_exists()
 
+    def _remove_existing_arg(self, arg: str, grub_file: str, line_regex: str) -> None:
+        self.node.tools[Sed].delete_line_substring(
+            match_line=line_regex,
+            regex_to_delete=(r"\s" + arg + r"[^\"[:space:]]*"),
+            file=PurePosixPath(grub_file),
+            sudo=True,
+        )
+
+    def _add_new_arg(
+        self, arg: str, value: str, grub_file: str, line_regex: str
+    ) -> None:
+        self.node.tools[Sed].substitute(
+            match_lines=line_regex,
+            regexp='"$',
+            replacement=f' {arg}={value}"',
+            file=grub_file,
+            sudo=True,
+        )
+
+    def _validate_grub_file_exists(self, grub_file: str) -> None:
+        if not self.node.shell.exists(PurePosixPath(grub_file)):
+            raise LisaException(f"GRUB configuration file {grub_file} not found")
+
 
 class GrubConfigAzl2(GrubConfig):
     def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
@@ -91,21 +114,11 @@ class GrubConfigAzl3(GrubConfig):
         """
         Append the specified kernel command line argument to the grub configuration.
         """
-        # For simplicity, first remove the existing argument.
-        self.node.tools[Sed].delete_line_substring(
-            match_line=self._GRUB_CMDLINE_LINE_REGEX,
-            regex_to_delete=(r"\s" + arg + r"[^\"[:space:]]*"),
-            file=PurePosixPath(self._GRUB_DEFAULT_FILE),
-            sudo=True,
+        self._remove_existing_arg(
+            arg, self._GRUB_DEFAULT_FILE, self._GRUB_CMDLINE_LINE_REGEX
         )
-
-        # Add the new argument.
-        self.node.tools[Sed].substitute(
-            match_lines=self._GRUB_CMDLINE_LINE_REGEX,
-            regexp='"$',
-            replacement=f' {arg}={value}"',
-            file=self._GRUB_DEFAULT_FILE,
-            sudo=True,
+        self._add_new_arg(
+            arg, value, self._GRUB_DEFAULT_FILE, self._GRUB_CMDLINE_LINE_REGEX
         )
 
         # Apply the changes.
@@ -129,27 +142,15 @@ class GrubConfigDebian(GrubConfig):
         Append the specified kernel command line argument to GRUB_CMDLINE_LINUX
         for Debian-based systems.
         """
-        if not self.node.shell.exists(PurePosixPath(self._GRUB_DEFAULT_FILE)):
-            raise LisaException(
-                f"GRUB configuration file {self._GRUB_DEFAULT_FILE} not found"
-            )
-
-        # For simplicity, first remove the existing argument if present.
-        self.node.tools[Sed].delete_line_substring(
-            match_line=self._GRUB_CMDLINE_LINUX_REGEX,
-            regex_to_delete=(r"\s" + arg + r"[^\"[:space:]]*"),
-            file=PurePosixPath(self._GRUB_DEFAULT_FILE),
-            sudo=True,
+        self._validate_grub_file_exists(self._GRUB_DEFAULT_FILE)
+        self._remove_existing_arg(
+            arg, self._GRUB_DEFAULT_FILE, self._GRUB_CMDLINE_LINUX_REGEX
+        )
+        self._add_new_arg(
+            arg, value, self._GRUB_DEFAULT_FILE, self._GRUB_CMDLINE_LINUX_REGEX
         )
 
-        self.node.tools[Sed].substitute(
-            match_lines=self._GRUB_CMDLINE_LINUX_REGEX,
-            regexp='"$',
-            replacement=f' {arg}={value}"',
-            file=self._GRUB_DEFAULT_FILE,
-            sudo=True,
-        )
-
+        # Apply the changes using update-grub
         self.run(
             "",
             sudo=True,
