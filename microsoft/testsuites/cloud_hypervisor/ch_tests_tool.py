@@ -49,8 +49,8 @@ class CloudHypervisorTests(Tool):
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
     CASE_TIME_OUT = CMD_TIME_OUT + 1200
-    # 2 Hrs of timeout for perf tests and 2400 seconds for other operations
-    PERF_CASE_TIME_OUT = 7200 + 2400
+    # 12 Hrs of timeout for perf tests (10x runs for variance analysis) + 2400s for operations
+    PERF_CASE_TIME_OUT = 43200 + 2400  # 12 hours + overhead
     PERF_CMD_TIME_OUT = 1200
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
