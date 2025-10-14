@@ -138,7 +138,7 @@ class Gpu(Feature):
     def get_gpu_count_with_lsvmbus(self) -> int:
         """
         Count GPU devices using lsvmbus.
-        First tries hardcoded list, then groups devices by last segment of device ID.
+        First tries known list, then groups devices by last segment of device ID.
         """
         lsvmbus_tool = self._node.tools[Lsvmbus]
 
@@ -146,16 +146,16 @@ class Gpu(Feature):
         vmbus_devices = lsvmbus_tool.get_device_channels()
         self._log.debug(f"Found {len(vmbus_devices)} VMBus devices")
 
-        # First try the hardcoded list (original approach)
-        gpu_count = self._get_gpu_count_hardcoded(vmbus_devices)
+        # First try the known list (original approach)
+        gpu_count = self._get_gpu_count_from_known_list(vmbus_devices)
 
         if gpu_count > 0:
-            self._log.debug(f"Found {gpu_count} GPU(s) using hardcoded list")
+            self._log.debug(f"Found {gpu_count} GPU(s) using known list")
             return gpu_count
 
-        # If no matches in hardcoded list, group by last segment
-        self._log.debug("No GPUs found in hardcoded list, trying last-segment grouping")
-        gpu_count = self._get_gpu_count_by_last_segment(vmbus_devices)
+        # If no matches in known list, group by last segment
+        self._log.debug("No GPUs found in known list, trying last-segment grouping")
+        gpu_count = self._get_gpu_count_by_device_id_segment(vmbus_devices)
 
         if gpu_count > 0:
             self._log.debug(f"Found {gpu_count} GPU(s) using last-segment grouping")
@@ -164,7 +164,7 @@ class Gpu(Feature):
 
         return gpu_count
 
-    def _get_gpu_count_by_last_segment(self, vmbus_devices: List[Any]) -> int:
+    def _get_gpu_count_by_device_id_segment(self, vmbus_devices: List[Any]) -> int:
         """
         Group VMBus devices by last segment of device ID and find GPU group.
         GPUs typically share the same last segment (e.g., '423331303142' for GB200).
@@ -173,7 +173,7 @@ class Gpu(Feature):
             # Get actual GPU count from nvidia-smi
             nvidia_smi = self._node.tools[NvidiaSmi]
             # Get GPU count from nvidia-smi without using pre-existing list
-            actual_gpu_count = nvidia_smi.get_gpu_count_without_list()
+            actual_gpu_count = nvidia_smi.get_gpu_count(known_only=False)
 
             if actual_gpu_count == 0:
                 self._log.debug("nvidia-smi reports 0 GPUs")
@@ -235,9 +235,9 @@ class Gpu(Feature):
             self._log.debug(f"Last-segment grouping failed: {e}")
             return 0
 
-    def _get_gpu_count_hardcoded(self, vmbus_devices: List[Any]) -> int:
+    def _get_gpu_count_from_known_list(self, vmbus_devices: List[Any]) -> int:
         """
-        Original method - check against hardcoded list.
+        Original method - check against known list of GPUs
         """
         lsvmbus_device_count = 0
         bridge_device_count = 0
@@ -260,7 +260,7 @@ class Gpu(Feature):
 
     def get_gpu_count_with_vendor_cmd(self) -> int:
         nvidiasmi = self._node.tools[NvidiaSmi]
-        return nvidiasmi.get_gpu_count_without_list()
+        return nvidiasmi.get_gpu_count(known_only=False)
 
     def get_supported_driver(self) -> List[ComputeSDK]:
         raise NotImplementedError()
