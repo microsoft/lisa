@@ -94,6 +94,11 @@ class CloudHypervisorTests(Tool):
     _numa_tool_name: str = "none"
     _numa_policy: str = "none"  # "strict" or "interleave"
 
+    # IRQ locality configuration
+    _irq_locality_enabled: bool = False
+    _irqbalance_was_running: bool = False
+    _irq_metadata: Dict[str, Any] = {}
+
     @property
     def command(self) -> str:
         return str(self.cmd_path)
@@ -366,31 +371,41 @@ class CloudHypervisorTests(Tool):
         # For metrics tests, require numactl (don't fall back to taskset)
         self._setup_numa_affinity(require_numactl=True)
 
-        self._setup_disk_for_metrics(log_path)
+        # Setup IRQ locality for variance reduction in multi-queue workloads
+        if self._numa_enabled and self._numa_selected_node >= 0:
+            self._setup_irq_locality(self._numa_selected_node)
 
-        if ref:
-            self.node.tools[Git].checkout(ref, self.repo_root)
+        try:
+            self._setup_disk_for_metrics(log_path)
 
-        subtests = self._prepare_metrics_subtests(hypervisor, only, skip)
-        failed_testcases: List[str] = []
+            if ref:
+                self.node.tools[Git].checkout(ref, self.repo_root)
 
-        for testcase in subtests:
-            status, metrics, trace = self._run_single_metrics_test(
-                testcase, hypervisor, log_path, subtest_timeout
-            )
+            subtests = self._prepare_metrics_subtests(hypervisor, only, skip)
+            failed_testcases: List[str] = []
 
-            if status == TestStatus.FAILED:
-                failed_testcases.append(testcase)
+            for testcase in subtests:
+                status, metrics, trace = self._run_single_metrics_test(
+                    testcase, hypervisor, log_path, subtest_timeout
+                )
 
-            self._send_metrics_test_result(
-                test_result, testcase, status, metrics, trace
-            )
-            self._write_testcase_log(log_path, testcase, trace)
+                if status == TestStatus.FAILED:
+                    failed_testcases.append(testcase)
 
-        self._save_kernel_logs(log_path)
-        assert_that(
-            failed_testcases, f"Failed Testcases: {failed_testcases}"
-        ).is_empty()
+                self._send_metrics_test_result(
+                    test_result, testcase, status, metrics, trace
+                )
+                self._write_testcase_log(log_path, testcase, trace)
+
+            self._save_kernel_logs(log_path)
+            assert_that(
+                failed_testcases, f"Failed Testcases: {failed_testcases}"
+            ).is_empty()
+
+        finally:
+            # Always restore IRQ locality and system state
+            if self._irq_locality_enabled:
+                self._restore_irq_locality()
 
     def _setup_disk_for_metrics(self, log_path: Path) -> None:
         """Setup disk for metrics tests if needed."""
@@ -1487,8 +1502,9 @@ exit $ec
         if not self._numa_enabled or self._numa_tool_name != "numactl":
             return
 
-        # Detect multi-queue tests by name pattern
-        is_multi_queue = "multi_queue" in testcase.lower()
+        # Detect multi-queue tests by name pattern (robust string handling)
+        tc_name = str(testcase).lower()
+        is_multi_queue = "multi_queue" in tc_name
 
         try:
             numa_tool = self.node.tools[NumaCtl]
@@ -1528,7 +1544,12 @@ exit $ec
             "cpu_range": self._numa_cpu_range,
             "tool": self._numa_tool_name,
             "policy": self._numa_policy,
+            "device_node": self._get_device_numa_node(),  # For offline analysis
         }
+
+        # Add IRQ affinity metadata if available
+        if self._irq_locality_enabled and self._irq_metadata:
+            numa_meta["irq_affinity"] = self._irq_metadata
 
         meta_file = log_path / f"{test_name}_numa_meta.json"
         try:
@@ -1537,6 +1558,387 @@ exit $ec
             self._log.debug(f"Saved NUMA metadata to {meta_file}")
         except Exception as e:
             self._log.debug(f"Failed to save NUMA metadata: {e}")
+
+    def _cpulist_to_hex_mask(self, cpu_list: str) -> str:
+        """
+        Convert CPU list to hex mask for IRQ affinity.
+
+        Args:
+            cpu_list: e.g., "0-15,32-47" or "16-31"
+
+        Returns:
+            Hex mask string, e.g., "ffff,0000ffff" or "ffff0000"
+        """
+        # Parse CPU ranges
+        cpus: Set[int] = set()
+        for part in cpu_list.split(","):
+            part = part.strip()
+            if "-" in part:
+                start, end = map(int, part.split("-"))
+                cpus.update(range(start, end + 1))
+            elif part.isdigit():
+                cpus.add(int(part))
+
+        if not cpus:
+            raise LisaException(f"Invalid CPU list: {cpu_list}")
+
+        # Create bitmask (each CPU is one bit)
+        mask = 0
+        for cpu in cpus:
+            mask |= 1 << cpu
+
+        # Convert to hex and group from the RIGHT (little-endian groups of 32 CPUs)
+        # This is critical for /proc/irq/*/smp_affinity on systems with >32 CPUs
+        hex_str = f"{mask:x}"
+
+        # Pad to multiple of 8 hex digits
+        pad = (-len(hex_str)) % 8
+        hex_str = ("0" * pad) + hex_str
+
+        # Split from rightmost, 8 hex chars per group (each group = 32 CPUs)
+        parts = []
+        for i in range(len(hex_str), 0, -8):
+            parts.append(hex_str[max(0, i - 8) : i])
+
+        return ",".join(parts)  # rightmost group = lowest CPUs
+
+    def _get_nvme_irqs(self) -> List[int]:
+        """
+        Find all IRQ numbers for NVMe devices.
+
+        Returns list of IRQ numbers.
+        """
+        try:
+            # Method 1: Parse /proc/interrupts (most reliable)
+            result = self.node.execute(
+                "grep -E 'nvme[0-9]+q' /proc/interrupts | "
+                "awk '{print $1}' | tr -d ':'",
+                shell=True,
+            )
+
+            irqs = []
+            if result.exit_code == 0 and result.stdout.strip():
+                irqs = [
+                    int(irq)
+                    for irq in result.stdout.strip().split("\n")
+                    if irq.isdigit()
+                ]
+
+            # Method 2: Fallback to MSI IRQs via sysfs (for vendor-specific drivers)
+            if not irqs:
+                result = self.node.execute(
+                    "find /sys/class/nvme/*/device/msi_irqs/ -type f "
+                    "2>/dev/null | xargs -r basename -a | sort -n",
+                    shell=True,
+                )
+                if result.exit_code == 0 and result.stdout.strip():
+                    irqs = [
+                        int(irq)
+                        for irq in result.stdout.strip().split("\n")
+                        if irq.isdigit()
+                    ]
+
+            self._log.debug(f"Detected NVMe IRQs: {irqs}")
+            return irqs
+
+        except Exception as e:
+            self._log.debug(f"Failed to get NVMe IRQs: {e}")
+            return []
+
+    def _get_nic_irqs(self, interface: str = "") -> List[int]:
+        """
+        Find all IRQ numbers for network interfaces.
+
+        Args:
+            interface: Network interface name (auto-detected if empty)
+
+        Returns list of IRQ numbers.
+        """
+        try:
+            # Auto-detect interface if not specified
+            if not interface:
+                result = self.node.execute(
+                    "ls /sys/class/net/ | grep -E '^(eth|ens|enp|eno)' | head -1",
+                    shell=True,
+                )
+                interface = result.stdout.strip()
+
+            if not interface:
+                self._log.debug("No network interface found")
+                return []
+
+            # Method 1: MSI IRQs (preferred)
+            result = self.node.execute(
+                f"find /sys/class/net/{interface}/device/msi_irqs/ -type f "
+                "2>/dev/null | xargs -r basename -a | sort -n",
+                shell=True,
+            )
+
+            irqs = []
+            if result.exit_code == 0 and result.stdout.strip():
+                irqs = [
+                    int(irq)
+                    for irq in result.stdout.strip().split("\n")
+                    if irq.isdigit()
+                ]
+
+            # Method 2: Fallback to /proc/interrupts
+            if not irqs:
+                result = self.node.execute(
+                    f"grep '{interface}' /proc/interrupts | "
+                    "awk '{print $1}' | tr -d ':'",
+                    shell=True,
+                )
+                if result.exit_code == 0 and result.stdout.strip():
+                    irqs = [
+                        int(irq)
+                        for irq in result.stdout.strip().split("\n")
+                        if irq.isdigit()
+                    ]
+
+            self._log.debug(f"Detected {interface} IRQs: {irqs}")
+            return irqs
+
+        except Exception as e:
+            self._log.debug(f"Failed to get NIC IRQs: {e}")
+            return []
+
+    def _pin_irqs(self, irqs: List[int], cpu_mask: str) -> List[int]:
+        """
+        Pin a list of IRQs to specified CPU mask.
+
+        Returns list of successfully pinned IRQs.
+        """
+        pinned = []
+
+        for irq in irqs:
+            try:
+                # Write to smp_affinity
+                self.node.execute(
+                    f"echo {cpu_mask} | "
+                    f"sudo tee /proc/irq/{irq}/smp_affinity > /dev/null",
+                    shell=True,
+                )
+
+                # Verify it stuck
+                result = self.node.execute(
+                    f"cat /proc/irq/{irq}/smp_affinity", shell=True
+                )
+
+                # Normalize for comparison (remove commas and spaces)
+                actual_mask = result.stdout.strip().replace(",", "").replace(" ", "")
+                expected_mask = cpu_mask.replace(",", "").replace(" ", "")
+
+                if expected_mask in actual_mask or actual_mask in expected_mask:
+                    pinned.append(irq)
+                    self._log.debug(f"Pinned IRQ {irq} to mask {cpu_mask}")
+                else:
+                    self._log.debug(
+                        f"IRQ {irq} affinity verification failed "
+                        f"(expected={expected_mask}, actual={actual_mask})"
+                    )
+
+            except Exception as e:
+                self._log.debug(f"Failed to pin IRQ {irq}: {e}")
+
+        return pinned
+
+    def _stop_irqbalance(self) -> bool:
+        """Stop irqbalance service to prevent dynamic IRQ rebalancing."""
+        try:
+            # Check if irqbalance is running
+            result = self.node.execute(
+                "systemctl is-active irqbalance 2>/dev/null || "
+                "service irqbalance status 2>/dev/null",
+                shell=True,
+            )
+
+            was_running = result.exit_code == 0
+
+            if was_running:
+                # Try systemd first, then sysvinit
+                self.node.execute(
+                    "sudo systemctl stop irqbalance 2>/dev/null || "
+                    "sudo service irqbalance stop 2>/dev/null",
+                    shell=True,
+                )
+                self._log.info("Stopped irqbalance service")
+                self._irqbalance_was_running = True
+                return True
+            else:
+                self._log.debug("irqbalance not running")
+                self._irqbalance_was_running = False
+                return False
+
+        except Exception as e:
+            self._log.debug(f"Failed to stop irqbalance: {e}")
+            return False
+
+    def _setup_rps_xps(self, cpu_mask: str) -> bool:
+        """
+        Configure RPS (Receive Packet Steering) and XPS (Transmit Packet Steering).
+        This ensures network queue processing stays on the selected NUMA node.
+        """
+        try:
+            # Find primary NIC
+            result = self.node.execute(
+                "ls /sys/class/net/ | grep -E '^(eth|ens|enp|eno)' | head -1",
+                shell=True,
+            )
+            nic = result.stdout.strip()
+
+            if not nic:
+                self._log.debug("No NIC found for RPS/XPS configuration")
+                return False
+
+            # Configure RPS for all RX queues
+            self.node.execute(
+                f"for rps in /sys/class/net/{nic}/queues/rx-*/rps_cpus; do "
+                f'[ -f "$rps" ] && echo {cpu_mask} | sudo tee $rps > /dev/null; '
+                f"done",
+                shell=True,
+            )
+
+            # Configure XPS for all TX queues
+            self.node.execute(
+                f"for xps in /sys/class/net/{nic}/queues/tx-*/xps_cpus; do "
+                f'[ -f "$xps" ] && echo {cpu_mask} | sudo tee $xps > /dev/null; '
+                f"done",
+                shell=True,
+            )
+
+            # Get queue counts for logging
+            rx_result = self.node.execute(
+                f"ls /sys/class/net/{nic}/queues/rx-* 2>/dev/null | wc -l",
+                shell=True,
+            )
+            rx_count = int(rx_result.stdout.strip() or "0")
+
+            tx_result = self.node.execute(
+                f"ls /sys/class/net/{nic}/queues/tx-* 2>/dev/null | wc -l",
+                shell=True,
+            )
+            tx_count = int(tx_result.stdout.strip() or "0")
+
+            self._log.info(
+                f"Configured RPS/XPS for {nic}: rx_queues={rx_count} "
+                f"tx_queues={tx_count} mask={cpu_mask}"
+            )
+            return True
+
+        except Exception as e:
+            self._log.debug(f"RPS/XPS configuration failed: {e}")
+            return False
+
+    def _setup_irq_locality(self, selected_node: int) -> None:
+        """
+        Configure IRQ affinity for selected NUMA node.
+        Stops irqbalance and pins device IRQs to node CPUs.
+        This is the #1 variance killer for multi-queue I/O and networking.
+        """
+        if selected_node < 0:
+            self._log.debug("Invalid NUMA node, skipping IRQ locality")
+            return
+
+        try:
+            # Get CPU mask for this node
+            result = self.node.execute(
+                f"cat /sys/devices/system/node/node{selected_node}/cpulist",
+                shell=True,
+            )
+            cpu_list = result.stdout.strip()
+            cpu_mask = self._cpulist_to_hex_mask(cpu_list)
+
+            self._log.info(
+                f"Setting up IRQ locality: node={selected_node} "
+                f"cpus={cpu_list} mask={cpu_mask}"
+            )
+
+            # Stop irqbalance to prevent interference
+            irqbalance_stopped = self._stop_irqbalance()
+
+            # Pin NVMe IRQs
+            nvme_irqs = self._get_nvme_irqs()
+            nvme_pinned = self._pin_irqs(nvme_irqs, cpu_mask)
+
+            # Pin NIC IRQs
+            nic_irqs = self._get_nic_irqs()
+            nic_pinned = self._pin_irqs(nic_irqs, cpu_mask)
+
+            # Configure RPS/XPS for NICs (if applicable)
+            rps_xps_configured = False
+            if nic_irqs:
+                rps_xps_configured = self._setup_rps_xps(cpu_mask)
+
+            # Store metadata for logging
+            self._irq_metadata = {
+                "enabled": True,
+                "irqbalance_stopped": irqbalance_stopped,
+                "nvme_irqs_pinned": nvme_pinned,
+                "nic_irqs_pinned": nic_pinned,
+                "cpu_mask": cpu_mask,
+                "rps_xps_configured": rps_xps_configured,
+            }
+
+            self._irq_locality_enabled = True
+
+            self._log.info(
+                f"IRQ locality configured: nvme_irqs={len(nvme_pinned)} "
+                f"nic_irqs={len(nic_pinned)} rps_xps={rps_xps_configured}"
+            )
+
+        except Exception as e:
+            self._log.warning(f"IRQ locality setup failed (non-fatal): {e}")
+            self._irq_metadata = {"enabled": False, "error": str(e)}
+            self._irq_locality_enabled = False
+
+    def _restore_irq_locality(self) -> None:
+        """
+        Restore system to default IRQ configuration.
+        Called in test cleanup/finally block.
+        """
+        try:
+            # Restore irqbalance (will automatically rebalance IRQs)
+            if self._irqbalance_was_running:
+                try:
+                    self.node.execute(
+                        "sudo systemctl start irqbalance 2>/dev/null || "
+                        "sudo service irqbalance start 2>/dev/null",
+                        shell=True,
+                    )
+                    self._log.info("Restored irqbalance service")
+                except Exception as e:
+                    self._log.debug(f"Failed to restore irqbalance: {e}")
+
+            # Optional: Explicitly restore IRQ affinities to "all CPUs"
+            if self._irq_locality_enabled and self._irq_metadata.get("enabled"):
+                all_irqs = self._irq_metadata.get(
+                    "nvme_irqs_pinned", []
+                ) + self._irq_metadata.get("nic_irqs_pinned", [])
+
+                if all_irqs:
+                    # Reset to all CPUs (all f's mask)
+                    result = self.node.execute(
+                        "grep -c processor /proc/cpuinfo", shell=True
+                    )
+                    cpu_count = int(result.stdout.strip())
+                    # Create mask with all bits set for cpu_count CPUs
+                    all_cpus_mask = "f" * ((cpu_count + 3) // 4)
+
+                    for irq in all_irqs:
+                        try:
+                            self.node.execute(
+                                f"echo {all_cpus_mask} | "
+                                f"sudo tee /proc/irq/{irq}/smp_affinity > /dev/null",
+                                shell=True,
+                            )
+                        except Exception:
+                            pass  # Best effort
+
+            self._log.info("Restored default IRQ configuration")
+
+        except Exception as e:
+            self._log.debug(f"IRQ locality cleanup failed: {e}")
 
 
 def extract_jsons(input_string: str) -> List[Any]:
