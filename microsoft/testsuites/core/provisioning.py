@@ -71,7 +71,6 @@ class Provisioning(TestSuite):
         priority=0,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole],
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
@@ -86,7 +85,6 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             network_interface=Synthetic(),
-            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_synthetic_nic(
@@ -105,7 +103,6 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskStandardSSDLRS(),
-            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_standard_ssd_disk(
@@ -124,10 +121,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskEphemeral(),
-            supported_features=[
-                SerialConsole,
-                CvmDisabled(),
-            ],  # TODO: Fix disk deployment for CVM
+            supported_features=[CvmDisabled()],  # TODO: Fix disk deployment for CVM
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
@@ -146,7 +140,6 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskPremiumSSDLRS(),
-            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_premium_disk(
@@ -168,7 +161,7 @@ class Provisioning(TestSuite):
                 data_disk_count=search_space.IntRange(min=1),
             ),
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole, AvailabilityZoneEnabled()],
+            supported_features=[AvailabilityZoneEnabled()],
         ),
     )
     def verify_deployment_provision_premiumv2_disk(
@@ -187,7 +180,6 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             network_interface=Sriov(),
-            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_sriov(
@@ -206,7 +198,7 @@ class Provisioning(TestSuite):
         priority=2,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole, StartStop],
+            supported_features=[StartStop],
         ),
     )
     def verify_reboot_in_platform(
@@ -232,7 +224,6 @@ class Provisioning(TestSuite):
                 data_disk_count=search_space.IntRange(min=1),
             ),
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_ultra_datadisk(
@@ -254,7 +245,7 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole, StartStop],
+            supported_features=[StartStop],
         ),
     )
     def verify_stop_start_in_platform(
@@ -280,7 +271,6 @@ class Provisioning(TestSuite):
         timeout=10800,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole],
         ),
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
@@ -320,10 +310,11 @@ class Provisioning(TestSuite):
             timeout=self.TIME_OUT,
         )
         if not is_ready:
-            serial_console = node.features[SerialConsole]
-            serial_console.check_panic(
-                saved_path=log_path, stage="bootup", force_run=True
-            )
+            if node.features.is_supported(SerialConsole):
+                serial_console = node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path, stage="bootup", force_run=True
+                )
             raise TcpConnectionException(
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
@@ -350,10 +341,11 @@ class Provisioning(TestSuite):
                     timeout=self.PLATFORM_TIME_OUT,
                 )
                 if not is_ready:
-                    serial_console = node.features[SerialConsole]
-                    serial_console.check_panic(
-                        saved_path=log_path, stage="reboot", force_run=True
-                    )
+                    if node.features.is_supported(SerialConsole):
+                        serial_console = node.features[SerialConsole]
+                        serial_console.check_panic(
+                            saved_path=log_path, stage="reboot", force_run=True
+                        )
                     raise TcpConnectionException(
                         node.connection_info[
                             constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
@@ -366,11 +358,12 @@ class Provisioning(TestSuite):
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as e:
-            serial_console = node.features[SerialConsole]
-            # if there is any panic, fail before partial pass
-            serial_console.check_panic(
-                saved_path=log_path, stage="reboot", force_run=True
-            )
+            if node.features.is_supported(SerialConsole):
+                serial_console = node.features[SerialConsole]
+                # if there is any panic, fail before partial pass
+                serial_console.check_panic(
+                    saved_path=log_path, stage="reboot", force_run=True
+                )
 
             # if node cannot be connected after reboot, it should be failed.
             if isinstance(e, TcpConnectionException):
