@@ -34,7 +34,7 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.features.security_profile import CvmDisabled
-from lisa.tools import GrubConfig, KernelConfig, Lspci
+from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -308,7 +308,7 @@ class Provisioning(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[SerialConsole, StartStop],
+            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_swiotlb_force(
@@ -319,25 +319,30 @@ class Provisioning(TestSuite):
         if not kernel_config.is_enabled("CONFIG_SWIOTLB"):
             raise SkippedException("CONFIG_SWIOTLB is not enabled in kernel")
 
-        grub_config = node.tools[GrubConfig]
-        grub_config.set_kernel_cmdline_arg("swiotlb", "force")
-        node.features[StartStop].restart(wait=True)
+        try:
+            cat = node.tools[Cat]
+            grub_config = node.tools[GrubConfig]
 
-        cmdline_result = node.execute("cat /proc/cmdline", sudo=True)
-        assert_that(cmdline_result.stdout).described_as(
-            f"swiotlb=force kernel parameter should be present in: "
-            f"{cmdline_result.stdout}"
-        ).contains("swiotlb=force")
+            grub_config.set_kernel_cmdline_arg("swiotlb", "force")
+            node.reboot()
+            cmdline_result = cat.read("/proc/cmdline", sudo=True, force_run=True)
+            assert_that(cmdline_result).described_as(
+                "swiotlb=force kernel parameter should be present in: "
+                f"{cmdline_result}"
+            ).contains("swiotlb=force")
 
-        self._smoke_test(
-            log=log,
-            node=node,
-            log_path=log_path,
-            case_name="verify_deployment_provision_swiotlb_force",
-            reboot_in_platform=True,
-            wait=True,
-            is_restart=True,
-        )
+            self._smoke_test(
+                log=log,
+                node=node,
+                log_path=log_path,
+                case_name="verify_deployment_provision_swiotlb_force",
+                wait=True,
+                is_restart=True,
+            )
+        finally:
+            # Mark node as dirty since we modified kernel parameters
+            # This ensures the node won't be reused regardless of test outcome
+            node.mark_dirty()
 
     def _smoke_test(
         self,
