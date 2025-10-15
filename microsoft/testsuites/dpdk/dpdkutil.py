@@ -331,6 +331,7 @@ def initialize_node_resources(
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_source = variables.get("rdma_source", "")
     rdma_branch = variables.get("rdma_branch", "")
+    dpdk_use_asan = variables.get("dpdk_use_asan", False)
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
@@ -373,6 +374,7 @@ def initialize_node_resources(
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
+        use_asan=dpdk_use_asan,
     )
     # Tools will skip installation if the binary is present, so
     # force invoke install. Installer will skip if the correct
@@ -1278,7 +1280,7 @@ class DpdkDevnameInfo:
                 "ASAN_OPTIONS": "detect_leaks=false",
                 f"LD_PRELOAD": f"{find_libasan_so(self._node)}",
             }
-            if self._testpmd.installer.is_asan
+            if self._testpmd.installer.use_asan
             else None
         )
 

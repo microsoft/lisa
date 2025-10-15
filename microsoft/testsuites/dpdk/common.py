@@ -179,7 +179,6 @@ class Installer:
     # Generic 'Installer' parent class for DpdkTestpmd/rdma-core
     # NOTE: This should not be instantiated directly.
     _err_msg = "not implemented for this installation type."
-    is_asan = False
 
     # setup the node before starting
     # ex: updating the kernel, enabling features, checking drivers, etc.
@@ -227,7 +226,9 @@ class Installer:
         )
 
     # run the defined setup and installation steps.
-    def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
+    def do_installation(
+        self, required_version: Optional[VersionInfo] = None, **kwargs: Any
+    ) -> None:
         self._setup_node()
         if self._should_install():
             self._uninstall()
@@ -239,6 +240,7 @@ class Installer:
         node: Node,
         os_dependencies: Optional[DependencyInstaller] = None,
         downloader: Optional[Downloader] = None,
+        **kwargs: Any,
     ) -> None:
         self._node = node
         if not isinstance(self._node.os, Posix):
@@ -249,6 +251,9 @@ class Installer:
         self._package_manager_extra_args: List[str] = []
         self._os_dependencies = os_dependencies
         self._downloader = downloader
+        self._kwargs = kwargs
+        # default to no asan, it's applicable for source builds only
+        self.use_asan = bool(kwargs.pop("use_asan", False))
 
 
 # Base class for package manager installation
