@@ -444,12 +444,12 @@ def run_testpmd_concurrent(
     node_cmd_pairs: Dict[DpdkTestResources, str],
     seconds: int,
     log: Logger,
-    rescind_sriov: bool = False,
+    hotplug_sriov: bool = False,
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
 
     task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
-    if rescind_sriov:
+    if hotplug_sriov:
         time.sleep(10)  # run testpmd for a bit before disabling sriov
 
         test_kits = node_cmd_pairs.keys()
@@ -819,7 +819,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     force_single_queue: bool = False,
     is_perf_test: bool = False,
     result: Optional[TestResult] = None,
-    rescind_sriov: bool = False,
+    hotplug_sriov: bool = False,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
@@ -1079,8 +1079,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         threads_count=ntttcp_threads_count,
         run_time_seconds=ntttcp_run_time,
     )
-    # rescind sriov and run again
-    if rescind_sriov:
+    # hotplug sriov and run again
+    if hotplug_sriov:
         forwarder.features[NetworkInterface].switch_sriov(
             enable=False, wait=False, reset_connections=False
         )
@@ -1118,8 +1118,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
         sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
     }
-    # compare results with those after the rescind if needed
-    if rescind_sriov:
+    # compare results with those after the hotplug if needed
+    if hotplug_sriov:
         _ntttcp_results_after = {
             receiver: ntttcp[receiver].create_ntttcp_result(
                 _receiver_after_result, role="server"
@@ -1446,8 +1446,8 @@ def run_dpdk_symmetric_mp(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
-    trigger_rescind: bool = False,
-    rescind_times: int = 1,
+    trigger_hotplug: bool = False,
+    hotplug_times: int = 1,
 ) -> None:
     """
     A runner function for symmetric_mp, one of the
@@ -1574,7 +1574,7 @@ def run_dpdk_symmetric_mp(
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
 
-    # expect 150 pings by default, if we rescind we'll add to this count
+    # expect 150 pings by default, if we hotplug we'll add to this count
     expected_pings = 150
     ping.ping_async(
         target=test_nics[0].ip_addr,
@@ -1589,11 +1589,11 @@ def run_dpdk_symmetric_mp(
         ignore_error=True,
         interval=0.05,
     )
-    # optionally trigger rescind
-    if trigger_rescind:
-        # allow multiple rescinds for stress testing
-        while rescind_times > 0:
-            rescind_times -= 1
+    # optionally trigger hotplug
+    if trigger_hotplug:
+        # allow multiple hotplugs for stress testing
+        while hotplug_times > 0:
+            hotplug_times -= 1
             # turn SRIOV off
 
             node.features[NetworkInterface].switch_sriov(
@@ -1629,7 +1629,7 @@ def run_dpdk_symmetric_mp(
                 ignore_error=True,
                 interval=0.05,
             )
-            # expect additional pings for each post-rescind instance
+            # expect additional pings for each post-hotplug instance
             expected_pings += 100
 
     ping.ping_async(

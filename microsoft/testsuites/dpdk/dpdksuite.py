@@ -417,17 +417,86 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def verify_dpdk_sriov_rescind_failover_receiver(
+    def verify_dpdk_testpmd_hotplug_receive_failsafe_pmd(
         self,
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
+        self.run_testpmd_hotplug_recv_test(environment, log, variables)
+
+    @TestCaseMetadata(
+        description="""
+            test sriov failsafe during vf revoke (receive side)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_receive_netvsc_pmd(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        self.run_testpmd_hotplug_recv_test(environment, log, variables, pmd="netvsc")
+
+    @TestCaseMetadata(
+        description="""
+            testpmd with hotplug vf for failsafe pmd (send only version)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_send_only_failsafe_pmd(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self.run_testpmd_hotplug_send_test(node, log, variables)
+
+    @TestCaseMetadata(
+        description="""
+            testpmd with hotplug vf for netvsc pmd (send only version)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_send_only_netvsc_pmd(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self.run_testpmd_hotplug_send_test(node, log, variables)
+
+    # common testpmd hotplug functions, send only and receiver versions
+    # support both netvsc and failsafe pmd
+    def run_testpmd_hotplug_recv_test(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        pmd: str = "failsafe",
+    ):
         test_kits = init_nodes_concurrent(
             environment,
             log,
             variables,
-            "failsafe",
+            pmd,
             HugePageSize.HUGE_2MB,
         )
 
@@ -442,34 +511,21 @@ class Dpdk(TestSuite):
         receiver.switch_sriov = True
         sender.switch_sriov = False
 
-        kit_cmd_pairs = generate_send_receive_run_info("failsafe", sender, receiver)
+        kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
 
         run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
         )
 
-        rescind_tx_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_rescind()
-        self._check_rx_or_tx_pps_sriov_rescind("RX", rescind_tx_pps_set)
+        hotplug_tx_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
+        self._check_rx_or_tx_pps_sriov_hotplug("RX", hotplug_tx_pps_set)
 
-    @TestCaseMetadata(
-        description="""
-            test sriov failsafe during vf revoke (send only version)
-        """,
-        priority=2,
-        requirement=simple_requirement(
-            min_core_count=8,
-            min_nic_count=2,
-            network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def verify_dpdk_sriov_rescind_failover_send_only(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
-    ) -> None:
+    def run_testpmd_hotplug_send_test(
+        self, node: Node, log: Logger, variables: Dict[str, Any], pmd: str = "failsafe"
+    ):
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+                node, log, variables, pmd, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -481,18 +537,18 @@ class Dpdk(TestSuite):
         }
 
         run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
         )
 
-        rescind_tx_pps_set = testpmd.get_mean_tx_pps_sriov_rescind()
-        self._check_rx_or_tx_pps_sriov_rescind("TX", rescind_tx_pps_set)
+        hotplug_tx_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
+        self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_tx_pps_set)
 
-    def _check_rx_or_tx_pps_sriov_rescind(
+    def _check_rx_or_tx_pps_sriov_hotplug(
         self, tx_or_rx: str, pps: Tuple[int, int, int]
     ) -> None:
-        before_rescind, during_rescind, after_reenable = pps
-        self._check_rx_or_tx_pps(tx_or_rx, before_rescind, sriov_enabled=True)
-        self._check_rx_or_tx_pps(tx_or_rx, during_rescind, sriov_enabled=False)
+        before_hotplug, during_hotplug, after_reenable = pps
+        self._check_rx_or_tx_pps(tx_or_rx, before_hotplug, sriov_enabled=True)
+        self._check_rx_or_tx_pps(tx_or_rx, during_hotplug, sriov_enabled=False)
         self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
 
     def _check_rx_or_tx_pps(
@@ -958,7 +1014,7 @@ class Dpdk(TestSuite):
             HugePageSize.HUGE_2MB,
             pmd=pmd,
             result=result,
-            rescind_sriov=True,
+            hotplug_sriov=True,
         )
 
     @TestCaseMetadata(
