@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -44,6 +44,7 @@ from microsoft.testsuites.dpdk.common import (
     OsPackageDependencies,
     PackageManagerInstall,
     TarDownloader,
+    find_libasan_so,
     get_debian_backport_repo_args,
     is_url_for_git_repo,
     is_url_for_tarball,
@@ -289,8 +290,16 @@ class DpdkSourceInstall(Installer):
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
+        # pick meson options, add ASAN build arg if present.
+        meson_options = ["buildtype=debug"]
+        if self.use_asan:
+            meson_options += ["b_sanitize=address"]
+        # invoke meson
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=sample_apps,
+            build_dir="build",
+            cwd=self.asset_path,
+            variables=meson_options,
         )
         install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -606,9 +615,16 @@ class DpdkTestpmd(Tool):
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
+        envs: Optional[Dict[str, str]] = (
+            {
+                "ASAN_OPTIONS": "detect_leaks=false",
+                "LD_PRELOAD": find_libasan_so(self.node),
+            }
+            if self.installer.use_asan
+            else None
+        )
         proc_result = self.node.tools[Timeout].run_with_timeout(
-            cmd, timeout, SIGINT, kill_timeout=timeout + 10
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10, update_envs=envs
         )
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
@@ -617,7 +633,6 @@ class DpdkTestpmd(Tool):
     def start_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
         proc_result = self.node.tools[Timeout].run_with_timeout(
             cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
@@ -735,7 +750,17 @@ class DpdkTestpmd(Tool):
         # check if there is a build directory and build the application
         # (if necessary)
         if not shell.exists(source_path.joinpath("build")):
-            self.node.tools[Make].make("static", cwd=source_path, sudo=True)
+            libasan_so = find_libasan_so(self.node)
+            assert libasan_so != "", "couldn't find libasan"
+            envs: Optional[Dict[str, str]] = (
+                {
+                    "CFLAGS": "-fsanitize=address",
+                }
+                if self.installer.use_asan
+                else None
+            )
+            self.node.tools[Make].make("", cwd=source_path, sudo=True, update_envs=envs)
+
         return source_path.joinpath(f"build/{source_path.name}")
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -749,7 +774,8 @@ class DpdkTestpmd(Tool):
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(
-                self.node, DPDK_PACKAGE_MANAGER_PACKAGES
+                self.node,
+                DPDK_PACKAGE_MANAGER_PACKAGES,
             )
         # if not package manager, choose source installation
         else:
@@ -777,10 +803,12 @@ class DpdkTestpmd(Tool):
                     " Expected https://___/___.git or /path/to/tar.tar[.gz] or "
                     "https://__/__.tar[.gz]"
                 )
+            self._use_asan = bool(kwargs.pop("use_asan", False))
             self.installer = DpdkSourceInstall(
                 node=self.node,
                 os_dependencies=DPDK_SOURCE_INSTALL_PACKAGES,
                 downloader=downloader,
+                use_asan=self._use_asan,
             )
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
