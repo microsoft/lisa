@@ -35,6 +35,13 @@ from lisa.tools import (
 )
 from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
 
+# TEMPORARY: Runtime variance tracking - Remove after validation
+try:
+    from .numa_runtime_tracker import NumaRuntimeTracker
+    NUMA_TRACKER_AVAILABLE = True
+except ImportError:
+    NUMA_TRACKER_AVAILABLE = False
+
 
 @dataclass
 class CloudHypervisorTestResult:
@@ -99,6 +106,10 @@ class CloudHypervisorTests(Tool):
     _irq_locality_configured_for_suite: bool = False  # Once-per-suite flag
     _irqbalance_was_running: bool = False
     _irq_metadata: Dict[str, Any] = {}
+
+    # TEMPORARY: Runtime tracker storage (persists across suite iterations)
+    # Key: testcase name, Value: NumaRuntimeTracker instance
+    _runtime_trackers: Dict[str, Any] = {}
 
     @property
     def command(self) -> str:
@@ -407,6 +418,75 @@ class CloudHypervisorTests(Tool):
             # Always restore IRQ locality and system state
             if self._irq_locality_enabled:
                 self._restore_irq_locality()
+            
+            # TEMPORARY: Print final runtime tracker summaries for all tests
+            self._print_final_runtime_summaries(log_path)
+
+    def _print_final_runtime_summaries(self, log_path: Path) -> None:
+        """
+        TEMPORARY: Print final runtime statistics for all tracked tests.
+        
+        This method is called at the end of the test suite (after all iterations).
+        It provides a comprehensive summary of all tests with variance analysis.
+        Will be removed after Phase 3 validation.
+        """
+        if not NUMA_TRACKER_AVAILABLE or not self._runtime_trackers:
+            return
+        
+        self._log.info(f"\n\n{'='*80}")
+        self._log.info("FINAL RUNTIME STATISTICS - ALL TESTS")
+        self._log.info(f"{'='*80}\n")
+        
+        # Sort tests by name for consistent output
+        for testcase in sorted(self._runtime_trackers.keys()):
+            tracker = self._runtime_trackers[testcase]
+            
+            if not tracker.iterations:
+                continue
+            
+            iteration_count = len(tracker.iterations)
+            summary = tracker.get_summary()
+            
+            self._log.info(f"\n{testcase}:")
+            self._log.info(f"  Iterations: {iteration_count}")
+            self._log.info(
+                f"  Mean: {summary.mean:.2f} {summary.unit}"
+            )
+            self._log.info(
+                f"  CV%: {summary.cv_percent:.1f}% "
+                f"({self._get_variance_quality(summary.cv_percent)})"
+            )
+            
+            # Show baseline comparison if available
+            baseline_file = log_path / f"{testcase}_baseline_runtime_summary.json"
+            if baseline_file.exists():
+                try:
+                    comparison = tracker.compare_with_baseline(str(baseline_file))
+                    if comparison:
+                        self._log.info(
+                            f"  vs Baseline: "
+                            f"{comparison['performance_diff_percent']:+.1f}% performance, "
+                            f"{comparison['variance_improvement_percent']:+.1f}% variance"
+                        )
+                except Exception as e:
+                    self._log.debug(f"Could not compare with baseline: {e}")
+        
+        self._log.info(f"\n{'='*80}")
+        self._log.info(
+            f"All runtime summaries saved to: {log_path}/*_runtime_summary.json"
+        )
+        self._log.info(f"{'='*80}\n")
+    
+    def _get_variance_quality(self, cv_percent: float) -> str:
+        """Get variance quality indicator based on CV%."""
+        if cv_percent < 5:
+            return "Excellent"
+        elif cv_percent < 10:
+            return "Good"
+        elif cv_percent < 20:
+            return "Moderate"
+        else:
+            return "High"
 
     def _setup_disk_for_metrics(self, log_path: Path) -> None:
         """Setup disk for metrics tests if needed."""
@@ -451,6 +531,17 @@ class CloudHypervisorTests(Tool):
         trace: str = ""
         result = None
 
+        # TEMPORARY: Get or create runtime tracker for this test (persists across iterations)
+        tracker = None
+        if NUMA_TRACKER_AVAILABLE:
+            if testcase not in self._runtime_trackers:
+                # First time seeing this test - create new tracker
+                self._runtime_trackers[testcase] = NumaRuntimeTracker(
+                    test_name=testcase
+                )
+                self._log.debug(f"Created new runtime tracker for {testcase}")
+            tracker = self._runtime_trackers[testcase]
+
         # Apply test-specific NUMA policy based on test type
         self._apply_numa_policy_for_test(testcase)
 
@@ -481,11 +572,52 @@ class CloudHypervisorTests(Tool):
                 result, testcase, log_path, test_name
             )
 
+            # TEMPORARY: Record iteration in tracker (if available and test passed)
+            if tracker and status == TestStatus.PASSED and metrics:
+                self._record_iteration_in_tracker(
+                    tracker, metrics, result, testcase, log_path
+                )
+
         except Exception as e:
             self._log.info(f"Testcase failed, tescase name: {testcase}")
             status = TestStatus.FAILED
             trace = str(e)
             result = None
+
+        # TEMPORARY: Print tracker summary at end of test (if available)
+        # Shows cumulative stats across all iterations so far
+        if tracker and tracker.iterations:
+            # Set NUMA configuration before printing
+            numa_config = {
+                "numa_enabled": self._numa_enabled,
+                "policy": self._numa_policy,
+                "numa_node": self._numa_selected_node,
+                "cross_numa_access": False,  # Would need to detect from metadata
+                "irq_affinity": {
+                    "enabled": self._irq_locality_enabled
+                }
+            }
+            tracker.numa_config = numa_config
+            
+            iteration_count = len(tracker.iterations)
+            self._log.info(f"\n{'='*80}")
+            self._log.info(
+                f"Runtime Statistics for {testcase} "
+                f"(Iteration {iteration_count} cumulative)"
+            )
+            self._log.info(f"{'='*80}")
+            tracker.print_summary()
+            
+            # Only show detailed iteration table if we have multiple iterations
+            if iteration_count > 1:
+                tracker.print_iterations_table()
+            
+            # Save to JSON for post-analysis (overwrites with latest cumulative data)
+            saved_file = tracker.save_summary(log_path)
+            self._log.info(
+                f"\nCumulative summary ({iteration_count} iterations) "
+                f"saved to: {saved_file}"
+            )
 
         # Store result for log writing
         self._last_result = result
@@ -1212,6 +1344,65 @@ exit $ec
             return result.group(0)
         return ""
 
+    def _record_iteration_in_tracker(
+        self,
+        tracker: Any,  # NumaRuntimeTracker
+        metrics: str,
+        result: ExecutableResult,
+        testcase: str,
+        log_path: Path,
+    ) -> None:
+        """
+        TEMPORARY: Record iteration in runtime tracker.
+        
+        Parses metrics output and records the value in the tracker.
+        This method will be removed after Phase 3 validation.
+        """
+        import json
+        
+        try:
+            # Parse metrics JSON to extract value
+            # metrics format: "results": [{"name": "...", "mean": X, ...}]
+            metrics_json = "{" + metrics + "}"
+            data = json.loads(metrics_json)
+            
+            if "results" in data and len(data["results"]) > 0:
+                test_result = data["results"][0]
+                value = test_result.get("mean", 0)
+                
+                # Determine unit from test name
+                unit = "unknown"
+                if "_MiBps" in testcase or "_throughput_" in testcase or "_bw_" in testcase:
+                    unit = "MiB/s"
+                elif "_Gbps" in testcase or "_gbps" in testcase:
+                    unit = "Gbps"
+                elif "_IOPS" in testcase:
+                    unit = "IOPS"
+                elif "_ms" in testcase:
+                    unit = "ms"
+                elif "_us" in testcase:
+                    unit = "μs"
+                
+                # Extract duration from result if available
+                duration = 0.0
+                if result and hasattr(result, 'elapsed'):
+                    duration = result.elapsed
+                
+                # Record iteration (metadata stored in test_result for reference)
+                tracker.add_iteration(
+                    value=value,
+                    unit=unit,
+                    duration_sec=duration
+                )
+                
+                self._log.debug(
+                    f"Recorded iteration: {value} {unit} "
+                    f"(duration: {duration}s)" if duration else ""
+                )
+                
+        except Exception as e:
+            self._log.warning(f"Failed to record iteration in tracker: {e}")
+
     def _save_kernel_logs(self, log_path: Path) -> None:
         # Use serial console if available. Serial console logs can be obtained
         # even if the node goes down (hung, panicked etc.). Whereas, dmesg
@@ -1736,9 +1927,9 @@ exit $ec
         
         # Cross-NUMA device access is a major variance source
         device_node = self._get_device_numa_node()
-        if (device_node is not None and 
-            device_node >= 0 and 
-            device_node != self._numa_selected_node):
+        if (device_node is not None and
+                device_node >= 0 and
+                device_node != self._numa_selected_node):
             risks.append("cross_numa_device_access")
         
         # Strict policy on multi-queue workloads can underutilize resources
