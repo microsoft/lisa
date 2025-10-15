@@ -183,9 +183,6 @@ class StoragePerformance(TestSuite):
         """,
         priority=3,
         timeout=TIME_OUT,
-        requirement=simple_requirement(
-            disk=AzureDiskOptionSettings(has_resource_disk=True),
-        ),
     )
     def perf_resource_disk_1024k(self, node: Node, result: TestResult) -> None:
         self._perf_resource_disks(node, result, block_size=1024)
@@ -196,9 +193,6 @@ class StoragePerformance(TestSuite):
         """,
         priority=3,
         timeout=TIME_OUT,
-        requirement=simple_requirement(
-            disk=AzureDiskOptionSettings(has_resource_disk=True),
-        ),
     )
     def perf_resource_disk_4k(self, node: Node, result: TestResult) -> None:
         self._perf_resource_disks(node, result, block_size=4)
