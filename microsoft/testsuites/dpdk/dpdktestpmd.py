@@ -1086,7 +1086,7 @@ def _discard_first_and_last_sample(data: List[int]) -> List[int]:
 
 
 def _mean(data: List[int]) -> int:
-    return sum(data) // len(data)
+    return 0 if len(data) == 0 else (sum(data) // len(data))
 
 
 def _check_for_dpdk_build_errors(result: ExecutableResult) -> None:
