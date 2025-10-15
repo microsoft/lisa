@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from enum import Enum
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 from urllib.parse import urlparse
@@ -444,3 +445,8 @@ def update_kernel_from_repo(node: Node) -> None:
         node.reboot()
     else:
         node.log.debug(f"Kernel update package '{package}' was not found.")
+
+
+class Pmd(str, Enum):
+    NETVSC = "netvsc"
+    FAILSAFE = "failsafe"

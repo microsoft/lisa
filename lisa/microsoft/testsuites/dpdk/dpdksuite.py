@@ -8,6 +8,7 @@ from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
+    Pmd,
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -101,7 +102,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB, result=result
         )
 
     @TestCaseMetadata(
@@ -155,7 +156,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "netvsc", HugePageSize.HUGE_1GB, result=result
+            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_1GB, result=result
         )
 
     @TestCaseMetadata(
@@ -183,7 +184,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "failsafe", HugePageSize.HUGE_2MB, result=result
+            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB, result=result
         )
 
     @TestCaseMetadata(
@@ -211,7 +212,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "failsafe", HugePageSize.HUGE_1GB, result=result
+            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_1GB, result=result
         )
 
     @TestCaseMetadata(
@@ -240,7 +241,7 @@ class Dpdk(TestSuite):
         force_dpdk_default_source(variables)
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, "netvsc", HugePageSize.HUGE_2MB
+                node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -326,7 +327,7 @@ class Dpdk(TestSuite):
         # multiprocess test requires dpdk source.
         force_dpdk_default_source(variables)
         kill = node.tools[Kill]
-        pmd = "failsafe"
+        pmd = Pmd.FAILSAFE
         server_app_name = "dpdk-mp_server"
         client_app_name = "dpdk-mp_client"
         # initialize DPDK with sample applications selected for build
@@ -423,7 +424,9 @@ class Dpdk(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self.run_testpmd_hotplug_recv_test(environment, log, variables)
+        self.run_testpmd_hotplug_recv_test(
+            environment, log, variables, pmd=Pmd.FAILSAFE
+        )
 
     @TestCaseMetadata(
         description="""
@@ -445,7 +448,7 @@ class Dpdk(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self.run_testpmd_hotplug_recv_test(environment, log, variables, pmd="netvsc")
+        self.run_testpmd_hotplug_recv_test(environment, log, variables, pmd=Pmd.NETVSC)
 
     @TestCaseMetadata(
         description="""
@@ -463,7 +466,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_testpmd_hotplug_send_only_failsafe_pmd(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self.run_testpmd_hotplug_send_test(node, log, variables)
+        self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.FAILSAFE)
 
     @TestCaseMetadata(
         description="""
@@ -481,7 +484,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_testpmd_hotplug_send_only_netvsc_pmd(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self.run_testpmd_hotplug_send_test(node, log, variables)
+        self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.NETVSC)
 
     # common testpmd hotplug functions, send only and receiver versions
     # support both netvsc and failsafe pmd
@@ -490,7 +493,7 @@ class Dpdk(TestSuite):
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
-        pmd: str = "failsafe",
+        pmd: Pmd = Pmd.FAILSAFE,
     ):
         test_kits = init_nodes_concurrent(
             environment,
@@ -521,7 +524,11 @@ class Dpdk(TestSuite):
         self._check_rx_or_tx_pps_sriov_hotplug("RX", hotplug_tx_pps_set)
 
     def run_testpmd_hotplug_send_test(
-        self, node: Node, log: Logger, variables: Dict[str, Any], pmd: str = "failsafe"
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        pmd: Pmd = Pmd.FAILSAFE,
     ):
         try:
             test_kit = initialize_node_resources(
@@ -597,7 +604,7 @@ class Dpdk(TestSuite):
             )
         try:
             initialize_node_resources(
-                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+                node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -647,7 +654,7 @@ class Dpdk(TestSuite):
         # setup and unwrap the resources for this test
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+                node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -733,7 +740,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "failsafe", result=result
+                environment, log, variables, Pmd.FAILSAFE, result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -764,7 +771,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result, set_mtu=9000
+                environment, log, variables, Pmd.NETVSC, result=result, set_mtu=9000
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -794,7 +801,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result
+                environment, log, variables, Pmd.NETVSC, result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -827,7 +834,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "failsafe",
+                Pmd.FAILSAFE,
                 HugePageSize.HUGE_2MB,
                 result=result,
             )
@@ -863,7 +870,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "failsafe",
+                Pmd.FAILSAFE,
                 HugePageSize.HUGE_1GB,
                 result=result,
             )
@@ -898,7 +905,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "netvsc",
+                Pmd.NETVSC,
                 HugePageSize.HUGE_2MB,
                 result=result,
             )
@@ -934,7 +941,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "netvsc",
+                Pmd.NETVSC,
                 HugePageSize.HUGE_1GB,
                 result=result,
             )
@@ -971,7 +978,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
-        pmd = "netvsc"
+        pmd = Pmd.NETVSC
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
         )
@@ -1006,7 +1013,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
-        pmd = "netvsc"
+        pmd = Pmd.NETVSC
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment,
             log,
@@ -1045,7 +1052,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
-        pmd = "netvsc"
+        pmd = Pmd.NETVSC
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment,
             log,

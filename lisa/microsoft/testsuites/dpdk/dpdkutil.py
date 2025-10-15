@@ -16,6 +16,7 @@ from microsoft.testsuites.dpdk.common import (
     GitDownloader,
     Installer,
     PackageManagerInstall,
+    Pmd,
     TarDownloader,
     check_dpdk_support,
     is_url_for_git_repo,
@@ -197,7 +198,7 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
 
 
 def generate_send_receive_run_info(
-    pmd: str,
+    pmd: Pmd,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
     multiple_queues: bool = False,
@@ -289,9 +290,9 @@ def enable_uio_hv_generic(node: Node) -> None:
 
 
 def do_pmd_driver_setup(
-    node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: str = "failsafe"
+    node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
 ) -> None:
-    if pmd == "netvsc":
+    if pmd == Pmd.NETVSC:
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic(node)
@@ -318,7 +319,7 @@ def initialize_node_resources(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     test_nics: Union[List[NicInfo], None] = None,
@@ -412,11 +413,11 @@ def initialize_node_resources(
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
 
 
-def check_pmd_support(node: Node, pmd: str) -> None:
+def check_pmd_support(node: Node, pmd: Pmd) -> None:
     # Check environment (kernel, drivers, etc) supports selected PMD.
-    if pmd == "failsafe" and node.nics.is_mana_device_present():
+    if pmd == Pmd.FAILSAFE and node.nics.is_mana_device_present():
         raise SkippedException("Failsafe PMD test on MANA is not supported.")
-    if pmd == "netvsc" and not (
+    if pmd == Pmd.NETVSC and not (
         node.tools[Modprobe].load("uio_hv_generic", dry_run=True)
     ):
         raise SkippedException(
@@ -506,7 +507,7 @@ def init_nodes_concurrent(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     test_nic_count: int = 1,
@@ -548,7 +549,7 @@ def verify_dpdk_build(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
@@ -587,7 +588,7 @@ def verify_dpdk_send_receive(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
     multiple_queues: bool = False,
@@ -678,7 +679,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
@@ -810,7 +811,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     log: Logger,
     variables: Dict[str, Any],
     hugepage_size: HugePageSize,
-    pmd: str = "netvsc",
+    pmd: Pmd = Pmd.NETVSC,
     force_single_queue: bool = False,
     is_perf_test: bool = False,
     result: Optional[TestResult] = None,
@@ -1471,7 +1472,7 @@ def run_dpdk_symmetric_mp(
             node,
             log,
             variables,
-            "netvsc",
+            Pmd.NETVSC,
             HugePageSize.HUGE_2MB,
             test_nics=test_nics,
         )
