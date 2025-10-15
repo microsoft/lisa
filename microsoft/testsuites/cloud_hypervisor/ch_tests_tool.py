@@ -96,6 +96,7 @@ class CloudHypervisorTests(Tool):
 
     # IRQ locality configuration
     _irq_locality_enabled: bool = False
+    _irq_locality_configured_for_suite: bool = False  # Once-per-suite flag
     _irqbalance_was_running: bool = False
     _irq_metadata: Dict[str, Any] = {}
 
@@ -1492,9 +1493,66 @@ exit $ec
         self._log.debug("Device NUMA node not detected, using memory-based selection")
         return None
 
+    def _detect_workload_parallelism(self, testcase: str) -> str:
+        """
+        Detect workload parallelism using both runtime queue detection and name patterns.
+        
+        Returns:
+            "multi_queue": Workload benefits from interleave policy (spreads across NUMA)
+            "single_queue": Workload benefits from strict policy (stays on one node)
+        """
+        tc_name = str(testcase).lower()
+        
+        # Runtime queue detection (ground truth)
+        try:
+            # Check NIC queues
+            nic_queues = 0
+            result = self.node.execute(
+                "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nic_queues = int(result.stdout.strip())
+            
+            # Check NVMe queues (subtract 1 for admin queue)
+            nvme_queues = 0
+            result = self.node.execute(
+                "grep -c 'nvme.*q' /proc/interrupts 2>/dev/null || echo 0",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nvme_queues = max(0, int(result.stdout.strip()) - 1)
+            
+            # Multi-queue if either device has >1 queue
+            if nic_queues > 1 or nvme_queues > 1:
+                self._log.debug(
+                    f"Multi-queue detected: nic_queues={nic_queues}, "
+                    f"nvme_queues={nvme_queues}"
+                )
+                return "multi_queue"
+        except Exception as e:
+            self._log.debug(f"Runtime queue detection failed: {e}")
+        
+        # Fallback: Name-based pattern detection
+        # Performance/stress tests likely use multiple queues
+        if any(x in tc_name for x in ["perf_", "stress", "throughput", "iops", "_bw_", "_throughput_"]):
+            self._log.debug(f"Multi-queue inferred from test name: {testcase}")
+            return "multi_queue"
+        
+        # Explicit multi-queue markers
+        if "multi_queue" in tc_name or "multiqueue" in tc_name:
+            self._log.debug(f"Multi-queue explicit in test name: {testcase}")
+            return "multi_queue"
+        
+        # Default: assume single-queue
+        self._log.debug(f"Single-queue assumed for test: {testcase}")
+        return "single_queue"
+
     def _apply_numa_policy_for_test(self, testcase: str) -> None:
         """
-        Apply test-specific NUMA policy based on test characteristics.
+        Apply test-specific NUMA policy based on workload parallelism.
 
         Single-queue tests: Use strict binding (--cpunodebind=N --membind=N)
         Multi-queue tests: Use interleave policy (--interleave=all)
@@ -1502,9 +1560,9 @@ exit $ec
         if not self._numa_enabled or self._numa_tool_name != "numactl":
             return
 
-        # Detect multi-queue tests by name pattern (robust string handling)
-        tc_name = str(testcase).lower()
-        is_multi_queue = "multi_queue" in tc_name
+        # Dynamic detection instead of simple name matching
+        workload_type = self._detect_workload_parallelism(testcase)
+        is_multi_queue = (workload_type == "multi_queue")
 
         try:
             numa_tool = self.node.tools[NumaCtl]
@@ -1514,7 +1572,8 @@ exit $ec
                 self._numa_bind_prefix = numa_tool.bind_interleave()
                 self._numa_policy = "interleave"
                 self._log.info(
-                    f"NUMA policy=interleave test={testcase} " f"(multi-queue detected)"
+                    f"NUMA policy=interleave test={testcase} "
+                    f"(workload_type={workload_type})"
                 )
             else:
                 # Single-queue: use strict binding
@@ -1524,40 +1583,207 @@ exit $ec
                 self._numa_policy = "strict"
                 self._log.debug(
                     f"NUMA policy=strict test={testcase} "
-                    f"node={self._numa_selected_node}"
+                    f"node={self._numa_selected_node} (workload_type={workload_type})"
                 )
         except Exception as e:
             self._log.debug(f"Failed to apply NUMA policy for {testcase}: {e}")
 
     def _save_numa_metadata(self, log_path: Path, test_name: str) -> None:
         """
-        Save NUMA binding metadata to JSON for A/B comparison across test runs.
-        This helps verify binding consistency and debug performance variations.
+        Save comprehensive NUMA binding metadata to JSON for variance analysis.
+        Includes configuration, runtime detection, and risk factors.
         """
         if not self._numa_enabled:
             return
 
+        # Detect cross-NUMA access
+        device_node = self._get_device_numa_node()
+        cross_numa_access = (
+            device_node is not None and 
+            device_node >= 0 and 
+            device_node != self._numa_selected_node
+        )
+        
+        # Get runtime queue counts
+        nic_queues = 0
+        nvme_queues = 0
+        try:
+            result = self.node.execute(
+                "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nic_queues = int(result.stdout.strip())
+            
+            result = self.node.execute(
+                "grep -c 'nvme.*q' /proc/interrupts 2>/dev/null || echo 0",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nvme_queues = max(0, int(result.stdout.strip()) - 1)
+        except Exception:
+            pass
+        
+        # Get irqbalance state snapshot
+        irqbalance_state = {"stopped": False, "active": False}
+        try:
+            result = self.node.execute(
+                "systemctl is-active irqbalance 2>/dev/null || "
+                "service irqbalance status 2>/dev/null | grep -q running && echo active || echo inactive",
+                shell=True,
+            )
+            if "active" in result.stdout.lower():
+                irqbalance_state["active"] = True
+            irqbalance_state["stopped"] = self._irqbalance_was_running
+        except Exception:
+            pass
+        
+        # Compute configuration hash
+        config_hash = self._compute_numa_config_hash()
+        
+        # Get configurable threshold
+        try:
+            numa_tool = self.node.tools[NumaCtl]
+            min_memory_mb = getattr(numa_tool, 'ABSOLUTE_MIN_MEMORY_MB', 2048)
+        except Exception:
+            min_memory_mb = 2048
+        
         numa_meta = {
             "numa_enabled": self._numa_enabled,
-            "prefix": self._numa_bind_prefix,
             "selected_node": self._numa_selected_node,
+            "device_node": device_node,
+            "policy": self._numa_policy,
             "cpu_range": self._numa_cpu_range,
             "tool": self._numa_tool_name,
-            "policy": self._numa_policy,
-            "device_node": self._get_device_numa_node(),  # For offline analysis
+            
+            # Cross-NUMA detection
+            "cross_numa_access": cross_numa_access,
+            
+            # Runtime queue counts
+            "detected_queues": {
+                "nic_rx": nic_queues,
+                "nvme": nvme_queues,
+            },
+            
+            # Workload classification
+            "workload_type": self._detect_workload_parallelism(test_name),
+            
+            # Variance risk factors
+            "variance_risk_factors": self._get_variance_risk_factors(),
+            
+            # IRQ locality state
+            "irq_affinity": {
+                "enabled": self._irq_locality_enabled,
+                "irqbalance_stopped": irqbalance_state.get("stopped", False),
+                "irqbalance_active": irqbalance_state.get("active", False),
+                "nvme_irqs_pinned": self._irq_metadata.get("nvme_irqs_pinned", []) if self._irq_metadata else [],
+                "nic_irqs_pinned": self._irq_metadata.get("nic_irqs_pinned", []) if self._irq_metadata else [],
+                "cpu_mask": self._irq_metadata.get("cpu_mask", "") if self._irq_metadata else "",
+                "rps_xps_configured": self._irq_metadata.get("rps_xps_configured", False) if self._irq_metadata else False,
+            },
+            
+            # Configuration hash (for comparing runs)
+            "config_hash": config_hash,
+            "config_details": {
+                "memory_threshold_mb": min_memory_mb,
+                "policy_mode": "dynamic",  # vs "always_interleave" or "always_strict"
+                "irq_locality_mode": "auto",  # vs "always" or "never"
+                "prefer_device_node": True,
+            },
         }
-
-        # Add IRQ affinity metadata if available
-        if self._irq_locality_enabled and self._irq_metadata:
-            numa_meta["irq_affinity"] = self._irq_metadata
 
         meta_file = log_path / f"{test_name}_numa_meta.json"
         try:
             with open(meta_file, "w") as f:
                 json.dump(numa_meta, f, indent=2)
-            self._log.debug(f"Saved NUMA metadata to {meta_file}")
+            self._log.debug(f"Saved enhanced NUMA metadata to {meta_file}")
         except Exception as e:
             self._log.debug(f"Failed to save NUMA metadata: {e}")
+
+    def _compute_numa_config_hash(self) -> str:
+        """
+        Compute MD5 hash of NUMA configuration for reproducibility tracking.
+        Allows comparing runs to see if configuration drift explains variance changes.
+        
+        Returns:
+            MD5 hash of configuration string
+        """
+        import hashlib
+        
+        # Include all tunable parameters that affect performance
+        config_str = "|".join([
+            f"numa_enabled={self._numa_enabled}",
+            f"numa_tool={self._numa_tool_name}",
+            f"numa_policy={self._numa_policy}",
+            f"numa_node={self._numa_selected_node}",
+            f"irq_locality={self._irq_locality_enabled}",
+            f"irqbalance_stopped={self._irqbalance_was_running}",
+        ])
+        
+        return hashlib.md5(config_str.encode()).hexdigest()[:16]
+    
+    def _get_variance_risk_factors(self) -> list:
+        """
+        Identify configuration patterns known to increase variance.
+        Used for post-mortem analysis to correlate config with variance.
+        
+        Returns:
+            List of risk factor strings
+        """
+        risks = []
+        
+        # Cross-NUMA device access is a major variance source
+        device_node = self._get_device_numa_node()
+        if (device_node is not None and 
+            device_node >= 0 and 
+            device_node != self._numa_selected_node):
+            risks.append("cross_numa_device_access")
+        
+        # Strict policy on multi-queue workloads can underutilize resources
+        if self._numa_policy == "strict":
+            # Check if this might be a multi-queue workload
+            try:
+                result = self.node.execute(
+                    "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                    shell=True,
+                    sudo=True,
+                )
+                if result.exit_code == 0 and result.stdout.strip().isdigit():
+                    nic_queues = int(result.stdout.strip())
+                    if nic_queues > 1:
+                        risks.append("strict_policy_on_multiqueue")
+            except Exception:
+                pass
+        
+        # IRQ pinning on single-queue adds overhead without benefit
+        if self._irq_locality_enabled:
+            try:
+                result = self.node.execute(
+                    "grep -c 'nvme.*q' /proc/interrupts 2>/dev/null || echo 0",
+                    shell=True,
+                    sudo=True,
+                )
+                nvme_queues = 0
+                if result.exit_code == 0 and result.stdout.strip().isdigit():
+                    nvme_queues = max(0, int(result.stdout.strip()) - 1)
+                
+                result = self.node.execute(
+                    "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                    shell=True,
+                    sudo=True,
+                )
+                nic_queues = 0
+                if result.exit_code == 0 and result.stdout.strip().isdigit():
+                    nic_queues = int(result.stdout.strip())
+                
+                if nic_queues <= 1 and nvme_queues <= 1:
+                    risks.append("unnecessary_irq_pinning")
+            except Exception:
+                pass
+        
+        return risks
 
     def _cpulist_to_hex_mask(self, cpu_list: str) -> str:
         """
@@ -1830,14 +2056,75 @@ exit $ec
             self._log.debug(f"RPS/XPS configuration failed: {e}")
             return False
 
+    def _should_apply_irq_locality(self) -> bool:
+        """
+        Determine if IRQ locality should be applied for current test suite.
+        
+        Gating conditions:
+        1. Skip if already configured for this suite (once-per-suite)
+        2. Skip if system has single-queue devices only (no benefit)
+        
+        Returns:
+            True if IRQ locality should be applied, False otherwise
+        """
+        # Already configured for this suite?
+        if self._irq_locality_configured_for_suite:
+            self._log.debug("IRQ locality already configured for suite, skipping")
+            return False
+        
+        # Runtime queue detection: skip if single-queue devices only
+        try:
+            # Check NIC queues
+            nic_queues = 0
+            result = self.node.execute(
+                "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nic_queues = int(result.stdout.strip())
+            
+            # Check NVMe queues (subtract 1 for admin queue)
+            nvme_queues = 0
+            result = self.node.execute(
+                "grep -c 'nvme.*q' /proc/interrupts 2>/dev/null || echo 0",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nvme_queues = max(0, int(result.stdout.strip()) - 1)
+            
+            # Skip if both devices are single-queue
+            if nic_queues <= 1 and nvme_queues <= 1:
+                self._log.info(
+                    f"Skipping IRQ locality: single-queue devices detected "
+                    f"(nic_queues={nic_queues}, nvme_queues={nvme_queues})"
+                )
+                return False
+            
+            self._log.debug(
+                f"Multi-queue devices detected: nic_queues={nic_queues}, "
+                f"nvme_queues={nvme_queues} - IRQ locality will be applied"
+            )
+            return True
+            
+        except Exception as e:
+            # On detection failure, apply conservatively
+            self._log.debug(f"Queue detection failed: {e}, applying IRQ locality")
+            return True
+
     def _setup_irq_locality(self, selected_node: int) -> None:
         """
-        Configure IRQ affinity for selected NUMA node.
+        Configure IRQ affinity for selected NUMA node (once per suite).
         Stops irqbalance and pins device IRQs to node CPUs.
         This is the #1 variance killer for multi-queue I/O and networking.
         """
         if selected_node < 0:
             self._log.debug("Invalid NUMA node, skipping IRQ locality")
+            return
+        
+        # Check if we should apply IRQ locality
+        if not self._should_apply_irq_locality():
             return
 
         try:
@@ -1865,10 +2152,24 @@ exit $ec
             nic_irqs = self._get_nic_irqs()
             nic_pinned = self._pin_irqs(nic_irqs, cpu_mask)
 
-            # Configure RPS/XPS for NICs (if applicable)
+            # Configure RPS/XPS for NICs (only if multi-queue)
             rps_xps_configured = False
             if nic_irqs:
-                rps_xps_configured = self._setup_rps_xps(cpu_mask)
+                # Check if NIC is multi-queue before configuring RPS/XPS
+                result = self.node.execute(
+                    "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                    shell=True,
+                    sudo=True,
+                )
+                nic_queues = 0
+                if result.exit_code == 0 and result.stdout.strip().isdigit():
+                    nic_queues = int(result.stdout.strip())
+                
+                if nic_queues > 1:
+                    rps_xps_configured = self._setup_rps_xps(cpu_mask)
+                    self._log.debug(f"RPS/XPS configured for multi-queue NIC ({nic_queues} queues)")
+                else:
+                    self._log.debug(f"Skipping RPS/XPS for single-queue NIC ({nic_queues} queue)")
 
             # Store metadata for logging
             self._irq_metadata = {
@@ -1881,9 +2182,10 @@ exit $ec
             }
 
             self._irq_locality_enabled = True
+            self._irq_locality_configured_for_suite = True  # Mark as configured for suite
 
             self._log.info(
-                f"IRQ locality configured: nvme_irqs={len(nvme_pinned)} "
+                f"IRQ locality configured for suite: nvme_irqs={len(nvme_pinned)} "
                 f"nic_irqs={len(nic_pinned)} rps_xps={rps_xps_configured}"
             )
 
