@@ -496,6 +496,7 @@ def start_testpmd_concurrent(
         run_kit: Tuple[DpdkTestResources, str],
     ) -> Tuple[DpdkTestResources, str]:
         testkit, cmd = run_kit
+
         return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
 
     task_manager = run_in_parallel_async(
@@ -1348,7 +1349,7 @@ class DpdkDevnameInfo:
     def __init__(self, testpmd: DpdkTestpmd) -> None:
         self._node = testpmd.node
         self._testpmd = testpmd
-        self.env_args = None
+        self.env_args: Optional[Dict[str, str]] = None
 
     def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
         # since we only need this for netvsc, we'll only generate
