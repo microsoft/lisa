@@ -375,6 +375,18 @@ class DpdkTestpmd(Tool):
         r"EAL: PCI device [a-fA-F0-9]{4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9] "
         r"on NUMA socket [0-9]+"
     )
+    # for netvsc, we rely on the netvsc pmd debug log to fetch the information.
+    # when hotplug function finds a matching device, it logs this message (and the device args).
+    # this code isn dpdk is in drivers/net/netvsc/hn_ethdev.c
+    _search_hotplug_regex_netvsc = re.compile(
+        r"HN_DRIVER: netvsc_hotplug_retry\(\): Found matching MAC address, adding device"
+    )
+
+    _hotplug_search_regexes = [
+        _search_hotplug_regex,
+        _search_hotplug_regex_alt,
+        _search_hotplug_regex_netvsc,
+    ]
 
     # ex v19.11-rc3 or 19.11
     _version_info_from_git_tag_regex = re.compile(
@@ -604,9 +616,12 @@ class DpdkTestpmd(Tool):
             "Testpmd install path was not set, this indicates a logic"
             " error in the DPDK installation process."
         ).is_not_empty()
+        # add debug logging args, EAL ones are very verbose
+        # but netvsc are useful for identifying hotplugs on azure
+        debug_logging = "--log-level netvsc,debug"
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} -- --forward-mode={mode} "
+            f"{nic_include_info} {debug_logging} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
@@ -962,14 +977,11 @@ class DpdkTestpmd(Tool):
             :device_removal_index
         ]
         after_rescind = self._last_run_output[device_removal_index:]
-        # Identify the device add event
-        hotplug_match = self._search_hotplug_regex.finditer(after_rescind)
-        matches_list = list(hotplug_match)
-        if not list(matches_list):
-            hotplug_alt_match = self._search_hotplug_regex_alt.finditer(after_rescind)
-            if hotplug_alt_match:
-                matches_list = list(hotplug_alt_match)
-            else:
+        # Identify the device add event using the hotplug search regexes
+        for pattern in self._hotplug_search_regexes:
+            hotplug_match = pattern.finditer(after_rescind)
+            matches_list = list(hotplug_match)
+            if not list(matches_list):
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
                     raise LisaException("Testpmd crashed after device removal.")
