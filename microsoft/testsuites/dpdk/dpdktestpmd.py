@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -615,9 +615,16 @@ class DpdkTestpmd(Tool):
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
+        envs: Optional[Dict[str, str]] = (
+            {
+                "ASAN_OPTIONS": "detect_leaks=false",
+                "LD_PRELOAD": find_libasan_so(self.node),
+            }
+            if self.installer.use_asan
+            else None
+        )
         proc_result = self.node.tools[Timeout].run_with_timeout(
-            cmd, timeout, SIGINT, kill_timeout=timeout + 10
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10, update_envs=envs
         )
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
@@ -626,7 +633,6 @@ class DpdkTestpmd(Tool):
     def start_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
         proc_result = self.node.tools[Timeout].run_with_timeout(
             cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
@@ -746,11 +752,9 @@ class DpdkTestpmd(Tool):
         if not shell.exists(source_path.joinpath("build")):
             libasan_so = find_libasan_so(self.node)
             assert libasan_so != "", "couldn't find libasan"
-            envs = (
+            envs: Optional[Dict[str, str]] = (
                 {
                     "CFLAGS": "-fsanitize=address",
-                    "ASAN_OPTIONS": "detect_leaks=false",
-                    "LD_PRELOAD": libasan_so,
                 }
                 if self.installer.use_asan
                 else None
