@@ -21,6 +21,7 @@ class Timeout(Tool):
         timeout: int,
         signal: int = SIGTERM,
         kill_timeout: int = 0,
+        update_envs: Optional[Dict[str, str]] = None,
     ) -> ExecutableResult:
         # timeout [OPTION] DURATION COMMAND [ARG]...
 
@@ -39,6 +40,7 @@ class Timeout(Tool):
             timeout=timeout,
             signal=signal,
             kill_timeout=kill_timeout,
+            update_envs=update_envs,
         ).wait_result(timeout=command_timeout)
 
     def start_with_timeout(
