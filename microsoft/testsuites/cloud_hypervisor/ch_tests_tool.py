@@ -38,6 +38,7 @@ from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_
 # TEMPORARY: Runtime variance tracking - Remove after validation
 try:
     from .numa_runtime_tracker import NumaRuntimeTracker
+
     NUMA_TRACKER_AVAILABLE = True
 except ImportError:
     NUMA_TRACKER_AVAILABLE = False
@@ -101,11 +102,23 @@ class CloudHypervisorTests(Tool):
     _numa_tool_name: str = "none"
     _numa_policy: str = "none"  # "strict" or "interleave"
 
+    # Bucket-based policy system
+    _bucketing_enabled: bool = False
+    _suite_bucket: str = "C"  # Highest bucket seen in suite (A > B > C)
+    _test_buckets: Dict[str, str] = {}  # Cache of test -> bucket mappings
+
     # IRQ locality configuration
     _irq_locality_enabled: bool = False
     _irq_locality_configured_for_suite: bool = False  # Once-per-suite flag
     _irqbalance_was_running: bool = False
     _irq_metadata: Dict[str, Any] = {}
+
+    # Scheduling stabilization state (once-per-suite)
+    _sched_stabilization_enabled: bool = False
+    _original_cpu_governor: Optional[str] = None
+    _original_turbo_state: Optional[str] = None
+    _original_cstate: Optional[str] = None
+    _original_thp: Optional[str] = None
 
     # TEMPORARY: Runtime tracker storage (persists across suite iterations)
     # Key: testcase name, Value: NumaRuntimeTracker instance
@@ -383,9 +396,8 @@ class CloudHypervisorTests(Tool):
         # For metrics tests, require numactl (don't fall back to taskset)
         self._setup_numa_affinity(require_numactl=True)
 
-        # Setup IRQ locality for variance reduction in multi-queue workloads
-        if self._numa_enabled and self._numa_selected_node >= 0:
-            self._setup_irq_locality(self._numa_selected_node)
+        # Setup scheduling stability (once per suite)
+        self._setup_scheduling_stability()
 
         try:
             self._setup_disk_for_metrics(log_path)
@@ -394,9 +406,69 @@ class CloudHypervisorTests(Tool):
                 self.node.tools[Git].checkout(ref, self.repo_root)
 
             subtests = self._prepare_metrics_subtests(hypervisor, only, skip)
+
+            # Pre-classify all tests into buckets to determine suite-level config
+            self._bucketing_enabled = True
+            bucket_counts = {"A": 0, "B": 0, "C": 0}
+
+            for testcase in subtests:
+                bucket = self._classify_test_bucket(testcase)
+                self._test_buckets[testcase] = bucket
+                bucket_counts[bucket] += 1
+
+            # Compute highest priority bucket using explicit priority map
+            bucket_priority = {"A": 2, "B": 1, "C": 0}
+            self._suite_bucket = (
+                max(self._test_buckets.values(), key=lambda b: bucket_priority[b])
+                if self._test_buckets
+                else "C"
+            )
+
+            # Setup IRQ locality only if we have Bucket A tests (once per suite)
+            irq_locality_applied = False
+            if (
+                self._suite_bucket == "A"
+                and self._numa_enabled
+                and self._numa_selected_node >= 0
+            ):
+                self._setup_irq_locality(self._numa_selected_node)
+                irq_locality_applied = self._irq_locality_enabled
+
+            # Get NUMA node count for suite header
+            numa_node_count = 1
+            try:
+                lscpu = self.node.tools[Lscpu]
+                numa_node_count = lscpu.get_numa_node_count()
+            except Exception:
+                pass
+
+            # Log suite header with bucket analysis
+            self._log.info(f"\n{'='*80}")
+            self._log.info("NUMA BUCKET CONFIGURATION - SUITE HEADER")
+            self._log.info(f"{'='*80}")
+            if numa_node_count <= 1:
+                self._log.info(
+                    f"NUMA: nodes={numa_node_count} → bucketing disabled, no IRQ pinning"
+                )
+            else:
+                self._log.info(
+                    f"NUMA: nodes={numa_node_count}, selected_node={self._numa_selected_node}"
+                )
+            self._log.info(f"Bucketing enabled: {self._bucketing_enabled}")
+            self._log.info(f"Suite bucket (highest): {self._suite_bucket}")
+            self._log.info(
+                f"Bucket distribution: A={bucket_counts['A']}, B={bucket_counts['B']}, C={bucket_counts['C']}"
+            )
+            self._log.info(f"IRQ locality applied: {irq_locality_applied}")
+            self._log.info(f"Total tests: {len(subtests)}")
+            self._log.info(f"{'='*80}\n")
+
             failed_testcases: List[str] = []
 
             for testcase in subtests:
+                # Run warmup right before each measured test
+                self._run_warmup_for_test(testcase)
+
                 status, metrics, trace = self._run_single_metrics_test(
                     testcase, hypervisor, log_path, subtest_timeout
                 )
@@ -415,48 +487,49 @@ class CloudHypervisorTests(Tool):
             ).is_empty()
 
         finally:
-            # Always restore IRQ locality and system state
+            # Always restore system state
             if self._irq_locality_enabled:
                 self._restore_irq_locality()
-            
+
+            if self._sched_stabilization_enabled:
+                self._restore_scheduling_stability()
+
             # TEMPORARY: Print final runtime tracker summaries for all tests
             self._print_final_runtime_summaries(log_path)
 
     def _print_final_runtime_summaries(self, log_path: Path) -> None:
         """
         TEMPORARY: Print final runtime statistics for all tracked tests.
-        
+
         This method is called at the end of the test suite (after all iterations).
         It provides a comprehensive summary of all tests with variance analysis.
         Will be removed after Phase 3 validation.
         """
         if not NUMA_TRACKER_AVAILABLE or not self._runtime_trackers:
             return
-        
+
         self._log.info(f"\n\n{'='*80}")
         self._log.info("FINAL RUNTIME STATISTICS - ALL TESTS")
         self._log.info(f"{'='*80}\n")
-        
+
         # Sort tests by name for consistent output
         for testcase in sorted(self._runtime_trackers.keys()):
             tracker = self._runtime_trackers[testcase]
-            
+
             if not tracker.iterations:
                 continue
-            
+
             iteration_count = len(tracker.iterations)
             summary = tracker.get_summary()
-            
+
             self._log.info(f"\n{testcase}:")
             self._log.info(f"  Iterations: {iteration_count}")
-            self._log.info(
-                f"  Mean: {summary.mean:.2f} {summary.unit}"
-            )
+            self._log.info(f"  Mean: {summary.mean:.2f} {summary.unit}")
             self._log.info(
                 f"  CV%: {summary.cv_percent:.1f}% "
                 f"({self._get_variance_quality(summary.cv_percent)})"
             )
-            
+
             # Show baseline comparison if available
             baseline_file = log_path / f"{testcase}_baseline_runtime_summary.json"
             if baseline_file.exists():
@@ -470,13 +543,13 @@ class CloudHypervisorTests(Tool):
                         )
                 except Exception as e:
                     self._log.debug(f"Could not compare with baseline: {e}")
-        
+
         self._log.info(f"\n{'='*80}")
         self._log.info(
             f"All runtime summaries saved to: {log_path}/*_runtime_summary.json"
         )
         self._log.info(f"{'='*80}\n")
-    
+
     def _get_variance_quality(self, cv_percent: float) -> str:
         """Get variance quality indicator based on CV%."""
         if cv_percent < 5:
@@ -545,11 +618,27 @@ class CloudHypervisorTests(Tool):
         # Apply test-specific NUMA policy based on test type
         self._apply_numa_policy_for_test(testcase)
 
+        # Precondition write devices BEFORE measured iterations
+        self._precondition_write_device(testcase)
+
+        # Override THP for tests sensitive to THP mode
+        original_thp = self._override_thp_for_test(testcase)
+
         self._set_block_size_env_var(testcase)
         cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
 
         try:
             cmd_timeout = self._get_metrics_timeout()
+
+            # Add timeout headroom for Bucket A tests with IRQ pinning
+            # (can occasionally see stalls with IRQ pinning + small queues)
+            bucket = self._test_buckets.get(testcase, "B")
+            if bucket == "A" and self._irq_locality_enabled:
+                cmd_timeout = int(cmd_timeout * 1.10)  # 10% headroom
+                self._log.debug(
+                    f"Added 10% timeout headroom for Bucket A test: {cmd_timeout}s"
+                )
+
             safe_tc = self._sanitize_name(testcase)
             test_name = f"ch_metrics_{safe_tc}_{hypervisor}"
 
@@ -593,12 +682,10 @@ class CloudHypervisorTests(Tool):
                 "policy": self._numa_policy,
                 "numa_node": self._numa_selected_node,
                 "cross_numa_access": False,  # Would need to detect from metadata
-                "irq_affinity": {
-                    "enabled": self._irq_locality_enabled
-                }
+                "irq_affinity": {"enabled": self._irq_locality_enabled},
             }
             tracker.numa_config = numa_config
-            
+
             iteration_count = len(tracker.iterations)
             self._log.info(f"\n{'='*80}")
             self._log.info(
@@ -607,11 +694,11 @@ class CloudHypervisorTests(Tool):
             )
             self._log.info(f"{'='*80}")
             tracker.print_summary()
-            
+
             # Only show detailed iteration table if we have multiple iterations
             if iteration_count > 1:
                 tracker.print_iterations_table()
-            
+
             # Save to JSON for post-analysis (overwrites with latest cumulative data)
             saved_file = tracker.save_summary(log_path)
             self._log.info(
@@ -621,6 +708,10 @@ class CloudHypervisorTests(Tool):
 
         # Store result for log writing
         self._last_result = result
+
+        # Restore THP to original value if overridden
+        self._restore_thp(original_thp)
+
         return status, metrics, trace
 
     def _build_metrics_cmd_args(
@@ -1354,25 +1445,29 @@ exit $ec
     ) -> None:
         """
         TEMPORARY: Record iteration in runtime tracker.
-        
+
         Parses metrics output and records the value in the tracker.
         This method will be removed after Phase 3 validation.
         """
         import json
-        
+
         try:
             # Parse metrics JSON to extract value
             # metrics format: "results": [{"name": "...", "mean": X, ...}]
             metrics_json = "{" + metrics + "}"
             data = json.loads(metrics_json)
-            
+
             if "results" in data and len(data["results"]) > 0:
                 test_result = data["results"][0]
                 value = test_result.get("mean", 0)
-                
+
                 # Determine unit from test name
                 unit = "unknown"
-                if "_MiBps" in testcase or "_throughput_" in testcase or "_bw_" in testcase:
+                if (
+                    "_MiBps" in testcase
+                    or "_throughput_" in testcase
+                    or "_bw_" in testcase
+                ):
                     unit = "MiB/s"
                 elif "_Gbps" in testcase or "_gbps" in testcase:
                     unit = "Gbps"
@@ -1382,24 +1477,21 @@ exit $ec
                     unit = "ms"
                 elif "_us" in testcase:
                     unit = "μs"
-                
+
                 # Extract duration from result if available
                 duration = 0.0
-                if result and hasattr(result, 'elapsed'):
+                if result and hasattr(result, "elapsed"):
                     duration = result.elapsed
-                
+
                 # Record iteration (metadata stored in test_result for reference)
-                tracker.add_iteration(
-                    value=value,
-                    unit=unit,
-                    duration_sec=duration
-                )
-                
+                tracker.add_iteration(value=value, unit=unit, duration_sec=duration)
+
                 self._log.debug(
-                    f"Recorded iteration: {value} {unit} "
-                    f"(duration: {duration}s)" if duration else ""
+                    f"Recorded iteration: {value} {unit} " f"(duration: {duration}s)"
+                    if duration
+                    else ""
                 )
-                
+
         except Exception as e:
             self._log.warning(f"Failed to record iteration in tracker: {e}")
 
@@ -1544,6 +1636,232 @@ exit $ec
             if block_size:
                 self.env_vars[block_size_env_var] = block_size
 
+    def _precondition_write_device(self, testcase: str) -> None:
+        """
+        Precondition write device for block random write tests.
+
+        Runs a 10-15s fio warmup with same block size to stabilize device state
+        before measured iterations. This reduces GC/flush spike variance.
+
+        Only applies to:
+        - block_multi_queue_random_write_* tests (Bucket A)
+        - block_random_write_* tests (Bucket B if any)
+        """
+        tc_name = testcase.lower()
+
+        # Only precondition random write tests
+        if "block" not in tc_name or "write" not in tc_name:
+            return
+
+        # Determine device (prefer datadisk if configured)
+        device = ""
+        if self.use_datadisk:
+            try:
+                device = self._get_data_disk_for_block_tests()
+            except Exception:
+                pass
+        elif self.use_pmem:
+            try:
+                device = self._get_pmem_for_block_tests()
+            except Exception:
+                pass
+
+        if not device:
+            self._log.debug("No device for write preconditioning, skipping")
+            return
+
+        # Get block size for this test (matches measured iteration)
+        block_size = "4k"  # Default
+        if "MiBps" in testcase:
+            block_size = f"{self.mibps_block_size_kb}k"
+        elif "IOPS" in testcase:
+            block_size = f"{self.iops_block_size_kb}k"
+
+        # Run warmup with NUMA binding if enabled
+        numa_prefix = self._numa_bind_prefix if self._numa_enabled else ""
+        warmup_cmd = (
+            f"{numa_prefix} fio --name=warmup --filename={device} "
+            f"--ioengine=libaio --direct=1 --rw=randwrite "
+            f"--bs={block_size} --iodepth=4 --numjobs=1 "
+            f"--runtime=12 --time_based --group_reporting"
+        )
+
+        self._log.info(
+            f"Preconditioning write device for {testcase} (12s warmup)"
+        )
+        try:
+            result = self.node.execute(
+                warmup_cmd, shell=True, sudo=True, timeout=30
+            )
+            if result.exit_code == 0:
+                self._log.debug("Write preconditioning completed successfully")
+            else:
+                self._log.debug(
+                    f"Write preconditioning failed (non-fatal): {result.stderr}"
+                )
+        except Exception as e:
+            self._log.debug(f"Write preconditioning skipped due to error: {e}")
+
+    def _override_thp_for_test(self, testcase: str) -> Optional[str]:
+        """
+        Override THP setting for specific tests that are sensitive to THP mode.
+
+        Returns:
+            Original THP setting if overridden, None otherwise
+        """
+        tc_name = testcase.lower()
+
+        # Override THP for hugepage boot timing tests
+        if "hugepage" in tc_name and "boot_time" in tc_name:
+            try:
+                # Read current THP setting
+                result = self.node.execute(
+                    "cat /sys/kernel/mm/transparent_hugepage/enabled",
+                    shell=True,
+                    sudo=True,
+                )
+                original_thp = result.stdout.strip()
+
+                # Set to 'always' for consistent hugepage behavior
+                self.node.execute(
+                    "echo always | sudo tee "
+                    "/sys/kernel/mm/transparent_hugepage/enabled >/dev/null",
+                    shell=True,
+                    sudo=True,
+                )
+
+                actual_thp = self.node.execute(
+                    "cat /sys/kernel/mm/transparent_hugepage/enabled",
+                    shell=True,
+                    sudo=True,
+                ).stdout.strip()
+
+                self._log.info(
+                    f"THP override for {testcase}: {original_thp} → {actual_thp}"
+                )
+                return original_thp
+
+            except Exception as e:
+                self._log.debug(f"THP override failed: {e}")
+
+        return None
+
+    def _restore_thp(self, original_thp: Optional[str]) -> None:
+        """Restore original THP setting."""
+        if original_thp is None:
+            return
+
+        try:
+            # Extract the active value from "[always] madvise never" format
+            import re
+
+            match = re.search(r"\[(\w+)\]", original_thp)
+            if match:
+                original_value = match.group(1)
+                self.node.execute(
+                    f"echo {original_value} | sudo tee "
+                    "/sys/kernel/mm/transparent_hugepage/enabled >/dev/null",
+                    shell=True,
+                    sudo=True,
+                )
+                self._log.debug(f"Restored THP to {original_value}")
+        except Exception as e:
+            self._log.debug(f"THP restore failed: {e}")
+
+    def _run_warmup_for_test(self, testcase: str) -> None:
+        """
+        Run minimal warmup to wake CPU/turbo, IRQs, and I/O paths.
+
+        Uses only coreutils (dd, ping) to work on slim VMs without fio/iperf.
+        Respects CH_WARMUP_SECONDS env var (default: 7s).
+
+        Warmup types:
+        - Block tests: Direct reads to spin up NVMe queues and IRQ paths
+        - Network tests: Local ping to exercise socket stack and RPS/XPS
+        - Boot/latency: CPU warmup to bring clocks up
+
+        All commands use NUMA binding if enabled.
+        """
+        # Check if warmup is disabled
+        warmup_seconds = int(os.environ.get("CH_WARMUP_SECONDS", "7"))
+        if warmup_seconds <= 0:
+            return
+
+        tc_name = testcase.lower()
+        numa_prefix = self._numa_bind_prefix if self._numa_enabled else ""
+
+        # Determine warmup command based on test type
+        warmup_cmd = ""
+
+        if "block" in tc_name:
+            # Block test warmup: Direct reads to wake NVMe controller
+            # Try datadisk first, fallback to nvme0n1
+            datadisk = os.environ.get("DATADISK_NAME", "")
+            if datadisk:
+                warmup_cmd = (
+                    f"{numa_prefix} dd if={datadisk} of=/dev/null "
+                    f"bs=256k iflag=direct count=2048 2>/dev/null || "
+                    f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
+                    f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+                )
+            else:
+                # Fallback: try to detect datadisk dynamically
+                try:
+                    device = ""
+                    if self.use_datadisk:
+                        device = self._get_data_disk_for_block_tests()
+                    elif self.use_pmem:
+                        device = self._get_pmem_for_block_tests()
+
+                    if device:
+                        warmup_cmd = (
+                            f"{numa_prefix} dd if={device} of=/dev/null "
+                            f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+                        )
+                except Exception:
+                    # Final fallback
+                    warmup_cmd = (
+                        f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
+                        f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+                    )
+
+        elif "virtio_net" in tc_name or "network" in tc_name:
+            # Network test warmup: Local ping to exercise stack and IRQs
+            # ~1 second of rapid pings (200 * 5ms = 1s)
+            warmup_cmd = (
+                f"{numa_prefix} ping -c 200 -i 0.005 -s 64 127.0.0.1 "
+                f">/dev/null 2>&1 || true"
+            )
+
+        else:
+            # Boot/latency/functional: CPU warmup to bring clocks up
+            # ~5 seconds of CPU activity
+            warmup_cmd = (
+                f"{numa_prefix} dd if=/dev/zero of=/dev/null "
+                f"bs=64k count=20000 2>/dev/null || true"
+            )
+
+        if not warmup_cmd:
+            return
+
+        # Run warmup with timeout
+        self._log.debug(
+            f"Running {warmup_seconds}s warmup for {testcase}: "
+            f"{warmup_cmd[:80]}..."
+        )
+
+        try:
+            self.node.execute(
+                warmup_cmd,
+                shell=True,
+                sudo=True,
+                timeout=warmup_seconds + 5,  # Extra headroom
+            )
+            self._log.debug(f"Warmup completed for {testcase}")
+        except Exception as e:
+            # Non-fatal: warmup is best-effort
+            self._log.debug(f"Warmup failed (non-fatal): {e}")
+
     def _setup_numa_affinity(self, require_numactl: bool = False) -> None:  # noqa: C901
         """
         Set up NUMA affinity for Cloud Hypervisor tests.
@@ -1687,13 +2005,13 @@ exit $ec
     def _detect_workload_parallelism(self, testcase: str) -> str:
         """
         Detect workload parallelism using both runtime queue detection and name patterns.
-        
+
         Returns:
             "multi_queue": Workload benefits from interleave policy (spreads across NUMA)
             "single_queue": Workload benefits from strict policy (stays on one node)
         """
         tc_name = str(testcase).lower()
-        
+
         # Runtime queue detection (ground truth)
         try:
             # Check NIC queues
@@ -1705,7 +2023,7 @@ exit $ec
             )
             if result.exit_code == 0 and result.stdout.strip().isdigit():
                 nic_queues = int(result.stdout.strip())
-            
+
             # Check NVMe queues (subtract 1 for admin queue)
             nvme_queues = 0
             result = self.node.execute(
@@ -1715,7 +2033,7 @@ exit $ec
             )
             if result.exit_code == 0 and result.stdout.strip().isdigit():
                 nvme_queues = max(0, int(result.stdout.strip()) - 1)
-            
+
             # Multi-queue if either device has >1 queue
             if nic_queues > 1 or nvme_queues > 1:
                 self._log.debug(
@@ -1725,59 +2043,226 @@ exit $ec
                 return "multi_queue"
         except Exception as e:
             self._log.debug(f"Runtime queue detection failed: {e}")
-        
+
         # Fallback: Name-based pattern detection
         # Performance/stress tests likely use multiple queues
-        if any(x in tc_name for x in ["perf_", "stress", "throughput", "iops", "_bw_", "_throughput_"]):
+        if any(
+            x in tc_name
+            for x in ["perf_", "stress", "throughput", "iops", "_bw_", "_throughput_"]
+        ):
             self._log.debug(f"Multi-queue inferred from test name: {testcase}")
             return "multi_queue"
-        
+
         # Explicit multi-queue markers
         if "multi_queue" in tc_name or "multiqueue" in tc_name:
             self._log.debug(f"Multi-queue explicit in test name: {testcase}")
             return "multi_queue"
-        
+
         # Default: assume single-queue
         self._log.debug(f"Single-queue assumed for test: {testcase}")
         return "single_queue"
 
+    def _classify_test_bucket(self, testcase: str) -> str:
+        """
+        Classify test into policy buckets for NUMA configuration.
+
+        Bucket A – Multi-queue perf: interleave + IRQ locality
+          - Tests with multi-queue I/O (block_multi_queue, virtio_net multi-queue)
+          - Performance/throughput tests (perf_, stress_, throughput, iops, _bw_)
+          - Policy: interleave=all
+          - IRQ: Pin IRQs to node CPUs, RPS/XPS enabled
+
+        Bucket B – Single-queue / latency: strict + no IRQ pinning
+          - Single-queue tests (boot_time, latency tests)
+          - Tests without explicit parallelism
+          - Policy: cpunodebind=N membind=N
+          - IRQ: No pinning
+
+        Bucket C – Functional/boot: no tuning
+          - Functional validation tests
+          - Boot/simple tests that don't benefit from NUMA tuning
+          - Policy: None (no NUMA binding)
+          - IRQ: No pinning
+
+        Returns:
+            "A", "B", or "C"
+        """
+        tc_name = str(testcase).lower()
+
+        # Bucket C: Functional/boot tests (no tuning needed)
+        functional_patterns = [
+            "test_api",
+            "test_vfio",
+            "test_virtio_fs",
+            "test_snapshot",
+            "test_restore",
+            "test_serial",
+            "test_console",
+            "test_cpu_",
+            "test_memory_",
+            "test_pci_",
+            "test_mmio",
+            "test_acpi",
+        ]
+        if any(pattern in tc_name for pattern in functional_patterns):
+            self._log.debug(f"Bucket C (functional/boot): {testcase}")
+            return "C"
+
+        # CRITICAL: Check for single_queue tests FIRST before generic patterns
+        # This fixes regression in single-queue network tests
+        if "single_queue" in tc_name or "singlequeue" in tc_name:
+            self._log.debug(
+                f"Bucket B (single-queue explicit): {testcase}"
+            )
+            return "B"
+
+        # Bucket A: Multi-queue performance tests (interleave + IRQ locality)
+        # Network tests: Always check runtime queues even without "multi_queue"
+        multi_queue_patterns = [
+            "virtio_net",
+            "netperf",
+            "iperf",
+            "multi_queue",
+            "multiqueue",
+            "perf_",
+            "stress",
+            "throughput",
+            "_iops",
+            "_bw_",
+            "_throughput_",
+            "_bandwidth",
+        ]
+        if any(pattern in tc_name for pattern in multi_queue_patterns):
+            # Verify with runtime queue detection (critical for network tests)
+            workload_type = self._detect_workload_parallelism(testcase)
+            if workload_type == "multi_queue":
+                self._log.debug(f"Bucket A (multi-queue perf): {testcase}")
+                return "A"
+
+        # Bucket B: Single-queue / latency tests (strict binding, no IRQ pinning)
+        # This is the default for most tests
+        self._log.debug(f"Bucket B (single-queue/latency): {testcase}")
+        return "B"
+
     def _apply_numa_policy_for_test(self, testcase: str) -> None:
         """
-        Apply test-specific NUMA policy based on workload parallelism.
+        Apply test-specific NUMA policy based on bucket classification.
 
-        Single-queue tests: Use strict binding (--cpunodebind=N --membind=N)
-        Multi-queue tests: Use interleave policy (--interleave=all)
+        Bucket A (multi-queue perf): Use interleave policy (--interleave=all)
+        Bucket B (single-queue/latency): Use strict binding (--cpunodebind=N --membind=N)
+        Bucket C (functional/boot): No NUMA tuning
         """
-        if not self._numa_enabled or self._numa_tool_name != "numactl":
+        # Hard reset NUMA prefix to avoid leaking policy from previous test
+        self._numa_bind_prefix = ""
+
+        # Get bucket from pre-classification (already done in run_metrics_tests)
+        bucket = self._test_buckets.get(testcase, "B")  # Default to B if not found
+
+        # Bucket C: No NUMA tuning for this test
+        if bucket == "C":
+            # Note: Don't set _numa_policy to "none" globally - just skip binding
+            self._log.debug(f"Bucket C: No NUMA tuning for {testcase}")
+            self._log_test_numa_banner(testcase, bucket, "none", False, False)
             return
 
-        # Dynamic detection instead of simple name matching
-        workload_type = self._detect_workload_parallelism(testcase)
-        is_multi_queue = (workload_type == "multi_queue")
+        # Buckets A & B require NUMA to be enabled
+        if not self._numa_enabled or self._numa_tool_name != "numactl":
+            return
 
         try:
             numa_tool = self.node.tools[NumaCtl]
 
-            if is_multi_queue:
-                # Multi-queue: use interleave for better distribution
+            if bucket == "A":
+                # Bucket A: Multi-queue performance - use interleave
                 self._numa_bind_prefix = numa_tool.bind_interleave()
                 self._numa_policy = "interleave"
-                self._log.info(
-                    f"NUMA policy=interleave test={testcase} "
-                    f"(workload_type={workload_type})"
-                )
-            else:
-                # Single-queue: use strict binding
+                self._log.info(f"Bucket A: NUMA policy=interleave test={testcase}")
+            else:  # bucket == "B"
+                # Bucket B: Single-queue/latency - use strict binding
                 self._numa_bind_prefix = numa_tool.bind_to_node(
                     self._numa_selected_node, ""
                 ).strip()
                 self._numa_policy = "strict"
-                self._log.debug(
-                    f"NUMA policy=strict test={testcase} "
-                    f"node={self._numa_selected_node} (workload_type={workload_type})"
+                self._log.info(
+                    f"Bucket B: NUMA policy=strict test={testcase} "
+                    f"node={self._numa_selected_node}"
                 )
+
+            # Log comprehensive per-test NUMA banner for fast triage
+            cross_numa = self._is_cross_numa_access()
+            irq_for_test = bucket == "A" and self._irq_locality_enabled
+            self._log_test_numa_banner(
+                testcase, bucket, self._numa_policy, cross_numa, irq_for_test
+            )
+
         except Exception as e:
             self._log.debug(f"Failed to apply NUMA policy for {testcase}: {e}")
+
+    def _is_cross_numa_access(self) -> bool:
+        """Check if selected node != device node (cross-NUMA access)."""
+        try:
+            device_node = self._get_device_numa_node()
+            return (
+                device_node is not None
+                and device_node >= 0
+                and device_node != self._numa_selected_node
+            )
+        except Exception:
+            return False
+
+    def _log_test_numa_banner(
+        self,
+        testcase: str,
+        bucket: str,
+        policy: str,
+        cross_numa: bool,
+        irq_for_test: bool,
+    ) -> None:
+        """
+        Log one-line per-test NUMA banner for fast triage.
+        
+        Example:
+        [TEST NUMA POLICY] name=boot_time_ms bucket=B policy=strict node=0 \
+        cpus=0-15 device_node=0 cross_numa=false nic_rx_queues=1 nvme_queues=1 \
+        irq_locality=false
+        """
+        try:
+            # Get queue counts
+            nic_queues = 0
+            nvme_queues = 0
+            result = self.node.execute(
+                "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nic_queues = int(result.stdout.strip())
+
+            result = self.node.execute(
+                "grep -c 'nvme.*q' /proc/interrupts 2>/dev/null || echo 0",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                nvme_queues = max(0, int(result.stdout.strip()) - 1)
+
+            device_node = self._get_device_numa_node()
+            device_node_str = (
+                str(device_node)
+                if device_node is not None and device_node >= 0
+                else "unknown"
+            )
+
+            banner = (
+                f"[TEST NUMA POLICY] name={testcase} bucket={bucket} policy={policy} "
+                f"node={self._numa_selected_node} cpus={self._numa_cpu_range} "
+                f"device_node={device_node_str} cross_numa={str(cross_numa).lower()} "
+                f"nic_rx_queues={nic_queues} nvme_queues={nvme_queues} "
+                f"irq_locality={str(irq_for_test).lower()}"
+            )
+            self._log.info(banner)
+        except Exception as e:
+            self._log.debug(f"Failed to log test NUMA banner: {e}")
 
     def _save_numa_metadata(self, log_path: Path, test_name: str) -> None:
         """
@@ -1790,11 +2275,11 @@ exit $ec
         # Detect cross-NUMA access
         device_node = self._get_device_numa_node()
         cross_numa_access = (
-            device_node is not None and 
-            device_node >= 0 and 
-            device_node != self._numa_selected_node
+            device_node is not None
+            and device_node >= 0
+            and device_node != self._numa_selected_node
         )
-        
+
         # Get runtime queue counts
         nic_queues = 0
         nvme_queues = 0
@@ -1806,7 +2291,7 @@ exit $ec
             )
             if result.exit_code == 0 and result.stdout.strip().isdigit():
                 nic_queues = int(result.stdout.strip())
-            
+
             result = self.node.execute(
                 "grep -c 'nvme.*q' /proc/interrupts 2>/dev/null || echo 0",
                 shell=True,
@@ -1816,7 +2301,7 @@ exit $ec
                 nvme_queues = max(0, int(result.stdout.strip()) - 1)
         except Exception:
             pass
-        
+
         # Get irqbalance state snapshot
         irqbalance_state = {"stopped": False, "active": False}
         try:
@@ -1830,57 +2315,77 @@ exit $ec
             irqbalance_state["stopped"] = self._irqbalance_was_running
         except Exception:
             pass
-        
+
         # Compute configuration hash
         config_hash = self._compute_numa_config_hash()
-        
+
         # Get configurable threshold
         try:
             numa_tool = self.node.tools[NumaCtl]
-            min_memory_mb = getattr(numa_tool, 'ABSOLUTE_MIN_MEMORY_MB', 2048)
+            min_memory_mb = getattr(numa_tool, "ABSOLUTE_MIN_MEMORY_MB", 2048)
         except Exception:
             min_memory_mb = 2048
-        
+
+        # Get bucket classification
+        bucket = self._test_buckets.get(test_name, "unknown")
+
+        # Determine if IRQ pinning was applied for THIS test (not just suite-level)
+        irq_pinning_for_test = bucket == "A" and self._irq_locality_enabled
+
         numa_meta = {
+            # Bucket classification
+            "bucket": bucket,
+            "bucketing_enabled": self._bucketing_enabled,
+            # NUMA configuration
             "numa_enabled": self._numa_enabled,
             "selected_node": self._numa_selected_node,
             "device_node": device_node,
             "policy": self._numa_policy,
+            "effective_policy": self._numa_policy,  # Actual policy used for this test
             "cpu_range": self._numa_cpu_range,
             "tool": self._numa_tool_name,
-            
             # Cross-NUMA detection
             "cross_numa_access": cross_numa_access,
-            
             # Runtime queue counts
             "detected_queues": {
                 "nic_rx": nic_queues,
                 "nvme": nvme_queues,
             },
-            
             # Workload classification
             "workload_type": self._detect_workload_parallelism(test_name),
-            
             # Variance risk factors
             "variance_risk_factors": self._get_variance_risk_factors(),
-            
-            # IRQ locality state
+            # IRQ locality state (suite-level + test-level)
             "irq_affinity": {
-                "enabled": self._irq_locality_enabled,
+                "enabled": self._irq_locality_enabled,  # Suite-level
+                "irq_pinning_for_test": irq_pinning_for_test,  # This specific test
                 "irqbalance_stopped": irqbalance_state.get("stopped", False),
                 "irqbalance_active": irqbalance_state.get("active", False),
-                "nvme_irqs_pinned": self._irq_metadata.get("nvme_irqs_pinned", []) if self._irq_metadata else [],
-                "nic_irqs_pinned": self._irq_metadata.get("nic_irqs_pinned", []) if self._irq_metadata else [],
-                "cpu_mask": self._irq_metadata.get("cpu_mask", "") if self._irq_metadata else "",
-                "rps_xps_configured": self._irq_metadata.get("rps_xps_configured", False) if self._irq_metadata else False,
+                "nvme_irqs_pinned": (
+                    self._irq_metadata.get("nvme_irqs_pinned", [])
+                    if self._irq_metadata
+                    else []
+                ),
+                "nic_irqs_pinned": (
+                    self._irq_metadata.get("nic_irqs_pinned", [])
+                    if self._irq_metadata
+                    else []
+                ),
+                "cpu_mask": (
+                    self._irq_metadata.get("cpu_mask", "") if self._irq_metadata else ""
+                ),
+                "rps_xps_configured": (
+                    self._irq_metadata.get("rps_xps_configured", False)
+                    if self._irq_metadata
+                    else False
+                ),
             },
-            
             # Configuration hash (for comparing runs)
             "config_hash": config_hash,
             "config_details": {
                 "memory_threshold_mb": min_memory_mb,
-                "policy_mode": "dynamic",  # vs "always_interleave" or "always_strict"
-                "irq_locality_mode": "auto",  # vs "always" or "never"
+                "policy_mode": "bucket_based",  # Bucket-based policy system
+                "irq_locality_mode": "bucket_a_only",  # IRQ locality only for Bucket A
                 "prefer_device_node": True,
             },
         }
@@ -1897,41 +2402,45 @@ exit $ec
         """
         Compute MD5 hash of NUMA configuration for reproducibility tracking.
         Allows comparing runs to see if configuration drift explains variance changes.
-        
+
         Returns:
             MD5 hash of configuration string
         """
         import hashlib
-        
+
         # Include all tunable parameters that affect performance
-        config_str = "|".join([
-            f"numa_enabled={self._numa_enabled}",
-            f"numa_tool={self._numa_tool_name}",
-            f"numa_policy={self._numa_policy}",
-            f"numa_node={self._numa_selected_node}",
-            f"irq_locality={self._irq_locality_enabled}",
-            f"irqbalance_stopped={self._irqbalance_was_running}",
-        ])
-        
+        config_str = "|".join(
+            [
+                f"numa_enabled={self._numa_enabled}",
+                f"numa_tool={self._numa_tool_name}",
+                f"numa_policy={self._numa_policy}",
+                f"numa_node={self._numa_selected_node}",
+                f"irq_locality={self._irq_locality_enabled}",
+                f"irqbalance_stopped={self._irqbalance_was_running}",
+            ]
+        )
+
         return hashlib.md5(config_str.encode()).hexdigest()[:16]
-    
+
     def _get_variance_risk_factors(self) -> list:
         """
         Identify configuration patterns known to increase variance.
         Used for post-mortem analysis to correlate config with variance.
-        
+
         Returns:
             List of risk factor strings
         """
         risks = []
-        
+
         # Cross-NUMA device access is a major variance source
         device_node = self._get_device_numa_node()
-        if (device_node is not None and
-                device_node >= 0 and
-                device_node != self._numa_selected_node):
+        if (
+            device_node is not None
+            and device_node >= 0
+            and device_node != self._numa_selected_node
+        ):
             risks.append("cross_numa_device_access")
-        
+
         # Strict policy on multi-queue workloads can underutilize resources
         if self._numa_policy == "strict":
             # Check if this might be a multi-queue workload
@@ -1947,7 +2456,7 @@ exit $ec
                         risks.append("strict_policy_on_multiqueue")
             except Exception:
                 pass
-        
+
         # IRQ pinning on single-queue adds overhead without benefit
         if self._irq_locality_enabled:
             try:
@@ -1959,7 +2468,7 @@ exit $ec
                 nvme_queues = 0
                 if result.exit_code == 0 and result.stdout.strip().isdigit():
                     nvme_queues = max(0, int(result.stdout.strip()) - 1)
-                
+
                 result = self.node.execute(
                     "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
                     shell=True,
@@ -1968,12 +2477,12 @@ exit $ec
                 nic_queues = 0
                 if result.exit_code == 0 and result.stdout.strip().isdigit():
                     nic_queues = int(result.stdout.strip())
-                
+
                 if nic_queues <= 1 and nvme_queues <= 1:
                     risks.append("unnecessary_irq_pinning")
             except Exception:
                 pass
-        
+
         return risks
 
     def _cpulist_to_hex_mask(self, cpu_list: str) -> str:
@@ -2250,11 +2759,11 @@ exit $ec
     def _should_apply_irq_locality(self) -> bool:
         """
         Determine if IRQ locality should be applied for current test suite.
-        
+
         Gating conditions:
         1. Skip if already configured for this suite (once-per-suite)
         2. Skip if system has single-queue devices only (no benefit)
-        
+
         Returns:
             True if IRQ locality should be applied, False otherwise
         """
@@ -2262,7 +2771,7 @@ exit $ec
         if self._irq_locality_configured_for_suite:
             self._log.debug("IRQ locality already configured for suite, skipping")
             return False
-        
+
         # Runtime queue detection: skip if single-queue devices only
         try:
             # Check NIC queues
@@ -2274,7 +2783,7 @@ exit $ec
             )
             if result.exit_code == 0 and result.stdout.strip().isdigit():
                 nic_queues = int(result.stdout.strip())
-            
+
             # Check NVMe queues (subtract 1 for admin queue)
             nvme_queues = 0
             result = self.node.execute(
@@ -2284,7 +2793,7 @@ exit $ec
             )
             if result.exit_code == 0 and result.stdout.strip().isdigit():
                 nvme_queues = max(0, int(result.stdout.strip()) - 1)
-            
+
             # Skip if both devices are single-queue
             if nic_queues <= 1 and nvme_queues <= 1:
                 self._log.info(
@@ -2292,13 +2801,13 @@ exit $ec
                     f"(nic_queues={nic_queues}, nvme_queues={nvme_queues})"
                 )
                 return False
-            
+
             self._log.debug(
                 f"Multi-queue devices detected: nic_queues={nic_queues}, "
                 f"nvme_queues={nvme_queues} - IRQ locality will be applied"
             )
             return True
-            
+
         except Exception as e:
             # On detection failure, apply conservatively
             self._log.debug(f"Queue detection failed: {e}, applying IRQ locality")
@@ -2313,7 +2822,7 @@ exit $ec
         if selected_node < 0:
             self._log.debug("Invalid NUMA node, skipping IRQ locality")
             return
-        
+
         # Check if we should apply IRQ locality
         if not self._should_apply_irq_locality():
             return
@@ -2355,12 +2864,16 @@ exit $ec
                 nic_queues = 0
                 if result.exit_code == 0 and result.stdout.strip().isdigit():
                     nic_queues = int(result.stdout.strip())
-                
+
                 if nic_queues > 1:
                     rps_xps_configured = self._setup_rps_xps(cpu_mask)
-                    self._log.debug(f"RPS/XPS configured for multi-queue NIC ({nic_queues} queues)")
+                    self._log.debug(
+                        f"RPS/XPS configured for multi-queue NIC ({nic_queues} queues)"
+                    )
                 else:
-                    self._log.debug(f"Skipping RPS/XPS for single-queue NIC ({nic_queues} queue)")
+                    self._log.debug(
+                        f"Skipping RPS/XPS for single-queue NIC ({nic_queues} queue)"
+                    )
 
             # Store metadata for logging
             self._irq_metadata = {
@@ -2373,7 +2886,9 @@ exit $ec
             }
 
             self._irq_locality_enabled = True
-            self._irq_locality_configured_for_suite = True  # Mark as configured for suite
+            self._irq_locality_configured_for_suite = (
+                True  # Mark as configured for suite
+            )
 
             self._log.info(
                 f"IRQ locality configured for suite: nvme_irqs={len(nvme_pinned)} "
@@ -2432,6 +2947,258 @@ exit $ec
 
         except Exception as e:
             self._log.debug(f"IRQ locality cleanup failed: {e}")
+
+    def _write_sysfs_if_exists(self, path: str, value: str) -> bool:
+        """
+        Write to sysfs path if it exists (guards for missing knobs).
+
+        Args:
+            path: Sysfs path to write to
+            value: Value to write
+
+        Returns:
+            True if write succeeded, False if path doesn't exist or write failed
+        """
+        result = self.node.execute(
+            f"[ -f {path} ] && echo {value} | sudo tee {path} >/dev/null 2>&1 && echo 'ok' || echo 'skip'",
+            shell=True,
+        )
+        return "ok" in result.stdout
+
+    def _read_sysfs_if_exists(self, path: str) -> str:
+        """Read from sysfs path if it exists, return 'n/a' otherwise."""
+        result = self.node.execute(
+            f"cat {path} 2>/dev/null || echo 'n/a'",
+            shell=True,
+        )
+        return result.stdout.strip()
+
+    def _setup_scheduling_stability(self) -> None:
+        """
+        Stabilize host & guest scheduling (once per suite).
+
+        Removes day-to-day OS scheduling drift that shows up as spikes:
+        - Set CPU governor to performance (Intel/AMD)
+        - Disable turbo & deep C-states (Intel, best-effort on AMD)
+        - Set THP to madvise (reduces page-fault jitter)
+        - RPS/XPS already configured in _setup_rps_xps
+
+        Guards for missing sysfs knobs (Ubuntu/Mariner variants, AMD vs Intel).
+        Called once at suite start, restored at suite end.
+        """
+        # Check if stability is enabled (can disable via runbook/env var)
+        import os
+
+        stability_enabled = os.getenv("CH_STABILITY_ENABLED", "1") == "1"
+        if not stability_enabled:
+            self._log.info("Scheduling stabilization disabled (CH_STABILITY_ENABLED=0)")
+            return
+
+        if self._sched_stabilization_enabled:
+            self._log.debug("Scheduling stabilization already configured for suite")
+            return
+
+        try:
+            # a) CPU frequency & C-states
+            # Capture original governor (representative CPU)
+            self._original_cpu_governor = self._read_sysfs_if_exists(
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+            )
+
+            # Set governor=performance on all vCPUs
+            self.node.execute(
+                "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do "
+                "[ -f $g ] && echo performance | sudo tee $g >/dev/null 2>&1 || true; done",
+                shell=True,
+            )
+
+            # Verify governor was set (read back)
+            actual_governor = self._read_sysfs_if_exists(
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+            )
+            self._log.info(
+                f"CPU governor: {self._original_cpu_governor} → {actual_governor}"
+            )
+
+            # Disable turbo (Intel - best effort, AMD doesn't have simple analog)
+            self._original_turbo_state = self._read_sysfs_if_exists(
+                "/sys/devices/system/cpu/intel_pstate/no_turbo"
+            )
+
+            turbo_disabled = False
+            if self._original_turbo_state != "n/a":
+                # Intel: write to intel_pstate/no_turbo
+                turbo_disabled = self._write_sysfs_if_exists(
+                    "/sys/devices/system/cpu/intel_pstate/no_turbo", "1"
+                )
+                if turbo_disabled:
+                    actual_turbo = self._read_sysfs_if_exists(
+                        "/sys/devices/system/cpu/intel_pstate/no_turbo"
+                    )
+                    self._log.info(
+                        f"Turbo (Intel): {self._original_turbo_state} → {actual_turbo}"
+                    )
+            else:
+                # AMD or other - no simple turbo toggle
+                self._log.debug(
+                    "Turbo control not available (AMD or missing intel_pstate)"
+                )
+
+            # Disable deep C-states (Intel - best effort)
+            self._original_cstate = self._read_sysfs_if_exists(
+                "/sys/module/intel_idle/parameters/max_cstate"
+            )
+
+            cstate_disabled = False
+            if self._original_cstate != "n/a":
+                cstate_disabled = self._write_sysfs_if_exists(
+                    "/sys/module/intel_idle/parameters/max_cstate", "0"
+                )
+                if cstate_disabled:
+                    actual_cstate = self._read_sysfs_if_exists(
+                        "/sys/module/intel_idle/parameters/max_cstate"
+                    )
+                    self._log.info(
+                        f"C-states (Intel): {self._original_cstate} → {actual_cstate}"
+                    )
+            else:
+                self._log.debug(
+                    "C-state control not available (AMD or missing intel_idle)"
+                )
+
+            # b) Transparent Huge Pages
+            self._original_thp = self._read_sysfs_if_exists(
+                "/sys/kernel/mm/transparent_hugepage/enabled"
+            )
+
+            thp_set = False
+            if self._original_thp != "n/a":
+                thp_set = self._write_sysfs_if_exists(
+                    "/sys/kernel/mm/transparent_hugepage/enabled", "madvise"
+                )
+                if thp_set:
+                    actual_thp = self._read_sysfs_if_exists(
+                        "/sys/kernel/mm/transparent_hugepage/enabled"
+                    )
+                    self._log.info(f"THP: {self._original_thp} → {actual_thp}")
+
+            # c) RPS/XPS is handled in _setup_rps_xps (already conditional on multi-queue)
+
+            # d) Log the state once (JSON for easy parsing)
+            sched_config = {
+                "sched": {
+                    "governor": (
+                        actual_governor if actual_governor != "n/a" else "unknown"
+                    ),
+                    "turbo": (
+                        "off"
+                        if turbo_disabled
+                        else (
+                            "on" if self._original_turbo_state != "n/a" else "unknown"
+                        )
+                    ),
+                    "cstate": (
+                        "max=0"
+                        if cstate_disabled
+                        else (
+                            "default" if self._original_cstate != "n/a" else "unknown"
+                        )
+                    ),
+                },
+                "thp": (
+                    "madvise"
+                    if thp_set
+                    else ("default" if self._original_thp != "n/a" else "unknown")
+                ),
+                "irqbalance": (
+                    "stopped" if self._irqbalance_was_running else "not-running"
+                ),
+                "irq_pinning": self._irq_locality_enabled,
+                "rps_xps": (
+                    "configured" if self._irq_locality_enabled else "not-configured"
+                ),
+            }
+            self._log.info(
+                f"Scheduling stabilization configured: {json.dumps(sched_config)}"
+            )
+
+            self._sched_stabilization_enabled = True
+
+        except Exception as e:
+            self._log.warning(f"Scheduling stabilization setup failed: {e}")
+
+    def _restore_scheduling_stability(self) -> None:
+        """
+        Restore original scheduling settings.
+        Called in test cleanup/finally block.
+        """
+        if not self._sched_stabilization_enabled:
+            return
+
+        try:
+            # Restore CPU governor (avoid writing n/a or none)
+            if self._original_cpu_governor and self._original_cpu_governor not in (
+                "none",
+                "n/a",
+            ):
+                self.node.execute(
+                    f"for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do "
+                    f"[ -f $g ] && echo {self._original_cpu_governor} | sudo tee $g >/dev/null 2>&1 || true; done",
+                    shell=True,
+                )
+                # Verify restoration
+                actual_governor = self._read_sysfs_if_exists(
+                    "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+                )
+                self._log.info(f"Restored CPU governor: {actual_governor}")
+
+            # Restore turbo (avoid writing n/a or none)
+            if self._original_turbo_state and self._original_turbo_state not in (
+                "none",
+                "n/a",
+            ):
+                self._write_sysfs_if_exists(
+                    "/sys/devices/system/cpu/intel_pstate/no_turbo",
+                    self._original_turbo_state,
+                )
+                actual_turbo = self._read_sysfs_if_exists(
+                    "/sys/devices/system/cpu/intel_pstate/no_turbo"
+                )
+                if actual_turbo != "n/a":
+                    self._log.info(f"Restored turbo: {actual_turbo}")
+
+            # Restore C-states (avoid writing n/a or none)
+            if self._original_cstate and self._original_cstate not in ("none", "n/a"):
+                self._write_sysfs_if_exists(
+                    "/sys/module/intel_idle/parameters/max_cstate",
+                    self._original_cstate,
+                )
+                actual_cstate = self._read_sysfs_if_exists(
+                    "/sys/module/intel_idle/parameters/max_cstate"
+                )
+                if actual_cstate != "n/a":
+                    self._log.info(f"Restored C-states: {actual_cstate}")
+
+            # Restore THP (avoid writing n/a or none)
+            if self._original_thp and self._original_thp not in ("none", "n/a"):
+                # Extract the active value from "[always] madvise never"
+                import re
+
+                match = re.search(r"\[(\w+)\]", self._original_thp)
+                if match:
+                    original_value = match.group(1)
+                    self._write_sysfs_if_exists(
+                        "/sys/kernel/mm/transparent_hugepage/enabled", original_value
+                    )
+                    actual_thp = self._read_sysfs_if_exists(
+                        "/sys/kernel/mm/transparent_hugepage/enabled"
+                    )
+                    self._log.info(f"Restored THP: {actual_thp}")
+
+            self._log.info("Scheduling stabilization restored")
+
+        except Exception as e:
+            self._log.warning(f"Scheduling stabilization restore failed: {e}")
 
 
 def extract_jsons(input_string: str) -> List[Any]:
