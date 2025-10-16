@@ -32,6 +32,14 @@ from lisa.tools import (
 )
 from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
 
+# TEMPORARY: Runtime variance tracking - Remove after validation
+try:
+    from .numa_runtime_tracker import NumaRuntimeTracker
+
+    NUMA_TRACKER_AVAILABLE = True
+except ImportError:
+    NUMA_TRACKER_AVAILABLE = False
+
 
 @dataclass
 class CloudHypervisorTestResult:
@@ -82,6 +90,10 @@ class CloudHypervisorTests(Tool):
 
     cmd_path: PurePath
     repo_root: PurePath
+
+    # TEMPORARY: Runtime tracker storage (persists across suite iterations)
+    # Key: testcase name, Value: NumaRuntimeTracker instance
+    _runtime_trackers: Dict[str, Any] = {}
 
     @property
     def command(self) -> str:
@@ -373,6 +385,10 @@ class CloudHypervisorTests(Tool):
             self._write_testcase_log(log_path, testcase, trace)
 
         self._save_kernel_logs(log_path)
+
+        # TEMPORARY: Print final runtime tracker summaries for all tests
+        self._print_final_runtime_summaries(log_path)
+
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
         ).is_empty()
@@ -420,6 +436,20 @@ class CloudHypervisorTests(Tool):
         trace: str = ""
         result = None
 
+        # TEMPORARY: Get or create runtime tracker for this test
+        # (persists across iterations)
+        tracker = None
+        if NUMA_TRACKER_AVAILABLE:
+            if testcase not in self._runtime_trackers:
+                # First time seeing this test - create new tracker
+                self._runtime_trackers[testcase] = NumaRuntimeTracker(
+                    test_name=testcase
+                )
+                self._log.debug(
+                    f"Created new runtime tracker for {testcase}"
+                )
+            tracker = self._runtime_trackers[testcase]
+
         self._set_block_size_env_var(testcase)
         cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
 
@@ -442,15 +472,119 @@ class CloudHypervisorTests(Tool):
                 result, testcase, log_path, test_name
             )
 
+            # TEMPORARY: Record iteration in tracker (if available and test passed)
+            if tracker and status == TestStatus.PASSED and metrics:
+                self._record_iteration_in_tracker(
+                    tracker, metrics, result, testcase, log_path
+                )
+
         except Exception as e:
             self._log.info(f"Testcase failed, tescase name: {testcase}")
             status = TestStatus.FAILED
             trace = str(e)
             result = None
 
+        # TEMPORARY: Print tracker summary at end of test (if available)
+        # Shows cumulative stats across all iterations so far
+        if tracker and tracker.iterations:
+            # Set configuration (baseline = NUMA disabled)
+            numa_config = {
+                "numa_enabled": False,
+                "policy": None,
+                "numa_node": None,
+                "cross_numa_access": False,
+                "irq_affinity": {"enabled": False},
+            }
+            tracker.numa_config = numa_config
+
+            iteration_count = len(tracker.iterations)
+            self._log.info(f"\n{'='*80}")
+            self._log.info(
+                f"Runtime Statistics for {testcase} "
+                f"(Iteration {iteration_count} cumulative)"
+            )
+            self._log.info(f"{'='*80}")
+            tracker.print_summary()
+
+            # Only show detailed iteration table if we have multiple iterations
+            if iteration_count > 1:
+                tracker.print_iterations_table()
+
+            # Save to JSON for post-analysis (overwrites with latest cumulative data)
+            saved_file = tracker.save_summary(log_path)
+            self._log.info(
+                f"\nCumulative summary ({iteration_count} iterations) "
+                f"saved to: {saved_file}"
+            )
+
         # Store result for log writing
         self._last_result = result
         return status, metrics, trace
+
+    def _print_final_runtime_summaries(self, log_path: Path) -> None:
+        """
+        TEMPORARY: Print final runtime statistics for all tracked tests.
+
+        This method is called at the end of the test suite (after all iterations).
+        It provides a comprehensive summary of all tests with variance analysis.
+        Will be removed after Phase 3 validation.
+        """
+        if not NUMA_TRACKER_AVAILABLE or not self._runtime_trackers:
+            return
+
+        self._log.info(f"\n\n{'='*80}")
+        self._log.info("FINAL RUNTIME STATISTICS - ALL TESTS")
+        self._log.info(f"{'='*80}\n")
+
+        # Sort tests by name for consistent output
+        for testcase in sorted(self._runtime_trackers.keys()):
+            tracker = self._runtime_trackers[testcase]
+
+            if not tracker.iterations:
+                continue
+
+            iteration_count = len(tracker.iterations)
+            summary = tracker.get_summary()
+
+            self._log.info(f"\n{testcase}:")
+            self._log.info(f"  Iterations: {iteration_count}")
+            self._log.info(f"  Mean: {summary.mean:.2f} {summary.unit}")
+            self._log.info(
+                f"  CV%: {summary.cv_percent:.1f}% "
+                f"({self._get_variance_quality(summary.cv_percent)})"
+            )
+
+            # Show baseline comparison if available
+            baseline_file = log_path / f"{testcase}_baseline_runtime_summary.json"
+            if baseline_file.exists():
+                try:
+                    comparison = tracker.compare_with_baseline(str(baseline_file))
+                    if comparison and "error" not in comparison:
+                        perf_diff = comparison["performance_diff_percent"]
+                        var_improve = comparison["variance_improvement_percent"]
+                        self._log.info(
+                            f"  vs Baseline: {perf_diff:+.1f}% performance, "
+                            f"{var_improve:+.1f}% variance"
+                        )
+                except Exception as e:
+                    self._log.debug(f"Could not compare with baseline: {e}")
+
+        self._log.info(f"\n{'='*80}")
+        self._log.info(
+            f"All runtime summaries saved to: {log_path}/*_runtime_summary.json"
+        )
+        self._log.info(f"{'='*80}\n")
+
+    def _get_variance_quality(self, cv_percent: float) -> str:
+        """Get variance quality indicator based on CV%."""
+        if cv_percent < 5:
+            return "Excellent"
+        elif cv_percent < 10:
+            return "Good"
+        elif cv_percent < 20:
+            return "Moderate"
+        else:
+            return "High"
 
     def _build_metrics_cmd_args(
         self, testcase: str, hypervisor: str, subtest_timeout: Optional[int]
@@ -1310,6 +1444,64 @@ exit $ec
 
             if block_size:
                 self.env_vars[block_size_env_var] = block_size
+
+    def _record_iteration_in_tracker(
+        self,
+        tracker: Any,  # NumaRuntimeTracker
+        metrics: str,
+        result: ExecutableResult,
+        testcase: str,
+        log_path: Path,
+    ) -> None:
+        """
+        TEMPORARY: Record iteration in runtime tracker.
+
+        Parses metrics output and records the value in the tracker.
+        This method will be removed after Phase 3 validation.
+        """
+        try:
+            # Parse metrics JSON to extract value
+            # metrics format: "results": [{"name": "...", "mean": X, ...}]
+            metrics_json = "{" + metrics + "}"
+            data = json.loads(metrics_json)
+
+            if "results" in data and len(data["results"]) > 0:
+                test_result = data["results"][0]
+                value = test_result.get("mean", 0)
+
+                # Determine unit from test name
+                unit = "unknown"
+                if (
+                    "_MiBps" in testcase
+                    or "_throughput_" in testcase
+                    or "_bw_" in testcase
+                ):
+                    unit = "MiB/s"
+                elif "_Gbps" in testcase or "_gbps" in testcase:
+                    unit = "Gbps"
+                elif "_IOPS" in testcase:
+                    unit = "IOPS"
+                elif "_ms" in testcase:
+                    unit = "ms"
+                elif "_us" in testcase:
+                    unit = "μs"
+
+                # Extract duration from result if available
+                duration = 0.0
+                if result and hasattr(result, "elapsed"):
+                    duration = result.elapsed
+
+                # Record iteration (metadata stored in test_result for reference)
+                tracker.add_iteration(value=value, unit=unit, duration_sec=duration)
+
+                self._log.debug(
+                    f"Recorded iteration: {value} {unit} " f"(duration: {duration}s)"
+                    if duration
+                    else ""
+                )
+
+        except Exception as e:
+            self._log.warning(f"Failed to record iteration in tracker: {e}")
 
 
 def extract_jsons(input_string: str) -> List[Any]:
