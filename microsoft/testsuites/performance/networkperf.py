@@ -186,7 +186,12 @@ class NetworkPerformace(TestSuite):
     def perf_tcp_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, variables=variables)
+        perf_ntttcp(
+            result, 
+            variables=variables, 
+            server_nic_name="eth0", 
+            client_nic_name="eth0"
+        )
 
     @TestCaseMetadata(
         description="""
