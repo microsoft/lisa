@@ -51,8 +51,18 @@ class MshvHostInstallSuite(TestSuite):
         variables: Dict[str, Any],
         log_path: Path,
     ) -> None:
+        # Debug: Log all available variables
+        log.info(f"DEBUG: All variables keys: {list(variables.keys())}")
+        log.info(f"DEBUG: All variables: {variables}")
+        log.info(f"DEBUG: Looking for key: '{self.CONFIG_BINPATH}'")
+        
         binpath = variables.get(self.CONFIG_BINPATH, "")
+        log.info(f"DEBUG: Retrieved binpath value: '{binpath}' (type: {type(binpath)})")
+        
         if not binpath:
+            log.error(f"DEBUG: binpath is empty or None!")
+            log.error(f"DEBUG: CONFIG_BINPATH = '{self.CONFIG_BINPATH}'")
+            log.error(f"DEBUG: variables.get result = '{binpath}'")
             raise SkippedException(
                 "Requires a path to MSHV binaries to be passed via mshv_binpath"
             )
