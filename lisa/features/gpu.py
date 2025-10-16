@@ -223,7 +223,7 @@ class Gpu(Feature):
                         "but not in sequential pattern"
                     )
 
-            if max_gpu_count > 0:
+            if max_gpu_count > 0 and best_segment is not None:
                 self._log.info(
                     f"Detected {max_gpu_count} GPU(s) with last "
                     f"segment '{best_segment}' "
