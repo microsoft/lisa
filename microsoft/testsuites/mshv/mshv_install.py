@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.tools import Cp, Ls, Md5sum, Reboot
+from lisa.tools import Cp, Ls, Reboot
 from lisa.util import SkippedException
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
@@ -63,15 +63,17 @@ class MshvHostInstallSuite(TestSuite):
 
         log.info(f"binpath: {binpath}")
 
-        md5sum = node.tools[Md5sum]
+        # Helper function to get MD5 checksum using shell command
+        def get_md5(file_path: Path) -> str:
+            result = node.execute(f"md5sum {file_path}", sudo=True, shell=True)
+            # md5sum output format: "checksum  filename"
+            return result.stdout.split()[0]
 
         # === BEFORE: Capture checksums of existing binaries ===
         log.info("=== Capturing checksums of EXISTING binaries before replacement ===")
-        old_hvix_md5 = md5sum.get_checksum(self._test_path_dst_hvix, sudo=True)
-        old_kdstub_md5 = md5sum.get_checksum(self._test_path_dst_kdstub, sudo=True)
-        old_lxhvloader_md5 = md5sum.get_checksum(
-            self._test_path_dst_lxhvloader, sudo=True
-        )
+        old_hvix_md5 = get_md5(self._test_path_dst_hvix)
+        old_kdstub_md5 = get_md5(self._test_path_dst_kdstub)
+        old_lxhvloader_md5 = get_md5(self._test_path_dst_lxhvloader)
         log.info(f"BEFORE - hvix64.exe MD5: {old_hvix_md5}")
         log.info(f"BEFORE - kdstub.dll MD5: {old_kdstub_md5}")
         log.info(f"BEFORE - lxhvloader.dll MD5: {old_lxhvloader_md5}")
@@ -95,15 +97,9 @@ class MshvHostInstallSuite(TestSuite):
         log.info(
             "=== Verifying NEW binaries are in place AFTER copy, BEFORE reboot ==="
         )
-        new_hvix_md5_pre_reboot = md5sum.get_checksum(
-            self._test_path_dst_hvix, sudo=True
-        )
-        new_kdstub_md5_pre_reboot = md5sum.get_checksum(
-            self._test_path_dst_kdstub, sudo=True
-        )
-        new_lxhvloader_md5_pre_reboot = md5sum.get_checksum(
-            self._test_path_dst_lxhvloader, sudo=True
-        )
+        new_hvix_md5_pre_reboot = get_md5(self._test_path_dst_hvix)
+        new_kdstub_md5_pre_reboot = get_md5(self._test_path_dst_kdstub)
+        new_lxhvloader_md5_pre_reboot = get_md5(self._test_path_dst_lxhvloader)
         log.info(f"AFTER COPY - hvix64.exe MD5: {new_hvix_md5_pre_reboot}")
         log.info(f"AFTER COPY - kdstub.dll MD5: {new_kdstub_md5_pre_reboot}")
         log.info(f"AFTER COPY - lxhvloader.dll MD5: {new_lxhvloader_md5_pre_reboot}")
@@ -128,15 +124,9 @@ class MshvHostInstallSuite(TestSuite):
 
         # === AFTER REBOOT: Verify binaries persisted after reboot ===
         log.info("=== Verifying NEW binaries are still in place AFTER reboot ===")
-        new_hvix_md5_post_reboot = md5sum.get_checksum(
-            self._test_path_dst_hvix, sudo=True
-        )
-        new_kdstub_md5_post_reboot = md5sum.get_checksum(
-            self._test_path_dst_kdstub, sudo=True
-        )
-        new_lxhvloader_md5_post_reboot = md5sum.get_checksum(
-            self._test_path_dst_lxhvloader, sudo=True
-        )
+        new_hvix_md5_post_reboot = get_md5(self._test_path_dst_hvix)
+        new_kdstub_md5_post_reboot = get_md5(self._test_path_dst_kdstub)
+        new_lxhvloader_md5_post_reboot = get_md5(self._test_path_dst_lxhvloader)
         log.info(f"AFTER REBOOT - hvix64.exe MD5: {new_hvix_md5_post_reboot}")
         log.info(f"AFTER REBOOT - kdstub.dll MD5: {new_kdstub_md5_post_reboot}")
         log.info(f"AFTER REBOOT - lxhvloader.dll MD5: {new_lxhvloader_md5_post_reboot}")
