@@ -17,7 +17,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
+from lisa.features import Gpu, GpuEnabled, SerialConsole
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import (
     BSD,
@@ -99,7 +99,7 @@ class GpuTestSuite(TestSuite):
             Steps:
             1. Boot VM with at least 1 GPU
             2. Verify if GPU is detected as PCI Device
-            3. Stop-Start VM
+            3. Reboot VM
             4. Verify if PCI GPU device count is same as earlier
 
         """,
@@ -117,7 +117,7 @@ class GpuTestSuite(TestSuite):
             Steps:
             1. Boot VM with multiple GPUs
             2. Verify if GPUs are detected as PCI Devices
-            3. Stop-Start VM
+            3. Reboot VM
             4. Verify if PCI GPU device count is same as earlier
 
         """,
@@ -410,7 +410,6 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
 
 def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     lspci = node.tools[Lspci]
-    start_stop = node.features[StartStop]
 
     init_gpu = lspci.get_gpu_devices(force_run=True)
     log.debug(f"Initial GPU count {len(init_gpu)}")
@@ -418,13 +417,12 @@ def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
         "Number of GPU PCI device is not greater than 0"
     ).is_greater_than_or_equal_to(min_pci_count)
 
-    start_stop.stop()
-    start_stop.start()
+    node.reboot()
 
     curr_gpu = lspci.get_gpu_devices(force_run=True)
     log.debug(f"GPU count after reboot {len(curr_gpu)}")
     assert_that(len(curr_gpu)).described_as(
-        "GPU PCI device count should be same after stop-start"
+        "GPU PCI device count should be same after reboot"
     ).is_equal_to(len(init_gpu))
 
 
