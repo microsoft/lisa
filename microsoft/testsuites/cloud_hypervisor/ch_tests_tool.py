@@ -57,7 +57,7 @@ class CloudHypervisorTests(Tool):
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
     CASE_TIME_OUT = CMD_TIME_OUT + 1200
-    # 12 Hrs of timeout for perf tests (10x runs for variance analysis) + 2400s for operations
+    # 12 Hrs timeout for perf tests (10x runs for variance) + 2400s overhead
     PERF_CASE_TIME_OUT = 43200 + 2400  # 12 hours + overhead
     PERF_CMD_TIME_OUT = 1200
 
@@ -107,6 +107,22 @@ class CloudHypervisorTests(Tool):
     _suite_bucket: str = "C"  # Highest bucket seen in suite (A > B > C)
     _test_buckets: Dict[str, str] = {}  # Cache of test -> bucket mappings
 
+    # Bucket override map for known regressors (escape hatch for pipeline stability)
+    _bucket_overrides: Dict[str, str] = {
+        # Network single-queue tests (force Bucket B)
+        "virtio_net_throughput_single_queue_tx_gbps": "B",
+        "virtio_net_throughput_single_queue_rx_gbps": "B",
+        "virtio_net_throughput_single_queue_bandwidth_gbps": "B",
+        "virtio_net_throughput_single_queue_tx_cps": "B",
+        "virtio_net_throughput_single_queue_rx_cps": "B",
+        "virtio_net_throughput_single_queue_bandwidth_cps": "B",
+        "virtio_net_latency_us": "B",
+        # Block multi-queue write test (force Bucket A)
+        "block_multi_queue_random_write_mibps": "A",
+        # Boot tests with hugepage (force Bucket B for THP consistency)
+        "boot_time_32_vcpus_hugepage_ms": "B",
+    }
+
     # IRQ locality configuration
     _irq_locality_enabled: bool = False
     _irq_locality_configured_for_suite: bool = False  # Once-per-suite flag
@@ -119,6 +135,9 @@ class CloudHypervisorTests(Tool):
     _original_turbo_state: Optional[str] = None
     _original_cstate: Optional[str] = None
     _original_thp: Optional[str] = None
+
+    # Warmup tracking (per-test)
+    _warmup_metadata: Dict[str, Dict[str, Any]] = {}
 
     # TEMPORARY: Runtime tracker storage (persists across suite iterations)
     # Key: testcase name, Value: NumaRuntimeTracker instance
@@ -448,16 +467,19 @@ class CloudHypervisorTests(Tool):
             self._log.info(f"{'='*80}")
             if numa_node_count <= 1:
                 self._log.info(
-                    f"NUMA: nodes={numa_node_count} → bucketing disabled, no IRQ pinning"
+                    f"NUMA: nodes={numa_node_count} → bucketing disabled, "
+                    f"no IRQ pinning"
                 )
             else:
                 self._log.info(
-                    f"NUMA: nodes={numa_node_count}, selected_node={self._numa_selected_node}"
+                    f"NUMA: nodes={numa_node_count}, "
+                    f"selected_node={self._numa_selected_node}"
                 )
             self._log.info(f"Bucketing enabled: {self._bucketing_enabled}")
             self._log.info(f"Suite bucket (highest): {self._suite_bucket}")
             self._log.info(
-                f"Bucket distribution: A={bucket_counts['A']}, B={bucket_counts['B']}, C={bucket_counts['C']}"
+                f"Bucket distribution: A={bucket_counts['A']}, "
+                f"B={bucket_counts['B']}, C={bucket_counts['C']}"
             )
             self._log.info(f"IRQ locality applied: {irq_locality_applied}")
             self._log.info(f"Total tests: {len(subtests)}")
@@ -538,8 +560,10 @@ class CloudHypervisorTests(Tool):
                     if comparison:
                         self._log.info(
                             f"  vs Baseline: "
-                            f"{comparison['performance_diff_percent']:+.1f}% performance, "
-                            f"{comparison['variance_improvement_percent']:+.1f}% variance"
+                            f"{comparison['performance_diff_percent']:+.1f}% "
+                            f"performance, "
+                            f"{comparison['variance_improvement_percent']:+.1f}% "
+                            f"variance"
                         )
                 except Exception as e:
                     self._log.debug(f"Could not compare with baseline: {e}")
@@ -604,7 +628,7 @@ class CloudHypervisorTests(Tool):
         trace: str = ""
         result = None
 
-        # TEMPORARY: Get or create runtime tracker for this test (persists across iterations)
+        # Get or create runtime tracker for this test (persists across runs)
         tracker = None
         if NUMA_TRACKER_AVAILABLE:
             if testcase not in self._runtime_trackers:
@@ -621,7 +645,7 @@ class CloudHypervisorTests(Tool):
         # Precondition write devices BEFORE measured iterations
         self._precondition_write_device(testcase)
 
-        # Override THP for tests sensitive to THP mode
+        # Override THP for tests sensitive to THP mode (restore in finally)
         original_thp = self._override_thp_for_test(testcase)
 
         self._set_block_size_env_var(testcase)
@@ -673,6 +697,10 @@ class CloudHypervisorTests(Tool):
             trace = str(e)
             result = None
 
+        finally:
+            # CRITICAL: Always restore THP even if test throws exception
+            self._restore_thp(original_thp)
+
         # TEMPORARY: Print tracker summary at end of test (if available)
         # Shows cumulative stats across all iterations so far
         if tracker and tracker.iterations:
@@ -708,9 +736,6 @@ class CloudHypervisorTests(Tool):
 
         # Store result for log writing
         self._last_result = result
-
-        # Restore THP to original value if overridden
-        self._restore_thp(original_thp)
 
         return status, metrics, trace
 
@@ -1476,7 +1501,7 @@ exit $ec
                 elif "_ms" in testcase:
                     unit = "ms"
                 elif "_us" in testcase:
-                    unit = "μs"
+                    unit = "us"  # Use plain ASCII instead of Unicode μ
 
                 # Extract duration from result if available
                 duration = 0.0
@@ -1670,28 +1695,27 @@ exit $ec
             self._log.debug("No device for write preconditioning, skipping")
             return
 
-        # Get block size for this test (matches measured iteration)
-        block_size = "4k"  # Default
-        if "MiBps" in testcase:
-            block_size = f"{self.mibps_block_size_kb}k"
-        elif "IOPS" in testcase:
-            block_size = f"{self.iops_block_size_kb}k"
+        # Get warmup duration
+        warmup_seconds = int(os.environ.get("CH_WARMUP_SECONDS", "7"))
 
         # Run warmup with NUMA binding if enabled
         numa_prefix = self._numa_bind_prefix if self._numa_enabled else ""
+
+        # Use dd-based write warmup (works on all images, no fio dependency)
+        # Time-bounded to ensure consistent duration across fast/slow devices
         warmup_cmd = (
-            f"{numa_prefix} fio --name=warmup --filename={device} "
-            f"--ioengine=libaio --direct=1 --rw=randwrite "
-            f"--bs={block_size} --iodepth=4 --numjobs=1 "
-            f"--runtime=12 --time_based --group_reporting"
+            f"timeout {warmup_seconds}s sh -c '"
+            f"{numa_prefix} dd if=/dev/zero of={device} "
+            f"oflag=direct,nocache bs=256k conv=notrunc 2>/dev/null || true'"
         )
 
         self._log.info(
-            f"Preconditioning write device for {testcase} (12s warmup)"
+            f"Preconditioning write device for {testcase} ({warmup_seconds}s dd warmup)"
         )
+
         try:
             result = self.node.execute(
-                warmup_cmd, shell=True, sudo=True, timeout=30
+                warmup_cmd, shell=True, sudo=True, timeout=warmup_seconds + 10
             )
             if result.exit_code == 0:
                 self._log.debug("Write preconditioning completed successfully")
@@ -1768,6 +1792,84 @@ exit $ec
         except Exception as e:
             self._log.debug(f"THP restore failed: {e}")
 
+    def _get_block_warmup_cmd(self, numa_prefix: str) -> str:
+        """Generate block device warmup command."""
+        datadisk = os.environ.get("DATADISK_NAME", "")
+        if datadisk:
+            return (
+                f"{numa_prefix} dd if={datadisk} of=/dev/null "
+                f"bs=256k iflag=direct count=2048 2>/dev/null || "
+                f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
+                f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+            )
+
+        # Fallback: try to detect datadisk dynamically
+        try:
+            device = ""
+            if self.use_datadisk:
+                device = self._get_data_disk_for_block_tests()
+            elif self.use_pmem:
+                device = self._get_pmem_for_block_tests()
+
+            if device:
+                return (
+                    f"{numa_prefix} dd if={device} of=/dev/null "
+                    f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+                )
+        except Exception:
+            pass
+
+        # Final fallback
+        return (
+            f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
+            f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+        )
+
+    def _get_network_warmup_cmd(self, numa_prefix: str) -> str:
+        """Generate network warmup command."""
+        peer_ip = os.environ.get("CH_PEER_IP", "")
+        if peer_ip:
+            return (
+                f"{numa_prefix} ping -c 200 -i 0.005 -s 64 {peer_ip} "
+                f">/dev/null 2>&1 || true"
+            )
+
+        # Auto-detect gateway and NIC interface
+        return (
+            f"gw=$(ip route get 1.1.1.1 2>/dev/null | "
+            f"awk '{{for(i=1;i<=NF;i++) if($i==\"via\") print $(i+1)}}' | head -1); "
+            f"dev=$(ip route get 1.1.1.1 2>/dev/null | "
+            f"awk '{{for(i=1;i<=NF;i++) if($i==\"dev\") print $(i+1)}}' | head -1); "
+            f'if [ -n "$gw" ] && [ -n "$dev" ]; then '
+            f"  {numa_prefix} ping -I $dev -c 200 -i 0.005 -s 64 $gw "
+            f">/dev/null 2>&1 || true; "
+            f"else "
+            f"  {numa_prefix} ping -c 200 -i 0.005 -s 64 224.0.0.1 "
+            f">/dev/null 2>&1 || true; "
+            f"fi"
+        )
+
+    def _get_warmup_metadata(
+        self, tc_name: str, warmup_cmd: str
+    ) -> tuple[str, str]:
+        """Extract warmup method and device for metadata."""
+        warmup_method = "cpu"
+        warmup_device = ""
+
+        if "block" in tc_name:
+            warmup_method = "dd_read"
+            import re
+
+            match = re.search(r"if=([^\s]+)", warmup_cmd)
+            if match:
+                warmup_device = match.group(1)
+        elif "virtio_net" in tc_name or "network" in tc_name:
+            warmup_method = "ping"
+            if os.environ.get("CH_PEER_IP"):
+                warmup_device = os.environ.get("CH_PEER_IP", "")
+
+        return warmup_method, warmup_device
+
     def _run_warmup_for_test(self, testcase: str) -> None:
         """
         Run minimal warmup to wake CPU/turbo, IRQs, and I/O paths.
@@ -1777,12 +1879,11 @@ exit $ec
 
         Warmup types:
         - Block tests: Direct reads to spin up NVMe queues and IRQ paths
-        - Network tests: Local ping to exercise socket stack and RPS/XPS
+        - Network tests: Ping to exercise socket stack and RPS/XPS
         - Boot/latency: CPU warmup to bring clocks up
 
         All commands use NUMA binding if enabled.
         """
-        # Check if warmup is disabled
         warmup_seconds = int(os.environ.get("CH_WARMUP_SECONDS", "7"))
         if warmup_seconds <= 0:
             return
@@ -1791,76 +1892,46 @@ exit $ec
         numa_prefix = self._numa_bind_prefix if self._numa_enabled else ""
 
         # Determine warmup command based on test type
-        warmup_cmd = ""
-
         if "block" in tc_name:
-            # Block test warmup: Direct reads to wake NVMe controller
-            # Try datadisk first, fallback to nvme0n1
-            datadisk = os.environ.get("DATADISK_NAME", "")
-            if datadisk:
-                warmup_cmd = (
-                    f"{numa_prefix} dd if={datadisk} of=/dev/null "
-                    f"bs=256k iflag=direct count=2048 2>/dev/null || "
-                    f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
-                    f"bs=256k iflag=direct count=2048 2>/dev/null || true"
-                )
-            else:
-                # Fallback: try to detect datadisk dynamically
-                try:
-                    device = ""
-                    if self.use_datadisk:
-                        device = self._get_data_disk_for_block_tests()
-                    elif self.use_pmem:
-                        device = self._get_pmem_for_block_tests()
-
-                    if device:
-                        warmup_cmd = (
-                            f"{numa_prefix} dd if={device} of=/dev/null "
-                            f"bs=256k iflag=direct count=2048 2>/dev/null || true"
-                        )
-                except Exception:
-                    # Final fallback
-                    warmup_cmd = (
-                        f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
-                        f"bs=256k iflag=direct count=2048 2>/dev/null || true"
-                    )
-
+            warmup_cmd = self._get_block_warmup_cmd(numa_prefix)
         elif "virtio_net" in tc_name or "network" in tc_name:
-            # Network test warmup: Local ping to exercise stack and IRQs
-            # ~1 second of rapid pings (200 * 5ms = 1s)
-            warmup_cmd = (
-                f"{numa_prefix} ping -c 200 -i 0.005 -s 64 127.0.0.1 "
-                f">/dev/null 2>&1 || true"
-            )
-
+            warmup_cmd = self._get_network_warmup_cmd(numa_prefix)
         else:
-            # Boot/latency/functional: CPU warmup to bring clocks up
-            # ~5 seconds of CPU activity
+            # Boot/latency/functional: CPU warmup
             warmup_cmd = (
                 f"{numa_prefix} dd if=/dev/zero of=/dev/null "
                 f"bs=64k count=20000 2>/dev/null || true"
             )
 
-        if not warmup_cmd:
-            return
+        # Get metadata for tracking
+        warmup_method, warmup_device = self._get_warmup_metadata(tc_name, warmup_cmd)
 
         # Run warmup with timeout
         self._log.debug(
-            f"Running {warmup_seconds}s warmup for {testcase}: "
-            f"{warmup_cmd[:80]}..."
+            f"Running {warmup_seconds}s warmup for {testcase}: " f"{warmup_cmd[:80]}..."
         )
 
+        warmup_ran = False
         try:
-            self.node.execute(
+            result = self.node.execute(
                 warmup_cmd,
                 shell=True,
                 sudo=True,
                 timeout=warmup_seconds + 5,  # Extra headroom
             )
+            warmup_ran = result.exit_code == 0
             self._log.debug(f"Warmup completed for {testcase}")
         except Exception as e:
             # Non-fatal: warmup is best-effort
             self._log.debug(f"Warmup failed (non-fatal): {e}")
+
+        # Store warmup metadata for correlation with variance
+        self._warmup_metadata[testcase] = {
+            "seconds": warmup_seconds,
+            "ran": warmup_ran,
+            "method": warmup_method,
+            "device": warmup_device if warmup_device else "auto",
+        }
 
     def _setup_numa_affinity(self, require_numactl: bool = False) -> None:  # noqa: C901
         """
@@ -2004,11 +2075,11 @@ exit $ec
 
     def _detect_workload_parallelism(self, testcase: str) -> str:
         """
-        Detect workload parallelism using both runtime queue detection and name patterns.
+        Detect workload parallelism using runtime queue detection and patterns.
 
         Returns:
-            "multi_queue": Workload benefits from interleave policy (spreads across NUMA)
-            "single_queue": Workload benefits from strict policy (stays on one node)
+            "multi_queue": Workload benefits from interleave policy
+            "single_queue": Workload benefits from strict policy
         """
         tc_name = str(testcase).lower()
 
@@ -2089,6 +2160,12 @@ exit $ec
         """
         tc_name = str(testcase).lower()
 
+        # Check bucket overrides FIRST (escape hatch for known regressors)
+        for pattern, bucket in self._bucket_overrides.items():
+            if pattern in tc_name:
+                self._log.debug(f"Bucket override: {pattern} -> {bucket} ({testcase})")
+                return bucket
+
         # Bucket C: Functional/boot tests (no tuning needed)
         functional_patterns = [
             "test_api",
@@ -2111,10 +2188,23 @@ exit $ec
         # CRITICAL: Check for single_queue tests FIRST before generic patterns
         # This fixes regression in single-queue network tests
         if "single_queue" in tc_name or "singlequeue" in tc_name:
-            self._log.debug(
-                f"Bucket B (single-queue explicit): {testcase}"
-            )
+            self._log.debug(f"Bucket B (single-queue explicit): {testcase}")
             return "B"
+
+        # CRITICAL: For virtio_net tests, let runtime queue count be authoritative
+        # This prevents mis-bucketing due to generic perf keywords
+        if "virtio_net" in tc_name:
+            workload_type = self._detect_workload_parallelism(testcase)
+            if workload_type == "multi_queue":
+                self._log.debug(
+                    f"Bucket A (virtio_net multi-queue detected): {testcase}"
+                )
+                return "A"
+            else:
+                self._log.debug(
+                    f"Bucket B (virtio_net single-queue detected): {testcase}"
+                )
+                return "B"
 
         # Bucket A: Multi-queue performance tests (interleave + IRQ locality)
         # Network tests: Always check runtime queues even without "multi_queue"
@@ -2148,8 +2238,8 @@ exit $ec
         """
         Apply test-specific NUMA policy based on bucket classification.
 
-        Bucket A (multi-queue perf): Use interleave policy (--interleave=all)
-        Bucket B (single-queue/latency): Use strict binding (--cpunodebind=N --membind=N)
+        Bucket A (multi-queue perf): Use interleave policy
+        Bucket B (single-queue/latency): Use strict binding
         Bucket C (functional/boot): No NUMA tuning
         """
         # Hard reset NUMA prefix to avoid leaking policy from previous test
@@ -2191,6 +2281,14 @@ exit $ec
             # Log comprehensive per-test NUMA banner for fast triage
             cross_numa = self._is_cross_numa_access()
             irq_for_test = bucket == "A" and self._irq_locality_enabled
+
+            # Log explicit IRQ skip message for Bucket B if suite has IRQ enabled
+            if bucket == "B" and self._irq_locality_enabled:
+                self._log.debug(
+                    f"IRQ pinning present at suite level but disabled for "
+                    f"test={testcase} (Bucket B - single-queue/latency)"
+                )
+
             self._log_test_numa_banner(
                 testcase, bucket, self._numa_policy, cross_numa, irq_for_test
             )
@@ -2220,7 +2318,7 @@ exit $ec
     ) -> None:
         """
         Log one-line per-test NUMA banner for fast triage.
-        
+
         Example:
         [TEST NUMA POLICY] name=boot_time_ms bucket=B policy=strict node=0 \
         cpus=0-15 device_node=0 cross_numa=false nic_rx_queues=1 nvme_queues=1 \
@@ -2307,7 +2405,8 @@ exit $ec
         try:
             result = self.node.execute(
                 "systemctl is-active irqbalance 2>/dev/null || "
-                "service irqbalance status 2>/dev/null | grep -q running && echo active || echo inactive",
+                "service irqbalance status 2>/dev/null | "
+                "grep -q running && echo active || echo inactive",
                 shell=True,
             )
             if "active" in result.stdout.lower():
@@ -2388,6 +2487,16 @@ exit $ec
                 "irq_locality_mode": "bucket_a_only",  # IRQ locality only for Bucket A
                 "prefer_device_node": True,
             },
+            # Warmup configuration (for variance correlation)
+            "warmup": self._warmup_metadata.get(
+                test_name,
+                {
+                    "seconds": int(os.environ.get("CH_WARMUP_SECONDS", "7")),
+                    "ran": False,
+                    "method": "none",
+                    "device": "none",
+                },
+            ),
         }
 
         meta_file = log_path / f"{test_name}_numa_meta.json"
@@ -2409,6 +2518,7 @@ exit $ec
         import hashlib
 
         # Include all tunable parameters that affect performance
+        # This now includes stability knobs for run-to-run drift detection
         config_str = "|".join(
             [
                 f"numa_enabled={self._numa_enabled}",
@@ -2417,6 +2527,11 @@ exit $ec
                 f"numa_node={self._numa_selected_node}",
                 f"irq_locality={self._irq_locality_enabled}",
                 f"irqbalance_stopped={self._irqbalance_was_running}",
+                # Stability knobs (detect config drift)
+                f"thp={self._read_sysfs_if_exists('/sys/kernel/mm/transparent_hugepage/enabled')}",  # noqa: E501
+                f"gov={self._read_sysfs_if_exists('/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor')}",  # noqa: E501
+                f"no_turbo={self._read_sysfs_if_exists('/sys/devices/system/cpu/intel_pstate/no_turbo')}",  # noqa: E501
+                f"max_cstate={self._read_sysfs_if_exists('/sys/module/intel_idle/parameters/max_cstate')}",  # noqa: E501
             ]
         )
 
@@ -2948,6 +3063,11 @@ exit $ec
         except Exception as e:
             self._log.debug(f"IRQ locality cleanup failed: {e}")
 
+        finally:
+            # Clear suite-scoped flags to prevent state leakage across test runs
+            self._irq_locality_enabled = False
+            self._irq_locality_configured_for_suite = False
+
     def _write_sysfs_if_exists(self, path: str, value: str) -> bool:
         """
         Write to sysfs path if it exists (guards for missing knobs).
@@ -2957,10 +3077,11 @@ exit $ec
             value: Value to write
 
         Returns:
-            True if write succeeded, False if path doesn't exist or write failed
+            True if write succeeded, False if path missing or write failed
         """
         result = self.node.execute(
-            f"[ -f {path} ] && echo {value} | sudo tee {path} >/dev/null 2>&1 && echo 'ok' || echo 'skip'",
+            f"[ -f {path} ] && echo {value} | sudo tee {path} >/dev/null "
+            f"2>&1 && echo 'ok' || echo 'skip'",
             shell=True,
         )
         return "ok" in result.stdout
@@ -3007,8 +3128,10 @@ exit $ec
 
             # Set governor=performance on all vCPUs
             self.node.execute(
-                "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do "
-                "[ -f $g ] && echo performance | sudo tee $g >/dev/null 2>&1 || true; done",
+                "for g in /sys/devices/system/cpu/cpu*/cpufreq/"
+                "scaling_governor; do "
+                "[ -f $g ] && echo performance | sudo tee $g >/dev/null "
+                "2>&1 || true; done",
                 shell=True,
             )
 
@@ -3082,7 +3205,8 @@ exit $ec
                     )
                     self._log.info(f"THP: {self._original_thp} → {actual_thp}")
 
-            # c) RPS/XPS is handled in _setup_rps_xps (already conditional on multi-queue)
+            # c) RPS/XPS is handled in _setup_rps_xps
+            # (already conditional on multi-queue)
 
             # d) Log the state once (JSON for easy parsing)
             sched_config = {
@@ -3142,8 +3266,10 @@ exit $ec
                 "n/a",
             ):
                 self.node.execute(
-                    f"for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do "
-                    f"[ -f $g ] && echo {self._original_cpu_governor} | sudo tee $g >/dev/null 2>&1 || true; done",
+                    f"for g in /sys/devices/system/cpu/cpu*/cpufreq/"
+                    f"scaling_governor; do "
+                    f"[ -f $g ] && echo {self._original_cpu_governor} | "
+                    f"sudo tee $g >/dev/null 2>&1 || true; done",
                     shell=True,
                 )
                 # Verify restoration
@@ -3199,6 +3325,10 @@ exit $ec
 
         except Exception as e:
             self._log.warning(f"Scheduling stabilization restore failed: {e}")
+
+        finally:
+            # Clear suite-scoped flag to prevent state leakage across test runs
+            self._sched_stabilization_enabled = False
 
 
 def extract_jsons(input_string: str) -> List[Any]:
