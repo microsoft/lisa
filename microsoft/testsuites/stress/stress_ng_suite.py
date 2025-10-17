@@ -19,7 +19,7 @@ from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
-from lisa.util import SkippedException
+from lisa.util import KernelPanicException, SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
 
@@ -183,7 +183,13 @@ class StressNgTestSuite(TestSuite):
             for proc in procs:
                 proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
         except Exception as e:
-            self._check_panic(nodes)
+            for node in nodes:
+                panic_info = node.features[SerialConsole].check_panic(
+                    saved_path=None, force_run=True
+                )
+                if panic_info:
+                    node.features[SerialConsole].log_panic_details(panic_info)
+                    raise KernelPanicException("", panic_info.panic_phrases)
             raise e
 
     def _run_stress_ng_job(
@@ -224,7 +230,16 @@ class StressNgTestSuite(TestSuite):
             execution_summary = (
                 f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
-            self._check_panic(nodes)
+            for node in nodes:
+                panic_info = node.features[SerialConsole].check_panic(
+                    saved_path=None, force_run=True
+                )
+                if panic_info:
+                    node.features[SerialConsole].log_panic_details(panic_info)
+                    node.features[SerialConsole].attach_panic_to_test_result(
+                        test_result, panic_info
+                    )
+                    raise KernelPanicException("", panic_info.panic_phrases)
             raise execution_error
 
         finally:
@@ -355,10 +370,6 @@ class StressNgTestSuite(TestSuite):
             test_status=execution_status,
             test_message=execution_summary,
         )
-
-    def _check_panic(self, nodes: List[RemoteNode]) -> None:
-        for node in nodes:
-            node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
 
     def _process_yaml_output(
         self,
