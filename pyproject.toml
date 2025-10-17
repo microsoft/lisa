@@ -77,20 +77,20 @@ black = [
 ]
 
 docs = [
-    "Sphinx >= 4.1.0",
-    "sphinx-argparse >= 0.2.5",
-    "sphinx-rtd-theme >= 0.5.2",
-    "sphinxemoji >= 0.1.8",
-    "sphinx-copybutton >= 0.4.0",
+    "Sphinx ~= 8.2.3",
+    "sphinx-argparse ~= 0.5.2",
+    "sphinx-rtd-theme ~= 3.0.2",
+    "sphinxemoji ~= 0.3.1",
+    "sphinx-copybutton ~= 0.5.2",
 ]
 
 flake8 = [
     "flake8 ~= 7.3.0",
     "Flake8-pyproject",
-    "flake8-black >= 0.3.2",
+    "flake8-black ~= 0.4.0",
     "flake8-bugbear ~= 24.12.12",
-    "flake8-isort >= 4.1.1",
-    "pep8-naming >= 0.12.1",
+    "flake8-isort ~= 6.1.2",
+    "pep8-naming ~= 0.15.1",
 ]
 
 isort = [
