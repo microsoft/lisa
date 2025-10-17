@@ -98,6 +98,12 @@ Runbook Reference
    -  `testcase <#testcase>`__
 
       -  `criteria <#criteria>`__
+      -  `times <#times>`__
+      -  `retry <#retry-1>`__
+      -  `timeout <#timeout>`__
+      -  `use_new_environment <#use-new-environment>`__
+      -  `ignore_failure <#ignore-failure>`__
+      -  `environment <#environment-1>`__
 
 What is a runbook
 -----------------
@@ -952,3 +958,115 @@ select_action can be “none”, “include”, “exclude”, “forceInclude�
      - criteria:
          priority: 1
        select_action: exclude
+
+times
+^^^^^
+
+type: int, optional, default is 1
+
+Run this group of test cases the specified number of times. This is useful for
+stress testing or ensuring test reliability.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         priority: 0
+       times: 3
+
+.. _retry-1:
+
+retry
+^^^^^
+
+type: int, optional, default is 0
+
+Number of retry attempts if a test case fails. When a test case fails, LISA
+will automatically retry it up to the specified number of times. The test
+environment is deleted and recreated for each retry attempt to ensure a clean
+state.
+
+This is particularly useful for:
+
+- Tests that may experience transient failures
+- Flaky tests that need multiple attempts to pass
+- Tests that interact with external services
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         priority: 0
+       retry: 2
+
+.. note::
+   The retry count is independent of the times count. If both are set, the test
+   will run times × (1 + retry attempts) in the worst case where all attempts fail.
+
+timeout
+^^^^^^^
+
+type: int, optional, default is 0
+
+Timeout in seconds for each test case. If set to 0 (default), the test case
+will use its own default timeout value. This allows you to override the default
+timeout for specific test cases.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         name: long_running_test
+       timeout: 3600
+
+use_new_environment
+^^^^^^^^^^^^^^^^^^^
+
+type: bool, optional, default is False
+
+When set to True, each test case with this rule will be run in a newly created
+environment. This ensures complete isolation between test cases but increases
+the overall test execution time.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         priority: 0
+       use_new_environment: true
+
+ignore_failure
+^^^^^^^^^^^^^^
+
+type: bool, optional, default is False
+
+When set to True, failed test results will be rewritten as success. This is
+intended as a temporary workaround for known issues and should not be overused.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         name: known_flaky_test
+       ignore_failure: true
+
+.. warning::
+   This setting masks test failures and should only be used as a temporary
+   measure. Do not use it to hide real issues.
+
+.. _environment-1:
+
+environment
+^^^^^^^^^^^
+
+type: str, optional, default is empty
+
+Specifies that the test case should run on a named environment defined in the
+runbook. This allows you to target specific environments for certain test cases.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         name: specific_test
+       environment: production_env
