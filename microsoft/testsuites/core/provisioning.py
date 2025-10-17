@@ -308,7 +308,7 @@ class Provisioning(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[SerialConsole],
+            environment_status=EnvironmentStatus.Deployed,
         ),
     )
     def verify_deployment_provision_swiotlb_force(
