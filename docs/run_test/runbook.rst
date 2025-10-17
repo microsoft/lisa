@@ -151,6 +151,21 @@ name ``hello``.
          name: hello
        select_action: exclude
 
+Below section demonstrates how to configure test cases with retry logic.
+The first test case will retry up to 2 times if it fails, while the second
+will run 3 times regardless of success.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         priority: 0
+       retry: 2
+     - criteria:
+         name: stress_test
+       times: 3
+       timeout: 3600
+
 Use variable and secrets
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
