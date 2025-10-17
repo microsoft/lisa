@@ -3,6 +3,13 @@
 from typing import Any, cast
 
 from assertpy import assert_that
+from microsoft.testsuites.network.common import (
+    cleanup_iperf3,
+    initialize_nic_info,
+    sriov_basic_test,
+    sriov_disable_enable,
+    sriov_vf_connection_test,
+)
 
 from lisa import (
     Environment,
@@ -20,13 +27,6 @@ from lisa.features import StartStop
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import Cat, Iperf3
-from microsoft.testsuites.network.common import (
-    cleanup_iperf3,
-    initialize_nic_info,
-    sriov_basic_test,
-    sriov_disable_enable,
-    sriov_vf_connection_test,
-)
 
 
 @TestSuiteMetadata(

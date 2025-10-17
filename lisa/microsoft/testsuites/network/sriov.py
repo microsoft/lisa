@@ -5,6 +5,17 @@ from pathlib import Path
 from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
+from microsoft.testsuites.network.common import (
+    cleanup_iperf3,
+    disable_enable_devices,
+    initialize_nic_info,
+    reload_modules,
+    remove_extra_nics,
+    restore_extra_nics,
+    sriov_basic_test,
+    sriov_disable_enable,
+    sriov_vf_connection_test,
+)
 
 from lisa import (
     Environment,
@@ -45,17 +56,6 @@ from lisa.util import (
     check_till_timeout,
 )
 from lisa.util.shell import wait_tcp_port_ready
-from microsoft.testsuites.network.common import (
-    cleanup_iperf3,
-    disable_enable_devices,
-    initialize_nic_info,
-    reload_modules,
-    remove_extra_nics,
-    restore_extra_nics,
-    sriov_basic_test,
-    sriov_disable_enable,
-    sriov_vf_connection_test,
-)
 
 
 @TestSuiteMetadata(

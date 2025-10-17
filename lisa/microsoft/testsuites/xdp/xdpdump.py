@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
+from microsoft.testsuites.xdp.xdptools import can_install
 
 from lisa import Node, UnsupportedDistroException
 from lisa.executable import ExecutableResult, Tool
@@ -12,7 +13,6 @@ from lisa.operating_system import CBLMariner, Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make, Ping, Sed
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util.process import Process
-from microsoft.testsuites.xdp.xdptools import can_install
 
 
 class BuildType(str, Enum):

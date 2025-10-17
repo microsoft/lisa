@@ -5,6 +5,12 @@ import uuid
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
+from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
+    check_waagent_version_supported,
+    create_and_verify_vmaccess_extension_run,
+    execute_command,
+    retrieve_storage_blob_url,
+)
 
 from lisa import (
     Logger,
@@ -20,12 +26,6 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
-from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
-    check_waagent_version_supported,
-    create_and_verify_vmaccess_extension_run,
-    execute_command,
-    retrieve_storage_blob_url,
-)
 
 
 def _check_architecture_supported(node: Node) -> None:

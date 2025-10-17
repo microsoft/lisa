@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from assertpy import assert_that
+from microsoft.testsuites.display.modetest import Modetest
 
 from lisa import (
     Logger,
@@ -19,7 +20,6 @@ from lisa.operating_system import BSD, Fedora, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot, Sed
 from lisa.util import SkippedException, get_matched_str
-from microsoft.testsuites.display.modetest import Modetest
 
 GRUB_CMDLINE_LINUX_DEFAULT_PATTERN = re.compile(
     r'GRUB_CMDLINE_LINUX_DEFAULT="(?P<grub_cmdline>.*)"', re.M

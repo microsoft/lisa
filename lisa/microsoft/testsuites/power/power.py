@@ -6,6 +6,13 @@ from typing import Any, cast
 
 from assertpy import assert_that
 from func_timeout import func_timeout
+from microsoft.testsuites.power.common import (
+    cleanup_env,
+    is_distro_supported,
+    run_network_workload,
+    run_storage_workload,
+    verify_hibernation,
+)
 
 from lisa import (
     Environment,
@@ -24,13 +31,6 @@ from lisa.testsuite import simple_requirement
 from lisa.tools import Date, Hwclock, StressNg
 from lisa.util import SkippedException
 from lisa.util.perf_timer import create_timer
-from microsoft.testsuites.power.common import (
-    cleanup_env,
-    is_distro_supported,
-    run_network_workload,
-    run_storage_workload,
-    verify_hibernation,
-)
 
 
 @TestSuiteMetadata(

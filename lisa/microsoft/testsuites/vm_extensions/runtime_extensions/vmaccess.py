@@ -5,6 +5,9 @@ import uuid
 from typing import cast
 
 from assertpy import assert_that
+from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
+    create_and_verify_vmaccess_extension_run,
+)
 
 from lisa import (
     Logger,
@@ -21,9 +24,6 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Sshpass, Usermod
 from lisa.util import generate_random_chars
-from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
-    create_and_verify_vmaccess_extension_run,
-)
 
 
 def _generate_openssh_key(node: Node, filename: str) -> None:

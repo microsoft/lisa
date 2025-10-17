@@ -4,6 +4,12 @@ import base64
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
 
+from microsoft.testsuites.cvm.cvm_attestation_tool import (
+    AzureCVMAttestationTests,
+    NestedCVMAttestationTests,
+    SnpGuest,
+)
+
 from lisa import (
     Environment,
     Logger,
@@ -19,11 +25,6 @@ from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Ls, Lscpu
 from lisa.tools.lscpu import CpuType
 from lisa.util import SkippedException, UnsupportedDistroException
-from microsoft.testsuites.cvm.cvm_attestation_tool import (
-    AzureCVMAttestationTests,
-    NestedCVMAttestationTests,
-    SnpGuest,
-)
 
 if TYPE_CHECKING:
     from lisa.sut_orchestrator.libvirt.context import NodeContext

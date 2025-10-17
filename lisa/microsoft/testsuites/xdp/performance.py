@@ -7,6 +7,19 @@ from time import sleep
 from typing import Any, List, Type
 
 from assertpy import assert_that
+from microsoft.testsuites.performance.common import (
+    calculate_middle_average,
+    perf_ntttcp,
+)
+from microsoft.testsuites.xdp.common import (
+    get_dropped_count,
+    get_forwarded_count,
+    get_xdpdump,
+    remove_hugepage,
+    set_hugepage,
+)
+from microsoft.testsuites.xdp.pktgen import Pktgen, PktgenResult
+from microsoft.testsuites.xdp.xdpdump import BuildType, XdpDump
 
 from lisa import (
     Environment,
@@ -26,19 +39,6 @@ from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Firewall, Kill, Lagscope, Lscpu, Ntttcp
 from lisa.util.parallel import run_in_parallel
-from microsoft.testsuites.performance.common import (
-    calculate_middle_average,
-    perf_ntttcp,
-)
-from microsoft.testsuites.xdp.common import (
-    get_dropped_count,
-    get_forwarded_count,
-    get_xdpdump,
-    remove_hugepage,
-    set_hugepage,
-)
-from microsoft.testsuites.xdp.pktgen import Pktgen, PktgenResult
-from microsoft.testsuites.xdp.xdpdump import BuildType, XdpDump
 
 # the received packets must be at least 90%
 _default_received_threshold = 0.9

@@ -3,12 +3,13 @@
 from pathlib import Path
 from typing import Any
 
+from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
+
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Journalctl, Lscpu
 from lisa.util import SkippedException
-from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
 
 
 @TestSuiteMetadata(

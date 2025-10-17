@@ -1,8 +1,4 @@
 from assertpy import assert_that
-from semver import VersionInfo
-
-from lisa.operating_system import Debian, Fedora, Suse
-from lisa.tools import Make, Pkgconfig
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
     Installer,
@@ -11,6 +7,10 @@ from microsoft.testsuites.dpdk.common import (
     get_debian_backport_repo_args,
     unsupported_os_thrower,
 )
+from semver import VersionInfo
+
+from lisa.operating_system import Debian, Fedora, Suse
+from lisa.tools import Make, Pkgconfig
 
 RDMA_CORE_MANA_DEFAULT_SOURCE = (
     "https://github.com/linux-rdma/rdma-core/"

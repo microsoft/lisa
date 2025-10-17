@@ -8,6 +8,12 @@ from typing import Any, Dict, Optional
 
 from assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
+from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
+    check_waagent_version_supported,
+    execute_command,
+    retrieve_storage_account_name_and_key,
+    retrieve_storage_blob_url,
+)
 
 from lisa import (
     Logger,
@@ -22,12 +28,6 @@ from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.tools import Waagent
-from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
-    check_waagent_version_supported,
-    execute_command,
-    retrieve_storage_account_name_and_key,
-    retrieve_storage_blob_url,
-)
 
 
 def _create_and_verify_extension_run(

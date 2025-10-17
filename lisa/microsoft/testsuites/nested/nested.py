@@ -4,6 +4,13 @@
 from typing import Any, Dict
 
 from assertpy import assert_that
+from microsoft.testsuites.nested.common import (
+    NESTED_VM_TEST_FILE_CONTENT,
+    NESTED_VM_TEST_FILE_NAME,
+    NESTED_VM_TEST_PUBLIC_FILE_URL,
+    parse_nested_image_variables,
+    qemu_connect_nested_vm,
+)
 
 from lisa import (
     RemoteNode,
@@ -19,13 +26,6 @@ from lisa.testsuite import simple_requirement
 from lisa.tools import Cat, Echo, Qemu, Sshpass, Wget
 from lisa.util import BadEnvironmentStateException
 from lisa.util.logger import Logger
-from microsoft.testsuites.nested.common import (
-    NESTED_VM_TEST_FILE_CONTENT,
-    NESTED_VM_TEST_FILE_NAME,
-    NESTED_VM_TEST_PUBLIC_FILE_URL,
-    parse_nested_image_variables,
-    qemu_connect_nested_vm,
-)
 
 
 @TestSuiteMetadata(
