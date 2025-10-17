@@ -20,11 +20,12 @@ from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 class MshvHostInstallSuite(TestSuite):
     CONFIG_BINPATH = "mshv_binpath"
 
-    _test_path_init_hvix = Path("/home/cloud") / "hvix64.exe"
+    # Use /tmp for temporary staging (world-writable, always exists)
+    _test_path_init_hvix = Path("/tmp") / "hvix64.exe"
 
-    _init_path_init_kdstub = Path("/home/cloud") / "kdstub.dll"
+    _init_path_init_kdstub = Path("/tmp") / "kdstub.dll"
 
-    _init_path_init_lxhvloader = Path("/home/cloud") / "lxhvloader.dll"
+    _init_path_init_lxhvloader = Path("/tmp") / "lxhvloader.dll"
 
     _test_path_dst_hvix = Path("/boot/efi/Windows/System32") / "hvix64.exe"
 
