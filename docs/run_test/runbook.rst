@@ -1027,7 +1027,8 @@ type: int, optional, default is 0
 Timeout in seconds for each test case. When a test case runs, LISA uses the 
 maximum value between the timeout specified in the runbook and the test case's 
 own metadata timeout. If this field is set to 0 (default) or not specified, only 
-the test case's metadata timeout is used. This allows you to extend timeouts for 
+the test case's metadata timeout is used (which defaults to 3600 seconds / 1 hour 
+if not explicitly set in the test case). This allows you to extend timeouts for 
 specific test runs without modifying the test case code.
 
 Note that this timeout applies to the overall test case execution. Any additional 
