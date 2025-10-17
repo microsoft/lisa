@@ -1586,8 +1586,6 @@ class TestCase(BaseTestCaseFilter):
     # it uses to work around some cases temporarily, don't overuse it.
     # default is false
     ignore_failure: bool = False
-    # case should run on a specified environment
-    environment: str = ""
 
     @classmethod
     def type_name(cls) -> str:

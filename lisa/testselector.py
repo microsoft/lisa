@@ -119,7 +119,6 @@ def _apply_settings(
         constants.TESTCASE_TIMES,
         constants.TESTCASE_RETRY,
         constants.TESTCASE_IGNORE_FAILURE,
-        constants.ENVIRONMENT,
     ]
     set_filtered_fields(case_runbook, applied_case_data, fields)
     applied_case_data.use_new_environment = (
