@@ -6,6 +6,7 @@ Run tests on different platforms
    *  `Use vhd <#use-vhd>`__
    *  `Use marketplace image <#use-marketplace-image>`__
    *  `Use shared image gallery <#use-shared-image-gallery>`__
+   *  `Use community gallery image <#use-community-gallery-image>`__
    *  `Use existing VMs <#use-existing-vms>`__
    *  `Set other Azure parameters <#set-other-azure-parameters>`__
 
@@ -21,9 +22,9 @@ Run on Azure
 ------------
 
 VM can be deployed on Azure using images from vhd, shared image
-gallery or marketplace. If multiple types are specified, the first
+gallery, community gallery or marketplace. If multiple types are specified, the first
 non-empty type is picked in the following order :
-vhd, shared image gallery and marketplace.
+vhd, shared image gallery, community gallery and marketplace.
 
 Use vhd
 ^^^^^^^
@@ -97,6 +98,46 @@ the shared image gallery.
          azure:
             ...
             shared_gallery: "<subscription_id>/<resource_group>/<image_gallery>/<image_definition>/<image_version>"
+
+Use community gallery image
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To run using a community gallery image, add the following to runbook:
+
+.. code:: yaml
+
+   platform:
+   - type: azure
+      ...
+      requirement:
+         ...
+         azure:
+            ...
+            community_gallery_image: "<location>/<image_gallery>/<image_definition>/<image_version>"
+
+The ``community_gallery_image`` parameter allows you to use publicly shared
+images from Azure Compute Gallery (formerly known as Shared Image Gallery).
+Community gallery images are shared publicly by publishers and can be used
+without needing access to a specific subscription or resource group.
+
+The format is: ``<location>/<image_gallery>/<image_definition>/<image_version>``
+
+Where:
+
+* **location**: The Azure region where the community gallery is available (e.g., ``westus3``, ``eastus``)
+* **image_gallery**: The name of the public gallery
+* **image_definition**: The name of the image definition within the gallery
+* **image_version**: The specific version of the image, or ``latest`` to use the most recent version
+
+Examples:
+
+.. code:: yaml
+
+   # Using a specific version
+   community_gallery_image: "westus3/ContosoImages/UbuntuServer/1.0.0"
+
+   # Using the latest version
+   community_gallery_image: "eastus/ContosoImages/UbuntuServer/latest"
 
 The remaining steps are same as outlined in
 :doc:`Getting started with Azure <quick_run>`.
