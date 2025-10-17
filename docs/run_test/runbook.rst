@@ -103,7 +103,6 @@ Runbook Reference
       -  `timeout <#timeout>`__
       -  `use_new_environment <#use-new-environment>`__
       -  `ignore_failure <#ignore-failure>`__
-      -  `environment <#environment-1>`__
 
 What is a runbook
 -----------------
@@ -153,8 +152,9 @@ name ``hello``.
 
 Below section demonstrates how to configure test cases with retry, repetition,
 and timeout settings. The first test case will automatically retry up to 2 times
-if it fails. The second test case demonstrates stress testing by running 3 times
-unconditionally (regardless of pass/fail) with a custom timeout of 1 hour.
+if it fails, redeploying the environment for each retry attempt. The second test 
+case demonstrates stress testing by running 3 times unconditionally (regardless 
+of pass/fail) with a custom timeout of 1 hour.
 
 .. code:: yaml
 
@@ -163,7 +163,7 @@ unconditionally (regardless of pass/fail) with a custom timeout of 1 hour.
          priority: 0
        retry: 2
      - criteria:
-         name: stress_test
+         name: verify_reboot_in_platform
        times: 3
        timeout: 3600
 
@@ -1024,15 +1024,21 @@ timeout
 
 type: int, optional, default is 0
 
-Timeout in seconds for each test case. If set to 0 (default), the test case
-will use its own default timeout value. This allows you to override the default
-timeout for specific test cases.
+Timeout in seconds for each test case. When a test case runs, LISA uses the 
+maximum value between the timeout specified in the runbook and the test case's 
+own metadata timeout. If this field is set to 0 (default) or not specified, only 
+the test case's metadata timeout is used. This allows you to extend timeouts for 
+specific test runs without modifying the test case code.
+
+Note that this timeout applies to the overall test case execution. Any additional 
+command-level timeouts set within the test case code itself will not be affected 
+by this setting.
 
 .. code:: yaml
 
    testcase:
      - criteria:
-         name: long_running_test
+         name: verify_deployment_provision_ultra_datadisk
        timeout: 3600
 
 use_new_environment
@@ -1048,7 +1054,7 @@ the overall test execution time.
 
    testcase:
      - criteria:
-         priority: 0
+         name: verify_stop_start_in_platform
        use_new_environment: true
 
 ignore_failure
@@ -1069,20 +1075,3 @@ intended as a temporary workaround for known issues and should not be overused.
 .. warning::
    This setting masks test failures and should only be used as a temporary
    measure. Do not use it to hide real issues.
-
-.. _environment-1:
-
-environment
-^^^^^^^^^^^
-
-type: str, optional, default is empty
-
-Specifies that the test case should run on a named environment defined in the
-runbook. This allows you to target specific environments for certain test cases.
-
-.. code:: yaml
-
-   testcase:
-     - criteria:
-         name: specific_test
-       environment: production_env
