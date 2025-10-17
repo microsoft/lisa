@@ -102,6 +102,17 @@ class CloudHypervisorTests(Tool):
     _numa_tool_name: str = "none"
     _numa_policy: str = "none"  # "strict" or "interleave"
 
+    # Feature flags for controlled A/B testing (Option 3 Hybrid)
+    # Defaults match current behavior (all improvements active)
+    # Override via env vars to disable features for baseline comparison
+    _ch_irq_tx_pin: str = ""  # Set in _initialize_feature_flags()
+    _ch_rps: str = ""  # Set in _initialize_feature_flags()
+    _ch_xps: str = ""  # Set in _initialize_feature_flags()
+    _ch_tx_warmup: str = ""  # Set in _initialize_feature_flags()
+    _ch_mq_write_precond_sec: int = 0  # Set in _initialize_feature_flags()
+    _ch_boot_hugepage_mode: str = ""  # Set in _initialize_feature_flags()
+    _ch_drop_caches: str = ""  # Set in _initialize_feature_flags()
+
     # Bucket-based policy system
     _bucketing_enabled: bool = False
     _suite_bucket: str = "C"  # Highest bucket seen in suite (A > B > C)
@@ -138,6 +149,9 @@ class CloudHypervisorTests(Tool):
 
     # Warmup tracking (per-test)
     _warmup_metadata: Dict[str, Dict[str, Any]] = {}
+
+    # Boot THP state tracking (per-test restore)
+    _boot_thp_overrides: Dict[str, Optional[str]] = {}
 
     # TEMPORARY: Runtime tracker storage (persists across suite iterations)
     # Key: testcase name, Value: NumaRuntimeTracker instance
@@ -411,6 +425,9 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        # Initialize feature flags unconditionally at suite start
+        self._initialize_feature_flags()
+
         # Setup NUMA affinity for stable test results on multi-NUMA systems
         # For metrics tests, require numactl (don't fall back to taskset)
         self._setup_numa_affinity(require_numactl=True)
@@ -494,6 +511,9 @@ class CloudHypervisorTests(Tool):
                 status, metrics, trace = self._run_single_metrics_test(
                     testcase, hypervisor, log_path, subtest_timeout
                 )
+
+                # Restore THP if this test modified it
+                self._restore_boot_thp_if_needed(testcase)
 
                 if status == TestStatus.FAILED:
                     failed_testcases.append(testcase)
@@ -1792,15 +1812,41 @@ exit $ec
         except Exception as e:
             self._log.debug(f"THP restore failed: {e}")
 
-    def _get_block_warmup_cmd(self, numa_prefix: str) -> str:
-        """Generate block device warmup command."""
+    def _get_block_warmup_cmd(self, numa_prefix: str, testcase: str = "") -> str:
+        """
+        Generate block device warmup command.
+
+        Args:
+            numa_prefix: NUMA binding prefix
+            testcase: Test case name for workload-specific tuning
+
+        Returns:
+            Warmup command string
+        """
+        # Extended preconditioning for MQ random write
+        is_mq_random_write = (
+            testcase
+            and "multi_queue" in testcase.lower()
+            and "random_write" in testcase.lower()
+            and "MiBps" in testcase
+        )
+
+        # Feature flag: MQ write preconditioning duration (Option 3 Hybrid)
+        warmup_duration = self._ch_mq_write_precond_sec if is_mq_random_write else 12
+        if is_mq_random_write:
+            self._log.info(
+                f"MQ random write detected: using "
+                f"{warmup_duration}s preconditioning "
+                f"(CH_MQ_WRITE_PRECOND_SEC={self._ch_mq_write_precond_sec})"
+            )
+
         datadisk = os.environ.get("DATADISK_NAME", "")
         if datadisk:
             return (
-                f"{numa_prefix} dd if={datadisk} of=/dev/null "
-                f"bs=256k iflag=direct count=2048 2>/dev/null || "
-                f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
-                f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+                f"timeout {warmup_duration} {numa_prefix} dd if={datadisk} "
+                f"of=/dev/null bs=256k iflag=direct count=2048 2>/dev/null || "
+                f"timeout {warmup_duration} {numa_prefix} dd if=/dev/nvme0n1 "
+                f"of=/dev/null bs=256k iflag=direct count=2048 2>/dev/null || true"
             )
 
         # Fallback: try to detect datadisk dynamically
@@ -1813,20 +1859,51 @@ exit $ec
 
             if device:
                 return (
-                    f"{numa_prefix} dd if={device} of=/dev/null "
-                    f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+                    f"timeout {warmup_duration} {numa_prefix} dd if={device} "
+                    f"of=/dev/null bs=256k iflag=direct count=2048 2>/dev/null || true"
                 )
         except Exception:
             pass
 
         # Final fallback
         return (
-            f"{numa_prefix} dd if=/dev/nvme0n1 of=/dev/null "
-            f"bs=256k iflag=direct count=2048 2>/dev/null || true"
+            f"timeout {warmup_duration} {numa_prefix} dd if=/dev/nvme0n1 "
+            f"of=/dev/null bs=256k iflag=direct count=2048 2>/dev/null || true"
         )
 
-    def _get_network_warmup_cmd(self, numa_prefix: str) -> str:
-        """Generate network warmup command."""
+    def _get_network_warmup_cmd(self, numa_prefix: str, testcase: str = "") -> str:
+        """
+        Generate network warmup command.
+
+        Args:
+            numa_prefix: NUMA binding prefix
+            testcase: Test case name for TX/RX differentiation
+
+        Returns:
+            Warmup command string
+        """
+        # TX-specific warmup: Flush TX path with UDP sink
+        if testcase and "_tx_" in testcase.lower():
+            # Feature flag: TX warmup control (Option 3 Hybrid)
+            if self._ch_tx_warmup == "off":
+                self._log.info("TX warmup skipped: CH_TX_WARMUP=off (baseline)")
+                return "true"  # No-op warmup
+
+            # Try nc first, fallback to pure bash /dev/udp if nc unavailable
+            return (
+                f"if command -v nc >/dev/null 2>&1; then "
+                f"  {numa_prefix} timeout 2s bash -c '"
+                f"  dd if=/dev/zero bs=1M count=100 2>/dev/null | "
+                f"  nc -u -w1 127.0.0.1 9999 >/dev/null 2>&1 || true'; "
+                f"else "
+                f"  {numa_prefix} timeout 2s bash -c '"
+                f"  for i in {{1..4000}}; do "
+                f"    echo x > /dev/udp/127.0.0.1/9999 2>/dev/null || true; "
+                f"  done'; "
+                f"fi && sleep 1"
+            )
+
+        # RX/combined warmup: Use ping to actual gateway
         peer_ip = os.environ.get("CH_PEER_IP", "")
         if peer_ip:
             return (
@@ -1849,9 +1926,7 @@ exit $ec
             f"fi"
         )
 
-    def _get_warmup_metadata(
-        self, tc_name: str, warmup_cmd: str
-    ) -> tuple[str, str]:
+    def _get_warmup_metadata(self, tc_name: str, warmup_cmd: str) -> tuple[str, str]:
         """Extract warmup method and device for metadata."""
         warmup_method = "cpu"
         warmup_device = ""
@@ -1891,11 +1966,29 @@ exit $ec
         tc_name = testcase.lower()
         numa_prefix = self._numa_bind_prefix if self._numa_enabled else ""
 
+        # Page cache shake for block write IOPS tests
+        is_block_write_iops = (
+            "block" in tc_name and "write" in tc_name and "IOPS" in testcase
+        )
+        if is_block_write_iops and self._ch_drop_caches != "off":
+            try:
+                self.node.execute(
+                    "sync; echo 1 > /proc/sys/vm/drop_caches",
+                    sudo=True,
+                    shell=True,
+                )
+                self._log.info(
+                    "Block write IOPS test: dropped page cache before warmup "
+                    f"(CH_DROP_CACHES={self._ch_drop_caches})"
+                )
+            except Exception as e:
+                self._log.debug(f"Failed to drop caches: {e}")
+
         # Determine warmup command based on test type
         if "block" in tc_name:
-            warmup_cmd = self._get_block_warmup_cmd(numa_prefix)
+            warmup_cmd = self._get_block_warmup_cmd(numa_prefix, testcase)
         elif "virtio_net" in tc_name or "network" in tc_name:
-            warmup_cmd = self._get_network_warmup_cmd(numa_prefix)
+            warmup_cmd = self._get_network_warmup_cmd(numa_prefix, testcase)
         else:
             # Boot/latency/functional: CPU warmup
             warmup_cmd = (
@@ -1925,6 +2018,24 @@ exit $ec
             # Non-fatal: warmup is best-effort
             self._log.debug(f"Warmup failed (non-fatal): {e}")
 
+        # Flush writeback noise between warmup and measure for random_write_IOPS
+        is_random_write_iops = (
+            "block" in tc_name and "random_write" in tc_name and "IOPS" in testcase
+        )
+        if is_random_write_iops and self._ch_drop_caches != "off":
+            try:
+                self.node.execute(
+                    "sync; echo 3 > /proc/sys/vm/drop_caches",
+                    sudo=True,
+                    shell=True,
+                )
+                self._log.info(
+                    "Block random write IOPS: flushed caches between "
+                    f"warmup and measure (CH_DROP_CACHES={self._ch_drop_caches})"
+                )
+            except Exception as e:
+                self._log.debug(f"Failed to drop caches: {e}")
+
         # Store warmup metadata for correlation with variance
         self._warmup_metadata[testcase] = {
             "seconds": warmup_seconds,
@@ -1932,6 +2043,41 @@ exit $ec
             "method": warmup_method,
             "device": warmup_device if warmup_device else "auto",
         }
+
+    def _initialize_feature_flags(self) -> None:
+        """
+        Initialize feature flags from environment variables (Option 3 Hybrid).
+        Defaults match current behavior (all improvements active).
+        Override via env vars to disable features for A/B testing baseline.
+
+        Feature flags:
+        - CH_IRQ_TX_PIN: auto|off (TX IRQ pinning control)
+        - CH_RPS: auto|off (Receive Packet Steering control)
+        - CH_XPS: auto|off (Transmit Packet Steering control)
+        - CH_TX_WARMUP: on|off (TX warmup control)
+        - CH_MQ_WRITE_PRECOND_SEC: 12|20 (Block preconditioning duration)
+        - CH_BOOT_HUGEPAGE_MODE: auto|always|none (THP mode control)
+        """
+        import os
+
+        self._ch_irq_tx_pin = os.environ.get("CH_IRQ_TX_PIN", "auto")
+        self._ch_rps = os.environ.get("CH_RPS", "auto")
+        self._ch_xps = os.environ.get("CH_XPS", "auto")
+        self._ch_tx_warmup = os.environ.get("CH_TX_WARMUP", "on")
+        self._ch_mq_write_precond_sec = int(
+            os.environ.get("CH_MQ_WRITE_PRECOND_SEC", "12")
+        )
+        self._ch_boot_hugepage_mode = os.environ.get("CH_BOOT_HUGEPAGE_MODE", "auto")
+        self._ch_drop_caches = os.environ.get("CH_DROP_CACHES", "on")
+
+        self._log.info(
+            f"Feature flags: IRQ_TX_PIN={self._ch_irq_tx_pin} "
+            f"RPS={self._ch_rps} XPS={self._ch_xps} "
+            f"TX_WARMUP={self._ch_tx_warmup} "
+            f"MQ_WRITE_PRECOND_SEC={self._ch_mq_write_precond_sec} "
+            f"BOOT_HUGEPAGE_MODE={self._ch_boot_hugepage_mode} "
+            f"DROP_CACHES={self._ch_drop_caches}"
+        )
 
     def _setup_numa_affinity(self, require_numactl: bool = False) -> None:  # noqa: C901
         """
@@ -2133,6 +2279,67 @@ exit $ec
         self._log.debug(f"Single-queue assumed for test: {testcase}")
         return "single_queue"
 
+    def _get_nic_queue_count(self) -> int:
+        """Get number of NIC RX queues."""
+        try:
+            result = self.node.execute(
+                "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                return int(result.stdout.strip())
+        except Exception:
+            pass
+        return 0
+
+    def _get_tx_queue_count(self) -> int:
+        """Get number of NIC TX queues via ethtool."""
+        try:
+            # Find primary NIC
+            result = self.node.execute(
+                "ls /sys/class/net/ | grep -E '^(eth|ens|enp|eno)' | head -1",
+                shell=True,
+            )
+            nic = result.stdout.strip()
+            if not nic:
+                return 0
+
+            # Get TX queue count from ethtool
+            result = self.node.execute(
+                f"ethtool -l {nic} 2>/dev/null | grep -A4 'Current' | "
+                f"grep 'TX:' | awk '{{print $2}}'",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                return int(result.stdout.strip())
+
+            # Fallback: count from sysfs
+            result = self.node.execute(
+                f"ls -1d /sys/class/net/{nic}/queues/tx-* 2>/dev/null | wc -l",
+                shell=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                return int(result.stdout.strip())
+        except Exception:
+            pass
+        return 0
+
+    def _get_numa_node_cpu_count(self, node: int = 0) -> int:
+        """Get number of CPUs on specified NUMA node."""
+        try:
+            result = self.node.execute(
+                f"lscpu -p=cpu,node | grep ',{node}$' | wc -l",
+                shell=True,
+                sudo=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip().isdigit():
+                return int(result.stdout.strip())
+        except Exception:
+            pass
+        return 0
+
     def _classify_test_bucket(self, testcase: str) -> str:
         """
         Classify test into policy buckets for NUMA configuration.
@@ -2245,6 +2452,45 @@ exit $ec
         # Hard reset NUMA prefix to avoid leaking policy from previous test
         self._numa_bind_prefix = ""
 
+        # Boot time THP optimization for hugepage tests
+        if "boot_time" in testcase.lower() and "hugepage" in testcase.lower():
+            # Feature flag: Boot hugepage mode control (Option 3 Hybrid)
+            if self._ch_boot_hugepage_mode == "none":
+                self._log.info(
+                    "Boot THP optimization skipped: CH_BOOT_HUGEPAGE_MODE=none "
+                    "(baseline)"
+                )
+            elif (
+                self._ch_boot_hugepage_mode == "auto"
+                or self._ch_boot_hugepage_mode == "always"
+            ):
+                try:
+                    # Capture original THP state for restore after test
+                    original_thp = self._read_sysfs_if_exists(
+                        "/sys/kernel/mm/transparent_hugepage/enabled"
+                    )
+                    self._boot_thp_overrides[testcase] = original_thp
+
+                    # Override THP to 'always' for hugepage boot tests
+                    self._write_sysfs_if_exists(
+                        "/sys/kernel/mm/transparent_hugepage/enabled", "always"
+                    )
+
+                    # Pre-boot warmup: prime THP allocator
+                    self.node.execute(
+                        "dd if=/dev/zero of=/dev/null bs=2M count=100 "
+                        "2>/dev/null || true",
+                        sudo=True,
+                        shell=True,
+                        timeout=5,
+                    )
+                    self._log.info(
+                        f"Boot hugepage test: THP=always + pre-boot warmup applied "
+                        f"(CH_BOOT_HUGEPAGE_MODE={self._ch_boot_hugepage_mode})"
+                    )
+                except Exception as e:
+                    self._log.debug(f"Boot THP optimization failed: {e}")
+
         # Get bucket from pre-classification (already done in run_metrics_tests)
         bucket = self._test_buckets.get(testcase, "B")  # Default to B if not found
 
@@ -2295,6 +2541,26 @@ exit $ec
 
         except Exception as e:
             self._log.debug(f"Failed to apply NUMA policy for {testcase}: {e}")
+
+    def _restore_boot_thp_if_needed(self, testcase: str) -> None:
+        """
+        Restore original THP state if this test modified it.
+
+        Args:
+            testcase: Test case name
+        """
+        if testcase in self._boot_thp_overrides:
+            original_thp = self._boot_thp_overrides.pop(testcase)
+            if original_thp:
+                try:
+                    self._write_sysfs_if_exists(
+                        "/sys/kernel/mm/transparent_hugepage/enabled", original_thp
+                    )
+                    self._log.debug(
+                        f"Restored THP to '{original_thp}' after {testcase}"
+                    )
+                except Exception as e:
+                    self._log.debug(f"Failed to restore THP: {e}")
 
     def _is_cross_numa_access(self) -> bool:
         """Check if selected node != device node (cross-NUMA access)."""
@@ -2527,6 +2793,14 @@ exit $ec
                 f"numa_node={self._numa_selected_node}",
                 f"irq_locality={self._irq_locality_enabled}",
                 f"irqbalance_stopped={self._irqbalance_was_running}",
+                # Feature flags (Option 3 Hybrid)
+                f"ch_irq_tx_pin={self._ch_irq_tx_pin}",
+                f"ch_rps={self._ch_rps}",
+                f"ch_xps={self._ch_xps}",
+                f"ch_tx_warmup={self._ch_tx_warmup}",
+                f"ch_mq_write_precond_sec={self._ch_mq_write_precond_sec}",
+                f"ch_boot_hugepage_mode={self._ch_boot_hugepage_mode}",
+                f"ch_drop_caches={self._ch_drop_caches}",
                 # Stability knobs (detect config drift)
                 f"thp={self._read_sysfs_if_exists('/sys/kernel/mm/transparent_hugepage/enabled')}",  # noqa: E501
                 f"gov={self._read_sysfs_if_exists('/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor')}",  # noqa: E501
@@ -2819,6 +3093,13 @@ exit $ec
         """
         Configure RPS (Receive Packet Steering) and XPS (Transmit Packet Steering).
         This ensures network queue processing stays on the selected NUMA node.
+        Suite-level configuration applies to all tests.
+
+        Args:
+            cpu_mask: CPU mask for the selected NUMA node
+
+        Returns:
+            True if configuration succeeded, False otherwise
         """
         try:
             # Find primary NIC
@@ -2832,21 +3113,39 @@ exit $ec
                 self._log.debug("No NIC found for RPS/XPS configuration")
                 return False
 
-            # Configure RPS for all RX queues
-            self.node.execute(
-                f"for rps in /sys/class/net/{nic}/queues/rx-*/rps_cpus; do "
-                f'[ -f "$rps" ] && echo {cpu_mask} | sudo tee $rps > /dev/null; '
-                f"done",
-                shell=True,
-            )
+            # Check if single-queue
+            nic_queues = self._get_nic_queue_count()
+            if nic_queues <= 1:
+                self._log.info(
+                    "Single-queue NIC detected: skipping RPS/XPS "
+                    "(adds jitter to single flow)"
+                )
+                return False
 
-            # Configure XPS for all TX queues
-            self.node.execute(
-                f"for xps in /sys/class/net/{nic}/queues/tx-*/xps_cpus; do "
-                f'[ -f "$xps" ] && echo {cpu_mask} | sudo tee $xps > /dev/null; '
-                f"done",
-                shell=True,
-            )
+            # Suite-level: Configure both RPS and XPS (gated by feature flags)
+            # Feature flag: RPS control (Option 3 Hybrid)
+            if self._ch_rps != "off":
+                # Configure RPS for all RX queues
+                self.node.execute(
+                    f"for rps in /sys/class/net/{nic}/queues/rx-*/rps_cpus; do "
+                    f'[ -f "$rps" ] && echo {cpu_mask} | sudo tee $rps > /dev/null; '
+                    f"done",
+                    shell=True,
+                )
+            else:
+                self._log.info("RPS skipped: CH_RPS=off (baseline)")
+
+            # Feature flag: XPS control (Option 3 Hybrid)
+            if self._ch_xps != "off":
+                # Configure XPS for all TX queues
+                self.node.execute(
+                    f"for xps in /sys/class/net/{nic}/queues/tx-*/xps_cpus; do "
+                    f'[ -f "$xps" ] && echo {cpu_mask} | sudo tee $xps > /dev/null; '
+                    f"done",
+                    shell=True,
+                )
+            else:
+                self._log.info("XPS skipped: CH_XPS=off (baseline)")
 
             # Get queue counts for logging
             rx_result = self.node.execute(
@@ -2873,11 +3172,12 @@ exit $ec
 
     def _should_apply_irq_locality(self) -> bool:
         """
-        Determine if IRQ locality should be applied for current test suite.
+        Determine if IRQ locality should be applied at suite level.
 
-        Gating conditions:
+        Suite-level gating conditions:
         1. Skip if already configured for this suite (once-per-suite)
-        2. Skip if system has single-queue devices only (no benefit)
+        2. Feature flag: Check CH_IRQ_TX_PIN (if off, skip IRQ locality)
+        3. Skip if system has single-queue devices only (no benefit)
 
         Returns:
             True if IRQ locality should be applied, False otherwise
@@ -2887,17 +3187,16 @@ exit $ec
             self._log.debug("IRQ locality already configured for suite, skipping")
             return False
 
+        # Feature flag: IRQ pinning control (Option 3 Hybrid)
+        # If disabled, skip IRQ locality entirely
+        if self._ch_irq_tx_pin == "off":
+            self._log.info("Skipping IRQ locality: CH_IRQ_TX_PIN=off (baseline)")
+            return False
+
         # Runtime queue detection: skip if single-queue devices only
         try:
             # Check NIC queues
-            nic_queues = 0
-            result = self.node.execute(
-                "ls -1d /sys/class/net/eth*/queues/rx-* 2>/dev/null | wc -l",
-                shell=True,
-                sudo=True,
-            )
-            if result.exit_code == 0 and result.stdout.strip().isdigit():
-                nic_queues = int(result.stdout.strip())
+            nic_queues = self._get_nic_queue_count()
 
             # Check NVMe queues (subtract 1 for admin queue)
             nvme_queues = 0
@@ -2933,6 +3232,9 @@ exit $ec
         Configure IRQ affinity for selected NUMA node (once per suite).
         Stops irqbalance and pins device IRQs to node CPUs.
         This is the #1 variance killer for multi-queue I/O and networking.
+
+        Args:
+            selected_node: NUMA node to pin IRQs to
         """
         if selected_node < 0:
             self._log.debug("Invalid NUMA node, skipping IRQ locality")
