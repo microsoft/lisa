@@ -18,7 +18,7 @@ from lisa.util import LisaException, SkippedException, UnsupportedDistroExceptio
 
 
 @TestSuiteMetadata(
-    area="component_test",
+    area="network",
     category="functional",
     description="""
     This test suite validates the core functionality of network security components

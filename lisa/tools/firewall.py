@@ -160,7 +160,7 @@ class Iptables(Tool):
     ) -> None:
         for chain in chain_names:
             self.run(
-                cmd=f"-t {table_name} -N {chain}",
+                f"-t {table_name} -N {chain}",
                 sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="Failed to create chain",
