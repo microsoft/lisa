@@ -134,6 +134,8 @@ from .who import Who
 from .whoami import Whoami
 from .windows_feature import WindowsFeatureManagement
 from .wsl import Wsl
+from .conntrack import Conntrack
+from .ipset import Ipset
 
 __all__ = [
     "AptAddRepository",
@@ -280,4 +282,6 @@ __all__ = [
     "Whoami",
     "WindowsFeatureManagement",
     "Wsl",
+    "Conntrack",
+    "Ipset",
 ]
