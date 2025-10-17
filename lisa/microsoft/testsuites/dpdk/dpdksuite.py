@@ -5,29 +5,6 @@ import re
 from typing import Any, Dict, Tuple
 
 from assertpy import assert_that, fail
-
-from lisa import (
-    Environment,
-    Logger,
-    Node,
-    NotEnoughMemoryException,
-    SkippedException,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-    UnsupportedCpuArchitectureException,
-    UnsupportedDistroException,
-    UnsupportedOperationException,
-    schema,
-    search_space,
-)
-from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
-from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
-from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
-from lisa.tools.hugepages import HugePageSize
-from lisa.tools.lscpu import CpuArchitecture
-from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
@@ -52,6 +29,29 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_send_receive_multi_txrx_queue,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
+
+from lisa import (
+    Environment,
+    Logger,
+    Node,
+    NotEnoughMemoryException,
+    SkippedException,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    UnsupportedCpuArchitectureException,
+    UnsupportedDistroException,
+    UnsupportedOperationException,
+    schema,
+    search_space,
+)
+from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
+from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
+from lisa.testsuite import TestResult, simple_requirement
+from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
+from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
+from lisa.util.constants import SIGINT
 
 VDEV_TYPE = "net_vdev_netvsc"
 MAX_RING_PING_LIMIT_NS = 200000

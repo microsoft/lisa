@@ -4,6 +4,8 @@ import string
 from pathlib import Path
 from typing import Any, Dict, Union, cast
 
+from microsoft.testsuites.xfstests.xfstests import Xfstests
+
 from lisa import (
     Logger,
     Node,
@@ -26,7 +28,6 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
 from lisa.util import BadEnvironmentStateException, LisaException, generate_random_chars
-from microsoft.testsuites.xfstests.xfstests import Xfstests
 
 # Global variables
 # Section : NFS options. <TODO>

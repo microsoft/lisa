@@ -7,6 +7,14 @@ import time
 from typing import cast
 
 from assertpy import assert_that
+from microsoft.testsuites.cpu.common import (
+    CPUState,
+    check_runnable,
+    get_idle_cpus,
+    set_cpu_state_serial,
+    set_interrupts_assigned_cpu,
+    verify_cpu_hot_plug,
+)
 
 from lisa import (
     Logger,
@@ -32,14 +40,6 @@ from lisa.tools import (
     Reboot,
 )
 from lisa.util import SkippedException
-from microsoft.testsuites.cpu.common import (
-    CPUState,
-    check_runnable,
-    get_idle_cpus,
-    set_cpu_state_serial,
-    set_interrupts_assigned_cpu,
-    verify_cpu_hot_plug,
-)
 
 
 @TestSuiteMetadata(

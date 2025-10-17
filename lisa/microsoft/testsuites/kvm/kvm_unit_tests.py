@@ -3,12 +3,13 @@
 from pathlib import Path
 from typing import Any
 
+from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
+
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import SkippedException
-from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
 
 
 @TestSuiteMetadata(

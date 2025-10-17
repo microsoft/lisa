@@ -3,6 +3,15 @@
 from functools import partial
 from typing import Any, Dict
 
+from microsoft.testsuites.performance.common import (
+    cleanup_process,
+    perf_iperf,
+    perf_ntttcp,
+    perf_sockperf,
+    perf_tcp_latency,
+    perf_tcp_pps,
+)
+
 from lisa import (
     Logger,
     TestCaseMetadata,
@@ -26,14 +35,6 @@ from lisa.tools.iperf3 import (
 )
 from lisa.tools.sockperf import SOCKPERF_TCP, SOCKPERF_UDP
 from lisa.util.parallel import run_in_parallel
-from microsoft.testsuites.performance.common import (
-    cleanup_process,
-    perf_iperf,
-    perf_ntttcp,
-    perf_sockperf,
-    perf_tcp_latency,
-    perf_tcp_pps,
-)
 
 
 @TestSuiteMetadata(

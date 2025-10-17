@@ -5,13 +5,13 @@ from pathlib import Path, PurePath
 from typing import Any, Dict
 
 from assertpy import assert_that
+from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import Cp, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Usermod, Wget
 from lisa.util import SkippedException
-from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
 
 @TestSuiteMetadata(

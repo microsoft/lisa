@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from microsoft.testsuites.performance.common import perf_nvme
+
 from lisa import (
     Node,
     TestCaseMetadata,
@@ -10,7 +12,6 @@ from lisa import (
 from lisa.features import Nvme, NvmeSettings
 from lisa.testsuite import TestResult
 from lisa.tools.fio import IoEngine
-from microsoft.testsuites.performance.common import perf_nvme
 
 
 @TestSuiteMetadata(

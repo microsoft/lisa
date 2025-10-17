@@ -7,6 +7,13 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
+from microsoft.testsuites.performance.common import (
+    perf_disk,
+    perf_nvme,
+    reset_partitions,
+    reset_raid,
+    stop_raid,
+)
 
 from lisa import (
     Environment,
@@ -28,13 +35,6 @@ from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.testsuite import TestResult, node_requirement
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
-from microsoft.testsuites.performance.common import (
-    perf_disk,
-    perf_nvme,
-    reset_partitions,
-    reset_raid,
-    stop_raid,
-)
 
 
 @TestSuiteMetadata(

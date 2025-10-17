@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import Any, Dict
 
+from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
+
 from lisa import (
     Logger,
     Node,
@@ -17,7 +19,6 @@ from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
 from lisa.util import SkippedException
-from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
 
 @TestSuiteMetadata(

@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+from microsoft.testsuites.cpu.common import verify_cpu_hot_plug
+
 from lisa import (
     Logger,
     Node,
@@ -10,7 +12,6 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from microsoft.testsuites.cpu.common import verify_cpu_hot_plug
 
 
 @TestSuiteMetadata(

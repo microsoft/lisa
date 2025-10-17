@@ -3,6 +3,12 @@
 
 from typing import Any, cast
 
+from microsoft.testsuites.power.common import (
+    cleanup_env,
+    is_distro_supported,
+    verify_hibernation,
+)
+
 from lisa import (
     Environment,
     Logger,
@@ -17,11 +23,6 @@ from lisa.node import Node
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
 from lisa.util import SkippedException
-from microsoft.testsuites.power.common import (
-    cleanup_env,
-    is_distro_supported,
-    verify_hibernation,
-)
 
 
 @TestSuiteMetadata(

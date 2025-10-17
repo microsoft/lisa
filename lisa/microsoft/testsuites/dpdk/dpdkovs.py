@@ -4,13 +4,13 @@ import re
 from typing import List, Type
 
 from assertpy import fail
+from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora
 from lisa.tools import Chown, Gcc, Git, Ip, Make, Modprobe, Uname, Whoami
 from lisa.util import SkippedException, UnsupportedDistroException
-from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
 
 class DpdkOvs(Tool):

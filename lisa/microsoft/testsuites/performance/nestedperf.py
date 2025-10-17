@@ -4,6 +4,23 @@
 import inspect
 from typing import Any, Dict, cast
 
+from microsoft.testsuites.nested.common import (
+    HYPERV_NAT_NAME,
+    NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
+    hyperv_connect_nested_vm,
+    hyperv_remove_nested_vm,
+    parse_nested_image_variables,
+    qemu_connect_nested_vm,
+)
+from microsoft.testsuites.performance.common import (
+    perf_disk,
+    perf_ntttcp,
+    perf_tcp_pps,
+    reset_partitions,
+    reset_raid,
+    stop_raid,
+)
+
 from lisa import (
     TestCaseMetadata,
     TestSuite,
@@ -35,22 +52,6 @@ from lisa.tools import (
 from lisa.util import constants
 from lisa.util.logger import Logger
 from lisa.util.shell import try_connect
-from microsoft.testsuites.nested.common import (
-    HYPERV_NAT_NAME,
-    NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
-    hyperv_connect_nested_vm,
-    hyperv_remove_nested_vm,
-    parse_nested_image_variables,
-    qemu_connect_nested_vm,
-)
-from microsoft.testsuites.performance.common import (
-    perf_disk,
-    perf_ntttcp,
-    perf_tcp_pps,
-    reset_partitions,
-    reset_raid,
-    stop_raid,
-)
 
 
 @TestSuiteMetadata(

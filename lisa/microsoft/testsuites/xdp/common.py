@@ -5,11 +5,12 @@ import re
 from time import sleep
 from typing import Dict, List, Pattern
 
+from microsoft.testsuites.xdp.xdpdump import XdpDump
+
 from lisa import Logger, Node, SkippedException, UnsupportedDistroException
 from lisa.nic import NicInfo
 from lisa.tools import Echo, Ethtool, Ls, Mount
 from lisa.tools.mkfs import FileSystem
-from microsoft.testsuites.xdp.xdpdump import XdpDump
 
 _rx_drop_patterns = [
     # rx_queue_0_xdp_drop
