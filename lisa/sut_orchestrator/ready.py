@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import Any, List, Type
+from typing import Any, List, Optional, Type
 
 from dataclasses_json import dataclass_json
 
@@ -10,7 +10,6 @@ from lisa import feature, features
 from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.platform_ import Platform
-from lisa.schema import DiskOptionSettings, NetworkInterfaceOptionSettings
 from lisa.util.logger import Logger
 
 from . import READY
@@ -22,6 +21,7 @@ class ReadyPlatformSchema:
     # If set to True, a dirty environment will be retained and reused
     # instead of being deleted and recreated.
     reuse_dirty_env: bool = field(default=True)
+    platform_hint: Optional[str] = field(default=None)
 
 
 class ReadyPlatform(Platform):
@@ -57,24 +57,20 @@ class ReadyPlatform(Platform):
                 environment.warn_as_error,
                 "ready platform cannot process environment with requirement",
             )
-        is_success: bool = False
 
-        # Workaround the capability exception. If the disk or network
-        # requirement is defined in a test case, the later check will fail. So
-        # here is the place to set disk or network a default value, if it's
-        # None.
+        detected_platform = self._detect_platform(environment, log)
+        log.info(f"Detected platform: {detected_platform}")
+
+        platform_class = self._get_platform_class(detected_platform)
+        supported_features = platform_class.supported_features()
+
         for node in environment.nodes.list():
-            if node.capability.disk is None:
-                node.capability.disk = DiskOptionSettings()
-            if node.capability.network_interface is None:
-                node.capability.network_interface = NetworkInterfaceOptionSettings()
-            # Reload features to right types
-            feature.reload_platform_features(node.capability, self.supported_features())
+            feature.reload_platform_features(node.capability, supported_features)
+            log.debug(
+                f"Reloaded {len(supported_features)} features for {detected_platform}"
+            )
 
-        if len(environment.nodes):
-            # if it has nodes, it's a good environment to run test cases
-            is_success = True
-        return is_success
+        return len(environment.nodes) > 0
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         # do nothing for deploy
@@ -89,3 +85,46 @@ class ReadyPlatform(Platform):
                 "the environment."
             )
             environment.status = EnvironmentStatus.Prepared
+
+    def _detect_platform(self, environment: Environment, log: Logger) -> str:
+        if self._ready_runbook.platform_hint:
+            return self._ready_runbook.platform_hint.lower()
+
+        node = environment.nodes[0]
+        try:
+            result = node.execute(
+                "curl -s -H Metadata:true http://169.254.169.254/metadata/instance?"
+                "api-version=2021-02-01",
+                timeout=5,
+                shell=True,
+            )
+            if "azure" in result.stdout.lower():
+                return "azure"
+        except Exception:
+            pass
+
+        try:
+            result = node.execute(
+                "curl -s http://169.254.169.254/latest/meta-data/", timeout=5
+            )
+            if "ami-id" in result.stdout or "instance-id" in result.stdout:
+                return "aws"
+        except Exception:
+            pass
+
+        return "generic"
+
+    def _get_platform_class(self, platform_name: str) -> Type[Platform]:
+        from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+        from lisa.sut_orchestrator.aws.platform_ import AwsPlatform
+
+        mapping = {
+            "azure": AzurePlatform,
+            "aws": AwsPlatform,
+            "generic": ReadyPlatform,
+        }
+
+        platform_class = mapping.get(platform_name, ReadyPlatform)
+        if platform_class is None:
+            platform_class = ReadyPlatform
+        return platform_class
