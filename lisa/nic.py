@@ -415,22 +415,40 @@ class Nics(InitializableMixin):
 
             sriov_match = self.__nic_vf_slot_regex.search(line)
             if sriov_match:
-                lower, pci_slot = sriov_match.groups()
-                ip = self._node.tools[Ip]
-                pci_nic_mac = ip.get_mac(lower)
-                for nic_name in [x for x in self._nic_names if x != lower]:
-                    synthetic_nic_mac = ip.get_mac(nic_name)
-                    if synthetic_nic_mac == pci_nic_mac:
-                        used_module = lspci.get_used_module(pci_slot)
-                        self.append(
-                            NicInfo(
-                                name=nic_name,
-                                lower=lower,
-                                pci_slot=pci_slot,
-                                lower_module_name=used_module,
-                            )
+                nic_name, pci_slot = sriov_match.groups()
+                
+                # Check if this is a standalone PCI device
+                # or a VF that needs pairing with a synthetic NIC
+                if nic_name in self._nic_names:
+                    # This is a standalone PCI device
+                    # No VF pairing needed - the NIC directly uses the PCI device
+                    used_module = lspci.get_used_module(pci_slot)
+                    self.append(
+                        NicInfo(
+                            name=nic_name,
+                            lower="",  # No lower device for standalone PCI
+                            pci_slot=pci_slot,
+                            lower_module_name=used_module,
                         )
-                        break
+                    )
+                else:
+                    # This is a VF device that should be paired with a synthetic NIC
+                    # (traditional SR-IOV with VF pairing)
+                    ip = self._node.tools[Ip]
+                    pci_nic_mac = ip.get_mac(nic_name)
+                    for synthetic_nic_name in [x for x in self._nic_names if x != nic_name]:
+                        synthetic_nic_mac = ip.get_mac(synthetic_nic_name)
+                        if synthetic_nic_mac == pci_nic_mac:
+                            used_module = lspci.get_used_module(pci_slot)
+                            self.append(
+                                NicInfo(
+                                    name=synthetic_nic_name,
+                                    lower=nic_name,
+                                    pci_slot=pci_slot,
+                                    lower_module_name=used_module,
+                                )
+                            )
+                            break
 
         # Collects NIC info for any unpaired NICS
         for nic_name in [
