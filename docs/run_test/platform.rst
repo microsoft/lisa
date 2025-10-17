@@ -115,9 +115,9 @@ To run using a community gallery image, add the following to runbook:
             ...
             community_gallery_image: "<location>/<image_gallery>/<image_definition>/<image_version>"
 
-The ``community_gallery_image`` parameter allows you to use publicly shared 
+The ``community_gallery_image`` parameter allows you to use publicly shared
 images from Azure Compute Gallery (formerly known as Shared Image Gallery).
-Community gallery images are shared publicly by publishers and can be used 
+Community gallery images are shared publicly by publishers and can be used
 without needing access to a specific subscription or resource group.
 
 The format is: ``<location>/<image_gallery>/<image_definition>/<image_version>``
