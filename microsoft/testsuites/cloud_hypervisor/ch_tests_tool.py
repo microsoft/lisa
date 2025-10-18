@@ -466,6 +466,7 @@ class CloudHypervisorTests(Tool):
                 self._suite_bucket == "A"
                 and self._numa_enabled
                 and self._numa_selected_node >= 0
+                and self._ch_irq_tx_pin != "off"  # Respect TX pinning feature flag
             ):
                 self._setup_irq_locality(self._numa_selected_node)
                 irq_locality_applied = self._irq_locality_enabled
@@ -1889,18 +1890,13 @@ exit $ec
                 self._log.info("TX warmup skipped: CH_TX_WARMUP=off (baseline)")
                 return "true"  # No-op warmup
 
-            # Try nc first, fallback to pure bash /dev/udp if nc unavailable
+            # Try nc first, fallback to /dev/udp, then ping if both fail
             return (
-                f"if command -v nc >/dev/null 2>&1; then "
-                f"  {numa_prefix} timeout 2s bash -c '"
-                f"  dd if=/dev/zero bs=1M count=100 2>/dev/null | "
-                f"  nc -u -w1 127.0.0.1 9999 >/dev/null 2>&1 || true'; "
-                f"else "
-                f"  {numa_prefix} timeout 2s bash -c '"
-                f"  for i in {{1..4000}}; do "
-                f"    echo x > /dev/udp/127.0.0.1/9999 2>/dev/null || true; "
-                f"  done'; "
-                f"fi && sleep 1"
+                f"{numa_prefix} timeout 2s bash -c '"
+                f"(command -v nc >/dev/null && dd if=/dev/zero bs=1M count=100 2>/dev/null | "
+                f"nc -u -w1 127.0.0.1 9999 >/dev/null 2>&1) || "
+                f"(for i in {{1..4000}}; do echo x > /dev/udp/127.0.0.1/9999 2>/dev/null || true; done) || "
+                f"ping -c 200 -i 0.005 -s 64 127.0.0.1 >/dev/null 2>&1 || true' && sleep 1"
             )
 
         # RX/combined warmup: Use ping to actual gateway
@@ -1966,11 +1962,11 @@ exit $ec
         tc_name = testcase.lower()
         numa_prefix = self._numa_bind_prefix if self._numa_enabled else ""
 
-        # Page cache shake for block write IOPS tests
+        # Page cache shake for block write IOPS tests (case-safe)
         is_block_write_iops = (
-            "block" in tc_name and "write" in tc_name and "IOPS" in testcase
+            "block" in tc_name and "write" in tc_name and "iops" in tc_name
         )
-        if is_block_write_iops and self._ch_drop_caches != "off":
+        if is_block_write_iops and self._ch_drop_caches == "on":
             try:
                 self.node.execute(
                     "sync; echo 1 > /proc/sys/vm/drop_caches",
@@ -1978,7 +1974,7 @@ exit $ec
                     shell=True,
                 )
                 self._log.info(
-                    "Block write IOPS test: dropped page cache before warmup "
+                    "Block write IOPS: dropped page cache before warmup "
                     f"(CH_DROP_CACHES={self._ch_drop_caches})"
                 )
             except Exception as e:
@@ -2018,11 +2014,11 @@ exit $ec
             # Non-fatal: warmup is best-effort
             self._log.debug(f"Warmup failed (non-fatal): {e}")
 
-        # Flush writeback noise between warmup and measure for random_write_IOPS
+        # Flush writeback noise between warmup and measure for random_write_IOPS (case-safe)
         is_random_write_iops = (
-            "block" in tc_name and "random_write" in tc_name and "IOPS" in testcase
+            "block" in tc_name and "random_write" in tc_name and "iops" in tc_name
         )
-        if is_random_write_iops and self._ch_drop_caches != "off":
+        if is_random_write_iops and self._ch_drop_caches == "on":
             try:
                 self.node.execute(
                     "sync; echo 3 > /proc/sys/vm/drop_caches",
@@ -2057,8 +2053,36 @@ exit $ec
         - CH_TX_WARMUP: on|off (TX warmup control)
         - CH_MQ_WRITE_PRECOND_SEC: 12|20 (Block preconditioning duration)
         - CH_BOOT_HUGEPAGE_MODE: auto|always|none (THP mode control)
+        - CH_DROP_CACHES: on|off (Cache drop control)
+
+        Profiles (set via CH_PROFILE environment variable):
+        - tx-baseline: Target TX variance and boot jitter fixes
         """
         import os
+
+        # Set default profile (pipeline can't export, so set it in-code)
+        os.environ.setdefault("CH_PROFILE", "tx-baseline")
+
+        # Profile-based configuration (avoids hard-forcing in mainline)
+        profile = os.environ.get("CH_PROFILE", "")
+        if profile == "tx-baseline":
+            # Targeted configuration for TX & Boot fix run
+            # - TX tests: Disable IRQ/XPS pinning (let kernel balance naturally)
+            # - Boot hugepage: Disable THP override (test if it's causing jitter)
+            # - Block: Extended preconditioning (20s for better settling)
+            # - RX: Keep RPS enabled (proven win)
+            os.environ.update(
+                {
+                    "CH_IRQ_TX_PIN": "off",
+                    "CH_XPS": "off",
+                    "CH_RPS": "auto",
+                    "CH_TX_WARMUP": "on",
+                    "CH_MQ_WRITE_PRECOND_SEC": "20",
+                    "CH_BOOT_HUGEPAGE_MODE": "none",
+                    "CH_DROP_CACHES": "on",
+                }
+            )
+            self._log.info(f"Applied profile: {profile}")
 
         self._ch_irq_tx_pin = os.environ.get("CH_IRQ_TX_PIN", "auto")
         self._ch_rps = os.environ.get("CH_RPS", "auto")
@@ -2068,8 +2092,12 @@ exit $ec
             os.environ.get("CH_MQ_WRITE_PRECOND_SEC", "12")
         )
         self._ch_boot_hugepage_mode = os.environ.get("CH_BOOT_HUGEPAGE_MODE", "auto")
-        self._ch_drop_caches = os.environ.get("CH_DROP_CACHES", "on")
+        self._ch_drop_caches = os.environ.get(
+            "CH_DROP_CACHES", "off"
+        )  # Default off for A/B
 
+        # Log active profile and all flags for visibility
+        self._log.info(f"Active profile: {os.environ.get('CH_PROFILE', '(none)')}")
         self._log.info(
             f"Feature flags: IRQ_TX_PIN={self._ch_irq_tx_pin} "
             f"RPS={self._ch_rps} XPS={self._ch_xps} "
@@ -2541,6 +2569,27 @@ exit $ec
 
         except Exception as e:
             self._log.debug(f"Failed to apply NUMA policy for {testcase}: {e}")
+
+        # Per-test RPS/XPS for RX tests when suite-level IRQ locality is not enabled
+        # This preserves the RX win without re-introducing TX pinning
+        try:
+            tc = testcase.lower()
+            is_net = "virtio_net" in tc or "network" in tc
+            wants_rx = ("_rx_" in tc) or ("_tx_" not in tc)  # RX or combined
+            if (
+                is_net
+                and wants_rx
+                and self._numa_enabled
+                and self._numa_tool_name == "numactl"
+                and not self._irq_locality_enabled  # No suite-wide pinning
+                and self._ch_rps != "off"
+            ):
+                # Compute cpu mask from selected NUMA node's CPU range
+                cpu_mask = self._cpulist_to_hex_mask(self._numa_cpu_range)
+                self._setup_rps_xps(cpu_mask)  # Already single-queue safe
+                self._log.info("Per-test RPS/XPS configured (no IRQ locality)")
+        except Exception as e:
+            self._log.debug(f"Per-test RPS/XPS setup skipped: {e}")
 
     def _restore_boot_thp_if_needed(self, testcase: str) -> None:
         """
