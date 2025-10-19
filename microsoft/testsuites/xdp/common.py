@@ -145,7 +145,7 @@ def _aggregate_count(
     patterns: List[Pattern[str]],
 ) -> int:
     ethtool = node.tools[Ethtool]
-    nic_names = [nic.name, nic.lower]
+    nic_names = [nic.name, nic.pci_device_name]
 
     # aggregate xdp drop count by different nic type
     new_count = -previous_count
@@ -166,7 +166,7 @@ def _aggregate_count(
                     log.debug(f"nic {nic_name} not found, need to reload nics")
                     sleep(2)
                     node.nics.reload()
-                    nic_name = node.nics.get_primary_nic().lower
+                    nic_name = node.nics.get_primary_nic().pci_device_name
                     attempts += 1
                 else:
                     raise e
