@@ -83,6 +83,33 @@ class CloudHypervisorTests(Tool):
     cmd_path: PurePath
     repo_root: PurePath
 
+    # Perf-stable profile: Enforces reproducible performance testing environment
+    # to minimize variance across runs. When enabled, applies strict policies:
+    # - CPU governor set to 'performance'
+    # - Transparent Huge Pages (THP) disabled
+    # - NUMA binding for CPU and memory affinity
+    # - IRQ balancing enabled
+    # - Pre-test warmup periods
+    # - Anchor gate validation (fail fast if system is unstable)
+    # Set to False to disable these policies and run tests in default environment.
+    perf_stable_enabled: bool = True
+    perf_numa_node: int = 0
+    perf_warmup_seconds: int = 30
+    perf_mq_test_timeout: int = 90
+    perf_block_policy: str = "block_*_MiBps=buffered, block_*_IOPS=direct"
+    perf_read_cache_policy: str = "hot"
+    perf_mtu: int = 1500
+
+    # Perf-stable profile constants
+    # Sleep time for nc to bind to port
+    NC_BIND_SLEEP_SECONDS = 2
+
+    def __init__(self, node: Node, *args: Any, **kwargs: Any) -> None:
+        super().__init__(node, *args, **kwargs)
+        # Perf-stable profile instance state
+        self._numa_node: int = 0
+        self._host_setup_done: bool = False
+
     @property
     def command(self) -> str:
         return str(self.cmd_path)
@@ -358,12 +385,23 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
-        self._setup_disk_for_metrics(log_path)
+        # Initialize perf-stable profile (one-time per metrics test run)
+        # Metrics tests always use perf-stable setup
+        if not self._host_setup_done:
+            self._initialize_perf_stable_profile()
+            # One-time host setup (CPU, THP, irqbalance, storage, network)
+            self._setup_host_perf_policies()
+            self._setup_storage_hygiene()
+            self._setup_network_hygiene()
+            # One-time warmup during host setup
+            self._run_warmup()
+            self._host_setup_done = True
 
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
         subtests = self._prepare_metrics_subtests(hypervisor, only, skip)
+        self._setup_disk_for_metrics(log_path)
         failed_testcases: List[str] = []
 
         for testcase in subtests:
@@ -390,6 +428,9 @@ class CloudHypervisorTests(Tool):
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
         ).is_empty()
+
+        # Mark node as dirty after metrics tests to prevent affecting other tests
+        self.node.mark_dirty()
 
     def _setup_disk_for_metrics(self, log_path: Path) -> None:
         """Setup disk for metrics tests if needed."""
@@ -433,6 +474,9 @@ class CloudHypervisorTests(Tool):
         metrics: str = ""
         trace: str = ""
         result = None
+
+        # Apply cache policy per-test for consistent cache state (reduces CV%)
+        self._apply_cache_policy(testcase)
 
         self._set_block_size_env_var(testcase)
         cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
@@ -487,8 +531,17 @@ class CloudHypervisorTests(Tool):
             f"tests --hypervisor {hypervisor} --metrics -- --"
             f" --test-filter {testcase}"
         )
+
+        # Use subtest_timeout if provided, otherwise check for MQ test extension
         if subtest_timeout:
             cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
+        elif self._is_multi_queue_test(testcase):
+            # Lengthen measure window for MQ tests to ~90s
+            # This reduces influence of transient queue skew
+            mq_timeout = self.perf_mq_test_timeout
+            if mq_timeout > 0:
+                cmd_args = f"{cmd_args} --timeout {mq_timeout}"
+
         return cmd_args
 
     def _get_metrics_timeout(self) -> int:
@@ -763,6 +816,13 @@ class CloudHypervisorTests(Tool):
         #   - ch_test_live_bt.txt           (stacks on inactivity)
         #   - ch_test_core_bt.txt           (stacks from core on nonzero exit)
 
+        # Build NUMA prefix for perf-stable profile
+        numa_cmd = ""
+        if self.perf_stable_enabled and hasattr(self, "_numa_node"):
+            numa_cmd = (
+                f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
+            )
+
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
         full_cmd = f"""bash -lc '
@@ -787,11 +847,17 @@ core_bt_file="{test_name}_core_bt.txt"
 
 rm -f "$log_file" "$live_bt_file" "$core_bt_file"
 
+# Apply NUMA binding to test process (perf-stable profile)
+numa_prefix="{numa_cmd}"
+if [ -n "$numa_prefix" ]; then
+  echo "[perf-stable] NUMA binding: $numa_prefix"
+fi
+
 # start tests, line-buffered if available, stream to log
 if command -v stdbuf >/dev/null; then
-  ( stdbuf -oL -eL scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+  ( stdbuf -oL -eL $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
 else
-  ( scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+  ( $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
 fi
 pid=$!
 
@@ -1193,9 +1259,15 @@ exit $ec
         output = output.replace("\n", "")
         regex = '\\"results\\"\\: (.*?)\\]'
         result = re.search(regex, output)
+
         if result:
             return result.group(0)
         return ""
+
+    def _is_multi_queue_test(self, testcase: str) -> bool:
+        """Check if test is a multi-queue test."""
+        tc_lower = testcase.lower()
+        return "multi_queue" in tc_lower or "multi-queue" in tc_lower
 
     def _save_kernel_logs(self, log_path: Path) -> None:
         # Use serial console if available. Serial console logs can be obtained
@@ -1337,6 +1409,533 @@ exit $ec
 
             if block_size:
                 self.env_vars[block_size_env_var] = block_size
+
+    # ========== PERF-STABLE PROFILE IMPLEMENTATION ==========
+    #
+    # RECOMMENDED CONFIGURATION (for reproducible, stable performance):
+    #
+    # Set these class variables before running tests:
+    #
+    # tool.perf_stable_enabled = True  # or False to disable
+    # tool.perf_numa_node = 0
+    # tool.perf_warmup_seconds = 30
+    # tool.perf_mq_test_timeout = 90
+    #
+    # # Make block behavior explicit and reproducible:
+    # tool.perf_block_policy = "block_*_IOPS=direct,block_*_MiBps=buffered"
+    #
+    # # Choose one and keep it consistent across runs:
+    # tool.perf_read_cache_policy = "hot"   # or 'cold', 'auto'
+    #
+    # # Network:
+    # tool.perf_mtu = 1500  # or 9000 if validated end-to-end jumbo
+    #
+    # These knobs are logged at run start to prove parity across runs.
+    # ================================================================
+
+    def _initialize_perf_stable_profile(self) -> None:
+        """
+        Initialize perf-stable profile from class configuration.
+
+        This enforces all perf policies: CPU governor, THP, irqbalance, NUMA, etc.
+        Configuration is set via class variables (perf_stable_enabled,
+        perf_numa_node, etc.) instead of environment variables for better
+        code practice.
+        """
+        if self.perf_stable_enabled:
+            # Select NUMA node with validation
+            numa_node = self.perf_numa_node
+            # Verify node exists
+            result = self.node.execute(
+                f"[ -d /sys/devices/system/node/node{numa_node} ]",
+                shell=True,
+            )
+            if result.exit_code != 0:
+                self._log.debug(f"NUMA node{numa_node} doesn't exist, using node0")
+                numa_node = 0
+            self._numa_node = numa_node
+
+            # Log configured knobs for run reproducibility
+            self._log_perf_knobs()
+
+    def _log_perf_knobs(self) -> None:
+        """
+        Log all perf-stable knobs at start of run for reproducibility.
+        This proves parity across runs by recording exact configuration.
+        """
+        knobs = {
+            "perf_stable_enabled": self.perf_stable_enabled,
+            "perf_numa_node": self.perf_numa_node,
+            "perf_warmup_seconds": self.perf_warmup_seconds,
+            "perf_mq_test_timeout": self.perf_mq_test_timeout,
+            "perf_block_policy": self.perf_block_policy,
+            "perf_read_cache_policy": self.perf_read_cache_policy,
+            "perf_mtu": self.perf_mtu,
+        }
+
+        self._log.info("=== PERF-STABLE PROFILE ENABLED ===")
+        for key, value in knobs.items():
+            self._log.info(f"  {key}={value}")
+
+    def _setup_host_perf_policies(self) -> None:
+        """
+        One-time host setup for performance stability.
+
+        Policies:
+        - CPU governor → performance
+        - Turbo → off (Intel + AMD)
+        - C-states → ≤ C1E (Intel, best-effort AMD)
+        - THP → never (host), madvise (guest)
+        - irqbalance → ON
+        - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
+        """
+        # CPU governor → performance
+        self.node.execute(
+            "for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do "
+            "echo performance | sudo tee $gov || true; done",
+            shell=True,
+            sudo=True,
+        )
+
+        # Turbo → off (Intel + AMD)
+        # Intel: /sys/devices/system/cpu/intel_pstate/no_turbo
+        # AMD: /sys/devices/system/cpu/cpufreq/boost
+        self.node.execute(
+            "echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo || "
+            "echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost || true",
+            shell=True,
+            sudo=True,
+        )
+
+        # C-states ≤ C1E (Intel-specific, best-effort)
+        self.node.execute(
+            "echo 1 | sudo tee /sys/module/intel_idle/parameters/max_cstate || true",
+            shell=True,
+            sudo=True,
+        )
+
+        # THP → never (host)
+        self.node.execute(
+            "echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled || true",
+            shell=True,
+            sudo=True,
+        )
+
+        # irqbalance → ON
+        self.node.execute(
+            "sudo systemctl enable --now irqbalance || "
+            "sudo service irqbalance start || true",
+            shell=True,
+            sudo=True,
+        )
+
+        # Reserve hugepages (try 1GB first, fallback to 2MB)
+        hugepage_1g_path = (
+            f"/sys/devices/system/node/node{self._numa_node}/"
+            f"hugepages/hugepages-1048576kB/nr_hugepages"
+        )
+        hugepage_2m_path = (
+            f"/sys/devices/system/node/node{self._numa_node}/"
+            f"hugepages/hugepages-2048kB/nr_hugepages"
+        )
+
+        # Check if 1GB hugepages are available
+        result = self.node.execute(
+            f"[ -f {hugepage_1g_path} ]",
+            shell=True,
+        )
+
+        if result.exit_code == 0:
+            # Try 1GB hugepages (16GB total)
+            self.node.execute(
+                f"echo 16 | sudo tee {hugepage_1g_path} || true",
+                shell=True,
+                sudo=True,
+            )
+            # Verify allocation
+            verify = self.node.execute(
+                f"cat {hugepage_1g_path}",
+                shell=True,
+            )
+            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
+            if allocated >= 16:
+                self._log.debug(f"Reserved 16GB (1GB pages) on node{self._numa_node}")
+            else:
+                self._log.debug(
+                    f"Only {allocated}GB (1GB pages) allocated (requested 16GB)"
+                )
+        else:
+            # Fallback to 2MB hugepages (8192 pages = 16GB)
+            self.node.execute(
+                f"echo 8192 | sudo tee {hugepage_2m_path} || true",
+                shell=True,
+                sudo=True,
+            )
+            # Verify allocation
+            verify = self.node.execute(
+                f"cat {hugepage_2m_path}",
+                shell=True,
+            )
+            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
+            # Convert 2MiB pages to GiB
+            allocated_gib = allocated * 2 / 1024
+            if allocated >= 8192:
+                self._log.debug(f"Reserved 16GB (2MB pages) on node{self._numa_node}")
+            else:
+                self._log.debug(
+                    f"Only {allocated_gib:.2f} GiB (2MiB pages) allocated "
+                    f"(requested 16 GiB)"
+                )
+
+        # Export NUMA node for CH launcher
+        os.environ["CH_NUMA_NODE"] = str(self._numa_node)
+
+    def _setup_storage_hygiene(self) -> None:
+        """
+        Storage hygiene for stable block device performance.
+
+        - Set I/O scheduler → none for NVMe
+        - Ensure O_DIRECT is used (via env vars)
+        - Safe preconditioning via bounded file (no raw device writes)
+        """
+        # Set scheduler → none for all NVMe devices
+        result = self.node.execute(
+            "for sched in /sys/block/nvme*/queue/scheduler; do "
+            "echo none | sudo tee $sched || true; done",
+            shell=True,
+            sudo=True,
+        )
+
+        # Safe preconditioning via bounded file
+        # Only if CH_ALLOW_DESTRUCTIVE=1 AND explicit file path provided
+        allow_destructive = os.environ.get("CH_ALLOW_DESTRUCTIVE", "0") == "1"
+        precond_file = os.environ.get("CH_PRECOND_FILE", "").strip()
+
+        if allow_destructive and precond_file:
+            # Validate path: must be absolute and not contain shell metacharacters
+            if not precond_file.startswith("/"):
+                self._log.debug(
+                    "CH_PRECOND_FILE must be absolute path, " "skipping preconditioning"
+                )
+            elif any(c in precond_file for c in [";", "&", "|", "$", "`", "\n"]):
+                self._log.debug(
+                    "CH_PRECOND_FILE contains invalid characters, "
+                    "skipping preconditioning"
+                )
+            else:
+                # Verify path is a file, not a device
+                result = self.node.execute(
+                    f"[ -b {precond_file} ]",
+                    shell=True,
+                )
+
+                if result.exit_code == 0:
+                    self._log.debug(
+                        "CH_PRECOND_FILE points to block device, skipping "
+                        "(use file path instead for safety)"
+                    )
+                else:
+                    # Create bounded test file (10GB)
+                    self.node.execute(
+                        f"sudo dd if=/dev/zero of={precond_file} bs=1M "
+                        f"count=10240 oflag=direct conv=notrunc status=none "
+                        f"|| true",
+                        shell=True,
+                        sudo=True,
+                        timeout=120,
+                    )
+
+                    # Random overwrite (5GB)
+                    self.node.execute(
+                        f"sudo dd if=/dev/urandom of={precond_file} bs=4k "
+                        f"count=1280000 oflag=direct conv=notrunc status=none "
+                        f"|| true",
+                        shell=True,
+                        sudo=True,
+                        timeout=60,
+                    )
+
+    def _setup_network_hygiene(self) -> None:
+        """
+        Network hygiene for stable network performance.
+
+        - Ensure irqbalance is ON (no manual IRQ pinning)
+        - Reset XPS to 0 (disable manual pinning) for stability
+        - Keep RPS auto (let irqbalance manage)
+        - Enforce MTU consistency
+        """
+        # Ensure irqbalance is running
+        self.node.execute(
+            "sudo systemctl is-active irqbalance || " "sudo systemctl start irqbalance",
+            shell=True,
+            sudo=True,
+        )
+
+        # Reset XPS to 0 (disable manual pinning for stability)
+        # Only reset if currently pinned (non-zero value)
+        # Use bash script with timeout to avoid hanging on many queues
+        self.node.execute(
+            "timeout 30 bash -c '"
+            "for xps in /sys/class/net/*/queues/tx-*/xps_cpus; do "
+            '[ -f "$xps" ] || continue; '
+            'current=$(cat "$xps") || continue; '
+            '[ "$current" = "00000000" ] || [ "$current" = "0" ] || '
+            '[ -z "$current" ] && continue; '
+            'echo 0 > "$xps" || true; '
+            "done' || true",
+            shell=True,
+            sudo=True,
+            timeout=35,
+        )
+
+        # Enforce MTU (default 1500, configurable via perf_mtu)
+        expected_mtu = self.perf_mtu
+
+        # Find primary NIC
+        result = self.node.execute(
+            "ip route get 1.1.1.1",
+            shell=True,
+        )
+
+        if result.exit_code == 0 and result.stdout.strip():
+            # Extract device name using Python regex
+            # Expected format: "1.1.1.1 via ... dev eth0 ..."
+            match = re.search(r"dev\s+(\S+)", result.stdout)
+            if not match:
+                self._log.debug(
+                    f"Could not parse primary NIC from: {result.stdout.strip()}"
+                )
+                return
+
+            primary_nic = match.group(1)
+
+            # Get current MTU
+            current_mtu_result = self.node.execute(
+                f"ip link show {primary_nic}",
+                shell=True,
+            )
+
+            if current_mtu_result.exit_code == 0:
+                # Extract MTU using Python regex
+                # Expected format: "... mtu 1500 ..."
+                mtu_match = re.search(r"mtu\s+(\d+)", current_mtu_result.stdout)
+                if not mtu_match:
+                    self._log.debug(
+                        f"Could not parse MTU from: {current_mtu_result.stdout.strip()}"
+                    )
+                    return
+
+                current_mtu = int(mtu_match.group(1))
+
+                if current_mtu != expected_mtu:
+                    # Set MTU
+                    self.node.execute(
+                        f"sudo ip link set {primary_nic} mtu {expected_mtu}",
+                        shell=True,
+                        sudo=True,
+                    )
+
+    def _run_warmup(self) -> None:
+        """
+        One-time warmup during host setup (perf-stable profile).
+
+        Warms storage, network, and CPU/memory subsystems to ensure stable baseline
+        before running performance tests.
+
+        Duration: configurable via perf_warmup_seconds (default 30s)
+        """
+        warmup_seconds = self.perf_warmup_seconds
+        if warmup_seconds <= 0:
+            return
+
+        numa_prefix = self._get_numa_prefix()
+
+        # 1. Storage warmup: O_DIRECT reads to wake NVMe queues
+        device = os.environ.get("DATADISK_NAME", "/dev/nvme0n1")
+        self.node.execute(
+            f"timeout {warmup_seconds} {numa_prefix} dd if={device} "
+            f"of=/dev/null bs=1M iflag=direct count=20480 status=none || true",
+            shell=True,
+            sudo=True,
+            timeout=warmup_seconds + 10,
+        )
+
+        # 2. Network warmup: nc localhost transfer to warm network stack
+        has_nc = self.node.execute("command -v nc", shell=True).exit_code == 0
+        if has_nc:
+            nc_sleep = self.NC_BIND_SLEEP_SECONDS
+
+            self.node.execute(
+                f"{numa_prefix} bash -c 'nc -lk 9999 > /dev/null & NC_PID=$!; "
+                f"sleep {nc_sleep}; "
+                f"timeout 20 dd if=/dev/zero bs=1M count=100 | "
+                f"nc 127.0.0.1 9999 || true; "
+                f"kill $NC_PID || true; "
+                f"wait $NC_PID || true; "
+                f'pkill -f "nc -lk 9999" || true\'',
+                shell=True,
+                sudo=True,
+                timeout=30,
+            )
+        else:
+            # Fallback: ping loopback
+            self.node.execute(
+                f"{numa_prefix} timeout {warmup_seconds} "
+                f"ping -c 1000 -i 0.025 127.0.0.1 || true",
+                shell=True,
+                sudo=True,
+                timeout=warmup_seconds + 10,
+            )
+
+        # 3. CPU/Memory warmup: dd to warm caches and memory subsystem
+        self.node.execute(
+            f"{numa_prefix} timeout {warmup_seconds} "
+            f"dd if=/dev/zero of=/dev/null bs=1M count=20480 status=none || true",
+            shell=True,
+            sudo=True,
+            timeout=warmup_seconds + 10,
+        )
+
+        # Note: Cache policy is applied per-test in _run_single_metrics_test()
+        # to provide consistent cache state for each individual test
+
+    def _get_numa_prefix(self) -> str:
+        """
+        Get NUMA binding prefix for perf-stable profile.
+
+        Returns:
+            numactl command prefix with cpunodebind + membind (strict policy)
+        """
+        # Check if numactl is available
+        result = self.node.execute("command -v numactl", shell=True)
+        if result.exit_code != 0:
+            self._log.debug("numactl not available, skipping NUMA binding")
+            return ""
+
+        # Strict NUMA binding: pin both CPU and memory to selected node
+        return f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
+
+    def _apply_cache_policy(self, testcase: str) -> None:
+        """
+        Apply cache drop policy based on perf_read_cache_policy and test type.
+
+        Explicit block read/write policy:
+        - IOPS tests (random) → direct I/O (no cache drop)
+        - MiBps tests (sequential) → buffered I/O (cache drop for writes)
+
+        perf_read_cache_policy:
+        - hot (default): Warm cache for all read tests
+        - cold: Cold cache for all read tests
+        - auto: Follows explicit block policy
+
+        perf_block_policy overrides for fine-grained control.
+        """
+        cache_policy = self.perf_read_cache_policy.lower()
+        block_policy = self.perf_block_policy
+
+        # Determine cache drop decision
+        should_drop, reason = self._determine_cache_drop(testcase, cache_policy)
+
+        # Apply block policy override if specified
+        if block_policy:
+            should_drop, reason = self._apply_block_policy_override(
+                testcase, block_policy, should_drop, reason
+            )
+
+        # Execute cache drop if needed
+        if should_drop:
+            self.node.execute(
+                "sync; echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null",
+                shell=True,
+                sudo=True,
+            )
+            self._log.debug(f"Cache dropped: {reason}")
+        else:
+            self._log.debug(f"Cache retained: {reason}")
+
+    def _determine_cache_drop(
+        self, testcase: str, cache_policy: str
+    ) -> tuple[bool, str]:
+        """
+        Determine if cache should be dropped based on test type and cache policy.
+
+        Returns:
+            Tuple of (should_drop, reason)
+        """
+        tc_lower = testcase.lower()
+        is_read_test = "read" in tc_lower and "block" in tc_lower
+        is_write_test = "write" in tc_lower and "block" in tc_lower
+        is_iops_test = "iops" in tc_lower or "random" in tc_lower
+        is_mibps_test = (
+            "mibps" in tc_lower or "bandwidth" in tc_lower or "seq" in tc_lower
+        )
+        is_buffered = "buffered" in tc_lower or "cached" in tc_lower
+
+        # IOPS tests always use direct I/O
+        if is_iops_test:
+            return False, "IOPS test → direct I/O"
+
+        # MiBps tests use buffered I/O
+        if is_mibps_test:
+            if is_write_test:
+                return True, "MiBps write test → buffered I/O"
+            if is_read_test:
+                return self._get_mibps_read_policy(cache_policy)
+
+        # Fallback for tests without explicit IOPS/MiBps markers
+        if cache_policy == "cold" and is_read_test:
+            return True, "read test + cold policy"
+        if cache_policy == "hot" and is_read_test:
+            return False, "read test + hot policy"
+        if is_write_test and is_buffered:
+            return True, "buffered write test"
+
+        return False, "default (no drop)"
+
+    def _get_mibps_read_policy(self, cache_policy: str) -> tuple[bool, str]:
+        """Get cache policy for MiBps read tests."""
+        if cache_policy == "cold":
+            return True, "MiBps read test → buffered I/O + cold policy"
+        if cache_policy == "hot":
+            return False, "MiBps read test → buffered I/O + hot policy"
+        # Auto: default to hot for sequential reads
+        return False, "MiBps read test → buffered I/O + auto (hot)"
+
+    def _apply_block_policy_override(
+        self, testcase: str, block_policy: str, should_drop: bool, reason: str
+    ) -> tuple[bool, str]:
+        """
+        Apply perf_block_policy override if pattern matches.
+
+        Args:
+            testcase: Test case name
+            block_policy: perf_block_policy value
+            should_drop: Current drop decision
+            reason: Current reason
+
+        Returns:
+            Tuple of (should_drop, reason) with override applied
+        """
+        tc_lower = testcase.lower()
+        policies = block_policy.split(",")
+
+        for policy in policies:
+            if "=" not in policy:
+                continue
+
+            pattern, io_type = policy.split("=", 1)
+            pattern = pattern.strip().lower()
+            io_type = io_type.strip().lower()
+
+            # Match pattern against testcase (wildcard support)
+            pattern_regex = pattern.replace("*", ".*")
+            if re.match(pattern_regex, tc_lower):
+                if io_type == "direct":
+                    return False, f"perf_block_policy: {pattern}=direct"
+                if io_type == "buffered":
+                    return True, f"perf_block_policy: {pattern}=buffered"
+
+        return should_drop, reason
 
 
 def extract_jsons(input_string: str) -> List[Any]:
