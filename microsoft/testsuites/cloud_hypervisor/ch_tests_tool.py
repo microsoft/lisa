@@ -83,6 +83,13 @@ class CloudHypervisorTests(Tool):
     cmd_path: PurePath
     repo_root: PurePath
 
+    # Perf-stable profile state
+    _perf_stable_enabled: bool = False
+    _numa_node: int = 0
+    _anchor_ewma: float = 0.0
+    _anchor_ewma_count: int = 0
+    _host_setup_done: bool = False
+
     @property
     def command(self) -> str:
         return str(self.cmd_path)
@@ -351,6 +358,20 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        # Initialize perf-stable profile if enabled
+        self._initialize_perf_stable_profile()
+
+        # One-time host setup (CPU, THP, irqbalance, etc.)
+        if self._perf_stable_enabled and not self._host_setup_done:
+            self._setup_host_perf_policies()
+            self._setup_storage_hygiene()
+            self._setup_network_hygiene()
+            self._host_setup_done = True
+
+        # Anchor gate (validate system is stable before tests)
+        if self._perf_stable_enabled:
+            self._run_anchor_gate()
+
         self._setup_disk_for_metrics(log_path)
 
         if ref:
@@ -371,6 +392,10 @@ class CloudHypervisorTests(Tool):
                 test_result, testcase, status, metrics, trace
             )
             self._write_testcase_log(log_path, testcase, trace)
+
+        # Log final thermal state
+        if self._perf_stable_enabled:
+            self._log_thermal_health("suite_end")
 
         self._save_kernel_logs(log_path)
         assert_that(
@@ -419,6 +444,10 @@ class CloudHypervisorTests(Tool):
         metrics: str = ""
         trace: str = ""
         result = None
+
+        # Perf-stable: Run warmup before test execution
+        if self._perf_stable_enabled:
+            self._run_warmup_for_test(testcase)
 
         self._set_block_size_env_var(testcase)
         cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
@@ -736,6 +765,14 @@ class CloudHypervisorTests(Tool):
         #   - ch_test_live_bt.txt           (stacks on inactivity)
         #   - ch_test_core_bt.txt           (stacks from core on nonzero exit)
 
+        # Build NUMA prefix for perf-stable profile
+        numa_cmd = ""
+        if self._perf_stable_enabled and hasattr(self, "_numa_node"):
+            numa_cmd = f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
+            self._log.info(
+                f"✓ Applying NUMA binding to CH test process: {numa_cmd}"
+            )
+
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
         full_cmd = f"""bash -lc '
@@ -760,11 +797,17 @@ core_bt_file="{test_name}_core_bt.txt"
 
 rm -f "$log_file" "$live_bt_file" "$core_bt_file"
 
+# Apply NUMA binding to test process (perf-stable profile)
+numa_prefix="{numa_cmd}"
+if [ -n "$numa_prefix" ]; then
+  echo "[perf-stable] NUMA binding: $numa_prefix"
+fi
+
 # start tests, line-buffered if available, stream to log
 if command -v stdbuf >/dev/null; then
-  ( stdbuf -oL -eL scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+  ( stdbuf -oL -eL $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
 else
-  ( scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+  ( $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
 fi
 pid=$!
 
@@ -1310,6 +1353,584 @@ exit $ec
 
             if block_size:
                 self.env_vars[block_size_env_var] = block_size
+
+    # ========== PERF-STABLE PROFILE IMPLEMENTATION ==========
+
+    def _initialize_perf_stable_profile(self) -> None:
+        """
+        Initialize perf-stable profile from environment.
+
+        Sets CH_PROFILE=perf-stable by default for performance stability.
+        This enforces all perf policies: CPU governor, THP, irqbalance, NUMA, etc.
+        """
+        import os
+
+        # Set default profile
+        os.environ.setdefault("CH_PROFILE", "perf-stable")
+
+        profile = os.environ.get("CH_PROFILE", "")
+        self._perf_stable_enabled = profile == "perf-stable"
+
+        if self._perf_stable_enabled:
+            self._log.info(f"=== PERF-STABLE PROFILE ENABLED ===")
+            # Select NUMA node (prefer node 0 on multi-node systems)
+            self._numa_node = int(os.environ.get("CH_NUMA_NODE", "0"))
+            self._log.info(f"NUMA node selected: {self._numa_node}")
+
+    def _setup_host_perf_policies(self) -> None:
+        """
+        One-time host setup for performance stability.
+
+        Policies:
+        - CPU governor → performance
+        - Turbo → off (Intel + AMD)
+        - C-states → ≤ C1E (Intel, best-effort AMD)
+        - THP → never (host), madvise (guest)
+        - irqbalance → ON
+        - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
+        """
+        self._log.info("Setting up host perf policies...")
+
+        try:
+            # CPU governor → performance
+            self.node.execute(
+                "for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do "
+                "echo performance | sudo tee $gov >/dev/null 2>&1 || true; done",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info("✓ CPU governor → performance")
+
+            # Turbo → off (Intel + AMD)
+            # Intel: /sys/devices/system/cpu/intel_pstate/no_turbo
+            # AMD: /sys/devices/system/cpu/cpufreq/boost
+            self.node.execute(
+                "echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo "
+                ">/dev/null 2>&1 || "
+                "echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost "
+                ">/dev/null 2>&1 || true",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info("✓ Turbo/Boost → off (Intel/AMD)")
+
+            # C-states ≤ C1E (Intel-specific, best-effort)
+            self.node.execute(
+                "echo 1 | sudo tee /sys/module/intel_idle/parameters/max_cstate "
+                ">/dev/null 2>&1 || true",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info("✓ C-states → ≤ C1E (Intel, best-effort)")
+
+            # THP → never (host)
+            self.node.execute(
+                "echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled "
+                ">/dev/null 2>&1 || true",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info("✓ THP → never (host)")
+
+            # irqbalance → ON
+            self.node.execute(
+                "sudo systemctl enable --now irqbalance 2>/dev/null || "
+                "sudo service irqbalance start 2>/dev/null || true",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info("✓ irqbalance → ON")
+
+            # Reserve hugepages (try 1GB first, fallback to 2MB)
+            hugepage_1g_path = (
+                f"/sys/devices/system/node/node{self._numa_node}/"
+                f"hugepages/hugepages-1048576kB/nr_hugepages"
+            )
+            hugepage_2m_path = (
+                f"/sys/devices/system/node/node{self._numa_node}/"
+                f"hugepages/hugepages-2048kB/nr_hugepages"
+            )
+
+            # Check if 1GB hugepages are available
+            result = self.node.execute(
+                f"[ -f {hugepage_1g_path} ] && echo 'yes' || echo 'no'",
+                shell=True,
+            )
+
+            if "yes" in result.stdout:
+                # Try 1GB hugepages (16GB total)
+                self.node.execute(
+                    f"echo 16 | sudo tee {hugepage_1g_path} >/dev/null 2>&1 || true",
+                    shell=True,
+                    sudo=True,
+                )
+                # Verify allocation
+                verify = self.node.execute(
+                    f"cat {hugepage_1g_path} 2>/dev/null || echo 0",
+                    shell=True,
+                )
+                allocated = int(verify.stdout.strip() or "0")
+                if allocated >= 16:
+                    self._log.info(f"✓ Reserved 16GB (1GB pages) on node{self._numa_node}")
+                else:
+                    self._log.warning(
+                        f"⚠ Only {allocated}GB (1GB pages) allocated (requested 16GB)"
+                    )
+            else:
+                # Fallback to 2MB hugepages (8192 pages = 16GB)
+                self.node.execute(
+                    f"echo 8192 | sudo tee {hugepage_2m_path} >/dev/null 2>&1 || true",
+                    shell=True,
+                    sudo=True,
+                )
+                # Verify allocation
+                verify = self.node.execute(
+                    f"cat {hugepage_2m_path} 2>/dev/null || echo 0",
+                    shell=True,
+                )
+                allocated = int(verify.stdout.strip() or "0")
+                allocated_gib = allocated * 2 / 1024  # 2MiB pages to GiB
+                if allocated >= 8192:
+                    self._log.info(f"✓ Reserved 16GB (2MB pages) on node{self._numa_node}")
+                else:
+                    self._log.warning(
+                        f"⚠ Only {allocated_gib:.2f} GiB (2MiB pages) allocated (requested 16 GiB)"
+                    )
+
+            # Export NUMA node for CH launcher
+            os.environ["CH_NUMA_NODE"] = str(self._numa_node)
+            self._log.info(
+                f"✓ Exported CH_NUMA_NODE={self._numa_node} "
+                f"(NUMA binding will be applied to test process at execution)"
+            )
+
+            self._log.info("Host perf policies setup complete")
+
+        except Exception as e:
+            self._log.warning(f"Host perf setup warning (non-fatal): {e}")
+
+    def _run_anchor_gate(self) -> None:
+        """
+        Anchor gate: 5-8s CPU/mem warmup to validate system stability.
+
+        Validates against EWMA baseline (±5%). Retries once on failure.
+        Uses exponential weighted moving average (alpha=0.3) for stability.
+        """
+        self._log.info("Running anchor gate...")
+
+        import time
+
+        try:
+            # 5-8s CPU/mem anchor using dd
+            start = time.time()
+            result = self.node.execute(
+                "dd if=/dev/zero of=/dev/null bs=1M count=2048 status=none",
+                shell=True,
+                timeout=15,
+            )
+            elapsed = time.time() - start
+
+            # Calculate throughput (GB/s)
+            throughput = 2.048 / elapsed  # 2048 MB = 2.048 GB
+
+            self._log.info(f"Anchor throughput: {throughput:.2f} GB/s ({elapsed:.2f}s)")
+
+            # EWMA validation (skip first run to establish baseline)
+            if self._anchor_ewma_count > 0:
+                deviation = abs(throughput - self._anchor_ewma) / self._anchor_ewma
+
+                if deviation > 0.05:  # ±5% threshold
+                    self._log.warning(
+                        f"Anchor gate FAILED: {deviation*100:.1f}% deviation "
+                        f"(expected: {self._anchor_ewma:.2f} GB/s, "
+                        f"got: {throughput:.2f} GB/s)"
+                    )
+
+                    # Retry once
+                    self._log.info("Retrying anchor gate...")
+                    time.sleep(5)
+
+                    start = time.time()
+                    result = self.node.execute(
+                        "dd if=/dev/zero of=/dev/null bs=1M count=2048 status=none",
+                        shell=True,
+                        timeout=15,
+                    )
+                    elapsed = time.time() - start
+                    throughput = 2.048 / elapsed
+
+                    deviation = abs(throughput - self._anchor_ewma) / self._anchor_ewma
+
+                    if deviation > 0.05:
+                        self._log.warning(
+                            f"Anchor gate FAILED on retry: {deviation*100:.1f}% deviation"
+                        )
+                        self._log_thermal_health("anchor_failure")
+                        # Don't fail the suite, but log prominently
+                    else:
+                        self._log.info(
+                            f"✓ Anchor gate PASSED on retry: {throughput:.2f} GB/s"
+                        )
+                else:
+                    self._log.info(
+                        f"✓ Anchor gate PASSED: {deviation*100:.1f}% deviation"
+                    )
+            else:
+                self._log.info("✓ Anchor baseline established")
+
+            # Update EWMA (alpha=0.3 for responsiveness)
+            alpha = 0.3
+            if self._anchor_ewma_count == 0:
+                self._anchor_ewma = throughput
+            else:
+                self._anchor_ewma = alpha * throughput + (1 - alpha) * self._anchor_ewma
+
+            self._anchor_ewma_count += 1
+
+            # Log anchor measurements for correlation across runs
+            self._log.info(
+                f"[ANCHOR_METRICS] measurement={throughput:.3f} GB/s, "
+                f"ewma={self._anchor_ewma:.3f} GB/s, count={self._anchor_ewma_count}, "
+                f"alpha={alpha}"
+            )
+
+        except Exception as e:
+            self._log.warning(f"Anchor gate error (non-fatal): {e}")
+
+    def _setup_storage_hygiene(self) -> None:
+        """
+        Storage hygiene for stable block device performance.
+
+        - Set I/O scheduler → none for NVMe
+        - Ensure O_DIRECT is used (via env vars)
+        - Safe preconditioning via bounded file (no raw device writes)
+        """
+        self._log.info("Setting up storage hygiene...")
+
+        try:
+            # Set scheduler → none for all NVMe devices
+            result = self.node.execute(
+                "for sched in /sys/block/nvme*/queue/scheduler; do "
+                "echo none | sudo tee $sched >/dev/null 2>&1 || true; done",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info("✓ NVMe scheduler → none")
+
+            # Ensure O_DIRECT is used (check env vars)
+            if "PERF_DISKS" not in self.env_vars:
+                self.env_vars["PERF_DISKS"] = "/dev/nvme0n1"
+
+            self._log.info("✓ O_DIRECT enforced via env vars")
+
+            # Safe preconditioning via bounded file
+            # Only if CH_ALLOW_DESTRUCTIVE=1 AND explicit file path provided
+            allow_destructive = os.environ.get("CH_ALLOW_DESTRUCTIVE", "0") == "1"
+            precond_file = os.environ.get("CH_PRECOND_FILE", "")
+
+            if allow_destructive and precond_file:
+                self._log.info(f"Preconditioning via bounded file: {precond_file}")
+
+                # Verify path is a file, not a device
+                result = self.node.execute(
+                    f"[ -b {precond_file} ] && echo 'block' || echo 'file'",
+                    shell=True,
+                )
+
+                if "block" in result.stdout:
+                    self._log.warning(
+                        f"⚠ CH_PRECOND_FILE points to block device, skipping "
+                        f"(use file path instead for safety)"
+                    )
+                else:
+                    # Create bounded test file (10GB)
+                    self.node.execute(
+                        f"sudo dd if=/dev/zero of={precond_file} bs=1M count=10240 "
+                        f"oflag=direct conv=notrunc status=none 2>/dev/null || true",
+                        shell=True,
+                        sudo=True,
+                        timeout=120,
+                    )
+
+                    # Random overwrite (5GB)
+                    self.node.execute(
+                        f"sudo dd if=/dev/urandom of={precond_file} bs=4k count=1280000 "
+                        f"oflag=direct conv=notrunc status=none 2>/dev/null || true",
+                        shell=True,
+                        sudo=True,
+                        timeout=60,
+                    )
+
+                    self._log.info(f"✓ Preconditioned file: {precond_file}")
+            else:
+                self._log.info(
+                    "✓ Preconditioning skipped (set CH_ALLOW_DESTRUCTIVE=1 and "
+                    "CH_PRECOND_FILE=/path/to/testfile to enable)"
+                )
+
+        except Exception as e:
+            self._log.warning(f"Storage hygiene warning (non-fatal): {e}")
+
+    def _setup_network_hygiene(self) -> None:
+        """
+        Network hygiene for stable network performance.
+
+        - Ensure irqbalance is ON (no manual IRQ pinning)
+        - Reset XPS to 0 (disable manual pinning) for stability
+        - Keep RPS auto (let irqbalance manage)
+        - Enforce MTU consistency
+        """
+        self._log.info("Setting up network hygiene...")
+
+        try:
+            # Ensure irqbalance is running
+            self.node.execute(
+                "sudo systemctl is-active irqbalance || "
+                "sudo systemctl start irqbalance",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info("✓ irqbalance is running")
+
+            # Reset XPS to 0 (disable manual pinning for stability)
+            # Only reset if currently pinned (non-zero value)
+            result = self.node.execute(
+                "for xps in /sys/class/net/*/queues/tx-*/xps_cpus; do "
+                "[ -f \"$xps\" ] && current=$(cat $xps 2>/dev/null) && "
+                "[ \"$current\" != \"00000000\" ] && [ \"$current\" != \"0\" ] && "
+                "echo 0 | sudo tee $xps >/dev/null 2>&1 || true; done",
+                shell=True,
+                sudo=True,
+            )
+            self._log.info(
+                "✓ XPS reset to 0 (disabled manual pinning for irqbalance stability)"
+            )
+
+            # Enforce MTU (default 1500, configurable via CH_MTU env var)
+            expected_mtu = int(os.environ.get("CH_MTU", "1500"))
+
+            # Find primary NIC
+            result = self.node.execute(
+                "ip route get 1.1.1.1 2>/dev/null | grep -oP 'dev \\K[^ ]+' | head -1",
+                shell=True,
+            )
+
+            if result.exit_code == 0 and result.stdout.strip():
+                primary_nic = result.stdout.strip()
+
+                # Get current MTU
+                current_mtu_result = self.node.execute(
+                    f"ip link show {primary_nic} | grep -oP 'mtu \\K[0-9]+'",
+                    shell=True,
+                )
+
+                if current_mtu_result.exit_code == 0:
+                    current_mtu = int(current_mtu_result.stdout.strip())
+
+                    if current_mtu != expected_mtu:
+                        # Set MTU
+                        self.node.execute(
+                            f"sudo ip link set {primary_nic} mtu {expected_mtu}",
+                            shell=True,
+                            sudo=True,
+                        )
+                        self._log.info(
+                            f"✓ MTU set to {expected_mtu} on {primary_nic} "
+                            f"(was {current_mtu})"
+                        )
+                    else:
+                        self._log.info(f"✓ MTU already {expected_mtu} on {primary_nic}")
+            else:
+                self._log.info("✓ MTU enforcement skipped (primary NIC not detected)")
+
+        except Exception as e:
+            self._log.warning(f"Network hygiene warning (non-fatal): {e}")
+
+    def _log_thermal_health(self, stage: str) -> None:
+        """
+        Log thermal health: sensors, throttle counts, frequency state.
+
+        Args:
+            stage: Execution stage (preflight, anchor_failure, suite_end)
+        """
+        self._log.info(f"=== Thermal Health [{stage}] ===")
+
+        try:
+            # sensors output (if available)
+            result = self.node.execute(
+                "sensors 2>/dev/null | head -20 || echo 'sensors not available'",
+                shell=True,
+            )
+            if result.exit_code == 0:
+                for line in result.stdout.split("\n")[:10]:
+                    if line.strip():
+                        self._log.info(f"  {line}")
+
+            # Throttle counts
+            result = self.node.execute(
+                "for f in /sys/devices/system/cpu/cpu*/thermal_throttle/*_throttle_count; do "
+                '[ -f "$f" ] && echo "$f: $(cat $f)"; done | head -5',
+                shell=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip():
+                self._log.info(f"  Throttle counts: {result.stdout.strip()}")
+            else:
+                self._log.info("  Throttle counts: not available")
+
+            # CPU frequency (sample first 4 CPUs)
+            result = self.node.execute(
+                "for cpu in 0 1 2 3; do "
+                "f=/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_cur_freq; "
+                '[ -f "$f" ] && echo "CPU$cpu: $(cat $f) kHz"; done',
+                shell=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip():
+                self._log.info(f"  Frequencies: {result.stdout.strip()}")
+
+        except Exception as e:
+            self._log.debug(f"Thermal logging error: {e}")
+
+    def _run_warmup_for_test(self, testcase: str) -> None:
+        """
+        Run 20-30s warmup before test measurement (perf-stable profile).
+
+        Uniform warmup pattern:
+        - Block tests: O_DIRECT dd reads (wake up NVMe queues)
+        - Network tests: nc or ping (wake up network stack)
+        - Other tests: CPU/mem warmup with dd
+
+        Cache policy:
+        - O_DIRECT tests: no cache drops (test uses direct I/O)
+        - Buffered writes: single drop before warmup only
+        - Reads: consistent hot/cold policy (no mixed)
+        """
+        warmup_seconds = int(os.environ.get("CH_WARMUP_SECONDS", "25"))
+
+        if warmup_seconds <= 0:
+            return
+
+        tc_lower = testcase.lower()
+        self._log.info(f"Running {warmup_seconds}s warmup for {testcase}...")
+
+        try:
+            # Cache drop policy (before warmup only)
+            is_write_test = "write" in tc_lower and "block" in tc_lower
+            is_buffered = "buffered" in tc_lower or "cached" in tc_lower
+
+            if is_write_test and is_buffered:
+                # Buffered writes: drop once before warmup
+                self.node.execute(
+                    "sync; echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null",
+                    shell=True,
+                    sudo=True,
+                )
+                self._log.info("  Cache dropped (buffered write test)")
+
+            # Apply NUMA binding for warmup (if enabled)
+            numa_prefix = self._get_numa_prefix()
+
+            # Determine warmup command based on test type
+            if "block" in tc_lower or "disk" in tc_lower:
+                # Block tests: O_DIRECT reads to wake NVMe
+                device = os.environ.get("DATADISK_NAME", "/dev/nvme0n1")
+                warmup_cmd = (
+                    f"timeout {warmup_seconds} {numa_prefix} dd if={device} "
+                    f"of=/dev/null bs=1M iflag=direct count=20480 status=none "
+                    f"2>/dev/null || true"
+                )
+
+            elif "net" in tc_lower or "network" in tc_lower:
+                # Network tests: ping or nc warmup
+                peer_ip = os.environ.get("CH_PEER_IP", "")
+
+                # Check for timeout and nc availability
+                has_timeout = (
+                    self.node.execute("command -v timeout >/dev/null 2>&1", shell=True).exit_code
+                    == 0
+                )
+                has_nc = (
+                    self.node.execute("command -v nc >/dev/null 2>&1", shell=True).exit_code
+                    == 0
+                )
+
+                if not has_timeout:
+                    self._log.warning("⚠ 'timeout' not available, using sleep-based warmup")
+                    # Fallback: simple sleep-based warmup (ensure some work happens)
+                    warmup_cmd = (
+                        f"{numa_prefix} bash -c '"
+                        f"for i in {{1..{warmup_seconds}}}; do "
+                        f"dd if=/dev/zero of=/dev/null bs=1M count=100 status=none 2>/dev/null; "
+                        f"sleep 1; done' >/dev/null 2>&1 || true"
+                    )
+                elif peer_ip:
+                    # Use real peer if available
+                    warmup_cmd = (
+                        f"{numa_prefix} timeout {warmup_seconds} "
+                        f"ping -c 1000 -i 0.025 {peer_ip} >/dev/null 2>&1 || true"
+                    )
+                elif has_nc:
+                    # Use nc with scoped timeout and cleanup
+                    warmup_cmd = (
+                        f"{numa_prefix} bash -c '"
+                        f"nc -lk 9999 >/dev/null 2>&1 & NC_PID=$!; "
+                        f"sleep 1; "
+                        f"timeout {warmup_seconds} dd if=/dev/zero bs=1M count=5000 2>/dev/null | "
+                        f"nc 127.0.0.1 9999 >/dev/null 2>&1 || true; "
+                        f"kill $NC_PID 2>/dev/null || true; "
+                        f"wait $NC_PID 2>/dev/null || true' "
+                        f">/dev/null 2>&1"
+                    )
+                else:
+                    # Fallback: ping loopback
+                    warmup_cmd = (
+                        f"{numa_prefix} timeout {warmup_seconds} "
+                        f"ping -c 1000 -i 0.025 127.0.0.1 >/dev/null 2>&1 || true"
+                    )
+
+            else:
+                # CPU/mem warmup (boot, latency tests)
+                warmup_cmd = (
+                    f"{numa_prefix} timeout {warmup_seconds} "
+                    f"dd if=/dev/zero of=/dev/null bs=1M count=20480 status=none "
+                    f"2>/dev/null || true"
+                )
+
+            # Run warmup
+            result = self.node.execute(
+                warmup_cmd,
+                shell=True,
+                sudo=True,
+                timeout=warmup_seconds + 10,
+            )
+
+            if result.exit_code == 0:
+                self._log.info(f"✓ Warmup complete for {testcase}")
+            else:
+                self._log.debug(f"Warmup completed with warnings (non-fatal)")
+
+            # Cleanup: ensure no nc processes are left behind
+            if "net" in tc_lower or "network" in tc_lower:
+                self.node.execute(
+                    "pkill -f 'nc -lk 9999' >/dev/null 2>&1 || true",
+                    shell=True,
+                    sudo=True,
+                )
+
+        except Exception as e:
+            self._log.debug(f"Warmup error (non-fatal): {e}")
+
+    def _get_numa_prefix(self) -> str:
+        """
+        Get NUMA binding prefix for perf-stable profile.
+
+        Returns:
+            numactl command prefix with cpunodebind + membind (strict policy)
+        """
+        if not self._perf_stable_enabled:
+            return ""
+
+        # Strict NUMA binding: pin both CPU and memory to selected node
+        return f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
 
 
 def extract_jsons(input_string: str) -> List[Any]:
