@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import shutil
+import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import List, Type
@@ -25,6 +26,7 @@ from lisa.util import LisaException, parse_version
 from lisa.util.logger import Logger, filter_ansi_escape
 
 from .. import CLOUD_HYPERVISOR
+from .console_diagnostics import dump_console_routing, verify_early_output
 from .console_logger import QemuConsoleLogger
 from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageFormat
 
@@ -149,12 +151,22 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
 
-        # Ensure kernel logs go to UART (ttyS0) on first boot
-        # - console=ttyS0,115200  : log to the ISA UART
-        # - ignore_loglevel       : show all kernel messages
-        # - printk.time=1         : add timestamps to kernel messages
+        # Ensure kernel logs go to UART (ttyS0) from earliest boot stage
+        # - earlycon=uart,io,0x3f8,115200 : capture early boot messages before console init
+        # - console=ttyS0,115200          : main console output to ISA UART
+        # - console=hvc0                  : also support virtio-console (if CH uses it)
+        # - ignore_loglevel               : show all kernel messages including debug
+        # - printk.time=1                 : add timestamps to kernel messages
+        # 
+        # The dual console setup ensures we catch output regardless of CH's console backend
         os_cmdline = ET.SubElement(os, "cmdline")
-        os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
+        os_cmdline.text = (
+            "earlycon=uart,io,0x3f8,115200 "
+            "console=ttyS0,115200 "
+            "console=hvc0 "
+            "ignore_loglevel "
+            "printk.time=1"
+        )
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
@@ -181,12 +193,20 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
 
         # Provide a PTY-backed ISA UART so guest sees /dev/ttyS0
-        # virDomainOpenConsole(devname=None) will attach to this serial by default
+        # This creates the hardware that the kernel console=ttyS0 routes to
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
-
         serial_target = ET.SubElement(serial, "target")
         serial_target.attrib["port"] = "0"
+
+        # CRITICAL: Add console element that references the serial port
+        # virDomainOpenConsole(devname=None) attaches to this console element
+        # which multiplexes to the serial port above
+        console = ET.SubElement(devices, "console")
+        console.attrib["type"] = "pty"
+        console_target = ET.SubElement(console, "target")
+        console_target.attrib["type"] = "serial"
+        console_target.attrib["port"] = "0"
 
         network_interface = ET.SubElement(devices, "interface")
         network_interface.attrib["type"] = "network"
@@ -227,9 +247,16 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
     ) -> None:
         assert node_context.domain
         attach_path = node_context.console_log_file_path
-        self._log.info(
-            f"[DEBUG ATTACH] VM: {node_context.vm_name}"
-        )
+        
+        # Dump the domain XML for debugging
+        try:
+            xml_desc = node_context.domain.XMLDesc(0)
+            self._log.info(
+                f"[DEBUG ATTACH] VM: {node_context.vm_name} - Domain XML:\n{xml_desc}"
+            )
+        except Exception as e:
+            self._log.warning(f"[DEBUG ATTACH] Failed to dump XML: {e}")
+        
         self._log.info(
             f"[DEBUG ATTACH] Console log path: {attach_path}"
         )
@@ -261,7 +288,6 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 )
             
             # Wait a moment for initial boot messages, then check again
-            import time
             time.sleep(2)
             if log_path.exists():
                 size_after = log_path.stat().st_size
@@ -363,6 +389,27 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                     log.warning(
                         f"[DEBUG DELETE] Console log file does not exist: {src}"
                     )
+                
+                # Copy libvirt CH log file from host
+                libvirt_log_path = f"/var/log/libvirt/ch/{node_context.vm_name}.log"
+                log.info(f"[DEBUG DELETE] Attempting to copy libvirt CH log from: {libvirt_log_path}")
+                try:
+                    result = self.host_node.execute(
+                        f"test -f {libvirt_log_path} && cat {libvirt_log_path}",
+                        shell=True,
+                        sudo=True,
+                    )
+                    if result.exit_code == 0 and result.stdout:
+                        libvirt_log_dest = node.local_log_path / "libvirt-ch.log"
+                        libvirt_log_dest.write_text(result.stdout)
+                        log.info(
+                            f"[DEBUG DELETE] Copied libvirt CH log to: {libvirt_log_dest} "
+                            f"({len(result.stdout)} bytes)"
+                        )
+                    else:
+                        log.info(f"[DEBUG DELETE] Libvirt CH log not found or empty: {libvirt_log_path}")
+                except Exception as e:
+                    log.warning(f"[DEBUG DELETE] Failed to copy libvirt CH log: {e}")
             except Exception as e:
                 log.warning(f"Failed to preserve console log for {node.name}: {e}", exc_info=True)
 
