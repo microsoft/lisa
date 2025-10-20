@@ -226,12 +226,35 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context: NodeContext,
     ) -> None:
         assert node_context.domain
+        self._log.info(
+            f"[DEBUG] Creating domain and attaching console logger to: "
+            f"{node_context.console_log_file_path}"
+        )
         node_context.domain.createWithFlags(0)
 
         node_context.console_logger = QemuConsoleLogger()
-        node_context.console_logger.attach(
-            node_context.domain, node_context.console_log_file_path
-        )
+        try:
+            node_context.console_logger.attach(
+                node_context.domain, node_context.console_log_file_path
+            )
+            self._log.info(
+                f"[DEBUG] Console logger attached successfully to: "
+                f"{node_context.console_log_file_path}"
+            )
+            # Verify file was created and check initial size
+            log_path = Path(node_context.console_log_file_path)
+            if log_path.exists():
+                self._log.info(
+                    f"[DEBUG] Console log file exists, size: {log_path.stat().st_size} bytes"
+                )
+            else:
+                self._log.warning(
+                    f"[DEBUG] Console log file not found after attachment: {log_path}"
+                )
+        except Exception as e:
+            self._log.error(
+                f"[DEBUG] Failed to attach console logger: {e}", exc_info=True
+            )
 
         if len(node_context.passthrough_devices) > 0:
             # Once libvirt domain is created, check if driver attached to device
@@ -252,16 +275,34 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         if node_context.console_log_file_path:
             try:
                 src = Path(node_context.console_log_file_path)
+                log.info(
+                    f"[DEBUG] Preserving console log from: {src} "
+                    f"(exists: {src.exists()})"
+                )
                 if src.exists():
+                    src_size = src.stat().st_size
+                    log.info(f"[DEBUG] Source console log size: {src_size} bytes")
+                    
                     dst = node.local_log_path / "ch-console.log"
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(src, dst)
-                    log.debug(
-                        f"Copied console log from {src} to {dst} "
-                        f"(size: {dst.stat().st_size} bytes)"
+                    dst_size = dst.stat().st_size
+                    log.info(
+                        f"[DEBUG] Copied console log from {src} to {dst} "
+                        f"(src: {src_size} bytes, dst: {dst_size} bytes)"
+                    )
+                    
+                    if src_size == 0:
+                        log.warning(
+                            f"[DEBUG] Console log file is EMPTY (0 bytes). "
+                            f"This suggests the console logger didn't receive any data."
+                        )
+                else:
+                    log.warning(
+                        f"[DEBUG] Console log file does not exist: {src}"
                     )
             except Exception as e:
-                log.warning(f"Failed to preserve console log for {node.name}: {e}")
+                log.warning(f"Failed to preserve console log for {node.name}: {e}", exc_info=True)
 
         # Call parent implementation to handle cleanup
         super()._delete_node(node, log)
