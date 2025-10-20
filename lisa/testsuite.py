@@ -654,7 +654,6 @@ class TestCaseRuntimeData:
             constants.TESTCASE_RETRY,
             constants.TESTCASE_USE_NEW_ENVIRONMENT,
             constants.TESTCASE_IGNORE_FAILURE,
-            constants.ENVIRONMENT,
         ]
         set_filtered_fields(self, cloned, fields)
         return cloned
