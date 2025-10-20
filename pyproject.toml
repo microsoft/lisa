@@ -190,10 +190,11 @@ force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
 line_length = 88
+extend_skip_glob = [".nox/*", ".venv*/*"]
 
 
 [tool.mypy]
-exclude = ".venv/.*"
+exclude = "(?x)(^\\.venv.*/.*$|^\\.nox/.*$)"
 implicit_reexport = true
 mypy_path = "./typings"
 strict = true
