@@ -119,7 +119,8 @@ class Drm(TestSuite):
         ),
     )
     def verify_connection_status(self, node: Node, log: Logger) -> None:
-        is_status_connected = node.tools[Modetest].is_status_connected("hyperv_drm")
+        modetest: Modetest = node.tools[Modetest]
+        is_status_connected = modetest.is_status_connected("hyperv_drm")
         assert_that(is_status_connected).described_as(
             "dri connector status should be 'connected'"
         ).is_true()

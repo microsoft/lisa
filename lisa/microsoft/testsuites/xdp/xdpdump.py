@@ -39,7 +39,7 @@ class XdpDump(Tool):
 
     @property
     def can_install(self) -> bool:
-        return can_install(self.node)
+        return bool(can_install(self.node))
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)

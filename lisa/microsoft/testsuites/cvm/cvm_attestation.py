@@ -74,13 +74,15 @@ class AzureCVMAttestationTestSuite(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         if isinstance(node.os, Ubuntu):
-            node.tools[AzureCVMAttestationTests].run_cvm_attestation(
+            cvm_tests: AzureCVMAttestationTests = node.tools[AzureCVMAttestationTests]
+            cvm_tests.run_cvm_attestation(
                 result,
                 environment,
                 log_path,
             )
         elif isinstance(node.os, CBLMariner):
-            node.tools[SnpGuest].run_cvm_attestation()
+            snp_guest: SnpGuest = node.tools[SnpGuest]
+            snp_guest.run_cvm_attestation()
 
 
 @TestSuiteMetadata(
@@ -132,7 +134,8 @@ class NestedCVMAttestationTestSuite(TestSuite):
         host_data = self._get_host_data(node_context)
         if not host_data:
             raise SkippedException("host_data is empty")
-        node.tools[NestedCVMAttestationTests].run_cvm_attestation(
+        nested_tests: NestedCVMAttestationTests = node.tools[NestedCVMAttestationTests]
+        nested_tests.run_cvm_attestation(
             result,
             environment,
             log_path,

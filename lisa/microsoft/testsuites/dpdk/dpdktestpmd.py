@@ -163,7 +163,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
 )
 
 
-class DpdkPackageManagerInstall(PackageManagerInstall):
+class DpdkPackageManagerInstall(PackageManagerInstall):  # type: ignore[misc]
     def _setup_node(self) -> None:
         if isinstance(self._os, Debian):
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
@@ -181,7 +181,10 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
             if parse_version(self._os.information.release) == "15.5.0"
             else "dpdk"
         )
-        return self._os.get_package_information(package_name, use_cached=False)
+        version: VersionInfo = self._os.get_package_information(
+            package_name, use_cached=False
+        )
+        return version
 
     def _check_if_installed(self) -> bool:
         package_name = (
@@ -189,11 +192,12 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
             if parse_version(self._os.information.release) == "15.5.0"
             else "dpdk"
         )
-        return self._os.package_exists(package_name)
+        exists = self._os.package_exists(package_name)
+        return bool(exists)
 
 
 # implement SourceInstall for DPDK
-class DpdkSourceInstall(Installer):
+class DpdkSourceInstall(Installer):  # type: ignore[misc]
     _sample_applications = [
         "l3fwd",
         "multi_process/client_server_mp/mp_server",
@@ -263,9 +267,10 @@ class DpdkSourceInstall(Installer):
         self._node.execute(f"rm -rf {str(self.dpdk_build_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
-        return self._node.tools[Pkgconfig].get_package_version(
+        version: VersionInfo = self._node.tools[Pkgconfig].get_package_version(
             "libdpdk", update_cached=True
         )
+        return version
 
     __devname_files = ["main.c", "Makefile", "meson.build"]
 
@@ -336,9 +341,11 @@ class DpdkSourceInstall(Installer):
         )
 
 
-class DpdkGitDownloader(GitDownloader):
+class DpdkGitDownloader(GitDownloader):  # type: ignore[misc]
     # DPDK git specific configuration setup
     # checkout latest tag if none was set
+    _git_ref: str
+
     def download(self) -> PurePath:
         super().download()
         if not self._git_ref:
@@ -347,7 +354,7 @@ class DpdkGitDownloader(GitDownloader):
                 self.asset_path, filter_=r"^v.*"  # starts w 'v'
             )
             git.checkout(self._git_ref, cwd=self.asset_path)
-        return self.asset_path
+        return PurePath(self.asset_path)
 
 
 class DpdkTestpmd(Tool):

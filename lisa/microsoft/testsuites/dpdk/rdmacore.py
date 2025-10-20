@@ -115,7 +115,7 @@ RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
 )
 
 
-class RdmaCorePackageManagerInstall(PackageManagerInstall):
+class RdmaCorePackageManagerInstall(PackageManagerInstall):  # type: ignore[misc]
     def _setup_node(self) -> None:
         if isinstance(self._os, Fedora):
             self._os.install_epel()
@@ -124,14 +124,18 @@ class RdmaCorePackageManagerInstall(PackageManagerInstall):
         super()._setup_node()
 
     def get_installed_version(self) -> VersionInfo:
-        return self._os.get_package_information("rdma-core", use_cached=False)
+        version: VersionInfo = self._os.get_package_information(
+            "rdma-core", use_cached=False
+        )
+        return version
 
     def _check_if_installed(self) -> bool:
-        return self._os.package_exists("rdma-core")
+        exists = self._os.package_exists("rdma-core")
+        return bool(exists)
 
 
 # implement SourceInstall for DPDK
-class RdmaCoreSourceInstaller(Installer):
+class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("rdma-core")
@@ -178,9 +182,10 @@ class RdmaCoreSourceInstaller(Installer):
         self._node.execute(f"rm -rf {str(self.asset_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
-        return self._node.tools[Pkgconfig].get_package_version(
+        version: VersionInfo = self._node.tools[Pkgconfig].get_package_version(
             "libibverbs", update_cached=True
         )
+        return version
 
     def _install(self) -> None:
         super()._install()

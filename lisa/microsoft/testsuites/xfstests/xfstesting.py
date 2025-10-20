@@ -717,7 +717,7 @@ class Xfstesting(TestSuite):
 
     def _install_xfstests(self, node: Node) -> Xfstests:
         try:
-            xfstests = node.tools[Xfstests]
+            xfstests: Xfstests = node.tools[Xfstests]
             return xfstests
         except UnsupportedDistroException as e:
             raise SkippedException(e)

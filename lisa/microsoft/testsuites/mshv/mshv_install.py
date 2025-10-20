@@ -80,7 +80,8 @@ class MshvHostInstallSuite(TestSuite):
         )
 
         node.tools[Reboot].reboot_and_check_panic(log_path)
-        node.tools[CloudHypervisor].save_dmesg_logs(node, log_path)
+        ch_tool: CloudHypervisor = node.tools[CloudHypervisor]
+        ch_tool.save_dmesg_logs(node, log_path)
 
         # 2. check that mshv comes up
         mshv = node.tools[Ls].path_exists("/dev/mshv", sudo=True)

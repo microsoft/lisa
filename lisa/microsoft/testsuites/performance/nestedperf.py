@@ -589,7 +589,7 @@ class KVMPerformance(TestSuite):  # noqa
         )
 
         # start nested vm
-        nested_vm = qemu_connect_nested_vm(
+        nested_vm: RemoteNode = qemu_connect_nested_vm(
             node,
             guest_username,
             guest_password,
@@ -863,7 +863,7 @@ class KVMPerformance(TestSuite):  # noqa
         guest_port: int,
         guest_image_url: str,
     ) -> RemoteNode:
-        nested_vm = hyperv_connect_nested_vm(
+        nested_vm: RemoteNode = hyperv_connect_nested_vm(
             node,
             guest_username,
             guest_password,

@@ -38,7 +38,7 @@ _nic_not_found = re.compile(r"Couldn't get device .* statistics", re.M)
 
 def get_xdpdump(node: Node) -> XdpDump:
     try:
-        xdpdump = node.tools[XdpDump]
+        xdpdump: XdpDump = node.tools[XdpDump]
     except UnsupportedDistroException as e:
         raise SkippedException(e)
 

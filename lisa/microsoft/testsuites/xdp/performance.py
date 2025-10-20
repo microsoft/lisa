@@ -349,9 +349,8 @@ class XdpPerformance(TestSuite):
 
             return float(
                 # The type is always TCP message, because the above line set udp
-                # to False. Ignore type error here, because UDP message has no
-                # latency metrics.
-                sum(x.latency_us for x in ntttcp_messages)  # type: ignore
+                # to False.
+                sum(x.latency_us for x in ntttcp_messages)
                 / len(ntttcp_messages)
             )
 
@@ -444,7 +443,7 @@ class XdpPerformance(TestSuite):
         )
         # install pktgen on sender
         try:
-            pktgen = sender.tools[Pktgen]
+            pktgen: Pktgen = sender.tools[Pktgen]
         except UnsupportedKernelException as e:
             raise SkippedException(e)
 

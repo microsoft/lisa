@@ -246,7 +246,7 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
         # checkout OpenVirtualSwitch
-        ovs = node.tools[DpdkOvs]
+        ovs: DpdkOvs = node.tools[DpdkOvs]
 
         # check for runbook variable to skip dpdk version check
         use_latest_ovs = variables.get("use_latest_ovs", False)
@@ -293,7 +293,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         try:
-            nff_go = node.tools[DpdkNffGo]
+            nff_go: DpdkNffGo = node.tools[DpdkNffGo]
         except (UnsupportedDistroException, UnsupportedCpuArchitectureException) as err:
             raise SkippedException(err)
 
@@ -545,7 +545,7 @@ class Dpdk(TestSuite):
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
-        vpp = node.tools[DpdkVpp]
+        vpp: DpdkVpp = node.tools[DpdkVpp]
         vpp.install()
 
         net = node.nics

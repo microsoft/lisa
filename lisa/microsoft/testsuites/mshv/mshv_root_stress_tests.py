@@ -121,7 +121,8 @@ class MshvHostStressTestSuite(TestSuite):
                     test_status=TestStatus.FAILED,
                     test_message=repr(e),
                 )
-        node.tools[CloudHypervisor].save_dmesg_logs(node, log_path)
+        ch_tool: CloudHypervisor = node.tools[CloudHypervisor]
+        ch_tool.save_dmesg_logs(node, log_path)
         assert_that(failures).is_equal_to(0)
         return
 
@@ -161,7 +162,8 @@ class MshvHostStressTestSuite(TestSuite):
                         timeout=1200,
                     )
                 log.info(f"Starting VM {i}")
-                p = node.tools[CloudHypervisor].start_vm_async(
+                ch_tool: CloudHypervisor = node.tools[CloudHypervisor]
+                p = ch_tool.start_vm_async(
                     kernel=hypervisor_fw_path,
                     cpus=cpus_per_vm,
                     memory_mb=mem_per_vm_mb,

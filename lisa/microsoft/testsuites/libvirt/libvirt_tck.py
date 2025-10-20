@@ -60,4 +60,5 @@ class LibvirtTckSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
-        node.tools[LibvirtTck].run_tests(result, log_path)
+        libvirt_tck: LibvirtTck = node.tools[LibvirtTck]
+        libvirt_tck.run_tests(result, log_path)

@@ -84,7 +84,8 @@ class CloudHypervisorTestSuite(TestSuite):
         include_list, exclude_list = get_test_list(
             variables, "ch_integration_tests_included", "ch_integration_tests_excluded"
         )
-        node.tools[CloudHypervisorTests].run_tests(
+        ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
+        ch_tests.run_tests(
             result,
             "integration",
             hypervisor,
@@ -122,7 +123,8 @@ class CloudHypervisorTestSuite(TestSuite):
             "ch_live_migration_tests_included",
             "ch_live_migration_tests_excluded",
         )
-        node.tools[CloudHypervisorTests].run_tests(
+        ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
+        ch_tests.run_tests(
             result,
             "integration-live-migration",
             hypervisor,
@@ -155,7 +157,8 @@ class CloudHypervisorTestSuite(TestSuite):
             "ch_perf_tests_excluded",
         )
         subtest_timeout = variables.get("ch_perf_subtest_timeout", None)
-        node.tools[CloudHypervisorTests].run_metrics_tests(
+        ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
+        ch_tests.run_metrics_tests(
             result,
             hypervisor,
             log_path,

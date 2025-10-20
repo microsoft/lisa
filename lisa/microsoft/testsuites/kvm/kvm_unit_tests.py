@@ -47,4 +47,5 @@ class KvmUnitTestSuite(TestSuite):
                 f"KVM unit tests are not implemented in LISA for {node.os.name}"
             )
 
-        node.tools[KvmUnitTests].run_tests(result, log_path)
+        kvm_tests: KvmUnitTests = node.tools[KvmUnitTests]
+        kvm_tests.run_tests(result, log_path)
