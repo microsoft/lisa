@@ -302,8 +302,16 @@ class ProvisionBootTimeMessage(MessageBase):
 
 
 @dataclass
-class UnifiedProvisionBootTimeMessage(ProvisionBootTimeMessage):
+class UnifiedProvisionBootTimeMessage(PerfMessage):
     type: str = "UnifiedProvisionBootTime"
+    # boot times collected from `last reboot` entries
+    boot_times: int = 0
+    provision_time: float = 0
+    kernel_boot_time: float = 0
+    initrd_boot_time: float = 0
+    userspace_boot_time: float = 0
+    firmware_boot_time: float = 0
+    loader_boot_time: float = 0
     metric_name: str = ""
     metric_value: float = 0.0
     metric_unit: str = ""
@@ -448,6 +456,8 @@ def send_unified_perf_message(
 
 def send_unified_provision_boot_time_message(
     node: "Node",
+    test_result: "TestResult",
+    test_case_name: str = "",
     metric_name: str = "",
     metric_value: float = 0.0,
     metric_unit: str = "",
@@ -460,9 +470,13 @@ def send_unified_provision_boot_time_message(
     userspace_boot_time: float = 0,
     firmware_boot_time: float = 0,
     loader_boot_time: float = 0,
-    information: Optional[Dict[str, str]] = None,
 ) -> UnifiedProvisionBootTimeMessage:
-    message = UnifiedProvisionBootTimeMessage()
+    message = create_perf_message(
+        message_type=UnifiedProvisionBootTimeMessage,
+        node=node,
+        test_result=test_result,
+        test_case_name=test_case_name,
+    )
 
     # Set boot time fields
     message.boot_times = boot_times
@@ -479,13 +493,6 @@ def send_unified_provision_boot_time_message(
     message.metric_unit = metric_unit
     message.metric_description = metric_description
     message.metric_relativity = metric_relativity
-
-    # Set information
-    if information:
-        message.information.update(information)
-
-    # Add node information
-    message.information.update(node.get_information())
 
     notifier.notify(message)
 
