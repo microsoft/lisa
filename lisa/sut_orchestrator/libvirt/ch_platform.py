@@ -226,34 +226,58 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context: NodeContext,
     ) -> None:
         assert node_context.domain
+        attach_path = node_context.console_log_file_path
         self._log.info(
-            f"[DEBUG] Creating domain and attaching console logger to: "
-            f"{node_context.console_log_file_path}"
+            f"[DEBUG ATTACH] VM: {node_context.vm_name}"
         )
+        self._log.info(
+            f"[DEBUG ATTACH] Console log path: {attach_path}"
+        )
+        self._log.info(
+            f"[DEBUG ATTACH] Resolved path: {Path(attach_path).resolve()}"
+        )
+        
         node_context.domain.createWithFlags(0)
 
         node_context.console_logger = QemuConsoleLogger()
         try:
             node_context.console_logger.attach(
-                node_context.domain, node_context.console_log_file_path
+                node_context.domain, attach_path
             )
             self._log.info(
-                f"[DEBUG] Console logger attached successfully to: "
-                f"{node_context.console_log_file_path}"
+                f"[DEBUG ATTACH] Console logger attached successfully"
             )
-            # Verify file was created and check initial size
-            log_path = Path(node_context.console_log_file_path)
+            
+            # IMMEDIATE size check - baseline should be 0
+            log_path = Path(attach_path)
             if log_path.exists():
+                size = log_path.stat().st_size
                 self._log.info(
-                    f"[DEBUG] Console log file exists, size: {log_path.stat().st_size} bytes"
+                    f"[DEBUG ATTACH] File exists immediately after attach, size: {size} bytes (baseline)"
                 )
             else:
                 self._log.warning(
-                    f"[DEBUG] Console log file not found after attachment: {log_path}"
+                    f"[DEBUG ATTACH] File NOT FOUND after attachment: {log_path}"
                 )
+            
+            # Wait a moment for initial boot messages, then check again
+            import time
+            time.sleep(2)
+            if log_path.exists():
+                size_after = log_path.stat().st_size
+                logger_stats = node_context.console_logger.get_stats()
+                self._log.info(
+                    f"[DEBUG ATTACH] Size after 2s: {size_after} bytes, "
+                    f"logger reports {logger_stats['bytes_written']} bytes written"
+                )
+                if size_after == 0:
+                    self._log.warning(
+                        f"[DEBUG ATTACH] Still 0 bytes after 2s - VM may not be outputting to serial console"
+                    )
+            
         except Exception as e:
             self._log.error(
-                f"[DEBUG] Failed to attach console logger: {e}", exc_info=True
+                f"[DEBUG ATTACH] Failed to attach console logger: {e}", exc_info=True
             )
 
         if len(node_context.passthrough_devices) > 0:
@@ -276,30 +300,68 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             try:
                 src = Path(node_context.console_log_file_path)
                 log.info(
-                    f"[DEBUG] Preserving console log from: {src} "
-                    f"(exists: {src.exists()})"
+                    f"[DEBUG DELETE] VM: {node_context.vm_name}"
                 )
+                log.info(
+                    f"[DEBUG DELETE] Console log path from context: {node_context.console_log_file_path}"
+                )
+                log.info(
+                    f"[DEBUG DELETE] Resolved path: {src.resolve()}"
+                )
+                
+                # Get logger stats before closing
+                if node_context.console_logger:
+                    logger_stats = node_context.console_logger.get_stats()
+                    log.info(
+                        f"[DEBUG DELETE] Logger stats: "
+                        f"path={logger_stats['log_file_path']}, "
+                        f"bytes_written={logger_stats['bytes_written']}, "
+                        f"completed={logger_stats['stream_completed']}"
+                    )
+                    
+                    # Check if paths match
+                    if logger_stats['log_file_path'] != str(src):
+                        log.error(
+                            f"[DEBUG DELETE] PATH MISMATCH! "
+                            f"Logger wrote to: {logger_stats['log_file_path']}, "
+                            f"But we're trying to copy from: {src}"
+                        )
+                
+                log.info(
+                    f"[DEBUG DELETE] File exists: {src.exists()}"
+                )
+                
                 if src.exists():
                     src_size = src.stat().st_size
-                    log.info(f"[DEBUG] Source console log size: {src_size} bytes")
+                    log.info(f"[DEBUG DELETE] Source console log size: {src_size} bytes")
+                    
+                    # Also check if there's a file at the actual location
+                    parent_dir = src.parent
+                    log.info(f"[DEBUG DELETE] Parent directory: {parent_dir}")
+                    if parent_dir.exists():
+                        all_logs = list(parent_dir.glob("*console*.log"))
+                        log.info(f"[DEBUG DELETE] All console logs in directory:")
+                        for f in all_logs:
+                            log.info(f"[DEBUG DELETE]   - {f.name}: {f.stat().st_size} bytes")
                     
                     dst = node.local_log_path / "ch-console.log"
+                    log.info(f"[DEBUG DELETE] Destination path: {dst}")
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(src, dst)
                     dst_size = dst.stat().st_size
                     log.info(
-                        f"[DEBUG] Copied console log from {src} to {dst} "
-                        f"(src: {src_size} bytes, dst: {dst_size} bytes)"
+                        f"[DEBUG DELETE] Copied console log (src: {src_size} bytes, dst: {dst_size} bytes)"
                     )
                     
                     if src_size == 0:
                         log.warning(
-                            f"[DEBUG] Console log file is EMPTY (0 bytes). "
-                            f"This suggests the console logger didn't receive any data."
+                            f"[DEBUG DELETE] Console log file is EMPTY (0 bytes). "
+                            f"Logger reports {logger_stats['bytes_written'] if node_context.console_logger else 'N/A'} bytes written. "
+                            f"This suggests either: 1) VM not outputting to serial, or 2) logger stream not receiving data."
                         )
                 else:
                     log.warning(
-                        f"[DEBUG] Console log file does not exist: {src}"
+                        f"[DEBUG DELETE] Console log file does not exist: {src}"
                     )
             except Exception as e:
                 log.warning(f"Failed to preserve console log for {node.name}: {e}", exc_info=True)

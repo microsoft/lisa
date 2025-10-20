@@ -17,6 +17,8 @@ class QemuConsoleLogger:
         self._console_stream_callback_started = False
         self._console_stream_callback_added = False
         self._log_file: Optional[IO[Any]] = None
+        self._log_file_path: Optional[str] = None  # Track path for debugging
+        self._bytes_written: int = 0  # Track total bytes written
 
     # Attach logger to a libvirt VM.
     def attach(
@@ -24,8 +26,12 @@ class QemuConsoleLogger:
         domain: libvirt.virDomain,
         log_file_path: str,
     ) -> None:
-        # Open the log file.
-        self._log_file = open(log_file_path, "ab")
+        # Store path for debugging
+        self._log_file_path = log_file_path
+        
+        # Open the log file in unbuffered binary mode for immediate writes
+        # buffering=0 ensures data hits disk immediately
+        self._log_file = open(log_file_path, "ab", buffering=0)
 
         # Open the libvirt console stream.
         console_stream = domain.connect().newStream(libvirt.VIR_STREAM_NONBLOCK)
@@ -63,6 +69,16 @@ class QemuConsoleLogger:
         if self._console_stream_callback_started:
             self._stream_completed.wait()
 
+    # Get logger stats for debugging
+    def get_stats(self) -> dict:
+        """Return statistics about this console logger."""
+        return {
+            "log_file_path": self._log_file_path,
+            "bytes_written": self._bytes_written,
+            "stream_completed": self._stream_completed.is_set(),
+            "callback_started": self._console_stream_callback_started,
+        }
+
     # Register the console stream events.
     # Threading: Must only be called on libvirt events thread.
     def _register_console_callbacks(self) -> None:
@@ -95,7 +111,7 @@ class QemuConsoleLogger:
                 if data == -2:
                     # No more data available at the moment.
                     assert self._log_file
-                    self._log_file.flush()
+                    # No need to flush - unbuffered mode writes immediately
                     break
 
                 if len(data) == 0:
@@ -105,6 +121,7 @@ class QemuConsoleLogger:
 
                 assert self._log_file
                 self._log_file.write(data)
+                self._bytes_written += len(data)
 
         if (
             events & libvirt.VIR_STREAM_EVENT_ERROR
