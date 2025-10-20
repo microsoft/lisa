@@ -271,6 +271,15 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:
+        # Skip test if any node has PCI-only NICs (AN without synthetic pairing)
+        for node in environment.nodes.list():
+            for nic in node.nics.nics.values():
+                if nic.is_pci_only_nic:
+                    raise SkippedException(
+                        f"SRIOV disable/enable test not applicable for PCI-only NIC {nic.name} "
+                        f"on node {node.name}."
+                    )
+
         sriov_disable_enable(environment)
 
     @TestCaseMetadata(
@@ -290,6 +299,15 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable_pci(self, environment: Environment) -> None:
+        # Skip test if any node has PCI-only NICs (AN without synthetic pairing)
+        for node in environment.nodes.list():
+            for nic in node.nics.nics.values():
+                if nic.is_pci_only_nic:
+                    raise SkippedException(
+                        f"SRIOV disable/enable PCI test not applicable for PCI-only NIC {nic.name} "
+                        f"on node {node.name}."
+                    )
+
         disable_enable_devices(environment)
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
@@ -314,6 +332,15 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable_on_guest(self, environment: Environment) -> None:
+        # Skip test if any node has PCI-only NICs (AN without synthetic pairing)
+        for node in environment.nodes.list():
+            for nic in node.nics.nics.values():
+                if nic.is_pci_only_nic:
+                    raise SkippedException(
+                        f"SRIOV disable/enable on guest test not applicable for PCI-only NIC {nic.name} "
+                        f"on node {node.name}."
+                    )
+
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics, turn_off_lower=True)
