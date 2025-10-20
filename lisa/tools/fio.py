@@ -231,6 +231,66 @@ class Fio(Tool):
 
         return fio_result
 
+    def send_disk_performance_unified_perf_messages(
+        self,
+        result: Dict[str, Any],
+        test_name: str,
+        test_result: "TestResult",
+        other_fields: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Send unified performance messages for disk performance metrics."""
+        tool = constants.DISK_PERFORMANCE_TOOL_FIO
+
+        # Build metric prefix with qdepth, iodepth, numjob, and other fields
+        metric_prefix = f"qdepth_{result['qdepth']}"
+
+        if "iodepth" in result:
+            metric_prefix += f"_iodepth_{result['iodepth']}"
+        if "numjob" in result:
+            metric_prefix += f"_numjob_{result['numjob']}"
+        if other_fields:
+            if "disk_setup_type" in other_fields:
+                metric_prefix += f"_setup_{other_fields['disk_setup_type'].name}"
+            if "block_size" in other_fields:
+                metric_prefix += f"_bs_{other_fields['block_size']}k"
+            if "core_count" in other_fields:
+                metric_prefix += f"_cores_{other_fields['core_count']}"
+            if "disk_count" in other_fields:
+                metric_prefix += f"_disks_{other_fields['disk_count']}"
+
+        # Send IOPS and latency metrics for each mode found in this qdepth group
+        for mode in ["read", "randread", "write", "randwrite"]:
+            iops_key = f"{mode}_iops"
+            latency_key = f"{mode}_lat_usec"
+
+            if iops_key in result:
+                send_unified_perf_message(
+                    node=self.node,
+                    test_result=test_result,
+                    test_case_name=test_name,
+                    tool=tool,
+                    metric_name=f"{metric_prefix}_{mode}_iops",
+                    metric_value=float(result[iops_key]),
+                    metric_unit="IOPS",
+                    metric_description=f"FIO {mode} IOPS at queue depth "
+                    f"{result['qdepth']}",
+                    metric_relativity=MetricRelativity.HigherIsBetter,
+                )
+
+            if latency_key in result:
+                send_unified_perf_message(
+                    node=self.node,
+                    test_result=test_result,
+                    test_case_name=test_name,
+                    tool=tool,
+                    metric_name=f"{metric_prefix}_{mode}_latency",
+                    metric_value=float(result[latency_key]),
+                    metric_unit="microseconds",
+                    metric_description=f"FIO {mode} latency at queue depth "
+                    f"{result['qdepth']}",
+                    metric_relativity=MetricRelativity.LowerIsBetter,
+                )
+
     def create_performance_messages(
         self,
         fio_results_list: List[FIOResult],
@@ -262,58 +322,10 @@ class Fio(Tool):
             )
             fio_message.append(fio_result_message)
 
-            # Send unified performance messages for this qdepth group
-            metric_prefix = f"qdepth_{result['qdepth']}"
-
-            # Add iodepth and numjob to metric prefix
-            if "iodepth" in result:
-                metric_prefix += f"_iodepth_{result['iodepth']}"
-            if "numjob" in result:
-                metric_prefix += f"_numjob_{result['numjob']}"
-            if other_fields:
-                if "disk_setup_type" in other_fields:
-                    metric_prefix += f"_setup_{other_fields['disk_setup_type'].name}"
-                if "block_size" in other_fields:
-                    metric_prefix += f"_bs_{other_fields['block_size']}k"
-                if "core_count" in other_fields:
-                    metric_prefix += f"_cores_{other_fields['core_count']}"
-                if "disk_count" in other_fields:
-                    metric_prefix += f"_disks_{other_fields['disk_count']}"
-
-            # Send IOPS and latency metrics for each mode found in this qdepth group
-            for mode in ["read", "randread", "write", "randwrite"]:
-                iops_key = f"{mode}_iops"
-                latency_key = f"{mode}_lat_usec"
-
-                if iops_key in result:
-                    # Send IOPS metric
-                    send_unified_perf_message(
-                        node=self.node,
-                        test_result=test_result,
-                        test_case_name=test_name,
-                        tool=tool,
-                        metric_name=f"{metric_prefix}_{mode}_iops",
-                        metric_value=float(result[iops_key]),
-                        metric_unit="IOPS",
-                        metric_description=f"FIO {mode} IOPS at queue depth "
-                        f"{result['qdepth']}",
-                        metric_relativity=MetricRelativity.HigherIsBetter,
-                    )
-
-                if latency_key in result:
-                    # Send latency metric
-                    send_unified_perf_message(
-                        node=self.node,
-                        test_result=test_result,
-                        test_case_name=test_name,
-                        tool=tool,
-                        metric_name=f"{metric_prefix}_{mode}_latency",
-                        metric_value=float(result[latency_key]),
-                        metric_unit="microseconds",
-                        metric_description=f"FIO {mode} latency at queue depth "
-                        f"{result['qdepth']}",
-                        metric_relativity=MetricRelativity.LowerIsBetter,
-                    )
+            # Send unified performance messages
+            self.send_disk_performance_unified_perf_messages(
+                result, test_name, test_result, other_fields
+            )
 
         return fio_message
 
