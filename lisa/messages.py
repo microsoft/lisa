@@ -311,6 +311,23 @@ class KernelBuildMessage(MessageBase):
 
 
 @dataclass
+class UnifiedKernelBuildMessage(KernelBuildMessage):
+    type: str = "UnifiedKernelBuild"
+    test_case_name: str = ""
+    platform: str = ""
+    location: str = ""
+    host_version: str = ""
+    guest_os_type: str = "Linux"
+    distro_version: str = ""
+    vmsize: str = ""
+    kernel_version: str = ""
+    lis_version: str = ""
+    data_path: str = ""
+    test_date: datetime = datetime.now(timezone.utc)
+    test_result_id: str = ""
+
+
+@dataclass
 class VCMetricsMessage(PerfMessage):
     experiment_id: str = ""
     client_id: str = ""
@@ -430,6 +447,39 @@ def send_unified_perf_message(
     message.metric_relativity = metric_relativity
 
     message.tool = tool
+
+    notifier.notify(message)
+
+    return message
+
+
+def send_unified_kernel_build_message(
+    node: "Node",
+    test_result: "TestResult",
+    test_case_name: str = "",
+    old_kernel_version: str = "",
+    new_kernel_version: str = "",
+    is_success: bool = False,
+    error_message: str = "",
+) -> UnifiedKernelBuildMessage:
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+
+    data_path: str = ""
+    if node.capability.network_interface and isinstance(
+        node.capability.network_interface.data_path, NetworkDataPath
+    ):
+        data_path = node.capability.network_interface.data_path.value
+
+    message = UnifiedKernelBuildMessage()
+    dict_to_fields(environment.get_information(force_run=False), message)
+    message.test_case_name = test_case_name
+    message.data_path = data_path
+    message.test_result_id = test_result.id_
+    message.old_kernel_version = old_kernel_version
+    message.new_kernel_version = new_kernel_version
+    message.is_success = is_success
+    message.error_message = error_message
 
     notifier.notify(message)
 
