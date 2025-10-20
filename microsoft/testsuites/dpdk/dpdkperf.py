@@ -14,9 +14,11 @@ from lisa import (
 )
 from lisa.features import Gpu, Infiniband, Sriov
 from lisa.messages import (
+    MetricRelativity,
     NetworkPPSPerformanceMessage,
     TransportProtocol,
     create_perf_message,
+    send_unified_perf_message,
 )
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
@@ -87,6 +89,12 @@ class DpdkPerformance(TestSuite):
             test_case_name,
             sender_fields,
         )
+
+        # Send unified performance messages
+        self._send_pps_unified_perf_messages(
+            sender_fields, node, test_case_name, result
+        )
+
         notifier.notify(send_results)
 
     @TestCaseMetadata(
@@ -133,6 +141,12 @@ class DpdkPerformance(TestSuite):
             test_case_name,
             sender_fields,
         )
+
+        # Send unified performance messages
+        self._send_pps_unified_perf_messages(
+            sender_fields, node, test_case_name, result
+        )
+
         notifier.notify(send_results)
 
     @TestCaseMetadata(
@@ -354,7 +368,148 @@ class DpdkPerformance(TestSuite):
             receiver_fields,
         )
 
+        # Send unified performance messages
+        self._send_pps_unified_perf_messages(
+            sender_fields, send_kit.node, test_case_name, test_result
+        )
+        self._send_pps_unified_perf_messages(
+            receiver_fields, receive_kit.node, test_case_name, test_result
+        )
+
         return send_results, receive_results
+
+    def _send_pps_unified_perf_messages(
+        self,
+        result_fields: Dict[str, Any],
+        node: Node,
+        test_case_name: str,
+        test_result: TestResult,
+    ) -> None:
+        """Send unified performance messages for PPS metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
+        test_type = result_fields.get("test_type", "")
+        role = result_fields.get("role", "")
+
+        # Include test_type and role in metric names to distinguish results
+        suffix = f"_{test_type}_{role}" if test_type and role else ""
+
+        metrics = []
+
+        # Add rx metrics if they exist
+        if "rx_pps_maximum" in result_fields:
+            metrics.extend(
+                [
+                    {
+                        "name": f"rx_pps_maximum{suffix}",
+                        "value": float(result_fields["rx_pps_maximum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"rx_pps_average{suffix}",
+                        "value": float(result_fields["rx_pps_average"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"rx_pps_minimum{suffix}",
+                        "value": float(result_fields["rx_pps_minimum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                ]
+            )
+
+        # Add tx metrics if they exist
+        if "tx_pps_maximum" in result_fields:
+            metrics.extend(
+                [
+                    {
+                        "name": f"tx_pps_maximum{suffix}",
+                        "value": float(result_fields["tx_pps_maximum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"tx_pps_average{suffix}",
+                        "value": float(result_fields["tx_pps_average"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"tx_pps_minimum{suffix}",
+                        "value": float(result_fields["tx_pps_minimum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                ]
+            )
+
+        # Add rx_tx metrics if they exist
+        if "rx_tx_pps_maximum" in result_fields:
+            metrics.extend(
+                [
+                    {
+                        "name": f"rx_tx_pps_maximum{suffix}",
+                        "value": float(result_fields["rx_tx_pps_maximum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"rx_tx_pps_average{suffix}",
+                        "value": float(result_fields["rx_tx_pps_average"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"rx_tx_pps_minimum{suffix}",
+                        "value": float(result_fields["rx_tx_pps_minimum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                ]
+            )
+
+        # Add fwd metrics if they exist
+        if "fwd_pps_maximum" in result_fields:
+            metrics.extend(
+                [
+                    {
+                        "name": f"fwd_pps_maximum{suffix}",
+                        "value": float(result_fields["fwd_pps_maximum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"fwd_pps_average{suffix}",
+                        "value": float(result_fields["fwd_pps_average"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": f"fwd_pps_minimum{suffix}",
+                        "value": float(result_fields["fwd_pps_minimum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                ]
+            )
+
+        # Get protocol_type from result_fields if it exists
+        protocol_type = result_fields.get("protocol_type")
+
+        for metric in metrics:
+            send_unified_perf_message(
+                node=node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric["name"],
+                metric_value=metric["value"],
+                metric_unit=metric["unit"],
+                metric_relativity=metric["relativity"],
+                protocol_type=protocol_type,
+            )
 
     def _validate_core_counts_are_equal(self, test_result: TestResult) -> None:
         environment = test_result.environment
