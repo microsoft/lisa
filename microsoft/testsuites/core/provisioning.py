@@ -34,7 +34,7 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.features.security_profile import CvmDisabled
-from lisa.tools import Lspci
+from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -289,6 +289,60 @@ class Provisioning(TestSuite):
             log.info(f"Max reboot time: {max(times):.2f}s")
             log.info(f"Average reboot time: {mean(times):.2f}s")
             log.info(f"Median reboot time: {median(times):.2f}s")
+
+    @TestCaseMetadata(
+        description="""
+        This test case verifies that the system can boot and provision successfully
+        with the swiotlb=force kernel parameter enabled. This kernel parameter
+        forces the use of software I/O TLB for all DMA operations.
+
+        This is particularly relevant in Confidential Computing VMs,
+        where memory is encrypted and direct DMA access isn't possible.
+        In such cases, bounce buffering becomes mandatory.
+
+        Steps:
+        1. Set the swiotlb=force kernel parameter in grub configuration
+        2. Reboot the system to apply the kernel parameter
+        3. Run smoke test to verify system functionality
+        4. Verify the system is responsive after reboot
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+        ),
+    )
+    def verify_deployment_provision_swiotlb_force(
+        self, log: Logger, node: RemoteNode, log_path: Path
+    ) -> None:
+        # Check if CONFIG_SWIOTLB is available in kernel configuration
+        kernel_config = node.tools[KernelConfig]
+        if not kernel_config.is_enabled("CONFIG_SWIOTLB"):
+            raise SkippedException("CONFIG_SWIOTLB is not enabled in kernel")
+
+        try:
+            cat = node.tools[Cat]
+            grub_config = node.tools[GrubConfig]
+
+            grub_config.set_kernel_cmdline_arg("swiotlb", "force")
+            node.reboot()
+            cmdline_result = cat.read("/proc/cmdline", sudo=True, force_run=True)
+            assert_that(cmdline_result).described_as(
+                "swiotlb=force kernel parameter should be present in: "
+                f"{cmdline_result}"
+            ).contains("swiotlb=force")
+
+            self._smoke_test(
+                log=log,
+                node=node,
+                log_path=log_path,
+                case_name="verify_deployment_provision_swiotlb_force",
+                wait=True,
+                is_restart=True,
+            )
+        finally:
+            # Mark node as dirty since we modified kernel parameters
+            # This ensures the node won't be reused regardless of test outcome
+            node.mark_dirty()
 
     def _smoke_test(
         self,
