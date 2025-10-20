@@ -81,6 +81,13 @@ class NicInfo:
         return len(self.pci_slot) > 0
 
     @property
+    def is_pci_only_nic(self) -> bool:
+        """
+        Check if this is an Accelerated Networking (AN) NIC without synthetic NIC pairing.
+        """
+        return not self.lower and self.is_pci_device and self.module_name != "hv_netvsc"
+
+    @property
     def pci_device_name(self) -> str:
         if self.is_pci_device:
             return self.lower if self.lower else self.name

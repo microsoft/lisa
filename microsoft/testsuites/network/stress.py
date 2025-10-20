@@ -8,6 +8,7 @@ from lisa import (
     Environment,
     Logger,
     RemoteNode,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -133,6 +134,15 @@ class Stress(TestSuite):
         ),
     )
     def stress_sriov_disable_enable(self, environment: Environment) -> None:
+        # Skip test if any node has PCI-only NICs (AN without synthetic pairing)
+        for node in environment.nodes.list():
+            for nic in node.nics.nics.values():
+                if nic.is_pci_only_nic:
+                    raise SkippedException(
+                        f"SRIOV stress disable/enable test not applicable for PCI-only NIC {nic.name} "
+                        f"on node {node.name}."
+                    )
+
         sriov_disable_enable(environment, times=50)
 
     @TestCaseMetadata(
