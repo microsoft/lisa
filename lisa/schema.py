@@ -1656,8 +1656,6 @@ class Runbook:
     environment: Optional[EnvironmentRoot] = field(default=None)
     notifier: Optional[List[Notifier]] = field(default=None)
     platform: List[Platform] = field(default_factory=list)
-    # if it's true, import built-in test cases: lisa/microsoft
-    import_builtin_tests: bool = False
     #  will be parsed in runner.
     testcase_raw: List[Any] = field(
         default_factory=list, metadata=field_metadata(data_key=constants.TESTCASE)
