@@ -311,23 +311,6 @@ class KernelBuildMessage(MessageBase):
 
 
 @dataclass
-class UnifiedKernelBuildMessage(KernelBuildMessage):
-    type: str = "UnifiedKernelBuild"
-    test_case_name: str = ""
-    platform: str = ""
-    location: str = ""
-    host_version: str = ""
-    guest_os_type: str = "Linux"
-    distro_version: str = ""
-    vmsize: str = ""
-    kernel_version: str = ""
-    lis_version: str = ""
-    data_path: str = ""
-    test_date: datetime = datetime.now(timezone.utc)
-    test_result_id: str = ""
-
-
-@dataclass
 class VCMetricsMessage(PerfMessage):
     experiment_id: str = ""
     client_id: str = ""
@@ -453,7 +436,7 @@ def send_unified_perf_message(
     return message
 
 
-def send_unified_kernel_build_message(
+def send_kernel_build_message(
     node: "Node",
     test_result: "TestResult",
     test_case_name: str = "",
@@ -461,26 +444,37 @@ def send_unified_kernel_build_message(
     new_kernel_version: str = "",
     is_success: bool = False,
     error_message: str = "",
-) -> UnifiedKernelBuildMessage:
-    environment = test_result.environment
-    assert environment, "fail to get environment from testresult"
+) -> None:
+    """
+    Send kernel build information as UnifiedPerfMessage metrics.
 
-    data_path: str = ""
-    if node.capability.network_interface and isinstance(
-        node.capability.network_interface.data_path, NetworkDataPath
-    ):
-        data_path = node.capability.network_interface.data_path.value
+    This helper sends kernel build/upgrade information using the standard
+    UnifiedPerfMessage format, which provides environment context.
+    """
+    # Send success metric
+    send_unified_perf_message(
+        node=node,
+        test_result=test_result,
+        test_case_name=test_case_name,
+        metric_name="kernel_build_success",
+        metric_value=1.0 if is_success else 0.0,
+        metric_unit="boolean",
+        metric_description=f"Kernel build/upgrade from {old_kernel_version} to "
+        f"{new_kernel_version}: {'success' if is_success else 'failed'}",
+        metric_relativity=MetricRelativity.HigherIsBetter,
+        tool="kernel_installer",
+    )
 
-    message = UnifiedKernelBuildMessage()
-    dict_to_fields(environment.get_information(force_run=False), message)
-    message.test_case_name = test_case_name
-    message.data_path = data_path
-    message.test_result_id = test_result.id_
-    message.old_kernel_version = old_kernel_version
-    message.new_kernel_version = new_kernel_version
-    message.is_success = is_success
-    message.error_message = error_message
-
-    notifier.notify(message)
-
-    return message
+    # If there was an error, include it in the description of a separate metric
+    if error_message:
+        send_unified_perf_message(
+            node=node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            metric_name="kernel_build_error",
+            metric_value=1.0,
+            metric_unit="count",
+            metric_description=f"Kernel build error: {error_message}",
+            metric_relativity=MetricRelativity.LowerIsBetter,
+            tool="kernel_installer",
+        )
