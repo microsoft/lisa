@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union, cast
 
 from assertpy.assertpy import assert_that
 
@@ -235,12 +235,6 @@ class Sar(Tool):
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
-            {
-                "name": "test_type",
-                "value": test_type,
-                "relativity": MetricRelativity.Parameter,
-                "unit": "",
-            },
         ]
 
         for metric in metrics:
@@ -249,10 +243,10 @@ class Sar(Tool):
                 test_result=test_result,
                 test_case_name=test_case_name,
                 tool=tool,
-                metric_name=metric["name"],
-                metric_value=metric["value"],
-                metric_unit=metric["unit"],
-                metric_relativity=metric["relativity"],
+                metric_name=cast(str, metric["name"]),
+                metric_value=cast(float, metric["value"]),
+                metric_unit=cast(str, metric["unit"]),
+                metric_relativity=cast(MetricRelativity, metric["relativity"]),
             )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:

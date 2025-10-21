@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Union, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.dpdk.common import force_dpdk_default_source
@@ -387,8 +387,6 @@ class DpdkPerformance(TestSuite):
     ) -> None:
         """Send unified performance messages for PPS metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
-        test_type = result_fields.get("test_type", "")
-        role = result_fields.get("role", "")
 
         metrics = []
 
@@ -442,27 +440,6 @@ class DpdkPerformance(TestSuite):
                 ]
             )
 
-        # Add parameter metrics
-        if test_type:
-            metrics.append(
-                {
-                    "name": "test_type",
-                    "value": test_type,
-                    "relativity": MetricRelativity.Parameter,
-                    "unit": "",
-                }
-            )
-
-        if role:
-            metrics.append(
-                {
-                    "name": "role",
-                    "value": role,
-                    "relativity": MetricRelativity.Parameter,
-                    "unit": "",
-                }
-            )
-
         # Get protocol_type from result_fields if it exists
         protocol_type = result_fields.get("protocol_type")
 
@@ -472,10 +449,10 @@ class DpdkPerformance(TestSuite):
                 test_result=test_result,
                 test_case_name=test_case_name,
                 tool=tool,
-                metric_name=metric["name"],
-                metric_value=metric["value"],
-                metric_unit=metric["unit"],
-                metric_relativity=metric["relativity"],
+                metric_name=cast(str, metric["name"]),
+                metric_value=cast(float, metric["value"]),
+                metric_unit=cast(str, metric["unit"]),
+                metric_relativity=cast(MetricRelativity, metric["relativity"]),
                 protocol_type=protocol_type,
             )
 
