@@ -350,9 +350,7 @@ class Iperf3(Tool):
 
         # Send unified performance messages
         self.send_iperf3_tcp_unified_perf_messages(
-            server_json,
-            client_json,
-            buffer_length,
+            other_fields,
             connections_num,
             test_case_name,
             test_result,
@@ -444,9 +442,7 @@ class Iperf3(Tool):
 
         # Send unified performance messages
         self.send_iperf3_udp_unified_perf_messages(
-            server_result_list,
-            client_result_list,
-            buffer_length,
+            other_fields,
             connections_num,
             test_case_name,
             test_result,
@@ -466,6 +462,7 @@ class Iperf3(Tool):
         test_case_name: str,
         test_result: "TestResult",
         protocol_type: str,
+        connections_num: int,
     ) -> None:
         """Helper method to send unified performance metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_IPERF
@@ -479,182 +476,93 @@ class Iperf3(Tool):
                 metric_name=metric["name"],
                 metric_value=metric["value"],
                 metric_unit=metric.get("unit", ""),
+                metric_description=f"{metric['name']} with {connections_num} connections",
                 metric_relativity=metric["relativity"],
                 protocol_type=protocol_type,
             )
 
     def send_iperf3_tcp_unified_perf_messages(
         self,
-        server_json: Dict[str, Any],
-        client_json: Dict[str, Any],
-        buffer_length: int,
+        other_fields: Dict[str, Any],
         connections_num: int,
         test_case_name: str,
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for TCP iperf3 metrics."""
-        # Include connections_num in metric names to distinguish results
-        conn_suffix = f"_conn_{connections_num}"
-
-        # Calculate congestion window size average
-        congestion_windowsize_kb_total: Decimal = Decimal(0)
-        for client_interval in client_json["intervals"]:
-            streams = client_interval["streams"]
-            congestion_windowsize_kb_total += streams[0]["snd_cwnd"]
-        congestion_windowsize_kb = (
-            congestion_windowsize_kb_total / len(client_json["intervals"]) / 1024
-        )
-
-        # Extract retransmitted segments
-        retransmitted_segments = 0
-        for client_stream in client_json["end"]["streams"]:
-            retransmitted_segments = client_stream["sender"]["retransmits"]
-
         metrics = [
             {
-                "name": f"rx_throughput_in_gbps{conn_suffix}",
-                "value": float(
-                    server_json["end"]["sum_received"]["bits_per_second"] / 1000000000
-                ),
+                "name": "rx_throughput_in_gbps",
+                "value": float(other_fields["rx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"tx_throughput_in_gbps{conn_suffix}",
-                "value": float(
-                    client_json["end"]["sum_received"]["bits_per_second"] / 1000000000
-                ),
+                "name": "tx_throughput_in_gbps",
+                "value": float(other_fields["tx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"buffer_size_bytes{conn_suffix}",
-                "value": float(buffer_length),
+                "name": "buffer_size_bytes",
+                "value": float(other_fields["buffer_size_bytes"]),
                 "relativity": MetricRelativity.NA,
                 "unit": "bytes",
             },
             {
-                "name": f"congestion_windowsize_kb{conn_suffix}",
-                "value": float(congestion_windowsize_kb),
+                "name": "congestion_windowsize_kb",
+                "value": float(other_fields["congestion_windowsize_kb"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "KB",
             },
             {
-                "name": f"retransmitted_segments{conn_suffix}",
-                "value": float(retransmitted_segments),
+                "name": "retransmitted_segments",
+                "value": float(other_fields["retransmitted_segments"]),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "",
             },
         ]
 
         self._send_unified_perf_metrics(
-            metrics, test_case_name, test_result, TransportProtocol.Tcp
+            metrics, test_case_name, test_result, TransportProtocol.Tcp, connections_num
         )
 
     def send_iperf3_udp_unified_perf_messages(
         self,
-        server_result_list: List[ExecutableResult],
-        client_result_list: List[ExecutableResult],
-        buffer_length: int,
+        other_fields: Dict[str, Any],
         connections_num: int,
         test_case_name: str,
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for UDP iperf3 metrics."""
-        # Include connections_num in metric names to distinguish results
-        conn_suffix = f"_conn_{connections_num}"
-
-        # Calculate client metrics
-        client_udp_lost_list: List[Decimal] = []
-        client_intervals_throughput_list: List[Decimal] = []
-        client_throughput_list: List[Decimal] = []
-        for client_result_raw in client_result_list:
-            client_result = json.loads(self._pre_handle(client_result_raw.stdout))
-            if (
-                "sum" in client_result["end"].keys()
-                and "lost_percent" in client_result["end"]["sum"].keys()
-            ):
-                client_udp_lost_list.append(
-                    Decimal(client_result["end"]["sum"]["lost_percent"])
-                )
-                for client_interval in client_result["intervals"]:
-                    client_intervals_throughput_list.append(
-                        client_interval["sum"]["bits_per_second"]
-                    )
-                client_throughput_list.append(
-                    (
-                        Decimal(
-                            sum(client_intervals_throughput_list)
-                            / len(client_intervals_throughput_list)
-                        )
-                        / 1000000000
-                    )
-                )
-
-        # Calculate server metrics
-        server_udp_lost_list: List[Decimal] = []
-        server_intervals_throughput_list: List[Decimal] = []
-        server_throughput_list: List[Decimal] = []
-        for server_result_raw in server_result_list:
-            server_result = json.loads(self._pre_handle(server_result_raw.stdout))
-            if (
-                "sum" in server_result["end"].keys()
-                and "lost_percent" in server_result["end"]["sum"].keys()
-            ):
-                server_udp_lost_list.append(
-                    Decimal(server_result["end"]["sum"]["lost_percent"])
-                )
-                for server_interval in server_result["intervals"]:
-                    server_intervals_throughput_list.append(
-                        server_interval["sum"]["bits_per_second"]
-                    )
-                server_throughput_list.append(
-                    (
-                        Decimal(
-                            sum(server_intervals_throughput_list)
-                            / len(server_intervals_throughput_list)
-                        )
-                        / 1000000000
-                    )
-                )
-
-        tx_throughput = Decimal(
-            sum(client_throughput_list) / len(client_throughput_list)
-        )
-        rx_throughput = Decimal(
-            sum(server_throughput_list) / len(server_throughput_list)
-        )
-        data_loss = Decimal(sum(client_udp_lost_list) / len(client_udp_lost_list))
-
         metrics = [
             {
-                "name": f"tx_throughput_in_gbps{conn_suffix}",
-                "value": float(tx_throughput),
+                "name": "tx_throughput_in_gbps",
+                "value": float(other_fields["tx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"rx_throughput_in_gbps{conn_suffix}",
-                "value": float(rx_throughput),
+                "name": "rx_throughput_in_gbps",
+                "value": float(other_fields["rx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"data_loss{conn_suffix}",
-                "value": float(data_loss),
+                "name": "data_loss",
+                "value": float(other_fields["data_loss"]),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "%",
             },
             {
-                "name": f"send_buffer_size{conn_suffix}",
-                "value": float(buffer_length),
+                "name": "send_buffer_size",
+                "value": float(other_fields["send_buffer_size"]),
                 "relativity": MetricRelativity.NA,
                 "unit": "bytes",
             },
         ]
 
         self._send_unified_perf_metrics(
-            metrics, test_case_name, test_result, TransportProtocol.Udp
+            metrics, test_case_name, test_result, TransportProtocol.Udp, connections_num
         )
 
     def get_sender_bandwidth(self, result: str) -> Decimal:
