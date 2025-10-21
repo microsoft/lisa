@@ -4,7 +4,7 @@
 import copy
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Set, Union, cast
 
 import yaml
 from marshmallow import Schema
@@ -18,13 +18,6 @@ from lisa.variable import VariableEntry, load_variables, replace_variables
 _schema: Optional[Schema] = None
 
 _get_init_logger = partial(get_logger, "init", "runbook")
-
-# Path constants for handling backward compatibility with old code layout These
-# paths represent the legacy locations where Microsoft-specific and example
-# extensions were previously stored before the code reorganization
-_lisa_root_path = Path(__file__).parent.parent.parent.resolve()
-_old_microsoft_path = (_lisa_root_path / "microsoft").resolve()
-_old_examples_path = (_lisa_root_path / "examples").resolve()
 
 
 class RunbookBuilder:
@@ -81,8 +74,6 @@ class RunbookBuilder:
         builder._variables = variables
 
         builder._import_extensions()
-
-        builder._import_builtin_tests()
 
         # remove variables and extensions from data, since it's not used, and may be
         #  confusing in log.
@@ -178,46 +169,11 @@ class RunbookBuilder:
             )
             extensions = schema.Extension.from_raw(raw_extensions)
             for index, extension in enumerate(extensions):
-                name = extension.name if extension.name else f"lisa_ext_{index}"
-                path = Path(extension.path)
-
-                # fix path for old code layout
-                path, name = self._fix_path_for_old_code_layout(path, name)
-
-                import_package(path, name)
+                if not extension.name:
+                    extension.name = f"lisa_ext_{index}"
+                import_package(Path(extension.path), extension.name)
 
             self._remove_extensions()
-
-    def _fix_path_for_old_code_layout(self, path: Path, name: str) -> Tuple[Path, str]:
-        # skip old paths, which is under lisa/microsoft or lisa/examples. They
-        # are moved to under lisa/lisa for packaging, and they will be imported
-        # always. So it doesn't need to list them again.
-        path = path.absolute().resolve()
-        old_name = name
-        old_path = path
-        if path.is_relative_to(_old_microsoft_path):
-            path = _lisa_root_path.joinpath(
-                "lisa", "microsoft", path.relative_to(_old_microsoft_path)
-            )
-        elif path.is_relative_to(_old_examples_path):
-            path = _lisa_root_path.joinpath(
-                "lisa", "examples", path.relative_to(_old_examples_path)
-            )
-        else:
-            return path, name
-
-        self._log.info(
-            f"Fixing extension path for old code layout, "
-            f"from '{old_path}' to '{path}', "
-            f"and name from '{old_name}' to '{path.name}'",
-        )
-
-        return path, path.name
-
-    def _import_builtin_tests(self) -> None:
-        import_builtin_tests = self._raw_data.get("import_builtin_tests", False)
-        if import_builtin_tests:
-            import_package(_lisa_root_path / "lisa/microsoft", "microsoft")
 
     @staticmethod
     def _validate_and_load(data: Any) -> schema.Runbook:
