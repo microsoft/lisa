@@ -196,13 +196,9 @@ class RunbookBuilder:
         old_name = name
         old_path = path
         if path.is_relative_to(_old_microsoft_path):
-            path = _lisa_root_path.joinpath(
-                "lisa", "microsoft", path.relative_to(_old_microsoft_path)
-            )
+            path = _lisa_root_path.joinpath("lisa", "microsoft")
         elif path.is_relative_to(_old_examples_path):
-            path = _lisa_root_path.joinpath(
-                "lisa", "examples", path.relative_to(_old_examples_path)
-            )
+            path = _lisa_root_path.joinpath("lisa", "examples")
         else:
             return path, name
 
