@@ -440,6 +440,29 @@ class DpdkPerformance(TestSuite):
                 ]
             )
 
+        # Add parameter metrics
+        test_type = result_fields.get("test_type", "")
+        if test_type:
+            metrics.append(
+                {
+                    "name": "test_type",
+                    "value": float(hash(test_type)),
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "",
+                }
+            )
+
+        role = result_fields.get("role", "")
+        if role:
+            metrics.append(
+                {
+                    "name": "role",
+                    "value": float(hash(role)),
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "",
+                }
+            )
+
         # Get protocol_type from result_fields if it exists
         protocol_type = result_fields.get("protocol_type")
 

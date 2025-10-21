@@ -235,6 +235,12 @@ class Sar(Tool):
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
+            {
+                "name": "test_type",
+                "value": float(hash(test_type)),
+                "relativity": MetricRelativity.Parameter,
+                "unit": "",
+            },
         ]
 
         for metric in metrics:
