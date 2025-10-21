@@ -487,42 +487,39 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for TCP iperf3 metrics."""
-        # Include connections_num in metric names to distinguish results
-        conn_suffix = f"_conn_{connections_num}"
-
         metrics = [
             {
-                "name": f"connections_num{conn_suffix}",
+                "name": "connections_num",
                 "value": float(connections_num),
                 "relativity": MetricRelativity.Parameter,
                 "unit": "",
             },
             {
-                "name": f"rx_throughput_in_gbps{conn_suffix}",
+                "name": "rx_throughput_in_gbps",
                 "value": float(other_fields["rx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"tx_throughput_in_gbps{conn_suffix}",
+                "name": "tx_throughput_in_gbps",
                 "value": float(other_fields["tx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"buffer_size_bytes{conn_suffix}",
+                "name": "buffer_size_bytes",
                 "value": float(other_fields["buffer_size_bytes"]),
                 "relativity": MetricRelativity.Parameter,
                 "unit": "bytes",
             },
             {
-                "name": f"congestion_windowsize_kb{conn_suffix}",
+                "name": "congestion_windowsize_kb",
                 "value": float(other_fields["congestion_windowsize_kb"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "KB",
             },
             {
-                "name": f"retransmitted_segments{conn_suffix}",
+                "name": "retransmitted_segments",
                 "value": float(other_fields["retransmitted_segments"]),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "",
@@ -541,36 +538,33 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for UDP iperf3 metrics."""
-        # Include connections_num in metric names to distinguish results
-        conn_suffix = f"_conn_{connections_num}"
-
         metrics = [
             {
-                "name": f"connections_num{conn_suffix}",
+                "name": "connections_num",
                 "value": float(connections_num),
                 "relativity": MetricRelativity.Parameter,
                 "unit": "",
             },
             {
-                "name": f"tx_throughput_in_gbps{conn_suffix}",
+                "name": "tx_throughput_in_gbps",
                 "value": float(other_fields["tx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"rx_throughput_in_gbps{conn_suffix}",
+                "name": "rx_throughput_in_gbps",
                 "value": float(other_fields["rx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": f"data_loss{conn_suffix}",
+                "name": "data_loss",
                 "value": float(other_fields["data_loss"]),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "%",
             },
             {
-                "name": f"send_buffer_size{conn_suffix}",
+                "name": "send_buffer_size",
                 "value": float(other_fields["send_buffer_size"]),
                 "relativity": MetricRelativity.Parameter,
                 "unit": "bytes",
