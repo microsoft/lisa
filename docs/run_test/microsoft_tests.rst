@@ -117,12 +117,6 @@ The root folder contains runbooks for azure, ready, and local. Learn
 more from :doc:`how to run LISA tests <run>` to run different tiers on
 an image or existing environment.
 
-.. note::
-   To access Microsoft's internal test cases, you need to set
-   ``import_builtin_tests: true`` in your runbook. This will import
-   built-in test cases from the ``lisa/microsoft`` directory.
-   See :doc:`runbook reference <runbook>` for more details.
-
 LISA comes with a set of test suites to verify Linux distro/kernel
 quality on Microsoft's platforms (including Azure, and HyperV). The test
 cases in those test suites are organized with multiple test ``Tiers``
