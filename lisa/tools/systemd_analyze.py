@@ -2,20 +2,13 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
-from typing import TYPE_CHECKING
 
 from retry import retry
 
+from lisa import notifier
 from lisa.executable import Tool
-from lisa.messages import (
-    MetricRelativity,
-    ProvisionBootTimeMessage,
-    send_unified_perf_message,
-)
+from lisa.messages import ProvisionBootTimeMessage
 from lisa.util import LisaException, find_groups_in_lines
-
-if TYPE_CHECKING:
-    from lisa.testsuite import TestResult
 
 
 class SystemdAnalyze(Tool):
@@ -86,135 +79,15 @@ class SystemdAnalyze(Tool):
         boot_time.provision_time = self.node.provision_time
         return boot_time
 
-    def send_boot_time_messages(
-        self, test_result: "TestResult" = None, test_case_name: str = ""
-    ) -> None:
+    def send_boot_time_messages(self) -> None:
         """
-        Send boot time messages. Sends both ProvisionBootTimeMessage and
-        UnifiedPerfMessage notifications.
-        
-        Args:
-            test_result: Optional test result for UnifiedPerfMessage. If None,
-                        only ProvisionBootTimeMessage is sent.
-            test_case_name: Name of the test case for UnifiedPerfMessage.
+        Send boot time messages as ProvisionBootTimeMessage.
         """
-        from lisa import notifier
-        
         boot_time = self.get_boot_time()
         boot_time.information.update(self.node.get_information())
         
         # Send ProvisionBootTimeMessage
         notifier.notify(boot_time)
-        
-        # Send UnifiedPerfMessage notifications if test_result is available
-        if test_result is not None:
-            self._send_unified_boot_time_metrics(boot_time, test_result, test_case_name)
-
-    def send_boot_time_metrics(
-        self, test_result: "TestResult", test_case_name: str = ""
-    ) -> None:
-        """
-        Send boot time metrics as UnifiedPerfMessage notifications.
-        This allows boot time data to be collected in a standardized format.
-        
-        Deprecated: Use send_boot_time_messages() instead to send both message formats.
-        """
-        boot_time = self.get_boot_time()
-        self._send_unified_boot_time_metrics(boot_time, test_result, test_case_name)
-
-    def _send_unified_boot_time_metrics(
-        self,
-        boot_time: ProvisionBootTimeMessage,
-        test_result: "TestResult",
-        test_case_name: str = "",
-    ) -> None:
-        """
-        Internal method to send UnifiedPerfMessage notifications for boot time metrics.
-        """
-
-        # Send kernel boot time metric
-        if boot_time.kernel_boot_time > 0:
-            send_unified_perf_message(
-                node=self.node,
-                test_result=test_result,
-                test_case_name=test_case_name,
-                tool="systemd-analyze",
-                metric_name="kernel_boot_time",
-                metric_value=boot_time.kernel_boot_time,
-                metric_unit="ms",
-                metric_description="Linux kernel boot time",
-                metric_relativity=MetricRelativity.LowerIsBetter,
-            )
-
-        # Send initrd boot time metric
-        if boot_time.initrd_boot_time > 0:
-            send_unified_perf_message(
-                node=self.node,
-                test_result=test_result,
-                test_case_name=test_case_name,
-                tool="systemd-analyze",
-                metric_name="initrd_boot_time",
-                metric_value=boot_time.initrd_boot_time,
-                metric_unit="ms",
-                metric_description="Initial RAM disk boot time",
-                metric_relativity=MetricRelativity.LowerIsBetter,
-            )
-
-        # Send userspace boot time metric
-        if boot_time.userspace_boot_time > 0:
-            send_unified_perf_message(
-                node=self.node,
-                test_result=test_result,
-                test_case_name=test_case_name,
-                tool="systemd-analyze",
-                metric_name="userspace_boot_time",
-                metric_value=boot_time.userspace_boot_time,
-                metric_unit="ms",
-                metric_description="Userspace initialization time",
-                metric_relativity=MetricRelativity.LowerIsBetter,
-            )
-
-        # Send firmware boot time metric
-        if boot_time.firmware_boot_time > 0:
-            send_unified_perf_message(
-                node=self.node,
-                test_result=test_result,
-                test_case_name=test_case_name,
-                tool="systemd-analyze",
-                metric_name="firmware_boot_time",
-                metric_value=boot_time.firmware_boot_time,
-                metric_unit="ms",
-                metric_description="Firmware boot time",
-                metric_relativity=MetricRelativity.LowerIsBetter,
-            )
-
-        # Send loader boot time metric
-        if boot_time.loader_boot_time > 0:
-            send_unified_perf_message(
-                node=self.node,
-                test_result=test_result,
-                test_case_name=test_case_name,
-                tool="systemd-analyze",
-                metric_name="loader_boot_time",
-                metric_value=boot_time.loader_boot_time,
-                metric_unit="ms",
-                metric_description="Boot loader time",
-                metric_relativity=MetricRelativity.LowerIsBetter,
-            )
-
-        # Send provision time metric
-        if boot_time.provision_time > 0:
-            send_unified_perf_message(
-                node=self.node,
-                test_result=test_result,
-                test_case_name=test_case_name,
-                tool="systemd-analyze",
-                metric_name="provision_time",
-                metric_value=boot_time.provision_time,
-                metric_unit="seconds",
-                metric_description="Total VM provision time",
-                metric_relativity=MetricRelativity.LowerIsBetter,
-            )
 
     def plot(self, output_file: PurePath, sudo: bool = False) -> None:
         self.run(f"plot > {output_file}", shell=True, sudo=sudo, expected_exit_code=0)
