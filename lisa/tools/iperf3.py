@@ -467,28 +467,39 @@ class Iperf3(Tool):
                 "value": float(tx_throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
-                "description": f"iperf3 UDP TX throughput with {connections_num} connections",
+                "description": (
+                    f"iperf3 UDP TX throughput with {connections_num} "
+                    f"connections"
+                ),
             },
             {
                 "name": "rx_throughput_in_gbps",
                 "value": float(rx_throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
-                "description": f"iperf3 UDP RX throughput with {connections_num} connections",
+                "description": (
+                    f"iperf3 UDP RX throughput with {connections_num} "
+                    f"connections"
+                ),
             },
             {
                 "name": "data_loss",
                 "value": float(data_loss),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "%",
-                "description": f"iperf3 UDP data loss with {connections_num} connections",
+                "description": (
+                    f"iperf3 UDP data loss with {connections_num} connections"
+                ),
             },
             {
                 "name": "send_buffer_size",
                 "value": float(send_buffer_size),
                 "relativity": MetricRelativity.NA,
                 "unit": "bytes",
-                "description": f"iperf3 UDP send buffer size with {connections_num} connections",
+                "description": (
+                    f"iperf3 UDP send buffer size with {connections_num} "
+                    f"connections"
+                ),
             },
         ]
 
