@@ -390,9 +390,6 @@ class DpdkPerformance(TestSuite):
         test_type = result_fields.get("test_type", "")
         role = result_fields.get("role", "")
 
-        # Include test_type and role in metric names to distinguish results
-        suffix = f"_{test_type}_{role}" if test_type and role else ""
-
         metrics = []
 
         # Add rx metrics if they exist
@@ -400,19 +397,19 @@ class DpdkPerformance(TestSuite):
             metrics.extend(
                 [
                     {
-                        "name": f"rx_pps_maximum{suffix}",
+                        "name": "rx_pps_maximum",
                         "value": float(result_fields["rx_pps_maximum"]),
                         "relativity": MetricRelativity.HigherIsBetter,
                         "unit": "packets/second",
                     },
                     {
-                        "name": f"rx_pps_average{suffix}",
+                        "name": "rx_pps_average",
                         "value": float(result_fields["rx_pps_average"]),
                         "relativity": MetricRelativity.HigherIsBetter,
                         "unit": "packets/second",
                     },
                     {
-                        "name": f"rx_pps_minimum{suffix}",
+                        "name": "rx_pps_minimum",
                         "value": float(result_fields["rx_pps_minimum"]),
                         "relativity": MetricRelativity.HigherIsBetter,
                         "unit": "packets/second",
@@ -425,19 +422,19 @@ class DpdkPerformance(TestSuite):
             metrics.extend(
                 [
                     {
-                        "name": f"tx_pps_maximum{suffix}",
+                        "name": "tx_pps_maximum",
                         "value": float(result_fields["tx_pps_maximum"]),
                         "relativity": MetricRelativity.HigherIsBetter,
                         "unit": "packets/second",
                     },
                     {
-                        "name": f"tx_pps_average{suffix}",
+                        "name": "tx_pps_average",
                         "value": float(result_fields["tx_pps_average"]),
                         "relativity": MetricRelativity.HigherIsBetter,
                         "unit": "packets/second",
                     },
                     {
-                        "name": f"tx_pps_minimum{suffix}",
+                        "name": "tx_pps_minimum",
                         "value": float(result_fields["tx_pps_minimum"]),
                         "relativity": MetricRelativity.HigherIsBetter,
                         "unit": "packets/second",
@@ -445,54 +442,25 @@ class DpdkPerformance(TestSuite):
                 ]
             )
 
-        # Add rx_tx metrics if they exist
-        if "rx_tx_pps_maximum" in result_fields:
-            metrics.extend(
-                [
-                    {
-                        "name": f"rx_tx_pps_maximum{suffix}",
-                        "value": float(result_fields["rx_tx_pps_maximum"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                    {
-                        "name": f"rx_tx_pps_average{suffix}",
-                        "value": float(result_fields["rx_tx_pps_average"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                    {
-                        "name": f"rx_tx_pps_minimum{suffix}",
-                        "value": float(result_fields["rx_tx_pps_minimum"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                ]
+        # Add parameter metrics
+        if test_type:
+            metrics.append(
+                {
+                    "name": "test_type",
+                    "value": test_type,
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "",
+                }
             )
 
-        # Add fwd metrics if they exist
-        if "fwd_pps_maximum" in result_fields:
-            metrics.extend(
-                [
-                    {
-                        "name": f"fwd_pps_maximum{suffix}",
-                        "value": float(result_fields["fwd_pps_maximum"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                    {
-                        "name": f"fwd_pps_average{suffix}",
-                        "value": float(result_fields["fwd_pps_average"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                    {
-                        "name": f"fwd_pps_minimum{suffix}",
-                        "value": float(result_fields["fwd_pps_minimum"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                ]
+        if role:
+            metrics.append(
+                {
+                    "name": "role",
+                    "value": role,
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "",
+                }
             )
 
         # Get protocol_type from result_fields if it exists

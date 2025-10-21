@@ -180,90 +180,68 @@ class Sar(Tool):
         """Send unified performance messages for PPS metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_SAR
 
-        # Include test_type in metric names to distinguish results
-        type_suffix = f"_{test_type}" if test_type else ""
-
         metrics = [
             {
-                "name": f"rx_pps_maximum{type_suffix}",
+                "name": "rx_pps_maximum",
                 "value": float(result_fields["rx_pps_maximum"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"rx_pps_average{type_suffix}",
+                "name": "rx_pps_average",
                 "value": float(result_fields["rx_pps_average"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"rx_pps_minimum{type_suffix}",
+                "name": "rx_pps_minimum",
                 "value": float(result_fields["rx_pps_minimum"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"tx_pps_maximum{type_suffix}",
+                "name": "tx_pps_maximum",
                 "value": float(result_fields["tx_pps_maximum"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"tx_pps_average{type_suffix}",
+                "name": "tx_pps_average",
                 "value": float(result_fields["tx_pps_average"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"tx_pps_minimum{type_suffix}",
+                "name": "tx_pps_minimum",
                 "value": float(result_fields["tx_pps_minimum"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"rx_tx_pps_maximum{type_suffix}",
+                "name": "rx_tx_pps_maximum",
                 "value": float(result_fields["rx_tx_pps_maximum"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"rx_tx_pps_average{type_suffix}",
+                "name": "rx_tx_pps_average",
                 "value": float(result_fields["rx_tx_pps_average"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
             {
-                "name": f"rx_tx_pps_minimum{type_suffix}",
+                "name": "rx_tx_pps_minimum",
                 "value": float(result_fields["rx_tx_pps_minimum"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "packets/second",
             },
+            {
+                "name": "test_type",
+                "value": test_type,
+                "relativity": MetricRelativity.Parameter,
+                "unit": "",
+            },
         ]
-
-        # Send fwd_pps metrics only if they exist in result_fields
-        if "fwd_pps_maximum" in result_fields:
-            metrics.extend(
-                [
-                    {
-                        "name": f"fwd_pps_maximum{type_suffix}",
-                        "value": float(result_fields["fwd_pps_maximum"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                    {
-                        "name": f"fwd_pps_average{type_suffix}",
-                        "value": float(result_fields["fwd_pps_average"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                    {
-                        "name": f"fwd_pps_minimum{type_suffix}",
-                        "value": float(result_fields["fwd_pps_minimum"]),
-                        "relativity": MetricRelativity.HigherIsBetter,
-                        "unit": "packets/second",
-                    },
-                ]
-            )
 
         for metric in metrics:
             send_unified_perf_message(
