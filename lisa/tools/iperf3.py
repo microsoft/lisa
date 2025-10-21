@@ -461,33 +461,34 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for UDP iperf3 metrics."""
-        # Include connections_num in metric names to distinguish results
-        conn_suffix = f"_conn_{connections_num}"
-
         metrics = [
             {
-                "name": f"tx_throughput_in_gbps{conn_suffix}",
+                "name": "tx_throughput_in_gbps",
                 "value": float(tx_throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
+                "description": f"iperf3 UDP TX throughput with {connections_num} connections",
             },
             {
-                "name": f"rx_throughput_in_gbps{conn_suffix}",
+                "name": "rx_throughput_in_gbps",
                 "value": float(rx_throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
+                "description": f"iperf3 UDP RX throughput with {connections_num} connections",
             },
             {
-                "name": f"data_loss{conn_suffix}",
+                "name": "data_loss",
                 "value": float(data_loss),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "%",
+                "description": f"iperf3 UDP data loss with {connections_num} connections",
             },
             {
-                "name": f"send_buffer_size{conn_suffix}",
+                "name": "send_buffer_size",
                 "value": float(send_buffer_size),
                 "relativity": MetricRelativity.NA,
                 "unit": "bytes",
+                "description": f"iperf3 UDP send buffer size with {connections_num} connections",
             },
         ]
 
@@ -502,6 +503,7 @@ class Iperf3(Tool):
                 metric_name=metric["name"],
                 metric_value=metric["value"],
                 metric_unit=metric.get("unit", ""),
+                metric_description=metric.get("description", ""),
                 metric_relativity=metric["relativity"],
                 protocol_type=TransportProtocol.Udp,
             )
