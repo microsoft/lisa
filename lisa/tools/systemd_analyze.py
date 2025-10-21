@@ -2,12 +2,20 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
+from typing import TYPE_CHECKING
 
 from retry import retry
 
 from lisa.executable import Tool
-from lisa.messages import ProvisionBootTimeMessage
+from lisa.messages import (
+    MetricRelativity,
+    ProvisionBootTimeMessage,
+    send_unified_perf_message,
+)
 from lisa.util import LisaException, find_groups_in_lines
+
+if TYPE_CHECKING:
+    from lisa.testsuite import TestResult
 
 
 class SystemdAnalyze(Tool):
@@ -77,6 +85,99 @@ class SystemdAnalyze(Tool):
         )
         boot_time.provision_time = self.node.provision_time
         return boot_time
+
+    def send_boot_time_metrics(
+        self, test_result: "TestResult", test_case_name: str = ""
+    ) -> None:
+        """
+        Send boot time metrics as UnifiedPerfMessage notifications.
+        This allows boot time data to be collected in a standardized format.
+        """
+        boot_time = self.get_boot_time()
+
+        # Send kernel boot time metric
+        if boot_time.kernel_boot_time > 0:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool="systemd-analyze",
+                metric_name="kernel_boot_time",
+                metric_value=boot_time.kernel_boot_time,
+                metric_unit="ms",
+                metric_description="Linux kernel boot time",
+                metric_relativity=MetricRelativity.LowerIsBetter,
+            )
+
+        # Send initrd boot time metric
+        if boot_time.initrd_boot_time > 0:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool="systemd-analyze",
+                metric_name="initrd_boot_time",
+                metric_value=boot_time.initrd_boot_time,
+                metric_unit="ms",
+                metric_description="Initial RAM disk boot time",
+                metric_relativity=MetricRelativity.LowerIsBetter,
+            )
+
+        # Send userspace boot time metric
+        if boot_time.userspace_boot_time > 0:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool="systemd-analyze",
+                metric_name="userspace_boot_time",
+                metric_value=boot_time.userspace_boot_time,
+                metric_unit="ms",
+                metric_description="Userspace initialization time",
+                metric_relativity=MetricRelativity.LowerIsBetter,
+            )
+
+        # Send firmware boot time metric
+        if boot_time.firmware_boot_time > 0:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool="systemd-analyze",
+                metric_name="firmware_boot_time",
+                metric_value=boot_time.firmware_boot_time,
+                metric_unit="ms",
+                metric_description="Firmware boot time",
+                metric_relativity=MetricRelativity.LowerIsBetter,
+            )
+
+        # Send loader boot time metric
+        if boot_time.loader_boot_time > 0:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool="systemd-analyze",
+                metric_name="loader_boot_time",
+                metric_value=boot_time.loader_boot_time,
+                metric_unit="ms",
+                metric_description="Boot loader time",
+                metric_relativity=MetricRelativity.LowerIsBetter,
+            )
+
+        # Send provision time metric
+        if boot_time.provision_time > 0:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool="systemd-analyze",
+                metric_name="provision_time",
+                metric_value=boot_time.provision_time,
+                metric_unit="seconds",
+                metric_description="Total VM provision time",
+                metric_relativity=MetricRelativity.LowerIsBetter,
+            )
 
     def plot(self, output_file: PurePath, sudo: bool = False) -> None:
         self.run(f"plot > {output_file}", shell=True, sudo=sudo, expected_exit_code=0)

@@ -302,24 +302,6 @@ class ProvisionBootTimeMessage(MessageBase):
 
 
 @dataclass
-class UnifiedProvisionBootTimeMessage(PerfMessage):
-    type: str = "UnifiedProvisionBootTime"
-    # boot times collected from `last reboot` entries
-    boot_times: int = 0
-    provision_time: float = 0
-    kernel_boot_time: float = 0
-    initrd_boot_time: float = 0
-    userspace_boot_time: float = 0
-    firmware_boot_time: float = 0
-    loader_boot_time: float = 0
-    metric_name: str = ""
-    metric_value: float = 0.0
-    metric_unit: str = ""
-    metric_description: str = ""
-    metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA
-
-
-@dataclass
 class KernelBuildMessage(MessageBase):
     type: str = "KernelBuild"
     old_kernel_version: str = ""
@@ -448,51 +430,6 @@ def send_unified_perf_message(
     message.metric_relativity = metric_relativity
 
     message.tool = tool
-
-    notifier.notify(message)
-
-    return message
-
-
-def send_unified_provision_boot_time_message(
-    node: "Node",
-    test_result: "TestResult",
-    test_case_name: str = "",
-    metric_name: str = "",
-    metric_value: float = 0.0,
-    metric_unit: str = "",
-    metric_description: str = "",
-    metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
-    boot_times: int = 0,
-    provision_time: float = 0,
-    kernel_boot_time: float = 0,
-    initrd_boot_time: float = 0,
-    userspace_boot_time: float = 0,
-    firmware_boot_time: float = 0,
-    loader_boot_time: float = 0,
-) -> UnifiedProvisionBootTimeMessage:
-    message = create_perf_message(
-        message_type=UnifiedProvisionBootTimeMessage,
-        node=node,
-        test_result=test_result,
-        test_case_name=test_case_name,
-    )
-
-    # Set boot time fields
-    message.boot_times = boot_times
-    message.provision_time = provision_time
-    message.kernel_boot_time = kernel_boot_time
-    message.initrd_boot_time = initrd_boot_time
-    message.userspace_boot_time = userspace_boot_time
-    message.firmware_boot_time = firmware_boot_time
-    message.loader_boot_time = loader_boot_time
-
-    # Set unified metric fields
-    message.metric_name = metric_name
-    message.metric_value = metric_value
-    message.metric_unit = metric_unit
-    message.metric_description = metric_description
-    message.metric_relativity = metric_relativity
 
     notifier.notify(message)
 
