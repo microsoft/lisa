@@ -18,6 +18,7 @@ Runbook Reference
    -  `tags <#tags>`__
    -  `concurrency <#concurrency>`__
    -  `exit_on_first_failure <#exit-on-first-failure>`__
+   -  `import_internal_tests <#import-builtin-tests>`__
    -  `include <#include>`__
 
       -  `path <#path>`__
@@ -386,6 +387,19 @@ debugging and reproducing specific test failures quickly.
 .. note::
    This setting only affects test case execution order. Test cases that are already
    running in parallel when a failure occurs will continue to completion.
+
+import_builtin_tests
+~~~~~~~~~~~~~~~~~~~~
+
+type: bool, optional, default is False.
+
+When set to True, LISA will import and make available built-in Microsoft test
+cases located in the `lisa/microsoft` directory. These are test cases provided
+by Microsoft Linux System Group for comprehensive system validation.
+
+.. code:: yaml
+
+   import_builtin_tests: true
 
 include
 ~~~~~~~

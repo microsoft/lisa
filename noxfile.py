@@ -110,8 +110,6 @@ def pylint(session: nox.Session) -> None:
     session.run(
         "pylint",
         "lisa",
-        "microsoft",
-        "examples",
         "selftests",
         "docs/tools",
         "docs",
@@ -135,7 +133,7 @@ def mypy(session: nox.Session) -> None:
     )
 
     session.run("mypy", "-p", "lisa")
-    session.run("mypy", "docs", "microsoft")
+    session.run("mypy", "docs")
     session.run("mypy", "noxfile.py")
 
 
