@@ -86,14 +86,51 @@ class SystemdAnalyze(Tool):
         boot_time.provision_time = self.node.provision_time
         return boot_time
 
+    def send_boot_time_messages(
+        self, test_result: "TestResult" = None, test_case_name: str = ""
+    ) -> None:
+        """
+        Send boot time messages. Sends both ProvisionBootTimeMessage and
+        UnifiedPerfMessage notifications.
+        
+        Args:
+            test_result: Optional test result for UnifiedPerfMessage. If None,
+                        only ProvisionBootTimeMessage is sent.
+            test_case_name: Name of the test case for UnifiedPerfMessage.
+        """
+        from lisa import notifier
+        
+        boot_time = self.get_boot_time()
+        boot_time.information.update(self.node.get_information())
+        
+        # Send ProvisionBootTimeMessage
+        notifier.notify(boot_time)
+        
+        # Send UnifiedPerfMessage notifications if test_result is available
+        if test_result is not None:
+            self._send_unified_boot_time_metrics(boot_time, test_result, test_case_name)
+
     def send_boot_time_metrics(
         self, test_result: "TestResult", test_case_name: str = ""
     ) -> None:
         """
         Send boot time metrics as UnifiedPerfMessage notifications.
         This allows boot time data to be collected in a standardized format.
+        
+        Deprecated: Use send_boot_time_messages() instead to send both message formats.
         """
         boot_time = self.get_boot_time()
+        self._send_unified_boot_time_metrics(boot_time, test_result, test_case_name)
+
+    def _send_unified_boot_time_metrics(
+        self,
+        boot_time: ProvisionBootTimeMessage,
+        test_result: "TestResult",
+        test_case_name: str = "",
+    ) -> None:
+        """
+        Internal method to send UnifiedPerfMessage notifications for boot time metrics.
+        """
 
         # Send kernel boot time metric
         if boot_time.kernel_boot_time > 0:
