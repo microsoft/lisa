@@ -8,12 +8,14 @@ from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
 
 from retry import retry
 
+from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import (
     MetricRelativity,
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
     TransportProtocol,
+    UnifiedPerfMessage,
     create_perf_message,
     send_unified_perf_message,
 )
@@ -467,57 +469,51 @@ class Iperf3(Tool):
                 "value": float(tx_throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
-                "description": (
-                    f"iperf3 UDP TX throughput with {connections_num} "
-                    f"connections"
-                ),
             },
             {
                 "name": "rx_throughput_in_gbps",
                 "value": float(rx_throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
-                "description": (
-                    f"iperf3 UDP RX throughput with {connections_num} "
-                    f"connections"
-                ),
             },
             {
                 "name": "data_loss",
                 "value": float(data_loss),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "%",
-                "description": (
-                    f"iperf3 UDP data loss with {connections_num} connections"
-                ),
             },
             {
                 "name": "send_buffer_size",
                 "value": float(send_buffer_size),
                 "relativity": MetricRelativity.NA,
                 "unit": "bytes",
-                "description": (
-                    f"iperf3 UDP send buffer size with {connections_num} "
-                    f"connections"
-                ),
             },
         ]
 
         tool = constants.NETWORK_PERFORMANCE_TOOL_IPERF
 
         for metric in metrics:
-            send_unified_perf_message(
+            # Add connections_num as a field parameter
+            other_fields = {
+                "protocol_type": TransportProtocol.Udp,
+                "connections_num": connections_num,
+            }
+            
+            message = create_perf_message(
+                message_type=UnifiedPerfMessage,
                 node=self.node,
                 test_result=test_result,
                 test_case_name=test_case_name,
-                tool=tool,
-                metric_name=metric["name"],
-                metric_value=metric["value"],
-                metric_unit=metric.get("unit", ""),
-                metric_description=metric.get("description", ""),
-                metric_relativity=metric["relativity"],
-                protocol_type=TransportProtocol.Udp,
+                other_fields=other_fields,
             )
+            
+            message.metric_name = metric["name"]
+            message.metric_value = metric["value"]
+            message.metric_unit = metric.get("unit", "")
+            message.metric_relativity = metric["relativity"]
+            message.tool = tool
+            
+            notifier.notify(message)
 
     def get_sender_bandwidth(self, result: str) -> Decimal:
         return self._get_bandwidth(result, self._sender_pattern)
