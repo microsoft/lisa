@@ -461,35 +461,23 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for UDP iperf3 metrics."""
-        # Send parameters as Parameter type metrics
-        send_unified_perf_message(
-            node=self.node,
-            test_result=test_result,
-            test_case_name=test_case_name,
-            tool=constants.NETWORK_PERFORMANCE_TOOL_IPERF,
-            metric_name="connections_num",
-            metric_value=float(connections_num),
-            metric_unit="",
-            metric_description="Parameter",
-            metric_relativity=MetricRelativity.NA,
-            protocol_type=TransportProtocol.Udp,
-        )
-
-        send_unified_perf_message(
-            node=self.node,
-            test_result=test_result,
-            test_case_name=test_case_name,
-            tool=constants.NETWORK_PERFORMANCE_TOOL_IPERF,
-            metric_name="send_buffer_size",
-            metric_value=float(send_buffer_size),
-            metric_unit="bytes",
-            metric_description="Parameter",
-            metric_relativity=MetricRelativity.NA,
-            protocol_type=TransportProtocol.Udp,
-        )
-
-        # Send performance metrics
         metrics = [
+            # Parameters
+            {
+                "name": "connections_num",
+                "value": float(connections_num),
+                "relativity": MetricRelativity.NA,
+                "unit": "",
+                "description": "Parameter",
+            },
+            {
+                "name": "send_buffer_size",
+                "value": float(send_buffer_size),
+                "relativity": MetricRelativity.NA,
+                "unit": "bytes",
+                "description": "Parameter",
+            },
+            # Performance metrics
             {
                 "name": "tx_throughput_in_gbps",
                 "value": float(tx_throughput_in_gbps),
@@ -521,6 +509,7 @@ class Iperf3(Tool):
                 metric_name=metric["name"],
                 metric_value=metric["value"],
                 metric_unit=metric.get("unit", ""),
+                metric_description=metric.get("description", ""),
                 metric_relativity=metric["relativity"],
                 protocol_type=TransportProtocol.Udp,
             )
