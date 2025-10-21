@@ -131,6 +131,7 @@ class MetricRelativity(str, Enum):
     NA = ""
     HigherIsBetter = "HigherIsBetter"
     LowerIsBetter = "LowerIsBetter"
+    Parameter = "Parameter"
 
     @classmethod
     def parse(cls, str_value: str) -> "MetricRelativity":
@@ -138,6 +139,8 @@ class MetricRelativity(str, Enum):
             return MetricRelativity.HigherIsBetter
         elif str_value.upper() == cls.LowerIsBetter.upper():
             return MetricRelativity.LowerIsBetter
+        elif str_value.upper() == cls.Parameter.upper():
+            return MetricRelativity.Parameter
         else:
             return MetricRelativity.NA
 

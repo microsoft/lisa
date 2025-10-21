@@ -538,7 +538,7 @@ class Ntttcp(Tool):
             {
                 "name": f"buffer_size{conn_suffix}",
                 "value": float(buffer_size),
-                "relativity": MetricRelativity.NA,
+                "relativity": MetricRelativity.Parameter,
                 "unit": "KB",
             },
             {
@@ -590,7 +590,7 @@ class Ntttcp(Tool):
                 {
                     "name": f"client_mtu{conn_suffix}",
                     "value": int(client_mtu),
-                    "relativity": MetricRelativity.NA,
+                    "relativity": MetricRelativity.Parameter,
                     "unit": "bytes",
                 }
             )
@@ -599,7 +599,7 @@ class Ntttcp(Tool):
                 {
                     "name": f"server_mtu{conn_suffix}",
                     "value": int(server_mtu),
-                    "relativity": MetricRelativity.NA,
+                    "relativity": MetricRelativity.Parameter,
                     "unit": "bytes",
                 },
             )
@@ -652,7 +652,7 @@ class Ntttcp(Tool):
             {
                 "name": f"send_buffer_size{conn_suffix}",
                 "value": float(buffer_size),
-                "relativity": MetricRelativity.NA,
+                "relativity": MetricRelativity.Parameter,
                 "unit": "KB",
             },
             {
@@ -675,7 +675,7 @@ class Ntttcp(Tool):
                 {
                     "name": f"client_mtu{conn_suffix}",
                     "value": int(client_mtu),
-                    "relativity": MetricRelativity.NA,
+                    "relativity": MetricRelativity.Parameter,
                     "unit": "bytes",
                 }
             )
@@ -684,7 +684,7 @@ class Ntttcp(Tool):
                 {
                     "name": f"server_mtu{conn_suffix}",
                     "value": int(server_mtu),
-                    "relativity": MetricRelativity.NA,
+                    "relativity": MetricRelativity.Parameter,
                     "unit": "bytes",
                 },
             )
