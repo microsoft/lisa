@@ -10,7 +10,12 @@ from assertpy.assertpy import assert_that
 from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
-from lisa.messages import KernelBuildMessage
+from lisa.messages import (
+    KernelBuildMessage,
+    MetricRelativity,
+    UnifiedPerfMessage,
+    dict_to_fields,
+)
 from lisa.node import Node
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
@@ -25,8 +30,7 @@ from lisa.util.logger import Logger, get_logger
 
 @dataclass_json()
 @dataclass
-class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin): ...
 
 
 @dataclass_json()
@@ -219,6 +223,27 @@ class KernelInstallerTransformer(DeploymentTransformer):
         finally:
             message.is_success = build_sucess and boot_success
             notifier.notify(message)
+
+            # Send UnifiedPerfMessage for kernel build
+            unified_message = UnifiedPerfMessage()
+            # Populate environment fields from node information
+            node_info = node.get_information()
+            dict_to_fields(node_info, unified_message)
+
+            # Set metric fields
+            unified_message.test_case_name = "kernel_installer"
+            unified_message.tool = "kernel_installer"
+            unified_message.metric_name = "kernel_build_success"
+            unified_message.metric_value = 1.0 if message.is_success else 0.0
+            unified_message.metric_unit = "boolean"
+            unified_message.metric_description = (
+                f"Kernel build/upgrade from {message.old_kernel_version} to "
+                f"{message.new_kernel_version}: "
+                f"{'success' if message.is_success else 'failed'}"
+            )
+            unified_message.metric_relativity = MetricRelativity.HigherIsBetter
+
+            notifier.notify(unified_message)
         return {
             self._information_output_name: self._information,
             self._is_success_output_name: build_sucess and boot_success,
