@@ -8,14 +8,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
 
 from retry import retry
 
-from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import (
     MetricRelativity,
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
     TransportProtocol,
-    UnifiedPerfMessage,
     create_perf_message,
     send_unified_perf_message,
 )
@@ -463,6 +461,20 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for UDP iperf3 metrics."""
+        # Send connections_num as a Parameter type metric
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=constants.NETWORK_PERFORMANCE_TOOL_IPERF,
+            metric_name="connections_num",
+            metric_value=float(connections_num),
+            metric_unit="",
+            metric_description="Parameter",
+            metric_relativity=MetricRelativity.NA,
+            protocol_type=TransportProtocol.Udp,
+        )
+
         metrics = [
             {
                 "name": "tx_throughput_in_gbps",
@@ -493,27 +505,17 @@ class Iperf3(Tool):
         tool = constants.NETWORK_PERFORMANCE_TOOL_IPERF
 
         for metric in metrics:
-            # Add connections_num as a field parameter
-            other_fields = {
-                "protocol_type": TransportProtocol.Udp,
-                "connections_num": connections_num,
-            }
-            
-            message = create_perf_message(
-                message_type=UnifiedPerfMessage,
+            send_unified_perf_message(
                 node=self.node,
                 test_result=test_result,
                 test_case_name=test_case_name,
-                other_fields=other_fields,
+                tool=tool,
+                metric_name=metric["name"],
+                metric_value=metric["value"],
+                metric_unit=metric.get("unit", ""),
+                metric_relativity=metric["relativity"],
+                protocol_type=TransportProtocol.Udp,
             )
-            
-            message.metric_name = metric["name"]
-            message.metric_value = metric["value"]
-            message.metric_unit = metric.get("unit", "")
-            message.metric_relativity = metric["relativity"]
-            message.tool = tool
-            
-            notifier.notify(message)
 
     def get_sender_bandwidth(self, result: str) -> Decimal:
         return self._get_bandwidth(result, self._sender_pattern)
