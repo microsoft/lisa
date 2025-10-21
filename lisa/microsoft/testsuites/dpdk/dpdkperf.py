@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple, Union, cast
+from typing import Any, Dict, Tuple, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.dpdk.common import force_dpdk_default_source

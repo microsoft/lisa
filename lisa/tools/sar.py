@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
 from assertpy.assertpy import assert_that
 
