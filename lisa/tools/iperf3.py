@@ -462,7 +462,6 @@ class Iperf3(Tool):
         test_case_name: str,
         test_result: "TestResult",
         protocol_type: str,
-        connections_num: int,
     ) -> None:
         """Helper method to send unified performance metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_IPERF
@@ -476,7 +475,6 @@ class Iperf3(Tool):
                 metric_name=metric["name"],
                 metric_value=metric["value"],
                 metric_unit=metric.get("unit", ""),
-                metric_description=f"{metric['name']} with {connections_num} connections",
                 metric_relativity=metric["relativity"],
                 protocol_type=protocol_type,
             )
@@ -489,33 +487,42 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for TCP iperf3 metrics."""
+        # Include connections_num in metric names to distinguish results
+        conn_suffix = f"_conn_{connections_num}"
+
         metrics = [
             {
-                "name": "rx_throughput_in_gbps",
+                "name": f"connections_num{conn_suffix}",
+                "value": float(connections_num),
+                "relativity": MetricRelativity.Parameter,
+                "unit": "",
+            },
+            {
+                "name": f"rx_throughput_in_gbps{conn_suffix}",
                 "value": float(other_fields["rx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": "tx_throughput_in_gbps",
+                "name": f"tx_throughput_in_gbps{conn_suffix}",
                 "value": float(other_fields["tx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": "buffer_size_bytes",
+                "name": f"buffer_size_bytes{conn_suffix}",
                 "value": float(other_fields["buffer_size_bytes"]),
-                "relativity": MetricRelativity.NA,
+                "relativity": MetricRelativity.Parameter,
                 "unit": "bytes",
             },
             {
-                "name": "congestion_windowsize_kb",
+                "name": f"congestion_windowsize_kb{conn_suffix}",
                 "value": float(other_fields["congestion_windowsize_kb"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "KB",
             },
             {
-                "name": "retransmitted_segments",
+                "name": f"retransmitted_segments{conn_suffix}",
                 "value": float(other_fields["retransmitted_segments"]),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "",
@@ -523,7 +530,7 @@ class Iperf3(Tool):
         ]
 
         self._send_unified_perf_metrics(
-            metrics, test_case_name, test_result, TransportProtocol.Tcp, connections_num
+            metrics, test_case_name, test_result, TransportProtocol.Tcp
         )
 
     def send_iperf3_udp_unified_perf_messages(
@@ -534,35 +541,44 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for UDP iperf3 metrics."""
+        # Include connections_num in metric names to distinguish results
+        conn_suffix = f"_conn_{connections_num}"
+
         metrics = [
             {
-                "name": "tx_throughput_in_gbps",
+                "name": f"connections_num{conn_suffix}",
+                "value": float(connections_num),
+                "relativity": MetricRelativity.Parameter,
+                "unit": "",
+            },
+            {
+                "name": f"tx_throughput_in_gbps{conn_suffix}",
                 "value": float(other_fields["tx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": "rx_throughput_in_gbps",
+                "name": f"rx_throughput_in_gbps{conn_suffix}",
                 "value": float(other_fields["rx_throughput_in_gbps"]),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": "data_loss",
+                "name": f"data_loss{conn_suffix}",
                 "value": float(other_fields["data_loss"]),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "%",
             },
             {
-                "name": "send_buffer_size",
+                "name": f"send_buffer_size{conn_suffix}",
                 "value": float(other_fields["send_buffer_size"]),
-                "relativity": MetricRelativity.NA,
+                "relativity": MetricRelativity.Parameter,
                 "unit": "bytes",
             },
         ]
 
         self._send_unified_perf_metrics(
-            metrics, test_case_name, test_result, TransportProtocol.Udp, connections_num
+            metrics, test_case_name, test_result, TransportProtocol.Udp
         )
 
     def get_sender_bandwidth(self, result: str) -> Decimal:
