@@ -87,7 +87,7 @@ class NtttcpResult:
 
 
 class Ntttcp(Tool):
-    repo = "https://github.com/microsoft/ntttcp-for-linux"
+    repo = "https://github.com/johnsongeorge-w/ntttcp-for-linux.git"
     throughput_pattern = re.compile(r" 	 throughput	:(.+)")
     # NTTTCP output sample
     # NTTTCP for Linux 1.4.0
