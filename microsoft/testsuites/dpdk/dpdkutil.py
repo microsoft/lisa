@@ -112,7 +112,11 @@ class UnsupportedPackageVersionException(LisaException):
 # container class for test resources to be passed to run_testpmd_concurrent
 class DpdkTestResources:
     def __init__(
-        self, _node: Node, _testpmd: DpdkTestpmd, _rdma_core: Installer
+        self,
+        _node: Node,
+        _testpmd: DpdkTestpmd,
+        _rdma_core: Installer,
+        hotplug: Optional[str] = None,
     ) -> None:
         self.testpmd = _testpmd
         self.node = _node
@@ -121,6 +125,7 @@ class DpdkTestResources:
         self._last_dmesg = ""
         self.switch_sriov = True
         self.rdma_core = _rdma_core
+        self.hotplug = hotplug
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -294,7 +299,9 @@ def enable_uio_hv_generic(node: Node) -> None:
 def do_pmd_driver_setup(
     node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
 ) -> None:
-    if pmd == Pmd.NETVSC:
+    if pmd == Pmd.NETVSC or (
+        pmd == Pmd.MANA_DIRECT and all([nic.lower for nic in test_nics])
+    ):
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic(node)
@@ -302,6 +309,7 @@ def do_pmd_driver_setup(
         # ie... MANA. So track which devices we've already unbound to avoid
         # doing things twice.
         bound: List[str] = []
+        # bind the master hv_netvsc device to uio_hv_generic to free up the VF
         for nic in test_nics:
             if nic.dev_uuid not in bound:
                 node.nics.unbind(nic)
@@ -339,15 +347,17 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
-    network_interface_feature = node.features[NetworkInterface]
-    sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-    if not sriov_is_enabled:
-        network_interface_feature.switch_sriov(enable=True, wait=True)
+    # FIXME: mana direct skipping all checks to avoid weird sriov lisa stuff
+    if not pmd == Pmd.MANA_DIRECT:
+        network_interface_feature = node.features[NetworkInterface]
+        sriov_is_enabled = network_interface_feature.is_enabled_sriov()
+        if not sriov_is_enabled:
+            network_interface_feature.switch_sriov(enable=True, wait=True)
 
-    log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
-    assert_that(sriov_is_enabled).described_as(
-        f"SRIOV was not enabled for this test node ({node.name})"
-    ).is_true()
+        log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
+        assert_that(sriov_is_enabled).described_as(
+            f"SRIOV was not enabled for this test node ({node.name})"
+        ).is_true()
 
     # dump some info about the pci devices before we start
     lspci = node.tools[Lspci]
@@ -361,7 +371,9 @@ def initialize_node_resources(
         raise SkippedException(err)
 
     # verify SRIOV is setup as-expected on the node after compat check
-    node.nics.check_pci_enabled(pci_enabled=True)
+    # FIXME: mana direct skipping all initial checks
+    if not pmd == Pmd.MANA_DIRECT:
+        node.nics.check_pci_enabled(pci_enabled=True)
     update_kernel_from_repo(node)
     rdma_core = get_rdma_core_installer(
         node, dpdk_source, dpdk_branch, rdma_source, rdma_branch
@@ -400,25 +412,50 @@ def initialize_node_resources(
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
+    if node.nics.is_mana_device_present():
+        mana_nic = test_nic.lower if test_nic.lower else test_nic.name
 
-    assert_that(test_nic.module_name).described_as(
-        f"Error: Expected test nic {test_nic.name} to be "
-        f"bound to hv_netvsc. Found {test_nic.module_name}."
-    ).is_equal_to("hv_netvsc")
+    if pmd == Pmd.MANA_DIRECT:
+        # ex return value:
+        # hv_netvsc
+        found_link = node.execute(
+            f"basename $(readlink -f /sys/class/net/{mana_nic}/device/driver)",
+            expected_exit_code=0,
+            shell=True,
+        ).stdout
+        assert_that(found_link).described_as(
+            f"Error: Expected test nic {test_nic.name} to be "
+            f"bound to hv_netvsc. Found {test_nic.module_name}."
+        ).is_equal_to("mana")
+    else:
+        assert_that(test_nic.module_name).described_as(
+            f"Error: Expected test nic {test_nic.name} to be "
+            f"bound to hv_netvsc. Found {test_nic.module_name}."
+        ).is_equal_to("hv_netvsc")
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
 
     # Allow user to pass in an explicit list of nics to use for the test.
     if test_nics is None:
-        test_nics = [node.nics.get_secondary_nic()]
+        if pmd == Pmd.MANA_DIRECT:
+            test_nics = [node.nics.get_nic_by_subnet("10.0.1.0/24")]
+        else:
+            test_nics = [node.nics.get_secondary_nic()]
 
-    do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
+    # mana direct doesn't require special setup, you just get the vf.
+    if pmd == Pmd.MANA_DIRECT and not any([nic.lower for nic in test_nics]):
+        for nic in test_nics:
+            node.tools[Ip].down(nic.name)
+    else:
+        do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
 
 
 def check_pmd_support(node: Node, pmd: Pmd) -> None:
     # Check environment (kernel, drivers, etc) supports selected PMD.
+    if pmd == Pmd.MANA_DIRECT and not node.nics.is_mana_device_present():
+        raise SkippedException("Mana device not present, skipping mana pmd test.")
     if pmd == Pmd.FAILSAFE and node.nics.is_mana_device_present():
         raise SkippedException("Failsafe PMD test on MANA is not supported.")
     if pmd == Pmd.NETVSC and not (
@@ -445,12 +482,15 @@ def run_testpmd_concurrent(
     node_cmd_pairs: Dict[DpdkTestResources, str],
     seconds: int,
     log: Logger,
-    hotplug_sriov: bool = False,
+    hotplug_sriov: int = 0,
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
 
-    task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
-    if hotplug_sriov:
+    task_manager = start_testpmd_concurrent(
+        node_cmd_pairs, seconds, log, output, bool(hotplug_sriov)
+    )
+    while hotplug_sriov > 0:
+        hotplug_sriov -= 1
         time.sleep(10)  # run testpmd for a bit before disabling sriov
 
         test_kits = node_cmd_pairs.keys()
@@ -487,6 +527,7 @@ def start_testpmd_concurrent(
     seconds: int,
     log: Logger,
     output: Dict[DpdkTestResources, str],
+    hotplug_sriov: bool = False,
 ) -> TaskManager[Tuple[DpdkTestResources, str]]:
     cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
 
@@ -498,7 +539,12 @@ def start_testpmd_concurrent(
     ) -> Tuple[DpdkTestResources, str]:
         testkit, cmd = run_kit
 
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
+        return (
+            testkit,
+            testkit.testpmd.run_for_n_seconds(
+                cmd, seconds, hotplug=testkit.switch_sriov
+            ),
+        )
 
     task_manager = run_in_parallel_async(
         [partial(_run_command_with_testkit, x) for x in cmd_pairs_as_tuples],

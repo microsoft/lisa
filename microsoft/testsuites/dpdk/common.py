@@ -460,3 +460,4 @@ def update_kernel_from_repo(node: Node) -> None:
 class Pmd(str, Enum):
     NETVSC = "netvsc"
     FAILSAFE = "failsafe"
+    MANA_DIRECT = "mana"

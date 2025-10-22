@@ -620,14 +620,14 @@ class DpdkTestpmd(Tool):
         ).is_not_empty()
         # add debug logging args, EAL ones are very verbose
         # but netvsc are useful for identifying hotplugs on azure
-        debug_logging = "--log-level netvsc,debug"
+        debug_logging = "--log-level netvsc,debug --log-level testpmd,debug"
         return (
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} {debug_logging} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
-    def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
+    def run_for_n_seconds(self, cmd: str, timeout: int, hotplug: bool = False) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
         envs: Optional[Dict[str, str]] = (
@@ -638,9 +638,16 @@ class DpdkTestpmd(Tool):
             if self.installer.use_asan
             else None
         )
-        proc_result = self.node.tools[Timeout].run_with_timeout(
+        testpmd_proc = self.node.tools[Timeout].start_with_timeout(
             cmd, timeout, SIGINT, kill_timeout=timeout + 10, update_envs=envs
         )
+        testpmd_proc.wait_output(
+            "No commandline core given, start packet forwarding",
+            timeout=20,
+            error_on_missing=True,
+        )
+
+        proc_result = testpmd_proc.wait_result()
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
         return proc_result.stdout
@@ -663,8 +670,16 @@ class DpdkTestpmd(Tool):
         return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
-        # kill testpmd early
-        self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
+        # kill testpmd early, attempt graceful kill with sigint
+        self.node.tools[Kill].by_name(
+            self.command, ignore_not_exist=True, signum=SIGINT
+        )
+        # if that fails, try aggressive kill with sigkill,
+        # this will skip useful output at the end of the program.
+        if self.check_testpmd_is_running():
+            self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
+
+        # if this fails, kill the connection
         if self.check_testpmd_is_running():
             self.node.log.debug(
                 "Testpmd is not responding to signals, "
@@ -679,7 +694,7 @@ class DpdkTestpmd(Tool):
             self.node.log.debug(
                 "Testpmd is not responding to signals, attempt reload of hv_netvsc."
             )
-            # if this somehow didn't kill it, reset netvsc
+            # if this somehow still didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload("hv_netvsc")
             if self.check_testpmd_is_running():
                 raise LisaException("Testpmd has hung, killing the test.")
@@ -688,6 +703,8 @@ class DpdkTestpmd(Tool):
                     "Testpmd killed with hv_netvsc reload. "
                     "Proceeding with processing test run results."
                 )
+            # if this all fails... well...
+            # the test will fail and the node will be rebooted.
 
     def get_data_from_testpmd_output(
         self,
