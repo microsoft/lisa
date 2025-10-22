@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from lisa.executable import Tool
+from lisa.operating_system import Posix
 
 
 class Ipset(Tool):
