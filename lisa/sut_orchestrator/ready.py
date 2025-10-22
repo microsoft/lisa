@@ -2,8 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Type
 
 from dataclasses_json import dataclass_json
 
@@ -50,7 +49,6 @@ class ReadyPlatform(Platform):
             features.IsolatedResource,
             features.Nfs,
             features.SecurityProfile,
-            features.SerialConsole,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -91,14 +89,3 @@ class ReadyPlatform(Platform):
                 "the environment."
             )
             environment.status = EnvironmentStatus.Prepared
-
-
-class SerialConsole(features.SerialConsole):
-    def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
-        return b""
-
-    def read(self) -> str:
-        return ""
-
-    def write(self, data: str) -> None:
-        pass

@@ -779,7 +779,7 @@ class KdumpCheck(Tool):
         if self._is_system_with_more_memory():
             # As system memory is more than free os disk size, need to
             # change the dump path and increase the timeout duration
-            kdump.config_resource_disk_dump_path(self._get_resource_disk_dump_path())
+            kdump.config_resource_disk_dump_path(self._get_disk_dump_path())
             self.timeout_of_dump_crash = 1200
             if "T" in total_memory and float(total_memory.strip("T")) > 6:
                 self.timeout_of_dump_crash = 2000
@@ -794,7 +794,7 @@ class KdumpCheck(Tool):
         )
 
         # Reboot system to make kdump take effect
-        self.node.reboot()
+        self.node.reboot(time_out=600)
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
@@ -874,15 +874,13 @@ class KdumpCheck(Tool):
             ):
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
 
-    def _get_resource_disk_dump_path(self) -> str:
-        from lisa.features import Disk
-
+    def _get_disk_dump_path(self) -> str:
         # Try to access Disk feature (available on Azure platform)
         try:
-            mount_point = self.node.features[Disk].get_resource_disk_mount_point()
+            mount_point = self.node.find_partition_with_freespace(25, raise_error=False)
             dump_path = mount_point + "/crash"
         except LisaException as e:
-            # Fallback for platforms without resource disk (baremetal, MSHV, etc.)
+            # Fallback for environments without finding enough space
             # Use /var/crash as it's the standard kdump path.
             dump_path = "/var/crash"
             self._log.debug(

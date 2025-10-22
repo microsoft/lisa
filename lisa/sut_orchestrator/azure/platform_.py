@@ -2892,6 +2892,8 @@ class AzurePlatform(Platform):
                 node_runbook.marketplace.version = self._resolve_marketplace_image(
                     node_runbook.location, node_runbook.marketplace
                 ).version
+                # update raw values to reflect the resolved version
+                node_runbook.update_raw()
 
     def find_marketplace_image_location(self) -> List[str]:
         # locations used to query marketplace image information. Some image is not

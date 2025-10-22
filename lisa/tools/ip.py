@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+import ipaddress
 import re
 from typing import Dict, List, Optional, Type, cast
 
@@ -12,7 +13,7 @@ from lisa.operating_system import Posix
 from lisa.tools import Cat
 from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, find_group_in_lines, find_patterns_in_lines
 
 
 class IpInfo:
@@ -68,7 +69,7 @@ class Ip(Tool):
         (
             r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband|loopback)"
             r" (?P<mac>[0-9a-z:]+)( .+\n(?:(?:.+\n\s+|.*)altname \w+))?"
-            r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n))?"
+            r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/(?P<subnet_mask>\d+).*\n))?"
         )
     )
     # capturing from ip route show
@@ -88,6 +89,42 @@ class Ip(Tool):
     # eth0             UP             00:15:5d:ff:20:68 ...
     __ip_br_show_regex = re.compile(
         r"(?P<name>\w+)\s+(?P<status>\w+)\s+(?P<mac>[0-9a-z:]+)\s+(?P<flags>\<.+\>)"
+    )
+    # ex:
+    # 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode \
+    # DEFAULT group default qlen 1000
+    # link/ether 00:15:5d:26:f7:e0 brd ff:ff:ff:ff:ff:ff promiscuity 0 minmtu 68 \
+    # maxmtu 65521 addrgenmode eui64 numtxqueues 64 numrxqueues 64 gso_max_size \
+    # 62780 gso_max_segs 65535 parentbus vmbus \
+    # parentdev b9ae607e-0668-436c-bdaa-074aea895f35
+    __ip_detail_show_regex = re.compile(
+        r"(?m)^\s*(?P<index>\d+):\s+"
+        r"(?P<ifname>[a-zA-Z0-9]+):\s+"
+        r"<(?P<flags>[^>]+)>\s+"
+        r"mtu\s+(?P<mtu>\d+)\s+"
+        r"qdisc\s+(?P<qdisc>\S+)"
+        r"(?:\s+master\s+(?P<master>\S+))?\s+"
+        r"state\s+(?P<state>\S+)"
+        r"(?:\s+mode\s+(?P<mode>\S+))?"
+        r"(?:\s+group\s+(?P<group>\S+))?"
+        r"(?:\s+qlen\s+(?P<qlen>\d+))?"
+        r"\s*\n\s+"  # note: associated detail line will be indented
+        r"link/(?P<link_type>\S+)\s+"
+        r"(?P<mac>[0-9A-Fa-f:]+)\s+"
+        r"brd\s+(?P<brd>[0-9A-Fa-f:]+)"
+        r"(?:\s+promiscuity\s+(?P<promiscuity>\d+))?"
+        r"(?:\s+allmulti\s+(?P<allmulti>\d+))?"
+        r"(?:\s+minmtu\s+(?P<minmtu>\d+))?"
+        r"(?:\s+maxmtu\s+(?P<maxmtu>\d+))?"
+        r"(?:\s+addrgenmode\s+(?P<addrgenmode>\S+))?"
+        r"(?:\s+numtxqueues\s+(?P<numtxqueues>\d+))?"
+        r"(?:\s+numrxqueues\s+(?P<numrxqueues>\d+))?"
+        r"(?:\s+gso_max_size\s+(?P<gso_max_size>\d+))?"
+        r"(?:\s+gso_max_segs\s+(?P<gso_max_segs>\d+))?"
+        r"(?:\s+tso_max_size\s+(?P<tso_max_size>\d+))?"
+        r"(?:\s+tso_max_segs\s+(?P<tso_max_segs>\d+))?"
+        r"(?:\s+parentbus\s+(?P<parentbus>\S+))?"
+        r"(?:\s+parentdev\s+(?P<parentdev>\S+))?",
     )
 
     @property
@@ -131,6 +168,7 @@ class Ip(Tool):
             "name": matched.group("name"),
             "mac": matched.group("mac"),
             "ip_addr": matched.group("ip_addr"),
+            "subnet_mask": matched.group("subnet_mask"),
         }
 
     def is_device_up(self, nic_name: str) -> bool:
@@ -220,6 +258,11 @@ class Ip(Tool):
         return int(cat.read(f"/sys/class/net/{nic_name}/mtu", force_run=True))
 
     def set_mtu(self, nic_name: str, mtu: int) -> None:
+        # Check if mtu is integer
+        try:
+            mtu = int(mtu)
+        except ValueError:
+            raise LisaException(f"MTU value is not an integer: {mtu}")
         self.run(f"link set dev {nic_name} mtu {mtu}", force_run=True, sudo=True)
         new_mtu = self.get_mtu(nic_name=nic_name)
         assert_that(new_mtu).described_as("set mtu failed").is_equal_to(mtu)
@@ -346,6 +389,20 @@ class Ip(Tool):
         assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
         return matched["ip_addr"]
 
+    def get_subnet_address(self, nic_name: str) -> str:
+        """
+        Get the subnet address of a nic from 'ip'.
+        Note these are not always strict subnet addresses,
+        they usually include the host bits within the subnet mask.
+        ex: '10.0.1.4/24'
+        """
+        result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
+        matched = self._get_matched_dict(result.stdout)
+        assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
+        assert "subnet_mask" in matched, f"not find subnet_mask for nic {nic_name}"
+
+        return matched["ip_addr"] + "/" + matched["subnet_mask"]
+
     def get_default_route_info(self) -> tuple[str, str]:
         result = self.run("route", force_run=True, sudo=True)
         result.assert_exit_code()
@@ -386,8 +443,13 @@ class Ip(Tool):
             ),
         ).stdout.splitlines()
         delete_routes = []
+        subnet_addr = self.get_subnet_address(device)
+        # parse non-strict subnet address returned by ip addr
+        # to get the parent subnet
+        subnet = ipaddress.ip_network(subnet_addr, strict=False)
+
         for route in all_routes:
-            if f"dev {device}" in route:
+            if f"dev {device}" in route or str(subnet) in route:
                 delete_routes.append(route)
         if len(delete_routes) == 0:
             self._log.warn(
@@ -422,6 +484,22 @@ class Ip(Tool):
             log_routes = "\n".join(found_routes)
             self._log.debug(f"found routes: {log_routes}")
         return len(found_routes) > 0
+
+    def get_detail(self, interface: str, attribute: str) -> str:
+        details = self.run(
+            f"-d link show {interface}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not fetch interface details with 'ip -d link show'"
+            ),
+        ).stdout
+
+        groups = find_group_in_lines(
+            details, self.__ip_detail_show_regex, single_line=False
+        )
+        detail = groups.get(attribute, "")
+        return detail
 
     def get_interface_list(self) -> list[str]:
         raise NotImplementedError()

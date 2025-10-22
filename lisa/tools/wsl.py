@@ -9,12 +9,11 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import charset_normalizer
 from assertpy.assertpy import assert_that
 
-from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
 from lisa.util import LisaException, create_timer, find_groups_in_lines
 from lisa.util.process import ExecutableResult, Process
 
-from . import Echo, Find, Ls, PowerShell, Tar
+from . import Echo, Find, Ls, Tar
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -29,7 +28,6 @@ class Wsl(Tool):
     CONFIG_FILE_PATH = r"%USERPROFILE%\.wslconfig"
 
     ENCODING = "utf-16-le"
-    LKG_RELEASE = "https://github.com/microsoft/WSL/releases/download/2.0.4/Microsoft.WSL_2.0.4.0_x64_ARM64.msixbundle"  # noqa: E501
     INSTALL_TIMEOUT = 120
 
     def __init__(self, node: "Node", guest: "Node") -> None:
@@ -239,29 +237,7 @@ class Wsl(Tool):
         return process
 
     def _install_on_remote(self) -> None:
-        # install prerelease to workaround the bug with openssh.
-        # https://github.com/microsoft/WSL/issues/9231 With below installation
-        # path, the new installed pre-release version works.
-        self._wsl_execute("--install --inbox", encoding="utf-8")
-
-        self._wsl_execute("--update --web-download --inbox", encoding="utf-8")
-
-        wget = self.node.tools[Wget]
-        installation_file = wget.get(self.LKG_RELEASE)
-
-        ps = self.node.tools[PowerShell]
-        ps.run_cmdlet(f"Add-AppxPackage -Path {installation_file}")
-
-        self._detect_installed_path()
-
-        # output for troubleshooting
-        output = ps.run_cmdlet(
-            "Get-AppxPackage | Where-Object { $_.Name -like '*subsystem*' } | "
-            "Select-Object -ExpandProperty InstallLocation",
-            force_run=True,
-        )
-        self._log.debug(f"detected wsl store path: {output}")
-
+        self._wsl_execute("--install", encoding="utf-8")
         self.node.reboot()
 
         # trigger a wsl command to make sure wsl is ready.

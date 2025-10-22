@@ -10,7 +10,12 @@ from assertpy import assert_that
 
 from lisa import notifier
 from lisa.executable import Tool
-from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
+from lisa.messages import (
+    MetricRelativity,
+    NetworkLatencyPerformanceMessage,
+    create_perf_message,
+    send_unified_perf_message,
+)
 from lisa.operating_system import BSD, CBLMariner, Posix, Ubuntu
 from lisa.util import constants
 from lisa.util.process import Process
@@ -21,6 +26,7 @@ from .git import Git
 from .make import Make
 
 if TYPE_CHECKING:
+    from lisa import RemoteNode
     from lisa.testsuite import TestResult
 
 SOCKPERF_TCP = "tcp"
@@ -172,7 +178,8 @@ class Sockperf(Tool):
         )
 
     def start_server_async(self, mode: str, timeout: int = 30) -> Process:
-        self_ip = self.node.nics.get_primary_nic().ip_addr
+        server = cast("RemoteNode", self.node)
+        self_ip = server.internal_address
         protocol_flag = self._get_protocol_flag(mode)
         return self.start(command=f"server {protocol_flag} -i {self_ip}")
 
@@ -184,6 +191,61 @@ class Sockperf(Tool):
 
     def run_client(self, mode: str, server_ip: str) -> str:
         return self.run_client_async(mode, server_ip).wait_result().stdout
+
+    def _send_latency_unified_perf_messages(
+        self,
+        other_fields: Dict[str, Any],
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for network latency metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_SOCKPERF
+
+        min_latency_us = other_fields["min_latency_us"]
+        max_latency_us = other_fields["max_latency_us"]
+        latency99_percentile_us = other_fields["latency99_percentile_us"]
+
+        metrics = [
+            {
+                "name": "min_latency",
+                "value": float(min_latency_us),
+                "unit": "microseconds",
+                "description": "Minimum latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+            {
+                "name": "max_latency",
+                "value": float(max_latency_us),
+                "unit": "microseconds",
+                "description": "Maximum latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+            {
+                "name": "latency_99th_percentile",
+                "value": float(latency99_percentile_us),
+                "unit": "microseconds",
+                "description": "99th percentile latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+        ]
+
+        for metric in metrics:
+            metric_name: str = metric["name"]  # type: ignore
+            metric_value: float = metric["value"]  # type: ignore
+            metric_unit: str = metric["unit"]  # type: ignore
+            metric_description: str = metric["description"]  # type: ignore
+            metric_relativity: MetricRelativity = metric["relativity"]  # type: ignore
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric_name,
+                metric_value=metric_value,
+                metric_unit=metric_unit,
+                metric_description=metric_description,
+                metric_relativity=metric_relativity,
+            )
 
     def create_latency_performance_message(
         self,
@@ -205,6 +267,14 @@ class Sockperf(Tool):
         other_fields["latency99_percentile_us"] = Decimal(
             matched_results.group("latency99_percentile_us")
         )
+
+        # Send unified performance messages
+        self._send_latency_unified_perf_messages(
+            other_fields=other_fields,
+            test_case_name=test_case_name,
+            test_result=test_result,
+        )
+
         self.node.log.info(
             f"sockperf latency results (usec):\n"
             "Percentiles:\n"

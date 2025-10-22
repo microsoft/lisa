@@ -873,6 +873,61 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             f"targeted subnet: {subnet_mask} with route table: {route_table}"
         )
 
+    def add_route_to_table(
+        self,
+        route_name: str,
+        subnet_mask: str,
+        next_hop_type: str,
+        dest_hop: str,
+        em_first_hop: str = "",
+        route_table_name: str = "",
+    ) -> None:
+        try:
+            # Get platform instance
+            platform: AzurePlatform = self._platform  # type: ignore
+            network_client = get_network_client(platform)
+
+            # Set up first hop routing rule
+            address_prefix = em_first_hop if em_first_hop else subnet_mask
+
+            # Get existing route table
+            route_table = network_client.route_tables.get(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name,
+            )
+
+            # Create new route
+            new_route = {
+                "name": f"{route_name}-route",
+                "properties": {
+                    "addressPrefix": address_prefix,
+                    "nextHopType": next_hop_type,
+                    "nextHopIpAddress": dest_hop,
+                },
+            }
+
+            # Add new route to existing routes
+            if not route_table.routes:
+                route_table.routes = []
+            route_table.routes.append(new_route)
+
+            # Update route table
+            result = network_client.route_tables.begin_create_or_update(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name,
+                parameters=route_table,
+            ).result()
+
+            self._log.info(
+                f'Added route "{route_name}" to route table "{route_table_name}"'
+                f' with result: "{result}"'
+            )
+
+        except Exception as e:
+            raise LisaException(
+                f"Fail to add route {route_name} to route table {route_table_name}, {e}"
+            )
+
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -1118,9 +1173,42 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             virtual_network_name=virtual_network_name,
             subnet_name=subnet_name,
         )
-        self._log.debug(f"Checking subnet: {subnet_az.address_prefix} == {subnet_mask}")
-        # Step 4: once we find the matching subnet, assign the routing table to it.
-        if subnet_az.address_prefix == subnet_mask:
+        # Check the subnet address prefixes to find the desired subnet
+        # must handle the case where there is a single address prefix
+        # or an array of prefixes. These use distinct property names for some reason
+        if subnet_az.address_prefix is not None:
+            # single prefix is easy, save for later
+            az_subnet = subnet_az.address_prefix
+        # otherwise, check the prefixes in the array if it exists.
+        elif subnet_az.address_prefix is None and subnet_az.address_prefixes:
+            az_subnet = ""
+            # check subnet address prefixes if there are more than one
+            for subnet in subnet_az.address_prefixes:
+                self._log.debug(f"Checking address prefixes: {subnet} == {subnet_mask}")
+                if subnet == subnet_mask:
+                    az_subnet = subnet
+            # if we could not find any, warn and return.
+            if not az_subnet:
+                self._log.debug(
+                    "Warning: could not find subnet to update in vnet "
+                    f"{virtual_network_name} skipping updates. "
+                    "Checked subnet prefixes: " + " ".join(subnet_az.address_prefixes)
+                )
+                return False
+        # Else, this is a weird situation where a virtual network has no subnets.
+        # warn and return. It's unexpected, but we check every vnet in the RG.
+        # so it's possible there's just another one that contains the subnet we want.
+        # so just warn and return to the higher function to keep checking.
+        else:
+            self._log.debug(
+                "Warning: found a virtual network "
+                f"{virtual_network_name}"
+                " with no subnets."
+            )
+            return False
+        # finally, apply the routing table if we have a matching subnet
+        self._log.debug(f"Checking subnet: {az_subnet} == {subnet_mask}")
+        if az_subnet == subnet_mask:
             subnet_az.route_table = route_table
             result = network_client.subnets.begin_create_or_update(
                 resource_group_name=self._resource_group_name,

@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 
+import ipaddress
 import os
 import re
 from collections import OrderedDict
@@ -56,6 +57,7 @@ class NicInfo:
             f"pci_slot: {self.pci_slot}\n"
             f"ip_addr: {self.ip_addr}\n"
             f"mac_addr: {self.mac_addr}\n"
+            f"dev_uuid: {self.dev_uuid}\n"
         )
 
     @property
@@ -249,6 +251,25 @@ class Nics(InitializableMixin):
                 f"Had network interfaces: {self.get_nic_names()}"
             )
         return nic
+
+    # find nic by subnet address.
+    # ie: find me the nic for '10.0.1.0/24'
+    #     will return the nic with an address in that subnet
+    # see:
+    # https://docs.python.org/3/library/ipaddress.html#networks-as-containers-of-addresses
+    def get_nic_by_subnet(self, subnet: str) -> NicInfo:
+        # parses the subnet and mask string ex '10.0.1.0/24'
+        network = ipaddress.ip_network(subnet)
+        for nic in self.nics.values():
+            # parse the ip address str for comparison
+            ip_addr = ipaddress.ip_address(nic.ip_addr)
+            # if the ip address resides within the subnet
+            if ip_addr in network:
+                self._node.log.debug(
+                    f"Found matching nic for subnet {subnet}: {str(nic)}"
+                )
+                return nic
+        raise LisaException(f"Could not find a nic for requested subnet: {subnet}")
 
     def unbind(self, nic: NicInfo) -> None:
         # unbind nic from current driver and return the old sysfs path

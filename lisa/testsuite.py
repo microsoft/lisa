@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import copy
 import logging
-import threading
 import traceback
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
-from queue import Queue
 from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
@@ -32,9 +30,7 @@ from lisa.util import (
     constants,
     fields_to_dict,
     get_datetime_path,
-    hookspec,
     is_unittest,
-    plugin_manager,
     set_filtered_fields,
 )
 from lisa.util.logger import (
@@ -125,10 +121,6 @@ class TestResult:
             )
 
         return self._environment_information
-
-    @hookspec
-    def update_test_result_message(self, message: TestResultMessage) -> None:
-        ...
 
     def handle_exception(
         self, exception: Exception, log: Logger, phase: str = ""
@@ -372,7 +364,7 @@ class TestResult:
         result_message.suite_full_name = self.runtime_data.metadata.suite.full_name
         result_message.stacktrace = stacktrace
 
-        _queue_test_message(result_message=result_message)
+        notifier.notify(result_message)
 
     @retry(exceptions=FileExistsError, tries=30, delay=0.1)  # type: ignore
     def __create_case_log_path(self) -> Path:
@@ -662,7 +654,6 @@ class TestCaseRuntimeData:
             constants.TESTCASE_RETRY,
             constants.TESTCASE_USE_NEW_ENVIRONMENT,
             constants.TESTCASE_IGNORE_FAILURE,
-            constants.ENVIRONMENT,
         ]
         set_filtered_fields(self, cloned, fields)
         return cloned
@@ -894,27 +885,6 @@ def get_cases_metadata() -> Dict[str, TestCaseMetadata]:
     return _all_cases
 
 
-def start_test_result_message_processing() -> None:
-    global __message_thread
-    if not __message_thread:
-        # clear any left messages for UT
-        global __message_queue
-        __message_queue = Queue()
-
-        __message_thread = threading.Thread(target=_message_worker)
-        __message_thread.start()
-    else:
-        raise LisaException("message thread is already created and started")
-
-
-def wait_for_test_result_messages() -> None:
-    __message_queue.put(None)
-    global __message_thread
-    assert __message_thread is not None
-    __message_thread.join()
-    __message_thread = None
-
-
 def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
     key = metadata.test_class.__name__
     exist_metadata = _all_suites.get(key)
@@ -970,29 +940,3 @@ def _add_case_to_suite(
     case_tags = getattr(test_case, "tags", []) or []
     test_case.tags = list(dict.fromkeys(case_tags + suite_tags))
     test_suite.cases.append(test_case)
-
-
-def _message_worker() -> None:
-    while True:
-        message = __message_queue.get()
-        if message is None:
-            break
-        _send_result_message(message)
-
-
-# process test results message in an order and in background
-__message_thread: Optional[threading.Thread] = None
-__message_queue: Queue[Optional[TestResultMessage]] = Queue()
-
-
-def _send_result_message(result_message: TestResultMessage) -> None:
-    plugin_manager.hook.update_test_result_message(message=result_message)
-    notifier.notify(message=result_message)
-
-
-def _queue_test_message(result_message: TestResultMessage) -> None:
-    assert result_message is not None
-    __message_queue.put(result_message)
-
-
-plugin_manager.add_hookspecs(TestResult)

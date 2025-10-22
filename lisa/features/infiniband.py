@@ -405,6 +405,8 @@ class Infiniband(Feature):
                 raise UnsupportedDistroException(
                     node.os, f"{mlnx_ofed_download_url} doesn't exist."
                 )
+            else:
+                raise
         tar = node.tools[Tar]
         tar.extract(
             file=f"{self.resource_disk_path}/{tarball_name}",
