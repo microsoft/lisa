@@ -14,7 +14,8 @@ class Ipset(Tool):
         return True
 
     def install(self) -> bool:
-        self.node.os.install_packages("ipset")
+        posix_os: Posix = self.node.os  # type: ignore
+        posix_os.install_packages([self])
         return self._check_exists()
 
     def create_ipset(
