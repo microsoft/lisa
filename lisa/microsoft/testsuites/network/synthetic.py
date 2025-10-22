@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from lisa import (
     Environment,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -42,6 +43,11 @@ class Synthetic(TestSuite):
     def verify_synthetic_provision_with_max_nics(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         initialize_nic_info(environment, is_sriov=False)
 
     @TestCaseMetadata(
@@ -65,6 +71,11 @@ class Synthetic(TestSuite):
     def verify_synthetic_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
             node.reboot()
@@ -91,6 +102,11 @@ class Synthetic(TestSuite):
     def verify_synthetic_provision_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
@@ -118,6 +134,11 @@ class Synthetic(TestSuite):
     def verify_synthetic_provision_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
@@ -147,6 +168,11 @@ class Synthetic(TestSuite):
     def verify_synthetic_add_max_nics_one_time_after_provision(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         remove_extra_nics(environment)
         try:
             for node in environment.nodes.list():
@@ -180,6 +206,11 @@ class Synthetic(TestSuite):
     def verify_synthetic_add_max_nics_one_by_one_after_provision(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         remove_extra_nics(environment)
         try:
             for node in environment.nodes.list():
