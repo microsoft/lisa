@@ -116,6 +116,11 @@ class Nics(InitializableMixin):
         )
     )
 
+    # PCI slot pattern: XXXX:XX:XX.X (e.g., 34da:00:02.0)
+    __pci_slot_pattern = re.compile(
+        r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}\.[a-zA-Z0-9])"
+    )
+
     _file_not_exist = re.compile(r"No such file or directory", re.MULTILINE)
 
     # ConnectX-3 uses mlx4_core
@@ -455,6 +460,10 @@ class Nics(InitializableMixin):
                 for nic in self.get_unpaired_devices():
                     self.nics[nic].pci_slot = pci_device.slot
                 break
+        
+        # Handle unpaired PCI NICs: try to associate NICs with their PCI devices
+        # This covers scenarios where NICs operate standalone
+        self._associate_unpaired_pci_nics(lspci)
 
     def is_mana_device_present(self) -> bool:
         lspci = self._node.tools[Lspci]
@@ -475,6 +484,46 @@ class Nics(InitializableMixin):
 
     def is_mana_driver_enabled(self) -> bool:
         return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
+
+    def _associate_unpaired_pci_nics(self, lspci: Lspci) -> None:
+        """
+        Associate unpaired NICs with their PCI devices by checking device paths.
+        This handles scenarios where NICs operate standalone without synthetic pairing.
+        """
+        # Get unpaired NICs that might have PCI devices
+        unpaired_nics = self.get_unpaired_devices()
+        
+        for nic_name in unpaired_nics:
+            nic = self.nics[nic_name]
+            # Skip if already has PCI slot assigned
+            if nic.pci_slot:
+                continue
+            
+            # Try to find the PCI slot for this NIC by checking its device path
+            result = self._node.execute(
+                f"readlink -f /sys/class/net/{nic_name}/device",
+                shell=True,
+            )
+            if result.exit_code == 0 and result.stdout:
+                # Extract PCI slot from device path
+                # Path format: /sys/devices/.../XXXX:XX:XX.X/net/nicname
+                match = self.__pci_slot_pattern.search(result.stdout)
+                if match:
+                    pci_slot = match.group(1)
+                    # Get the module name for this PCI device
+                    try:
+                        module_name = lspci.get_used_module(pci_slot)
+                        if module_name:
+                            nic.pci_slot = pci_slot
+                            nic.lower_module_name = module_name
+                            self._node.log.debug(
+                                f"Associated unpaired NIC {nic_name} "
+                                f"with PCI slot {pci_slot} (module: {module_name})"
+                            )
+                    except Exception as e:
+                        self._node.log.debug(
+                            f"Could not get module for PCI slot {pci_slot}: {e}"
+                        )
 
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
