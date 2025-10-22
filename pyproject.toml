@@ -18,7 +18,6 @@ dependencies = [
     "paramiko ~= 3.5.1",
     "pluggy ~= 0.13.1",
     "python-dateutil ~= 2.8.1",
-    "pytest-html ~= 3.2.0",
     "PyYAML ~= 6.0.1",
     "randmac ~= 0.1",
     "retry ~= 0.9.2",
