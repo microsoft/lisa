@@ -274,8 +274,23 @@ class HyperV(Tool):
             raise LisaException(f"VM {name} did not start")
 
     def stop_vm(self, name: str) -> None:
-        # stop vm
-        self._run_hyperv_cmdlet("Stop-VM", f"-Name {name} -Force", force_run=True)
+        # Try graceful stop first with -Force
+        try:
+            self._run_hyperv_cmdlet("Stop-VM", f"-Name {name} -Force", force_run=True)
+        except LisaException as e:
+            # If graceful stop fails (timeout, etc.), force immediate turnoff
+            self._log.warning(
+                f"Stop-VM failed for {name}, attempting TurnOff: {e}"
+            )
+            try:
+                self._run_hyperv_cmdlet(
+                    "Stop-VM", f"-Name {name} -TurnOff", force_run=True
+                )
+            except LisaException as turnoff_error:
+                self._log.error(
+                    f"TurnOff also failed for {name}: {turnoff_error}"
+                )
+                raise
 
     def restart_vm(
         self,
