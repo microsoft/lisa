@@ -360,8 +360,8 @@ def perf_ntttcp(  # noqa: C901
         else:
             need_reboot = False
         if need_reboot:
-            client_sriov_count = len(client.nics.get_lower_nics())
-            server_sriov_count = len(server.nics.get_lower_nics())
+            client_sriov_count = len(client.nics.get_pci_nics())
+            server_sriov_count = len(server.nics.get_pci_nics())
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
@@ -664,7 +664,7 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()
 
-    assert_that(len(node_nic_info.get_lower_nics())).described_as(
-        f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+    assert_that(len(node_nic_info.get_pci_nics())).described_as(
+        f"VF count inside VM is {len(node_nic_info.get_pci_nics())},"
         f"actual sriov nic count is {sriov_count}"
     ).is_equal_to(sriov_count)
