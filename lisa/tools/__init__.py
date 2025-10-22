@@ -24,6 +24,7 @@ from .cargo import Cargo
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
+from .conntrack import Conntrack
 from .cp import Cp
 from .createrepo import CreateRepo
 from .curl import Curl
@@ -56,6 +57,7 @@ from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
 from .ip import Ip, IpInfo
 from .iperf3 import Iperf3
+from .ipset import Ipset
 from .journalctl import Journalctl
 from .kdump import KdumpBase, KdumpCheck
 from .kernel_config import KernelConfig
@@ -280,4 +282,6 @@ __all__ = [
     "Whoami",
     "WindowsFeatureManagement",
     "Wsl",
+    "Conntrack",
+    "Ipset",
 ]
