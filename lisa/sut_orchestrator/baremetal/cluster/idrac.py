@@ -207,11 +207,27 @@ class Idrac(Cluster):
                 return
 
         body = {"ResetType": operation}
-        response = self.redfish_instance.post(
-            "/redfish/v1/Systems/System.Embedded.1/Actions/ComputerSystem.Reset",
-            body=body,
-        )
-        self._wait_for_completion(response)
+
+        # Try reset operation with iDRAC recovery on HTTP 500 errors
+        try:
+            response = self.redfish_instance.post(
+                "/redfish/v1/Systems/System.Embedded.1/Actions/ComputerSystem.Reset",
+                body=body,
+            )
+            self._wait_for_completion(response)
+        except LisaException as e:
+            if self._reset_if_idrac_error(str(e)):
+                # iDRAC was reset, retry the operation once
+                url = (
+                    "/redfish/v1/Systems/System.Embedded.1/Actions/"
+                    "ComputerSystem.Reset"
+                )
+                response = self.redfish_instance.post(url, body=body)
+                self._wait_for_completion(response)
+            else:
+                # Not a retriable iDRAC error - re-raise original exception
+                raise
+
         if operation in self.state_dict.keys():
             check_till_timeout(
                 lambda: self.get_power_state() == expected_state,
@@ -314,34 +330,93 @@ class Idrac(Cluster):
                 "VirtualMedia still appears inserted after ejects; continuing."
             )
 
+    def _reset_if_idrac_error(self, error_str: str) -> bool:
+        """
+        Check if error indicates iDRAC internal issues and reset if needed.
+
+        Args:
+            error_str: The error message string to check
+
+        Returns:
+            True if this was an iDRAC error that triggered a reset, False otherwise
+
+        This method checks for specific iDRAC internal error message IDs.
+        These message IDs are part of the Redfish standard and DMTF Base Registry:
+        - IDRAC.2.8.SYS446: Dell iDRAC-specific message (stable across versions)
+        - Base.1.12.InternalError: DMTF standard message (version-independent)
+
+        Both indicate transient iDRAC service errors that resolve after reset.
+        Reference: DMTF DSP0268 (Message Registry Guide)
+        """
+        is_idrac_internal_error = (
+            "IDRAC.2.8.SYS446" in error_str or "Base.1.12.InternalError" in error_str
+        )
+
+        if is_idrac_internal_error:
+            # Per error message: "If the problem persists, consider resetting
+            # the service."
+            self._log.debug(
+                "iDRAC internal server error detected. "
+                "Resetting iDRAC service per error message guidance..."
+            )
+            self._reset_idrac()
+            return True
+
+        return False
+
     def _reset_idrac(self) -> None:
-        """Reset iDRAC to clear stale virtual media state."""
-        self._log.debug("Resetting iDRAC (GracefulRestart) to clear stale VM state...")
+        """
+        Reset iDRAC to recover from internal errors and clear stale state.
+
+        Handles session invalidation properly by logging out before reset
+        and re-logging in after iDRAC restarts.
+        """
+        self._log.info("Resetting iDRAC to recover from internal error...")
+
+        # Send reset request without waiting for completion
+        # (to avoid recursion through _wait_for_completion)
         response = self.redfish_instance.post(
             "/redfish/v1/Managers/iDRAC.Embedded.1/Actions/Manager.Reset",
             body={"ResetType": "GracefulRestart"},
         )
-        self._wait_for_completion(response)
 
-        # Poll manager until Enabled (up to 2 minutes)
-        def _check_idrac_ready() -> bool:
+        # Just check the immediate response status
+        if response.status not in [200, 202, 204]:
+            self._log.debug(
+                f"iDRAC reset request returned status {response.status}, "
+                f"continuing anyway"
+            )
+
+        # Logout old session (will be invalidated by iDRAC reset anyway)
+        self._log.debug("Logging out before iDRAC restart...")
+        self.logout()
+
+        # Poll for iDRAC readiness (typically takes 3-4 minutes)
+        self._log.debug("Waiting for iDRAC to restart and become ready...")
+
+        def _try_login() -> bool:
             try:
+                self.login()
+                # Verify we can actually query the manager
                 mgr_state = self.redfish_instance.get(
                     "/redfish/v1/Managers/iDRAC.Embedded.1"
                 ).dict
                 if mgr_state.get("Status", {}).get("State") == "Enabled":
                     self._log.info("iDRAC reset completed successfully")
                     return True
-            except Exception:
-                # iDRAC may be restarting, ignore connection errors
-                pass
-            return False
+                # Not enabled yet
+                self.logout()
+                return False
+            except Exception as e:
+                # iDRAC may still be restarting, ignore connection errors
+                self._log.debug(f"iDRAC not ready yet: {e}")
+                return False
 
         check_till_timeout(
-            _check_idrac_ready,
-            timeout_message="iDRAC did not come back after Manager.Reset",
+            _try_login,
+            timeout_message="iDRAC did not recover after reset",
             timeout=IDRAC_RESET_TIMEOUT,
-            interval=2,
+            interval=5,
         )
 
     def _insert_virtual_media(self, iso_http_url: str) -> None:
@@ -388,6 +463,12 @@ class Idrac(Cluster):
 
         except LisaException as e:
             error_msg = str(e)
+
+            # Check for HTTP 500 internal server errors and reset if needed
+            if self._reset_if_idrac_error(error_msg):
+                # Re-raise to trigger retry
+                raise
+
             # Check for RAC0904 or reachability errors that need iDRAC reset
             is_reachability_error = (
                 "RAC0904" in error_msg or "not accessible or reachable" in error_msg
