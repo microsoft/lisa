@@ -401,10 +401,6 @@ class CloudHypervisorTests(Tool):
             )
             self._write_testcase_log(log_path, testcase, trace)
 
-        # Log final thermal state
-        if self._perf_stable_enabled:
-            self._log_thermal_health("suite_end")
-
         self._save_kernel_logs(log_path)
 
         # Check for kernel panic after all tests complete
@@ -808,7 +804,6 @@ class CloudHypervisorTests(Tool):
             numa_cmd = (
                 f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
             )
-            self._log.info(f"✓ Applying NUMA binding to CH test process: {numa_cmd}")
 
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
@@ -1443,10 +1438,8 @@ exit $ec
         self._perf_stable_enabled = profile == "perf-stable"
 
         if self._perf_stable_enabled:
-            self._log.info("=== PERF-STABLE PROFILE ENABLED ===")
             # Select NUMA node (prefer node 0 on multi-node systems)
             self._numa_node = int(os.environ.get("CH_NUMA_NODE", "0"))
-            self._log.info(f"NUMA node selected: {self._numa_node}")
 
             # Log configured knobs for run reproducibility
             self._log_perf_knobs()
@@ -1466,7 +1459,7 @@ exit $ec
             "CH_MTU": os.environ.get("CH_MTU", "1500"),
         }
 
-        self._log.info("=== PERF-STABLE KNOBS (locked for this run) ===")
+        self._log.info("=== PERF-STABLE PROFILE ENABLED ===")
         for key, value in knobs.items():
             if value:
                 self._log.info(f"  {key}={value}")
@@ -1485,8 +1478,6 @@ exit $ec
         - irqbalance → ON
         - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
         """
-        self._log.info("Setting up host perf policies...")
-
         try:
             # CPU governor → performance
             self.node.execute(
@@ -1495,7 +1486,6 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info("✓ CPU governor → performance")
 
             # Turbo → off (Intel + AMD)
             # Intel: /sys/devices/system/cpu/intel_pstate/no_turbo
@@ -1508,7 +1498,6 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info("✓ Turbo/Boost → off (Intel/AMD)")
 
             # C-states ≤ C1E (Intel-specific, best-effort)
             self.node.execute(
@@ -1517,7 +1506,6 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info("✓ C-states → ≤ C1E (Intel, best-effort)")
 
             # THP → never (host)
             self.node.execute(
@@ -1526,7 +1514,6 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info("✓ THP → never (host)")
 
             # irqbalance → ON
             self.node.execute(
@@ -1535,7 +1522,6 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info("✓ irqbalance → ON")
 
             # Reserve hugepages (try 1GB first, fallback to 2MB)
             hugepage_1g_path = (
@@ -1567,12 +1553,12 @@ exit $ec
                 )
                 allocated = int(verify.stdout.strip() or "0")
                 if allocated >= 16:
-                    self._log.info(
-                        f"✓ Reserved 16GB (1GB pages) on node{self._numa_node}"
+                    self._log.debug(
+                        f"Reserved 16GB (1GB pages) on node{self._numa_node}"
                     )
                 else:
-                    self._log.warning(
-                        f"⚠ Only {allocated}GB (1GB pages) allocated (requested 16GB)"
+                    self._log.debug(
+                        f"Only {allocated}GB (1GB pages) allocated (requested 16GB)"
                     )
             else:
                 # Fallback to 2MB hugepages (8192 pages = 16GB)
@@ -1589,26 +1575,20 @@ exit $ec
                 allocated = int(verify.stdout.strip() or "0")
                 allocated_gib = allocated * 2 / 1024  # 2MiB pages to GiB
                 if allocated >= 8192:
-                    self._log.info(
-                        f"✓ Reserved 16GB (2MB pages) on node{self._numa_node}"
+                    self._log.debug(
+                        f"Reserved 16GB (2MB pages) on node{self._numa_node}"
                     )
                 else:
-                    self._log.warning(
-                        f"⚠ Only {allocated_gib:.2f} GiB (2MiB pages) allocated "
+                    self._log.debug(
+                        f"Only {allocated_gib:.2f} GiB (2MiB pages) allocated "
                         f"(requested 16 GiB)"
                     )
 
             # Export NUMA node for CH launcher
             os.environ["CH_NUMA_NODE"] = str(self._numa_node)
-            self._log.info(
-                f"✓ Exported CH_NUMA_NODE={self._numa_node} "
-                f"(NUMA binding will be applied to test process at execution)"
-            )
-
-            self._log.info("Host perf policies setup complete")
 
         except Exception as e:
-            self._log.warning(f"Host perf setup warning (non-fatal): {e}")
+            self._log.debug(f"Host perf setup warning (non-fatal): {e}")
 
     def _run_anchor_gate(self) -> None:
         """
@@ -1617,8 +1597,6 @@ exit $ec
         Validates against EWMA baseline (±5%). Retries once on failure.
         Uses exponential weighted moving average (alpha=0.3) for stability.
         """
-        self._log.info("Running anchor gate...")
-
         try:
             # 5-8s CPU/mem anchor using dd
             start = time.time()
@@ -1632,21 +1610,19 @@ exit $ec
             # Calculate throughput (GB/s)
             throughput = 2.048 / elapsed  # 2048 MB = 2.048 GB
 
-            self._log.info(f"Anchor throughput: {throughput:.2f} GB/s ({elapsed:.2f}s)")
-
             # EWMA validation (skip first run to establish baseline)
             if self._anchor_ewma_count > 0:
                 deviation = abs(throughput - self._anchor_ewma) / self._anchor_ewma
 
                 if deviation > 0.05:  # ±5% threshold
-                    self._log.warning(
+                    self._log.debug(
                         f"Anchor gate FAILED: {deviation*100:.1f}% deviation "
                         f"(expected: {self._anchor_ewma:.2f} GB/s, "
                         f"got: {throughput:.2f} GB/s)"
                     )
 
                     # Retry once
-                    self._log.info("Retrying anchor gate...")
+                    self._log.debug("Retrying anchor gate...")
                     time.sleep(5)
 
                     start = time.time()
@@ -1661,22 +1637,22 @@ exit $ec
                     deviation = abs(throughput - self._anchor_ewma) / self._anchor_ewma
 
                     if deviation > 0.05:
-                        self._log.warning(
+                        self._log.debug(
                             f"Anchor gate FAILED on retry: "
                             f"{deviation*100:.1f}% deviation"
                         )
                         self._log_thermal_health("anchor_failure")
                         # Don't fail the suite, but log prominently
                     else:
-                        self._log.info(
-                            f"✓ Anchor gate PASSED on retry: {throughput:.2f} GB/s"
+                        self._log.debug(
+                            f"Anchor gate PASSED on retry: {throughput:.2f} GB/s"
                         )
                 else:
-                    self._log.info(
-                        f"✓ Anchor gate PASSED: {deviation*100:.1f}% deviation"
+                    self._log.debug(
+                        f"Anchor gate PASSED: {deviation*100:.1f}% deviation"
                     )
             else:
-                self._log.info("✓ Anchor baseline established")
+                self._log.debug("Anchor baseline established")
 
             # Update EWMA (alpha=0.3 for responsiveness)
             alpha = 0.3
@@ -1695,7 +1671,7 @@ exit $ec
             )
 
         except Exception as e:
-            self._log.warning(f"Anchor gate error (non-fatal): {e}")
+            self._log.debug(f"Anchor gate error (non-fatal): {e}")
 
     def _setup_storage_hygiene(self) -> None:
         """
@@ -1705,8 +1681,6 @@ exit $ec
         - Ensure O_DIRECT is used (via env vars)
         - Safe preconditioning via bounded file (no raw device writes)
         """
-        self._log.info("Setting up storage hygiene...")
-
         try:
             # Set scheduler → none for all NVMe devices
             result = self.node.execute(
@@ -1715,13 +1689,10 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info("✓ NVMe scheduler → none")
 
             # Ensure O_DIRECT is used (check env vars)
             if "PERF_DISKS" not in self.env_vars:
                 self.env_vars["PERF_DISKS"] = "/dev/nvme0n1"
-
-            self._log.info("✓ O_DIRECT enforced via env vars")
 
             # Safe preconditioning via bounded file
             # Only if CH_ALLOW_DESTRUCTIVE=1 AND explicit file path provided
@@ -1729,8 +1700,6 @@ exit $ec
             precond_file = os.environ.get("CH_PRECOND_FILE", "")
 
             if allow_destructive and precond_file:
-                self._log.info(f"Preconditioning via bounded file: {precond_file}")
-
                 # Verify path is a file, not a device
                 result = self.node.execute(
                     f"[ -b {precond_file} ] && echo 'block' || echo 'file'",
@@ -1738,8 +1707,8 @@ exit $ec
                 )
 
                 if "block" in result.stdout:
-                    self._log.warning(
-                        "⚠ CH_PRECOND_FILE points to block device, skipping "
+                    self._log.debug(
+                        " CH_PRECOND_FILE points to block device, skipping "
                         "(use file path instead for safety)"
                     )
                 else:
@@ -1761,16 +1730,11 @@ exit $ec
                         sudo=True,
                         timeout=60,
                     )
-
-                    self._log.info(f"✓ Preconditioned file: {precond_file}")
             else:
-                self._log.info(
-                    "✓ Preconditioning skipped (set CH_ALLOW_DESTRUCTIVE=1 and "
-                    "CH_PRECOND_FILE=/path/to/testfile to enable)"
-                )
+                pass
 
         except Exception as e:
-            self._log.warning(f"Storage hygiene warning (non-fatal): {e}")
+            self._log.debug(f"Storage hygiene warning (non-fatal): {e}")
 
     def _setup_network_hygiene(self) -> None:
         """
@@ -1781,8 +1745,6 @@ exit $ec
         - Keep RPS auto (let irqbalance manage)
         - Enforce MTU consistency
         """
-        self._log.info("Setting up network hygiene...")
-
         try:
             # Ensure irqbalance is running
             self.node.execute(
@@ -1791,7 +1753,6 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info("✓ irqbalance is running")
 
             # Reset XPS to 0 (disable manual pinning for stability)
             # Only reset if currently pinned (non-zero value)
@@ -1802,9 +1763,6 @@ exit $ec
                 "echo 0 | sudo tee $xps >/dev/null 2>&1 || true; done",
                 shell=True,
                 sudo=True,
-            )
-            self._log.info(
-                "✓ XPS reset to 0 (disabled manual pinning for irqbalance stability)"
             )
 
             # Enforce MTU (default 1500, configurable via CH_MTU env var)
@@ -1835,17 +1793,9 @@ exit $ec
                             shell=True,
                             sudo=True,
                         )
-                        self._log.info(
-                            f"✓ MTU set to {expected_mtu} on {primary_nic} "
-                            f"(was {current_mtu})"
-                        )
-                    else:
-                        self._log.info(f"✓ MTU already {expected_mtu} on {primary_nic}")
-            else:
-                self._log.info("✓ MTU enforcement skipped (primary NIC not detected)")
 
         except Exception as e:
-            self._log.warning(f"Network hygiene warning (non-fatal): {e}")
+            self._log.debug(f"Network hygiene warning (non-fatal): {e}")
 
     def _log_thermal_health(self, stage: str) -> None:
         """
@@ -1918,7 +1868,6 @@ exit $ec
             return
 
         tc_lower = testcase.lower()
-        self._log.info(f"Running {warmup_seconds}s warmup for {testcase}...")
 
         try:
             # Apply cache drop policy based on CH_READ_CACHE_POLICY
@@ -1956,9 +1905,7 @@ exit $ec
                 )
 
                 if not has_timeout:
-                    self._log.warning(
-                        "⚠ 'timeout' not available, using sleep-based warmup"
-                    )
+                    self._log.debug("'timeout' not available, using sleep-based warmup")
                     # Fallback: simple sleep-based warmup (ensure work happens)
                     warmup_cmd = (
                         f"{numa_prefix} bash -c 'for i in "
@@ -2001,21 +1948,15 @@ exit $ec
                 )
 
             # Run warmup
-            result = self.node.execute(
+            self.node.execute(
                 warmup_cmd,
                 shell=True,
                 sudo=True,
                 timeout=warmup_seconds + 10,
             )
 
-            if result.exit_code == 0:
-                self._log.info(f"✓ Warmup complete for {testcase}")
-            else:
-                self._log.debug("Warmup completed with warnings (non-fatal)")
-
             # Post-warmup settle for MQ tests (3s settle time)
             if self._is_multi_queue_test(testcase):
-                self._log.info("  MQ test detected: 3s post-warmup settle...")
                 time.sleep(3)
 
             # Cleanup: ensure no nc processes are left behind
@@ -2076,9 +2017,9 @@ exit $ec
                 shell=True,
                 sudo=True,
             )
-            self._log.info(f"  ✓ Cache dropped: {reason}")
+            self._log.debug(f"Cache dropped: {reason}")
         else:
-            self._log.info(f"  ✓ Cache retained: {reason}")
+            self._log.debug(f"Cache retained: {reason}")
 
     def _determine_cache_drop(
         self, testcase: str, cache_policy: str
