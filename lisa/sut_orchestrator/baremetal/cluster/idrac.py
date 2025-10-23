@@ -207,11 +207,49 @@ class Idrac(Cluster):
                 return
 
         body = {"ResetType": operation}
-        response = self.redfish_instance.post(
-            "/redfish/v1/Systems/System.Embedded.1/Actions/ComputerSystem.Reset",
-            body=body,
-        )
-        self._wait_for_completion(response)
+
+        # Try reset operation with iDRAC recovery on HTTP 500 errors
+        try:
+            response = self.redfish_instance.post(
+                "/redfish/v1/Systems/System.Embedded.1/Actions/ComputerSystem.Reset",
+                body=body,
+            )
+            self._wait_for_completion(response)
+        except LisaException as e:
+            error_str = str(e)
+            # Check for HTTP 500 with specific iDRAC internal error messages.
+            # These message IDs are part of the Redfish standard and DMTF Base Registry:
+            # - IDRAC.2.8.SYS446: Dell iDRAC-specific message (stable across versions)
+            # - Base.1.12.InternalError: DMTF standard message (version-independent)
+            # Both indicate transient iDRAC service errors that resolve after reset.
+            # Reference: DMTF DSP0268 (Message Registry Guide)
+            is_http_500 = "status 500" in error_str
+            is_idrac_error = (
+                "IDRAC.2.8.SYS446" in error_str
+                or "Base.1.12.InternalError" in error_str
+            )
+
+            if is_http_500 and is_idrac_error:
+                # HTTP 500 indicates iDRAC internal service error.
+                # Per error message: "If the problem persists,
+                # consider resetting the service."
+                self._log.debug(
+                    "Reset operation failed with HTTP 500 internal error. "
+                    "Resetting iDRAC per error message guidance and retrying..."
+                )
+                self._reset_idrac()
+
+                # Retry the operation once after iDRAC reset
+                url = (
+                    "/redfish/v1/Systems/System.Embedded.1/Actions/"
+                    "ComputerSystem.Reset"
+                )
+                response = self.redfish_instance.post(url, body=body)
+                self._wait_for_completion(response)
+            else:
+                # Not a retriable error - re-raise original exception
+                raise
+
         if operation in self.state_dict.keys():
             check_till_timeout(
                 lambda: self.get_power_state() == expected_state,
@@ -315,33 +353,60 @@ class Idrac(Cluster):
             )
 
     def _reset_idrac(self) -> None:
-        """Reset iDRAC to clear stale virtual media state."""
-        self._log.debug("Resetting iDRAC (GracefulRestart) to clear stale VM state...")
+        """
+        Reset iDRAC to recover from internal errors and clear stale state.
+
+        Handles session invalidation properly by logging out before reset
+        and re-logging in after iDRAC restarts.
+        """
+        self._log.info("Resetting iDRAC to recover from internal error...")
+
+        # Send reset request without waiting for completion
+        # (to avoid recursion through _wait_for_completion)
         response = self.redfish_instance.post(
             "/redfish/v1/Managers/iDRAC.Embedded.1/Actions/Manager.Reset",
             body={"ResetType": "GracefulRestart"},
         )
-        self._wait_for_completion(response)
 
-        # Poll manager until Enabled (up to 2 minutes)
-        def _check_idrac_ready() -> bool:
+        # Just check the immediate response status
+        if response.status not in [200, 202, 204]:
+            self._log.debug(
+                f"iDRAC reset request returned status {response.status}, "
+                f"continuing anyway"
+            )
+
+        # Logout old session (will be invalidated by iDRAC reset anyway)
+        self._log.debug("Logging out before iDRAC restart...")
+        self.logout()
+
+        # Wait for iDRAC to restart (typically takes 3-4 minutes)
+        self._log.debug("Waiting 3 minutes for iDRAC to restart...")
+        time.sleep(180)
+
+        # Try to re-login with retries
+        def _try_login() -> bool:
             try:
+                self.login()
+                # Verify we can actually query the manager
                 mgr_state = self.redfish_instance.get(
                     "/redfish/v1/Managers/iDRAC.Embedded.1"
                 ).dict
                 if mgr_state.get("Status", {}).get("State") == "Enabled":
                     self._log.info("iDRAC reset completed successfully")
                     return True
-            except Exception:
-                # iDRAC may be restarting, ignore connection errors
-                pass
-            return False
+                # Not enabled yet
+                self.logout()
+                return False
+            except Exception as e:
+                # iDRAC may still be restarting, ignore connection errors
+                self._log.debug(f"iDRAC not ready yet: {e}")
+                return False
 
         check_till_timeout(
-            _check_idrac_ready,
-            timeout_message="iDRAC did not come back after Manager.Reset",
+            _try_login,
+            timeout_message="iDRAC did not recover after reset",
             timeout=IDRAC_RESET_TIMEOUT,
-            interval=2,
+            interval=5,
         )
 
     def _insert_virtual_media(self, iso_http_url: str) -> None:
@@ -388,10 +453,36 @@ class Idrac(Cluster):
 
         except LisaException as e:
             error_msg = str(e)
+
+            # Check for HTTP 500 internal server errors
+            # Error message IDs used here are stable across iDRAC versions:
+            # - Base.1.12.InternalError: DMTF Redfish standard message
+            # - IDRAC.2.8.SYS446: Dell iDRAC-specific message (versioned)
+            # Both are part of the Redfish Message Registry standard.
+            # Ref: DMTF DSP0268 (Message Registry Guide)
+            is_internal_server_error = (
+                "status 500" in error_msg
+                or "Base.1.12.InternalError" in error_msg
+                or "IDRAC.2.8.SYS446" in error_msg
+            )
+
             # Check for RAC0904 or reachability errors that need iDRAC reset
             is_reachability_error = (
                 "RAC0904" in error_msg or "not accessible or reachable" in error_msg
             )
+
+            if is_internal_server_error:
+                # HTTP 500 errors indicate iDRAC internal service issues.
+                # Per iDRAC error message: "If the problem persists,
+                # consider resetting the service."
+                # Resetting iDRAC clears its internal state and allows retry.
+                self._log.debug(
+                    "iDRAC internal server error (HTTP 500) detected. "
+                    "Resetting iDRAC service and retrying..."
+                )
+                self._reset_idrac()
+                # Re-raise to trigger retry
+                raise
 
             if is_reachability_error:
                 # RAC0904 errors occur when iDRAC has stale NFS/HTTP handles from
