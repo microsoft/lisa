@@ -99,7 +99,7 @@ class Dhclient(Tool):
         if interface:
             self._log.debug(f"Releasing IP for interface {interface} using {option}")
             release_result = self.run(
-                f" {option} {interface}",
+                f"{option} {interface}",
                 shell=True,
                 sudo=True,
                 force_run=True,
@@ -115,7 +115,7 @@ class Dhclient(Tool):
                 f"Assigning IP to interface {interface} using {self._command}"
             )
             assign_result = self.run(
-                f" {interface}",
+                f"{interface}",
                 shell=True,
                 sudo=True,
                 force_run=True,
@@ -129,7 +129,7 @@ class Dhclient(Tool):
             # If no interface is provided, execute the command globally
             self._log.debug(f"Executing {self._command} globally with option {option}")
             release_result = self.run(
-                f" {option}",
+                f"{option}",
                 shell=True,
                 sudo=True,
                 force_run=True,
