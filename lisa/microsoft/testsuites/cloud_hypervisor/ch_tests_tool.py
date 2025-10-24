@@ -1412,7 +1412,7 @@ exit $ec
     # export CH_BLOCK_POLICY="block_*_IOPS=direct,block_*_MiBps=buffered"
     #
     # # Choose one and keep it consistent across runs:
-    # export CH_READ_CACHE_POLICY=hot   # or 'cold' (default: auto)
+    # export CH_READ_CACHE_POLICY=hot   # or 'cold', 'auto' (default: hot)
     #
     # # Network:
     # export CH_MTU=1500                # or 9000 if validated end-to-end jumbo
@@ -1454,8 +1454,10 @@ exit $ec
             "CH_NUMA_NODE": os.environ.get("CH_NUMA_NODE", "0"),
             "CH_WARMUP_SECONDS": os.environ.get("CH_WARMUP_SECONDS", "30"),
             "CH_MQ_TEST_TIMEOUT": os.environ.get("CH_MQ_TEST_TIMEOUT", "90"),
-            "CH_BLOCK_POLICY": os.environ.get("CH_BLOCK_POLICY", ""),
-            "CH_READ_CACHE_POLICY": os.environ.get("CH_READ_CACHE_POLICY", ""),
+            "CH_BLOCK_POLICY": os.environ.get(
+                "CH_BLOCK_POLICY", "block_*_MiBps=buffered, block_*_IOPS=direct"
+            ),
+            "CH_READ_CACHE_POLICY": os.environ.get("CH_READ_CACHE_POLICY", "hot"),
             "CH_MTU": os.environ.get("CH_MTU", "1500"),
         }
 
@@ -1992,14 +1994,16 @@ exit $ec
         - MiBps tests (sequential) → buffered I/O (cache drop for writes)
 
         CH_READ_CACHE_POLICY:
-        - hot: Warm cache for all read tests
+        - hot (default): Warm cache for all read tests
         - cold: Cold cache for all read tests
-        - auto (default): Follows explicit block policy
+        - auto: Follows explicit block policy
 
         CH_BLOCK_POLICY overrides for fine-grained control.
         """
-        cache_policy = os.environ.get("CH_READ_CACHE_POLICY", "auto").lower()
-        block_policy = os.environ.get("CH_BLOCK_POLICY", "")
+        cache_policy = os.environ.get("CH_READ_CACHE_POLICY", "hot").lower()
+        block_policy = os.environ.get(
+            "CH_BLOCK_POLICY", "block_*_MiBps=buffered, block_*_IOPS=direct"
+        )
 
         # Determine cache drop decision
         should_drop, reason = self._determine_cache_drop(testcase, cache_policy)
