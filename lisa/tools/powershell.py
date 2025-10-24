@@ -116,14 +116,24 @@ class PowerShell(Tool):
         )
 
     def _parse_error_message(self, raw: str) -> str:
-        # remove first line, which is "#< CLIXML"
-        leading = "#< CLIXML"
-        if raw.startswith(leading):
-            raw = raw[len(leading) :]
-        root = ElementTree.fromstring(raw)
-        namespaces = {"ns": "http://schemas.microsoft.com/powershell/2004/04"}
-        error_elements = root.findall(".//ns:S[@S='Error']", namespaces=namespaces)
-        result = "".join([e.text for e in error_elements if e.text])
+        # If stderr is empty or doesn't contain CLIXML, return as-is
+        if not raw or not raw.strip():
+            return ""
 
-        result = result.replace("_x000D__x000A_", "\n")
-        return result
+        leading = "#< CLIXML"
+        if not raw.startswith(leading):
+            # Not CLIXML format, return raw stderr
+            return raw
+
+        # Remove CLIXML header and parse XML
+        raw = raw[len(leading) :]
+        try:
+            root = ElementTree.fromstring(raw)
+            namespaces = {"ns": "http://schemas.microsoft.com/powershell/2004/04"}
+            error_elements = root.findall(".//ns:S[@S='Error']", namespaces=namespaces)
+            result = "".join([e.text for e in error_elements if e.text])
+            result = result.replace("_x000D__x000A_", "\n")
+            return result
+        except ElementTree.ParseError:
+            # If XML parsing fails, return raw stderr (after removing CLIXML header)
+            return raw
