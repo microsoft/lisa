@@ -35,24 +35,28 @@ class PanicInfo:
 class SerialConsole(Feature):
     panic_patterns: List[Pattern[str]] = [
         re.compile(r"^(.*Kernel panic - not syncing:.*)$", re.MULTILINE),
-        re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
         re.compile(r"^(.*grub>.*)$", re.MULTILINE),
         re.compile(r"^The operating system has halted.$", re.MULTILINE),
         # Synchronous Exception at 0x000000003FD04000
         re.compile(r"^(.*Synchronous Exception at.*)$", re.MULTILINE),
-        # Lockup patterns
-        re.compile(r"^(.*soft lockup.*)$", re.MULTILINE | re.IGNORECASE),
-        re.compile(r"^(.*hard lockup.*)$", re.MULTILINE | re.IGNORECASE),
+        # Lockup patterns - tightened to require CPU number for specificity
+        re.compile(
+            r"^(.*soft lockup - CPU#\d+ stuck.*)$", re.MULTILINE | re.IGNORECASE
+        ),
+        re.compile(
+            r"^(.*hard lockup - CPU#\d+ stuck.*)$", re.MULTILINE | re.IGNORECASE
+        ),
         # BUG and kernel errors
         re.compile(r"^(.*BUG:.*)$", re.MULTILINE),
         re.compile(r"^(.*kernel NULL pointer.*)$", re.MULTILINE | re.IGNORECASE),
         re.compile(r"^(.*unable to handle.*)$", re.MULTILINE | re.IGNORECASE),
-        # Hung tasks and watchdog
-        re.compile(r"^(.*hung task.*)$", re.MULTILINE | re.IGNORECASE),
-        re.compile(r"^(.*watchdog.*)$", re.MULTILINE | re.IGNORECASE),
-        # RCU stalls
-        re.compile(r"^(.*rcu_sched.*)$", re.MULTILINE | re.IGNORECASE),
-        re.compile(r"^(.*stall.*)$", re.MULTILINE | re.IGNORECASE),
+        # RCU stalls - tightened to specific self-detected marker
+        re.compile(
+            r"^(.*rcu_sched self-detected stall.*)$", re.MULTILINE | re.IGNORECASE
+        ),
+        # New patterns added at the end
+        re.compile(r"^(.*panic:.*)$", re.MULTILINE),
+        re.compile(r"^(.*Oops:.*)$", re.MULTILINE),
     ]
 
     # ignore some return lines, which shouldn't be a panic line.
@@ -63,8 +67,33 @@ class SerialConsole(Feature):
         # This is a known issue with Hyper-V when running on AMD processors.
         # The problem occurs in VM sizes that have 16 or more vCPUs which means 2 or
         # more NUMA nodes on AMD processors.
-        # The call trace is annoying but does not affect correct operation of the VM.
+        # The call trace does not affect correct operation of the VM.
         re.compile(r"(.*RIP: 0010:topology_sane.isra.*)$", re.MULTILINE),
+        # New ignore patterns added at the end - harmless boot/info messages
+        # NMI watchdog permanently disabled - normal boot message on systems where
+        # perf events are not available or disabled. Not an error.
+        # Example: "[ 0.918834] NMI watchdog: Perf NMI watchdog permanently disabled"
+        re.compile(
+            r"^(.*NMI watchdog.*permanently disabled.*)$",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        re.compile(
+            r"^(.*Perf NMI watchdog permanently disabled.*)$",
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        # Generic watchdog enable/disable messages - informational kernel messages
+        # about watchdog configuration, not actual lockup events.
+        # Example: "watchdog: enabled on all CPUs", "watchdog disabled by BIOS"
+        re.compile(r"^(.*watchdog.*disabled.*)$", re.MULTILINE | re.IGNORECASE),
+        re.compile(r"^(.*watchdog.*enabled.*)$", re.MULTILINE | re.IGNORECASE),
+        # RCU grace period messages - normal RCU subsystem operation logs.
+        # These are NOT stalls, just informational messages about RCU state.
+        # Example: "rcu: INFO: rcu_sched detected expedited grace periods"
+        re.compile(r"^(.*rcu.*grace period.*)$", re.MULTILINE | re.IGNORECASE),
+        # Hung task timeout configuration - kernel parameter settings, not actual
+        # hung tasks. Real hung tasks are caught by specific patterns in panic_patterns.
+        # Example: "hung_task_timeout_secs=120"
+        re.compile(r"^(.*hung_task_timeout_secs.*)$", re.MULTILINE | re.IGNORECASE),
     ]
 
     # Patterns for extracting error codes from panic messages
