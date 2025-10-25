@@ -292,3 +292,90 @@ class EnvironmentTestCase(TestCase):
                     self.assertEqual(r_n.custom_remote_field, CUSTOM_REMOTE)
                     done += 1
             self.assertEqual(2, done)
+
+    def test_disabled_environment_not_loaded(self) -> None:
+        # Create runbook with 3 environments: 2 enabled, 1 disabled
+        data = {
+            constants.ENVIRONMENTS: [
+                {
+                    "name": "enabled_env_1",
+                    constants.NODES: [
+                        {
+                            constants.TYPE: constants.ENVIRONMENTS_NODES_LOCAL,
+                        }
+                    ],
+                },
+                {
+                    "name": "disabled_env",
+                    "enabled": False,
+                    constants.NODES: [
+                        {
+                            constants.TYPE: constants.ENVIRONMENTS_NODES_REMOTE,
+                            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS: "1.2.3.4",
+                            constants.ENVIRONMENTS_NODES_REMOTE_PORT: 22,
+                            constants.ENVIRONMENTS_NODES_REMOTE_USERNAME: "user",
+                            constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD: "pass",
+                        }
+                    ],
+                },
+                {
+                    "name": "enabled_env_2",
+                    constants.NODES: [
+                        {
+                            constants.TYPE: constants.ENVIRONMENTS_NODES_LOCAL,
+                        }
+                    ],
+                },
+            ]
+        }
+        runbook = schema.load_by_type(schema.EnvironmentRoot, data)
+        envs = load_environments(runbook)
+
+        # Only 2 environments should be loaded (disabled one skipped)
+        self.assertEqual(2, len(envs))
+        self.assertIn("enabled_env_1", envs)
+        self.assertIn("enabled_env_2", envs)
+        self.assertNotIn("disabled_env", envs)
+
+    def test_disabled_node_not_loaded(self) -> None:
+        # Create environment with 3 nodes: 2 enabled, 1 disabled
+        data = {
+            constants.ENVIRONMENTS: [
+                {
+                    "name": "test_env",
+                    constants.NODES: [
+                        {
+                            "name": "node1",
+                            constants.TYPE: constants.ENVIRONMENTS_NODES_LOCAL,
+                        },
+                        {
+                            "name": "node2",
+                            "enabled": False,
+                            constants.TYPE: constants.ENVIRONMENTS_NODES_REMOTE,
+                            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS: "1.2.3.4",
+                            constants.ENVIRONMENTS_NODES_REMOTE_PORT: 22,
+                            constants.ENVIRONMENTS_NODES_REMOTE_USERNAME: "user",
+                            constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD: "pass",
+                        },
+                        {
+                            "name": "node3",
+                            constants.TYPE: constants.ENVIRONMENTS_NODES_LOCAL,
+                        },
+                    ],
+                },
+            ]
+        }
+        runbook = schema.load_by_type(schema.EnvironmentRoot, data)
+        envs = load_environments(runbook)
+
+        # Environment should be loaded
+        self.assertEqual(1, len(envs))
+        env = envs.get("test_env")
+        assert env
+
+        # Only 2 nodes should be loaded (disabled one skipped)
+        self.assertEqual(2, len(env.nodes))
+        node_names = [node.name for node in env.nodes.list()]
+        self.assertIn("node1", node_names)
+        self.assertIn("node3", node_names)
+        self.assertNotIn("node2", node_names)
