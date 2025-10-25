@@ -125,8 +125,108 @@ class Nvmecli(Tool):
         return nvme_devices["Devices"]
 
     def get_disks(self, force_run: bool = False) -> List[str]:
-        nvme_devices = self.get_devices(force_run=force_run)
-        return [device["DevicePath"] for device in nvme_devices]
+        """
+        Return NVMe device nodes/paths (`/dev/...`) robustly across nvme-cli schemas.
+
+        Upstream change context:
+        - nvme-cli reworked `nvme list -o json` around v2.11, removing the
+            legacy top-level `.Devices[].DevicePath` and nesting device info under:
+            Subsystems → Controllers → Namespaces.
+        - Reference discussion and breakage report:
+            https://github.com/linux-nvme/nvme-cli/issues/2749
+            (thread points to commit 929f461 as the change introducing the new JSON)
+        - Some distro builds (e.g., certain RHEL package revisions) may still
+            emit `DevicePath`. This logic supports both.
+
+        - jq option is implemented to simplify parsing, but a pure-Python
+            fallback is also provided if `jq` is not available on the target system.
+            jq option is more efficient and robust, so it is preferred when possible.
+        Returns:
+            List[str]: device nodes/paths like `/dev/nvme0n1`
+        """
+
+        check = self.node.execute(
+            "command -v jq", shell=True, sudo=True, no_error_log=True
+        )
+        # a new tool for jq can also be written if used frequently
+        if check.exit_code != 0 or not (check.stdout or "").strip():
+            use_jq = False
+        else:
+            use_jq = True
+
+        if use_jq:
+            # -------------------------------
+            # jq pipeline (more efficient)
+            # -------------------------------
+            # Rationale: First prefer legacy `.DevicePath` if present, else build
+            # `/dev/<NameSpace>` from the new nested schema.
+            # Reference: https://github.com/linux-nvme/nvme-cli/issues/2749
+
+            cmd = r"""list -o json 2>/dev/null | jq -r '
+            .Devices[]? as $d |
+            if ($d | has("DevicePath")) and ($d.DevicePath != null) then
+                # Legacy / RHEL-patched builds: use the flat field directly
+                $d.DevicePath
+            else
+                # Newer schema: Subsystems → Controllers → Namespaces → NameSpace
+                [$d.Subsystems[]? | .Controllers[]? | .Namespaces[]?
+                | "/dev/" + (.NameSpace // "")]
+                | map(select(length > 5))    # drop empties like "/dev/"
+                | .[]
+            end
+            '"""
+
+            result = self.run(
+                cmd,
+                shell=True,
+                sudo=True,
+                force_run=force_run,
+                no_error_log=True,
+            )
+
+            device_paths = [
+                ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()
+            ]
+            if not device_paths:
+                raise LisaException(
+                    "No NVMe devices found. The jq-based pipeline returned no paths."
+                )
+            return device_paths
+        else:
+            # -------------------------------
+            # Pure Python (when jq is not available)
+            # -------------------------------
+            nvme_devices = self.get_devices(force_run=force_run)  # raw ["Devices"]
+            device_paths = []
+
+            def _add(path: str) -> None:
+                if isinstance(path, str) and path.startswith("/dev/") and len(path) > 5:
+                    device_paths.append(path)
+
+            for nvme_device in nvme_devices or []:
+                # Legacy schema (flat fields):
+                _add(nvme_device.get("DevicePath"))
+                # _add(nvme_device.get("GenericPath"))
+
+                # New schema: Subsystems → Controllers → Namespaces
+                for subsystem in nvme_device.get("Subsystems") or []:
+                    for controller in (subsystem or {}).get("Controllers") or []:
+                        for namespace in (controller or {}).get("Namespaces") or []:
+                            namespace_name = namespace.get(
+                                "NameSpace"
+                            )  # e.g., "nvme0n1"
+                            # generic_name = namespace.get("Generic")  # e.g., "ng0n1"
+                            if isinstance(namespace_name, str) and namespace_name:
+                                _add(f"/dev/{namespace_name}")
+                            # if isinstance(generic_name, str) and generic_name:
+                            #     _add(f"/dev/{generic_name}")
+
+            device_paths = sorted(set(device_paths))
+            if not device_paths:
+                raise LisaException(
+                    "No NVMe device nodes could be derived from 'nvme list -o json'."
+                )
+            return device_paths
 
     # NVME namespace ids are unique for each disk under any NVME controller.
     # These are useful in detecting the lun id of the remote azure disk disks.
