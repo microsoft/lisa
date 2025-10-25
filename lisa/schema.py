@@ -1246,6 +1246,10 @@ class Node(TypedSchema, ExtendableSchemaMixin):
     name: str = ""
     is_default: bool = field(default=False)
 
+    # A node is disabled if it's False. It helps to disable node by
+    # variables.
+    enabled: bool = True
+
 
 @dataclass_json()
 @dataclass
@@ -1371,6 +1375,10 @@ class Environment:
         metadata=field_metadata(data_key=constants.NODES),
     )
     nodes_requirement: Optional[List[NodeSpace]] = None
+
+    # An environment is disabled if it's False. It helps to disable environment
+    # by variables.
+    enabled: bool = True
 
     _original_nodes_requirement: Optional[List[NodeSpace]] = None
 
