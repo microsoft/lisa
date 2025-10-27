@@ -372,14 +372,17 @@ class DpdkTestpmd(Tool):
         )
     )
     _search_hotplug_regex_alt = re.compile(
-        r"EAL: PCI device [a-fA-F0-9]{4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9] "
+        r"EAL: PCI device [a-fA-F0-9]{4}:"
+        r"[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9] "
         r"on NUMA socket [0-9]+"
     )
     # for netvsc, we rely on the netvsc pmd debug log to fetch the information.
-    # when hotplug function finds a matching device, it logs this message (and the device args).
+    # when hotplug function finds a matching device, it logs
+    # this message (and the device args).
     # this code isn dpdk is in drivers/net/netvsc/hn_ethdev.c
     _search_hotplug_regex_netvsc = re.compile(
-        r"HN_DRIVER: netvsc_hotplug_retry\(\): Found matching MAC address, adding device"
+        r"HN_DRIVER: netvsc_hotplug_retry\(\): "
+        r"Found matching MAC address, adding device"
     )
 
     _hotplug_search_regexes = [
