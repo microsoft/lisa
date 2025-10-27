@@ -2739,7 +2739,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     "ConfidentialVM_NonPersistedTPM" if is_vhd else "NonPersistedTPM"
                 )
             elif SecurityProfileType.CVM == settings.security_profile:
-                node_parameters.security_profile["secure_boot"] = True
+                node_parameters.security_profile[
+                    "secure_boot"
+                ] = False  # TMP: DO NOT MERGE
                 node_parameters.security_profile["security_type"] = "ConfidentialVM"
                 if settings.encrypt_disk:
                     if settings.disk_encryption_set_id:
