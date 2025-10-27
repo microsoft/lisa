@@ -282,6 +282,11 @@ class MshvHostTestSuite(TestSuite):
         node: Node,
     ) -> None:
         mshvtrace_path = "/usr/sbin/mshvtrace"
+
+        if self._is_l1vh_partition(node, log):
+            raise SkippedException(
+                "L1VH Parent partition cannot collect performance traces."
+            )
         temp_dir = node.execute(
             "mktemp -d /tmp/mshvtrace_test_XXXXXX", sudo=True
         ).stdout.strip()
