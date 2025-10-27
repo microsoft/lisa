@@ -371,6 +371,14 @@ class WindowsLscpu(Lscpu):
         self._log.debug(f"thread per core: {thread_per_core}")
         return thread_per_core
 
+    def calculate_vcpu_count(self, force_run: bool = False) -> int:
+        calculated_cpu_count = (
+            self.get_core_per_socket_count(force_run=force_run)
+            * self.get_socket_count(force_run=force_run)
+            * self.get_thread_per_core_count(force_run=force_run)
+        )
+        return calculated_cpu_count
+
     def _get_core_count(self, force_run: bool = False) -> int:
         result = self.node.tools[PowerShell].run_cmdlet(
             self.__computer_system_command, force_run=force_run
