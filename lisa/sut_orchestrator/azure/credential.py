@@ -101,7 +101,9 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         if runbook.type:
             self._credential_type = runbook.type
         else:
-            self._credential_type = AzureCredentialType.DefaultAzureCredential  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
+            self._credential_type = (
+                AzureCredentialType.DefaultAzureCredential
+            )  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
 
         self._log.debug(f"Credential type: {self._credential_type}")
         self._cloud = cloud
@@ -169,7 +171,7 @@ class AzureDefaultCredential(AzureCredential):
         return AzureCredential with related schema
         """
         additional_tenants = ["*"] if self._allow_all_tenants else None
-        return DefaultAzureCredential( # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
+        return DefaultAzureCredential(  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
             cloud=self._cloud,
             additionally_allowed_tenants=additional_tenants,
         )
