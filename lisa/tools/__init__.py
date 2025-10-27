@@ -48,6 +48,12 @@ from .free import Free
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
+from .gpu_drivers import (
+    AmdGpuDriver,
+    GpuDriverInstaller,
+    NvidiaCudaDriver,
+    NvidiaGridDriver,
+)
 from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
@@ -175,6 +181,7 @@ __all__ = [
     "Gcc",
     "Gdb",
     "Git",
+    "GpuDriverInstaller",
     "GrubConfig",
     "Ip",
     "IpInfo",
@@ -226,8 +233,11 @@ __all__ = [
     "Ntp",
     "Ntpstat",
     "Ntttcp",
+    "NvidiaCudaDriver",
+    "NvidiaGridDriver",
     "NvidiaSmi",
     "Nvmecli",
+    "AmdGpuDriver",
     "OpenSSL",
     "Parted",
     "Perf",

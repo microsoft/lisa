@@ -379,6 +379,15 @@ def _install_cudnn(node: Node, log: Logger, install_path: str) -> None:
 # We use platform to install the driver by default. If in future, it needs to
 # install independently, this logic can be reused.
 def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
+    """
+    Install GPU driver using either Azure extension or direct driver tools.
+
+    This function attempts to install the driver in the following order:
+    1. Try Azure GPU Extension (platform-specific)
+    2. Fall back to direct driver installation via tools
+
+    The driver type is determined by the Gpu feature based on VM SKU.
+    """
     gpu_feature = node.features[Gpu]
     if gpu_feature.is_module_loaded():
         return
@@ -435,12 +444,56 @@ def __remove_sources_added_by_extension(
 
 
 def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
+    """
+    Install GPU driver using appropriate driver tool based on supported driver type.
+
+    This function:
+    1. Determines which driver type is supported (GRID, CUDA, or AMD)
+    2. Installs the appropriate driver using the corresponding tool
+    3. Reboots to load the driver
+    """
+    from lisa.tools.gpu_drivers import AmdGpuDriver, NvidiaCudaDriver, NvidiaGridDriver
+
     gpu_feature = node.features[Gpu]
-    gpu_feature.install_compute_sdk()
-    log.debug(
-        f"{gpu_feature.get_supported_driver()} sdk installed. "
-        "Will reboot to load driver."
-    )
+    supported_drivers = gpu_feature.get_supported_driver()
+
+    # Install LIS driver if required (for older kernels)
+    try:
+        from lisa.tools import LisDriver
+
+        node.tools[LisDriver]
+    except Exception as e:
+        log.debug(f"LisDriver is not installed. It might not be required. {e}")
+
+    # Install appropriate GPU driver based on supported driver type
+    driver_installed = False
+    for driver_type in supported_drivers:
+        try:
+            if driver_type == ComputeSDK.GRID:
+                log.info("Installing NVIDIA GRID driver")
+                _ = node.tools[NvidiaGridDriver]
+                driver_installed = True
+                break
+            elif driver_type == ComputeSDK.CUDA:
+                log.info("Installing NVIDIA CUDA driver")
+                _ = node.tools[NvidiaCudaDriver]
+                driver_installed = True
+                break
+            elif driver_type == ComputeSDK.AMD:
+                log.info("Installing AMD GPU driver")
+                _ = node.tools[AmdGpuDriver]
+                driver_installed = True
+                break
+        except Exception as e:
+            log.warning(f"Failed to install {driver_type} driver: {e}")
+            continue
+
+    if not driver_installed:
+        raise LisaException(
+            f"Failed to install any GPU driver. Supported types: {supported_drivers}"
+        )
+
+    log.debug(f"{supported_drivers} driver installed. Will reboot to load driver.")
 
     reboot_tool = node.tools[Reboot]
     reboot_tool.reboot_and_check_panic(log_path)

@@ -521,11 +521,13 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         r"Standard_NV[\d]+ad(ms|s)_A10_v5)",
         re.I,
     )
-    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/windows/n-series-amd-driver-setup # noqa: E501
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/linux/azure-n-series-amd-gpu-driver-linux-installation-guide # noqa: E501
     # - NGads V620 Series: Standard_NG[^_]+_V620_v[0-9]+
+    # - NVads V710 Series: Standard_NV[^_]+ads_V710_v[0-9]+
     # - NVv4 Series: Standard_NV[^_]+_v4
     _amd_supported_skus = re.compile(
-        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
+        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+ads_V710_v[0-9]+|Standard_NV[^_]+_v4)$",
+        re.I,
     )
 
     _grid_supported_distros: Dict[Any, List[str]] = {
@@ -633,10 +635,18 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         self._is_nvidia = True
 
     def _install_driver_using_platform_feature(self) -> None:
-        # https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
+        """
+        Install GPU drivers using Azure VM extension.
+        
+        This method uses the Azure HPC Compute GPU extension to install drivers.
+        It's an alternative to manual driver installation via the driver tools.
+        
+        Reference:
+        https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
+        """
         supported_versions: Dict[Any, List[str]] = {
-            Redhat: ["7.9"],
-            Ubuntu: ["20.04"],
+            Redhat: ["7.9", "8.2"],
+            Ubuntu: ["20.04", "22.04", "24.04"],
             CentOs: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
         }
         release = self._node.os.information.release
@@ -670,16 +680,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             return
         else:
             raise LisaException("GPU Extension Provisioning Failed")
-
-    def install_compute_sdk(self, version: str = "") -> None:
-        try:
-            # install LIS driver if required and not already installed.
-            self._node.tools[LisDriver]
-        except Exception as e:
-            self._log.debug(
-                f"LisDriver is not installed. It might not be required. {e}"
-            )
-        super().install_compute_sdk(version)
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
