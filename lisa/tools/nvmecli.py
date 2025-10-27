@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.tools import Git, Make
+from lisa.tools import Git, Jq, Make
 from lisa.util import LisaException, find_patterns_in_lines
 from lisa.util.process import ExecutableResult
 
@@ -144,15 +144,8 @@ class Nvmecli(Tool):
         Returns:
             List[str]: device nodes/paths like `/dev/nvme0n1`
         """
-
-        check = self.node.execute(
-            "command -v jq", shell=True, sudo=True, no_error_log=True
-        )
-        # a new tool for jq can also be written if used frequently
-        if check.exit_code != 0 or not (check.stdout or "").strip():
-            use_jq = False
-        else:
-            use_jq = True
+        jq = self.node.tools[Jq]
+        use_jq = jq.exists
 
         if use_jq:
             # -------------------------------
@@ -161,8 +154,8 @@ class Nvmecli(Tool):
             # Rationale: First prefer legacy `.DevicePath` if present, else build
             # `/dev/<NameSpace>` from the new nested schema.
             # Reference: https://github.com/linux-nvme/nvme-cli/issues/2749
-
-            cmd = r"""list -o json 2>/dev/null | jq -r '
+            
+            cmd = rf"""list -o json 2>/dev/null | {jq.command} -r '
             .Devices[]? as $d |
             if ($d | has("DevicePath")) and ($d.DevicePath != null) then
                 # Legacy / RHEL-patched builds: use the flat field directly

@@ -59,6 +59,7 @@ from .ip import Ip, IpInfo
 from .iperf3 import Iperf3
 from .ipset import Ipset
 from .journalctl import Journalctl
+from .jq import Jq
 from .kdump import KdumpBase, KdumpCheck
 from .kernel_config import KernelConfig
 from .kill import Kill
@@ -190,6 +191,7 @@ __all__ = [
     "Iperf3",
     "Iptables",
     "Journalctl",
+    "Jq",
     "KdumpCheck",
     "KdumpBase",
     "KernelConfig",
