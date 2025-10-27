@@ -17,7 +17,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.tools.whoami import Whoami
-from lisa.util import MissingPackagesException, SkippedException
+from lisa.util import LisaException, MissingPackagesException, SkippedException
 
 
 class GpuDriverInstaller(Tool):
@@ -33,6 +33,7 @@ class GpuDriverInstaller(Tool):
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def command(self) -> str:
         """
         Return the verification command to check if driver is working.
@@ -42,6 +43,13 @@ class GpuDriverInstaller(Tool):
     @property
     def can_install(self) -> bool:
         return True
+
+    def check_exists(self) -> bool:
+        try:
+            self._verify_installation()
+            return True
+        except Exception:
+            return False
 
     def get_installed_version(self, force_run: bool = False) -> str:
         """Get the currently installed driver version"""
@@ -110,7 +118,19 @@ class GpuDriverInstaller(Tool):
         # Install the actual driver (implemented by subclass)
         self._install_driver()
 
-        return self._check_exists()
+        self.check_exists()
+
+        self._log.info(f"{self.driver_name} installation completed successfully")
+        return True
+
+    @abstractmethod
+    def _verify_installation(self) -> None:
+        """
+        Verify the driver installation was successful.
+        Must be implemented by subclass to perform driver-specific verification.
+        Should raise LisaException if verification fails.
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def _install_driver(self) -> None:
@@ -143,6 +163,10 @@ class NvidiaGridDriver(GpuDriverInstaller):
     @property
     def driver_name(self) -> str:
         return "NVIDIA GRID"
+
+    @property
+    def command(self) -> str:
+        return "nvidia-smi"
 
     def _is_os_supported(self) -> bool:
         """GRID drivers have limited OS support"""
@@ -220,23 +244,16 @@ class NvidiaGridDriver(GpuDriverInstaller):
 
         self._log.info("Successfully installed NVIDIA GRID driver")
 
-    def install_with_url(self, driver_url: str) -> None:
-        """
-        Install GRID driver from a specific URL.
-        Useful for testing or custom driver versions.
-        """
-        if self._check_exists():
-            self._log.debug("GRID driver already installed")
-            return
+    def _verify_installation(self) -> None:
+        """Verify NVIDIA GRID driver installation using NvidiaSmi tool"""
+        from lisa.tools import NvidiaSmi
 
-        if not self._is_os_supported():
-            raise SkippedException(
-                f"GRID driver not supported on "
-                f"{self.node.os.name} {self.node.os.information.version}"
-            )
-
-        self._install_dependencies()
-        self._install_driver(driver_url)
+        self._log.debug("Verifying NVIDIA driver installation with nvidia-smi")
+        nvidia_smi = self.node.tools[NvidiaSmi]
+        gpu_count = nvidia_smi.get_gpu_count()
+        self._log.info(
+            f"NVIDIA GRID driver verified successfully. Detected {gpu_count} GPU(s)"
+        )
 
 
 class NvidiaCudaDriver(GpuDriverInstaller):
@@ -255,6 +272,10 @@ class NvidiaCudaDriver(GpuDriverInstaller):
     @property
     def driver_name(self) -> str:
         return "NVIDIA CUDA"
+
+    @property
+    def command(self) -> str:
+        return "nvidia-smi"
 
     def _is_os_supported(self) -> bool:
         """CUDA drivers support a wider range of OS versions"""
@@ -368,6 +389,20 @@ class NvidiaCudaDriver(GpuDriverInstaller):
 
         self.node.os.install_packages(packages, signed=False)
         self._log.info(f"Successfully installed CUDA driver packages: {packages}")
+
+    def _verify_installation(self) -> None:
+        """Verify NVIDIA CUDA driver installation using NvidiaSmi tool"""
+        from lisa.tools import NvidiaSmi
+
+        self._log.debug("Verifying NVIDIA driver installation with nvidia-smi")
+        try:
+            nvidia_smi = self.node.tools[NvidiaSmi]
+            gpu_count = nvidia_smi.get_gpu_count()
+            self._log.info(
+                f"NVIDIA CUDA driver verified successfully. Detected {gpu_count} GPU(s)"
+            )
+        except Exception as e:
+            raise LisaException(f"NVIDIA CUDA driver verification failed: {e}") from e
 
     def _install_cuda_ubuntu(self) -> None:
         """Install CUDA driver on Ubuntu"""
@@ -638,14 +673,15 @@ class AmdGpuDriver(GpuDriverInstaller):
 
         self._log.info("Successfully installed AMD GPU (ROCm) driver")
 
-    def verify_installation(self) -> bool:
+    def _verify_installation(self) -> None:
         """
         Verify AMD GPU driver installation using amd-smi monitor command.
+        Raises LisaException if verification fails.
         """
+        self._log.debug("Verifying AMD GPU driver installation with amd-smi")
         result = self.node.execute("amd-smi monitor", sudo=True, timeout=30)
         if result.exit_code == 0:
-            self._log.info(f"AMD GPU driver verified: {result.stdout[:200]}")
-            return True
-
-        self._log.warning(f"AMD GPU driver verification failed: {result.stderr}")
-        return False
+            output_preview = result.stdout[:200]
+            self._log.info(f"AMD GPU driver verified successfully: {output_preview}")
+        else:
+            raise LisaException(f"AMD GPU driver verification failed: {result.stderr}")

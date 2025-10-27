@@ -637,10 +637,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     def _install_driver_using_platform_feature(self) -> None:
         """
         Install GPU drivers using Azure VM extension.
-        
-        This method uses the Azure HPC Compute GPU extension to install drivers.
-        It's an alternative to manual driver installation via the driver tools.
-        
+
         Reference:
         https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
         """

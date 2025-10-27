@@ -101,7 +101,6 @@ class Gpu(Feature):
         raise NotImplementedError()
 
     def _get_gpu_from_lspci(self) -> List[PciDevice]:
-        """Get GPU devices from lspci, excluding virtual Microsoft GPUs"""
         lspci_tool = self._node.tools[Lspci]
         device_list = lspci_tool.get_devices_by_type(
             constants.DEVICE_TYPE_GPU, force_run=True

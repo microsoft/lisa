@@ -466,32 +466,16 @@ def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
         log.debug(f"LisDriver is not installed. It might not be required. {e}")
 
     # Install appropriate GPU driver based on supported driver type
-    driver_installed = False
     for driver_type in supported_drivers:
-        try:
-            if driver_type == ComputeSDK.GRID:
-                log.info("Installing NVIDIA GRID driver")
-                _ = node.tools[NvidiaGridDriver]
-                driver_installed = True
-                break
-            elif driver_type == ComputeSDK.CUDA:
-                log.info("Installing NVIDIA CUDA driver")
-                _ = node.tools[NvidiaCudaDriver]
-                driver_installed = True
-                break
-            elif driver_type == ComputeSDK.AMD:
-                log.info("Installing AMD GPU driver")
-                _ = node.tools[AmdGpuDriver]
-                driver_installed = True
-                break
-        except Exception as e:
-            log.warning(f"Failed to install {driver_type} driver: {e}")
-            continue
-
-    if not driver_installed:
-        raise LisaException(
-            f"Failed to install any GPU driver. Supported types: {supported_drivers}"
-        )
+        if driver_type == ComputeSDK.GRID:
+            log.info("Installing NVIDIA GRID driver")
+            _ = node.tools[NvidiaGridDriver]
+        elif driver_type == ComputeSDK.CUDA:
+            log.info("Installing NVIDIA CUDA driver")
+            _ = node.tools[NvidiaCudaDriver]
+        elif driver_type == ComputeSDK.AMD:
+            log.info("Installing AMD GPU driver")
+            _ = node.tools[AmdGpuDriver]
 
     log.debug(f"{supported_drivers} driver installed. Will reboot to load driver.")
 
