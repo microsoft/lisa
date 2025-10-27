@@ -418,7 +418,7 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def verify_dpdk_testpmd_hotplug_receive_failsafe_pmd(
+    def verify_dpdk_testpmd_hotplug_receiver_failsafe_pmd(
         self,
         environment: Environment,
         log: Logger,
@@ -442,7 +442,7 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def verify_dpdk_testpmd_hotplug_receive_netvsc_pmd(
+    def verify_dpdk_testpmd_hotplug_receiver_netvsc_pmd(
         self,
         environment: Environment,
         log: Logger,
@@ -463,7 +463,7 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def verify_dpdk_testpmd_hotplug_send_only_failsafe_pmd(
+    def verify_dpdk_testpmd_hotplug_sender_failsafe_pmd(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.FAILSAFE)
@@ -481,7 +481,7 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def verify_dpdk_testpmd_hotplug_send_only_netvsc_pmd(
+    def verify_dpdk_testpmd_hotplug_sender_netvsc_pmd(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.NETVSC)
@@ -494,7 +494,7 @@ class Dpdk(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
-    ):
+    ) -> None:
         test_kits = init_nodes_concurrent(
             environment,
             log,
@@ -529,7 +529,7 @@ class Dpdk(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
-    ):
+    ) -> None:
         try:
             test_kit = initialize_node_resources(
                 node, log, variables, pmd, HugePageSize.HUGE_2MB
