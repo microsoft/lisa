@@ -838,6 +838,7 @@ echo "[env] RB=$RUST_BACKTRACE RLB=$RUST_LIB_BACKTRACE RLOG=$RUST_LOG"
 echo "[env] CH_IDLE_SECS=${{CH_IDLE_SECS:-600}}"
 echo "[env] CH_HANG_KILL_SECS=${{CH_HANG_KILL_SECS:-1800}}"
 echo "[env] CH_CHECK_INTERVAL=${{CH_CHECK_INTERVAL:-30}}"
+echo "[env] MIGRATABLE_VERSION=${{MIGRATABLE_VERSION:-not_set}}"
 test -x scripts/dev_cli.sh || {{ echo "[error] scripts/dev_cli.sh missing"; exit 98; }}
 
 # repo-local artifact names so LISA will collect them
@@ -1056,6 +1057,10 @@ exit $ec
         tool_path = self.get_tool_path(use_global=True)
         self.repo_root = tool_path / "cloud-hypervisor"
         self.cmd_path = self.repo_root / "scripts" / "dev_cli.sh"
+
+        # Pass through MIGRATABLE_VERSION from pipeline environment if set
+        if "MIGRATABLE_VERSION" in os.environ:
+            self.env_vars["MIGRATABLE_VERSION"] = os.environ["MIGRATABLE_VERSION"]
 
     def _install(self) -> bool:
         git = self.node.tools[Git]
