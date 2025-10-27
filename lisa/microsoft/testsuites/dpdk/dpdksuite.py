@@ -26,6 +26,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     run_testpmd_concurrent,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
+    verify_dpdk_mutliple_ports,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -538,7 +539,7 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command(test_nic, 0, "txonly")
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly")
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
@@ -952,6 +953,43 @@ class Dpdk(TestSuite):
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+                Run testpmd with multiple senders to a single receiver
+                using the netvsc pmd. This test checks how the receiver VM
+                handles a large volume of traffic on multiple ports.
+                Otherwise it is very similar to the
+                single sender / single receiver version of the tests.
+            """,
+        priority=3,
+        requirement=simple_requirement(
+            supported_os=[Ubuntu],
+            min_core_count=8,
+            min_count=3,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_testpmd_multiple_port_receive_netvsc_pmd(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        force_dpdk_default_source(variables)
+        pmd = Pmd.NETVSC
+        verify_dpdk_mutliple_ports(
+            environment,
+            log,
+            variables,
+            hugepage_size=HugePageSize.HUGE_2MB,
+            pmd=pmd,
+            result=result,
+            multiple_queues=True,
+        )
 
     @TestCaseMetadata(
         description=(
