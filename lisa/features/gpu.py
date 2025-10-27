@@ -154,25 +154,18 @@ class Gpu(Feature):
             return gpu_count
 
         if isinstance(expected_count, int) and expected_count <= 1:
-            self._log.debug(
+            self._log.error(
                 f"No GPUs found in known list. Expected count is {expected_count}. "
                 "Skipping segment grouping for single/no GPU scenarios."
             )
             return 0
 
         # Only try segment grouping if expected count > 1
-        self._log.debug(
+        self._log.error(
             f"No GPUs found in known list. Expected count is {expected_count}. "
-            "Trying last-segment grouping for multi-GPU scenario."
+            "Trying last-segment grouping for sharing Possible GPU detection."
         )
-        gpu_count = self._get_gpu_count_by_device_id_segment(vmbus_devices)
-
-        if gpu_count > 0:
-            self._log.debug(f"Found {gpu_count} GPU(s) using last-segment grouping")
-        else:
-            self._log.debug("No GPU devices found in lsvmbus")
-
-        return gpu_count
+        return self._get_gpu_count_by_device_id_segment(vmbus_devices)
 
     def _get_gpu_count_by_device_id_segment(self, vmbus_devices: List[Any]) -> int:
         """
@@ -225,16 +218,23 @@ class Gpu(Feature):
 
             if max_gpu_count > 0 and best_segment is not None:
                 self._log.info(
-                    f"Detected {max_gpu_count} GPU(s) with last "
+                    f"Detected {max_gpu_count} potential GPU(s) with last "
                     f"segment '{best_segment}' "
                     "using segment grouping method"
                 )
                 # Log the matched devices
                 for device in last_segment_groups[best_segment]:
-                    self._log.debug(f"  GPU device: {device.device_id}")
-                return max_gpu_count
+                    self._log.debug(f"  Device: {device.device_id}")
 
-            self._log.debug("No sequential GPU device groups found")
+                # Issue warning to user about adding this pattern
+                self._log.warning(
+                    f"Found {max_gpu_count} PCI Express pass-through device(s) "
+                    f"with sequential pattern and common"
+                    f" last segment '{best_segment}'. "
+                    "These might be GPU devices. Please add this pattern to the "
+                    "gpu_devices list in NvidiaSmi class if confirmed as GPUs. "
+                    "Example: ('<ModelName>', '<common_segment>', 0)"
+                )
             return 0
 
         except Exception as e:
@@ -308,7 +308,7 @@ class Gpu(Feature):
 
     def get_gpu_count_with_vendor_cmd(self) -> int:
         nvidiasmi = self._node.tools[NvidiaSmi]
-        return nvidiasmi.get_gpu_count(known_only=False)
+        return nvidiasmi.get_gpu_count()
 
     def get_supported_driver(self) -> List[ComputeSDK]:
         raise NotImplementedError()

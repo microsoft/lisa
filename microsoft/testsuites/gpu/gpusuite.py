@@ -335,7 +335,7 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
         nvidia_smi = node.tools[NvidiaSmi]
 
         lspci_gpucount = gpu.get_gpu_count_with_lspci()
-        nvidiasmi_gpucount = nvidia_smi.get_gpu_count(known_only=False)
+        nvidiasmi_gpucount = nvidia_smi.get_gpu_count()
         assert_that(lspci_gpucount).described_as(
             f"GPU count from lspci {lspci_gpucount} not equal to "
             f"count from nvidia-smi {nvidiasmi_gpucount}"
