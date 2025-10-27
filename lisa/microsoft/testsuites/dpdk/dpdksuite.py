@@ -566,11 +566,11 @@ class Dpdk(TestSuite):
                 f"{tx_or_rx}-PPS ({pps}) should have been greater "
                 "than 2^20 (~1m) PPS before sriov disable."
             ).is_greater_than(2**20)
-        else:
-            assert_that(pps).described_as(
-                f"{tx_or_rx}-PPS ({pps}) should have been less "
-                "than 2^20 (~1m) PPS after sriov disable."
-            ).is_less_than(2**20)
+        # not checking if traffic is below some arbitrary
+        # threshold because it's a moving target. New skus
+        # will be faster. Let's just check for the hotplug
+        # messages to verify we got the hotplug
+        # from the lower level.
 
     @TestCaseMetadata(
         description="""
