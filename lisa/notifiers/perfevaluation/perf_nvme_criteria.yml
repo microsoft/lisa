@@ -1,0 +1,355 @@
+# Performance evaluation criteria for NVMe storage tests
+# Global configuration
+statistics_times: 3  # Default: run each test 3 times to calculate statistics
+error_threshold: 0.1  # Default: 10% tolerance
+statistics_type: average  # Default statistics method
+
+# Test suite groups
+groups:
+  - name: "NVMe Performance - General VMs"
+    description: "Performance criteria for general VM sizes"
+    error_threshold: 0.15  # 15% tolerance for this group
+    statistics_type: average
+    statistics_times: 3
+
+    # Conditions for when this group applies
+    conditions:
+      - name: "test_suite"
+        type: "metadata"
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_D2*_v5"
+    
+    # Metrics definitions for this group
+    metrics:
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops"
+        min_value: 130000.0
+        target_value: 148000.0
+        error_threshold: 0.15
+        statistics_type: average
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops"
+        min_value: 130000.0
+        target_value: 148000.0
+        error_threshold: 0.15
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_latency"
+        max_value: 30.0
+        target_value: 25.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_latency"
+        max_value: 30.0
+        target_value: 25.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops"
+        min_value: 17000.0
+        target_value: 19000.0
+        error_threshold: 0.15
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_iops"
+        min_value: 17000.0
+        target_value: 19000.0
+        error_threshold: 0.15
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency"
+        max_value: 250.0
+        target_value: 210.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_latency"
+        max_value: 250.0
+        target_value: 210.0
+        error_threshold: 0.25
+
+  - name: "NVMe Performance - L8as_v3 Specific"
+    description: "Performance criteria specific to Standard_L8as_v3"
+    error_threshold: 0.15
+    statistics_type: average
+    statistics_times: 3
+    
+    conditions:
+      - name: "test_suite"
+        type: "metadata"
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_L8as_v3"
+    
+    metrics:
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops"
+        min_value: 150000.0
+        target_value: 171000.0
+        error_threshold: 0.15
+        
+      - name: "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency"
+        max_value: 30.0
+        target_value: 23.5
+        error_threshold: 0.25
+        
+      - name: "qdepth_512_iodepth_128_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops"
+        min_value: 450000.0
+        target_value: 506000.0
+        error_threshold: 0.15
+        
+      - name: "qdepth_512_iodepth_128_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency"
+        max_value: 1200.0
+        target_value: 1011.31
+        error_threshold: 0.20
+        
+      - name: "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops"
+        min_value: 360000.0
+        target_value: 400000.0
+        error_threshold: 0.15
+        
+      - name: "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops"
+        min_value: 360000.0
+        target_value: 400000.0
+        error_threshold: 0.15
+
+  - name: "NVMe Performance - L64as_v3 Specific"
+    description: "Performance criteria for Standard_L64as_v3 VM"
+    error_threshold: 0.20
+    statistics_type: average
+    statistics_times: 1
+    
+    conditions:
+      - name: "test_case"
+        type: "metadata"  
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_L64as_v3"
+
+  - name: "NVMe Performance - L64s_v2 Specific"
+    description: "Performance criteria for Standard_L64s_v2 VM"
+    error_threshold: 0.20
+    statistics_type: average
+    statistics_times: 1
+    
+    conditions:
+      - name: "test_case"
+        type: "metadata"  
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_L64s_v2"
+    
+    metrics:
+      # Specific metrics that appear in the logs for L64s_v2
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 300000.0
+        target_value: 400000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_latency"
+        max_value: 100.0
+        target_value: 79.66
+        error_threshold: 0.20
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 300000.0
+        target_value: 400000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_latency"
+        max_value: 100.0
+        target_value: 79.34
+        error_threshold: 0.20
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1000000.0
+        target_value: 1285000.0
+        error_threshold: 0.25
+    
+    metrics:
+      # 32 cores, 8 disks performance criteria  
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 800000.0
+        target_value: 1033000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 750000.0
+        target_value: 950000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 500000.0
+        target_value: 700000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 450000.0
+        target_value: 650000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_latency"
+        max_value: 50.0
+        target_value: 30.51
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_latency"
+        max_value: 60.0
+        target_value: 40.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_latency"
+        max_value: 80.0
+        target_value: 60.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_latency"
+        max_value: 100.0
+        target_value: 80.0
+        error_threshold: 0.30
+        
+      # Higher queue depth tests
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 1200000.0
+        target_value: 1500000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1000000.0
+        target_value: 1300000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 800000.0
+        target_value: 1100000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 700000.0
+        target_value: 1000000.0
+        error_threshold: 0.30
+        
+      # Highest queue depth tests
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 1800000.0
+        target_value: 2200000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1600000.0
+        target_value: 2000000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 1200000.0
+        target_value: 1600000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 1000000.0
+        target_value: 1400000.0
+        error_threshold: 0.30
+
+  - name: "NVMe Performance - Las_v3 Pattern"
+    description: "Performance criteria for L-series (Las_v3) VMs - wildcard match"
+    error_threshold: 0.30
+    statistics_type: average
+    statistics_times: 1
+    
+    conditions:
+      - name: "test_case"
+        type: "metadata"
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_L*as_v3"
+    
+    metrics:
+      # Generic L-series wildcard patterns 
+      - name: ".*_read_iops"
+        min_value: 500000.0
+        target_value: 800000.0
+        error_threshold: 0.30
+        
+      - name: ".*_write_iops"
+        min_value: 450000.0
+        target_value: 750000.0
+        error_threshold: 0.30
+        
+      - name: ".*_randread_iops"
+        min_value: 300000.0
+        target_value: 500000.0
+        error_threshold: 0.35
+        
+      - name: ".*_randwrite_iops"
+        min_value: 250000.0
+        target_value: 450000.0
+        error_threshold: 0.35
+        
+      - name: ".*_latency"
+        max_value: 100.0
+        target_value: 50.0
+        error_threshold: 0.40
+
+  - name: "NVMe Performance - Ls_v3 Pattern"
+    description: "Performance criteria for L-series (Ls_v3) VMs"
+    error_threshold: 0.30
+    statistics_type: average
+    statistics_times: 3
+    
+    conditions:
+      - name: "test_suite"
+        type: "metadata"
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_L*s_v3"
+    
+    metrics:
+      - name: "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops"
+        min_value: 400000.0
+        target_value: 500000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops"
+        min_value: 400000.0
+        target_value: 500000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops"
+        min_value: 800000.0
+        target_value: 1200000.0
+        error_threshold: 0.40
+        
+      - name: "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops"
+        min_value: 800000.0
+        target_value: 1200000.0
+        error_threshold: 0.40
+        
+      - name: "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops"
+        min_value: 2000000.0
+        target_value: 3200000.0
+        error_threshold: 0.40
+        
+      - name: "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_iops"
+        min_value: 2000000.0
+        target_value: 3200000.0
+        error_threshold: 0.40
+        
+      - name: "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency"
+        max_value: 120.0
+        target_value: 97.99
+        error_threshold: 0.30
+        
+      - name: "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_latency"
+        max_value: 250.0
+        target_value: 207.31
+        error_threshold: 0.25
+        
+      - name: "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency"
+        max_value: 120.0
+        target_value: 97.99
+        error_threshold: 0.30
+        
+      - name: "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_latency"
+        max_value: 250.0
+        target_value: 207.31
+        error_threshold: 0.25

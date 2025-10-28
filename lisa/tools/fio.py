@@ -35,9 +35,9 @@ FIOMODES = Enum(
     "FIOMODES",
     [
         "randread",
-        "randwrite",
-        "read",
-        "write",
+        # "randwrite",
+        # "read",
+        # "write",
     ],
 )
 
