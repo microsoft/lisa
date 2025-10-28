@@ -135,7 +135,7 @@ class Gpu(Feature):
             else:
                 raise LisaException(f"{driver} is not a valid value of ComputeSDK")
 
-    def get_gpu_count_with_lsvmbus(self, expected_count: int = 0) -> int:
+    def get_gpu_count_with_lsvmbus(self) -> int:
         """
         Count GPU devices using lsvmbus.
         First tries known list, then groups devices by last segment of device ID.
@@ -153,24 +153,20 @@ class Gpu(Feature):
             self._log.debug(f"Found {gpu_count} GPU(s) using known list")
             return gpu_count
 
-        if isinstance(expected_count, int) and expected_count <= 1:
-            self._log.error(
-                f"No GPUs found in known list. Expected count is {expected_count}. "
-                "Skipping segment grouping for single/no GPU scenarios."
-            )
-            return 0
+        # No GPUs found in known list
+        self._log.info("No GPUs found in known list.")
 
-        # Only try segment grouping if expected count > 1
-        self._log.error(
-            f"No GPUs found in known list. Expected count is {expected_count}. "
-            "Trying last-segment grouping for sharing Possible GPU detection."
-        )
-        return self._get_gpu_count_by_device_id_segment(vmbus_devices)
+        # Attempt pattern detection for diagnostic purposes
+        self._get_gpu_count_by_device_id_segment(vmbus_devices)
+
+        return 0
 
     def _get_gpu_count_by_device_id_segment(self, vmbus_devices: List[Any]) -> int:
         """
-        Group VMBus devices by last segment and find the largest group of
-        sequential PCI Express pass-through devices (likely GPUs).
+        Detect potential GPU patterns in VMBus devices for diagnostic purposes.
+        Always returns 0 but logs warnings about potential new GPU models.
+
+        Works for any number of GPUs (0, 1, or multiple).
         """
         try:
             # Group PCI Express pass-through devices by last segment
@@ -227,7 +223,7 @@ class Gpu(Feature):
                     self._log.debug(f"  Device: {device.device_id}")
 
                 # Issue warning to user about adding this pattern
-                self._log.warning(
+                self._log.info(
                     f"Found {max_gpu_count} PCI Express pass-through device(s) "
                     f"with sequential pattern and common"
                     f" last segment '{best_segment}'. "
@@ -235,6 +231,8 @@ class Gpu(Feature):
                     "gpu_devices list in NvidiaSmi class if confirmed as GPUs. "
                     "Example: ('<ModelName>', '<common_segment>', 0)"
                 )
+            else:
+                self._log.debug("No sequential PCI Express device groups found")
             return 0
 
         except Exception as e:

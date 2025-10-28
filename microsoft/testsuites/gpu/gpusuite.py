@@ -186,7 +186,7 @@ class GpuTestSuite(TestSuite):
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count
 
-        lsvmbus_device_count = gpu_feature.get_gpu_count_with_lsvmbus(expected_count)
+        lsvmbus_device_count = gpu_feature.get_gpu_count_with_lsvmbus()
         assert_that(
             lsvmbus_device_count,
             "Expected device count didn't match Actual device count from lsvmbus",
