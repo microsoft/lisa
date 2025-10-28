@@ -8,6 +8,7 @@ import re
 import shlex
 import signal
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -211,6 +212,7 @@ class Process:
         self._result: Optional[ExecutableResult] = None
         self._sudo: bool = False
         self._nohup: bool = False
+        self._result_lock = threading.Lock()
 
         # add a string stream handler to the logger
         self.log_buffer = io.StringIO()
@@ -364,11 +366,25 @@ class Process:
         expected_exit_code_failure_message: str = "",
         raise_on_timeout: bool = True,
     ) -> ExecutableResult:
+        with self._result_lock:
+            return self._wait_result(
+                timeout,
+                expected_exit_code,
+                expected_exit_code_failure_message,
+                raise_on_timeout,
+            )
+
+    def _wait_result(
+        self,
+        timeout: float,
+        expected_exit_code: Optional[int],
+        expected_exit_code_failure_message: str,
+        raise_on_timeout: bool,
+    ) -> ExecutableResult:
         if self._result is not None:
             if self._result.is_timeout and raise_on_timeout:
                 self._raise_timeout_exception(self._cmd, timeout)
             return self._result
-
         timer = create_timer()
         is_timeout = False
 
