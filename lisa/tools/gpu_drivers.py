@@ -632,58 +632,32 @@ class AmdGpuDriver(GpuDriverInstaller):
 
         # Install amdgpu-dkms and rocm
         self._log.info("Installing amdgpu-dkms and rocm")
-        try:
-            self.node.os.install_packages(
-                ["amdgpu-dkms", "rocm"],
-                signed=False,
-                timeout=1800,  # Can take up to 30 minutes
+        self.node.os.install_packages(
+            ["amdgpu-dkms", "rocm"],
+            signed=False,
+            timeout=1800,  # Can take up to 30 minutes
+        )
+
+        # Verify DKMS build succeeded
+        dkms_status = self.node.execute("dkms status amdgpu", sudo=True)
+        if "installed" not in dkms_status.stdout.lower():
+            self._log.info(f"DKMS build may have failed. Status: {dkms_status.stdout}")
+
+            # Check for the kernel module
+            kernel_version = (
+                self.node.tools[Uname].get_linux_information().kernel_version_raw
             )
-
-            # Verify DKMS build succeeded
-            dkms_status = self.node.execute("dkms status amdgpu", sudo=True)
-            if "installed" not in dkms_status.stdout.lower():
-                self._log.error(
-                    f"DKMS build may have failed. Status: {dkms_status.stdout}"
-                )
-
-                # Check for the kernel module
-                kernel_version = (
-                    self.node.tools[Uname].get_linux_information().kernel_version_raw
-                )
-                module_check = self.node.execute(
-                    f"ls -lh /lib/modules/{kernel_version}/updates/dkms/"
-                    f"amdgpu.ko* 2>&1",
-                    shell=True,
-                    sudo=True,
-                )
-                if module_check.exit_code != 0:
-                    raise LisaException(
-                        f"AMD GPU kernel module was not built. "
-                        f"DKMS status: {dkms_status.stdout}. "
-                        f"This is likely due to insufficient disk space "
-                        f"during compilation. The DKMS build requires "
-                        f"approximately 10-15 GB of free space."
-                        f"The DKMS build requires approximately 10-15 GB of free space."
-                    )
-        except Exception as e:
-            # Clean up to free disk space
-            self._log.info("Cleaning up failed installation to free disk space")
-            self.node.os.clean_package_cache()
-
-            raise LisaException(
-                "AMD GPU driver installation failed. "
-                "This may be due to insufficient disk space, kernel version "
-                "incompatibility, or DKMS build failure. Check logs for "
-                "'No space left on device' or compilation errors."
-            ) from e
-
-        # Load the amdgpu module
+            self.node.execute(
+                f"ls -lh /lib/modules/{kernel_version}/updates/dkms/"
+                f"amdgpu.ko* 2>&1",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="amdgpu kernel module not found",
+            )
         self._log.debug("Loading amdgpu kernel module")
         modprobe = self.node.tools[Modprobe]
-        try:
-            modprobe.load("amdgpu")
-        except Exception as e:
-            self._log.warning(f"Failed to load amdgpu module: {e}")
+        modprobe.load("amdgpu")
 
         # Add current user to render and video groups for GPU access
         usermod = self.node.tools[Usermod]
