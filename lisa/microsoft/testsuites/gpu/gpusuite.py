@@ -323,27 +323,56 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
 
     if not gpu.is_supported():
         raise SkippedException(f"GPU is not supported with distro {node.os.name}")
-    if ComputeSDK.AMD in gpu.get_supported_driver():
-        raise SkippedException("AMD vm sizes is not supported")
 
     if isinstance(node.os, (Suse, AlmaLinux, Oracle)):
         raise SkippedException(
             f"{node.os.name} doesn't support GPU driver installation."
         )
 
-    try:
-        nvidia_smi = node.tools[NvidiaSmi]
+    supported_drivers = gpu.get_supported_driver()
+    lspci_gpucount = gpu.get_gpu_count_with_lspci()
 
-        lspci_gpucount = gpu.get_gpu_count_with_lspci()
-        nvidiasmi_gpucount = nvidia_smi.get_gpu_count()
-        assert_that(lspci_gpucount).described_as(
-            f"GPU count from lspci {lspci_gpucount} not equal to "
-            f"count from nvidia-smi {nvidiasmi_gpucount}"
-        ).is_equal_to(nvidiasmi_gpucount)
-    except Exception as e:
-        raise LisaException(
-            f"Cannot find nvidia-smi, make sure the driver installed correctly. "
-            f"Inner exception: {e}"
+    # Check driver installation based on supported driver type
+    if ComputeSDK.AMD in supported_drivers:
+        # AMD GPU validation - verify driver is installed
+        from lisa.tools.amdsmi import AmdSmi
+
+        try:
+            amd_smi = node.tools[AmdSmi]
+            amdsmi_gpucount = amd_smi.get_gpu_count()
+            assert_that(lspci_gpucount).described_as(
+                f"GPU count from lspci {lspci_gpucount} not equal to "
+                f"count from amd-smi {amdsmi_gpucount}"
+            ).is_equal_to(amdsmi_gpucount)
+            log.info(
+                f"AMD GPU driver validated successfully with {amdsmi_gpucount} GPUs"
+            )
+        except Exception as e:
+            raise LisaException(
+                f"Cannot find amd-smi, make sure the AMD driver installed correctly. "
+                f"Inner exception: {e}"
+            )
+    elif ComputeSDK.CUDA in supported_drivers or ComputeSDK.GRID in supported_drivers:
+        # NVIDIA GPU validation
+        try:
+            nvidia_smi = node.tools[NvidiaSmi]
+            nvidiasmi_gpucount = nvidia_smi.get_gpu_count()
+            assert_that(lspci_gpucount).described_as(
+                f"GPU count from lspci {lspci_gpucount} not equal to "
+                f"count from nvidia-smi {nvidiasmi_gpucount}"
+            ).is_equal_to(nvidiasmi_gpucount)
+            log.info(
+                f"NVIDIA GPU driver validated successfully with "
+                f"{nvidiasmi_gpucount} GPUs"
+            )
+        except Exception as e:
+            raise LisaException(
+                f"Cannot find nvidia-smi, make sure the driver installed "
+                f"correctly. Inner exception: {e}"
+            )
+    else:
+        raise SkippedException(
+            f"No supported GPU driver type found: {supported_drivers}"
         )
 
 

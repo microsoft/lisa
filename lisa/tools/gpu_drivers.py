@@ -16,7 +16,9 @@ from lisa.operating_system import (
     Redhat,
     Ubuntu,
 )
-from lisa.tools.whoami import Whoami
+from lisa.tools import Df
+from lisa.tools.modprobe import Modprobe
+from lisa.tools.usermod import Usermod
 from lisa.util import LisaException, MissingPackagesException, SkippedException
 
 
@@ -167,12 +169,14 @@ class NvidiaGridDriver(GpuDriverInstaller):
 
     def _is_os_supported(self) -> bool:
         """GRID drivers have limited OS support"""
-        os_type = type(self.node.os)
-        if os_type not in self._SUPPORTED_DISTROS:
-            return False
-
         version = str(self.node.os.information.version)
-        return version in self._SUPPORTED_DISTROS[os_type]
+
+        if isinstance(self.node.os, Redhat):
+            return version in self._SUPPORTED_DISTROS[Redhat]
+        elif isinstance(self.node.os, Ubuntu):
+            return version in self._SUPPORTED_DISTROS[Ubuntu]
+
+        return False
 
     def _get_os_dependencies(self) -> List[str]:
         """Get dependencies based on OS type"""
@@ -277,11 +281,11 @@ class NvidiaCudaDriver(GpuDriverInstaller):
         os_info = self.node.os.information
 
         if isinstance(self.node.os, Redhat):
-            return os_info.version >= "7.0.0"
+            return bool(os_info.version >= "7.0.0")
         elif isinstance(self.node.os, Ubuntu):
-            return os_info.version >= "16.4.0"
+            return bool(os_info.version >= "16.4.0")
         elif isinstance(self.node.os, CBLMariner):
-            return os_info.version >= "2.0.0"
+            return bool(os_info.version >= "2.0.0")
 
         return False
 
@@ -524,13 +528,17 @@ class AmdGpuDriver(GpuDriverInstaller):
     def command(self) -> str:
         return "amd-smi"
 
+    def get_installed_version(self) -> str:
+        """Get the currently installed AMD driver version"""
+        result = self.node.execute(f"{self.command} version", shell=True, sudo=True)
+        return result.stdout.strip()
+
     def _is_os_supported(self) -> bool:
         """
         AMD ROCm drivers are supported on Ubuntu 22.04 and 24.04.
         """
-        return (
-            isinstance(self.node.os, Ubuntu)
-            and self.node.os.information.version >= "22.4.0"
+        return isinstance(self.node.os, Ubuntu) and bool(
+            self.node.os.information.version >= "22.4.0"
         )
 
     def _get_os_dependencies(self) -> List[str]:
@@ -545,52 +553,69 @@ class AmdGpuDriver(GpuDriverInstaller):
             "python3-wheel",
         ]
 
-    def _add_user_to_groups(self) -> None:
-        """
-        Add current user to render and video groups for GPU access.
-        """
-        username = self.node.tools[Whoami].get_username()
-
-        result = self.node.execute(
-            f"usermod -a -G render,video {username}",
-            sudo=True,
-        )
-        if result.exit_code == 0:
-            self._log.debug("Added user to render and video groups")
-
     def _install_driver(self) -> None:
         """
         Install AMD GPU (ROCm) driver on Ubuntu.
         """
-        # Add user to required groups
-        self._add_user_to_groups()
+        # Type assertion: GPU drivers only run on Linux/Posix systems
+        assert isinstance(self.node.os, Posix), "AMD GPU drivers require a Posix OS"
+
+        # Clean up before checking disk space
+        self._log.debug("Cleaning package cache and temp files before installation")
+        self.node.os.clean_package_cache()
+
+        # Check available disk space (DKMS compilation requires significant space)
+        df_tool = self.node.tools[Df]
+        root_partition = df_tool.get_partition_by_mountpoint("/", force_run=True)
+
+        if root_partition:
+            available_gb = root_partition.available_blocks / (1024 * 1024)
+            self._log.debug(
+                f"Disk space: / partition has "
+                f"{available_gb:.2f} GB available "
+                f"({root_partition.percentage_blocks_used}% used)"
+            )
+
+            if available_gb < 15:
+                raise LisaException(
+                    f"Insufficient disk space for AMD GPU driver installation. "
+                    f"Available: {available_gb:.2f} GB after cleanup, "
+                    f"Required: ~15 GB minimum. "
+                    f"DKMS kernel module compilation requires significant "
+                    f"temporary space. Please increase the OS disk size to "
+                    f"at least 50 GB."
+                )
+
+            self._log.info(f"Disk space check passed: {available_gb:.2f} GB available")
 
         os_info = self.node.os.information
         codename = os_info.codename.lower()
 
         self._log.info(f"Installing AMD GPU driver for Ubuntu {codename}")
 
-        # Download amdgpu-install package
+        # Download and install the amdgpu-install package
         installer_url = (
             f"https://repo.radeon.com/amdgpu-install/{self.ROCM_VERSION}/"
             f"ubuntu/{codename}/amdgpu-install_{self.ROCM_VERSION}."
             f"{self.ROCM_BUILD}-1_all.deb"
         )
 
-        self._log.debug(f"Downloading AMD GPU installer from {installer_url}")
+        self._log.debug(
+            f"Downloading and installing AMD GPU installer from {installer_url}"
+        )
+        assert isinstance(self.node.os, Posix), "AMD GPU installation requires Posix OS"
+
+        # Download the installer .deb file
         wget_tool = self.node.tools[Wget]
-        installer_path = wget_tool.get(
+        installer_deb = wget_tool.get(
             installer_url,
             str(self.node.working_path),
             f"amdgpu-install_{self.ROCM_VERSION}.{self.ROCM_BUILD}-1_all.deb",
         )
 
-        # Install the amdgpu-install package
-        self._log.debug("Installing amdgpu-install package")
-        assert isinstance(self.node.os, Posix), "AMD GPU installation requires Posix OS"
-
+        # Install using dpkg
         result = self.node.execute(
-            f"apt install -y {installer_path}",
+            f"dpkg -i {installer_deb}",
             sudo=True,
             timeout=300,
         )
@@ -600,44 +625,100 @@ class AmdGpuDriver(GpuDriverInstaller):
             f"exit-code: {result.exit_code} stderr: {result.stderr}",
         )
 
-        # Update package lists
-        self.node.execute("apt update", sudo=True, timeout=300)
+        # Update package cache after adding AMD repositories
+        self._log.debug("Updating package cache after adding AMD repositories")
+        assert isinstance(self.node.os, Ubuntu), "AMD GPU driver only supports Ubuntu"
+        self.node.os._initialize_package_installation()
 
         # Install amdgpu-dkms and rocm
         self._log.info("Installing amdgpu-dkms and rocm")
-        result = self.node.execute(
-            "apt install -y amdgpu-dkms rocm",
-            sudo=True,
-            timeout=1800,  # Can take up to 30 minutes
-        )
-        result.assert_exit_code(
-            0,
-            f"Failed to install amdgpu-dkms and rocm! "
-            f"exit-code: {result.exit_code} stderr: {result.stderr}",
-        )
+        try:
+            self.node.os.install_packages(
+                ["amdgpu-dkms", "rocm"],
+                signed=False,
+                timeout=1800,  # Can take up to 30 minutes
+            )
+
+            # Verify DKMS build succeeded
+            dkms_status = self.node.execute("dkms status amdgpu", sudo=True)
+            if "installed" not in dkms_status.stdout.lower():
+                self._log.error(
+                    f"DKMS build may have failed. Status: {dkms_status.stdout}"
+                )
+
+                # Check for the kernel module
+                kernel_version = (
+                    self.node.tools[Uname].get_linux_information().kernel_version_raw
+                )
+                module_check = self.node.execute(
+                    f"ls -lh /lib/modules/{kernel_version}/updates/dkms/"
+                    f"amdgpu.ko* 2>&1",
+                    shell=True,
+                    sudo=True,
+                )
+                if module_check.exit_code != 0:
+                    raise LisaException(
+                        f"AMD GPU kernel module was not built. "
+                        f"DKMS status: {dkms_status.stdout}. "
+                        f"This is likely due to insufficient disk space "
+                        f"during compilation. The DKMS build requires "
+                        f"approximately 10-15 GB of free space."
+                        f"The DKMS build requires approximately 10-15 GB of free space."
+                    )
+        except Exception as e:
+            # Clean up to free disk space
+            self._log.info("Cleaning up failed installation to free disk space")
+            self.node.os.clean_package_cache()
+
+            raise LisaException(
+                "AMD GPU driver installation failed. "
+                "This may be due to insufficient disk space, kernel version "
+                "incompatibility, or DKMS build failure. Check logs for "
+                "'No space left on device' or compilation errors."
+            ) from e
 
         # Load the amdgpu module
         self._log.debug("Loading amdgpu kernel module")
-        result = self.node.execute("modprobe amdgpu", sudo=True)
-        if result.exit_code != 0:
-            self._log.warning(f"Failed to load amdgpu module: {result.stderr}")
+        modprobe = self.node.tools[Modprobe]
+        try:
+            modprobe.load("amdgpu")
+        except Exception as e:
+            self._log.warning(f"Failed to load amdgpu module: {e}")
 
-        # Verify installation with dmesg
-        result = self.node.execute("dmesg | grep amdgpu", sudo=True, shell=True)
-        if result.exit_code == 0:
-            self._log.debug(f"amdgpu driver loaded: {result.stdout[:200]}")
+        # Add current user to render and video groups for GPU access
+        usermod = self.node.tools[Usermod]
+        usermod.add_user_to_group("render", sudo=True)
+        usermod.add_user_to_group("video", sudo=True)
+
+        # Clean up package cache to free disk space
+        self._log.debug("Cleaning up package cache to free disk space")
+        self.node.os.clean_package_cache()
+
+        # Check final disk space
+        root_partition = df_tool.get_partition_by_mountpoint("/", force_run=True)
+        if root_partition:
+            available_gb = root_partition.available_blocks / (1024 * 1024)
+            self._log.debug(
+                f"Disk space after installation: / partition has "
+                f"{available_gb:.2f} GB available "
+                f"({root_partition.percentage_blocks_used}% used)"
+            )
 
         self._log.info("Successfully installed AMD GPU (ROCm) driver")
 
     def _verify_installation(self) -> None:
         """
-        Verify AMD GPU driver installation using amd-smi monitor command.
+        Verify AMD GPU driver installation using AmdSmi tool.
         Raises LisaException if verification fails.
         """
+        from lisa.tools.amdsmi import AmdSmi
+
         self._log.debug("Verifying AMD GPU driver installation with amd-smi")
-        result = self.node.execute("amd-smi monitor", sudo=True, timeout=30)
-        if result.exit_code == 0:
-            output_preview = result.stdout[:200]
-            self._log.info(f"AMD GPU driver verified successfully: {output_preview}")
-        else:
-            raise LisaException(f"AMD GPU driver verification failed: {result.stderr}")
+        try:
+            amd_smi = self.node.tools[AmdSmi]
+            gpu_count = amd_smi.get_gpu_count()
+            self._log.info(
+                f"AMD GPU driver verified successfully. Detected {gpu_count} GPU(s)"
+            )
+        except Exception as e:
+            raise LisaException(f"AMD GPU driver verification failed: {e}") from e

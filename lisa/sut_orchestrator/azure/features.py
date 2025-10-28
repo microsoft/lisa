@@ -59,7 +59,6 @@ from lisa.tools import (
     Dmesg,
     Find,
     IpInfo,
-    LisDriver,
     Ls,
     Lsblk,
     Lspci,
@@ -525,8 +524,12 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     # - NGads V620 Series: Standard_NG[^_]+_V620_v[0-9]+
     # - NVads V710 Series: Standard_NV[^_]+ads_V710_v[0-9]+
     # - NVv4 Series: Standard_NV[^_]+_v4
+    # - NDisr MI300X Series: Standard_ND[^_]+isr_MI300X_v[0-9]+
     _amd_supported_skus = re.compile(
-        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+ads_V710_v[0-9]+|Standard_NV[^_]+_v4)$",
+        r"^(Standard_NG[^_]+_V620_v[0-9]+|"
+        r"Standard_NV[^_]+ads_V710_v[0-9]+|"
+        r"Standard_NV[^_]+_v4|"
+        r"Standard_ND[^_]+isr_MI300X_v[0-9]+)$",
         re.I,
     )
 

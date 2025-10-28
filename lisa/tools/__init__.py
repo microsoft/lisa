@@ -15,6 +15,7 @@ from lisa.base_tools import (
     YumConfigManager,
 )
 
+from .amdsmi import AmdSmi
 from .aria import Aria
 from .b4 import B4
 from .blkid import Blkid
@@ -238,6 +239,7 @@ __all__ = [
     "NvidiaSmi",
     "Nvmecli",
     "AmdGpuDriver",
+    "AmdSmi",
     "OpenSSL",
     "Parted",
     "Perf",
