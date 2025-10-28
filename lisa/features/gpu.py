@@ -236,7 +236,7 @@ class Gpu(Feature):
             return 0
 
         except Exception as e:
-            self._log.error(f"Failed to detect GPUs by segment grouping: {e}")
+            self._log.info(f"Failed to detect GPUs by segment grouping: {e}")
             return 0
 
     def _has_sequential_pattern(self, devices: List[Any]) -> bool:
@@ -277,7 +277,7 @@ class Gpu(Feature):
                         return False
                 return True
         except Exception as e:
-            self._log.error(f"Error while detecting sequential patterns: {e}")
+            self._log.info(f"Error while detecting sequential patterns: {e}")
 
         return False
 
