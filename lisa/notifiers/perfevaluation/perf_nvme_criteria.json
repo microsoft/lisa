@@ -1,0 +1,200 @@
+{
+  "metadata": {
+    "test_suite": "perf_nvme",
+    "description": "NVMe storage performance criteria for various VM sizes including L-series variants",
+    "generated_by": "manual",
+    "generated_at": "2025-10-31T00:00:00"
+  },
+  "perf_nvme": {
+    "size_patterns": {
+      "Standard_D2*_v5": {
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops": {
+          "unit": "IOPS",
+          "min_value": 130000.0,
+          "target_value": 148000.0,
+          "tolerance_percent": 15.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops": {
+          "unit": "IOPS",
+          "min_value": 130000.0,
+          "target_value": 148000.0,
+          "tolerance_percent": 15.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_latency": {
+          "unit": "microseconds",
+          "max_value": 30.0,
+          "target_value": 25.0,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_latency": {
+          "unit": "microseconds",
+          "max_value": 30.0,
+          "target_value": 25.0,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops": {
+          "unit": "IOPS",
+          "min_value": 17000.0,
+          "target_value": 19000.0,
+          "tolerance_percent": 15.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_iops": {
+          "unit": "IOPS",
+          "min_value": 17000.0,
+          "target_value": 19000.0,
+          "tolerance_percent": 15.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency": {
+          "unit": "microseconds",
+          "max_value": 250.0,
+          "target_value": 210.0,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_latency": {
+          "unit": "microseconds",
+          "max_value": 250.0,
+          "target_value": 210.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "Standard_L8as_v3": {
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops": {
+          "unit": "IOPS",
+          "min_value": 150000.0,
+          "target_value": 171000.0,
+          "tolerance_percent": 15.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency": {
+          "unit": "microseconds",
+          "max_value": 30.0,
+          "target_value": 23.5,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_512_iodepth_128_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops": {
+          "unit": "IOPS",
+          "min_value": 450000.0,
+          "target_value": 506000.0,
+          "tolerance_percent": 15.0
+        },
+        "qdepth_512_iodepth_128_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency": {
+          "unit": "microseconds",
+          "max_value": 1200.0,
+          "target_value": 1011.31,
+          "tolerance_percent": 20.0
+        },
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops": {
+          "unit": "IOPS",
+          "min_value": 360000.0,
+          "target_value": 400000.0,
+          "tolerance_percent": 15.0
+        },
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops": {
+          "unit": "IOPS",
+          "min_value": 360000.0,
+          "target_value": 400000.0,
+          "tolerance_percent": 15.0
+        }
+      },
+      "Standard_L*as_v3": {
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops": {
+          "unit": "IOPS",
+          "min_value": 150000.0,
+          "target_value": 200000.0,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency": {
+          "unit": "microseconds",
+          "max_value": 30.0,
+          "target_value": 20.0,
+          "tolerance_percent": 30.0
+        },
+        "qdepth_512_iodepth_128_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops": {
+          "unit": "IOPS",
+          "min_value": 400000.0,
+          "target_value": 600000.0,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_512_iodepth_128_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency": {
+          "unit": "microseconds",
+          "max_value": 1500.0,
+          "target_value": 1000.0,
+          "tolerance_percent": 30.0
+        },
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops": {
+          "unit": "IOPS",
+          "min_value": 400000.0,
+          "target_value": 500000.0,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops": {
+          "unit": "IOPS",
+          "min_value": 400000.0,
+          "target_value": 500000.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "Standard_L*s_v3": {
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops": {
+          "unit": "IOPS",
+          "min_value": 400000.0,
+          "target_value": 500000.0,
+          "tolerance_percent": 30.0
+        },
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops": {
+          "unit": "IOPS",
+          "min_value": 400000.0,
+          "target_value": 500000.0,
+          "tolerance_percent": 30.0
+        },
+        "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_read_iops": {
+          "unit": "IOPS",
+          "min_value": 800000.0,
+          "target_value": 1200000.0,
+          "tolerance_percent": 40.0
+        },
+        "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_write_iops": {
+          "unit": "IOPS",
+          "min_value": 800000.0,
+          "target_value": 1200000.0,
+          "tolerance_percent": 40.0
+        },
+        "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops": {
+          "unit": "IOPS",
+          "min_value": 2000000.0,
+          "target_value": 3200000.0,
+          "tolerance_percent": 40.0
+        },
+        "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_iops": {
+          "unit": "IOPS",
+          "min_value": 2000000.0,
+          "target_value": 3200000.0,
+          "tolerance_percent": 40.0
+        },
+        "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency": {
+          "unit": "microseconds",
+          "max_value": 120.0,
+          "target_value": 97.99,
+          "tolerance_percent": 30.0
+        },
+        "qdepth_128_iodepth_32_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_latency": {
+          "unit": "microseconds",
+          "max_value": 250.0,
+          "target_value": 207.31,
+          "tolerance_percent": 25.0
+        },
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_latency": {
+          "unit": "microseconds",
+          "max_value": 120.0,
+          "target_value": 97.99,
+          "tolerance_percent": 30.0
+        },
+        "qdepth_64_iodepth_16_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randwrite_latency": {
+          "unit": "microseconds",
+          "max_value": 250.0,
+          "target_value": 207.31,
+          "tolerance_percent": 25.0
+        }
+      }
+    }
+  }
+}
