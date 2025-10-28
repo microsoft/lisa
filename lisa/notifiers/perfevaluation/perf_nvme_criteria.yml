@@ -1,0 +1,180 @@
+# Performance evaluation criteria for NVMe storage tests
+# Global configuration
+statistics_times: 3  # Default: run each test 3 times to calculate statistics
+error_threshold: 0.1  # Default: 10% tolerance
+statistics_type: average  # Default statistics method
+
+# Test suite groups
+groups:
+  - name: "NVMe Performance - L64s_v2 Specific"
+    description: "Performance criteria for Standard_L64s_v2 VM"
+    error_threshold: 0.20
+    statistics_type: average
+    statistics_times: 1
+    
+    conditions:
+      - name: "test_case"
+        type: "metadata"
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_L64s_v2"
+    
+    metrics:
+      # 32 cores, 8 disks performance criteria for L64s_v2
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 800000.0
+        target_value: 1033000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 750000.0
+        target_value: 950000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 500000.0
+        target_value: 1200000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 150000.0
+        target_value: 650000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_latency"
+        max_value: 50.0
+        target_value: 10
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_latency"
+        max_value: 60.0
+        target_value: 10
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_latency"
+        max_value: 80.0
+        target_value: 25.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_latency"
+        max_value: 100.0
+        target_value: 80.0
+        error_threshold: 0.30
+        
+      # Higher queue depth tests
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 1200000.0
+        target_value: 1500000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1000000.0
+        target_value: 1300000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 800000.0
+        target_value: 1100000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 700000.0
+        target_value: 1000000.0
+        error_threshold: 0.30
+        
+      # Highest queue depth tests
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 1800000.0
+        target_value: 2200000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1600000.0
+        target_value: 2000000.0
+        error_threshold: 0.25
+        
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 1200000.0
+        target_value: 1600000.0
+        error_threshold: 0.30
+        
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 1000000.0
+        target_value: 1400000.0
+        error_threshold: 0.30
+
+  - name: "TCP NTTTCP SRIOV Performance - D2ads_v5 Specific"
+    description: "Performance criteria for Standard_D2ads_v5 VM - TCP NTTTCP SRIOV"
+    error_threshold: 0.20
+    statistics_type: average
+    statistics_times: 1
+    
+    conditions:
+      - name: "test_case"
+        type: "metadata"
+        value: "perf_tcp_ntttcp_sriov"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_D2ads_v5"
+    
+    metrics:
+      - name: "buffer_size_conn_1"
+        min_value: 0
+        target_value: 65536
+        error_threshold: 0.30
+        
+      - name: "client_mtu_conn_1"
+        min_value: 1400
+        target_value: 1500
+        error_threshold: 0.05
+        
+      - name: "connections_created_time_conn_1"
+        max_value: 5.0
+        target_value: 1.0
+        error_threshold: 0.50
+        
+      - name: "latency_us_conn_1"
+        max_value: 500.0
+        target_value: 100.0
+        error_threshold: 0.50
+        
+      - name: "pkts_interrupts_conn_1"
+        min_value: 0
+        target_value: 100000
+        error_threshold: 0.50
+        
+      - name: "receiver_cycles_per_byte_conn_1"
+        max_value: 100.0
+        target_value: 20.0
+        error_threshold: 0.50
+        
+      - name: "retrans_segments_conn_1"
+        max_value: 1000
+        target_value: 0
+        error_threshold: 2.0
+        
+      - name: "rx_packets_conn_1"
+        min_value: 100000
+        target_value: 1000000
+        error_threshold: 0.50
+        
+      - name: "sender_cycles_per_byte_conn_1"
+        max_value: 100.0
+        target_value: 20.0
+        error_threshold: 0.50
+        
+      - name: "server_mtu_conn_1"
+        min_value: 1400
+        target_value: 1500
+        error_threshold: 0.05
+        
+      - name: "throughput_in_gbps_conn_1"
+        min_value: 0.5
+        target_value: 2.0
+        error_threshold: 0.30
+        
+      - name: "tx_packets_conn_1"
+        min_value: 100000
+        target_value: 1000000
+        error_threshold: 0.50

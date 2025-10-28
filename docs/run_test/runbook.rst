@@ -959,6 +959,95 @@ Example of log_agent notifier:
 The AI analysis results are stored in the test result message's ``analysis["AI"]``
 field and can be consumed by other notifiers like HTML or custom reporting systems.
 
+perfevaluation
+^^^^^^^^^^^^^^
+
+Evaluates performance test results against predefined criteria and optionally fails tests when targets are not met.
+
+**Basic Usage:**
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria_file: "perf_criteria.yml"
+       output_file: "results.json"
+       fail_test_on_performance_failure: true
+
+**Parameters:**
+
+criteria_file
+'''''''''''''
+type: str, optional, default: "*_criteria.yml"
+
+Path or glob pattern to YAML files containing performance criteria.
+
+criteria
+''''''''
+type: dict, optional, default: None
+
+Direct criteria definition in runbook. Takes priority over criteria_file.
+
+output_file
+'''''''''''
+type: str, optional, default: None
+
+Output path for detailed evaluation results in JSON format.
+
+fail_test_on_performance_failure
+''''''''''''''''''''''''''''''''
+type: bool, optional, default: False
+
+Mark tests as failed when performance criteria are not met.
+
+**YAML Criteria Format:**
+
+Hierarchical format with groups and conditions:
+
+.. code:: yaml
+
+   # Global settings
+   statistics_times: 3
+   error_threshold: 0.1
+   statistics_type: average
+
+   groups:
+     - name: "Storage Performance"
+       conditions:
+         - name: "test_case"
+           type: "metadata"
+           value: "*fio*"
+         - name: "vm_size"
+           type: "information"
+           value: "Standard_D*"
+       
+       metrics:
+         - name: "IOPS_Read"
+           min_value: 1000
+           target_value: 5000
+           error_threshold: 0.10
+
+**Metric Properties:**
+
+- ``min_value``: Minimum acceptable value
+- ``max_value``: Maximum acceptable value
+- ``target_value``: Expected target value
+- ``error_threshold``: Acceptable deviation from target (as decimal, e.g., 0.10 = 10%)
+
+**Pattern Matching:**
+
+Uses fnmatch patterns:
+
+- ``Standard_D*``: All D-series VMs
+- ``*fio*``: Test cases containing "fio"
+- ``Standard_L??s_v2``: L-series with specific patterns
+
+**Condition Types:**
+
+- ``test_case``: Match test case name
+- ``vm_size``: Match VM size
+- All conditions must match (AND logic)
+
 environment
 ~~~~~~~~~~~
 
