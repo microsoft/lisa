@@ -410,7 +410,7 @@ class Process:
         self._stderr_writer.close()
 
         # cache for future queries, in case it's queried twice.
-        self._result = ExecutableResult(
+        result = ExecutableResult(
             process_result.output.strip(),
             process_result.stderr_output.strip(),
             process_result.return_code,
@@ -423,39 +423,36 @@ class Process:
 
         if not self._is_posix:
             # convert windows error code to int4, so it's more friendly.
-            assert self._result.exit_code is not None
-            exit_code = self._result.exit_code
+            assert result.exit_code is not None
+            exit_code = result.exit_code
             if exit_code > 2**31:
-                self._result.exit_code = exit_code - 2**32
+                result.exit_code = exit_code - 2**32
 
-        self._log.debug(
-            f"execution time: {self._timer}, exit code: {self._result.exit_code}"
-        )
+        self._log.debug(f"execution time: {self._timer}, exit code: {result.exit_code}")
 
         if expected_exit_code is not None:
-            self._result.assert_exit_code(
+            result.assert_exit_code(
                 expected_exit_code=expected_exit_code,
                 message=expected_exit_code_failure_message,
             )
 
         if self._is_posix and self._sudo:
-            self._result.stdout = self._filter_sudo_result(self._result.stdout)
+            result.stdout = self._filter_sudo_result(result.stdout)
 
-        self._result.stdout = self._filter_profile_error(self._result.stdout)
-        self._result.stdout = self._filter_bash_prompt(self._result.stdout)
-        self._check_if_need_input_password(self._result.stdout)
-        self._result.stdout = self._filter_sudo_required_password_info(
-            self._result.stdout
-        )
+        result.stdout = self._filter_profile_error(result.stdout)
+        result.stdout = self._filter_bash_prompt(result.stdout)
+        self._check_if_need_input_password(result.stdout)
+        result.stdout = self._filter_sudo_required_password_info(result.stdout)
 
         if not self._is_posix:
             # fix windows ending with " by some unknown reason.
-            self._result.stdout = self._remove_ending_quote(self._result.stdout)
-            self._result.stderr = self._remove_ending_quote(self._result.stderr)
+            result.stdout = self._remove_ending_quote(result.stdout)
+            result.stderr = self._remove_ending_quote(result.stderr)
 
         if is_timeout and raise_on_timeout:
             self._raise_timeout_exception(self._cmd, timeout)
 
+        self._result = result
         return self._result
 
     def kill(self) -> None:
