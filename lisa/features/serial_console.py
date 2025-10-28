@@ -49,7 +49,6 @@ class SerialConsole(Feature):
         re.compile(r"^(.*unable to handle.*)$", re.MULTILINE | re.IGNORECASE),
         # Hung tasks and watchdog
         re.compile(r"^(.*hung task.*)$", re.MULTILINE | re.IGNORECASE),
-        re.compile(r"^(.*watchdog.*)$", re.MULTILINE | re.IGNORECASE),
         # RCU stalls
         re.compile(r"^(.*rcu_sched.*)$", re.MULTILINE | re.IGNORECASE),
         re.compile(r"^(.*stall.*)$", re.MULTILINE | re.IGNORECASE),
