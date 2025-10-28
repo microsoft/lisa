@@ -51,12 +51,10 @@ class GpuDriverInstaller(Tool):
         except Exception:
             return False
 
-    def get_installed_version(self, force_run: bool = False) -> str:
+    def get_installed_version(self) -> str:
         """Get the currently installed driver version"""
         result = self.node.execute(f"{self.command} --version", shell=True, sudo=True)
-        if result.exit_code == 0:
-            return result.stdout.strip()
-        return ""
+        return result.stdout.strip()
 
     @abstractmethod
     def _get_os_dependencies(self) -> List[str]:
@@ -87,14 +85,14 @@ class GpuDriverInstaller(Tool):
 
         self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
 
-        # Ensure we're on a Posix system (all GPU drivers require Linux)
-        assert isinstance(self.node.os, Posix), "GPU drivers require a Posix OS"
+        assert isinstance(
+            self.node.os, Posix
+        ), "GPU driver installation is only implemented for POSIX systems"
 
         # Install EPEL for RedHat family if needed
         if isinstance(self.node.os, Redhat):
             self.node.os.install_epel()
 
-        # Install the dependency packages
         self.node.os.install_packages(dependencies, signed=False)
 
     def _install(self) -> bool:
@@ -112,15 +110,14 @@ class GpuDriverInstaller(Tool):
 
         self._log.info(f"Starting {self.driver_name} installation")
 
-        # Install dependencies first
         self._install_dependencies()
-
-        # Install the actual driver (implemented by subclass)
         self._install_driver()
-
         self.check_exists()
-
         self._log.info(f"{self.driver_name} installation completed successfully")
+
+        version = self.get_installed_version()
+        self._log.info(f"Installed {self.driver_name} \n {version}")
+
         return True
 
     @abstractmethod
@@ -227,8 +224,6 @@ class NvidiaGridDriver(GpuDriverInstaller):
             "NVIDIA-Linux-x86_64-grid.run",
             executable=True,
         )
-
-        self._log.debug("Installing GRID driver (this may take several minutes)...")
 
         result = self.node.execute(
             f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check",
@@ -343,8 +338,6 @@ class NvidiaCudaDriver(GpuDriverInstaller):
         # Call parent to install standard dependencies
         super()._install_dependencies()
 
-        # Special handling for RedHat 7 vulkan-filesystem
-        # vulkan-filesystem is required by CUDA in CentOS/RHEL 7.x
         if isinstance(self.node.os, Redhat):
             release = self.node.os.information.release.split(".")[0]
             if release == "7":
@@ -511,8 +504,6 @@ class AmdGpuDriver(GpuDriverInstaller):
     """
     AMD GPU driver installer with ROCm support.
 
-    Installs AMD GPU drivers for Radeon PRO V710 and similar GPUs.
-
     Supported Operating Systems:
     - Ubuntu 22.04 (Jammy)
     - Ubuntu 24.04 (Noble)
@@ -524,9 +515,6 @@ class AmdGpuDriver(GpuDriverInstaller):
     # ROCm version to install
     ROCM_VERSION = "7.0.1"
     ROCM_BUILD = "70001"
-
-    # AMD GPU Device ID for V710
-    AMD_V710_DEVICE_ID = "7461"
 
     @property
     def driver_name(self) -> str:
@@ -540,12 +528,10 @@ class AmdGpuDriver(GpuDriverInstaller):
         """
         AMD ROCm drivers are supported on Ubuntu 22.04 and 24.04.
         """
-        if not isinstance(self.node.os, Ubuntu):
-            return False
-
-        version = self.node.os.information.version
-        # Support Ubuntu 22.04 (Jammy) and 24.04 (Noble)
-        return version >= "22.4.0"
+        return (
+            isinstance(self.node.os, Ubuntu)
+            and self.node.os.information.version >= "22.4.0"
+        )
 
     def _get_os_dependencies(self) -> List[str]:
         """
@@ -558,25 +544,6 @@ class AmdGpuDriver(GpuDriverInstaller):
             "python3-setuptools",
             "python3-wheel",
         ]
-
-    def _verify_gpu_device(self) -> bool:
-        """
-        Verify that the AMD GPU device (V710) is detected on the system.
-        """
-        result = self.node.execute(
-            f"lspci -d 1002:{self.AMD_V710_DEVICE_ID}",
-            sudo=True,
-            shell=True,
-        )
-
-        if result.exit_code == 0 and self.AMD_V710_DEVICE_ID in result.stdout:
-            self._log.debug(f"AMD GPU V710 device detected: {result.stdout.strip()}")
-            return True
-
-        self._log.warning(
-            f"AMD GPU V710 device (1002:{self.AMD_V710_DEVICE_ID}) not detected"
-        )
-        return False
 
     def _add_user_to_groups(self) -> None:
         """
@@ -598,17 +565,8 @@ class AmdGpuDriver(GpuDriverInstaller):
         # Add user to required groups
         self._add_user_to_groups()
 
-        # Determine Ubuntu codename
         os_info = self.node.os.information
-        if os_info.version >= "24.4.0":
-            codename = "noble"  # Ubuntu 24.04
-        elif os_info.version >= "22.4.0":
-            codename = "jammy"  # Ubuntu 22.04
-        else:
-            raise SkippedException(
-                f"Ubuntu {os_info.version} is not supported. "
-                f"Only Ubuntu 22.04 and 24.04 are supported."
-            )
+        codename = os_info.codename.lower()
 
         self._log.info(f"Installing AMD GPU driver for Ubuntu {codename}")
 
@@ -646,9 +604,7 @@ class AmdGpuDriver(GpuDriverInstaller):
         self.node.execute("apt update", sudo=True, timeout=300)
 
         # Install amdgpu-dkms and rocm
-        self._log.info(
-            "Installing amdgpu-dkms and rocm (this may take several minutes)"
-        )
+        self._log.info("Installing amdgpu-dkms and rocm")
         result = self.node.execute(
             "apt install -y amdgpu-dkms rocm",
             sudo=True,
