@@ -204,6 +204,11 @@ class TestResult:
         if check_result.result:
             check_result = requirement.environment.check(environment.capability)
 
+        # Check skip_hyperv_cases setting
+        if check_result.result and self.runtime_data.skip_hyperv_cases:
+            check_result.result = False
+            check_result.add_reason("Test case has skip_hyperv_cases=True")
+
         if (
             check_result.result
             and requirement.os_type
@@ -571,6 +576,7 @@ class TestCaseMetadata:
         priority: int = 2,
         timeout: int = 3600,
         use_new_environment: bool = False,
+        skip_hyperv_cases: bool = False,
         owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
         tags: Optional[List[str]] = None,
@@ -581,6 +587,7 @@ class TestCaseMetadata:
         self.description = description
         self.timeout = timeout
         self.use_new_environment = use_new_environment
+        self.skip_hyperv_cases = skip_hyperv_cases
         if requirement:
             self.requirement = requirement
         if tags:
@@ -628,6 +635,7 @@ class TestCaseRuntimeData:
         self.retry: int = 0
         self.timeout: int = metadata.timeout
         self.use_new_environment: bool = metadata.use_new_environment
+        self.skip_hyperv_cases: bool = metadata.skip_hyperv_cases
         self.ignore_failure: bool = False
         self.environment_name: str = ""
 
@@ -642,6 +650,7 @@ class TestCaseRuntimeData:
             f"action: {self.select_action}, "
             f"times: {self.times}, retry: {self.retry}, "
             f"new_env: {self.use_new_environment}, "
+            f"ignore_hyperv: {self.skip_hyperv_cases}, "
             f"ignore_failure: {self.ignore_failure}, "
             f"env_name: {self.environment_name}"
         )
@@ -653,6 +662,7 @@ class TestCaseRuntimeData:
             constants.TESTCASE_TIMES,
             constants.TESTCASE_RETRY,
             constants.TESTCASE_USE_NEW_ENVIRONMENT,
+            constants.TESTCASE_SKIP_HYPERV_CASES,
             constants.TESTCASE_IGNORE_FAILURE,
         ]
         set_filtered_fields(self, cloned, fields)

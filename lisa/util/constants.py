@@ -143,6 +143,7 @@ TESTCASE_SELECT_ACTION_FORCE_EXCLUDE = "forceExclude"
 TESTCASE_TIMES = "times"
 TESTCASE_RETRY = "retry"
 TESTCASE_USE_NEW_ENVIRONMENT = "use_new_environment"
+TESTCASE_SKIP_HYPERV_CASES = "skip_hyperv_cases"
 TESTCASE_IGNORE_FAILURE = "ignore_failure"
 
 # data disk caching type

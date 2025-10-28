@@ -1586,6 +1586,9 @@ class TestCase(BaseTestCaseFilter):
     # it uses to work around some cases temporarily, don't overuse it.
     # default is false
     ignore_failure: bool = False
+    # skip_hyperv_cases means skip all hyper-v related test cases
+    # when it is true. Default is false.
+    skip_hyperv_cases: bool = False
 
     @classmethod
     def type_name(cls) -> str:

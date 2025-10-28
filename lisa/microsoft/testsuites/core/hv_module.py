@@ -79,6 +79,7 @@ class HvModule(TestSuite):
         2. Use lsinitrd tool to check whether a necessary module is missing
         """,
         priority=1,
+        skip_hyperv_cases=False,
         requirement=simple_requirement(
             unsupported_os=[BSD],
         ),
@@ -153,6 +154,7 @@ class HvModule(TestSuite):
         1. Verify the presence of all Hyper V drivers using lsmod
            to look for the drivers not directly loaded into the kernel.
         """,
+        skip_hyperv_cases=False,
         priority=1,
     )
     def verify_hyperv_modules(self, log: Logger, environment: Environment) -> None:

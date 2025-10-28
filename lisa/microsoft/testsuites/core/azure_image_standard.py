@@ -721,6 +721,7 @@ class AzureImageStandard(TestSuite):
         has length greater than zero.
         """,
         priority=2,
+        skip_hyperv_cases=False,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:

@@ -125,6 +125,10 @@ def _apply_settings(
         applied_case_data.use_new_environment or case_runbook.use_new_environment
     )
 
+    applied_case_data.skip_hyperv_cases = (
+        applied_case_data.skip_hyperv_cases or case_runbook.skip_hyperv_cases
+    )
+
     # check for positive value just to be clearer
     applied_case_data.timeout = (
         max(case_runbook.timeout, applied_case_data.timeout)
