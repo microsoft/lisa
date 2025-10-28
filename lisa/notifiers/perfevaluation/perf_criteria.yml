@@ -1,0 +1,311 @@
+# Performance evaluation criteria for NVMe storage tests
+# Global configuration
+statistics_times: 1  # Default: run each test 3 times to calculate statistics
+error_threshold: 0.1  # Default: 10% tolerance
+statistics_type: average  # Default statistics method
+
+# Test suite groups
+groups:
+  - name: "NVMe Performance - L64 Series (as_v3 and s_v2)"
+    description: "Performance criteria for Standard_L64as_v3 and Standard_L64s_v2 VMs"
+    error_threshold: 0.20
+    statistics_type: average
+    statistics_times: 1
+
+    conditions:
+      - name: "test_case"
+        type: "metadata"
+        value: "perf_nvme"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_L64*"
+
+    metrics:
+      # QDepth 32 - IOPS only
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 800000.0
+        target_value: 979000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 1000000.0
+        target_value: 1240000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1000000.0
+        target_value: 1238000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 1000000.0
+        target_value: 1212000.0
+        error_threshold: 0.30
+
+      # QDepth 64
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 1500000.0
+        target_value: 1831000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 1800000.0
+        target_value: 2154000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1800000.0
+        target_value: 2146000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_64_iodepth_2_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 1800000.0
+        target_value: 2176000.0
+        error_threshold: 0.30
+
+      # QDepth 128
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 2800000.0
+        target_value: 3280000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 3200000.0
+        target_value: 3724000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 3000000.0
+        target_value: 3492000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_128_iodepth_4_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 3000000.0
+        target_value: 3465000.0
+        error_threshold: 0.30
+
+      # QDepth 256
+      - name: "qdepth_256_iodepth_8_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 3500000.0
+        target_value: 4070000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_256_iodepth_8_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 3600000.0
+        target_value: 4125000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_256_iodepth_8_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 3000000.0
+        target_value: 3519000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_256_iodepth_8_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 3200000.0
+        target_value: 3623000.0
+        error_threshold: 0.30
+
+      # QDepth 512
+      - name: "qdepth_512_iodepth_16_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 4500000.0
+        target_value: 5102000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_512_iodepth_16_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 4000000.0
+        target_value: 4574000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_512_iodepth_16_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 3600000.0
+        target_value: 4171000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_512_iodepth_16_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 3800000.0
+        target_value: 4294000.0
+        error_threshold: 0.30
+
+      # QDepth 1024
+      - name: "qdepth_1024_iodepth_32_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 4500000.0
+        target_value: 5001000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_1024_iodepth_32_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 2000000.0
+        target_value: 2523000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_1024_iodepth_32_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 3700000.0
+        target_value: 4176000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_1024_iodepth_32_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 3800000.0
+        target_value: 4294000.0
+        error_threshold: 0.30
+
+      # QDepth 2048
+      - name: "qdepth_2048_iodepth_64_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 4000000.0
+        target_value: 4582000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_2048_iodepth_64_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 3400000.0
+        target_value: 3857000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_2048_iodepth_64_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 3800000.0
+        target_value: 4242000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_2048_iodepth_64_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 3800000.0
+        target_value: 4280000.0
+        error_threshold: 0.30
+
+      # QDepth 4096
+      - name: "qdepth_4096_iodepth_128_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 4300000.0
+        target_value: 4873000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_4096_iodepth_128_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 3600000.0
+        target_value: 4079000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_4096_iodepth_128_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 3800000.0
+        target_value: 4241000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_4096_iodepth_128_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 3800000.0
+        target_value: 4280000.0
+        error_threshold: 0.30
+
+      # QDepth 8192
+      - name: "qdepth_8192_iodepth_256_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+        min_value: 4400000.0
+        target_value: 4964000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_8192_iodepth_256_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randread_iops"
+        min_value: 3300000.0
+        target_value: 3740000.0
+        error_threshold: 0.30
+
+      - name: "qdepth_8192_iodepth_256_numjob_32_setup_raw_bs_4k_cores_32_disks_8_write_iops"
+        min_value: 1700000.0
+        target_value: 1985000.0
+        error_threshold: 0.25
+
+      - name: "qdepth_8192_iodepth_256_numjob_32_setup_raw_bs_4k_cores_32_disks_8_randwrite_iops"
+        min_value: 3800000.0
+        target_value: 4278000.0
+        error_threshold: 0.30
+
+  - name: "TCP NTTTCP SRIOV Performance - D2ads_v5 Specific"
+    description: "Performance criteria for Standard_D2ads_v5 VM - TCP NTTTCP SRIOV"
+    error_threshold: 0.20
+    statistics_type: average
+    statistics_times: 1
+
+    conditions:
+      - name: "test_case"
+        type: "metadata"
+        value: "perf_tcp_ntttcp_sriov"
+      - name: "vm_size"
+        type: "information"
+        value: "Standard_D2ads_v5"
+
+    metrics:
+      - name: "throughput_in_gbps_conn_1"
+        min_value: 10.0
+        target_value: 11.89
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_2"
+        min_value: 10.0
+        target_value: 11.89
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_4"
+        min_value: 10.0
+        target_value: 11.89
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_8"
+        min_value: 10.0
+        target_value: 11.89
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_16"
+        min_value: 10.0
+        target_value: 11.89
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_32"
+        min_value: 10.0
+        target_value: 11.90
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_64"
+        min_value: 10.0
+        target_value: 11.91
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_128"
+        min_value: 10.0
+        target_value: 11.90
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_256"
+        min_value: 10.0
+        target_value: 11.91
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_512"
+        min_value: 10.0
+        target_value: 11.88
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_1024"
+        min_value: 10.0
+        target_value: 11.85
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_2048"
+        min_value: 5.0
+        target_value: 6.24
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_4096"
+        min_value: 5.0
+        target_value: 5.66
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_6144"
+        min_value: 5.0
+        target_value: 6.45
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_8192"
+        min_value: 5.0
+        target_value: 6.78
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_10240"
+        min_value: 5.0
+        target_value: 6.58
+        error_threshold: 0.30
+
+      - name: "throughput_in_gbps_conn_20480"
+        min_value: 5.0
+        target_value: 6.28
+        error_threshold: 0.30
