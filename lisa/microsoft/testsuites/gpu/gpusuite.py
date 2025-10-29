@@ -392,21 +392,21 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
         ).stdout.split("\n")
 
     # Try to install GPU driver using extension
-    # try:
-    #     gpu_feature._install_driver_using_platform_feature()
-    #     reboot_tool = node.tools[Reboot]
-    #     reboot_tool.reboot_and_check_panic(log_path)
-    #     return
-    # except UnsupportedOperationException:
-    #     log.info("Installing Driver using Azure GPU Extension is not supported")
-    # except Exception:
-    #     log.info("Failed to install Driver using Azure GPU Extension")
-    #     if isinstance(node.os, Ubuntu):
-    #         # Cleanup required because extension might add sources
-    #         sources_after = node.execute(
-    #             "ls -A1 /etc/apt/sources.list.d", sudo=True
-    #         ).stdout.split("\n")
-    #         __remove_sources_added_by_extension(node, sources_before, sources_after)
+    try:
+        gpu_feature._install_driver_using_platform_feature()
+        reboot_tool = node.tools[Reboot]
+        reboot_tool.reboot_and_check_panic(log_path)
+        return
+    except UnsupportedOperationException:
+        log.info("Installing Driver using Azure GPU Extension is not supported")
+    except Exception:
+        log.info("Failed to install Driver using Azure GPU Extension")
+        if isinstance(node.os, Ubuntu):
+            # Cleanup required because extension might add sources
+            sources_after = node.execute(
+                "ls -A1 /etc/apt/sources.list.d", sudo=True
+            ).stdout.split("\n")
+            __remove_sources_added_by_extension(node, sources_before, sources_after)
 
     # Install LIS driver if required (for older kernels)
     try:
@@ -420,9 +420,9 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     gpu_driver = node.tools[GpuDriver]
     gpu_driver.install_driver()
 
-    log.debug("GPU driver installed. Rebooting to load driver.")
-    reboot_tool = node.tools[Reboot]
-    reboot_tool.reboot_and_check_panic(log_path)
+    log.debug("GPU driver installed")
+    serial_console = node.features[SerialConsole]
+    serial_console.check_panic(saved_path=log_path, force_run=True)
 
 
 def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:

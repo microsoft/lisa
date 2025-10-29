@@ -3,13 +3,13 @@
 
 import re
 from abc import abstractmethod
-from typing import Any, List, Optional
+from pathlib import PurePosixPath
+from typing import Any, List, Optional, Type, Union
 
 from lisa.base_tools import Wget
+from lisa.base_tools.sed import Sed
 from lisa.base_tools.uname import Uname
 from lisa.executable import Tool
-from lisa.features import Gpu
-from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import (
     CBLMariner,
     CpuArchitecture,
@@ -20,6 +20,9 @@ from lisa.operating_system import (
 )
 from lisa.tools import Df
 from lisa.tools.amdsmi import AmdSmi
+from lisa.tools.echo import Echo
+from lisa.tools.mkdir import Mkdir
+from lisa.tools.modprobe import Modprobe
 from lisa.tools.nvidiasmi import NvidiaSmi
 from lisa.util import LisaException, MissingPackagesException, SkippedException
 
@@ -39,59 +42,65 @@ class GpuDriver(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
-        Determine which GPU vendor is present and set the appropriate monitoring tool.
-        This runs once when the tool is first accessed.
+        Determine which GPU vendor is present and cache the monitoring tool type.
+        Does not instantiate the monitoring tool yet, since the driver
+        may not be installed yet.
         """
-        gpu = self.node.features[Gpu]
-        supported_drivers = gpu.get_supported_driver()
+        from lisa.features import Gpu
+        from lisa.features.gpu import ComputeSDK
 
-        # Determine GPU vendor type and set the appropriate monitoring tool
-        if ComputeSDK.AMD in supported_drivers:
-            self._monitoring_tool = self.node.tools[AmdSmi]
-            self._supported_drivers = supported_drivers
+        gpu = self.node.features[Gpu]
+        self._supported_drivers = gpu.get_supported_driver()
+
+        # Determine GPU vendor type and store the tool class (not instance)
+        self._monitoring_tool_class: Type[Union[AmdSmi, NvidiaSmi]]
+        if ComputeSDK.AMD in self._supported_drivers:
+            self._monitoring_tool_class = AmdSmi
             self._log.debug(
-                f"GPU vendor detected: AMD (supported drivers: {supported_drivers})"
+                f"GPU vendor detected: AMD "
+                f"(supported drivers: {self._supported_drivers})"
             )
         elif (
-            ComputeSDK.CUDA in supported_drivers or ComputeSDK.GRID in supported_drivers
+            ComputeSDK.CUDA in self._supported_drivers
+            or ComputeSDK.GRID in self._supported_drivers
         ):
-            self._monitoring_tool = self.node.tools[NvidiaSmi]
-            self._supported_drivers = supported_drivers
+            self._monitoring_tool_class = NvidiaSmi
             self._log.debug(
-                f"GPU vendor detected: NVIDIA (supported drivers: {supported_drivers})"
+                f"GPU vendor detected: NVIDIA "
+                f"(supported drivers: {self._supported_drivers})"
             )
         else:
             raise SkippedException(
-                f"No supported GPU driver type found: {supported_drivers}"
+                f"No supported GPU driver type found: {self._supported_drivers}"
             )
 
     def get_gpu_count(self) -> int:
-        return self._monitoring_tool.get_gpu_count()
+        """
+        Get GPU count using the appropriate monitoring tool.
+        """
+        monitoring_tool = self.node.tools[self._monitoring_tool_class]
+        return monitoring_tool.get_gpu_count()
 
     def install_driver(self) -> None:
+        from lisa.features.gpu import ComputeSDK
+
+        # The if-else ordering is based on priority.
+        # Only one driver type will be installed.
         for driver_type in self._supported_drivers:
             if driver_type == ComputeSDK.GRID:
                 self.node.log.info("Installing NVIDIA GRID driver")
-                from lisa.tools.gpu_drivers import NvidiaGridDriver
-
                 _ = self.node.tools[NvidiaGridDriver]
+                return
             elif driver_type == ComputeSDK.CUDA:
                 self.node.log.info("Installing NVIDIA CUDA driver")
-                from lisa.tools.gpu_drivers import NvidiaCudaDriver
-
                 _ = self.node.tools[NvidiaCudaDriver]
+                return
             elif driver_type == ComputeSDK.AMD:
                 self.node.log.info("Installing AMD GPU driver")
-                from lisa.tools.gpu_drivers import AmdGpuDriver
-
                 _ = self.node.tools[AmdGpuDriver]
-            else:
-                raise LisaException(f"Unsupported driver type: '{driver_type}'")
+                return
 
-        self.node.log.debug(
-            f"{self._supported_drivers} driver installed. "
-            "Reboot required to load driver."
-        )
+        raise LisaException(f"Unsupported driver type: '{self._supported_drivers}'")
 
 
 class GpuDriverInstaller(Tool):
@@ -180,6 +189,11 @@ class GpuDriverInstaller(Tool):
         self._install_dependencies()
         self._install_driver()
         self._log.info(f"{self.driver_name} installation completed successfully")
+
+        from lisa.tools.reboot import Reboot
+
+        reboot_tool = self.node.tools[Reboot]
+        reboot_tool.reboot()
 
         version = self.get_version()
         self._log.info(f"Installed {self.driver_name} \n {version}")
@@ -686,21 +700,72 @@ class AmdGpuDriver(GpuDriverInstaller):
                 expected_exit_code_failure_message="amdgpu kernel module not found",
             )
 
+        # Remove amdgpu from deny-list if present
+        # Azure VMs may have amdgpu blacklisted by default
+        self._log.info("Checking for amdgpu deny-list entries")
+        modprobe_dir = "/etc/modprobe.d"
+
+        # Search for files containing "blacklist amdgpu" in /etc/modprobe.d/
+        # Using grep to find which file(s) contain the blacklist entry
+        search_result = self.node.execute(
+            f"grep -l 'blacklist amdgpu' {modprobe_dir}/*.conf 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+
+        if search_result.stdout.strip():
+            # Found file(s) with blacklist entry
+            denylist_files = search_result.stdout.strip().split("\n")
+
+            for denylist_file in denylist_files:
+                denylist_file = denylist_file.strip()
+                if not denylist_file:
+                    continue
+
+                self._log.info(f"Removing amdgpu blacklist from {denylist_file}")
+
+                # Use Sed tool to comment out the blacklist line
+                sed = self.node.tools[Sed]
+                sed.substitute(
+                    regexp="^blacklist amdgpu",
+                    replacement="# blacklist amdgpu",
+                    file=denylist_file,
+                    sudo=True,
+                )
+        else:
+            self._log.debug("No amdgpu deny-list entries found in /etc/modprobe.d/")
+
+        # Load the amdgpu kernel module
+        self._log.info("Loading amdgpu kernel module")
+        modprobe = self.node.tools[Modprobe]
+        modprobe.load("amdgpu")
+
+        # Configure module to load on boot using /etc/modules-load.d/
+        # This is the modern systemd method for auto-loading kernel modules
+        self._log.info("Configuring amdgpu module to load on boot")
+
+        # Create the modules-load.d configuration file
+        modules_load_dir = "/etc/modules-load.d"
+        amdgpu_conf = f"{modules_load_dir}/amdgpu.conf"
+
+        # Ensure directory exists
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(modules_load_dir, sudo=True)
+
+        # Write amdgpu module name to the config file
+        echo = self.node.tools[Echo]
+        echo.write_to_file(
+            "amdgpu",
+            PurePosixPath(amdgpu_conf),
+            sudo=True,
+            ignore_error=False,
+        )
+
         # Clean up package cache to free disk space
         self._log.debug("Cleaning up package cache to free disk space")
         self.node.os.clean_package_cache()
 
-        # Check final disk space
-        root_partition = df_tool.get_partition_by_mountpoint("/", force_run=True)
-        if root_partition:
-            available_gb = root_partition.available_blocks / (1024 * 1024)
-            self._log.debug(
-                f"Disk space after installation: / partition has "
-                f"{available_gb:.2f} GB available "
-                f"({root_partition.percentage_blocks_used}% used)"
-            )
-
         self._log.info(
             "Successfully installed AMD GPU (ROCm) driver. "
-            "Reboot required to load the driver."
+            "Module configured to load on boot. Reboot required."
         )
