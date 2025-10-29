@@ -16,18 +16,6 @@ class AmdSmi(Tool):
     #     KFD_ID: 65402
     #     NODE_ID: 2
     #     PARTITION_ID: 0
-    # GPU: 1
-    #     BDF: N/A
-    #     UUID: N/A
-    #     KFD_ID: 27175
-    #     NODE_ID: 3
-    #     PARTITION_ID: 0
-    # GPU: 2
-    #     BDF: N/A
-    #     UUID: N/A
-    #     KFD_ID: 16561
-    #     NODE_ID: 4
-    #     PARTITION_ID: 0
     _gpu_pattern = re.compile(r"^GPU:\s+\d+", re.MULTILINE)
 
     @property

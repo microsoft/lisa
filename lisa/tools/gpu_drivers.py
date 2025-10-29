@@ -46,14 +46,7 @@ class GpuDriverInstaller(Tool):
     def can_install(self) -> bool:
         return True
 
-    def check_exists(self) -> bool:
-        try:
-            self._verify_installation()
-            return True
-        except Exception:
-            return False
-
-    def get_installed_version(self) -> str:
+    def get_version(self) -> str:
         """Get the currently installed driver version"""
         result = self.node.execute(f"{self.command} --version", shell=True, sudo=True)
         return result.stdout.strip()
@@ -114,22 +107,12 @@ class GpuDriverInstaller(Tool):
 
         self._install_dependencies()
         self._install_driver()
-        self.check_exists()
         self._log.info(f"{self.driver_name} installation completed successfully")
 
-        version = self.get_installed_version()
+        version = self.get_version()
         self._log.info(f"Installed {self.driver_name} \n {version}")
 
         return True
-
-    @abstractmethod
-    def _verify_installation(self) -> None:
-        """
-        Verify the driver installation was successful.
-        Must be implemented by subclass to perform driver-specific verification.
-        Should raise LisaException if verification fails.
-        """
-        raise NotImplementedError
 
     @abstractmethod
     def _install_driver(self) -> None:
@@ -242,17 +225,6 @@ class NvidiaGridDriver(GpuDriverInstaller):
         )
 
         self._log.info("Successfully installed NVIDIA GRID driver")
-
-    def _verify_installation(self) -> None:
-        """Verify NVIDIA GRID driver installation using NvidiaSmi tool"""
-        from lisa.tools import NvidiaSmi
-
-        self._log.debug("Verifying NVIDIA driver installation with nvidia-smi")
-        nvidia_smi = self.node.tools[NvidiaSmi]
-        gpu_count = nvidia_smi.get_gpu_count()
-        self._log.info(
-            f"NVIDIA GRID driver verified successfully. Detected {gpu_count} GPU(s)"
-        )
 
 
 class NvidiaCudaDriver(GpuDriverInstaller):
@@ -387,20 +359,6 @@ class NvidiaCudaDriver(GpuDriverInstaller):
         self.node.os.install_packages(packages, signed=False)
         self._log.info(f"Successfully installed CUDA driver packages: {packages}")
 
-    def _verify_installation(self) -> None:
-        """Verify NVIDIA CUDA driver installation using NvidiaSmi tool"""
-        from lisa.tools import NvidiaSmi
-
-        self._log.debug("Verifying NVIDIA driver installation with nvidia-smi")
-        try:
-            nvidia_smi = self.node.tools[NvidiaSmi]
-            gpu_count = nvidia_smi.get_gpu_count()
-            self._log.info(
-                f"NVIDIA CUDA driver verified successfully. Detected {gpu_count} GPU(s)"
-            )
-        except Exception as e:
-            raise LisaException(f"NVIDIA CUDA driver verification failed: {e}") from e
-
     def _install_cuda_ubuntu(self) -> None:
         """Install CUDA driver on Ubuntu"""
         self._log.debug("Installing CUDA driver for Ubuntu")
@@ -528,7 +486,7 @@ class AmdGpuDriver(GpuDriverInstaller):
     def command(self) -> str:
         return "amd-smi"
 
-    def get_installed_version(self) -> str:
+    def get_version(self) -> str:
         """Get the currently installed AMD driver version"""
         result = self.node.execute(f"{self.command} version", shell=True, sudo=True)
         return result.stdout.strip()
@@ -679,20 +637,3 @@ class AmdGpuDriver(GpuDriverInstaller):
             )
 
         self._log.info("Successfully installed AMD GPU (ROCm) driver")
-
-    def _verify_installation(self) -> None:
-        """
-        Verify AMD GPU driver installation using AmdSmi tool.
-        Raises LisaException if verification fails.
-        """
-        from lisa.tools.amdsmi import AmdSmi
-
-        self._log.debug("Verifying AMD GPU driver installation with amd-smi")
-        try:
-            amd_smi = self.node.tools[AmdSmi]
-            gpu_count = amd_smi.get_gpu_count()
-            self._log.info(
-                f"AMD GPU driver verified successfully. Detected {gpu_count} GPU(s)"
-            )
-        except Exception as e:
-            raise LisaException(f"AMD GPU driver verification failed: {e}") from e
