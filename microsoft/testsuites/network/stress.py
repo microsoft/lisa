@@ -167,6 +167,11 @@ class Stress(TestSuite):
     def stress_synthetic_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):
             for node in environment.nodes.list():
@@ -195,6 +200,11 @@ class Stress(TestSuite):
     def stress_synthetic_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):
             for node in environment.nodes.list():
@@ -224,6 +234,11 @@ class Stress(TestSuite):
     def stress_synthetic_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            if not node.nics.get_synthetic_devices():
+                raise SkippedException("No synthetic NICs available for testing")
+
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):
             for node in environment.nodes.list():
