@@ -592,7 +592,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             driver_list.append(ComputeSDK.GRID)
         elif re.match(self._amd_supported_skus, node_runbook.vm_size):
             driver_list.append(ComputeSDK.AMD)
-            self._is_nvidia: bool = False
         else:
             driver_list.append(ComputeSDK.CUDA)
 
@@ -635,7 +634,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
-        self._is_nvidia = True
 
     def _install_driver_using_platform_feature(self) -> None:
         """
