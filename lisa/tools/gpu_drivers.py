@@ -3,11 +3,13 @@
 
 import re
 from abc import abstractmethod
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from lisa.base_tools import Wget
 from lisa.base_tools.uname import Uname
 from lisa.executable import Tool
+from lisa.features import Gpu
+from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import (
     CBLMariner,
     CpuArchitecture,
@@ -17,9 +19,79 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.tools import Df
-from lisa.tools.modprobe import Modprobe
-from lisa.tools.usermod import Usermod
+from lisa.tools.amdsmi import AmdSmi
+from lisa.tools.nvidiasmi import NvidiaSmi
 from lisa.util import LisaException, MissingPackagesException, SkippedException
+
+
+class GpuDriver(Tool):
+    """
+    Virtual tool that wraps GPU-specific monitoring tools (NvidiaSmi, AmdSmi).
+    """
+
+    @property
+    def command(self) -> str:
+        return "echo"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Determine which GPU vendor is present and set the appropriate monitoring tool.
+        This runs once when the tool is first accessed.
+        """
+        gpu = self.node.features[Gpu]
+        supported_drivers = gpu.get_supported_driver()
+
+        # Determine GPU vendor type and set the appropriate monitoring tool
+        if ComputeSDK.AMD in supported_drivers:
+            self._monitoring_tool = self.node.tools[AmdSmi]
+            self._supported_drivers = supported_drivers
+            self._log.debug(
+                f"GPU vendor detected: AMD (supported drivers: {supported_drivers})"
+            )
+        elif (
+            ComputeSDK.CUDA in supported_drivers or ComputeSDK.GRID in supported_drivers
+        ):
+            self._monitoring_tool = self.node.tools[NvidiaSmi]
+            self._supported_drivers = supported_drivers
+            self._log.debug(
+                f"GPU vendor detected: NVIDIA (supported drivers: {supported_drivers})"
+            )
+        else:
+            raise SkippedException(
+                f"No supported GPU driver type found: {supported_drivers}"
+            )
+
+    def get_gpu_count(self) -> int:
+        return self._monitoring_tool.get_gpu_count()
+
+    def install_driver(self) -> None:
+        for driver_type in self._supported_drivers:
+            if driver_type == ComputeSDK.GRID:
+                self.node.log.info("Installing NVIDIA GRID driver")
+                from lisa.tools.gpu_drivers import NvidiaGridDriver
+
+                _ = self.node.tools[NvidiaGridDriver]
+            elif driver_type == ComputeSDK.CUDA:
+                self.node.log.info("Installing NVIDIA CUDA driver")
+                from lisa.tools.gpu_drivers import NvidiaCudaDriver
+
+                _ = self.node.tools[NvidiaCudaDriver]
+            elif driver_type == ComputeSDK.AMD:
+                self.node.log.info("Installing AMD GPU driver")
+                from lisa.tools.gpu_drivers import AmdGpuDriver
+
+                _ = self.node.tools[AmdGpuDriver]
+            else:
+                raise LisaException(f"Unsupported driver type: '{driver_type}'")
+
+        self.node.log.debug(
+            f"{self._supported_drivers} driver installed. "
+            "Reboot required to load driver."
+        )
 
 
 class GpuDriverInstaller(Tool):
@@ -613,14 +685,6 @@ class AmdGpuDriver(GpuDriverInstaller):
                 expected_exit_code=0,
                 expected_exit_code_failure_message="amdgpu kernel module not found",
             )
-        self._log.debug("Loading amdgpu kernel module")
-        modprobe = self.node.tools[Modprobe]
-        modprobe.load("amdgpu")
-
-        # Add current user to render and video groups for GPU access
-        usermod = self.node.tools[Usermod]
-        usermod.add_user_to_group("render", sudo=True)
-        usermod.add_user_to_group("video", sudo=True)
 
         # Clean up package cache to free disk space
         self._log.debug("Cleaning up package cache to free disk space")
@@ -636,4 +700,7 @@ class AmdGpuDriver(GpuDriverInstaller):
                 f"({root_partition.percentage_blocks_used}% used)"
             )
 
-        self._log.info("Successfully installed AMD GPU (ROCm) driver")
+        self._log.info(
+            "Successfully installed AMD GPU (ROCm) driver. "
+            "Reboot required to load the driver."
+        )

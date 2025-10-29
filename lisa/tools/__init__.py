@@ -51,6 +51,7 @@ from .gdb import Gdb
 from .git import Git
 from .gpu_drivers import (
     AmdGpuDriver,
+    GpuDriver,
     GpuDriverInstaller,
     NvidiaCudaDriver,
     NvidiaGridDriver,
@@ -182,6 +183,7 @@ __all__ = [
     "Gcc",
     "Gdb",
     "Git",
+    "GpuDriver",
     "GpuDriverInstaller",
     "GrubConfig",
     "Ip",
