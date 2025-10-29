@@ -34,7 +34,7 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.features.security_profile import CvmDisabled
-from lisa.tools import Lspci
+from lisa.tools import Ethtool, Lspci, Uname
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -323,11 +323,26 @@ class Provisioning(TestSuite):
             )
         try:
             timer = create_timer()
-            log.info(f"SSH port 22 is opened, connecting and rebooting '{node.name}'")
+            log.info(f"SSH port 22 is opened, connecting to '{node.name}'")
+            
+            # Show system information
+            uname = node.tools[Uname]
+            system_info = uname.get_linux_information()
+            log.info(f"System info: {system_info}")
+            
+            # Show network interface ring parameters
+            try:
+                ethtool = node.tools[Ethtool]
+                ring_params = ethtool.get_device_ring_buffer_settings("eth0")
+                log.info(f"eth0 ring parameters: {ring_params}")
+            except Exception as eth_error:
+                log.info(f"Could not get eth0 ring parameters: {eth_error}")
+            
             # In this step, the underlying shell will connect to SSH port.
             # If successful, the node will be reboot.
             # If failed, It distinguishes TCP and SSH errors by error messages.
-            if reboot_in_platform:
+            # COMMENTED OUT: Reboot functionality disabled for diagnostic purposes
+            if False and reboot_in_platform:
                 start_stop = node.features[StartStop]
                 if is_restart:
                     start_stop.restart(wait=wait)
@@ -354,9 +369,10 @@ class Provisioning(TestSuite):
                         tcp_error_code,
                         "no panic found in serial log during reboot",
                     )
-            else:
-                node.reboot()
-            log.info(f"node '{node.name}' rebooted in {timer}")
+            # COMMENTED OUT: Direct reboot disabled for diagnostic purposes
+            # else:
+            #     node.reboot()
+            log.info(f"node '{node.name}' completed diagnostic checks in {timer}")
         except Exception as e:
             if node.features.is_supported(SerialConsole):
                 serial_console = node.features[SerialConsole]
