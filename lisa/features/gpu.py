@@ -157,16 +157,13 @@ class Gpu(Feature):
         self._log.info("No GPUs found in known list.")
 
         # Attempt pattern detection for diagnostic purposes
-        self._get_gpu_count_by_device_id_segment(vmbus_devices)
+        self._log_device_id_segments(vmbus_devices)
 
         return 0
 
-    def _get_gpu_count_by_device_id_segment(self, vmbus_devices: List[Any]) -> int:
+    def _log_device_id_segments(self, vmbus_devices: List[Any]) -> None:
         """
         Detect potential GPU patterns in VMBus devices for diagnostic purposes.
-        Always returns 0 but logs warnings about potential new GPU models.
-
-        Works for any number of GPUs (0, 1, or multiple).
         """
         try:
             # Group PCI Express pass-through devices by last segment
@@ -188,7 +185,7 @@ class Gpu(Feature):
 
             if not last_segment_groups:
                 self._log.debug("No PCI Express pass-through devices found")
-                return 0
+                return
 
             # Find the largest group with sequential pattern
             max_gpu_count = 0
@@ -233,11 +230,11 @@ class Gpu(Feature):
                 )
             else:
                 self._log.debug("No sequential PCI Express device groups found")
-            return 0
+            return
 
         except Exception as e:
             self._log.info(f"Failed to detect GPUs by segment grouping: {e}")
-            return 0
+            return
 
     def _has_sequential_pattern(self, devices: List[Any]) -> bool:
         """

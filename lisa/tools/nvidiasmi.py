@@ -31,10 +31,6 @@ class NvidiaSmi(Tool):
         """
         Get GPU count from nvidia-smi output.
 
-        Args:
-            known_only: If True, only count GPUs in the hardcoded list.
-                       If False, count all GPUs reported by nvidia-smi.
-
         Returns:
             Number of GPUs detected.
         """
