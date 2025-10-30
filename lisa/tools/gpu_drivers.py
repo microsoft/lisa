@@ -6,9 +6,7 @@ from abc import abstractmethod
 from pathlib import PurePosixPath
 from typing import Any, List, Optional, Type, Union
 
-from lisa.base_tools import Wget
-from lisa.base_tools.sed import Sed
-from lisa.base_tools.uname import Uname
+from lisa.base_tools import Sed, Uname, Wget
 from lisa.executable import Tool
 from lisa.operating_system import (
     CBLMariner,
@@ -18,8 +16,12 @@ from lisa.operating_system import (
     Redhat,
     Ubuntu,
 )
-from lisa.tools import Df
 from lisa.tools.amdsmi import AmdSmi
+
+# Import tools directly from their modules to avoid circular import.
+# lisa.tools.__init__.py imports from this file (gpu_drivers.py), so we cannot
+# import from lisa.tools package directly. Instead, import from individual modules.
+from lisa.tools.df import Df
 from lisa.tools.echo import Echo
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.modprobe import Modprobe
@@ -30,79 +32,74 @@ from lisa.util import LisaException, MissingPackagesException, SkippedException
 class GpuDriver(Tool):
     """
     Virtual tool that wraps GPU-specific monitoring tools (NvidiaSmi, AmdSmi).
+
+    This tool should be created with a driver_class parameter specifying
+    which driver installer to use.
+
+    Example usage:
+        gpu_driver = node.tools.create(
+            GpuDriver,
+            driver_class=AmdGpuDriver
+        )
     """
+
+    _driver_class: Type["GpuDriverInstaller"]
+    _smi_class: Type[Union[AmdSmi, NvidiaSmi]]
 
     @property
     def command(self) -> str:
         return "echo"
 
-    @property
-    def can_install(self) -> bool:
-        return False
-
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+    @classmethod
+    def create(
+        cls,
+        node: Any,
+        driver_class: Type["GpuDriverInstaller"],
+    ) -> "GpuDriver":
         """
-        Determine which GPU vendor is present and cache the monitoring tool type.
-        Does not instantiate the monitoring tool yet, since the driver
-        may not be installed yet.
+        Create a GpuDriver instance with the specified driver installer class.
+
+        Args:
+            node: The node to create the tool for
+            driver_class: The driver installer class to use
+                         (AmdGpuDriver, NvidiaCudaDriver, or NvidiaGridDriver)
+
+        Returns:
+            GpuDriver instance configured for the specified driver
         """
-        from lisa.features import Gpu
-        from lisa.features.gpu import ComputeSDK
+        from lisa.tools.amdsmi import AmdSmi
+        from lisa.tools.nvidiasmi import NvidiaSmi
 
-        gpu = self.node.features[Gpu]
-        self._supported_drivers = gpu.get_supported_driver()
+        instance = cls(node)
+        instance._driver_class = driver_class
 
-        # Determine GPU vendor type and store the tool class (not instance)
-        self._monitoring_tool_class: Type[Union[AmdSmi, NvidiaSmi]]
-        if ComputeSDK.AMD in self._supported_drivers:
-            self._monitoring_tool_class = AmdSmi
-            self._log.debug(
-                f"GPU vendor detected: AMD "
-                f"(supported drivers: {self._supported_drivers})"
-            )
-        elif (
-            ComputeSDK.CUDA in self._supported_drivers
-            or ComputeSDK.GRID in self._supported_drivers
-        ):
-            self._monitoring_tool_class = NvidiaSmi
-            self._log.debug(
-                f"GPU vendor detected: NVIDIA "
-                f"(supported drivers: {self._supported_drivers})"
-            )
+        # Determine monitoring tool class based on driver installer
+        if driver_class == AmdGpuDriver:
+            instance._smi_class = AmdSmi
+            instance._log.debug("GPU vendor: AMD")
+        elif driver_class in (NvidiaCudaDriver, NvidiaGridDriver):
+            instance._smi_class = NvidiaSmi
+            instance._log.debug("GPU vendor: NVIDIA")
         else:
-            raise SkippedException(
-                f"No supported GPU driver type found: {self._supported_drivers}"
-            )
+            raise LisaException(f"Unsupported driver installer class: {driver_class}")
+
+        return instance
 
     def get_gpu_count(self) -> int:
         """
         Get GPU count using the appropriate monitoring tool.
         """
         monitoring_tool: Union[AmdSmi, NvidiaSmi] = self.node.tools[
-            self._monitoring_tool_class
+            self._smi_class
         ]  # type: ignore[assignment]
         return monitoring_tool.get_gpu_count()
 
     def install_driver(self) -> None:
-        from lisa.features.gpu import ComputeSDK
-
-        # The if-else ordering is based on priority.
-        # Only one driver type will be installed.
-        for driver_type in self._supported_drivers:
-            if driver_type == ComputeSDK.GRID:
-                self.node.log.info("Installing NVIDIA GRID driver")
-                _ = self.node.tools[NvidiaGridDriver]
-                return
-            elif driver_type == ComputeSDK.CUDA:
-                self.node.log.info("Installing NVIDIA CUDA driver")
-                _ = self.node.tools[NvidiaCudaDriver]
-                return
-            elif driver_type == ComputeSDK.AMD:
-                self.node.log.info("Installing AMD GPU driver")
-                _ = self.node.tools[AmdGpuDriver]
-                return
-
-        raise LisaException(f"Unsupported driver type: '{self._supported_drivers}'")
+        """
+        Install the GPU driver using the driver installer class.
+        """
+        self.node.log.info(f"Installing {self._driver_class.__name__}")
+        _ = self.node.tools[self._driver_class]
 
 
 class GpuDriverInstaller(Tool):
@@ -144,7 +141,7 @@ class GpuDriverInstaller(Tool):
         2. Install driver (implemented by subclass)
         3. Reboot
         4. Verify installation
-        
+
         Note: OS support is checked via can_install property by the Tool base class
         before _install is called.
         """
