@@ -139,7 +139,7 @@ class WindowsShellType(object):
         if store_pid:
             commands.append(
                 'powershell "(gwmi win32_process|? processid -eq $pid).parentprocessid"'
-                " &&"
+                " ;"
             )
 
         if cwd is not None:
