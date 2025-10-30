@@ -670,6 +670,8 @@ class StoragePerformance(TestSuite):
                 node,
                 test_result,
                 disk_type=DiskType.localnvme,
+                block_size=block_size,
+                test_name=inspect.stack()[1][3],
             )
             return
         elif schema.ResourceDiskType.SCSI == resource_disk_type:

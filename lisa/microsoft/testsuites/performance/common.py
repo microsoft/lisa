@@ -63,6 +63,7 @@ def perf_nvme(
     test_name: str = "",
     disk_type: DiskType = DiskType.nvme,
     ioengine: IoEngine = IoEngine.LIBAIO,
+    block_size: int = 4,
     max_iodepth: int = 256,
 ) -> None:
     nvme = node.features[Nvme]
@@ -103,6 +104,7 @@ def perf_nvme(
         disk_type=disk_type,
         test_result=result,
         ioengine=ioengine,
+        block_size=block_size,
     )
 
 
