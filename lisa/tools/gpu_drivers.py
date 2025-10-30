@@ -135,14 +135,6 @@ class GpuDriverInstaller(Tool):
         return result.stdout.strip()
 
     @abstractmethod
-    def _get_os_dependencies(self) -> List[str]:
-        """
-        Return OS-specific package dependencies needed before driver installation.
-        Override this method to provide distro-specific dependencies.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def _is_os_supported(self) -> bool:
         """
         Check if the current OS/version is supported for this driver.
@@ -153,25 +145,9 @@ class GpuDriverInstaller(Tool):
     def _install_dependencies(self) -> None:
         """
         Install all required dependencies for driver installation.
-
-        Default implementation just installs packages from _get_os_dependencies().
-        Override this method if you need custom dependency installation logic.
+        Override this method in subclasses to install driver-specific dependencies.
         """
-        dependencies = self._get_os_dependencies()
-        if not dependencies:
-            return
-
-        self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
-
-        assert isinstance(
-            self.node.os, Posix
-        ), "GPU driver installation is only implemented for POSIX systems"
-
-        # Install EPEL for RedHat family if needed
-        if isinstance(self.node.os, Redhat):
-            self.node.os.install_epel()
-
-        self.node.os.install_packages(dependencies, signed=False)
+        pass
 
     def _install(self) -> bool:
         """
@@ -249,23 +225,25 @@ class NvidiaGridDriver(GpuDriverInstaller):
 
         return False
 
-    def _get_os_dependencies(self) -> List[str]:
-        """Get dependencies based on OS type"""
+    def _install_dependencies(self) -> None:
+        """Install NVIDIA GRID driver dependencies"""
         kernel_ver = self.node.tools[Uname].get_linux_information().kernel_version_raw
 
+        # Determine dependencies based on OS type
+        dependencies: List[str] = []
+        
         # Oracle Linux with UEK kernel has different requirements
         if isinstance(self.node.os, Oracle) and "uek" in kernel_ver:
-            return [
+            dependencies = [
                 "kernel-uek-devel-$(uname -r)",
                 "mesa-libGL",
                 "mesa-libEGL",
                 "libglvnd-devel",
                 "dkms",
             ]
-
         # RedHat family dependencies
-        if isinstance(self.node.os, Redhat):
-            return [
+        elif isinstance(self.node.os, Redhat):
+            dependencies = [
                 "kernel-devel-$(uname -r)",
                 "kernel-headers-$(uname -r)",
                 "mesa-libGL",
@@ -273,17 +251,29 @@ class NvidiaGridDriver(GpuDriverInstaller):
                 "libglvnd-devel",
                 "dkms",
             ]
-
         # Ubuntu dependencies
-        if isinstance(self.node.os, Ubuntu):
-            return [
+        elif isinstance(self.node.os, Ubuntu):
+            dependencies = [
                 "build-essential",
                 "libelf-dev",
                 "linux-tools-$(uname -r)",
                 "linux-cloud-tools-$(uname -r)",
             ]
 
-        return []
+        if not dependencies:
+            return
+
+        self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
+
+        assert isinstance(
+            self.node.os, Posix
+        ), "GPU driver installation is only implemented for POSIX systems"
+
+        # Install EPEL for RedHat family if needed
+        if isinstance(self.node.os, Redhat):
+            self.node.os.install_epel()
+
+        self.node.os.install_packages(dependencies, signed=False)
 
     def _install_driver(self, driver_url: Optional[str] = None) -> None:
         """Download and install NVIDIA GRID driver"""
@@ -349,23 +339,25 @@ class NvidiaCudaDriver(GpuDriverInstaller):
 
         return False
 
-    def _get_os_dependencies(self) -> List[str]:
-        """Get dependencies based on OS type"""
+    def _install_dependencies(self) -> None:
+        """Install CUDA driver dependencies with special handling for CentOS 7"""
         kernel_ver = self.node.tools[Uname].get_linux_information().kernel_version_raw
 
+        # Determine dependencies based on OS type
+        dependencies: List[str] = []
+        
         # Oracle Linux with UEK kernel
         if isinstance(self.node.os, Oracle) and "uek" in kernel_ver:
-            return [
+            dependencies = [
                 "kernel-uek-devel-$(uname -r)",
                 "mesa-libGL",
                 "mesa-libEGL",
                 "libglvnd-devel",
                 "dkms",
             ]
-
         # RedHat family dependencies
-        if isinstance(self.node.os, Redhat):
-            deps = [
+        elif isinstance(self.node.os, Redhat):
+            dependencies = [
                 "kernel-devel-$(uname -r)",
                 "kernel-headers-$(uname -r)",
                 "mesa-libGL",
@@ -376,32 +368,35 @@ class NvidiaCudaDriver(GpuDriverInstaller):
             # CentOS/RHEL 7 needs additional package
             release = self.node.os.information.release.split(".")[0]
             if release == "7":
-                deps.append("nvidia-driver-latest-dkms")
-            return deps
-
+                dependencies.append("nvidia-driver-latest-dkms")
         # Ubuntu dependencies
-        if isinstance(self.node.os, Ubuntu):
-            return [
+        elif isinstance(self.node.os, Ubuntu):
+            dependencies = [
                 "build-essential",
                 "libelf-dev",
                 "linux-tools-$(uname -r)",
                 "linux-cloud-tools-$(uname -r)",
             ]
-
         # CBL-Mariner dependencies
-        if isinstance(self.node.os, CBLMariner):
-            return ["build-essential", "binutils", "kernel-devel"]
+        elif isinstance(self.node.os, CBLMariner):
+            dependencies = ["build-essential", "binutils", "kernel-devel"]
 
-        return []
+        if not dependencies:
+            return
 
-    def _install_dependencies(self) -> None:
-        """
-        Install CUDA driver dependencies with special handling for CentOS 7.
-        Overrides base class to add vulkan-filesystem for CentOS 7.x.
-        """
-        # Call parent to install standard dependencies
-        super()._install_dependencies()
+        self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
 
+        assert isinstance(
+            self.node.os, Posix
+        ), "GPU driver installation is only implemented for POSIX systems"
+
+        # Install EPEL for RedHat family if needed
+        if isinstance(self.node.os, Redhat):
+            self.node.os.install_epel()
+
+        self.node.os.install_packages(dependencies, signed=False)
+
+        # Special handling for CentOS 7: install vulkan-filesystem
         if isinstance(self.node.os, Redhat):
             release = self.node.os.information.release.split(".")[0]
             if release == "7":
@@ -587,17 +582,22 @@ class AmdGpuDriver(GpuDriverInstaller):
             self.node.os.information.version >= "22.4.0"
         )
 
-    def _get_os_dependencies(self) -> List[str]:
-        """
-        Get dependencies for AMD GPU driver installation.
-        Same dependencies for both Ubuntu 22.04 and 24.04.
-        """
-        return [
+    def _install_dependencies(self) -> None:
+        """Install AMD GPU driver dependencies"""
+        dependencies = [
             "linux-headers-$(uname -r)",
             "linux-modules-extra-$(uname -r)",
             "python3-setuptools",
             "python3-wheel",
         ]
+
+        self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
+
+        assert isinstance(
+            self.node.os, Posix
+        ), "GPU driver installation is only implemented for POSIX systems"
+
+        self.node.os.install_packages(dependencies, signed=False)
 
     def _install_driver(self) -> None:
         """
