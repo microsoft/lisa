@@ -36,7 +36,11 @@ class AmdSmi(Tool):
             result = self.run("list", sudo=True)
             if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
                 raise LisaException(
-                    f"amd-smi command exited with exit_code {result.exit_code}"
+                    f"Failed to query AMD GPUs using 'amd-smi list'. "
+                    f"Exit code: {result.exit_code}, "
+                    f"stdout: '{result.stdout}', "
+                    f"stderr: '{result.stderr}'. "
+                    f"Ensure AMD GPU driver is installed and amdgpu module is loaded."
                 )
 
         gpu_matches = find_groups_in_lines(result.stdout, self._gpu_pattern)
