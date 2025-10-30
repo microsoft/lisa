@@ -29,6 +29,7 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import GpuDriver, Lspci, Mkdir, Modprobe, Reboot, Tar, Wget
+from lisa.tools.dmesg import Dmesg
 from lisa.tools.python import PythonVenv
 from lisa.util import UnsupportedOperationException, get_matched_str
 
@@ -421,8 +422,8 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     gpu_driver.install_driver()
 
     log.debug("GPU driver installed")
-    serial_console = node.features[SerialConsole]
-    serial_console.check_panic(saved_path=log_path, force_run=True)
+    dmesg_tool = node.tools[Dmesg]
+    dmesg_tool.check_kernel_errors()
 
 
 def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:

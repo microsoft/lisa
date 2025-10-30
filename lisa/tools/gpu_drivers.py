@@ -78,7 +78,9 @@ class GpuDriver(Tool):
         """
         Get GPU count using the appropriate monitoring tool.
         """
-        monitoring_tool = self.node.tools[self._monitoring_tool_class]
+        monitoring_tool: Union[AmdSmi, NvidiaSmi] = self.node.tools[
+            self._monitoring_tool_class
+        ]  # type: ignore[assignment]
         return monitoring_tool.get_gpu_count()
 
     def install_driver(self) -> None:
