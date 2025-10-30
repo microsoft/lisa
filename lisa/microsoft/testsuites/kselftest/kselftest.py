@@ -235,9 +235,12 @@ class Kselftest(Tool):
             work_dir = None
 
         env_var_dict: Dict[str, str] = {}
-        kself_required_space = 2  # 2 GB required for /tmp/ folder
+        kself_required_space = 1  # 1 GB required for /tmp/ folder
         tmp_folder_space = self.node.tools[Df].get_filesystem_available_space("/tmp/")
         if tmp_folder_space < kself_required_space:
+            self._log.debug(
+                f"Kselftest: /tmp/ freespace {tmp_folder_space}GB <1GB, redirect TMPDIR"
+            )
             new_tmp_path = self.node.find_partition_with_freespace(kself_required_space)
             env_var_dict["TMPDIR"] = new_tmp_path
             self._log.debug(f"Kselftest set TMPDIR to {new_tmp_path}!")
