@@ -47,7 +47,7 @@ class Kexec(Tool):
     This tool is used for managing the installation of kexec.
     """
 
-    # kexec-tools 2.0.16
+    # kexec-tools 2.0.32
     __pattern_kexec_version_info = re.compile(
         r"^kexec\S+\s+(?P<major>\d+).(?P<minor>\d+).(?P<patch>\d+)"
     )
@@ -55,13 +55,13 @@ class Kexec(Tool):
     # Existed bug for kexec-tools 2.0.14
     # https://bugs.launchpad.net/ubuntu/+source/kexec-tools/+bug/1713940
     # If the version of kexec-tools is lower than 2.0.15, we install kexec from source
-    _target_kexec_version = "2.0.15"
+    _target_kexec_version = "2.0.32"
 
-    # If install kexec from source, we choose 2.0.18 version for it is stable for most
+    # If install kexec from source, we choose 2.0.32 version for it is stable for most
     # Debian distros
     _kexec_repo = (
         "https://mirrors.edge.kernel.org/pub/linux/utils/kernel/kexec/"
-        "kexec-tools-2.0.18.tar.gz"
+        "kexec-tools-2.0.32.tar.gz"
     )
 
     @property
