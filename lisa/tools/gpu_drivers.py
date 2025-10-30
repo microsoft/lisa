@@ -686,7 +686,7 @@ class AmdGpuDriver(GpuDriverInstaller):
 
         # Verify DKMS build succeeded
         dkms_status = self.node.execute("dkms status amdgpu", sudo=True)
-        if "installed" not in dkms_status.stdout.lower():
+        if dkms_status.exit_code != 0:
             self._log.info(f"DKMS build may have failed. Status: {dkms_status.stdout}")
 
             # Check for the kernel module
