@@ -513,6 +513,7 @@ class AzurePlatform(Platform):
             features.Availability,
             features.Infiniband,
             features.Hibernation,
+            features.Virtualization,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:

@@ -3863,3 +3863,31 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 sudo=True,
                 append=True,
             )
+
+
+class Virtualization(AzureFeatureMixin, features.Virtualization):
+    """
+    Azure-specific implementation of Virtualization feature.
+
+    Automatically sets host_type to HyperV for Azure VMs since Azure
+    uses Microsoft Hyper-V hypervisor technology as its underlying
+    virtualization platform. Azure's hypervisor is based on Hyper-V.
+    """
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        """
+        Create Azure virtualization settings.
+
+        Azure VMs always run on Microsoft Hyper-V hypervisor technology,
+        so we set host_type to HyperV by default. Azure's underlying
+        virtualization is based on the Hyper-V hypervisor.
+
+        Returns:
+            VirtualizationSettings with host_type=HyperV
+        """
+        return schema.VirtualizationSettings(
+            host_type=schema.VirtualizationHostType.HyperV
+        )

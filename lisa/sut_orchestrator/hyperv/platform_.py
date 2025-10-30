@@ -4,7 +4,7 @@ from functools import partial
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
 
-from lisa import feature, schema, search_space
+from lisa import feature, features, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
@@ -36,7 +36,7 @@ class HypervPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [SerialConsole]
+        return [SerialConsole, Virtualization]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._hyperv_runbook = self._get_hyperv_runbook()
@@ -382,4 +382,30 @@ class HypervPlatform(Platform):
                 )
                 for node in environment.nodes.list()
             ]
+        )
+
+
+class Virtualization(features.Virtualization):
+    """
+    HyperV-specific implementation of Virtualization feature.
+
+    Automatically sets host_type to HyperV since nodes on HyperV platform
+    are always running under Microsoft Hyper-V hypervisor.
+    """
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        """
+        Create HyperV virtualization settings.
+
+        HyperV VMs always run under Microsoft Hyper-V hypervisor, so we set
+        host_type to HyperV by default.
+
+        Returns:
+            VirtualizationSettings with host_type=HyperV
+        """
+        return schema.VirtualizationSettings(
+            host_type=schema.VirtualizationHostType.HyperV
         )
