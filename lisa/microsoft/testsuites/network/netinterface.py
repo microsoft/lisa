@@ -18,7 +18,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, SerialConsole, Synthetic
 from lisa.operating_system import FreeBSD
-from lisa.tools import Ip, KernelConfig, Lsmod, Uname, Wget
+from lisa.tools import Ip, KernelConfig, Uname, Wget
 from lisa.util import perf_timer
 
 
@@ -48,7 +48,7 @@ class NetInterface(TestSuite):
         requirement=simple_requirement(network_interface=Synthetic()),
     )
     def validate_netvsc_reload(self, node: Node, log_path: Path) -> None:
-        self._validate_netvsc_driver_status(node)
+        self._validate_netvsc_built_in(node)
         network_interface_feature = node.features[NetworkInterface]
         # Test loading and unloading netvsc driver
         test_count = 0
@@ -111,7 +111,7 @@ class NetInterface(TestSuite):
     def verify_network_interface_reload_via_ip_link(
         self, node: Node, log: Logger
     ) -> None:
-        self._validate_netvsc_driver_status(node)
+        self._validate_netvsc_built_in(node)
         network_interface_feature = node.features[NetworkInterface]
 
         # Ensure netvsc module is loaded
@@ -146,7 +146,7 @@ class NetInterface(TestSuite):
                     "Cannot access internet from inside VM after test run."
                 )
 
-    def _validate_netvsc_driver_status(self, node: Node) -> None:
+    def _validate_netvsc_built_in(self, node: Node) -> None:
         if isinstance(node.os, FreeBSD):
             # Use command "config -x /boot/kernel/kernel | grep hyperv" can also check
             # if netvsc is build-in. The output "device hyperv" means the the hyperv
@@ -177,16 +177,6 @@ class NetInterface(TestSuite):
                         shell=True,
                     ).exit_code
                     == 0
-                )
-        if not is_built_in_module:
-            lsmod_tool = node.tools[Lsmod]
-            usedby_count, _ = lsmod_tool.get_used_by_modules(
-                "hv_netvsc", sudo=True, force_run=True
-            )
-            if usedby_count == 0:
-                raise SkippedException(
-                    "Skipping test since hv_netvsc module isn't used by "
-                    "network devices."
                 )
         if is_built_in_module:
             raise SkippedException("Skipping test since hv_netvsc module is built-in")
