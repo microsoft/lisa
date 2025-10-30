@@ -18,7 +18,16 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import BSD, AlmaLinux, Debian, Linux, Oracle, Suse, Windows
+from lisa.operating_system import (
+    BSD,
+    AlmaLinux,
+    Debian,
+    Linux,
+    Oracle,
+    Suse,
+    Ubuntu,
+    Windows,
+)
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, Mkdir, Modprobe, Reboot, Tar, Wget
 from lisa.tools.dmesg import Dmesg
@@ -399,39 +408,39 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     if gpu_feature.is_module_loaded():
         return
 
-    # if isinstance(node.os, Ubuntu):
-    #     sources_before = node.execute(
-    #         "ls -A1 /etc/apt/sources.list.d", sudo=True
-    #     ).stdout.split("\n")
+    if isinstance(node.os, Ubuntu):
+        sources_before = node.execute(
+            "ls -A1 /etc/apt/sources.list.d", sudo=True
+        ).stdout.split("\n")
 
-    # # Try to install GPU driver using extension
-    # try:
-    #     gpu_feature._install_driver_using_platform_feature()
-    #     reboot_tool = node.tools[Reboot]
-    #     reboot_tool.reboot_and_check_panic(log_path)
-    #     return
-    # except UnsupportedOperationException:
-    #     log.info("Installing Driver using Azure GPU Extension is not supported")
-    # except Exception:
-    #     log.info("Failed to install Driver using Azure GPU Extension")
-    #     if isinstance(node.os, Ubuntu):
-    #         # Cleanup required because extension might add sources
-    #         sources_after = node.execute(
-    #             "ls -A1 /etc/apt/sources.list.d", sudo=True
-    #         ).stdout.split("\n")
-    #         __remove_sources_added_by_extension(node, sources_before, sources_after)
+    # Try to install GPU driver using extension
+    try:
+        gpu_feature._install_driver_using_platform_feature()
+        reboot_tool = node.tools[Reboot]
+        reboot_tool.reboot_and_check_panic(log_path)
+        return
+    except UnsupportedOperationException:
+        log.info("Installing Driver using Azure GPU Extension is not supported")
+    except Exception:
+        log.info("Failed to install Driver using Azure GPU Extension")
+        if isinstance(node.os, Ubuntu):
+            # Cleanup required because extension might add sources
+            sources_after = node.execute(
+                "ls -A1 /etc/apt/sources.list.d", sudo=True
+            ).stdout.split("\n")
+            __remove_sources_added_by_extension(node, sources_before, sources_after)
 
-    # # Install LIS driver if required (for older kernels)
-    # try:
-    #     from lisa.tools import LisDriver
+    # Install LIS driver if required (for older kernels)
+    try:
+        from lisa.tools import LisDriver
 
-    #     node.tools[LisDriver]
-    # except Exception as e:
-    #     log.debug(f"LisDriver is not installed. It might not be required. {e}")
+        node.tools[LisDriver]
+    except Exception as e:
+        log.debug(f"LisDriver is not installed. It might not be required. {e}")
 
     # Get supported driver types from GPU feature
-    # TODO: Add logic in GpuDriver to detect the device and driver
-    # using lspci instead of relying on the GPU feature.
+    # TODO: Move 'get_supported_driver' to GpuDriver, it should detect the
+    # device and driver using lspci instead of relying on the GPU feature.
     supported_drivers = gpu_feature.get_supported_driver()
     if not supported_drivers:
         raise SkippedException("No supported GPU driver types found")

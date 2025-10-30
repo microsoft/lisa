@@ -141,9 +141,6 @@ class GpuDriverInstaller(Tool):
         2. Install driver (implemented by subclass)
         3. Reboot
         4. Verify installation
-
-        Note: OS support is checked via can_install property by the Tool base class
-        before _install is called.
         """
         self._log.info(f"Starting {self.driver_name} installation")
 
