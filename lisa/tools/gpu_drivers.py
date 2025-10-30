@@ -125,22 +125,10 @@ class GpuDriverInstaller(Tool):
         """
         raise NotImplementedError
 
-    @property
-    def can_install(self) -> bool:
-        return True
-
     def get_version(self) -> str:
         """Get the currently installed driver version"""
         result = self.node.execute(f"{self.command} --version", shell=True, sudo=True)
         return result.stdout.strip()
-
-    @abstractmethod
-    def _is_os_supported(self) -> bool:
-        """
-        Check if the current OS/version is supported for this driver.
-        Override this method to specify OS compatibility.
-        """
-        raise NotImplementedError
 
     def _install_dependencies(self) -> None:
         """
@@ -152,16 +140,14 @@ class GpuDriverInstaller(Tool):
     def _install(self) -> bool:
         """
         Main installation workflow.
-        1. Check OS support
-        2. Install dependencies
-        3. Install driver (implemented by subclass)
+        1. Install dependencies
+        2. Install driver (implemented by subclass)
+        3. Reboot
+        4. Verify installation
+        
+        Note: OS support is checked via can_install property by the Tool base class
+        before _install is called.
         """
-        if not self._is_os_supported():
-            raise SkippedException(
-                f"{self.driver_name} is not supported on "
-                f"{self.node.os.name} {self.node.os.information.version}"
-            )
-
         self._log.info(f"Starting {self.driver_name} installation")
 
         self._install_dependencies()
@@ -214,7 +200,8 @@ class NvidiaGridDriver(GpuDriverInstaller):
     def command(self) -> str:
         return "nvidia-smi"
 
-    def _is_os_supported(self) -> bool:
+    @property
+    def can_install(self) -> bool:
         """GRID drivers have limited OS support"""
         version = str(self.node.os.information.version)
 
@@ -231,7 +218,7 @@ class NvidiaGridDriver(GpuDriverInstaller):
 
         # Determine dependencies based on OS type
         dependencies: List[str] = []
-        
+
         # Oracle Linux with UEK kernel has different requirements
         if isinstance(self.node.os, Oracle) and "uek" in kernel_ver:
             dependencies = [
@@ -326,7 +313,8 @@ class NvidiaCudaDriver(GpuDriverInstaller):
     def command(self) -> str:
         return "nvidia-smi"
 
-    def _is_os_supported(self) -> bool:
+    @property
+    def can_install(self) -> bool:
         """CUDA drivers support a wider range of OS versions"""
         os_info = self.node.os.information
 
@@ -345,7 +333,7 @@ class NvidiaCudaDriver(GpuDriverInstaller):
 
         # Determine dependencies based on OS type
         dependencies: List[str] = []
-        
+
         # Oracle Linux with UEK kernel
         if isinstance(self.node.os, Oracle) and "uek" in kernel_ver:
             dependencies = [
@@ -574,10 +562,9 @@ class AmdGpuDriver(GpuDriverInstaller):
         result = self.node.execute(f"{self.command} version", shell=True, sudo=True)
         return result.stdout.strip()
 
-    def _is_os_supported(self) -> bool:
-        """
-        AMD ROCm drivers are supported on Ubuntu 22.04 and 24.04.
-        """
+    @property
+    def can_install(self) -> bool:
+        """AMD ROCm drivers are supported on Ubuntu 22.04 and 24.04"""
         return isinstance(self.node.os, Ubuntu) and bool(
             self.node.os.information.version >= "22.4.0"
         )
