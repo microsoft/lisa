@@ -51,7 +51,6 @@ class SerialConsole(Feature):
         re.compile(r"^(.*hung task.*)$", re.MULTILINE | re.IGNORECASE),
         # RCU stalls
         re.compile(r"^(.*rcu_sched.*)$", re.MULTILINE | re.IGNORECASE),
-        re.compile(r"^(.*stall.*)$", re.MULTILINE | re.IGNORECASE),
     ]
 
     # ignore some return lines, which shouldn't be a panic line.
