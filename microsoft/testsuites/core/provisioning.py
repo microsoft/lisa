@@ -330,13 +330,24 @@ class Provisioning(TestSuite):
             system_info = uname.get_linux_information()
             log.info(f"System info: {system_info}")
             
-            # Show network interface ring parameters
+            # Get ethtool ring buffer settings using direct command execution
             try:
-                ethtool = node.tools[Ethtool]
-                ring_params = ethtool.get_device_ring_buffer_settings("eth0")
-                log.info(f"eth0 ring parameters: {ring_params}")
-            except Exception as eth_error:
-                log.info(f"Could not get eth0 ring parameters: {eth_error}")
+                # Try ethtool -g (get ring parameters) directly
+                ethtool_output = node.execute("ethtool -g eth0", shell=True)
+                if ethtool_output.exit_code == 0:
+                    log.info(f"ethtool -g eth0 output:\n{ethtool_output.stdout}")
+                else:
+                    log.info(f"ethtool -g failed with exit code {ethtool_output.exit_code}: {ethtool_output.stderr}")
+            except Exception as e:
+                log.info(f"Could not execute ethtool -g eth0: {e}")
+                
+            # Also try to get basic network interface info
+            try:
+                ip_output = node.execute("ip link show eth0", shell=True)
+                if ip_output.exit_code == 0:
+                    log.info(f"eth0 interface info: {ip_output.stdout.strip()}")
+            except Exception as e:
+                log.info(f"Could not get eth0 interface info: {e}")
             
             # In this step, the underlying shell will connect to SSH port.
             # If successful, the node will be reboot.
