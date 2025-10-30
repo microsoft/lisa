@@ -451,6 +451,23 @@ class ResourceDiskType(str, Enum):
     NVME = constants.STORAGE_INTERFACE_TYPE_NVME
 
 
+# Virtualization host types enumeration
+# This represents the type of virtualization host/hypervisor where the VM runs
+class VirtualizationHostType(str, Enum):
+    # Physical bare metal server (no virtualization layer)
+    BareMetal = "BareMetal"
+    # Microsoft Hyper-V hypervisor
+    HyperV = "HyperV"
+    # Cloud Hypervisor (rust-vmm based hypervisor)
+    CloudHypervisor = "CloudHypervisor"
+    # QEMU/KVM hypervisor
+    QEMU = "QEMU"
+    # VMware hypervisors (vSphere, ESXi, etc.)
+    VMware = "VMware"
+    # Xen hypervisor
+    Xen = "Xen"
+
+
 disk_controller_type_priority: List[DiskControllerType] = [
     DiskControllerType.SCSI,
     DiskControllerType.NVME,
@@ -477,16 +494,18 @@ data_disk_types: List[DiskType] = [
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
-    os_disk_type: Optional[
-        Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            items=os_disk_types,
-        ),
-        metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
-        ),
+    os_disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = (
+        field(  # type:ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                items=os_disk_types,
+            ),
+            metadata=field_metadata(
+                decoder=partial(
+                    search_space.decode_set_space_by_type, base_type=DiskType
+                )
+            ),
+        )
     )
     os_disk_size: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
@@ -494,20 +513,20 @@ class DiskOptionSettings(FeatureSettings):
             allow_none=True, decoder=search_space.decode_count_space
         ),
     )
-    data_disk_type: Optional[
-        Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            items=data_disk_types,
-        ),
-        metadata=field_metadata(
-            decoder=partial(
-                search_space.decode_nullable_set_space,
-                base_type=DiskType,
-                default_values=data_disk_types,
-            )
-        ),
+    data_disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = (
+        field(  # type:ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                items=data_disk_types,
+            ),
+            metadata=field_metadata(
+                decoder=partial(
+                    search_space.decode_nullable_set_space,
+                    base_type=DiskType,
+                    default_values=data_disk_types,
+                )
+            ),
+        )
     )
     data_disk_count: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
@@ -704,6 +723,88 @@ class DiskOptionSettings(FeatureSettings):
                 self.disk_controller_type,
                 capability.disk_controller_type,
                 disk_controller_type_priority,
+            )
+
+        return value
+
+
+@dataclass_json()
+@dataclass()
+class VirtualizationSettings(FeatureSettings):
+    """
+    Virtualization feature settings to specify the type of virtualization host/hypervisor.
+    This helps identify the underlying virtualization platform where the VM is running.
+    """
+
+    type: str = constants.FEATURE_VIRTUALIZATION
+    # host_type specifies the virtualization host/hypervisor type
+    # Default is None (no restriction), allowing any virtualization platform
+    # Possible values: BareMetal, HyperV, CloudHypervisor, QEMU, VMware, Xen, etc.
+    host_type: Optional[
+        Union[search_space.SetSpace[VirtualizationHostType], VirtualizationHostType]
+    ] = field(
+        default=None,
+        metadata=field_metadata(
+            allow_none=True,
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=VirtualizationHostType,
+                default_values=None,
+            ),
+        ),
+    )
+
+    def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
+        assert isinstance(o, VirtualizationSettings), f"actual: {type(o)}"
+        return self.type == o.type and self.host_type == o.host_type
+
+    def __repr__(self) -> str:
+        return f"host_type: {self.host_type}"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        if not capability:
+            return search_space.ResultReason(
+                result=False,
+                reasons=["capability is None, it may be caused by preparation failed."],
+            )
+
+        result = super().check(capability)
+
+        # Check host_type compatibility
+        result.merge(
+            search_space.check_setspace(self.host_type, capability.host_type),
+            "host_type",
+        )
+
+        return result
+
+    def _get_key(self) -> str:
+        return f"{super()._get_key()}/{self.host_type}"
+
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
+        assert isinstance(
+            capability, VirtualizationSettings
+        ), f"actual: {type(capability)}"
+        parent_value = super()._call_requirement_method(method, capability)
+
+        # convert parent type to child type
+        value = VirtualizationSettings()
+        value.extended_schemas = parent_value.extended_schemas
+
+        if self.host_type or capability.host_type:
+            value.host_type = getattr(search_space, f"{method.value}_setspace")(
+                self.host_type, capability.host_type
             )
 
         return value
