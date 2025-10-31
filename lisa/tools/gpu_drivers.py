@@ -67,21 +67,12 @@ class GpuDriver(Tool):
         Returns:
             GpuDriver instance configured for the specified driver
         """
-        from lisa.tools.amdsmi import AmdSmi
-        from lisa.tools.nvidiasmi import NvidiaSmi
 
         instance = cls(node)
         instance._driver_class = driver_class
 
-        # Determine monitoring tool class based on driver installer
-        if driver_class == AmdGpuDriver:
-            instance._smi_class = AmdSmi
-            instance._log.debug("GPU vendor: AMD")
-        elif driver_class in (NvidiaCudaDriver, NvidiaGridDriver):
-            instance._smi_class = NvidiaSmi
-            instance._log.debug("GPU vendor: NVIDIA")
-        else:
-            raise LisaException(f"Unsupported driver installer class: {driver_class}")
+        # Get the monitoring tool class from the driver class
+        instance._smi_class = driver_class.smi()
 
         return instance
 
@@ -89,10 +80,10 @@ class GpuDriver(Tool):
         """
         Get GPU count using the appropriate monitoring tool.
         """
-        monitoring_tool: Union[AmdSmi, NvidiaSmi] = self.node.tools[
+        smi_tool: Union[AmdSmi, NvidiaSmi] = self.node.tools[
             self._smi_class
         ]  # type: ignore[assignment]
-        return monitoring_tool.get_gpu_count()
+        return smi_tool.get_gpu_count()
 
     def install_driver(self) -> None:
         """
@@ -107,6 +98,12 @@ class GpuDriverInstaller(Tool):
     Base class for GPU driver installation tools.
     Handles common patterns for GPU driver installation across different vendors.
     """
+
+    @classmethod
+    @abstractmethod
+    def smi(cls) -> Type[Union[AmdSmi, NvidiaSmi]]:
+        """Return the monitoring tool class for this driver"""
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -185,6 +182,11 @@ class NvidiaGridDriver(GpuDriverInstaller):
         Redhat: ["7.9.0", "8.6.0", "8.8.0", "9.0.0", "9.2.0"],
         Ubuntu: ["20.4.0", "22.4.0"],
     }
+
+    @classmethod
+    def smi(cls) -> Type[NvidiaSmi]:
+        """Return the monitoring tool class for NVIDIA GRID driver"""
+        return NvidiaSmi
 
     @property
     def driver_name(self) -> str:
@@ -298,6 +300,11 @@ class NvidiaCudaDriver(GpuDriverInstaller):
     """
 
     DEFAULT_CUDA_VERSION = "10.1.243-1"
+
+    @classmethod
+    def smi(cls) -> Type[NvidiaSmi]:
+        """Return the monitoring tool class for NVIDIA CUDA driver"""
+        return NvidiaSmi
 
     @property
     def driver_name(self) -> str:
@@ -542,6 +549,11 @@ class AmdGpuDriver(GpuDriverInstaller):
     # ROCm version to install
     ROCM_VERSION = "7.0.1"
     ROCM_BUILD = "70001"
+
+    @classmethod
+    def smi(cls) -> Type[AmdSmi]:
+        """Return the monitoring tool class for AMD GPU driver"""
+        return AmdSmi
 
     @property
     def driver_name(self) -> str:

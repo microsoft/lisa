@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from typing import List, Type
 
 from lisa.executable import Tool
 from lisa.util import LisaException, find_groups_in_lines
@@ -26,6 +27,13 @@ class AmdSmi(Tool):
     def can_install(self) -> bool:
         return False
 
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        # Lazy import to avoid circular dependency
+        from lisa.tools.gpu_drivers import AmdGpuDriver
+
+        return [AmdGpuDriver]
+
     def get_gpu_count(self) -> int:
         """
         Get the number of AMD GPUs detected by amd-smi.
@@ -38,8 +46,8 @@ class AmdSmi(Tool):
                 raise LisaException(
                     f"Failed to query AMD GPUs using 'amd-smi list'. "
                     f"Exit code: {result.exit_code}, "
-                    f"stdout: '{result.stdout}', "
                     f"stderr: '{result.stderr}'. "
+                    f"stdout: '{result.stdout}', "
                     f"Ensure AMD GPU driver is installed and amdgpu module is loaded."
                 )
 
