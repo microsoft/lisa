@@ -4,7 +4,7 @@
 import re
 from abc import abstractmethod
 from pathlib import PurePosixPath
-from typing import Any, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Type, Union
 
 from lisa.base_tools import Sed, Uname, Wget
 from lisa.executable import Tool
@@ -27,6 +27,9 @@ from lisa.tools.mkdir import Mkdir
 from lisa.tools.modprobe import Modprobe
 from lisa.tools.nvidiasmi import NvidiaSmi
 from lisa.util import LisaException, MissingPackagesException, SkippedException
+
+if TYPE_CHECKING:
+    from lisa.node import Node
 
 
 class GpuDriver(Tool):
@@ -53,7 +56,7 @@ class GpuDriver(Tool):
     @classmethod
     def create(
         cls,
-        node: Any,
+        node: "Node",
         *args: Any,
         driver_class: Type["GpuDriverInstaller"],
         **kwargs: Any,
