@@ -4,7 +4,7 @@
 import re
 from abc import abstractmethod
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, List, Optional, Type, Union
+from typing import Any, List, Optional, Type
 
 from lisa.base_tools import Sed, Uname, Wget
 from lisa.executable import Tool
@@ -16,20 +16,16 @@ from lisa.operating_system import (
     Redhat,
     Ubuntu,
 )
-from lisa.tools.amdsmi import AmdSmi
 
 # Import tools directly from their modules to avoid circular import.
 # lisa.tools.__init__.py imports from this file (gpu_drivers.py), so we cannot
 # import from lisa.tools package directly. Instead, import from individual modules.
 from lisa.tools.df import Df
 from lisa.tools.echo import Echo
+from lisa.tools.gpu_smi import GpuSmi
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.modprobe import Modprobe
-from lisa.tools.nvidiasmi import NvidiaSmi
 from lisa.util import LisaException, MissingPackagesException, SkippedException
-
-if TYPE_CHECKING:
-    from lisa.node import Node
 
 
 class GpuDriver(Tool):
@@ -47,7 +43,7 @@ class GpuDriver(Tool):
     """
 
     _driver_class: Type["GpuDriverInstaller"]
-    _smi_class: Type[Union[AmdSmi, NvidiaSmi]]
+    _smi_class: Type[GpuSmi]
 
     @property
     def command(self) -> str:
@@ -56,9 +52,8 @@ class GpuDriver(Tool):
     @classmethod
     def create(
         cls,
-        node: "Node",
+        node: Any,
         *args: Any,
-        driver_class: Type["GpuDriverInstaller"],
         **kwargs: Any,
     ) -> "GpuDriver":
         """
@@ -72,6 +67,11 @@ class GpuDriver(Tool):
         Returns:
             GpuDriver instance configured for the specified driver
         """
+        driver_class: Type["GpuDriverInstaller"] = kwargs.pop("driver_class", None)
+        assert driver_class is not None, (
+            "driver_class parameter is required when creating GpuDriver. "
+            "Use node.tools.create(GpuDriver, driver_class=AmdGpuDriver) or similar."
+        )
 
         instance = cls(node)
         instance._driver_class = driver_class
@@ -84,7 +84,7 @@ class GpuDriver(Tool):
         """
         Get GPU count using the appropriate monitoring tool.
         """
-        smi_tool: Union[AmdSmi, NvidiaSmi] = self.node.tools[self._smi_class]
+        smi_tool: GpuSmi = self.node.tools[self._smi_class]
         return smi_tool.get_gpu_count()
 
     def install_driver(self) -> None:
@@ -102,7 +102,7 @@ class GpuDriverInstaller(Tool):
 
     @classmethod
     @abstractmethod
-    def smi(cls) -> Type[Union[AmdSmi, NvidiaSmi]]:
+    def smi(cls) -> Type[GpuSmi]:
         """Return the monitoring tool class for this driver"""
         raise NotImplementedError
 
@@ -185,8 +185,10 @@ class NvidiaGridDriver(GpuDriverInstaller):
     }
 
     @classmethod
-    def smi(cls) -> Type[NvidiaSmi]:
+    def smi(cls) -> Type[GpuSmi]:
         """Return the monitoring tool class for NVIDIA GRID driver"""
+        from lisa.tools.gpu_smi import NvidiaSmi
+
         return NvidiaSmi
 
     @property
@@ -303,8 +305,10 @@ class NvidiaCudaDriver(GpuDriverInstaller):
     DEFAULT_CUDA_VERSION = "10.1.243-1"
 
     @classmethod
-    def smi(cls) -> Type[NvidiaSmi]:
+    def smi(cls) -> Type[GpuSmi]:
         """Return the monitoring tool class for NVIDIA CUDA driver"""
+        from lisa.tools.gpu_smi import NvidiaSmi
+
         return NvidiaSmi
 
     @property
@@ -552,8 +556,10 @@ class AmdGpuDriver(GpuDriverInstaller):
     ROCM_BUILD = "70001"
 
     @classmethod
-    def smi(cls) -> Type[AmdSmi]:
+    def smi(cls) -> Type[GpuSmi]:
         """Return the monitoring tool class for AMD GPU driver"""
+        from lisa.tools.gpu_smi import AmdSmi
+
         return AmdSmi
 
     @property

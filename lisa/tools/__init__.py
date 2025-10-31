@@ -15,7 +15,6 @@ from lisa.base_tools import (
     YumConfigManager,
 )
 
-from .amdsmi import AmdSmi
 from .aria import Aria
 from .b4 import B4
 from .blkid import Blkid
@@ -56,6 +55,7 @@ from .gpu_drivers import (
     NvidiaCudaDriver,
     NvidiaGridDriver,
 )
+from .gpu_smi import AmdSmi, GpuSmi, NvidiaSmi
 from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
@@ -99,7 +99,6 @@ from .nproc import Nproc
 from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
-from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
 from .openssl import OpenSSL
 from .parted import Parted
@@ -185,6 +184,7 @@ __all__ = [
     "Git",
     "GpuDriver",
     "GpuDriverInstaller",
+    "GpuSmi",
     "GrubConfig",
     "Ip",
     "IpInfo",
