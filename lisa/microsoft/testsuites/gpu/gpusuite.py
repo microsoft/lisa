@@ -339,12 +339,9 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
     lspci_gpucount = gpu.get_gpu_count_with_lspci()
 
     # Get supported driver types from GPU feature
-    supported_drivers = gpu.get_supported_driver()
-    if not supported_drivers:
-        raise SkippedException("No supported GPU driver types found")
+    driver_type = gpu.get_supported_driver()
 
     # Map ComputeSDK to driver installer class
-    driver_type = list(supported_drivers)[0]
     driver_class: Type[GpuDriverInstaller]
     if driver_type == ComputeSDK.AMD:
         driver_class = AmdGpuDriver
@@ -443,11 +440,8 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     # Get supported driver types from GPU feature
     # TODO: Move 'get_supported_driver' to GpuDriver, it should detect the
     # device and driver using lspci instead of relying on the GPU feature.
-    supported_drivers = gpu_feature.get_supported_driver()
-    if not supported_drivers:
-        raise SkippedException("No supported GPU driver types found")
+    driver_type = gpu_feature.get_supported_driver()
 
-    driver_type = list(supported_drivers)[0]
     driver_class: Type[GpuDriverInstaller]
     if driver_type == ComputeSDK.AMD:
         driver_class = AmdGpuDriver

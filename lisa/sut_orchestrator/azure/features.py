@@ -580,8 +580,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
         return supported
 
-    def get_supported_driver(self) -> List[ComputeSDK]:
-        driver_list = []
+    def get_supported_driver(self) -> ComputeSDK:
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
@@ -589,18 +588,11 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             re.match(self._grid_supported_skus, node_runbook.vm_size)
             and self.is_grid_supported_os()
         ):
-            driver_list.append(ComputeSDK.GRID)
+            return ComputeSDK.GRID
         elif re.match(self._amd_supported_skus, node_runbook.vm_size):
-            driver_list.append(ComputeSDK.AMD)
+            return ComputeSDK.AMD
         else:
-            driver_list.append(ComputeSDK.CUDA)
-
-        if not driver_list:
-            raise LisaException(
-                "No valid Compute SDK found to install for the VM size -"
-                f" {node_runbook.vm_size}."
-            )
-        return driver_list
+            return ComputeSDK.CUDA
 
     # GRID driver is supported on a limited number of distros.
     # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-grid-drivers # noqa: E501

@@ -94,7 +94,7 @@ class Gpu(Feature):
         nvidiasmi = self._node.tools[NvidiaSmi]
         return nvidiasmi.get_gpu_count()
 
-    def get_supported_driver(self) -> List[ComputeSDK]:
+    def get_supported_driver(self) -> ComputeSDK:
         raise NotImplementedError()
 
     def _install_driver_using_platform_feature(self) -> None:
