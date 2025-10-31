@@ -54,8 +54,8 @@ class GpuDriver(Tool):
     def create(
         cls,
         node: Any,
-        driver_class: Type["GpuDriverInstaller"],
         *args: Any,
+        driver_class: Type["GpuDriverInstaller"],
         **kwargs: Any,
     ) -> "GpuDriver":
         """
