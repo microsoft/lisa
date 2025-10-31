@@ -2,12 +2,13 @@
 # Licensed under the MIT license.
 from functools import partial
 from pathlib import PurePath
-from typing import Any, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
-from lisa.node import RemoteNode
+from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator import platform_utils
 from lisa.tools import Cp, HyperV, Mkdir, PowerShell, ResizePartition
 from lisa.tools.hyperv import HypervSwitchType
 from lisa.util import LisaException, constants
@@ -30,6 +31,15 @@ class _HostCapabilities:
 
 
 class HypervPlatform(Platform):
+    def __init__(self, runbook: schema.Platform) -> None:
+        super().__init__(runbook=runbook)
+
+        self._environment_information_hooks = {
+            platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
+            platform_utils.KEY_HOST_VERSION: platform_utils.get_host_version,
+        }
+
     @classmethod
     def type_name(cls) -> str:
         return HYPERV
@@ -37,6 +47,18 @@ class HypervPlatform(Platform):
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
         return [SerialConsole]
+
+    def _get_node_information(self, node: Node) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        for key, method in self._environment_information_hooks.items():
+            node.log.debug(f"detecting {key} ...")
+            try:
+                value = method(node)
+                if value:
+                    information[key] = value
+            except Exception as e:
+                node.log.exception(f"error on get {key}.", exc_info=e)
+        return information
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._hyperv_runbook = self._get_hyperv_runbook()
