@@ -164,6 +164,17 @@ class Modprobe(Tool):
             Path(__file__).parent.joinpath("scripts"), ["modprobe_reloader.sh"]
         )
 
+        # Copy the modprobe_reloader.sh script to the remote node/VM
+        script_local_path = Path(__file__).parent.joinpath("scripts", "modprobe_reloader.sh")
+        script_remote_path = f"/home/{username}/modprobe_reloader.sh"
+        
+        self._log.debug(f"Copying modprobe_reloader.sh to remote node at {script_remote_path}")
+        self.node.shell.copy(script_local_path, script_remote_path)
+        
+        # Make the script executable on the remote node
+        self.node.execute(f"chmod +x {script_remote_path}", sudo=True, shell=True)
+        self._log.debug(f"Made {script_remote_path} executable")
+
         # here paramters are passed to the script modprobe_reloader.sh,
         # which is run on the remote node to reload the module.
         # The script is run in nohup mode, so it can continue running even if the
@@ -184,6 +195,22 @@ class Modprobe(Tool):
             f"{nohup_output_log_file_name} {loop_process_pid_file_name} "
             f"{mod_name} {times} {verbose_flag} {dhclient_command} {interface}"
         )
+        # Capture baseline dmesg for hv_netvsc before starting script
+        baseline_dmesg_lines = 0
+        if mod_name == "hv_netvsc":
+            try:
+                baseline_result = self.node.execute(
+                    "dmesg | grep hv_netvsc | wc -l",
+                    sudo=True,
+                    shell=True,
+                    no_info_log=True,
+                    no_error_log=True,
+                )
+                baseline_dmesg_lines = int(baseline_result.stdout.strip())
+                self._log.debug(f"Baseline dmesg lines for {mod_name}: {baseline_dmesg_lines}")
+            except Exception as e:
+                self._log.debug(f"Failed to get baseline dmesg count: {e}")
+
         self._log.debug(f"running with parameters: {parameters}")
         modprobe_reloader_script: CustomScript = self.node.tools[modprobe_reloader_tool]
         modprobe_reloader_script.run(parameters, sudo=True, shell=True, nohup=True)
@@ -207,6 +234,7 @@ class Modprobe(Tool):
                         f"Reload operation for {mod_name} is {status}, pid: {pid}"
                         "\nrechecking after 1 second..."
                     )
+                    
                     time.sleep(1)
                 else:
                     self._log.debug(
@@ -221,6 +249,27 @@ class Modprobe(Tool):
                     "\nTrying to reconnect to the remote node in 2 sec..."
                 )
                 time.sleep(2)
+
+        # Capture new dmesg messages generated after script started
+        if mod_name == "hv_netvsc":
+            try:
+                # Get all dmesg lines for hv_netvsc after script execution
+                new_dmesg_result = self.node.execute(
+                    f"dmesg | grep hv_netvsc | tail -n +{baseline_dmesg_lines + 1}",
+                    sudo=True,
+                    shell=True,
+                    no_info_log=True,
+                    no_error_log=True,
+                )
+                if new_dmesg_result.stdout.strip():
+                    self._log.info(
+                        f"New dmesg messages for {mod_name} generated during script execution:\n"
+                        f"{new_dmesg_result.stdout}"
+                    )
+                else:
+                    self._log.debug(f"No new dmesg messages found for {mod_name}")
+            except Exception as e:
+                self._log.debug(f"Failed to get new dmesg messages: {e}")
 
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
@@ -271,12 +320,13 @@ class Modprobe(Tool):
             ).stdout.strip()
         )
 
-        if cleanup_logs:
-            self.node.execute(
-                f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
-                sudo=True,
-                shell=True,
-            )
+        # Commented out log cleanup to preserve logs for debugging
+        # if cleanup_logs:
+        #     self.node.execute(
+        #         f"rm -f {nohup_output_log_file_name} {loop_process_pid_file_name}",
+        #         sudo=True,
+        #         shell=True,
+        #     )
 
         return {
             "module_exists": True,
