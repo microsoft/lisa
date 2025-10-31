@@ -168,12 +168,12 @@ class Modprobe(Tool):
         script_local_path = Path(__file__).parent.joinpath("scripts", "modprobe_reloader.sh")
         script_remote_path = f"/home/{username}/modprobe_reloader.sh"
         
-        self._log.debug(f"Copying modprobe_reloader.sh to remote node at {script_remote_path}")
-        self.node.shell.copy(script_local_path, script_remote_path)
+        #self._log.debug(f"Copying modprobe_reloader.sh to remote node at {script_remote_path}")
+        #self.node.shell.copy(script_local_path, script_remote_path)
         
         # Make the script executable on the remote node
-        self.node.execute(f"chmod +x {script_remote_path}", sudo=True, shell=True)
-        self._log.debug(f"Made {script_remote_path} executable")
+        #self.node.execute(f"chmod +x {script_remote_path}", sudo=True, shell=True)
+        #self._log.debug(f"Made {script_remote_path} executable")
 
         # here paramters are passed to the script modprobe_reloader.sh,
         # which is run on the remote node to reload the module.
