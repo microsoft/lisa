@@ -333,6 +333,27 @@ class Modprobe(Tool):
             ).stdout.strip()
         )
 
+        # Print the complete nohup log file content for debugging
+        try:
+            nohup_log_content = self.node.execute(
+                f"cat {nohup_output_log_file_name}",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
+            if nohup_log_content.stdout.strip():
+                self._log.info(
+                    f"Complete nohup log content for {mod_name}:\n"
+                    f"{'='*50}\n"
+                    f"{nohup_log_content.stdout}\n"
+                    f"{'='*50}"
+                )
+            else:
+                self._log.info(f"Nohup log file {nohup_output_log_file_name} is empty")
+        except Exception as e:
+            self._log.debug(f"Failed to read nohup log file: {e}")
+
         # Commented out log cleanup to preserve logs for debugging
         # if cleanup_logs:
         #     self.node.execute(
