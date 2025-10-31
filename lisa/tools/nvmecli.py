@@ -107,26 +107,43 @@ class Nvmecli(Tool):
         return namespaces_cli
 
     def get_devices(self, force_run: bool = False) -> Any:
-        # get nvme devices information ignoring stderror
-        nvme_list = self.run(
-            "list -o json 2>/dev/null",
-            shell=True,
-            sudo=True,
-            force_run=force_run,
-            no_error_log=True,
-        )
-        # NVMe list command returns empty string when no NVMe devices are found.
-        if not nvme_list.stdout:
-            raise LisaException(
-                "No NVMe devices found. "
-                "The 'nvme list' command returned an empty string."
-            )
+        nvme_list = self.run("list -o json", shell=True, sudo=True, force_run=force_run)
         nvme_devices = json.loads(nvme_list.stdout)
         return nvme_devices["Devices"]
 
+    def _extract_namespaces(self, devices) -> List[Dict[str, int]]:
+        """
+        Recursively extract device paths and namespace ids from both old and new nvme list -o json outputs.
+        Returns a list of dicts: {device_path: nsid}
+        """
+        namespaces = []
+        if isinstance(devices, dict):
+            devices = [devices]
+        for device in devices:
+            # Old format: flat device with DevicePath and NameSpace (int)
+            if "DevicePath" in device and "NameSpace" in device and isinstance(device["NameSpace"], int):
+                namespaces.append({device["DevicePath"]: device["NameSpace"]})
+            # New format: nested under Subsystems -> Controllers -> Namespaces
+            if "Subsystems" in device:
+                for subsystem in device["Subsystems"]:
+                    for controller in subsystem.get("Controllers", []):
+                        for ns in controller.get("Namespaces", []):
+                            # Try to construct device path
+                            ns_name = ns.get("NameSpace")
+                            nsid = ns.get("NSID")
+                            if ns_name and nsid:
+                                device_path = f"/dev/{ns_name}"
+                                namespaces.append({device_path: nsid})
+        return namespaces
+
     def get_disks(self, force_run: bool = False) -> List[str]:
         nvme_devices = self.get_devices(force_run=force_run)
-        return [device["DevicePath"] for device in nvme_devices]
+        ns_list = self._extract_namespaces(nvme_devices)
+        return [list(ns.keys())[0] for ns in ns_list]
+
+    def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
+        nvme_devices = self.get_devices(force_run=force_run)
+        return self._extract_namespaces(nvme_devices)
 
     # NVME namespace ids are unique for each disk under any NVME controller.
     # These are useful in detecting the lun id of the remote azure disk disks.
@@ -172,23 +189,7 @@ class Nvmecli(Tool):
     # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
     # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
 
-    def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
-        nvme_devices = self.get_devices(force_run=force_run)
-        # Older versions of nvme-cli do not have the NameSpace key in the output
-        # skip the test if NameSpace key is not available
-        if not nvme_devices:
-            raise LisaException("No NVMe devices found. Unable to get namespace ids.")
-        if "NameSpace" not in nvme_devices[0]:
-            raise LisaException(
-                "The version of nvme-cli is too old,"
-                " it doesn't support to get namespace ids."
-            )
-
-        return [
-            {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
-        ]
-
-
+    
 class BSDNvmecli(Nvmecli):
     # nvme0ns1 (1831420MB)
     # nvme10ns12 (1831420MB)
