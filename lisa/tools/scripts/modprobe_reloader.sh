@@ -28,7 +28,7 @@ fi
 
 if [ "$module_name" = "hv_netvsc" ]; then
   (
-    j=1dhcp
+    j=1
     while [ $j -le "$times" ]; do
       { modprobe -r "$v" "$module_name"; modprobe "$v" "$module_name"; } >> "$log_file" 2>&1
       j=$((j + 1))
