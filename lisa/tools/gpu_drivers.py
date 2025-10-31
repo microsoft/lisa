@@ -55,6 +55,8 @@ class GpuDriver(Tool):
         cls,
         node: Any,
         driver_class: Type["GpuDriverInstaller"],
+        *args: Any,
+        **kwargs: Any,
     ) -> "GpuDriver":
         """
         Create a GpuDriver instance with the specified driver installer class.
@@ -71,7 +73,6 @@ class GpuDriver(Tool):
         instance = cls(node)
         instance._driver_class = driver_class
 
-        # Get the monitoring tool class from the driver class
         instance._smi_class = driver_class.smi()
 
         return instance
@@ -80,16 +81,13 @@ class GpuDriver(Tool):
         """
         Get GPU count using the appropriate monitoring tool.
         """
-        smi_tool: Union[AmdSmi, NvidiaSmi] = self.node.tools[
-            self._smi_class
-        ]  # type: ignore[assignment]
+        smi_tool: Union[AmdSmi, NvidiaSmi] = self.node.tools[self._smi_class]
         return smi_tool.get_gpu_count()
 
     def install_driver(self) -> None:
         """
         Install the GPU driver using the driver installer class.
         """
-        self.node.log.info(f"Installing {self._driver_class.__name__}")
         _ = self.node.tools[self._driver_class]
 
 

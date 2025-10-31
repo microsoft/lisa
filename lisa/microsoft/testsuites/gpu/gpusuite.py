@@ -3,7 +3,7 @@
 
 import re
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Type
 
 from assertpy import assert_that
 
@@ -34,6 +34,7 @@ from lisa.tools.dmesg import Dmesg
 from lisa.tools.gpu_drivers import (
     AmdGpuDriver,
     GpuDriver,
+    GpuDriverInstaller,
     NvidiaCudaDriver,
     NvidiaGridDriver,
 )
@@ -344,6 +345,7 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
 
     # Map ComputeSDK to driver installer class
     driver_type = list(supported_drivers)[0]
+    driver_class: Type[GpuDriverInstaller]
     if driver_type == ComputeSDK.AMD:
         driver_class = AmdGpuDriver
     elif driver_type == ComputeSDK.CUDA:
@@ -446,6 +448,7 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
         raise SkippedException("No supported GPU driver types found")
 
     driver_type = list(supported_drivers)[0]
+    driver_class: Type[GpuDriverInstaller]
     if driver_type == ComputeSDK.AMD:
         driver_class = AmdGpuDriver
     elif driver_type == ComputeSDK.CUDA:
