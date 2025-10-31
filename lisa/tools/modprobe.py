@@ -195,21 +195,21 @@ class Modprobe(Tool):
             f"{nohup_output_log_file_name} {loop_process_pid_file_name} "
             f"{mod_name} {times} {verbose_flag} {dhclient_command} {interface}"
         )
-        # Capture baseline dmesg for hv_netvsc before starting script
+        # Capture baseline dmesg for module before starting script
         baseline_dmesg_lines = 0
-        if mod_name == "hv_netvsc":
-            try:
-                baseline_result = self.node.execute(
-                    "dmesg | grep hv_netvsc | wc -l",
-                    sudo=True,
-                    shell=True,
-                    no_info_log=True,
-                    no_error_log=True,
-                )
-                baseline_dmesg_lines = int(baseline_result.stdout.strip())
-                self._log.debug(f"Baseline dmesg lines for {mod_name}: {baseline_dmesg_lines}")
-            except Exception as e:
-                self._log.debug(f"Failed to get baseline dmesg count: {e}")
+        self._log.info(f"DEBUG: mod_name is '{mod_name}', type: {type(mod_name)}")
+        try:
+            baseline_result = self.node.execute(
+                f"dmesg | grep {mod_name} | wc -l",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
+            baseline_dmesg_lines = int(baseline_result.stdout.strip())
+            self._log.info(f"Baseline dmesg lines for {mod_name}: {baseline_dmesg_lines}")
+        except Exception as e:
+            self._log.debug(f"Failed to get baseline dmesg count: {e}")
 
         self._log.debug(f"running with parameters: {parameters}")
         modprobe_reloader_script: CustomScript = self.node.tools[modprobe_reloader_tool]
@@ -251,11 +251,22 @@ class Modprobe(Tool):
                 time.sleep(2)
 
         # Capture new dmesg messages generated after script started
-        if mod_name == "hv_netvsc":
-            try:
-                # Get all dmesg lines for hv_netvsc after script execution
+        try:
+            # Get current total lines
+            current_result = self.node.execute(
+                f"dmesg | grep {mod_name} | wc -l",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
+            current_dmesg_lines = int(current_result.stdout.strip())
+            self._log.info(f"Current dmesg lines for {mod_name}: {current_dmesg_lines} (baseline was {baseline_dmesg_lines})")
+            
+            if current_dmesg_lines > baseline_dmesg_lines:
+                # Get all dmesg lines for module after script execution
                 new_dmesg_result = self.node.execute(
-                    f"dmesg | grep hv_netvsc | tail -n +{baseline_dmesg_lines + 1}",
+                    f"dmesg | grep {mod_name} | tail -n +{baseline_dmesg_lines + 1}",
                     sudo=True,
                     shell=True,
                     no_info_log=True,
@@ -267,9 +278,11 @@ class Modprobe(Tool):
                         f"{new_dmesg_result.stdout}"
                     )
                 else:
-                    self._log.debug(f"No new dmesg messages found for {mod_name}")
-            except Exception as e:
-                self._log.debug(f"Failed to get new dmesg messages: {e}")
+                    self._log.info(f"No new dmesg content found for {mod_name}")
+            else:
+                self._log.info(f"No new dmesg messages found for {mod_name} (count unchanged)")
+        except Exception as e:
+            self._log.debug(f"Failed to get new dmesg messages: {e}")
 
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
