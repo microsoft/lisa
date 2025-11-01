@@ -48,13 +48,7 @@ from .free import Free
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
-from .gpu_drivers import (
-    AmdGpuDriver,
-    GpuDriver,
-    GpuDriverInstaller,
-    NvidiaCudaDriver,
-    NvidiaGridDriver,
-)
+from .gpu_drivers import AmdGpuDriver, GpuDriver, NvidiaCudaDriver, NvidiaGridDriver
 from .gpu_smi import AmdSmi, GpuSmi, NvidiaSmi
 from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
@@ -183,7 +177,6 @@ __all__ = [
     "Gdb",
     "Git",
     "GpuDriver",
-    "GpuDriverInstaller",
     "GpuSmi",
     "GrubConfig",
     "Ip",

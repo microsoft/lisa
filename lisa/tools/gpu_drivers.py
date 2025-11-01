@@ -24,16 +24,18 @@ from lisa.tools.df import Df
 from lisa.tools.echo import Echo
 from lisa.tools.gpu_smi import GpuSmi
 from lisa.tools.mkdir import Mkdir
-from lisa.tools.modprobe import Modprobe
+from lisa.tools.usermod import Usermod
+from lisa.tools.whoami import Whoami
 from lisa.util import LisaException, MissingPackagesException, SkippedException
 
 
 class GpuDriver(Tool):
     """
-    Virtual tool that wraps GPU-specific monitoring tools (NvidiaSmi, AmdSmi).
+    Virtual tool that wraps GPU-specific driver installation and monitoring.
 
     This tool should be created with a driver_class parameter specifying
-    which driver installer to use.
+    which driver to use. The driver class determines both installation
+    and smi.
 
     Example usage:
         gpu_driver = node.tools.create(
@@ -42,7 +44,7 @@ class GpuDriver(Tool):
         )
     """
 
-    _driver_class: Type["GpuDriverInstaller"]
+    _driver_class: Type["GpuDriver"]
     _smi_class: Type[GpuSmi]
 
     @property
@@ -57,26 +59,45 @@ class GpuDriver(Tool):
         **kwargs: Any,
     ) -> "GpuDriver":
         """
-        Create a GpuDriver instance with the specified driver installer class.
+        Create a GpuDriver instance with the specified driver class.
+
+        The driver installation is triggered automatically during creation
+        by accessing the driver tool (which invokes its _install() method).
 
         Args:
             node: The node to create the tool for
-            driver_class: The driver installer class to use
+            driver_class: The driver class to use
                          (AmdGpuDriver, NvidiaCudaDriver, or NvidiaGridDriver)
 
         Returns:
             GpuDriver instance configured for the specified driver
+
+        Raises:
+            AssertionError: If driver_class parameter is not provided
         """
-        driver_class: Type["GpuDriverInstaller"] = kwargs.pop("driver_class", None)
+        # If called on a concrete driver class (not GpuDriver itself),
+        # use the default Tool.create() to avoid recursion
+        if cls is not GpuDriver:
+            return super(GpuDriver, cls).create(node, *args, **kwargs)
+
+        # Virtual tool pattern - requires driver_class parameter
+        driver_class: Type[GpuDriver] = kwargs.pop("driver_class", None)
         assert driver_class is not None, (
             "driver_class parameter is required when creating GpuDriver. "
             "Use node.tools.create(GpuDriver, driver_class=AmdGpuDriver) or similar."
         )
+        assert issubclass(driver_class, GpuDriver), (
+            f"driver_class must be a subclass of GpuDriver, "
+            f"got {driver_class.__name__}"
+        )
 
         instance = cls(node)
         instance._driver_class = driver_class
-
         instance._smi_class = driver_class.smi()
+
+        # Trigger driver installation by accessing the driver tool
+        # This invokes the driver's _install() method if not already installed
+        _ = node.tools[driver_class]
 
         return instance
 
@@ -93,31 +114,16 @@ class GpuDriver(Tool):
         """
         _ = self.node.tools[self._driver_class]
 
-
-class GpuDriverInstaller(Tool):
-    """
-    Base class for GPU driver installation tools.
-    Handles common patterns for GPU driver installation across different vendors.
-    """
-
     @classmethod
     @abstractmethod
     def smi(cls) -> Type[GpuSmi]:
-        """Return the monitoring tool class for this driver"""
+        """Return the smi tool class for this driver"""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def driver_name(self) -> str:
         """Return the human-readable driver name (e.g., 'NVIDIA GRID', 'NVIDIA CUDA')"""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def command(self) -> str:
-        """
-        Return the verification command to check if driver is working.
-        """
         raise NotImplementedError
 
     def get_version(self) -> str:
@@ -165,7 +171,7 @@ class GpuDriverInstaller(Tool):
         raise NotImplementedError
 
 
-class NvidiaGridDriver(GpuDriverInstaller):
+class NvidiaGridDriver(GpuDriver):
     """
     NVIDIA GRID driver installer for GPU-enabled VMs.
 
@@ -291,7 +297,7 @@ class NvidiaGridDriver(GpuDriverInstaller):
         self._log.info("Successfully installed NVIDIA GRID driver")
 
 
-class NvidiaCudaDriver(GpuDriverInstaller):
+class NvidiaCudaDriver(GpuDriver):
     """
     NVIDIA CUDA driver installer for GPU compute workloads.
 
@@ -539,7 +545,7 @@ class NvidiaCudaDriver(GpuDriverInstaller):
         self._log.info("Successfully installed CUDA driver for CBL-Mariner")
 
 
-class AmdGpuDriver(GpuDriverInstaller):
+class AmdGpuDriver(GpuDriver):
     """
     AMD GPU driver installer with ROCm support.
 
@@ -582,6 +588,18 @@ class AmdGpuDriver(GpuDriverInstaller):
             self.node.os.information.version >= "22.4.0"
         )
 
+    def _add_user_to_groups(self) -> None:
+        """
+        Add current user to render and video groups for GPU access.
+        Required for non-root users to access AMD GPU devices.
+        """
+        usermod = self.node.tools[Usermod]
+        username = self.node.tools[Whoami].get_username()
+
+        # Add user to both render and video groups
+        for group in ["render", "video"]:
+            usermod.add_user_to_group(group=group, user=username, sudo=True)
+
     def _install_dependencies(self) -> None:
         """Install AMD GPU driver dependencies"""
         dependencies = [
@@ -603,6 +621,9 @@ class AmdGpuDriver(GpuDriverInstaller):
         """
         Install AMD GPU (ROCm) driver on Ubuntu.
         """
+        # Add user to required groups
+        self._add_user_to_groups()
+
         # Type assertion: GPU drivers only run on Linux/Posix systems
         assert isinstance(self.node.os, Posix), "AMD GPU drivers require a Posix OS"
 
@@ -621,12 +642,12 @@ class AmdGpuDriver(GpuDriverInstaller):
                 f"{available_gb:.2f} GB available "
                 f"({root_partition.percentage_blocks_used}% used)"
             )
-
-            if available_gb < 15:
+            min_size_disk_space_in_gb = 20
+            if available_gb < min_size_disk_space_in_gb:
                 raise LisaException(
                     f"Insufficient disk space for AMD GPU driver installation. "
                     f"Available: {available_gb:.2f} GB after cleanup, "
-                    f"Required: ~15 GB minimum. "
+                    f"Required: ~{min_size_disk_space_in_gb} GB minimum. "
                     f"DKMS kernel module compilation requires significant "
                     f"temporary space. Please increase the OS disk size to "
                     f"at least 50 GB."
@@ -678,11 +699,31 @@ class AmdGpuDriver(GpuDriverInstaller):
 
         # Install amdgpu-dkms and rocm
         self._log.info("Installing amdgpu-dkms and rocm")
-        self.node.os.install_packages(
-            ["amdgpu-dkms", "rocm"],
-            signed=False,
-            timeout=1800,  # Can take up to 30 minutes
-        )
+
+        try:
+            self.node.os.install_packages(["amdgpu-dkms", "rocm"], signed=False)
+        except Exception as install_error:
+            dkms_log_paths = [
+                "/var/lib/dkms/amdgpu/*/build/make.log",
+                "/var/crash/amdgpu-dkms.*.crash",
+            ]
+
+            for log_pattern in dkms_log_paths:
+                log_result = self.node.execute(
+                    f"tail -50 {log_pattern} 2>/dev/null || true",
+                    shell=True,
+                    sudo=True,
+                )
+                if log_result.stdout.strip():
+                    self._log.debug(
+                        f"DKMS build log ({log_pattern}):\n{log_result.stdout}"
+                    )
+
+            raise LisaException(
+                f"AMD GPU driver installation failed. "
+                f"This is often due to insufficient disk space "
+                f"during DKMS compilation. Original error: {install_error}"
+            )
 
         # Verify DKMS build succeeded
         dkms_status = self.node.execute("dkms status amdgpu", sudo=True)
@@ -737,15 +778,6 @@ class AmdGpuDriver(GpuDriverInstaller):
         else:
             self._log.debug("No amdgpu deny-list entries found in /etc/modprobe.d/")
 
-        # Load the amdgpu kernel module
-        self._log.info("Loading amdgpu kernel module")
-        modprobe = self.node.tools[Modprobe]
-        modprobe.load("amdgpu")
-
-        # Configure module to load on boot using /etc/modules-load.d/
-        # This is the modern systemd method for auto-loading kernel modules
-        self._log.info("Configuring amdgpu module to load on boot")
-
         # Create the modules-load.d configuration file
         modules_load_dir = "/etc/modules-load.d"
         amdgpu_conf = f"{modules_load_dir}/amdgpu.conf"
@@ -766,8 +798,3 @@ class AmdGpuDriver(GpuDriverInstaller):
         # Clean up package cache to free disk space
         self._log.debug("Cleaning up package cache to free disk space")
         self.node.os.clean_package_cache()
-
-        self._log.info(
-            "Successfully installed AMD GPU (ROCm) driver. "
-            "Module configured to load on boot. Reboot required."
-        )

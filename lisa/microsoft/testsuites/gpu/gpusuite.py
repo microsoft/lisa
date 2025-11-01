@@ -30,11 +30,9 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, Mkdir, Modprobe, Reboot, Tar, Wget
-from lisa.tools.dmesg import Dmesg
 from lisa.tools.gpu_drivers import (
     AmdGpuDriver,
     GpuDriver,
-    GpuDriverInstaller,
     NvidiaCudaDriver,
     NvidiaGridDriver,
 )
@@ -338,21 +336,10 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
 
     lspci_gpucount = gpu.get_gpu_count_with_lspci()
 
-    # Get supported driver types from GPU feature
-    driver_type = gpu.get_supported_driver()
+    # Get the driver class for the supported GPU type
+    driver_class = _get_driver_class(node)
 
-    # Map ComputeSDK to driver installer class
-    driver_class: Type[GpuDriverInstaller]
-    if driver_type == ComputeSDK.AMD:
-        driver_class = AmdGpuDriver
-    elif driver_type == ComputeSDK.CUDA:
-        driver_class = NvidiaCudaDriver
-    elif driver_type == ComputeSDK.GRID:
-        driver_class = NvidiaGridDriver
-    else:
-        raise SkippedException(f"Unsupported driver type: {driver_type}")
-
-    # Create GpuDriver with the specific driver installer class
+    # Create GPU driver instance using virtual tool pattern
     gpu_driver = node.tools.create(GpuDriver, driver_class=driver_class)
     driver_gpucount = gpu_driver.get_gpu_count()
 
@@ -362,6 +349,29 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
     ).is_equal_to(driver_gpucount)
 
     log.info(f"GPU driver validated successfully with {driver_gpucount} GPUs")
+
+
+def _get_driver_class(node: Node) -> Type[GpuDriver]:
+    """
+    Determine the appropriate GPU driver class based on the GPU feature.
+
+    Returns:
+        The driver class to use (AmdGpuDriver, NvidiaCudaDriver, or NvidiaGridDriver)
+
+    Raises:
+        SkippedException: If the driver type is not supported
+    """
+    gpu_feature = node.features[Gpu]
+    driver_type = gpu_feature.get_supported_driver()
+
+    if driver_type == ComputeSDK.AMD:
+        return AmdGpuDriver
+    elif driver_type == ComputeSDK.CUDA:
+        return NvidiaCudaDriver
+    elif driver_type == ComputeSDK.GRID:
+        return NvidiaGridDriver
+    else:
+        raise SkippedException(f"Unsupported driver type: {driver_type}")
 
 
 def _install_cudnn(node: Node, log: Logger, install_path: str) -> None:
@@ -429,36 +439,7 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
             ).stdout.split("\n")
             __remove_sources_added_by_extension(node, sources_before, sources_after)
 
-    # Install LIS driver if required (for older kernels)
-    try:
-        from lisa.tools import LisDriver
-
-        node.tools[LisDriver]
-    except Exception as e:
-        log.debug(f"LisDriver is not installed. It might not be required. {e}")
-
-    # Get supported driver types from GPU feature
-    # TODO: Move 'get_supported_driver' to GpuDriver, it should detect the
-    # device and driver using lspci instead of relying on the GPU feature.
-    driver_type = gpu_feature.get_supported_driver()
-
-    driver_class: Type[GpuDriverInstaller]
-    if driver_type == ComputeSDK.AMD:
-        driver_class = AmdGpuDriver
-    elif driver_type == ComputeSDK.CUDA:
-        driver_class = NvidiaCudaDriver
-    elif driver_type == ComputeSDK.GRID:
-        driver_class = NvidiaGridDriver
-    else:
-        raise SkippedException(f"Unsupported driver type: {driver_type}")
-
-    # Create GpuDriver with the specific driver installer class
-    gpu_driver = node.tools.create(GpuDriver, driver_class=driver_class)
-    gpu_driver.install_driver()
-
-    log.debug("GPU driver installed")
-    dmesg_tool = node.tools[Dmesg]
-    dmesg_tool.check_kernel_errors()
+    __install_driver_using_sdk(node, log, log_path)
 
 
 def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
@@ -485,3 +466,35 @@ def __remove_sources_added_by_extension(
     rm_sources = [source for source in sources_after if source not in sources_before]
     for source in rm_sources:
         node.execute(f"rm /etc/apt/sources.list.d/{source}", sudo=True)
+
+
+def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
+    """
+    Install GPU driver using appropriate driver tool based on supported driver type.
+
+    This function:
+    1. Installs LIS driver if required (for older kernels)
+    2. Determines which driver type is supported (GRID, CUDA, or AMD)
+    3. Installs the appropriate driver using the corresponding tool
+    4. Reboots to load the driver
+    """
+    # Install LIS driver if required (for older kernels)
+    try:
+        from lisa.tools import LisDriver
+
+        node.tools[LisDriver]
+    except Exception as e:
+        log.debug(f"LisDriver is not installed. It might not be required. {e}")
+
+    # Get the driver class for the supported GPU type
+    # TODO: Move 'get_supported_driver' to GpuDriver, it should detect the
+    # device and driver using lspci instead of relying on the GPU feature.
+    driver_class = _get_driver_class(node)
+
+    # Create GPU driver instance using virtual tool pattern
+    # Driver installation is triggered automatically during creation
+    _ = node.tools.create(GpuDriver, driver_class=driver_class)
+
+    log.debug("GPU driver installed. Rebooting to load driver.")
+    reboot_tool = node.tools[Reboot]
+    reboot_tool.reboot_and_check_panic(log_path)
