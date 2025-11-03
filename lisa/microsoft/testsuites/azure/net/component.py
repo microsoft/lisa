@@ -177,7 +177,7 @@ class NetworkComponentTest(TestSuite):
             chain_names=self.NATCHAIN,
         )
 
-        #Create new chains in filter table
+        # Create new chains in filter table
         log.info(f"Create new chains {self.FILTERCHAIN} in {self.FILTERTABLE} table")
         iptables.create_iptable_chain(
             table_name=self.FILTERTABLE,
