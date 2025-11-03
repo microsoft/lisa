@@ -390,6 +390,7 @@ class SourceInstaller(BaseInstaller):
     def _install_build_tools(self, node: Node) -> None:
         os = node.os
         self._log.info("installing build tools")
+        self._update_kmod(os, node)
         if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
             self._fix_mirrorlist_to_vault(node)
         if isinstance(os, Redhat):
@@ -459,7 +460,19 @@ class SourceInstaller(BaseInstaller):
                 f"os '{os.name}' doesn't support in {self.type_name()}. "
                 f"Implement its build dependencies installation there."
             )
-
+        
+    def _update_kmod(self, os, node: Node) -> None:
+        # Update kmod/module-init-tools first
+        if isinstance(os, Ubuntu):
+            # Update package list and upgrade kmod
+            node.execute("apt-get update", sudo=True)
+            node.execute("apt-get install -y --upgrade kmod", sudo=True)
+        elif isinstance(os, Redhat):
+            # Update kmod package
+            node.execute("yum update -y kmod", sudo=True)
+        elif isinstance(os, CBLMariner):
+            # Update kmod package
+            node.execute("tdnf update -y kmod", sudo=True)
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
