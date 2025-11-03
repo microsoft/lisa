@@ -41,7 +41,7 @@ class NetworkComponentTest(TestSuite):
         "allowlayer4",
     ]
     FILTERTABLE = "filter"
-    FILTERCHAIN = ["LOG", "MARK_ALLOWED_AND_ACCEPT", "LOG_DROP_OTHER"]
+    FILTERCHAIN = ["MARK_ALLOWED_AND_ACCEPT", "LOG_DROP_OTHER"]
     PACKETCOUNT = 40
     VMCOUNT = 1
     NICCOUNT = 1
@@ -175,6 +175,13 @@ class NetworkComponentTest(TestSuite):
         iptables.create_iptable_chain(
             table_name=self.NATTABLE,
             chain_names=self.NATCHAIN,
+        )
+
+        #Create new chains in filter table
+        log.info(f"Create new chains {self.FILTERCHAIN} in {self.FILTERTABLE} table")
+        iptables.create_iptable_chain(
+            table_name=self.FILTERTABLE,
+            chain_names=self.FILTERCHAIN,
         )
 
         # Add rules to prerouting chain in nat table
