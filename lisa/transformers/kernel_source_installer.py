@@ -474,6 +474,27 @@ class SourceInstaller(BaseInstaller):
             # Update kmod package
             node.execute("tdnf update -y kmod", sudo=True)
 
+        result = node.execute("depmod --version", sudo=True)
+        if result.exit_code == 0:
+            self._log.info(f"Current depmod version: {result.stdout}")
+            
+            # Check if we need to rebuild the module.builtin files
+            # This is needed if depmod version is too old
+            import re
+            version_match = re.search(r"kmod version (\d+)", result.stdout)
+            if version_match:
+                version = int(version_match.group(1))
+                if version < 29:  # Versions below 29 may have issues with newer kernel formats
+                    self._log.warning(f"depmod version {version} is old, may cause issues")
+                    # Try to update from backports or newer repos
+                    if isinstance(os, Ubuntu):
+                        # Try to get a newer version from backports
+                        node.execute(
+                            "apt-get install -y -t $(lsb_release -cs)-backports kmod 2>/dev/null || true",
+                            sudo=True,
+                            shell=True
+                        )
+
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
         self,
