@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Type, cast
-
+import re
 from dataclasses_json import dataclass_json
 
 from lisa import schema
@@ -218,11 +218,48 @@ class SourceInstaller(BaseInstaller):
         self, node: Node, code_path: PurePath, build_kernel_release: str
     ) -> None:
         make = node.tools[Make]
+        
+        # Build modules
         make.make(arguments="modules", cwd=code_path, sudo=True)
-
-        make.make(
-            arguments="INSTALL_MOD_STRIP=1 modules_install", cwd=code_path, sudo=True
-        )
+        
+        # Check architecture for potential depmod issues
+        lscpu = node.tools[Lscpu]
+        arch = lscpu.get_architecture()
+        
+        # For ARM64, use workaround if needed
+        if arch == CpuArchitecture.ARM64:
+            # Try normal install first
+            result = node.execute(
+                "make INSTALL_MOD_STRIP=1 modules_install",
+                cwd=code_path,
+                sudo=True,
+                expected_exit_code=None,
+                timeout=600
+            )
+            
+            # If depmod fails, retry without it
+            if result.exit_code != 0 and "kmod_builtin_iter_next" in result.stderr:
+                self._log.warning("ARM64 depmod issue detected, using workaround...")
+                make.make(
+                    arguments="INSTALL_MOD_STRIP=1 DEPMOD=/bin/true modules_install",
+                    cwd=code_path,
+                    sudo=True,
+                    timeout=600
+                )
+                # Run depmod manually
+                node.execute(
+                    f"depmod -a {build_kernel_release} 2>/dev/null || true",
+                    sudo=True,
+                    shell=True
+                )
+        else:
+            # Normal installation for x86
+            make.make(
+                arguments="INSTALL_MOD_STRIP=1 modules_install", 
+                cwd=code_path, 
+                sudo=True,
+                timeout=600
+            )
 
         if isinstance(node.os, CBLMariner) and node.os.information.version >= "3.0.0":
             cp = node.tools[Cp]
@@ -462,38 +499,104 @@ class SourceInstaller(BaseInstaller):
             )
         
     def _update_kmod(self, os, node: Node) -> None:
-        # Update kmod/module-init-tools first
-        if isinstance(os, Ubuntu):
-            # Update package list and upgrade kmod
-            node.execute("apt-get update", sudo=True)
-            node.execute("apt-get install -y --upgrade kmod", sudo=True)
-        elif isinstance(os, Redhat):
-            # Update kmod package
-            node.execute("yum update -y kmod", sudo=True)
-        elif isinstance(os, CBLMariner):
-            # Update kmod package
-            node.execute("tdnf update -y kmod", sudo=True)
-
-        result = node.execute("depmod --version", sudo=True)
+        """
+        Update kmod to version 32 from source to fix compatibility issues
+        """
+        self._log.info("Checking kmod/depmod version...")
+        
+        # First check current version
+        result = node.execute("depmod --version", sudo=True, expected_exit_code=None)
+        current_version = 0
         if result.exit_code == 0:
-            self._log.info(f"Current depmod version: {result.stdout}")
-            
-            # Check if we need to rebuild the module.builtin files
-            # This is needed if depmod version is too old
             import re
             version_match = re.search(r"kmod version (\d+)", result.stdout)
             if version_match:
-                version = int(version_match.group(1))
-                if version < 29:  # Versions below 29 may have issues with newer kernel formats
-                    self._log.warning(f"depmod version {version} is old, may cause issues")
-                    # Try to update from backports or newer repos
-                    if isinstance(os, Ubuntu):
-                        # Try to get a newer version from backports
-                        node.execute(
-                            "apt-get install -y -t $(lsb_release -cs)-backports kmod 2>/dev/null || true",
-                            sudo=True,
-                            shell=True
-                        )
+                current_version = int(version_match.group(1))
+                self._log.info(f"Current kmod version: {current_version}")
+        
+        # Install kmod 32 from source if version is less than 32
+        if current_version < 32:
+            self._log.info("Installing kmod version 32 from source...")
+            self._install_kmod_from_source(node)
+        else:
+            self._log.info(f"kmod version {current_version} is sufficient, skipping update")
+
+    def _install_kmod_from_source(self, node: Node) -> None:
+        """
+        Install kmod version 32 from source
+        """
+        kmod_version = "32"
+        kmod_url = "https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git"
+        
+        # Install build dependencies
+        if isinstance(node.os, Ubuntu):
+            node.os.install_packages([
+                "autoconf", 
+                "automake", 
+                "libtool", 
+                "libssl-dev",
+                "pkg-config",  # Required for kmod build
+                "libzstd-dev"  # For zstd compression support
+            ])
+        elif isinstance(node.os, Redhat):
+            node.os.install_packages([
+                "autoconf", 
+                "automake", 
+                "libtool", 
+                "openssl-devel",
+                "pkgconfig",
+                "libzstd-devel"
+            ])
+        elif isinstance(node.os, CBLMariner):
+            node.os.install_packages([
+                "autoconf",
+                "automake", 
+                "libtool",
+                "openssl-devel",
+                "pkg-config",
+                "zstd-devel"
+            ])
+        
+        # Clone and build kmod
+        git = node.tools[Git]
+        build_path = node.working_path / "kmod_build"
+        
+        # Clean up any existing build
+        node.execute(f"rm -rf {build_path}", sudo=True)
+        
+        # Clone the repository
+        code_path = git.clone(
+            url=kmod_url, 
+            cwd=build_path, 
+            ref=f"v{kmod_version}",
+            timeout=300
+        )
+        
+        # Build and install
+        self._log.info("Building kmod...")
+        node.execute("./autogen.sh", cwd=code_path, timeout=120)
+        node.execute(
+            "./configure --prefix=/usr --sysconfdir=/etc --with-openssl --with-zstd",
+            cwd=code_path,
+            timeout=120
+        )
+        
+        make = node.tools[Make]
+        make.make(arguments="-j$(nproc)", cwd=code_path, timeout=600)
+        make.make(arguments="install", cwd=code_path, sudo=True, timeout=120)
+        
+        # Update library cache
+        node.execute("ldconfig", sudo=True)
+        
+        # Create symlinks for compatibility
+        node.execute("ln -sf /usr/bin/kmod /usr/bin/depmod", sudo=True)
+        node.execute("ln -sf /usr/bin/kmod /usr/bin/modprobe", sudo=True)
+        node.execute("ln -sf /usr/bin/kmod /usr/bin/lsmod", sudo=True)
+        node.execute("ln -sf /usr/bin/kmod /usr/bin/modinfo", sudo=True)
+        
+        # Verify installation
+        result = node.execute("depmod --version", sudo=True)
+        self._log.info(f"Updated kmod: {result.stdout}")
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
