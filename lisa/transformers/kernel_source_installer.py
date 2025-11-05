@@ -298,6 +298,7 @@ class SourceInstaller(BaseInstaller):
                 "libelf-dev",
                 "zlib1g-dev",
                 "libssl-dev"
+                # No scdoc needed if we disable docs
             ])
         elif isinstance(node.os, Redhat):
             node.os.install_packages([
@@ -338,9 +339,9 @@ class SourceInstaller(BaseInstaller):
         kmod_url = "https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git"
         code_path = git.clone(url=kmod_url, cwd=build_path, timeout=300)
         
-        # Configure with meson (no feature flags for compatibility)
+        # Configure with meson - disable documentation to avoid scdoc dependency
         result = node.execute(
-            "meson setup build --prefix=/usr --buildtype=release",
+            "meson setup build --prefix=/usr --buildtype=release -Dman=false",
             cwd=code_path,
             timeout=120
         )
