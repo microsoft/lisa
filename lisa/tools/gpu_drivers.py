@@ -86,7 +86,9 @@ class GpuDriver(Tool, BaseClassMixin):
             f"Must be one of {list(ComputeSDK)}"
         )
 
-        gpu_driver_factory = Factory[GpuDriver](GpuDriver)
+        gpu_driver_factory = Factory[GpuDriver](
+            GpuDriver  # type: ignore[type-abstract]
+        )
 
         driver_class = gpu_driver_factory.create_by_type_name(
             compute_sdk, node=node, **kwargs
