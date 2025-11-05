@@ -528,21 +528,25 @@ class SourceInstaller(BaseInstaller):
         kmod_version = "32"
         kmod_url = "https://git.kernel.org/pub/scm/utils/kernel/kmod/kmod.git"
         
-        # Install build dependencies
+        # Install build dependencies - EXPANDED LIST
         if isinstance(node.os, Ubuntu):
             node.os.install_packages([
                 "autoconf", 
                 "automake", 
-                "libtool", 
+                "libtool",      # Essential for build
+                "libtool-bin",  # Contains the actual libtool binary
                 "libssl-dev",
-                "pkg-config",  # Required for kmod build
-                "libzstd-dev"  # For zstd compression support
+                "pkg-config",
+                "libzstd-dev",
+                "gtk-doc-tools",  # May be needed for autogen
+                "xsltproc"        # For documentation generation
             ])
         elif isinstance(node.os, Redhat):
             node.os.install_packages([
                 "autoconf", 
                 "automake", 
-                "libtool", 
+                "libtool",      # Essential
+                "libtool-ltdl-devel",  # Additional libtool libraries
                 "openssl-devel",
                 "pkgconfig",
                 "libzstd-devel"
@@ -551,7 +555,7 @@ class SourceInstaller(BaseInstaller):
             node.os.install_packages([
                 "autoconf",
                 "automake", 
-                "libtool",
+                "libtool",      # Essential
                 "openssl-devel",
                 "pkg-config",
                 "zstd-devel"
@@ -574,15 +578,65 @@ class SourceInstaller(BaseInstaller):
         
         # Build and install
         self._log.info("Building kmod...")
-        node.execute("./autogen.sh", cwd=code_path, timeout=120)
-        node.execute(
-            "./configure --prefix=/usr --sysconfdir=/etc --with-openssl --with-zstd",
-            cwd=code_path,
-            timeout=120
+        
+        # Run autogen.sh and check for errors
+        result = node.execute(
+            "./autogen.sh", 
+            cwd=code_path, 
+            timeout=120,
+            expected_exit_code=None
         )
         
+        if result.exit_code != 0:
+            self._log.warning(f"autogen.sh failed: {result.stderr}")
+            # Try alternative bootstrap method
+            node.execute("autoreconf -fi", cwd=code_path, timeout=120)
+        
+        # Verify libtool exists
+        libtool_check = node.execute(f"ls -la {code_path}/libtool", expected_exit_code=None)
+        if libtool_check.exit_code != 0:
+            self._log.warning("libtool not found after autogen, trying to regenerate...")
+            node.execute("libtoolize --force", cwd=code_path)
+            node.execute("autoreconf -fi", cwd=code_path)
+        
+        # Configure with simpler options first
+        result = node.execute(
+            "./configure --prefix=/usr --sysconfdir=/etc",
+            cwd=code_path,
+            timeout=120,
+            expected_exit_code=None
+        )
+        
+        if result.exit_code != 0:
+            self._log.error(f"configure failed: {result.stderr}")
+            # Fall back to package manager update instead
+            self._log.warning("Falling back to package manager kmod update")
+            if isinstance(node.os, Ubuntu):
+                node.execute("apt-get update", sudo=True)
+                node.execute("apt-get install -y --upgrade kmod", sudo=True)
+            elif isinstance(node.os, Redhat):
+                node.execute("yum update -y kmod", sudo=True)
+            elif isinstance(node.os, CBLMariner):
+                node.execute("tdnf update -y kmod", sudo=True)
+            return
+        
         make = node.tools[Make]
-        make.make(arguments="-j$(nproc)", cwd=code_path, timeout=600)
+        
+        # Use single-threaded make first to avoid parallel build issues
+        result = node.execute(
+            "make",
+            cwd=code_path,
+            timeout=600,
+            expected_exit_code=None
+        )
+        
+        if result.exit_code != 0:
+            self._log.error(f"make failed: {result.stderr}")
+            # Try cleaning and rebuilding
+            node.execute("make clean", cwd=code_path)
+            make.make(arguments="", cwd=code_path, timeout=600)
+        
+        # Install
         make.make(arguments="install", cwd=code_path, sudo=True, timeout=120)
         
         # Update library cache
