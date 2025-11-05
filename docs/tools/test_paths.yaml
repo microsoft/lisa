@@ -1,2 +1,2 @@
 - name: microsoft tests
-  value: ../../microsoft/testsuites
+  value: ../../lisa/microsoft/testsuites
