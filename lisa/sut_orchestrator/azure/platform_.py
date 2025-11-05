@@ -666,6 +666,9 @@ class AzurePlatform(Platform):
         resource_group_name = environment_context.resource_group_name
         # the resource group name is empty when it is not deployed for some reasons,
         # like capability doesn't meet case requirement.
+        if True:
+            log.debug(f"Skipping RG Deletion as part of this Branch and Testing..")
+            return
         if not resource_group_name:
             return
         assert self._azure_runbook
