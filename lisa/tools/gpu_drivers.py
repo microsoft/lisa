@@ -3,6 +3,7 @@
 
 import re
 from abc import abstractmethod
+from enum import Enum
 from pathlib import PurePosixPath
 from typing import Any, List, Optional, Type
 
@@ -26,25 +27,36 @@ from lisa.tools.gpu_smi import GpuSmi
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.usermod import Usermod
 from lisa.tools.whoami import Whoami
-from lisa.util import LisaException, MissingPackagesException, SkippedException
+from lisa.util import (
+    BaseClassMixin,
+    LisaException,
+    MissingPackagesException,
+    SkippedException,
+)
+from lisa.util.subclasses import Factory
 
 
-class GpuDriver(Tool):
+class ComputeSDK(str, Enum):
+    GRID = "GRID"
+    CUDA = "CUDA"
+    AMD = "AMD"
+
+
+class GpuDriver(Tool, BaseClassMixin):
     """
-    Virtual tool that wraps GPU-specific driver installation and monitoring.
+    Virtual tool that wraps GPU-specific driver installation and management.
 
-    This tool should be created with a driver_class parameter specifying
-    which driver to use. The driver class determines both installation
-    and smi.
+    This class uses a factory pattern to create the appropriate driver
+    instance based on ComputeSDK type.
 
     Example usage:
+        # Create AMD GPU driver
         gpu_driver = node.tools.create(
             GpuDriver,
-            driver_class=AmdGpuDriver
+            compute_sdk=ComputeSDK.AMD
         )
     """
 
-    _driver_class: Type["GpuDriver"]
     _smi_class: Type[GpuSmi]
 
     @property
@@ -59,47 +71,42 @@ class GpuDriver(Tool):
         **kwargs: Any,
     ) -> "GpuDriver":
         """
-        Create a GpuDriver instance with the specified driver class.
-
-        The driver installation is triggered automatically during creation
-        by accessing the driver tool (which invokes its _install() method).
-
-        Args:
-            node: The node to create the tool for
-            driver_class: The driver class to use
-                         (AmdGpuDriver, NvidiaCudaDriver, or NvidiaGridDriver)
-
-        Returns:
-            GpuDriver instance configured for the specified driver
-
-        Raises:
-            AssertionError: If driver_class parameter is not provided
+        Create a GpuDriver instance with the specified ComputeSDK type.
         """
-        # If called on a concrete driver class (not GpuDriver itself),
-        # use the default Tool.create() to avoid recursion
-        if cls is not GpuDriver:
-            return super(GpuDriver, cls).create(node, *args, **kwargs)
+        compute_sdk: Optional[str] = kwargs.pop("compute_sdk", None)
 
-        # Virtual tool pattern - requires driver_class parameter
-        driver_class: Type[GpuDriver] = kwargs.pop("driver_class", None)
-        assert driver_class is not None, (
-            "driver_class parameter is required when creating GpuDriver. "
-            "Use node.tools.create(GpuDriver, driver_class=AmdGpuDriver) or similar."
-        )
-        assert issubclass(driver_class, GpuDriver), (
-            f"driver_class must be a subclass of GpuDriver, "
-            f"got {driver_class.__name__}"
+        assert compute_sdk is not None, (
+            "compute_sdk parameter is required when creating GpuDriver. "
+            "Use node.tools.create(GpuDriver, compute_sdk=ComputeSDK.AMD) "
+            "or similar."
         )
 
-        instance = cls(node)
-        instance._driver_class = driver_class
-        instance._smi_class = driver_class.smi()
+        assert compute_sdk in list(ComputeSDK), (
+            f"Invalid compute_sdk value: {compute_sdk}. "
+            f"Must be one of {list(ComputeSDK)}"
+        )
 
-        # Trigger driver installation by accessing the driver tool
-        # This invokes the driver's _install() method if not already installed
-        _ = node.tools[driver_class]
+        gpu_driver_factory = Factory[GpuDriver](GpuDriver)
 
-        return instance
+        driver_class = gpu_driver_factory.create_by_type_name(
+            compute_sdk, node=node, **kwargs
+        )
+        assert isinstance(driver_class, GpuDriver)
+        return driver_class
+
+    @classmethod
+    def type_name(cls) -> str:
+        """
+        Return the type name for factory registration.
+        Must be overridden by subclasses to return the ComputeSDK value.
+        """
+        raise NotImplementedError(
+            f"{cls.__name__} must implement type_name() to return ComputeSDK value"
+        )
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._smi_class = self.__class__.smi()
 
     def get_gpu_count(self) -> int:
         """
@@ -107,12 +114,6 @@ class GpuDriver(Tool):
         """
         smi_tool: GpuSmi = self.node.tools[self._smi_class]
         return smi_tool.get_gpu_count()
-
-    def install_driver(self) -> None:
-        """
-        Install the GPU driver using the driver installer class.
-        """
-        _ = self.node.tools[self._driver_class]
 
     @classmethod
     @abstractmethod
@@ -191,8 +192,11 @@ class NvidiaGridDriver(GpuDriver):
     }
 
     @classmethod
+    def type_name(cls) -> str:
+        return ComputeSDK.GRID
+
+    @classmethod
     def smi(cls) -> Type[GpuSmi]:
-        """Return the monitoring tool class for NVIDIA GRID driver"""
         from lisa.tools.gpu_smi import NvidiaSmi
 
         return NvidiaSmi
@@ -311,8 +315,11 @@ class NvidiaCudaDriver(GpuDriver):
     DEFAULT_CUDA_VERSION = "10.1.243-1"
 
     @classmethod
+    def type_name(cls) -> str:
+        return ComputeSDK.CUDA
+
+    @classmethod
     def smi(cls) -> Type[GpuSmi]:
-        """Return the monitoring tool class for NVIDIA CUDA driver"""
         from lisa.tools.gpu_smi import NvidiaSmi
 
         return NvidiaSmi
@@ -562,8 +569,11 @@ class AmdGpuDriver(GpuDriver):
     ROCM_BUILD = "70001"
 
     @classmethod
+    def type_name(cls) -> str:
+        return ComputeSDK.AMD
+
+    @classmethod
     def smi(cls) -> Type[GpuSmi]:
-        """Return the monitoring tool class for AMD GPU driver"""
         from lisa.tools.gpu_smi import AmdSmi
 
         return AmdSmi

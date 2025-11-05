@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass
-from enum import Enum
 from functools import partial
 from typing import Any, List, Type
 
@@ -11,6 +10,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.feature import Feature
 from lisa.tools import Lspci, Lsvmbus, NvidiaSmi
+from lisa.tools.gpu_drivers import ComputeSDK
 from lisa.tools.lspci import PciDevice
 from lisa.util import constants
 
@@ -31,12 +31,6 @@ class GpuSettings(schema.FeatureSettings):
 
     def _generate_min_capability(self, capability: Any) -> Any:
         return self
-
-
-class ComputeSDK(str, Enum):
-    GRID = "GRID"
-    CUDA = "CUDA"
-    AMD = "AMD"
 
 
 class Gpu(Feature):
