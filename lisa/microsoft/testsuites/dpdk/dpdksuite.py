@@ -520,8 +520,8 @@ class Dpdk(TestSuite):
             kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
         )
 
-        hotplug_tx_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
-        self._check_rx_or_tx_pps_sriov_hotplug("RX", hotplug_tx_pps_set)
+        hotplug_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
+        self._check_rx_or_tx_pps_sriov_hotplug("RX", hotplug_pps_set)
 
     def run_testpmd_hotplug_send_test(
         self,
@@ -547,8 +547,8 @@ class Dpdk(TestSuite):
             kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
         )
 
-        hotplug_tx_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
-        self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_tx_pps_set)
+        hotplug_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
+        self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_pps_set)
 
     def _check_rx_or_tx_pps_sriov_hotplug(
         self, tx_or_rx: str, pps: Tuple[int, int, int]
@@ -557,6 +557,11 @@ class Dpdk(TestSuite):
         self._check_rx_or_tx_pps(tx_or_rx, before_hotplug, sriov_enabled=True)
         self._check_rx_or_tx_pps(tx_or_rx, during_hotplug, sriov_enabled=False)
         self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
+        after_over_before = after_reenable / before_hotplug
+        assert_that(after_over_before).described_as(
+            "Error: pps of vf was very different before and after hotplug. "
+            f"before: {before_hotplug} after: {after_reenable}"
+        ).is_close_to(1, tolerance=0.125)
 
     def _check_rx_or_tx_pps(
         self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
