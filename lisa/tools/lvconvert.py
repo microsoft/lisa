@@ -24,7 +24,7 @@ class Lvconvert(Tool):
     ) -> None:
         """
         Attach a cache pool to an origin logical volume.
-        
+
         Args:
             vg_name: Volume group name
             origin_lv: Origin logical volume name
@@ -37,7 +37,7 @@ class Lvconvert(Tool):
         if yes:
             cmd_parts.append("-y")
         cmd_parts.append(f"{vg_name}/{origin_lv}")
-        
+
         self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
 
     def convert(
@@ -49,7 +49,7 @@ class Lvconvert(Tool):
     ) -> None:
         """
         Generic lvconvert operation for various conversion types.
-        
+
         Args:
             lv_path: Full path to the logical volume (e.g., "vgname/lvname")
             conversion_type: Type of conversion (e.g., "cache", "raid1", "mirror")
@@ -64,7 +64,7 @@ class Lvconvert(Tool):
         if extra:
             cmd_parts.append(extra)
         cmd_parts.append(lv_path)
-        
+
         self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
 
     def _install(self) -> bool:

@@ -13,12 +13,12 @@ class Lvcreate(Tool):
         return True
 
     def create_lv(
-        self, 
-        size: Optional[str] = None, 
+        self,
+        size: Optional[str] = None,
         name: Optional[str] = None,
-        vg_name: Optional[str] = None, 
-        device: Optional[str] = None, 
-        extra: str = ""
+        vg_name: Optional[str] = None,
+        device: Optional[str] = None,
+        extra: str = "",
     ) -> None:
         cmd_parts = ["lvcreate"]
         if size:
@@ -31,7 +31,7 @@ class Lvcreate(Tool):
             cmd_parts.append(device)
         if extra:
             cmd_parts.append(extra)
-        
+
         self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
 
     def _install(self) -> bool:

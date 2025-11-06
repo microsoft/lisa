@@ -13,10 +13,12 @@ class Pvremove(Tool):
     def can_install(self) -> bool:
         return True
 
-    def remove_pv(self, *devices: str, force: bool = True, ignore_errors: bool = False) -> None:
+    def remove_pv(
+        self, *devices: str, force: bool = True, ignore_errors: bool = False
+    ) -> None:
         """
         Remove physical volume(s).
-        
+
         Args:
             *devices: One or more device paths to remove as physical volumes
             force: If True, skip confirmation prompts (default: True)
@@ -26,7 +28,7 @@ class Pvremove(Tool):
         if force:
             cmd_parts.append("-f")
         cmd_parts.extend(devices)
-        
+
         if ignore_errors:
             self.node.execute(" ".join(cmd_parts), sudo=True, no_error_log=True)
         else:

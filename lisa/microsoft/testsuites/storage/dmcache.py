@@ -8,20 +8,19 @@ from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Posix
 from lisa.testsuite import simple_requirement
 from lisa.tools import Mkdir, Mkfs, Modprobe, Mount
-from lisa.tools.mkfs import FileSystem
-from lisa.util import SkippedException
-from lisa.tools.losetup import Losetup
-from lisa.tools.pvcreate import Pvcreate
-from lisa.tools.vgcreate import Vgcreate
-from lisa.tools.lvcreate import Lvcreate
-from lisa.tools.lvconvert import Lvconvert
-from lisa.tools.lvs import Lvs
-from lisa.tools.lvremove import Lvremove
-from lisa.tools.vgs import Vgs
-from lisa.tools.vgremove import Vgremove
-from lisa.tools.pvremove import Pvremove
 from lisa.tools.dmsetup import Dmsetup
-
+from lisa.tools.losetup import Losetup
+from lisa.tools.lvconvert import Lvconvert
+from lisa.tools.lvcreate import Lvcreate
+from lisa.tools.lvremove import Lvremove
+from lisa.tools.lvs import Lvs
+from lisa.tools.mkfs import FileSystem
+from lisa.tools.pvcreate import Pvcreate
+from lisa.tools.pvremove import Pvremove
+from lisa.tools.vgcreate import Vgcreate
+from lisa.tools.vgremove import Vgremove
+from lisa.tools.vgs import Vgs
+from lisa.util import SkippedException
 
 
 @TestSuiteMetadata(
@@ -36,18 +35,20 @@ from lisa.tools.dmsetup import Dmsetup
 class DmCacheTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
-        
+
         # Check if this is a POSIX system
         assert isinstance(node.os, Posix), f"{node.os} is not supported"
-        
+
         # Try to load dm-cache module if not already loaded
         modprobe = node.tools[Modprobe]
         try:
             modprobe.load("dm-cache")
         except AssertionError:
             log.warning("Failed to load dm-cache module")
-            raise SkippedException("dm-cache module is not available or cannot be loaded")
-            
+            raise SkippedException(
+                "dm-cache module is not available or cannot be loaded"
+            )
+
         # Check if LVM tools are available
         # result = node.execute("which pvcreate", no_error_log=True)
         # if result.exit_code != 0:
@@ -90,7 +91,6 @@ class DmCacheTestSuite(TestSuite):
         pvremove = node.tools[Pvremove]
         dmsetup = node.tools[Dmsetup]
 
-
         # Define file paths and device names
         origin_img = "/root/origin.img"
         cache_img = "/root/cache.img"
@@ -107,13 +107,13 @@ class DmCacheTestSuite(TestSuite):
             node.execute(
                 f"dd if=/dev/zero of={origin_img} bs=1M count=2048",
                 sudo=True,
-                expected_exit_code=0
+                expected_exit_code=0,
             )
             # Create cache disk image (1GB - fast device)
             node.execute(
                 f"dd if=/dev/zero of={cache_img} bs=1M count=1024",
                 sudo=True,
-                expected_exit_code=0
+                expected_exit_code=0,
             )
 
             log.info("Setting up loopback devices")
@@ -121,12 +121,12 @@ class DmCacheTestSuite(TestSuite):
             loop_cache = losetup.attach(cache_img)
             log.info(f"Created loop devices: origin={loop_origin}, cache={loop_cache}")
             losetup_output = losetup.list()
-            log.info(f"Losetup output: {losetup_output}")
+            log.debug(f"Losetup output: {losetup_output}")
             assert_that(losetup_output).described_as(
                 "Origin loopback device should be listed"
             ).contains(loop_origin)
             assert_that(losetup_output).described_as(
-                "Cache loopback device should be listed"  
+                "Cache loopback device should be listed"
             ).contains(loop_cache)
 
             log.info("Initializing LVM physical volumes and creating volume group")
@@ -143,12 +143,17 @@ class DmCacheTestSuite(TestSuite):
             vg_info = vgs.get_vg_info(vg_name)
             log.info(f"Volume group info before cache pool creation: {vg_info}")
             # Create cache pool on the fast device (loop_cache)
-            lvcreate.create_lv("800M", cache_pool_lv, vg_name, loop_cache, extra="--type cache-pool")
+            lvcreate.create_lv(
+                "800M", cache_pool_lv, vg_name, loop_cache, extra="--type cache-pool"
+            )
             log.info("Cache pool created successfully")
-            
-            # Verify device placement: origin on loop_origin, cache pool data on loop_cache
+
+            # Verify device placement:
+            # origin on loop_origin, cache pool data on loop_cache
             lv_info = lvs.get_lv_info(vg_name, options="-a -o+devices")
-            log.info(f"Logical volumes and their devices (including hidden LVs):\n{lv_info}")
+            log.debug(
+                f"Logical volumes and their devices (including hidden LVs):\n{lv_info}"
+            )
             # Check that origin is on loop_origin
             assert_that(lv_info).described_as(
                 f"Origin LV should be on {loop_origin}"
@@ -179,11 +184,11 @@ class DmCacheTestSuite(TestSuite):
             ).is_not_empty()
 
             dm_status = dmsetup.status(f"{vg_name}-{origin_lv}")
-            log.info(f"DM-Cache status: {dm_status}")
+            log.debug(f"DM-Cache status: {dm_status}")
 
             log.info("Verifying cache policy and configuration")
             dm_table = dmsetup.table(f"{vg_name}-{origin_lv}")
-            log.info(f"DM-Cache table: {dm_table}")
+            log.debug(f"DM-Cache table: {dm_table}")
             cache_table = dm_table.strip()
             assert_that(cache_table).described_as(
                 "Cache table should contain 'cache' target type"
@@ -191,37 +196,54 @@ class DmCacheTestSuite(TestSuite):
             assert_that(cache_table).described_as(
                 "Cache table should specify a cache policy (smq, mq, etc.)"
             ).matches(r".*\b(smq|mq|cleaner)\b.*")
-            if not any(mode in cache_table for mode in ["writethrough", "writeback", "passthrough"]):
+            if not any(
+                mode in cache_table
+                for mode in ["writethrough", "writeback", "passthrough"]
+            ):
                 log.warning("Cache mode not explicitly found in table output")
-            cache_info = lvs.get_lv_info(f"{vg_name}/{origin_lv}", options="-o+cache_mode,cache_policy")
-            log.info(f"LVS cache details: {cache_info}")
+            cache_info = lvs.get_lv_info(
+                f"{vg_name}/{origin_lv}", options="-o+cache_mode,cache_policy"
+            )
+            log.debug(f"LVS cache details: {cache_info}")
             assert_that(cache_info).described_as(
                 "Cache policy should be displayed in lvs output"
             ).matches(r".*\b(smq|mq|cleaner)\b.*")
-            
+
             # Get detailed cache statistics from dmsetup status output
             # The status output already contains useful cache statistics
             dm_status = dmsetup.status(f"{vg_name}-{origin_lv}")
             status_parts = dm_status.strip().split()
             if len(status_parts) > 3 and status_parts[2] == "cache":
                 # Parse cache statistics from status output
-                # Format: start length cache metadata_mode <cache stats> policy policy_args...
+                # Format: start length cache metadata_mode
+                # <cache stats> policy policy_args...
                 cache_stats = " ".join(status_parts[3:])
-                log.info(f"DM-Cache statistics: {cache_stats}")
-            
-            log.info("dm-cache setup, policy verification, and basic functionality completed successfully")
+                log.debug(f"DM-Cache statistics: {cache_stats}")
+
+            log.info(
+                "dm-cache setup, policy verification, "
+                "and basic functionality completed successfully"
+            )
 
         finally:
             log.info("Cleaning up test resources")
             try:
                 if mount.check_mount_point_exist(mount_point):
-                    mount.umount(f"/dev/{vg_name}/{origin_lv}", mount_point, erase=False)
+                    mount.umount(
+                        f"/dev/{vg_name}/{origin_lv}", mount_point, erase=False
+                    )
                 node.execute(f"rmdir {mount_point}", sudo=True, no_error_log=True)
-                lvremove.remove_lv(f"{vg_name}/{origin_lv}", force=True, ignore_errors=True)
+                lvremove.remove_lv(
+                    f"{vg_name}/{origin_lv}", force=True, ignore_errors=True
+                )
                 vgremove.remove_vg(vg_name, force=True, ignore_errors=True)
-                pvremove.remove_pv(loop_origin, loop_cache, force=True, ignore_errors=True)
+                pvremove.remove_pv(
+                    loop_origin, loop_cache, force=True, ignore_errors=True
+                )
                 losetup.detach(loop_origin)
                 losetup.detach(loop_cache)
-                node.execute(f"rm -f {origin_img} {cache_img}", sudo=True, no_error_log=True)
+                node.execute(
+                    f"rm -f {origin_img} {cache_img}", sudo=True, no_error_log=True
+                )
             except Exception as cleanup_error:
                 log.warning(f"Cleanup error (non-fatal): {cleanup_error}")

@@ -13,10 +13,12 @@ class Lvremove(Tool):
     def can_install(self) -> bool:
         return True
 
-    def remove_lv(self, lv_path: str, force: bool = True, ignore_errors: bool = False) -> None:
+    def remove_lv(
+        self, lv_path: str, force: bool = True, ignore_errors: bool = False
+    ) -> None:
         """
         Remove a logical volume.
-        
+
         Args:
             lv_path: Full path to the logical volume (e.g., "vgname/lvname")
             force: If True, skip confirmation prompts (default: True)
@@ -26,7 +28,7 @@ class Lvremove(Tool):
         if force:
             cmd_parts.append("-f")
         cmd_parts.append(lv_path)
-        
+
         if ignore_errors:
             self.node.execute(" ".join(cmd_parts), sudo=True, no_error_log=True)
         else:

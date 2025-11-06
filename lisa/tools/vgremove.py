@@ -13,10 +13,12 @@ class Vgremove(Tool):
     def can_install(self) -> bool:
         return True
 
-    def remove_vg(self, vg_name: str, force: bool = True, ignore_errors: bool = False) -> None:
+    def remove_vg(
+        self, vg_name: str, force: bool = True, ignore_errors: bool = False
+    ) -> None:
         """
         Remove a volume group.
-        
+
         Args:
             vg_name: Name of the volume group to remove
             force: If True, skip confirmation prompts (default: True)
@@ -26,7 +28,7 @@ class Vgremove(Tool):
         if force:
             cmd_parts.append("-f")
         cmd_parts.append(vg_name)
-        
+
         if ignore_errors:
             self.node.execute(" ".join(cmd_parts), sudo=True, no_error_log=True)
         else:

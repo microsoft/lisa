@@ -11,7 +11,9 @@ class Vgcreate(Tool):
         return True
 
     def create_vg(self, vg_name: str, *devices: str) -> None:
-        self.node.execute(f"vgcreate {vg_name} {' '.join(devices)}", sudo=True, expected_exit_code=0)
+        self.node.execute(
+            f"vgcreate {vg_name} {' '.join(devices)}", sudo=True, expected_exit_code=0
+        )
 
     def _install(self) -> bool:
         self.node.os.install_packages("lvm2")

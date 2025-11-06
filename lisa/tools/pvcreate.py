@@ -11,7 +11,9 @@ class Pvcreate(Tool):
         return True
 
     def create_pv(self, *devices: str) -> None:
-        self.node.execute(f"pvcreate {' '.join(devices)}", sudo=True, expected_exit_code=0)
+        self.node.execute(
+            f"pvcreate {' '.join(devices)}", sudo=True, expected_exit_code=0
+        )
 
     def _install(self) -> bool:
         self.node.os.install_packages("lvm2")
