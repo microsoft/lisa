@@ -141,7 +141,7 @@ class DmCacheTestSuite(TestSuite):
             # Create origin LV on the slow device (loop_origin)
             lvcreate.create_lv("1843M", origin_lv, vg_name, loop_origin)
             vg_info = vgs.get_vg_info(vg_name)
-            log.info(f"Volume group info before cache pool creation: {vg_info}")
+            log.debug(f"Volume group info before cache pool creation: {vg_info}")
             # Create cache pool on the fast device (loop_cache)
             lvcreate.create_lv(
                 "800M", cache_pool_lv, vg_name, loop_cache, extra="--type cache-pool"
