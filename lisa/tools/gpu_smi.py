@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-from abc import abstractmethod
 from typing import List, Type
 
 from lisa.executable import Tool
@@ -14,7 +13,6 @@ class GpuSmi(Tool):
     Base class for GPU monitoring tools (nvidia-smi, amd-smi, etc.).
     """
 
-    @abstractmethod
     def get_gpu_count(self) -> int:
         """Get the number of GPUs detected by the SMI tool"""
         raise NotImplementedError
