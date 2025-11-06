@@ -19,7 +19,6 @@ class Lvs(Tool):
         self,
         lv_path: Optional[str] = None,
         options: str = "",
-        sudo: bool = True,
     ) -> str:
         """
         Get logical volume information.
@@ -29,7 +28,6 @@ class Lvs(Tool):
                 (e.g., "vgname/lvname")
             options: Additional options to pass to lvs
                 (e.g., "-o+devices", "--noheadings")
-            sudo: Whether to run with sudo (default: True)
 
         Returns:
             The output from the lvs command
@@ -40,24 +38,23 @@ class Lvs(Tool):
         if lv_path:
             cmd_parts.append(lv_path)
 
-        result = self.node.execute(" ".join(cmd_parts), sudo=sudo, expected_exit_code=0)
+        result = self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
         return result.stdout
 
-    def get_lv_layout(self, vg_name: str, lv_name: str, sudo: bool = True) -> str:
+    def get_lv_layout(self, vg_name: str, lv_name: str) -> str:
         """
         Get the layout of a logical volume.
 
         Args:
             vg_name: Volume group name
             lv_name: Logical volume name
-            sudo: Whether to run with sudo (default: True)
 
         Returns:
             The layout string (e.g., "linear", "cache", "raid1")
         """
         result = self.node.execute(
             f"lvs --noheadings -o lv_layout {vg_name}/{lv_name}",
-            sudo=sudo,
+            sudo=True,
             expected_exit_code=0,
         )
         return result.stdout.strip()
@@ -66,7 +63,6 @@ class Lvs(Tool):
         self,
         vg_name: Optional[str] = None,
         include_hidden: bool = False,
-        sudo: bool = True,
     ) -> str:
         """
         List all logical volumes.
@@ -74,7 +70,6 @@ class Lvs(Tool):
         Args:
             vg_name: Optional volume group name to filter by
             include_hidden: If True, include hidden volumes (default: False)
-            sudo: Whether to run with sudo (default: True)
 
         Returns:
             The output from the lvs command
@@ -85,7 +80,7 @@ class Lvs(Tool):
         if vg_name:
             cmd_parts.append(vg_name)
 
-        result = self.node.execute(" ".join(cmd_parts), sudo=sudo, expected_exit_code=0)
+        result = self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
         return result.stdout
 
     def _install(self) -> bool:
