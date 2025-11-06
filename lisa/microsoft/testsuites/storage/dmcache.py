@@ -5,7 +5,7 @@ from typing import Any
 from assertpy.assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import CBLMariner, Posix
+from lisa.operating_system import CBLMariner
 from lisa.testsuite import simple_requirement
 from lisa.tools import Mkdir, Mkfs, Modprobe, Mount
 from lisa.tools.dmsetup import Dmsetup
@@ -35,9 +35,6 @@ from lisa.util import SkippedException
 class DmCacheTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
-
-        # Check if this is a POSIX system
-        assert isinstance(node.os, Posix), f"{node.os} is not supported"
 
         # Try to load dm-cache module if not already loaded
         modprobe = node.tools[Modprobe]
