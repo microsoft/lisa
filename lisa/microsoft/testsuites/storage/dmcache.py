@@ -7,7 +7,7 @@ from assertpy.assertpy import assert_that
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Posix
 from lisa.testsuite import simple_requirement
-from lisa.tools import Mkfs, Mount
+from lisa.tools import Mkfs, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util import SkippedException
 from lisa.tools.losetup import Losetup
@@ -34,10 +34,11 @@ class DmCacheTestSuite(TestSuite):
         assert isinstance(node.os, Posix), f"{node.os} is not supported"
         
         # Try to load dm-cache module if not already loaded
-# Try to load dm-cache module if not already loaded
-        result = node.execute("modprobe dm-cache", sudo=True, no_error_log=True)
-        if result.exit_code != 0:
-            log.warning(f"Failed to load dm-cache module: {result.stdout or result.stderr}")
+        modprobe = node.tools[Modprobe]
+        try:
+            modprobe.load("dm-cache")
+        except AssertionError:
+            log.warning("Failed to load dm-cache module")
             raise SkippedException("dm-cache module is not available or cannot be loaded")
             
         # Check if LVM tools are available
@@ -125,7 +126,6 @@ class DmCacheTestSuite(TestSuite):
             lvcreate.create_lv("1843M", origin_lv, vg_name, loop_origin)
             result = node.execute(f"vgs {vg_name}", sudo=True)
             log.info(f"Volume group info before cache pool creation: {result.stdout}")
-            node.execute("modprobe dm-cache", sudo=True, no_error_log=True)
             # Create cache pool on the fast device (loop_cache)
             # For cache pools, we need to specify the device using the actual lvcreate command
             result = node.execute(
