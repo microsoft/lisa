@@ -1,5 +1,5 @@
 Troubleshoot Test Failures
-=======================
+===========================
 
 -  `Overview <#overview>`__
 -  `Analyze Test Results <#analyze-test-results>`__
@@ -33,7 +33,7 @@ recommended to start with the first steps as they are lower in cost
 compared to the later steps.
 
 Analyze Test results
-------------
+--------------------
 
 - **Console Output**
 
@@ -213,7 +213,7 @@ be easier to read.
    :alt: test_case_logs
 
 Search LISA Code for Issues
------------------------
+----------------------------
 
 If the test results and logs do not provide enough information to
 resolve the issue, you may need to investigate the LISA codebase itself.
