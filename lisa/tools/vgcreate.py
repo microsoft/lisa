@@ -1,4 +1,7 @@
+from typing import cast
+
 from lisa.executable import Tool
+from lisa.operating_system import Linux
 
 
 class Vgcreate(Tool):
@@ -8,7 +11,7 @@ class Vgcreate(Tool):
 
     @property
     def can_install(self) -> bool:
-        return True
+        return isinstance(self.node.os, Linux)
 
     def create_vg(self, vg_name: str, *devices: str) -> None:
         self.node.execute(
@@ -16,5 +19,6 @@ class Vgcreate(Tool):
         )
 
     def _install(self) -> bool:
-        self.node.os.install_packages("lvm2")
+        linux = cast(Linux, self.node.os)
+        linux.install_packages("lvm2")
         return self._check_exists()

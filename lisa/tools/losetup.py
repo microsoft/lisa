@@ -1,4 +1,7 @@
+from typing import cast
+
 from lisa.executable import Tool
+from lisa.operating_system import Linux
 
 
 class Losetup(Tool):
@@ -8,7 +11,7 @@ class Losetup(Tool):
 
     @property
     def can_install(self) -> bool:
-        return True
+        return isinstance(self.node.os, Linux)
 
     def list(self) -> str:
         result = self.node.execute("losetup -a", sudo=True)
@@ -22,5 +25,6 @@ class Losetup(Tool):
         self.node.execute(f"losetup -d {loop_device}", sudo=True, expected_exit_code=0)
 
     def _install(self) -> bool:
-        self.node.os.install_packages("util-linux")
+        linux = cast(Linux, self.node.os)
+        linux.install_packages("util-linux")
         return self._check_exists()

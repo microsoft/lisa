@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, cast
 
 from lisa.executable import Tool
+from lisa.operating_system import Linux
 
 
 class Lvcreate(Tool):
@@ -10,7 +11,7 @@ class Lvcreate(Tool):
 
     @property
     def can_install(self) -> bool:
-        return True
+        return isinstance(self.node.os, Linux)
 
     def create_lv(
         self,
@@ -35,5 +36,6 @@ class Lvcreate(Tool):
         self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
 
     def _install(self) -> bool:
-        self.node.os.install_packages("lvm2")
+        linux = cast(Linux, self.node.os)
+        linux.install_packages("lvm2")
         return self._check_exists()

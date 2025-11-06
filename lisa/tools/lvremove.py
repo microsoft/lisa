@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from typing import cast
+
 from lisa.executable import Tool
+from lisa.operating_system import Linux
 
 
 class Lvremove(Tool):
@@ -11,7 +14,7 @@ class Lvremove(Tool):
 
     @property
     def can_install(self) -> bool:
-        return True
+        return isinstance(self.node.os, Linux)
 
     def remove_lv(
         self, lv_path: str, force: bool = True, ignore_errors: bool = False
@@ -35,5 +38,6 @@ class Lvremove(Tool):
             self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
 
     def _install(self) -> bool:
-        self.node.os.install_packages("lvm2")
+        linux = cast(Linux, self.node.os)
+        linux.install_packages("lvm2")
         return self._check_exists()

@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Optional
+from typing import Optional, cast
 
 from lisa.executable import Tool
+from lisa.operating_system import Linux
 
 
 class Vgs(Tool):
@@ -13,7 +14,7 @@ class Vgs(Tool):
 
     @property
     def can_install(self) -> bool:
-        return True
+        return isinstance(self.node.os, Linux)
 
     def get_vg_info(
         self,
@@ -64,5 +65,6 @@ class Vgs(Tool):
         return result.exit_code == 0
 
     def _install(self) -> bool:
-        self.node.os.install_packages("lvm2")
+        linux = cast(Linux, self.node.os)
+        linux.install_packages("lvm2")
         return self._check_exists()

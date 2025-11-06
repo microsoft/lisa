@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from typing import cast
+
 from lisa.executable import Tool
+from lisa.operating_system import Linux
 
 
 class Dmsetup(Tool):
@@ -11,7 +14,7 @@ class Dmsetup(Tool):
 
     @property
     def can_install(self) -> bool:
-        return True
+        return isinstance(self.node.os, Linux)
 
     def status(self, device_name: str) -> str:
         """
@@ -45,5 +48,6 @@ class Dmsetup(Tool):
 
     def _install(self) -> bool:
         # dmsetup is typically part of the device-mapper package
-        self.node.os.install_packages("device-mapper")
+        linux = cast(Linux, self.node.os)
+        linux.install_packages("device-mapper")
         return self._check_exists()
