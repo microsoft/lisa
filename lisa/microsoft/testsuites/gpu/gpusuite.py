@@ -330,11 +330,9 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
 
     lspci_gpucount = gpu.get_gpu_count_with_lspci()
 
-    # Get the ComputeSDK type for the supported GPU type
     compute_sdk = _get_supported_driver(node)
 
-    # Create GPU driver instance using virtual tool pattern
-    gpu_driver = node.tools.create(GpuDriver, compute_sdk=compute_sdk)
+    gpu_driver: GpuDriver = node.tools.get(GpuDriver, compute_sdk=compute_sdk)
     driver_gpucount = gpu_driver.get_gpu_count()
 
     assert_that(lspci_gpucount).described_as(
@@ -470,7 +468,7 @@ def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
         log.debug(f"LisDriver is not installed. It might not be required. {e}")
 
     compute_sdk = _get_supported_driver(node)
-    _ = node.tools.create(GpuDriver, compute_sdk=compute_sdk)
+    _ = node.tools.get(GpuDriver, compute_sdk=compute_sdk)
 
     log.debug("GPU driver installed. Rebooting to load driver.")
     reboot_tool = node.tools[Reboot]

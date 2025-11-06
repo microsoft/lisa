@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-from abc import abstractmethod
 from enum import Enum
 from pathlib import PurePosixPath
 from typing import Any, List, Optional, Type
@@ -86,15 +85,13 @@ class GpuDriver(Tool, BaseClassMixin):
             f"Must be one of {list(ComputeSDK)}"
         )
 
-        gpu_driver_factory = Factory[GpuDriver](
-            GpuDriver  # type: ignore[type-abstract]
-        )
+        gpu_driver_factory = Factory[GpuDriver](GpuDriver)
 
-        driver_class = gpu_driver_factory.create_by_type_name(
+        driver = gpu_driver_factory.create_by_type_name(
             compute_sdk, node=node, **kwargs
         )
-        assert isinstance(driver_class, GpuDriver)
-        return driver_class
+        assert isinstance(driver, GpuDriver)
+        return driver
 
     @classmethod
     def type_name(cls) -> str:
@@ -118,15 +115,8 @@ class GpuDriver(Tool, BaseClassMixin):
         return smi_tool.get_gpu_count()
 
     @classmethod
-    @abstractmethod
     def smi(cls) -> Type[GpuSmi]:
         """Return the smi tool class for this driver"""
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def driver_name(self) -> str:
-        """Return the human-readable driver name (e.g., 'NVIDIA GRID', 'NVIDIA CUDA')"""
         raise NotImplementedError
 
     def get_version(self) -> str:
@@ -149,11 +139,12 @@ class GpuDriver(Tool, BaseClassMixin):
         3. Reboot
         4. Verify installation
         """
-        self._log.info(f"Starting {self.driver_name} installation")
+        compute_sdk = self.__class__.type_name()
+        self._log.info(f"Starting {compute_sdk} driver installation")
 
         self._install_dependencies()
         self._install_driver()
-        self._log.info(f"{self.driver_name} installation completed successfully")
+        self._log.info(f"{compute_sdk} driver installation completed successfully")
 
         from lisa.tools.reboot import Reboot
 
@@ -161,11 +152,10 @@ class GpuDriver(Tool, BaseClassMixin):
         reboot_tool.reboot()
 
         version = self.get_version()
-        self._log.info(f"Installed {self.driver_name} \n {version}")
+        self._log.info(f"Installed {compute_sdk} driver \n {version}")
 
         return True
 
-    @abstractmethod
     def _install_driver(self) -> None:
         """
         Install the actual GPU driver.
@@ -202,10 +192,6 @@ class NvidiaGridDriver(GpuDriver):
         from lisa.tools.gpu_smi import NvidiaSmi
 
         return NvidiaSmi
-
-    @property
-    def driver_name(self) -> str:
-        return "NVIDIA GRID"
 
     @property
     def command(self) -> str:
@@ -261,7 +247,8 @@ class NvidiaGridDriver(GpuDriver):
         if not dependencies:
             return
 
-        self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
+        compute_sdk = self.__class__.type_name()
+        self._log.debug(f"Installing {compute_sdk} dependencies: {dependencies}")
 
         assert isinstance(
             self.node.os, Posix
@@ -327,10 +314,6 @@ class NvidiaCudaDriver(GpuDriver):
         return NvidiaSmi
 
     @property
-    def driver_name(self) -> str:
-        return "NVIDIA CUDA"
-
-    @property
     def command(self) -> str:
         return "nvidia-smi"
 
@@ -393,7 +376,8 @@ class NvidiaCudaDriver(GpuDriver):
         if not dependencies:
             return
 
-        self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
+        compute_sdk = self.__class__.type_name()
+        self._log.debug(f"Installing {compute_sdk} dependencies: {dependencies}")
 
         assert isinstance(
             self.node.os, Posix
@@ -581,10 +565,6 @@ class AmdGpuDriver(GpuDriver):
         return AmdSmi
 
     @property
-    def driver_name(self) -> str:
-        return "AMD GPU (ROCm)"
-
-    @property
     def command(self) -> str:
         return "amd-smi"
 
@@ -621,7 +601,8 @@ class AmdGpuDriver(GpuDriver):
             "python3-wheel",
         ]
 
-        self._log.debug(f"Installing {self.driver_name} dependencies: {dependencies}")
+        compute_sdk = self.__class__.type_name()
+        self._log.debug(f"Installing {compute_sdk} dependencies: {dependencies}")
 
         assert isinstance(
             self.node.os, Posix
