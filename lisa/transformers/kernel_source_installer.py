@@ -394,7 +394,13 @@ class SourceInstaller(BaseInstaller):
             self._fix_mirrorlist_to_vault(node)
         if isinstance(os, Redhat):
             for package in list(
-                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
+                [
+                    "elfutils-libelf-devel",
+                    "openssl-devel",
+                    "dwarves",
+                    "bc",
+                    "xxhash-devel",
+                ]
             ):
                 if os.is_package_in_repo(package):
                     os.install_packages(package)
@@ -425,6 +431,7 @@ class SourceInstaller(BaseInstaller):
                     "bc",
                     "ccache",
                     "zstd",
+                    "libxxhash-dev",
                 ]
             )
         elif isinstance(os, CBLMariner):
@@ -444,6 +451,7 @@ class SourceInstaller(BaseInstaller):
                     "xz-libs",
                     "openssl-libs",
                     "openssl-devel",
+                    "xxhash-devel",
                 ]
             )
         else:
