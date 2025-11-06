@@ -14,6 +14,9 @@ from lisa.tools.losetup import Losetup
 from lisa.tools.pvcreate import Pvcreate
 from lisa.tools.vgcreate import Vgcreate
 from lisa.tools.lvcreate import Lvcreate
+from lisa.tools.lvremove import Lvremove
+from lisa.tools.vgremove import Vgremove
+from lisa.tools.pvremove import Pvremove
 
 
 
@@ -74,6 +77,9 @@ class DmCacheTestSuite(TestSuite):
         pvcreate = node.tools[Pvcreate]
         vgcreate = node.tools[Vgcreate]
         lvcreate = node.tools[Lvcreate]
+        lvremove = node.tools[Lvremove]
+        vgremove = node.tools[Vgremove]
+        pvremove = node.tools[Pvremove]
 
         # Define file paths and device names
         origin_img = "/root/origin.img"
@@ -214,9 +220,9 @@ class DmCacheTestSuite(TestSuite):
                 if mount.check_mount_point_exist(mount_point):
                     mount.umount(f"/dev/{vg_name}/{origin_lv}", mount_point, erase=False)
                 node.execute(f"rmdir {mount_point}", sudo=True, no_error_log=True)
-                node.execute(f"lvremove -f {vg_name}/{origin_lv}", sudo=True, no_error_log=True)
-                node.execute(f"vgremove -f {vg_name}", sudo=True, no_error_log=True)
-                node.execute(f"pvremove {loop_origin} {loop_cache}", sudo=True, no_error_log=True)
+                lvremove.remove_lv(f"{vg_name}/{origin_lv}", force=True, ignore_errors=True)
+                vgremove.remove_vg(vg_name, force=True, ignore_errors=True)
+                pvremove.remove_pv(loop_origin, loop_cache, force=True, ignore_errors=True)
                 losetup.detach(loop_origin)
                 losetup.detach(loop_cache)
                 node.execute(f"rm -f {origin_img} {cache_img}", sudo=True, no_error_log=True)
