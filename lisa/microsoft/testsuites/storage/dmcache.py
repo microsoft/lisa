@@ -95,7 +95,7 @@ class DmCacheTestSuite(TestSuite):
         loop_cache = ""
 
         try:
-            log.info("Step 1: Creating loopback device files")
+            log.info("Creating loopback device files")
             # Create origin disk image (2GB - slow device)
             node.execute(
                 f"dd if=/dev/zero of={origin_img} bs=1M count=2048",
@@ -109,7 +109,7 @@ class DmCacheTestSuite(TestSuite):
                 expected_exit_code=0
             )
 
-            log.info("Step 2: Setting up loopback devices")
+            log.info("Setting up loopback devices")
             loop_origin = losetup.attach(origin_img)
             loop_cache = losetup.attach(cache_img)
             log.info(f"Created loop devices: origin={loop_origin}, cache={loop_cache}")
@@ -122,7 +122,7 @@ class DmCacheTestSuite(TestSuite):
                 "Cache loopback device should be listed"  
             ).contains(loop_cache)
 
-            log.info("Step 3: Initializing LVM physical volumes and creating volume group")
+            log.info("Initializing LVM physical volumes and creating volume group")
             pvcreate.create_pv(loop_origin, loop_cache)
             vgcreate.create_vg(vg_name, loop_origin, loop_cache)
             result = node.execute(f"vgs {vg_name}", sudo=True, expected_exit_code=0)
@@ -130,7 +130,7 @@ class DmCacheTestSuite(TestSuite):
                 "Volume group should be created successfully"
             ).contains(vg_name)
 
-            log.info("Step 4: Creating logical volumes")
+            log.info("Creating logical volumes")
             # Create origin LV on the slow device (loop_origin)
             lvcreate.create_lv("1843M", origin_lv, vg_name, loop_origin)
             result = node.execute(f"vgs {vg_name}", sudo=True)
@@ -151,7 +151,7 @@ class DmCacheTestSuite(TestSuite):
                 f"Cache pool data should be on {loop_cache}"
             ).contains("cachepool_cdata").contains(loop_cache)
 
-            log.info("Step 5: Attaching cache pool to origin LV")
+            log.info("Attaching cache pool to origin LV")
             lvconvert.attach_cache(vg_name, origin_lv, cache_pool_lv, yes=True)
             result = node.execute(f"lvs {vg_name}/{origin_lv}", sudo=True, expected_exit_code=0)
             assert_that(result.stdout).described_as(
@@ -162,7 +162,7 @@ class DmCacheTestSuite(TestSuite):
                 "Logical volume should have cache layout"
             ).is_in(result.stdout.lower())
 
-            log.info("Step 6: Formatting and mounting the cached LV")
+            log.info("Formatting and mounting the cached LV")
             mkfs.format_disk(f"/dev/{vg_name}/{origin_lv}", FileSystem.ext4)
             mkdir.create_directory(mount_point, sudo=True)
             mount.mount(f"/dev/{vg_name}/{origin_lv}", mount_point, FileSystem.ext4)
@@ -171,18 +171,10 @@ class DmCacheTestSuite(TestSuite):
                 "Cached LV should be mounted successfully"
             ).is_not_empty()
 
-            log.info("Step 7: Testing basic I/O on cached device")
-            test_file = f"{mount_point}/test_file"
-            # node.execute(f"echo 'dm-cache test data' | sudo tee {test_file} > /dev/null", sudo=False)
-            # result = node.execute(f"cat {test_file}", sudo=True)
-            # assert_that("dm-cache test data").described_as(
-            #     "Test data should be readable from cached device"
-            # ).is_in(result.stdout)
-
             result = node.execute(f"dmsetup status {vg_name}-{origin_lv}", sudo=True)
             log.info(f"DM-Cache status: {result.stdout}")
 
-            log.info("Step 8: Verifying cache policy and configuration")
+            log.info("Verifying cache policy and configuration")
             result = node.execute(f"dmsetup table {vg_name}-{origin_lv}", sudo=True)
             log.info(f"DM-Cache table: {result.stdout}")
             cache_table = result.stdout.strip()
