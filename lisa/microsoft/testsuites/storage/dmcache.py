@@ -7,7 +7,7 @@ from assertpy.assertpy import assert_that
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Posix
 from lisa.testsuite import simple_requirement
-from lisa.tools import Mkfs, Modprobe, Mount
+from lisa.tools import Mkdir, Mkfs, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.util import SkippedException
 from lisa.tools.losetup import Losetup
@@ -72,6 +72,7 @@ class DmCacheTestSuite(TestSuite):
     ) -> None:
         # Initialize tools
 
+        mkdir = node.tools[Mkdir]
         mkfs = node.tools[Mkfs]
         mount = node.tools[Mount]
         losetup = node.tools[Losetup]
@@ -163,7 +164,7 @@ class DmCacheTestSuite(TestSuite):
 
             log.info("Step 6: Formatting and mounting the cached LV")
             mkfs.format_disk(f"/dev/{vg_name}/{origin_lv}", FileSystem.ext4)
-            node.execute(f"mkdir -p {mount_point}", sudo=True)
+            mkdir.create_directory(mount_point, sudo=True)
             mount.mount(f"/dev/{vg_name}/{origin_lv}", mount_point, FileSystem.ext4)
             mount_info = mount.get_partition_info(mount_point)
             assert_that(mount_info).described_as(
