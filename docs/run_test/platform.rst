@@ -40,16 +40,31 @@ To run using vhd, add the following to runbook :
          ...
          azure:
             ...
-            vhd: "<VHD URL>"
-            hyperv_generation: <1 or 2>
+            vhd:
+               vhd_path: "<VHD URL>"
+               hyperv_generation: <1 or 2>
 
 The ``<VHD URL>`` can either be a SAS url or a blob url. If it is a SAS url, the image is copied to the resource group: ``lisa_shared_resource``, storage
 account: ``lisat{location}{subscription_id[last 8 digits]}`` and container:
 ``lisa-sas-copied`` in the subscription used to run LISA, which could potentially
 increase the runtime. The copied VHD has to be manually deleted by the user.
 
-If the selected VM Size's Hypervisor Generation is '2', hyperv_generation
+If the selected VM Size's Hypervisor Generation is '2', the ``hyperv_generation``
 parameter is necessary, and should be specified as 2.
+
+For simple cases where you only need to specify the VHD path without additional
+parameters, you can use the shorthand format:
+
+.. code:: yaml
+
+   platform:
+   - type: azure
+      ...
+      requirement:
+         ...
+         azure:
+            ...
+            vhd: "<VHD URL>"
 
 Use marketplace image
 ^^^^^^^^^^^^^^^^^^^^^
