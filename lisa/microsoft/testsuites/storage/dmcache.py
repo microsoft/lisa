@@ -14,6 +14,7 @@ from lisa.tools.losetup import Losetup
 from lisa.tools.pvcreate import Pvcreate
 from lisa.tools.vgcreate import Vgcreate
 from lisa.tools.lvcreate import Lvcreate
+from lisa.tools.lvconvert import Lvconvert
 from lisa.tools.lvremove import Lvremove
 from lisa.tools.vgremove import Vgremove
 from lisa.tools.pvremove import Pvremove
@@ -45,9 +46,9 @@ class DmCacheTestSuite(TestSuite):
             raise SkippedException("dm-cache module is not available or cannot be loaded")
             
         # Check if LVM tools are available
-        result = node.execute("which pvcreate", no_error_log=True)
-        if result.exit_code != 0:
-            raise SkippedException("LVM tools are not available on this system")
+        # result = node.execute("which pvcreate", no_error_log=True)
+        # if result.exit_code != 0:
+        #     raise SkippedException("LVM tools are not available on this system")
 
     @TestCaseMetadata(
         description="""
@@ -77,6 +78,7 @@ class DmCacheTestSuite(TestSuite):
         pvcreate = node.tools[Pvcreate]
         vgcreate = node.tools[Vgcreate]
         lvcreate = node.tools[Lvcreate]
+        lvconvert = node.tools[Lvconvert]
         lvremove = node.tools[Lvremove]
         vgremove = node.tools[Vgremove]
         pvremove = node.tools[Pvremove]
@@ -149,11 +151,7 @@ class DmCacheTestSuite(TestSuite):
             ).contains("cachepool_cdata").contains(loop_cache)
 
             log.info("Step 5: Attaching cache pool to origin LV")
-            result = node.execute(
-                f"lvconvert --type cache --cachepool {vg_name}/{cache_pool_lv} {vg_name}/{origin_lv} -y",
-                sudo=True,
-                expected_exit_code=0
-            )
+            lvconvert.attach_cache(vg_name, origin_lv, cache_pool_lv, yes=True)
             result = node.execute(f"lvs {vg_name}/{origin_lv}", sudo=True, expected_exit_code=0)
             assert_that(result.stdout).described_as(
                 "Cached logical volume should be created successfully"
