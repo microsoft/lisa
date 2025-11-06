@@ -19,6 +19,7 @@ from lisa.tools.lvs import Lvs
 from lisa.tools.lvremove import Lvremove
 from lisa.tools.vgremove import Vgremove
 from lisa.tools.pvremove import Pvremove
+from lisa.tools.dmsetup import Dmsetup
 
 
 
@@ -85,6 +86,8 @@ class DmCacheTestSuite(TestSuite):
         lvremove = node.tools[Lvremove]
         vgremove = node.tools[Vgremove]
         pvremove = node.tools[Pvremove]
+        dmsetup = node.tools[Dmsetup]
+
 
         # Define file paths and device names
         origin_img = "/root/origin.img"
@@ -173,13 +176,13 @@ class DmCacheTestSuite(TestSuite):
                 "Cached LV should be mounted successfully"
             ).is_not_empty()
 
-            result = node.execute(f"dmsetup status {vg_name}-{origin_lv}", sudo=True)
-            log.info(f"DM-Cache status: {result.stdout}")
+            dm_status = dmsetup.status(f"{vg_name}-{origin_lv}")
+            log.info(f"DM-Cache status: {dm_status}")
 
             log.info("Verifying cache policy and configuration")
-            result = node.execute(f"dmsetup table {vg_name}-{origin_lv}", sudo=True)
-            log.info(f"DM-Cache table: {result.stdout}")
-            cache_table = result.stdout.strip()
+            dm_table = dmsetup.table(f"{vg_name}-{origin_lv}")
+            log.info(f"DM-Cache table: {dm_table}")
+            cache_table = dm_table.strip()
             assert_that(cache_table).described_as(
                 "Cache table should contain 'cache' target type"
             ).contains("cache")
@@ -196,8 +199,8 @@ class DmCacheTestSuite(TestSuite):
             
             # Get detailed cache statistics from dmsetup status output
             # The status output already contains useful cache statistics
-            result = node.execute(f"dmsetup status {vg_name}-{origin_lv}", sudo=True)
-            status_parts = result.stdout.strip().split()
+            dm_status = dmsetup.status(f"{vg_name}-{origin_lv}")
+            status_parts = dm_status.strip().split()
             if len(status_parts) > 3 and status_parts[2] == "cache":
                 # Parse cache statistics from status output
                 # Format: start length cache metadata_mode <cache stats> policy policy_args...
