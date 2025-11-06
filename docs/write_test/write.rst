@@ -8,4 +8,5 @@ Info for developers
    Development setup <dev_setup>
    How to write a test case <write_case>
    How to write extensions <extension>
+   Azure template reference <azure_template>
    Code quality <guidelines>

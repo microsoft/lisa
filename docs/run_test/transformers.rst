@@ -245,7 +245,7 @@ Usage
     - type: azure_deploy
       resource_group_name: rg_name
       deploy: true
-      source_address_prefixes: 
+      source_address_prefixes:
         - "192.168.1.0/24"
         - "10.0.0.0/8"
       requirement:
@@ -320,19 +320,19 @@ Reference
 resource_group_name (Required)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-type: string 
+type: string
 
 Name of the resource group that should be deleted.
 
 keep_environment
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 type: string | bool | Default: "no"
 
 Whether to keep the environment after deletion. Allowed values: "always", "no", "failed", or True/False.
 
 wait_delete
-^^^^^^^^^^
+^^^^^^^^^^^
 
 type: bool | Default: false
 
@@ -382,7 +382,7 @@ Name of the VM. Required if multiple VMs are present in the resource group.
 
 storage_account_name
 ^^^^^^^^^^^^^^^^^^^^
-type: string | Default: Default LISA storage account 
+type: string | Default: Default LISA storage account
 
 Name of storage account to save the VHD.
 
@@ -413,7 +413,7 @@ VM is stopped for exporting VHD. Restore can be set to true to start the VM afte
 
 
 Use Script File Transformer
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This transformer is used to install required packages, execute scripts on a node, and optionally reboot the node after execution.
 
@@ -444,13 +444,13 @@ Reference
 `````````
 
 dependent_packages
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 type: List[str] | Default: []
 
 List of packages to install before executing scripts.
 
 scripts (Required)
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 type: List[ScriptEntry]
 
 List of scripts to execute on the node.
@@ -458,13 +458,13 @@ List of scripts to execute on the node.
 Script Entry Properties:
 
 script (Required)
-""""""""""""""""
+"""""""""""""""""
 type: string
 
 Path to the script file on the target node.
 
 interpreter
-""""""""""
+"""""""""""
 type: string | Default: "bash"
 
 Interpreter to use for executing the script. Currently only bash is supported.
@@ -476,13 +476,13 @@ type: string | Default: None
 Arguments to pass to the script.
 
 expected_exit_code
-""""""""""""""""
+""""""""""""""""""
 type: int | Default: 0
 
 Expected exit code of the script. If the script returns a different exit code, execution will fail.
 
 reboot
-^^^^^
+^^^^^^
 type: bool | Default: false
 
 Reboot the node after script execution.

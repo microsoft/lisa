@@ -203,7 +203,7 @@ deployment.
             osdisk_size_in_gb: <disk size in gb>
 
 * **admin_private_key_file**: This step is optional. If not provided, LISA will generate a new key pair for you,
-  which can be found in the log folder. LISA connects to the Azure test VM via SSH using key authentication. Before running the test, ensure you have a key pair 
+  which can be found in the log folder. LISA connects to the Azure test VM via SSH using key authentication. Before running the test, ensure you have a key pair
   (both public and private keys). If you already have one, you can skip this step. Otherwise, generate a new key pair using the command below:
 
   .. code:: bash
@@ -213,24 +213,25 @@ deployment.
 .. warning::
 
    Do not use a passphrase to protect your key, as LISA does not support it.
+
 * **virtual_network_resource_group**. Specify if an existing virtual network
   should be used. If `virtual_network_resource_group` is not provided, a virtual
   network will be created in the default resource group. If
   `virtual_network_resource_group` is provided, an existing virtual network will
   be used.
-* **virtual_network_name**. Specify the desired virtual network name.  If 
+* **virtual_network_name**. Specify the desired virtual network name.  If
   `virtual_network_resource_group` is not provided, a virtual network will be
   created and the resulting virtual network name will be
   `<virtual_network_name>`.  If `virtual_network_resource_group` is provided,
   an existing virtual network, with the name equal to `virtual_network_name`,
   will be used.
-* **subnet_prefix**. Specify the desired subnet prefix.  If 
+* **subnet_prefix**. Specify the desired subnet prefix.  If
   `virtual_network_resource_group` is not provided, a virtual network and
-  subnet will be created and the resulting subnets will look like 
-  `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If 
+  subnet will be created and the resulting subnets will look like
+  `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If
   `virtual_network_resource_group` is provided, an existing virtual network and
   subnet, with the name equal to `subnet_prefix`, will be used.
-* **use_public_address**. True means to connect to the Azure VMs with their 
+* **use_public_address**. True means to connect to the Azure VMs with their
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
   addresses.
@@ -239,31 +240,31 @@ deployment.
   the connections will default to create a public IP address. It only can be used when use_public_address is set to false.
   When enable_vm_nat is set to true, the VM can access the internet even without a public IP address.
   If enable_vm_nat is set to false, the VM cannot access the internet without a public IP address.
-* **use_ipv6**. When use_ipv6 is set to true, LISA uses IPv6 to connect VMs and 
-  the platform may enable IPv6 connections during creating VMs. 
+* **use_ipv6**. When use_ipv6 is set to true, LISA uses IPv6 to connect VMs and
+  the platform may enable IPv6 connections during creating VMs.
   The default value is `false`, it means IPv4 only.
-* **enable_vm_nat**. When enable_vm_nat is set to true, the DefaultOutboundAccess 
+* **enable_vm_nat**. When enable_vm_nat is set to true, the DefaultOutboundAccess
   property of the subnet will be set to "True". This allows the VMs in the
   subnet to access the internet. The default value is `false`, it means that
   the DefaultOutboundAccess property of the subnet will be set to "False".
   This means that the VMs in the subnet cannot access the internet.
-* **source_address_prefixes**. Specify source IP address ranges that are 
+* **source_address_prefixes**. Specify source IP address ranges that are
   allowed to access the VMs through network security group rules. If not
-  provided, your current public IP address will be automatically detected and 
+  provided, your current public IP address will be automatically detected and
   used. You can specify multiple IP ranges using either comma-separated string
   format or YAML list format. Examples:
-  
+
   .. code:: bash
-  
+
      # Single IP range (string format)
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24"
-     
+
      # Multiple IP ranges (comma-separated string format)
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24,10.0.0.0/8"
-     
+
      # List format
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:['192.168.1.0/24','10.0.0.0/8']"
-* **ignored_capability**. Specify feature names which will be ignored in 
+* **ignored_capability**. Specify feature names which will be ignored in
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
 
