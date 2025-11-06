@@ -1,5 +1,5 @@
 Use LISA docker image on Linux
-=====================
+===============================
 
 This guide will walk you through using the LISA Docker image on a Linux system.
 
@@ -32,7 +32,7 @@ After installing Docker, you can start the Docker service with the following com
    sudo systemctl start docker
 
 Managing Docker Permissions
---------------------
+---------------------------
 
 Add the current user to the "docker" group to run Docker without sudo.
 

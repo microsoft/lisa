@@ -78,7 +78,6 @@ html_theme_options = {
     "collapse_navigation": False,
     "navigation_depth": 2,
     "logo_only": True,
-    "display_version": False,
 }
 
 # -- Test auto-generation pipelines ------------------------------------------
