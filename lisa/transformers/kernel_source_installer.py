@@ -222,14 +222,16 @@ class SourceInstaller(BaseInstaller):
         # Build modules
         make.make(arguments="modules", cwd=code_path, sudo=True)
 
-        # Always skip depmod during modules_install to avoid any potential issues
-        # This is safe for all architectures and kernel versions
-        # depmod will be run manually after installation
-        make.make(
-            arguments="INSTALL_MOD_STRIP=1 DEPMOD=/bin/true modules_install",
+        # Skip depmod during modules_install using direct command execution
+        # The make.make() method doesn't properly pass the DEPMOD override
+        result = node.execute(
+            "make INSTALL_MOD_STRIP=1 DEPMOD=/bin/true modules_install",
             cwd=code_path,
             sudo=True,
             timeout=600
+        )
+        result.assert_exit_code(
+            message="Failed to install modules even with DEPMOD=/bin/true workaround"
         )
         
         # Run depmod manually after modules are installed
