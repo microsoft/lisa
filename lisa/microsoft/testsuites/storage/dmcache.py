@@ -127,13 +127,8 @@ class DmCacheTestSuite(TestSuite):
             result = node.execute(f"vgs {vg_name}", sudo=True)
             log.info(f"Volume group info before cache pool creation: {result.stdout}")
             # Create cache pool on the fast device (loop_cache)
-            # For cache pools, we need to specify the device using the actual lvcreate command
-            result = node.execute(
-                f"lvcreate --type cache-pool -L 800M -n {cache_pool_lv} {vg_name} {loop_cache}",
-                sudo=True,
-                expected_exit_code=0
-            )
-            log.info(f"Cache pool created: {result.stdout}")
+            lvcreate.create_lv("800M", cache_pool_lv, vg_name, loop_cache, extra="--type cache-pool")
+            log.info("Cache pool created successfully")
             
             # Verify device placement: origin on loop_origin, cache pool data on loop_cache
             result = node.execute(f"lvs -a -o+devices {vg_name}", sudo=True)
