@@ -50,21 +50,8 @@ account: ``lisat{location}{subscription_id[last 8 digits]}`` and container:
 increase the runtime. The copied VHD has to be manually deleted by the user.
 
 If the selected VM Size's Hypervisor Generation is '2', the ``hyperv_generation``
-parameter is necessary, and should be specified as 2.
-
-For simple cases where you only need to specify the VHD path without additional
-parameters, you can use the shorthand format:
-
-.. code:: yaml
-
-   platform:
-   - type: azure
-      ...
-      requirement:
-         ...
-         azure:
-            ...
-            vhd: "<VHD URL>"
+parameter is necessary, and should be specified as 2. If ``hyperv_generation`` is
+not needed, you can specify the VHD path directly as a string: ``vhd: "<VHD URL>"``.
 
 Use marketplace image
 ^^^^^^^^^^^^^^^^^^^^^
