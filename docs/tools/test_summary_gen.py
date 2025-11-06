@@ -85,12 +85,15 @@ def _update_line(file: TextIO, metadata: Dict[str, str], index: int) -> None:
         metadata (Dict[str, str]): test case metadata
         index (int): no.# of test case
     """
+    # Create unique anchor by combining suite and case name
+    anchor_name = f"{metadata['suite_name']}_{metadata['case_name']}"
+
     file.write(f"    * - {index}\n")  # noqa: E221
     file.write(
         f"      - :ref:`{metadata['suite_name']} <{metadata['suite_name']}>`\n"  # noqa: E221,E501
     )  # Test Suite Name
     file.write(
-        f"      - :ref:`{metadata['case_name']} <{metadata['case_name']}>`\n"  # noqa: E221,E501
+        f"      - :ref:`{metadata['case_name']} <{anchor_name}>`\n"  # noqa: E221,E501
     )  # Test Case Name
     file.write(f"      - {metadata.get('priority', 2)}\n")  # noqa: E221
     file.write("      - Azure, Ready\n")  # Platform - defaults to both
