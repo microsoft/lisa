@@ -1,10 +1,10 @@
 Use LISA docker image on Windows
-=====================
+=================================
 
 This guide will walk you through using the LISA Docker image on a Windows system.
 
 Install Docker Desktop on Windows
------------------------
+----------------------------------
 
 The first steps are to install Docker on your system.
 
