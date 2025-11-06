@@ -1,20 +1,39 @@
-from lisa.tools import Tool
+from typing import Optional
+
+from lisa.executable import Tool
+
 
 class Lvcreate(Tool):
     @property
     def command(self) -> str:
         return "lvcreate"
 
-    def create(self, size: str, name: str, vg_name: str, device: str = None, extra: str = "") -> None:
-        args = f"-L {size} -n {name} {vg_name}"
-        if device:
-            args += f" {device}"
-        if extra:
-            args += f" {extra}"
-        self.run(args, sudo=True, expected_exit_code=0)
+    @property
+    def can_install(self) -> bool:
+        return True
 
-    def _is_installed(self) -> bool:
-        return self._check_exists()
+    def create_lv(
+        self, 
+        size: Optional[str] = None, 
+        name: Optional[str] = None,
+        vg_name: Optional[str] = None, 
+        device: Optional[str] = None, 
+        extra: str = ""
+    ) -> None:
+        cmd_parts = ["lvcreate"]
+        if size:
+            cmd_parts.append(f"-L {size}")
+        if name:
+            cmd_parts.append(f"-n {name}")
+        if vg_name:
+            cmd_parts.append(vg_name)
+        if device:
+            cmd_parts.append(device)
+        if extra:
+            cmd_parts.append(extra)
+        
+        self.node.execute(" ".join(cmd_parts), sudo=True, expected_exit_code=0)
 
     def _install(self) -> bool:
-        return self._install_package("lvm2")
+        self.node.os.install_packages("lvm2")
+        return self._check_exists()
