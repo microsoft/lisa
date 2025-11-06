@@ -30,7 +30,37 @@ if [ "$module_name" = "hv_netvsc" ]; then
   (
     j=1
     while [ $j -le "$times" ]; do
-      { sudo modprobe -r "$v" "$module_name"; sudo modprobe "$v" "$module_name"; } >> "$log_file" 2>&1
+      echo "Iteration $j of $times" >> "$log_file"
+      
+      # Try to remove module up to 5 times or until successfully removed
+      remove_attempt=1
+      while [ $remove_attempt -le 5 ]; do
+        echo "Remove attempt $remove_attempt" >> "$log_file"
+        sudo modprobe -r "$v" "$module_name" >> "$log_file" 2>&1
+        check_module_removed=$(lsmod | grep hv_netvsc || true)
+        echo "After remove attempt $remove_attempt: '$check_module_removed'" >> "$log_file"
+        if [ -z "$check_module_removed" ]; then
+          echo "SUCCESS: Module removed successfully on attempt $remove_attempt" >> "$log_file"
+          break
+        else
+          echo "WARNING: Module still present after removal attempt $remove_attempt: $check_module_removed" >> "$log_file"
+          if [ $remove_attempt -eq 5 ]; then
+            echo "ERROR: Failed to remove module after 5 attempts" >> "$log_file"
+          fi
+        fi
+        remove_attempt=$((remove_attempt + 1))
+        sleep 0.5
+      done
+      
+      sudo modprobe "$v" "$module_name" >> "$log_file" 2>&1
+      check_module_loaded=$(lsmod | grep hv_netvsc || true)
+      echo "After load: '$check_module_loaded'" >> "$log_file"
+      if [ -n "$check_module_loaded" ]; then
+        echo "SUCCESS: Module loaded successfully: $check_module_loaded" >> "$log_file"
+      else
+        echo "ERROR: Module not found after loading" >> "$log_file"
+      fi
+      echo "---" >> "$log_file"
       j=$((j + 1))
     done
     sleep 1
