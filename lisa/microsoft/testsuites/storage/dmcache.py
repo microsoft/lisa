@@ -164,7 +164,7 @@ class DmCacheTestSuite(TestSuite):
             ).contains("cachepool_cdata").contains(loop_cache)
 
             log.info("Attaching cache pool to origin LV")
-            lvconvert.attach_cache(vg_name, origin_lv, cache_pool_lv, yes=True)
+            lvconvert.attach_cache(vg_name, origin_lv, cache_pool_lv)
             lv_info = lvs.get_lv_info(f"{vg_name}/{origin_lv}")
             assert_that(lv_info).described_as(
                 "Cached logical volume should be created successfully"
