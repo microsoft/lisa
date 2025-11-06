@@ -15,6 +15,7 @@ from lisa.tools.pvcreate import Pvcreate
 from lisa.tools.vgcreate import Vgcreate
 from lisa.tools.lvcreate import Lvcreate
 from lisa.tools.lvconvert import Lvconvert
+from lisa.tools.lvs import Lvs
 from lisa.tools.lvremove import Lvremove
 from lisa.tools.vgremove import Vgremove
 from lisa.tools.pvremove import Pvremove
@@ -80,6 +81,7 @@ class DmCacheTestSuite(TestSuite):
         vgcreate = node.tools[Vgcreate]
         lvcreate = node.tools[Lvcreate]
         lvconvert = node.tools[Lvconvert]
+        lvs = node.tools[Lvs]
         lvremove = node.tools[Lvremove]
         vgremove = node.tools[Vgremove]
         pvremove = node.tools[Pvremove]
@@ -140,27 +142,27 @@ class DmCacheTestSuite(TestSuite):
             log.info("Cache pool created successfully")
             
             # Verify device placement: origin on loop_origin, cache pool data on loop_cache
-            result = node.execute(f"lvs -a -o+devices {vg_name}", sudo=True)
-            log.info(f"Logical volumes and their devices (including hidden LVs):\n{result.stdout}")
+            lv_info = lvs.get_lv_info(vg_name, options="-a -o+devices")
+            log.info(f"Logical volumes and their devices (including hidden LVs):\n{lv_info}")
             # Check that origin is on loop_origin
-            assert_that(result.stdout).described_as(
+            assert_that(lv_info).described_as(
                 f"Origin LV should be on {loop_origin}"
             ).contains(origin_lv).contains(loop_origin)
             # Check that cache pool data (_cdata) is on loop_cache
-            assert_that(result.stdout).described_as(
+            assert_that(lv_info).described_as(
                 f"Cache pool data should be on {loop_cache}"
             ).contains("cachepool_cdata").contains(loop_cache)
 
             log.info("Attaching cache pool to origin LV")
             lvconvert.attach_cache(vg_name, origin_lv, cache_pool_lv, yes=True)
-            result = node.execute(f"lvs {vg_name}/{origin_lv}", sudo=True, expected_exit_code=0)
-            assert_that(result.stdout).described_as(
+            lv_info = lvs.get_lv_info(f"{vg_name}/{origin_lv}")
+            assert_that(lv_info).described_as(
                 "Cached logical volume should be created successfully"
             ).contains(origin_lv)
-            result = node.execute(f"lvs --noheadings -o lv_layout {vg_name}/{origin_lv}", sudo=True)
+            lv_layout = lvs.get_lv_layout(vg_name, origin_lv)
             assert_that("cache").described_as(
                 "Logical volume should have cache layout"
-            ).is_in(result.stdout.lower())
+            ).is_in(lv_layout.lower())
 
             log.info("Formatting and mounting the cached LV")
             mkfs.format_disk(f"/dev/{vg_name}/{origin_lv}", FileSystem.ext4)
@@ -186,9 +188,8 @@ class DmCacheTestSuite(TestSuite):
             ).matches(r".*\b(smq|mq|cleaner)\b.*")
             if not any(mode in cache_table for mode in ["writethrough", "writeback", "passthrough"]):
                 log.warning("Cache mode not explicitly found in table output")
-            result = node.execute(f"lvs -o+cache_mode,cache_policy {vg_name}/{origin_lv}", sudo=True)
-            log.info(f"LVS cache details: {result.stdout}")
-            cache_info = result.stdout
+            cache_info = lvs.get_lv_info(f"{vg_name}/{origin_lv}", options="-o+cache_mode,cache_policy")
+            log.info(f"LVS cache details: {cache_info}")
             assert_that(cache_info).described_as(
                 "Cache policy should be displayed in lvs output"
             ).matches(r".*\b(smq|mq|cleaner)\b.*")
