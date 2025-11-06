@@ -17,6 +17,7 @@ from lisa.tools.lvcreate import Lvcreate
 from lisa.tools.lvconvert import Lvconvert
 from lisa.tools.lvs import Lvs
 from lisa.tools.lvremove import Lvremove
+from lisa.tools.vgs import Vgs
 from lisa.tools.vgremove import Vgremove
 from lisa.tools.pvremove import Pvremove
 from lisa.tools.dmsetup import Dmsetup
@@ -84,6 +85,7 @@ class DmCacheTestSuite(TestSuite):
         lvconvert = node.tools[Lvconvert]
         lvs = node.tools[Lvs]
         lvremove = node.tools[Lvremove]
+        vgs = node.tools[Vgs]
         vgremove = node.tools[Vgremove]
         pvremove = node.tools[Pvremove]
         dmsetup = node.tools[Dmsetup]
@@ -130,16 +132,16 @@ class DmCacheTestSuite(TestSuite):
             log.info("Initializing LVM physical volumes and creating volume group")
             pvcreate.create_pv(loop_origin, loop_cache)
             vgcreate.create_vg(vg_name, loop_origin, loop_cache)
-            result = node.execute(f"vgs {vg_name}", sudo=True, expected_exit_code=0)
-            assert_that(result.stdout).described_as(
+            vg_info = vgs.get_vg_info(vg_name)
+            assert_that(vg_info).described_as(
                 "Volume group should be created successfully"
             ).contains(vg_name)
 
             log.info("Creating logical volumes")
             # Create origin LV on the slow device (loop_origin)
             lvcreate.create_lv("1843M", origin_lv, vg_name, loop_origin)
-            result = node.execute(f"vgs {vg_name}", sudo=True)
-            log.info(f"Volume group info before cache pool creation: {result.stdout}")
+            vg_info = vgs.get_vg_info(vg_name)
+            log.info(f"Volume group info before cache pool creation: {vg_info}")
             # Create cache pool on the fast device (loop_cache)
             lvcreate.create_lv("800M", cache_pool_lv, vg_name, loop_cache, extra="--type cache-pool")
             log.info("Cache pool created successfully")
