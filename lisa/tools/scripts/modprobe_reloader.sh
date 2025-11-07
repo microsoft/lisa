@@ -9,7 +9,7 @@ export PATH="/usr/sbin:/sbin:$PATH"
 if command -v modprobe >/dev/null 2>&1; then
     MODPROBE_CMD=$(command -v modprobe)
 else
-    MODPROBE_CMD="modprobe"  # fallback, will likely fail but let's try
+    MODPROBE_CMD="modprobe"  
 fi
 log_file="${1:-$HOME/modprobe_reloader.log}"    # Default log file path in the home directory
 pid_file="${2:-$HOME/modprobe_reloader.pid}"    # Default PID file path in the home directory
@@ -62,7 +62,8 @@ if [ "$module_name" = "hv_netvsc" ]; then
         sleep 0.5
       done
       
-      sudo "$MODPROBE_CMD" "$v" "$module_name" >> "$log_file" 2>&1
+      echo "Loading module with command: sudo $MODPROBE_CMD $v $module_name" >> "$log_file"
+      sudo "$MODPROBE_CMD" $v "$module_name" >> "$log_file" 2>&1
       check_module_loaded=$(lsmod | grep hv_netvsc || true)
       echo "After load: '$check_module_loaded'" >> "$log_file"
       if [ -n "$check_module_loaded" ]; then
