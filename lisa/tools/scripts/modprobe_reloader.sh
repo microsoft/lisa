@@ -1,6 +1,16 @@
 #!/bin/sh
 
 set -x
+
+# Ensure modprobe is in PATH and detect modprobe location
+export PATH="/usr/sbin:/sbin:$PATH"
+
+# Find modprobe location using LISA's standard approach
+if command -v modprobe >/dev/null 2>&1; then
+    MODPROBE_CMD=$(command -v modprobe)
+else
+    MODPROBE_CMD="modprobe"  # fallback, will likely fail but let's try
+fi
 log_file="${1:-$HOME/modprobe_reloader.log}"    # Default log file path in the home directory
 pid_file="${2:-$HOME/modprobe_reloader.pid}"    # Default PID file path in the home directory
 module_name="${3:-hv_netvsc}"                   # Default module name
@@ -36,7 +46,7 @@ if [ "$module_name" = "hv_netvsc" ]; then
       remove_attempt=1
       while [ $remove_attempt -le 5 ]; do
         echo "Remove attempt $remove_attempt" >> "$log_file"
-        sudo modprobe -r "$v" "$module_name" >> "$log_file" 2>&1
+        sudo "$MODPROBE_CMD" -r $v "$module_name" >> "$log_file" 2>&1
         check_module_removed=$(lsmod | grep hv_netvsc || true)
         echo "After remove attempt $remove_attempt: '$check_module_removed'" >> "$log_file"
         if [ -z "$check_module_removed" ]; then
@@ -52,7 +62,7 @@ if [ "$module_name" = "hv_netvsc" ]; then
         sleep 0.5
       done
       
-      sudo modprobe "$v" "$module_name" >> "$log_file" 2>&1
+      sudo "$MODPROBE_CMD" "$v" "$module_name" >> "$log_file" 2>&1
       check_module_loaded=$(lsmod | grep hv_netvsc || true)
       echo "After load: '$check_module_loaded'" >> "$log_file"
       if [ -n "$check_module_loaded" ]; then
@@ -82,7 +92,7 @@ else
   (
     j=1
     while [ $j -le "$times" ]; do
-      { sudo modprobe -r "$v" "$module_name"; sudo modprobe "$v" "$module_name"; } >> "$log_file" 2>&1
+      { sudo "$MODPROBE_CMD" -r $v "$module_name"; sudo "$MODPROBE_CMD" $v "$module_name"; } >> "$log_file" 2>&1
       j=$((j + 1))
     done
   ) &
