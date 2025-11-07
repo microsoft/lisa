@@ -46,11 +46,6 @@ class DmCacheTestSuite(TestSuite):
                 "dm-cache module is not available or cannot be loaded"
             )
 
-        # Check if LVM tools are available
-        # result = node.execute("which pvcreate", no_error_log=True)
-        # if result.exit_code != 0:
-        #     raise SkippedException("LVM tools are not available on this system")
-
     @TestCaseMetadata(
         description="""
         This test verifies dm-cache functionality by:
@@ -101,12 +96,16 @@ class DmCacheTestSuite(TestSuite):
         try:
             log.info("Creating loopback device files")
             # Create origin disk image (2GB - slow device)
+            # 2GB provides enough space for filesystem overhead and test data
+            # while keeping test runtime reasonable
             node.execute(
                 f"dd if=/dev/zero of={origin_img} bs=1M count=2048",
                 sudo=True,
                 expected_exit_code=0,
             )
             # Create cache disk image (1GB - fast device)
+            # 1GB cache is typical 50% of origin size, sufficient for dm-cache testing
+            # Cache should be smaller than origin to simulate real-world scenarios
             node.execute(
                 f"dd if=/dev/zero of={cache_img} bs=1M count=1024",
                 sudo=True,
@@ -136,10 +135,14 @@ class DmCacheTestSuite(TestSuite):
 
             log.info("Creating logical volumes")
             # Create origin LV on the slow device (loop_origin)
+            # Size: 1843M - leaves ~180M free space in VG for metadata and overhead
+            # This prevents "insufficient free space" errors during cache setup
             lvcreate.create_lv("1843M", origin_lv, vg_name, loop_origin)
             vg_info = vgs.get_vg_info(vg_name)
             log.debug(f"Volume group info before cache pool creation: {vg_info}")
             # Create cache pool on the fast device (loop_cache)
+            # Size: 800M - leaves ~200M free space for cache metadata volume
+            # dm-cache automatically creates metadata LV (~1% of cache pool size)
             lvcreate.create_lv(
                 "800M", cache_pool_lv, vg_name, loop_cache, extra="--type cache-pool"
             )
@@ -210,6 +213,9 @@ class DmCacheTestSuite(TestSuite):
             # The status output already contains useful cache statistics
             dm_status = dmsetup.status(f"{vg_name}-{origin_lv}")
             status_parts = dm_status.strip().split()
+            # Check if we have valid cache status output format:
+            # Format: start_sector length_sectors cache metadata_mode
+            #         <cache_stats> policy policy_args
             if len(status_parts) > 3 and status_parts[2] == "cache":
                 # Parse cache statistics from status output
                 # Format: start length cache metadata_mode
