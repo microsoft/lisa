@@ -195,7 +195,6 @@ deployment.
          resource_group_tags:
             Environment: Testing
             Project: LISA
-            Owner: YourName
       requirement:
          ...
          ignored_capability:
@@ -275,14 +274,6 @@ deployment.
   cost management, and governance. If not provided, no tags will be applied to the
   resource groups.
 
-  Azure tag naming conventions:
-
-  - Tag names are case-insensitive
-  - Maximum key length: 512 characters
-  - Maximum value length: 256 characters
-  - Maximum 50 tags per resource group
-  - Allowed characters: alphanumerics, spaces, and ``+ - = . _ : / @``
-
   Example:
 
   .. code:: yaml
@@ -291,8 +282,6 @@ deployment.
        resource_group_tags:
          Environment: Testing
          Project: LISA
-         CostCenter: Engineering
-         Owner: TeamName
 
 * **ignored_capability**. Specify feature names which will be ignored in
   test requirement. You can find the feature name from its name method in source code.

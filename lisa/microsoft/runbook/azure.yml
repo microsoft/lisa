@@ -52,7 +52,7 @@ variable:
   - name: create_public_address
     value: true
   - name: resource_group_tags
-    value: ""
+    value: null
     # Example usage:
     # resource_group_tags:
     #   Environment: Testing
