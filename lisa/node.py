@@ -619,7 +619,7 @@ class RemoteNode(Node):
     def set_connection_info_by_runbook(
         self,
         default_username: str = "",
-        default_password: str = "",
+        default_password: str = "L1s@11223344",
         default_private_key_file: str = "",
     ) -> None:
         fields = [
