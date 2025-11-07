@@ -2,14 +2,10 @@
 
 set -x
 
-# Ensure modprobe is in PATH and detect modprobe location
 export PATH="/usr/sbin:/sbin:$PATH"
 
-# Find modprobe location using LISA's standard approach
 if command -v modprobe >/dev/null 2>&1; then
     MODPROBE_CMD=$(command -v modprobe)
-else
-    MODPROBE_CMD="modprobe"  # fallback, will likely fail but let's try
 fi
 log_file="${1:-$HOME/modprobe_reloader.log}"    # Default log file path in the home directory
 pid_file="${2:-$HOME/modprobe_reloader.pid}"    # Default PID file path in the home directory
@@ -18,8 +14,6 @@ times="${4:-1}"                                 # Default number of iterations
 verbose="${5:-true}"                            # Default verbosity (true)
 dhclient_command="${6:-dhclient}"               # Default DHCP client command
 interface="${7:-eth0}"                          # Default network interface
-
-
 
 # Convert verbose parameter to a flag
 if [ "$verbose" = "true" ]; then
@@ -62,7 +56,8 @@ if [ "$module_name" = "hv_netvsc" ]; then
         sleep 0.5
       done
       
-      sudo "$MODPROBE_CMD" "$v" "$module_name" >> "$log_file" 2>&1
+      echo "Loading module with command: sudo $MODPROBE_CMD $v $module_name" >> "$log_file"
+      sudo "$MODPROBE_CMD" $v "$module_name" >> "$log_file" 2>&1
       check_module_loaded=$(lsmod | grep hv_netvsc || true)
       echo "After load: '$check_module_loaded'" >> "$log_file"
       if [ -n "$check_module_loaded" ]; then
