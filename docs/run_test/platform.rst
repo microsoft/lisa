@@ -273,7 +273,17 @@ deployment.
 * **resource_group_tags**. Specify tags to apply to resource groups created by LISA
   as key-value pairs. Tags help organize and categorize Azure resources for tracking,
   cost management, and governance. If not provided, no tags will be applied to the
-  resource groups. Example:
+  resource groups.
+
+  Azure tag naming conventions:
+
+  - Tag names are case-insensitive
+  - Maximum key length: 512 characters
+  - Maximum value length: 256 characters
+  - Maximum 50 tags per resource group
+  - Allowed characters: alphanumerics, spaces, and ``+ - = . _ : / @``
+
+  Example:
 
   .. code:: yaml
 
