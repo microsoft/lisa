@@ -141,7 +141,7 @@ class Modprobe(Tool):
         mod_name: str,
         times: int = 1,
         verbose: bool = False,
-        timeout: int = 60,
+        timeout: int = 600,
         interface: str = "eth0",
         cleanup_logs: bool = True,
     ) -> Dict[str, int]:
