@@ -30,7 +30,7 @@ if [ "$module_name" = "hv_netvsc" ]; then
   (
     j=1
     while [ $j -le "$times" ]; do
-      { modprobe -r "$v" "$module_name"; modprobe "$v" "$module_name"; } >> "$log_file" 2>&1
+      { modprobe -r $v "$module_name"; modprobe $v "$module_name"; } >> "$log_file" 2>&1
       j=$((j + 1))
     done
     sleep 1
@@ -52,7 +52,7 @@ else
   (
     j=1
     while [ $j -le "$times" ]; do
-      { modprobe -r "$v" "$module_name"; modprobe "$v" "$module_name"; } >> "$log_file" 2>&1
+      { modprobe -r $v "$module_name"; modprobe $v "$module_name"; } >> "$log_file" 2>&1
       j=$((j + 1))
     done
   ) &
