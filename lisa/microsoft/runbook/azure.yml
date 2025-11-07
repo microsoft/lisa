@@ -53,7 +53,10 @@ variable:
     value: true
   - name: resource_group_tags
     value: ""
-    # Example: resource_group_tags: {Environment: Testing, Project: LISA}
+    # Example usage:
+    # resource_group_tags:
+    #   Environment: Testing
+    #   Project: LISA
 concurrency: $(concurrency)
 notifier:
   - type: html
