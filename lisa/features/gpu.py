@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, List, Type
+from typing import Any, Dict, List, Type
 
 from dataclasses_json import dataclass_json
 
@@ -136,17 +136,164 @@ class Gpu(Feature):
                 raise LisaException(f"{driver} is not a valid value of ComputeSDK")
 
     def get_gpu_count_with_lsvmbus(self) -> int:
+        """
+        Count GPU devices using lsvmbus.
+        First tries known list, then groups devices by last segment of device ID.
+        """
+        lsvmbus_tool = self._node.tools[Lsvmbus]
+
+        # Get all VMBus devices
+        vmbus_devices = lsvmbus_tool.get_device_channels()
+        self._log.debug(f"Found {len(vmbus_devices)} VMBus devices")
+
+        # First try the known list (original approach)
+        gpu_count = self._get_gpu_count_from_known_list(vmbus_devices)
+
+        if gpu_count > 0:
+            self._log.debug(f"Found {gpu_count} GPU(s) using known list")
+            return gpu_count
+
+        # No GPUs found in known list
+        self._log.info("No GPUs found in known list.")
+
+        # Attempt pattern detection for diagnostic purposes
+        self._log_device_id_segments(vmbus_devices)
+
+        return 0
+
+    def _log_device_id_segments(self, vmbus_devices: List[Any]) -> None:
+        """
+        Detect potential GPU patterns in VMBus devices for diagnostic purposes.
+        """
+        try:
+            # Group PCI Express pass-through devices by last segment
+            last_segment_groups: Dict[str, List[Any]] = {}
+
+            for device in vmbus_devices:
+                # Only consider PCI Express pass-through devices
+                if "PCI Express pass-through" not in device.name:
+                    continue
+
+                device_id = device.device_id
+                # Device ID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                id_parts = device_id.split("-")
+                if len(id_parts) >= 5:
+                    last_segment = id_parts[-1].lower()
+                    if last_segment not in last_segment_groups:
+                        last_segment_groups[last_segment] = []
+                    last_segment_groups[last_segment].append(device)
+
+            if not last_segment_groups:
+                self._log.debug("No PCI Express pass-through devices found")
+                return
+
+            # Find the largest group with sequential pattern
+            max_gpu_count = 0
+            best_segment = None
+
+            for last_segment, devices in last_segment_groups.items():
+                # Check if devices have sequential numbering
+                if self._has_sequential_pattern(devices):
+                    device_count = len(devices)
+                    self._log.debug(
+                        f"Found {device_count} sequential PCI Express devices "
+                        f"with last segment '{last_segment}'"
+                    )
+
+                    if device_count > max_gpu_count:
+                        max_gpu_count = device_count
+                        best_segment = last_segment
+                else:
+                    self._log.debug(
+                        f"Segment '{last_segment}' has {len(devices)} devices "
+                        "but not in sequential pattern"
+                    )
+
+            if max_gpu_count > 0 and best_segment is not None:
+                self._log.info(
+                    f"Detected {max_gpu_count} potential GPU(s) with last "
+                    f"segment '{best_segment}' "
+                    "using segment grouping method"
+                )
+                # Log the matched devices
+                for device in last_segment_groups[best_segment]:
+                    self._log.debug(f"  Device: {device.device_id}")
+
+                # Issue warning to user about adding this pattern
+                self._log.info(
+                    f"Found {max_gpu_count} PCI Express pass-through device(s) "
+                    f"with sequential pattern and common"
+                    f" last segment '{best_segment}'. "
+                    "These might be GPU devices. Please add this pattern to the "
+                    "gpu_devices list in NvidiaSmi class if confirmed as GPUs. "
+                    "Example: ('<ModelName>', '<common_segment>', 0)"
+                )
+            else:
+                self._log.debug("No sequential PCI Express device groups found")
+            return
+
+        except Exception as e:
+            self._log.info(f"Failed to detect GPUs by segment grouping: {e}")
+            return
+
+    def _has_sequential_pattern(self, devices: List[Any]) -> bool:
+        """
+        Check if devices have sequential numbering in their IDs.
+        GPUs typically have patterns like 0101, 0102, 0103, 0104.
+        """
+        if len(devices) < 2:
+            # Single device is considered sequential
+            return True
+
+        # Extract second segment which typically contains sequence numbers
+        segments = []
+        for device in devices:
+            parts = device.device_id.split("-")
+            if len(parts) >= 2:
+                # Second segment often contains the sequence (0101, 0102, etc.)
+                segments.append(parts[1])
+
+        if not segments:
+            return False
+
+        # Check if segments form a sequential pattern
+        try:
+            # Try to parse as integers
+            segment_values = []
+            for seg in segments:
+                # Handle both pure numbers and alphanumeric (extract numeric part)
+                numeric_part = "".join(filter(str.isdigit, seg))
+                if numeric_part:
+                    segment_values.append(int(numeric_part))
+
+            if len(segment_values) == len(devices):
+                segment_values.sort()
+                # Check if sequential (difference of 1 between consecutive values)
+                for i in range(1, len(segment_values)):
+                    if segment_values[i] - segment_values[i - 1] != 1:
+                        return False
+                return True
+        except Exception as e:
+            self._log.info(f"Error while detecting sequential patterns: {e}")
+
+        return False
+
+    def _get_gpu_count_from_known_list(self, vmbus_devices: List[Any]) -> int:
+        """
+        Original method - check against known list of GPUs
+        """
         lsvmbus_device_count = 0
         bridge_device_count = 0
 
-        lsvmbus_tool = self._node.tools[Lsvmbus]
-        device_list = lsvmbus_tool.get_device_channels()
-        for device in device_list:
+        for device in vmbus_devices:
             for name, id_, bridge_count in NvidiaSmi.gpu_devices:
                 if id_ in device.device_id:
                     lsvmbus_device_count += 1
                     bridge_device_count = bridge_count
-                    self._log.debug(f"GPU device {name} found!")
+                    self._log.debug(
+                        f"GPU device {name} found using hardcoded list! "
+                        f"Device ID: {device.device_id}"
+                    )
                     break
 
         return lsvmbus_device_count - bridge_device_count

@@ -28,6 +28,12 @@ class NvidiaSmi(Tool):
         return False
 
     def get_gpu_count(self) -> int:
+        """
+        Get GPU count from nvidia-smi output.
+
+        Returns:
+            Number of GPUs detected.
+        """
         result = self.run("-L")
         if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
             result = self.run("-L", sudo=True)
@@ -35,9 +41,16 @@ class NvidiaSmi(Tool):
                 raise LisaException(
                     f"nvidia-smi command exited with exit_code {result.exit_code}"
                 )
-        gpu_types = [x[0] for x in self.gpu_devices]
-        device_count = 0
-        for gpu_type in gpu_types:
-            device_count += result.stdout.count(gpu_type)
+        # Count all GPUs regardless of model
+        gpu_lines = [
+            line
+            for line in result.stdout.splitlines()
+            if line.strip().startswith("GPU ")
+        ]
+        gpu_count = len(gpu_lines)
 
-        return device_count
+        self._log.debug(f"nvidia-smi detected {gpu_count} GPU(s)")
+        for line in gpu_lines:
+            self._log.debug(f"  {line}")
+
+        return gpu_count
