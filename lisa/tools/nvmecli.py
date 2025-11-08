@@ -106,25 +106,7 @@ class Nvmecli(Tool):
                 namespaces_cli.append(matched_result.group("namespace"))
         return namespaces_cli
 
-    def get_devices(self, force_run: bool = False) -> Any:
-        # get nvme devices information ignoring stderror
-        nvme_list = self.run(
-            "list -o json 2>/dev/null",
-            shell=True,
-            sudo=True,
-            force_run=force_run,
-            no_error_log=True,
-        )
-        # NVMe list command returns empty string when no NVMe devices are found.
-        if not nvme_list.stdout:
-            raise LisaException(
-                "No NVMe devices found. "
-                "The 'nvme list' command returned an empty string."
-            )
-        nvme_devices = json.loads(nvme_list.stdout)
-        return nvme_devices["Devices"]
-
-    def get_disks(self, force_run: bool = False) -> List[str]:
+    def get_devices(self, force_run: bool = False) -> Dict[str, int]:
         """
         Return NVMe device nodes/paths (`/dev/...`) robustly across nvme-cli schemas.
 
@@ -139,7 +121,7 @@ class Nvmecli(Tool):
             emit `DevicePath`. This logic supports both.
 
         Returns:
-            List[str]: device nodes/paths like `/dev/nvme0n1`
+            Dict[str, int]: Mapping of NVMe device paths to their namespace IDs.
         """
         # NVME namespace ids are unique for each disk under any NVME controller.
         # These are useful in detecting the lun id of the remote azure disk disks.
@@ -185,238 +167,105 @@ class Nvmecli(Tool):
         # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
         # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
         #
-        # Another example output of nvme -list -o json without DevicePath key
-        # cmd: ['sudo', 'sh', '-c', 'nvme list -o json 2>/dev/null']
-        #    "Devices":[
-        #      {
-        #        "HostNQN":"nqn.2014-08.org.nvmexpress:uuid:ec2bfbbc-632e-0494-048e-31ebc97bd499",
-        #        "HostID":"ec2bfbbc-632e-0494-048e-31ebc97bd499",
-        #        "Subsystems":[
-        #          {
-        #            "Subsystem":"nvme-subsys0",
-        #            "SubsystemNQN":"nqn.2014-08.org.nvmexpress:uuid:7ad35d50-c05b-47ab-b3a0-56a9a845852b",
-        #            "Controllers":[
-        #              {
-        #                "Controller":"nvme0",
-        #                "Cntlid":"0",
-        #                "SerialNumber":"SN: 00000",
-        #                "ModelNumber":"MSFT NVMe Accelerator v1.0",
-        #                "Firmware":"v1.00000",
-        #                "Transport":"pcie",
-        #                "Address":"c05b:00:00.0",
-        #                "Slot":"2060672336",
-        #                "Namespaces":[
-        #                  {
-        #                    "NameSpace":"nvme0n1",
-        #                    "Generic":"ng0n1",
-        #                    "NSID":1,
-        #                    "UsedBytes":68719476736,
-        #                    "MaximumLBA":134217728,
-        #                    "PhysicalSize":68719476736,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n10",
-        #                    "Generic":"ng0n10",
-        #                    "NSID":10,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n11",
-        #                    "Generic":"ng0n11",
-        #                    "NSID":11,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n12",
-        #                    "Generic":"ng0n12",
-        #                    "NSID":12,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n13",
-        #                    "Generic":"ng0n13",
-        #                    "NSID":13,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n14",
-        #                    "Generic":"ng0n14",
-        #                    "NSID":14,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n15",
-        #                    "Generic":"ng0n15",
-        #                    "NSID":15,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n16",
-        #                    "Generic":"ng0n16",
-        #                    "NSID":16,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n17",
-        #                    "Generic":"ng0n17",
-        #                    "NSID":17,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n2",
-        #                    "Generic":"ng0n2",
-        #                    "NSID":2,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n3",
-        #                    "Generic":"ng0n3",
-        #                    "NSID":3,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n4",
-        #                    "Generic":"ng0n4",
-        #                    "NSID":4,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n5",
-        #                    "Generic":"ng0n5",
-        #                    "NSID":5,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n6",
-        #                    "Generic":"ng0n6",
-        #                    "NSID":6,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n7",
-        #                    "Generic":"ng0n7",
-        #                    "NSID":7,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n8",
-        #                    "Generic":"ng0n8",
-        #                    "NSID":8,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  },
-        #                  {
-        #                    "NameSpace":"nvme0n9",
-        #                    "Generic":"ng0n9",
-        #                    "NSID":9,
-        #                    "UsedBytes":1099511627776,
-        #                    "MaximumLBA":2147483648,
-        #                    "PhysicalSize":1099511627776,
-        #                    "SectorSize":512
-        #                  }
-        #                ],
-        #                "Paths":[
-        #                ]
-        #              }
-        #            ],
-        #            "Namespaces":[
-        #            ]
-        #          }
-        #        ]
-        #      }
-        #    ]
-        #  }
-        nvme_devices = self.get_devices(force_run=force_run)  # raw ["Devices"]
-        device_paths = []
+        # Another example output of nvme -list -o json without DevicePath key as this is the new schema with the newer version of nvme-cli:
+        # root@lisa--170-e0-n0:/home/lisa# nvme -list
+        # Node                  Generic               SN                   Model                                    Namespace  Usage                      Format           FW Rev
+        # --------------------- --------------------- -------------------- ---------------------------------------- ---------- -------------------------- ---------------- --------
+        # /dev/nvme0n1          /dev/ng0n1            SN: 00000            MSFT NVMe Accelerator v1.0               0x1         68.72  GB /  68.72  GB    512   B +  0 B   v1.00000
+        # root@lisa--170-e0-n0:/home/lisa# nvme list -o json 2>/dev/null
+        # {
+        # "Devices":[
+        #     {
+        #     "HostNQN":"nqn.2014-08.org.nvmexpress:uuid:ec2bfbbc-632e-0494-048e-31ebc97bd499",
+        #     "HostID":"ec2bfbbc-632e-0494-048e-31ebc97bd499",
+        #     "Subsystems":[
+        #         {
+        #         "Subsystem":"nvme-subsys0",
+        #         "SubsystemNQN":"nqn.2014-08.org.nvmexpress:uuid:7ad35d50-c05b-47ab-b3a0-56a9a845852b",
+        #         "Controllers":[
+        #             {
+        #             "Controller":"nvme0",
+        #             "Cntlid":"0",
+        #             "SerialNumber":"SN: 00000",
+        #             "ModelNumber":"MSFT NVMe Accelerator v1.0",
+        #             "Firmware":"v1.00000",
+        #             "Transport":"pcie",
+        #             "Address":"c05b:00:00.0",
+        #             "Slot":"2060672336",
+        #             "Namespaces":[
+        #                 {
+        #                 "NameSpace":"nvme0n1",
+        #                 "Generic":"ng0n1",
+        #                 "NSID":1,
+        #                 "UsedBytes":68719476736,
+        #                 "MaximumLBA":134217728,
+        #                 "PhysicalSize":68719476736,
+        #                 "SectorSize":512
+        #                 }
+        #             ],
+        #             "Paths":[
+        #             ]
+        #             }
+        #         ],
+        #         "Namespaces":[
+        #         ]
+        #         }
+        #     ]
+        #     }
+        # ]
+        # }
+        # get nvme devices information ignoring stderror
+        nvme_list = self.run(
+            "list -o json 2>/dev/null",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
+        # NVMe list command returns empty string when no NVMe devices are found.
+        if not nvme_list.stdout:
+            raise LisaException(
+                "No NVMe devices found. "
+                "The 'nvme list' command returned an empty string."
+            )
+        nvme_devices = json.loads(nvme_list.stdout)["Devices"]
+        print(f"nvme_devices: {nvme_devices}")
+        print(f"type of nvme_devices: {type(nvme_devices)}")
+        device_paths_namespace_ids = {}
 
-        def _add(path: str) -> None:
-            if isinstance(path, str) and path.startswith("/dev/") and len(path) > 5:
-                device_paths.append(path)
+        def _add(device_path: str, namespace_id: int) -> None:
+            if isinstance(device_path, str) and device_path.startswith("/dev/") and len(device_path) > 5 and isinstance(namespace_id, int):
+                device_paths_namespace_ids[device_path] = namespace_id
 
         for nvme_device in nvme_devices or []:
             # Legacy schema (flat fields):
-            _add(nvme_device.get("DevicePath"))
-            # _add(nvme_device.get("GenericPath"))
+            _add(nvme_device.get("DevicePath"),
+                 nvme_device.get("NameSpace"))
 
             # New schema: Subsystems → Controllers → Namespaces
             for subsystem in nvme_device.get("Subsystems") or []:
                 for controller in (subsystem or {}).get("Controllers") or []:
                     for namespace in (controller or {}).get("Namespaces") or []:
                         namespace_name = namespace.get("NameSpace")  # e.g., "nvme0n1"
-                        # generic_name = namespace.get("Generic")  # e.g., "ng0n1"
+                        namespace_id = namespace.get("NSID")  # e.g., 1, 2, ...
                         if isinstance(namespace_name, str) and namespace_name:
-                            _add(f"/dev/{namespace_name}")
-                        # if isinstance(generic_name, str) and generic_name:
-                        #     _add(f"/dev/{generic_name}")
+                            _add(f"/dev/{namespace_name}", namespace_id)
 
-        device_paths = sorted(set(device_paths))
-        if not device_paths:
+        if not device_paths_namespace_ids:
             raise LisaException(
                 "No NVMe device nodes could be derived from 'nvme list -o json'."
             )
+        return device_paths_namespace_ids
+    
+    def get_disks(
+        self, force_run: bool = False
+    ) -> List[str]:
+        device_paths = sorted(self.get_devices(force_run=force_run).keys())
         return device_paths
 
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
-        nvme_devices = self.get_devices(force_run=force_run)
-        # Older versions of nvme-cli do not have the NameSpace key in the output
-        # skip the test if NameSpace key is not available
-        if not nvme_devices:
-            raise LisaException("No NVMe devices found. Unable to get namespace ids.")
-        if "NameSpace" not in nvme_devices[0]:
-            raise LisaException(
-                "The version of nvme-cli is too old,"
-                " it doesn't support to get namespace ids."
-            )
-
-        return [
-            {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
-        ]
-
+        device_paths_namespace_ids_map = self.get_devices(force_run=force_run)
+        return [{path: nsid} for path, nsid in device_paths_namespace_ids_map.items()]
 
 class BSDNvmecli(Nvmecli):
     # nvme0ns1 (1831420MB)
