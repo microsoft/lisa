@@ -128,6 +128,7 @@ Below section is for running cases on Azure platform, it specifies:
 -  admin_private_key_file: the private key file to access the Azure VM. (Optional)
 -  subscription_id: Azure VM is created under this subscription.
 -  azcopy_path: the installation path of the AzCopy tool on the machine where LISA is installed. It speeds up copying VHDs between Azure storage accounts. (Optional)
+-  resource_group_tags: tags to apply to created resource groups as key-value pairs. (Optional)
 
 .. code:: yaml
 
@@ -137,6 +138,9 @@ Below section is for running cases on Azure platform, it specifies:
        azure:
          subscription_id: $(subscription_id)
          azcopy_path: $(azcopy_path)
+         resource_group_tags:
+           Environment: Testing
+           Project: LISA
 
 Select and set test cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -192,6 +192,9 @@ deployment.
          use_ipv6: "<true or false>"
          enable_vm_nat: "<true or false>"
          source_address_prefixes: $(source_address_prefixes)
+         resource_group_tags:
+            Environment: Testing
+            Project: LISA
       requirement:
          ...
          ignored_capability:
@@ -266,6 +269,20 @@ deployment.
 
      # List format
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:['192.168.1.0/24','10.0.0.0/8']"
+* **resource_group_tags**. Specify tags to apply to resource groups created by LISA
+  as key-value pairs. Tags help organize and categorize Azure resources for tracking,
+  cost management, and governance. If not provided, no tags will be applied to the
+  resource groups.
+
+  Example:
+
+  .. code:: yaml
+
+     azure:
+       resource_group_tags:
+         Environment: Testing
+         Project: LISA
+
 * **ignored_capability**. Specify feature names which will be ignored in
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
