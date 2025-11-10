@@ -941,6 +941,20 @@ class KdumpCheck(Tool):
         )
         return result.stdout
 
+    def _get_disk_space_debug_info(self, dump_path: str) -> str:
+        df = self.node.tools[Df]
+        available_space_gb = df.get_filesystem_available_space(dump_path, True)
+
+        # Consider disk space low if less low_space_threshold_gb
+        low_space_threshold_gb = 1.0
+
+        debug_info = f"Available space in {dump_path}: {available_space_gb:.1f}GB."
+
+        if available_space_gb < low_space_threshold_gb:
+            debug_info += " Failure is likely due to insufficient disk space."
+
+        return debug_info
+
     def _check_kdump_result(self, log_path: Path, kdump: KdumpBase) -> None:
         # We use this function to check if the dump file is generated.
         # Steps:
@@ -1010,10 +1024,13 @@ class KdumpCheck(Tool):
                             serial_console.get_console_log(
                                 saved_path=log_path, force_run=True
                             )
-                            self.node.execute("df -h")
+                            disk_debug_info = self._get_disk_space_debug_info(
+                                kdump.dump_path
+                            )
                             raise LisaException(
                                 "The vmcore file is incomplete with file size"
-                                f" {round(incomplete_file_size / 1024 / 1024, 2)}MB"
+                                f" {round(incomplete_file_size / 1024 / 1024, 2)}MB. "
+                                f"{disk_debug_info}"
                             )
                 else:
                     # If there is no any dump file in 100s, then raise exception
@@ -1022,9 +1039,13 @@ class KdumpCheck(Tool):
                         serial_console.get_console_log(
                             saved_path=log_path, force_run=True
                         )
+                        disk_debug_info = self._get_disk_space_debug_info(
+                            kdump.dump_path
+                        )
                         raise LisaException(
                             "No vmcore or vmcore-incomplete is found under "
-                            f"{kdump.dump_path} with file size greater than 10M."
+                            f"{kdump.dump_path} with file size greater than 10M. "
+                            f"{disk_debug_info}"
                         )
                 if timer.elapsed(False) > self.timeout_of_dump_crash:
                     serial_console.get_console_log(saved_path=log_path, force_run=True)
