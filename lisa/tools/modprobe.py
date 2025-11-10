@@ -55,14 +55,20 @@ class Modprobe(Tool):
         #    Exists but is not loaded - return False
         # 2) FATAL: Module floppy not found.
         #    Module does not exist, therefore is not loaded - return False
-        # 3) (no output)
+        # 3) install /bin/true
+        #    Redirection to /bin/true (which does nothing) - return False
+        # 4) (no output)
         #    Module is loaded - return True
-        could_be_loaded = result.stdout and "insmod" in result.stdout
-        does_not_exist = (result.stderr and "not found" in result.stderr) or (
-            result.stdout and "not found" in result.stdout
-        )
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
 
-        return not (could_be_loaded or does_not_exist)
+        could_be_loaded = stdout and "insmod" in stdout
+        does_not_exist = (stderr and "not found" in stderr) or (
+            stdout and "not found" in stdout
+        )
+        install_directive = stdout and "install /bin/true" in stdout
+
+        return not (could_be_loaded or does_not_exist or install_directive)
 
     def remove(self, mod_names: List[str], ignore_error: bool = False) -> None:
         for mod_name in mod_names:
