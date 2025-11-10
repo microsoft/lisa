@@ -88,8 +88,8 @@ def perf_nvme(
     cpu = node.tools[Lscpu]
     core_count = cpu.get_core_count()
     start_iodepth = 1
-    if test_name:
-        test_name = inspect.stack()[1][3]
+    if not test_name:
+        test_name = inspect.stack()[2][3]
 
     perf_disk(
         node,

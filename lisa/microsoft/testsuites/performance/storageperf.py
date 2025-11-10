@@ -665,7 +665,7 @@ class StoragePerformance(TestSuite):
                 test_result,
                 disk_type=DiskType.localnvme,
                 block_size=block_size,
-                test_name=inspect.stack()[1][3],
+                test_name=inspect.stack()[2][3],
             )
             return
         elif schema.ResourceDiskType.SCSI == resource_disk_type:
@@ -686,7 +686,7 @@ class StoragePerformance(TestSuite):
                 start_iodepth,
                 max_iodepth,
                 filename,
-                test_name=inspect.stack()[1][3],
+                test_name=inspect.stack()[2][3],
                 core_count=core_count,
                 disk_count=disk_count,
                 disk_setup_type=disk_setup_type,
