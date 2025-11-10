@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
+from lisa.tools.fio import IoEngine
 from microsoft.testsuites.performance.common import (
     perf_disk,
     perf_nvme,
@@ -158,6 +159,28 @@ class StoragePerformance(TestSuite):
     )
     def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(node, result)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test data disk performance with 4K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=16),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_4k_io_uring(
+        self, node: Node, result: TestResult
+    ) -> None:
+        self._perf_premium_datadisks(
+            node, ioengine=IoEngine.IO_URING, test_result=result, max_iodepth=1024
+        )
 
     @TestCaseMetadata(
         description="""
@@ -620,6 +643,7 @@ class StoragePerformance(TestSuite):
         block_size: int = 4,
         start_iodepth: int = 1,
         max_iodepth: int = 256,
+        ioengine: IoEngine = IoEngine.LIBAIO,
     ) -> None:
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
@@ -646,6 +670,7 @@ class StoragePerformance(TestSuite):
             size_mb=8192,
             overwrite=True,
             test_result=test_result,
+            ioengine=ioengine,
         )
 
     def _perf_resource_disks(
