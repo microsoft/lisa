@@ -215,6 +215,14 @@ class Nvmecli(Tool):
         # ]
         # }
         # get nvme devices information ignoring stderror
+        print("running nvme list command")
+        nvme_list_sample = self.run(
+            "list",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
         nvme_list = self.run(
             "list -o json 2>/dev/null",
             shell=True,
