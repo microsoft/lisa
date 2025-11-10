@@ -10,7 +10,18 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from random import randint
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Pattern,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import websockets
 from assertpy import assert_that
@@ -3037,15 +3048,21 @@ class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualizatio
 
 
 class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
-    @classmethod
-    def create_setting(
-        cls, *args: Any, **kwargs: Any
-    ) -> Optional[schema.FeatureSettings]:
-        resource_sku: Any = kwargs.get("resource_sku")
+    # List of compiled regex patterns for VM families that support nested virtualization
+    _SUPPORTED_VM_PATTERNS = [
+        # Pattern for E-series with 'b' prefix and 's' suffix: ebsv, ebdsv
+        re.compile(r"^standardebd?sv\d+family$", re.IGNORECASE),
+        # Pattern for E-series with optional 'd' and 's' suffix: esv, edsv
+        re.compile(r"^standarded?sv\d+family$", re.IGNORECASE),
+        # Pattern for E-series with 'd' but no 's': edv (matches edv4, edv5, etc.)
+        re.compile(r"^standardedv\d+family$", re.IGNORECASE),
+        # Pattern for E-series base variants: ev (matches ev3, ev4, ev5, etc.)
+        re.compile(r"^standardev\d+family$", re.IGNORECASE),
+    ]
 
-        # add vm which support nested virtualization
-        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family.casefold() in [
+    @classmethod
+    def _get_supported_vm_families(cls) -> List[str]:
+        return [
             "standardddsv5family",
             "standardddv4family",
             "standardddv5family",
@@ -3061,18 +3078,6 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
             "standardeiv5family",
             "standardeadsv5family",
             "standardeasv5family",
-            "standardedsv4family",
-            "standardedsv5family",
-            "standardesv3family",
-            "standardesv4family",
-            "standardesv5family",
-            "standardebdsv5family",
-            "standardebsv5family",
-            "standardedv4family",
-            "standardev4family",
-            "standardedv5family",
-            "standardev3family",
-            "standardev5family",
             "standardxeidsv4family",
             "standardxeisv4family",
             "standardfsv2family",
@@ -3081,8 +3086,30 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
             "standardlsv3family",
             "standardmsfamily",
             "standardmsmediummemoryv2family",
-        ]:
+        ]
+
+    @classmethod
+    def _get_supported_vm_patterns(cls) -> List[Pattern[str]]:
+        return cls._SUPPORTED_VM_PATTERNS
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        family_lower = resource_sku.family.casefold()
+
+        if family_lower in cls._get_supported_vm_families():
             return schema.FeatureSettings.create(cls.name())
+
+        patterns = cls._get_supported_vm_patterns()
+        matches = find_patterns_in_lines(family_lower, patterns)
+
+        for pattern_matches in matches:
+            if pattern_matches:
+                return schema.FeatureSettings.create(cls.name())
+
         return None
 
 
