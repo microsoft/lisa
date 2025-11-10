@@ -171,7 +171,7 @@ class StoragePerformance(TestSuite):
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=20000),
-                data_disk_count=search_space.IntRange(min=40),
+                data_disk_count=search_space.IntRange(min=64),
             ),
         ),
     )
