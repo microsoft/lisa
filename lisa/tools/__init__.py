@@ -33,6 +33,7 @@ from .df import Df
 from .dhclient import Dhclient
 from .diff import Diff
 from .dmesg import Dmesg
+from .dmsetup import Dmsetup
 from .dnsmasq import Dnsmasq
 from .docker import Docker
 from .docker_compose import DockerCompose
@@ -67,6 +68,7 @@ from .kill import Kill
 from .lagscope import Lagscope
 from .lisdriver import LisDriver
 from .ln import Ln
+from .losetup import Losetup
 from .ls import Ls
 from .lsblk import Lsblk
 from .lscpu import Lscpu
@@ -75,6 +77,10 @@ from .lsmod import Lsmod
 from .lsof import Lsof
 from .lspci import Lspci
 from .lsvmbus import Lsvmbus
+from .lvconvert import Lvconvert
+from .lvcreate import Lvcreate
+from .lvremove import Lvremove
+from .lvs import Lvs
 from .make import Make
 from .mdadm import Mdadm
 from .meson import Meson
@@ -102,6 +108,8 @@ from .pidof import Pidof
 from .ping import Ping
 from .pkgconfig import Pkgconfig
 from .powershell import PowerShell
+from .pvcreate import Pvcreate
+from .pvremove import Pvremove
 from .python import Pip, Python
 from .qemu import Qemu
 from .qemu_img import QemuImg
@@ -132,6 +140,9 @@ from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
 from .vdsotest import Vdsotest
+from .vgcreate import Vgcreate
+from .vgremove import Vgremove
+from .vgs import Vgs
 from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
 from .who import Who
 from .whoami import Whoami
@@ -158,6 +169,7 @@ __all__ = [
     "Dhclient",
     "Diff",
     "Dmesg",
+    "Dmsetup",
     "Dnsmasq",
     "Docker",
     "DockerCompose",
@@ -199,6 +211,7 @@ __all__ = [
     "Kill",
     "Lagscope",
     "Ln",
+    "Losetup",
     "Ls",
     "LisDriver",
     "Lsblk",
@@ -208,6 +221,10 @@ __all__ = [
     "Lsof",
     "Lspci",
     "Lsvmbus",
+    "Lvconvert",
+    "Lvcreate",
+    "Lvremove",
+    "Lvs",
     "Make",
     "Meson",
     "Mdadm",
@@ -245,6 +262,8 @@ __all__ = [
     "Pkgconfig",
     "PowerShell",
     "ProcessInfo",
+    "Pvcreate",
+    "Pvremove",
     "Python",
     "Qemu",
     "QemuImg",
@@ -279,16 +298,19 @@ __all__ = [
     "Unzip",
     "Uptime",
     "Usermod",
-    "Wget",
-    "YumConfigManager",
     "Vdsotest",
     "VcRunner",
     "VcTargetInfo",
+    "Vgcreate",
+    "Vgremove",
+    "Vgs",
     "VirtualClientTool",
+    "Wget",
     "Who",
     "Whoami",
     "WindowsFeatureManagement",
     "Wsl",
+    "YumConfigManager",
     "Conntrack",
     "Ipset",
 ]
