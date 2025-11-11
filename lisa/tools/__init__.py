@@ -48,6 +48,8 @@ from .free import Free
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
+from .gpu_drivers import AmdGpuDriver, GpuDriver, NvidiaCudaDriver, NvidiaGridDriver
+from .gpu_smi import AmdSmi, GpuSmi, NvidiaSmi
 from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
@@ -91,7 +93,6 @@ from .nproc import Nproc
 from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
-from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
 from .openssl import OpenSSL
 from .parted import Parted
@@ -175,6 +176,8 @@ __all__ = [
     "Gcc",
     "Gdb",
     "Git",
+    "GpuDriver",
+    "GpuSmi",
     "GrubConfig",
     "Ip",
     "IpInfo",
@@ -226,8 +229,12 @@ __all__ = [
     "Ntp",
     "Ntpstat",
     "Ntttcp",
+    "NvidiaCudaDriver",
+    "NvidiaGridDriver",
     "NvidiaSmi",
     "Nvmecli",
+    "AmdGpuDriver",
+    "AmdSmi",
     "OpenSSL",
     "Parted",
     "Perf",
