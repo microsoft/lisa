@@ -104,6 +104,7 @@ from .powershell import PowerShell
 from .python import Pip, Python
 from .qemu import Qemu
 from .qemu_img import QemuImg
+from .readlink import Readlink
 from .reboot import Reboot
 from .remote_copy import RemoteCopy
 from .resize_partition import ResizePartition
@@ -242,6 +243,7 @@ __all__ = [
     "Qemu",
     "QemuImg",
     "Reboot",
+    "Readlink",
     "RemoteCopy",
     "ResizePartition",
     "Rpm",

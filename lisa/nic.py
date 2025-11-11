@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 from retry import retry
 
-from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Tee
+from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Readlink, Tee
 from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
 
 if TYPE_CHECKING:
@@ -119,11 +119,6 @@ class Nics(InitializableMixin):
             r"/device -> ../../../"  # link to devices guid
             r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}.[a-zA-Z0-9])"  # bus info
         )
-    )
-
-    # PCI slot pattern: XXXX:XX:XX.X (e.g., 34da:00:02.0)
-    __pci_slot_pattern = re.compile(
-        r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}\.[a-zA-Z0-9])"
     )
 
     _file_not_exist = re.compile(r"No such file or directory", re.MULTILINE)
@@ -232,10 +227,12 @@ class Nics(InitializableMixin):
         # get the current driver for the nic from the node
         # sysfs provides a link to the driver entry at device/driver
         nic = self.get_nic(nic_name)
-        cmd = f"readlink -f /sys/class/net/{nic_name}/device/driver"
+        readlink = self._node.tools[Readlink]
         # ex return value:
         # /sys/bus/vmbus/drivers/hv_netvsc
-        found_link = self._node.execute(cmd, expected_exit_code=0).stdout
+        found_link = readlink.get_canonical_path(
+            f"/sys/class/net/{nic_name}/device/driver"
+        )
         assert_that(found_link).described_as(
             f"sysfs check for NIC device {nic_name} driver returned no output"
         ).is_not_equal_to("")
@@ -400,8 +397,9 @@ class Nics(InitializableMixin):
         return non_virtual_nics
 
     def _get_nic_uuid(self, nic_name: str) -> str:
-        full_dev_path = self._node.execute(f"readlink /sys/class/net/{nic_name}/device")
-        uuid = os.path.basename(full_dev_path.stdout.strip())
+        readlink = self._node.tools[Readlink]
+        full_dev_path = readlink.get_target(f"/sys/class/net/{nic_name}/device")
+        uuid = os.path.basename(full_dev_path)
         self._node.log.debug(f"{nic_name} UUID:{uuid}")
         return uuid
 
@@ -519,6 +517,7 @@ class Nics(InitializableMixin):
         """
         # Get unpaired NICs that might have PCI devices
         unpaired_nics = self.get_unpaired_devices()
+        readlink = self._node.tools[Readlink]
 
         for nic_name in unpaired_nics:
             nic = self.nics[nic_name]
@@ -527,16 +526,15 @@ class Nics(InitializableMixin):
                 continue
 
             # Try to find the PCI slot for this NIC by checking its device path
-            result = self._node.execute(
-                f"readlink -f /sys/class/net/{nic_name}/device",
-                shell=True,
+            device_path = readlink.get_canonical_path(
+                f"/sys/class/net/{nic_name}/device",
+                no_error_log=True,
             )
-            if result.exit_code == 0 and result.stdout.strip():
-                # Extract PCI slot from device path
+            if device_path:
+                # Extract PCI slot from device path using lspci tool
                 # Path format: /sys/devices/.../XXXX:XX:XX.X/net/nicname
-                match = self.__pci_slot_pattern.search(result.stdout)
-                if match:
-                    pci_slot = match.group(1)
+                pci_slot = lspci.get_pci_slot_from_device_path(device_path)
+                if pci_slot:
                     # Get the module name for this PCI device
                     try:
                         module_name = lspci.get_used_module(pci_slot)
@@ -561,8 +559,9 @@ class Nics(InitializableMixin):
                 else:
                     self._node.log.debug(
                         f"Could not extract PCI slot from device path for {nic_name}: "
-                        f"{result.stdout.strip()}"
+                        f"{device_path}"
                     )
+
 
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
