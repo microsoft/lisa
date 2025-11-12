@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from enum import Enum
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 from urllib.parse import urlparse
@@ -444,3 +445,19 @@ def update_kernel_from_repo(node: Node) -> None:
         node.reboot()
     else:
         node.log.debug(f"Kernel update package '{package}' was not found.")
+
+
+class Pmd(str, Enum):
+    # enum for selecting which poll mode (usermode) driver to use.
+    # https://learn.microsoft.com/en-us/azure/virtual-network/setup-dpdk
+    # each has slight differences covered in their docs.
+    # [vdev_]netvsc and mana are maintained by msft.
+    # failsafe is a more general driver that can allow users to configure
+    # their own failover scenarios. not maintained by msft though.
+    #
+    # librte_net_failsafe
+    # https://doc.dpdk.org/guides/nics/fail_safe.html
+    FAILSAFE = "failsafe"
+    # librte_net_netvsc
+    # https://doc.dpdk.org/guides/nics/netvsc.html
+    NETVSC = "netvsc"
