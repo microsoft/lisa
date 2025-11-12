@@ -237,7 +237,7 @@ class Sar(Tool):
             },
             {
                 "name": "test_type",
-                "value": float(hash(test_type)),
+                "value": test_type,  # type: ignore[dict-item]
                 "relativity": MetricRelativity.Parameter,
                 "unit": "",
             },
@@ -250,7 +250,7 @@ class Sar(Tool):
                 test_case_name=test_case_name,
                 tool=tool,
                 metric_name=cast(str, metric["name"]),
-                metric_value=cast(float, metric["value"]),
+                metric_value=metric["value"],  # type: ignore[arg-type]
                 metric_unit=cast(str, metric["unit"]),
                 metric_relativity=cast(MetricRelativity, metric["relativity"]),
             )
