@@ -461,3 +461,20 @@ class Pmd(str, Enum):
     # librte_net_netvsc
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
+
+
+class DpdkMpRole(str, Enum):
+    # dpdk multiprocessing allows numerous secondary processes to
+    # share a single primary context. Testpmd and other apps allow this
+    # to occur fairly transparently, but require it to be declared
+    # at start time. The primary process has a proc_id of '0'
+    # This is unfortunate, since it's the nice python default for
+    # integer arugments.
+    #
+    # Use this enum to differentiate between primary and secondary
+    # multiple process context types. There is no single process
+    # context type, because this argument will be passed as Optional.
+    # So DpdkMpRole is either None or PRIMARY | SECONDARY
+
+    PRIMARY_PROCESS = "primary"
+    SECONDARY_PROCESS = "secondary"
