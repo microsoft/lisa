@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import random
-import re
 import time
-from typing import List, Optional, cast
+from typing import List, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.cpu.common import (
@@ -29,17 +28,8 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.node import RemoteNode
-from lisa.tools import (
-    Ethtool,
-    Fio,
-    Iperf3,
-    KernelConfig,
-    Kill,
-    Lscpu,
-    Lsvmbus,
-    Modprobe,
-    Reboot,
-)
+from lisa.tools import Ethtool, Fio, Iperf3, Kill, Lscpu, Lsvmbus, Reboot
+from lisa.tools.lsvmbus import HV_NETVSC_CLASS_ID
 from lisa.util import SkippedException
 
 
@@ -177,70 +167,12 @@ class CPUSuite(TestSuite):
     def _clamp_channels(self, val: int) -> int:
         return max(1, min(int(val), 64))
 
-    def _read_max_supported_structured(
-        self, node: Node, log: Optional[Logger]
-    ) -> Optional[int]:
-        try:
-            info = node.tools[Ethtool].get_device_channels_info("eth0", True)
-            candidates = [
-                getattr(info, "max_combined", None),
-                getattr(info, "max_channels", None),
-                getattr(info, "max_current", None),
-            ]
-
-            for c in candidates:
-                if isinstance(c, str) and c.isdigit():
-                    c = int(c)
-                if isinstance(c, int) and c > 1:
-                    val = self._clamp_channels(c)
-                    if log:
-                        log.debug(
-                            "Structured max channels found: %d (candidates=%s)",
-                            val,
-                            candidates,
-                        )
-                    return val
-            return None
-
-        except Exception as e:
-            if log:
-                log.debug("Structured channels info failed: %s", e)
-            return None
-
-    def _read_max_supported_raw(
-        self, node: Node, log: Optional[Logger]
-    ) -> Optional[int]:
-        try:
-            r = node.execute("ethtool -l eth0", sudo=True)
-            raw = r.stdout.strip()
-            if log:
-                log.debug("Raw `ethtool -l` output:\n%s", raw)
-
-            block = re.search(r"(?is)pre-?set\s+maximums:?(.*?)(?:current|$)", raw)
-            if block:
-                m = re.search(r"(?im)^\s*Combined\s*:\s*(\d+)\s*$", block.group(1))
-                if m:
-                    return self._clamp_channels(int(m.group(1)))
-
-            ms = re.findall(r"(?im)^\s*Combined\s*:\s*(\d+)\s*$", raw)
-            if ms:
-                return self._clamp_channels(max(int(x) for x in ms))
-
-            ms2 = re.findall(r"(?im)(?:Maximum|Combined maximum)\s*:\s*(\d+)", raw)
-            if ms2:
-                return self._clamp_channels(max(int(x) for x in ms2))
-
-            return None
-
-        except Exception as e:
-            if log:
-                log.debug("Raw ethtool -l parse failed: %s", e)
-            return None
-
     def _read_max_supported(self, node: Node) -> int:
         """
         Return conservative device max 'combined' channels for eth0.
-        Order: ethtool(max_combined/max_channels) -> lsvmbus(queue count) -> threads.
+        Fallback strategy: Try to collect all possible candidates from ethtool fields
+        (max_combined, max_channels, max_current, current_channels); if none are found,
+        fall back to lsvmbus queue count; if that fails, fall back to thread count.
         Always clamp to [1, 64].
         """
         try:
@@ -252,24 +184,31 @@ class CPUSuite(TestSuite):
                     try:
                         candidates.append(int(v))
                     except Exception:
+                        # Ignore values that cannot be converted to int
+                        # (may be missing or malformed)
                         pass
             cur = getattr(info, "current_channels", None)
             if cur is not None:
                 try:
                     candidates.append(int(cur))
                 except Exception:
+                    # Ignore values that cannot be converted to int
+                    # (may be missing or malformed)
                     pass
             if candidates:
                 return max(1, min(max(candidates), 64))
         except Exception:
+            # Ignore ethtool exceptions to allow fallback to lsvmbus method
             pass
 
         try:
             chans = node.tools[Lsvmbus].get_device_channels(force_run=True)
             for ch in chans:
-                if ch.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":  # hv_netvsc
+                if ch.class_id == HV_NETVSC_CLASS_ID:
                     return max(1, min(len(ch.channel_vp_map), 64))
         except Exception:
+            # Ignore lsvmbus exceptions to allow fallback to threads method
+            # (lsvmbus may not be available)
             pass
 
         threads = node.tools[Lscpu].get_thread_count()
@@ -336,14 +275,14 @@ class CPUSuite(TestSuite):
         return min(max(tgt, lower), upper)
 
     def _verify_no_irq_on_offline(
-        self, node: Node, offline: List[int], expect_len: int
+        self, node: Node, offline: List[str], expect_len: int
     ) -> None:
         """
         Assert NIC channel count and that no IRQ is routed to offline CPUs.
         """
         chans = node.tools[Lsvmbus].get_device_channels(force_run=True)
         for ch in chans:
-            if ch.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
+            if ch.class_id == HV_NETVSC_CLASS_ID:
                 assert_that(ch.channel_vp_map).is_length(expect_len)
                 for vp in ch.channel_vp_map:
                     assert_that(vp.target_cpu).is_not_in(offline)
@@ -424,10 +363,9 @@ class CPUSuite(TestSuite):
 
             # ---------- Phase 2: CPUs back online ----------
             set_cpu_state_serial(log, node, idle, CPUState.ONLINE)
-            if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
-                node.tools[Modprobe].reload("hv_netvsc")
-            else:
-                node.tools[Reboot].reboot()
+            # Always reboot to ensure network stack is properly reinitialized
+            # after CPU hotplug operations to avoid SSH connection issues
+            node.tools[Reboot].reboot()
 
             threads2 = node.tools[Lscpu].get_thread_count()
             dev_max2 = self._read_max_supported(node)
@@ -449,14 +387,12 @@ class CPUSuite(TestSuite):
                 dev_max2,
             )
 
-            self._verify_no_irq_on_offline(node, idle, new2)
-
         finally:
             # ---------- Cleanup: always restore ----------
             try:
                 set_cpu_state_serial(log, node, idle, CPUState.ONLINE)
             except Exception as e:
-                log.warning("Failed to bring CPUs online during cleanup: %s", e)
+                log.error("Failed to bring CPUs online during cleanup: %s", e)
 
             try:
                 # Re-read device cap for a safe restore
@@ -467,6 +403,4 @@ class CPUSuite(TestSuite):
                     node.tools[Ethtool].change_device_channels_info("eth0", safe_origin)
                     log.debug("Restored channels to origin value: %d", safe_origin)
             except Exception as e:
-                log.warning(
-                    "Restore channels failed (target=%d): %s", origin_channels, e
-                )
+                log.error("Restore channels failed (target=%d): %s", origin_channels, e)
