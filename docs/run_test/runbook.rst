@@ -9,6 +9,7 @@ Runbook Reference
    -  `Use variable and secrets <#use-variable-and-secrets>`__
    -  `Use partial runbook <#use-partial-runbook>`__
    -  `Use extensions <#use-extensions>`__
+   -  `Conditionally enable/disable environments or nodes <#conditionally-enable-disable-environments-or-nodes>`__
 
 -  `Reference <#reference>`__
 
@@ -89,6 +90,7 @@ Runbook Reference
       -  `environments <#environments>`__
 
          -  `name <#name-4>`__
+         -  `enabled <#enabled>`__
          -  `topology <#topology>`__
          -  `nodes <#nodes>`__
          -  `nodes_requirement <#nodes-requirement>`__
@@ -126,6 +128,7 @@ Below section is for running cases on Azure platform, it specifies:
 -  admin_private_key_file: the private key file to access the Azure VM. (Optional)
 -  subscription_id: Azure VM is created under this subscription.
 -  azcopy_path: the installation path of the AzCopy tool on the machine where LISA is installed. It speeds up copying VHDs between Azure storage accounts. (Optional)
+-  resource_group_tags: tags to apply to created resource groups as key-value pairs. (Optional)
 
 .. code:: yaml
 
@@ -135,6 +138,9 @@ Below section is for running cases on Azure platform, it specifies:
        azure:
          subscription_id: $(subscription_id)
          azcopy_path: $(azcopy_path)
+         resource_group_tags:
+           Environment: Testing
+           Project: LISA
 
 Select and set test cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -153,8 +159,8 @@ name ``hello``.
 
 Below section demonstrates how to configure test cases with retry, repetition,
 and timeout settings. The first test case will automatically retry up to 2 times
-if it fails, redeploying the environment for each retry attempt. The second test 
-case demonstrates stress testing by running 3 times unconditionally (regardless 
+if it fails, redeploying the environment for each retry attempt. The second test
+case demonstrates stress testing by running 3 times unconditionally (regardless
 of pass/fail) with a custom timeout of 1 hour.
 
 .. code:: yaml
@@ -256,6 +262,59 @@ modules for test cases or extended features.
      - name: extended_features
        path: ../../extensions
      - ../../lisa/microsoft/testsuites/core
+
+Conditionally enable/disable environments or nodes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can use the ``enabled`` field to conditionally enable or disable entire
+environments or individual nodes within an environment. This is particularly
+useful when combined with variables for dynamic configuration.
+
+Below example shows how to enable/disable environments based on a variable:
+
+.. code:: yaml
+
+   variable:
+     - name: use_prod
+       value: true
+     - name: use_dev
+       value: false
+
+   environment:
+     environments:
+       - name: production_env
+         enabled: $(use_prod)  # Controlled by variable
+         nodes:
+           - type: local
+       - name: dev_env
+         enabled: $(use_dev)  # This environment will be skipped
+         nodes:
+           - type: local
+
+Below example shows how to selectively disable specific nodes within an environment:
+
+.. code:: yaml
+
+   environment:
+     environments:
+       - name: multi_node_env
+         nodes:
+           - name: primary_node
+             type: local
+             enabled: true  # Always enabled
+           - name: secondary_node
+             type: local
+             enabled: false  # Temporarily disabled
+           - name: optional_node
+             type: remote
+             address: 192.168.1.100
+             enabled: $(include_remote_node)  # Variable-controlled
+
+This allows you to:
+
+- Temporarily disable environments or nodes without deleting their configuration
+- Use variables to control which environments/nodes are active
+- Maintain multiple environment configurations and switch between them dynamically
 
 Use transformers
 ~~~~~~~~~~~~~~~~
@@ -794,7 +853,7 @@ test execution logs and code context from the LISA framework.
 The log_agent notifier uses a multi-agent AI system that combines:
 
 - **LogSearchAgent**: Specialized in searching and analyzing log files for error patterns
-- **CodeSearchAgent**: Examines source code files and analyzes implementations related to errors  
+- **CodeSearchAgent**: Examines source code files and analyzes implementations related to errors
 - **Magentic Orchestration**: Coordinates the agents to provide comprehensive analysis
 
 The analysis results are attached to test result messages and made available to
@@ -809,7 +868,7 @@ downstream notifiers and reporting systems.
 
 2. **Required Python packages** (automatically included with LISA):
    - python-dotenv
-   - semantic-kernel  
+   - semantic-kernel
    - azure-ai-inference
    - retry
 
@@ -827,7 +886,7 @@ azure_openai_api_key
 
 type: str, optional, default: ""
 
-Azure OpenAI API key for authentication. If not set, the notifier will use 
+Azure OpenAI API key for authentication. If not set, the notifier will use
 default authentication methods available in the environment.
 
 Note: This value is automatically marked as secret and will be masked in logs.
@@ -897,7 +956,7 @@ Example of log_agent notifier:
 5. **Evidence Gathering**: Searches for supporting evidence in logs
 6. **Root Cause Analysis**: Provides comprehensive analysis with actionable insights
 
-The AI analysis results are stored in the test result message's ``analysis["AI"]`` 
+The AI analysis results are stored in the test result message's ``analysis["AI"]``
 field and can be consumed by other notifiers like HTML or custom reporting systems.
 
 environment
@@ -925,6 +984,30 @@ type: str, optional, default is empty
 
 The name of the environment.
 
+enabled
+'''''''
+
+type: bool, optional, default is true
+
+Controls whether the environment is loaded and used during test execution. When
+set to ``false``, the environment will be skipped during initialization. This is
+useful for definining multiple similar environments in the same runbook.
+
+Example:
+
+.. code:: yaml
+
+   environment:
+     environments:
+       - name: prod_env
+         enabled: true  # This environment will be loaded
+         nodes:
+           - type: local
+       - name: dev_env
+         enabled: $(use_dev_env)  # Variable-controlled
+         nodes:
+           - type: local
+
 topology
 ''''''''
 
@@ -938,6 +1021,32 @@ nodes
 List of node, it can be a virtual machine on Azure or Hyper-V, bare metal or
 others. For more information, refer to :ref:`write_test/concepts:node and
 environment`.
+
+Each node supports an ``enabled`` field:
+
+**enabled** (bool, optional, default is true): Controls whether the node is
+loaded during environment initialization. When set to ``false``, the node will
+be skipped. This is useful for selecting specific nodes from the same
+environment configuration.
+
+Example:
+
+.. code:: yaml
+
+   environment:
+     environments:
+       - name: test_env
+         nodes:
+           - name: node1
+             type: local
+             enabled: true  # This node will be loaded
+           - name: node2
+             type: local
+             enabled: false  # This node will be skipped
+           - name: node3
+             type: remote
+             address: 192.168.1.100
+             enabled: $(enable_node3)  # Variable-controlled
 
 nodes_requirement
 '''''''''''''''''
@@ -1038,15 +1147,15 @@ timeout
 
 type: int, optional, default is 0
 
-Timeout in seconds for each test case. When a test case runs, LISA uses the 
-maximum value between the timeout specified in the runbook and the test case's 
-own metadata timeout. If this field is set to 0 (default) or not specified, only 
-the test case's metadata timeout is used (which defaults to 3600 seconds / 1 hour 
-if not explicitly set in the test case). This allows you to extend timeouts for 
+Timeout in seconds for each test case. When a test case runs, LISA uses the
+maximum value between the timeout specified in the runbook and the test case's
+own metadata timeout. If this field is set to 0 (default) or not specified, only
+the test case's metadata timeout is used (which defaults to 3600 seconds / 1 hour
+if not explicitly set in the test case). This allows you to extend timeouts for
 specific test runs without modifying the test case code.
 
-Note that this timeout applies to the overall test case execution. Any additional 
-command-level timeouts set within the test case code itself will not be affected 
+Note that this timeout applies to the overall test case execution. Any additional
+command-level timeouts set within the test case code itself will not be affected
 by this setting.
 
 .. code:: yaml

@@ -51,6 +51,12 @@ variable:
     value: true
   - name: create_public_address
     value: true
+  - name: resource_group_tags
+    value: null
+    # Example usage:
+    # resource_group_tags:
+    #   Environment: Testing
+    #   Project: LISA
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -76,6 +82,7 @@ platform:
       subnet_prefix: $(subnet_prefix)
       use_public_address: $(use_public_address)
       create_public_address: $(create_public_address)
+      resource_group_tags: $(resource_group_tags)
     requirement:
       core_count:
         min: 2

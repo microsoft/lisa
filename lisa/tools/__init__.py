@@ -24,6 +24,7 @@ from .cargo import Cargo
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
+from .conntrack import Conntrack
 from .cp import Cp
 from .createrepo import CreateRepo
 from .curl import Curl
@@ -32,6 +33,7 @@ from .df import Df
 from .dhclient import Dhclient
 from .diff import Diff
 from .dmesg import Dmesg
+from .dmsetup import Dmsetup
 from .dnsmasq import Dnsmasq
 from .docker import Docker
 from .docker_compose import DockerCompose
@@ -47,6 +49,8 @@ from .free import Free
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
+from .gpu_drivers import AmdGpuDriver, GpuDriver, NvidiaCudaDriver, NvidiaGridDriver
+from .gpu_smi import AmdSmi, GpuSmi, NvidiaSmi
 from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
@@ -56,6 +60,7 @@ from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
 from .ip import Ip, IpInfo
 from .iperf3 import Iperf3
+from .ipset import Ipset
 from .journalctl import Journalctl
 from .kdump import KdumpBase, KdumpCheck
 from .kernel_config import KernelConfig
@@ -63,6 +68,7 @@ from .kill import Kill
 from .lagscope import Lagscope
 from .lisdriver import LisDriver
 from .ln import Ln
+from .losetup import Losetup
 from .ls import Ls
 from .lsblk import Lsblk
 from .lscpu import Lscpu
@@ -71,6 +77,10 @@ from .lsmod import Lsmod
 from .lsof import Lsof
 from .lspci import Lspci
 from .lsvmbus import Lsvmbus
+from .lvconvert import Lvconvert
+from .lvcreate import Lvcreate
+from .lvremove import Lvremove
+from .lvs import Lvs
 from .make import Make
 from .mdadm import Mdadm
 from .meson import Meson
@@ -89,7 +99,6 @@ from .nproc import Nproc
 from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
-from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
 from .openssl import OpenSSL
 from .parted import Parted
@@ -99,6 +108,8 @@ from .pidof import Pidof
 from .ping import Ping
 from .pkgconfig import Pkgconfig
 from .powershell import PowerShell
+from .pvcreate import Pvcreate
+from .pvremove import Pvremove
 from .python import Pip, Python
 from .qemu import Qemu
 from .qemu_img import QemuImg
@@ -129,6 +140,9 @@ from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
 from .vdsotest import Vdsotest
+from .vgcreate import Vgcreate
+from .vgremove import Vgremove
+from .vgs import Vgs
 from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
 from .who import Who
 from .whoami import Whoami
@@ -155,6 +169,7 @@ __all__ = [
     "Dhclient",
     "Diff",
     "Dmesg",
+    "Dmsetup",
     "Dnsmasq",
     "Docker",
     "DockerCompose",
@@ -173,6 +188,8 @@ __all__ = [
     "Gcc",
     "Gdb",
     "Git",
+    "GpuDriver",
+    "GpuSmi",
     "GrubConfig",
     "Ip",
     "IpInfo",
@@ -194,6 +211,7 @@ __all__ = [
     "Kill",
     "Lagscope",
     "Ln",
+    "Losetup",
     "Ls",
     "LisDriver",
     "Lsblk",
@@ -203,6 +221,10 @@ __all__ = [
     "Lsof",
     "Lspci",
     "Lsvmbus",
+    "Lvconvert",
+    "Lvcreate",
+    "Lvremove",
+    "Lvs",
     "Make",
     "Meson",
     "Mdadm",
@@ -224,8 +246,12 @@ __all__ = [
     "Ntp",
     "Ntpstat",
     "Ntttcp",
+    "NvidiaCudaDriver",
+    "NvidiaGridDriver",
     "NvidiaSmi",
     "Nvmecli",
+    "AmdGpuDriver",
+    "AmdSmi",
     "OpenSSL",
     "Parted",
     "Perf",
@@ -236,6 +262,8 @@ __all__ = [
     "Pkgconfig",
     "PowerShell",
     "ProcessInfo",
+    "Pvcreate",
+    "Pvremove",
     "Python",
     "Qemu",
     "QemuImg",
@@ -270,14 +298,19 @@ __all__ = [
     "Unzip",
     "Uptime",
     "Usermod",
-    "Wget",
-    "YumConfigManager",
     "Vdsotest",
     "VcRunner",
     "VcTargetInfo",
+    "Vgcreate",
+    "Vgremove",
+    "Vgs",
     "VirtualClientTool",
+    "Wget",
     "Who",
     "Whoami",
     "WindowsFeatureManagement",
     "Wsl",
+    "YumConfigManager",
+    "Conntrack",
+    "Ipset",
 ]

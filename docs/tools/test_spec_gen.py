@@ -48,7 +48,7 @@ def update_file() -> None:
                         for suite in extract_metadata(cls_visitor.get_suites()):
                             _write_suite(test_spec, suite)
                             for case in extract_metadata(func_visitor.get_cases()):
-                                _write_case(test_spec, case)
+                                _write_case(test_spec, case, suite["name"])
 
 
 def _write_title(file: TextIO) -> None:
@@ -83,15 +83,18 @@ def _write_suite(file: TextIO, metadata: Dict[str, str]) -> None:
         file.write(f"    :category: ``{metadata['category']}``\n\n")  # Category
 
 
-def _write_case(file: TextIO, metadata: Dict[str, str]) -> None:
+def _write_case(file: TextIO, metadata: Dict[str, str], suite_name: str = "") -> None:
     """
     Writes info of a test case.
 
     Args:
         file (TextIO): test spec file
         metadata (Dict[str, str]): test case metadata
+        suite_name (str): name of the parent test suite
     """
-    file.write(f".. _{metadata['name']}:\n\n")  # custom anchor
+    # Create unique anchor by combining suite and case name if suite is provided
+    anchor_name = f"{suite_name}_{metadata['name']}" if suite_name else metadata["name"]
+    file.write(f".. _{anchor_name}:\n\n")  # custom anchor
     file.write(f"    .. method:: {metadata['name']}\n")  # Test Case Name
     file.write("        :noindex:\n\n")
 

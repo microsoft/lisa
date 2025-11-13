@@ -128,6 +128,44 @@ class Iptables(Tool):
         self.run("-P FORWARD ACCEPT", shell=True, sudo=True, force_run=True)
         self.run("-P -F", shell=True, sudo=True, force_run=True)
 
+    def add_iptable_rules(
+        self,
+        table_name: str,
+        rules: list[str],
+    ) -> None:
+        for rule in rules:
+            self.run(
+                f"-t {table_name} {rule}",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to add iptable rule",
+            )
+
+    def remove_iptable_rules(
+        self,
+        rules: list[str],
+    ) -> None:
+        for rule in rules:
+            self.run(
+                f"-D {rule}",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to remove iptable rule",
+            )
+
+    def create_iptable_chain(
+        self,
+        table_name: str,
+        chain_names: list[str],
+    ) -> None:
+        for chain in chain_names:
+            self.run(
+                f"-t {table_name} -N {chain}",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to create chain",
+            )
+
 
 class SuSEfirewall2(Tool):
     @property

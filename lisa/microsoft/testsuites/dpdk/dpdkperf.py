@@ -1,7 +1,7 @@
 from typing import Any, Dict, Tuple, cast
 
 from assertpy import assert_that
-from microsoft.testsuites.dpdk.common import force_dpdk_default_source
+from microsoft.testsuites.dpdk.common import Pmd, force_dpdk_default_source
 from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
     SkippedException,
@@ -66,7 +66,7 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         sender_kit = verify_dpdk_build(
-            node, log, variables, "failsafe", HugePageSize.HUGE_2MB, result=result
+            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB, result=result
         )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
@@ -118,7 +118,7 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         sender_kit = verify_dpdk_build(
-            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB, result=result
         )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
@@ -168,7 +168,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test("failsafe", result, log, variables)
+        self._run_dpdk_perf_test(Pmd.FAILSAFE, result, log, variables)
 
     @TestCaseMetadata(
         description="""
@@ -189,7 +189,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test("netvsc", result, log, variables)
+        self._run_dpdk_perf_test(Pmd.NETVSC, result, log, variables)
 
     @TestCaseMetadata(
         description="""
@@ -212,7 +212,7 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         self._run_dpdk_perf_test(
-            "failsafe",
+            Pmd.FAILSAFE,
             result,
             log,
             variables,
@@ -239,7 +239,7 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         self._run_dpdk_perf_test(
-            "netvsc",
+            Pmd.NETVSC,
             result,
             log,
             variables,
@@ -276,13 +276,13 @@ class DpdkPerformance(TestSuite):
             log,
             variables,
             HugePageSize.HUGE_2MB,
-            pmd="netvsc",
+            pmd=Pmd.NETVSC,
             is_perf_test=True,
         )
 
     def _run_dpdk_perf_test(
         self,
-        pmd: str,
+        pmd: Pmd,
         test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],

@@ -16,7 +16,7 @@ Run on Azure
 To run LISA tests on Azure with different authentication methods, configure the `platform` section in your YAML file as shown below.
 
 Available Authentication Methods
--------------------------------
+---------------------------------
 1. `Default Credentials <#default-credentials>`__
 2. `Certificate Authentication <#certificate-authentication>`__
 3. `Assertion Authentication <#assertion-authentication>`__
@@ -148,7 +148,7 @@ Example:
            client_secret: <client secret> # Required
 
 Azure CLI Authentication
------------------------
+------------------------
 This authentication uses the Azure CLI for authentication, which requires previously logging in to Azure via "az login". It will use the CLI's currently logged in identity.
 
 Example:
@@ -173,6 +173,7 @@ Schema Description
 The configuration follows this schema:
 
 -  **azure.credential.type**: Specifies the authentication method to use. Possible values:
+
   -  **default**: Uses default credentials (e.g., environment variables, Azure CLI, or managed identities).
   -  **certificate**: Uses certificate-based authentication. Requires `cert_path` and optionally `client_send_cert_chain`.
   -  **assertion**: Uses client assertion authentication. Requires `msi_client_id` and `enterprise_app_client_id`.

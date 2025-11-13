@@ -10,7 +10,18 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from random import randint
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Pattern,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import websockets
 from assertpy import assert_that
@@ -59,7 +70,6 @@ from lisa.tools import (
     Dmesg,
     Find,
     IpInfo,
-    LisDriver,
     Ls,
     Lsblk,
     Lspci,
@@ -521,11 +531,17 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         r"Standard_NV[\d]+ad(ms|s)_A10_v5)",
         re.I,
     )
-    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/windows/n-series-amd-driver-setup # noqa: E501
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/linux/azure-n-series-amd-gpu-driver-linux-installation-guide # noqa: E501
     # - NGads V620 Series: Standard_NG[^_]+_V620_v[0-9]+
+    # - NVads V710 Series: Standard_NV[^_]+ads_V710_v[0-9]+
     # - NVv4 Series: Standard_NV[^_]+_v4
+    # - NDisr MI300X Series: Standard_ND[^_]+isr_MI300X_v[0-9]+
     _amd_supported_skus = re.compile(
-        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
+        r"^(Standard_NG[^_]+_V620_v[0-9]+|"
+        r"Standard_NV[^_]+ads_V710_v[0-9]+|"
+        r"Standard_NV[^_]+_v4|"
+        r"Standard_ND[^_]+isr_MI300X_v[0-9]+)$",
+        re.I,
     )
 
     _grid_supported_distros: Dict[Any, List[str]] = {
@@ -575,8 +591,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
         return supported
 
-    def get_supported_driver(self) -> List[ComputeSDK]:
-        driver_list = []
+    def get_supported_driver(self) -> ComputeSDK:
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
@@ -584,19 +599,11 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             re.match(self._grid_supported_skus, node_runbook.vm_size)
             and self.is_grid_supported_os()
         ):
-            driver_list.append(ComputeSDK.GRID)
+            return ComputeSDK.GRID
         elif re.match(self._amd_supported_skus, node_runbook.vm_size):
-            driver_list.append(ComputeSDK.AMD)
-            self._is_nvidia: bool = False
+            return ComputeSDK.AMD
         else:
-            driver_list.append(ComputeSDK.CUDA)
-
-        if not driver_list:
-            raise LisaException(
-                "No valid Compute SDK found to install for the VM size -"
-                f" {node_runbook.vm_size}."
-            )
-        return driver_list
+            return ComputeSDK.CUDA
 
     # GRID driver is supported on a limited number of distros.
     # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-grid-drivers # noqa: E501
@@ -630,13 +637,17 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
-        self._is_nvidia = True
 
     def _install_driver_using_platform_feature(self) -> None:
-        # https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
+        """
+        Install GPU drivers using Azure VM extension.
+
+        Reference:
+        https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
+        """
         supported_versions: Dict[Any, List[str]] = {
-            Redhat: ["7.9"],
-            Ubuntu: ["20.04"],
+            Redhat: ["7.9", "8.2"],
+            Ubuntu: ["20.04", "22.04", "24.04"],
             CentOs: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
         }
         release = self._node.os.information.release
@@ -670,16 +681,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             return
         else:
             raise LisaException("GPU Extension Provisioning Failed")
-
-    def install_compute_sdk(self, version: str = "") -> None:
-        try:
-            # install LIS driver if required and not already installed.
-            self._node.tools[LisDriver]
-        except Exception as e:
-            self._log.debug(
-                f"LisDriver is not installed. It might not be required. {e}"
-            )
-        super().install_compute_sdk(version)
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
@@ -3037,15 +3038,21 @@ class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualizatio
 
 
 class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
-    @classmethod
-    def create_setting(
-        cls, *args: Any, **kwargs: Any
-    ) -> Optional[schema.FeatureSettings]:
-        resource_sku: Any = kwargs.get("resource_sku")
+    # List of compiled regex patterns for VM families that support nested virtualization
+    _SUPPORTED_VM_PATTERNS = [
+        # Pattern for E-series with 'b' prefix and 's' suffix: ebsv, ebdsv
+        re.compile(r"^standardebd?sv\d+family$", re.IGNORECASE),
+        # Pattern for E-series with optional 'd' and 's' suffix: esv, edsv
+        re.compile(r"^standarded?sv\d+family$", re.IGNORECASE),
+        # Pattern for E-series with 'd' but no 's': edv (matches edv4, edv5, etc.)
+        re.compile(r"^standardedv\d+family$", re.IGNORECASE),
+        # Pattern for E-series base variants: ev (matches ev3, ev4, ev5, etc.)
+        re.compile(r"^standardev\d+family$", re.IGNORECASE),
+    ]
 
-        # add vm which support nested virtualization
-        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family.casefold() in [
+    @classmethod
+    def _get_supported_vm_families(cls) -> List[str]:
+        return [
             "standardddsv5family",
             "standardddv4family",
             "standardddv5family",
@@ -3061,18 +3068,6 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
             "standardeiv5family",
             "standardeadsv5family",
             "standardeasv5family",
-            "standardedsv4family",
-            "standardedsv5family",
-            "standardesv3family",
-            "standardesv4family",
-            "standardesv5family",
-            "standardebdsv5family",
-            "standardebsv5family",
-            "standardedv4family",
-            "standardev4family",
-            "standardedv5family",
-            "standardev3family",
-            "standardev5family",
             "standardxeidsv4family",
             "standardxeisv4family",
             "standardfsv2family",
@@ -3081,8 +3076,30 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
             "standardlsv3family",
             "standardmsfamily",
             "standardmsmediummemoryv2family",
-        ]:
+        ]
+
+    @classmethod
+    def _get_supported_vm_patterns(cls) -> List[Pattern[str]]:
+        return cls._SUPPORTED_VM_PATTERNS
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        family_lower = resource_sku.family.casefold()
+
+        if family_lower in cls._get_supported_vm_families():
             return schema.FeatureSettings.create(cls.name())
+
+        patterns = cls._get_supported_vm_patterns()
+        matches = find_patterns_in_lines(family_lower, patterns)
+
+        for pattern_matches in matches:
+            if pattern_matches:
+                return schema.FeatureSettings.create(cls.name())
+
         return None
 
 
@@ -3863,3 +3880,31 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 sudo=True,
                 append=True,
             )
+
+
+class Virtualization(AzureFeatureMixin, features.Virtualization):
+    """
+    Azure-specific implementation of Virtualization feature.
+
+    Automatically sets host_type to HyperV for Azure VMs since Azure
+    uses Microsoft Hyper-V hypervisor technology as its underlying
+    virtualization platform. Azure's hypervisor is based on Hyper-V.
+    """
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        """
+        Create Azure virtualization settings.
+
+        Azure VMs always run on Microsoft Hyper-V hypervisor technology,
+        so we set host_type to HyperV by default. Azure's underlying
+        virtualization is based on the Hyper-V hypervisor.
+
+        Returns:
+            VirtualizationSettings with host_type=HyperV
+        """
+        return schema.VirtualizationSettings(
+            host_type=schema.VirtualizationHostType.HyperV
+        )

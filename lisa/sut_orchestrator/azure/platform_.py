@@ -64,7 +64,7 @@ from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import add_secret
 from lisa.sut_orchestrator import platform_utils
-from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
+from lisa.tools import Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
     KernelPanicException,
@@ -189,9 +189,6 @@ RESOURCE_ID_PORT_POSTFIX = "-ssh"
 # [    1.283478] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3256; Vmbus version:3.0
 # Ubuntu arm64 version:
 # [    0.075800] Hyper-V: Host Build 10.0.22477.1022-1-0
-HOST_VERSION_PATTERN = re.compile(
-    r"Hyper-V:? (?:Host Build|Version)[\s|:][ ]?([^\r\n;]*)", re.M
-)
 
 # normal
 # [    0.000000] Linux version 5.4.0-1043-azure (buildd@lgw01-amd64-026) (gcc ...
@@ -204,7 +201,6 @@ WALA_VERSION_PATTERN = re.compile(
 )
 
 KEY_HARDWARE_DISK_CONTROLLER_TYPE = "hardware_disk_controller_type"
-KEY_HOST_VERSION = "host_version"
 KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
@@ -473,7 +469,7 @@ class AzurePlatform(Platform):
         # cannot be a class level variable.
         self._environment_information_hooks = {
             KEY_HARDWARE_DISK_CONTROLLER_TYPE: self._get_disk_controller_type,
-            KEY_HOST_VERSION: self._get_host_version,
+            platform_utils.KEY_HOST_VERSION: platform_utils.get_host_version,
             KEY_KERNEL_VERSION: self._get_kernel_version,
             KEY_WALA_VERSION: self._get_wala_version,
             KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
@@ -513,6 +509,7 @@ class AzurePlatform(Platform):
             features.Availability,
             features.Infiniband,
             features.Hibernation,
+            features.Virtualization,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -821,32 +818,6 @@ class AzurePlatform(Platform):
                 node.log.debug("detecting kernel version from serial log...")
                 serial_console = node.features[features.SerialConsole]
                 result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
-        return result
-
-    def _get_host_version(self, node: Node) -> str:
-        result: str = ""
-
-        try:
-            if node.is_connected and node.is_posix:
-                node.log.debug("detecting host version from dmesg...")
-                dmesg = node.tools[Dmesg]
-                result = get_matched_str(
-                    dmesg.get_output(), HOST_VERSION_PATTERN, first_match=False
-                )
-        except Exception as e:
-            # it happens on some error vms. Those error should be caught earlier in
-            # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on run dmesg: {e}")
-
-        # skip for Windows
-        if not node.is_connected or node.is_posix:
-            # if not get, try again from serial console log.
-            # skip if node is not initialized.
-            if not result and hasattr(node, ATTRIBUTE_FEATURES):
-                node.log.debug("detecting host version from serial log...")
-                serial_console = node.features[features.SerialConsole]
-                result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
-
         return result
 
     def _get_hardware_platform(self, node: Node) -> str:

@@ -372,9 +372,24 @@ class DpdkTestpmd(Tool):
         )
     )
     _search_hotplug_regex_alt = re.compile(
-        r"EAL: PCI device [a-fA-F0-9]{4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9] "
+        r"EAL: PCI device [a-fA-F0-9]{4}:"
+        r"[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9] "
         r"on NUMA socket [0-9]+"
     )
+    # for netvsc, we rely on the netvsc pmd debug log to fetch the information.
+    # when hotplug function finds a matching device, it logs
+    # this message (and the device args).
+    # this code isn dpdk is in drivers/net/netvsc/hn_ethdev.c
+    _search_hotplug_regex_netvsc = re.compile(
+        r"HN_DRIVER: netvsc_hotplug_retry\(\): "
+        r"Found matching MAC address, adding device"
+    )
+
+    _hotplug_search_regexes = [
+        _search_hotplug_regex,
+        _search_hotplug_regex_alt,
+        _search_hotplug_regex_netvsc,
+    ]
 
     # ex v19.11-rc3 or 19.11
     _version_info_from_git_tag_regex = re.compile(
@@ -604,9 +619,12 @@ class DpdkTestpmd(Tool):
             "Testpmd install path was not set, this indicates a logic"
             " error in the DPDK installation process."
         ).is_not_empty()
+        # add debug logging args, EAL ones are very verbose
+        # but netvsc are useful for identifying hotplugs on azure
+        debug_logging = "--log-level netvsc,debug"
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} -- --forward-mode={mode} "
+            f"{nic_include_info} {debug_logging} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
@@ -723,11 +741,11 @@ class DpdkTestpmd(Tool):
         self._check_pps_data("TX")
         return min(self.tx_pps_data)
 
-    def get_mean_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_rescind(self._tx_pps_key)
+    def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_hotplug(self._tx_pps_key)
 
-    def get_mean_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_rescind(self._rx_pps_key)
+    def get_mean_rx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_hotplug(self._rx_pps_key)
 
     def get_example_app_path(self, app_name: str) -> PurePath:
         source_path = self.node.get_pure_path(
@@ -835,8 +853,8 @@ class DpdkTestpmd(Tool):
 
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
-        self._testpmd_output_before_rescind = ""
-        self._testpmd_output_during_rescind = ""
+        self._testpmd_output_before_hotplug = ""
+        self._testpmd_output_during_hotplug = ""
         self._last_run_output = ""
         node = self.node
         if not isinstance(node.os, (Debian, Fedora, Suse)):
@@ -955,21 +973,18 @@ class DpdkTestpmd(Tool):
 
         device_removal_index = self._last_run_output.find(search_str)
         assert_that(device_removal_index).described_as(
-            "Could not locate SRIOV rescind event in testpmd output"
+            "Could not locate SRIOV hotplug event in testpmd output"
         ).is_not_equal_to(-1)
 
-        self._testpmd_output_before_rescind = self._last_run_output[
+        self._testpmd_output_before_hotplug = self._last_run_output[
             :device_removal_index
         ]
-        after_rescind = self._last_run_output[device_removal_index:]
-        # Identify the device add event
-        hotplug_match = self._search_hotplug_regex.finditer(after_rescind)
-        matches_list = list(hotplug_match)
-        if not list(matches_list):
-            hotplug_alt_match = self._search_hotplug_regex_alt.finditer(after_rescind)
-            if hotplug_alt_match:
-                matches_list = list(hotplug_alt_match)
-            else:
+        after_hotplug = self._last_run_output[device_removal_index:]
+        # Identify the device add event using the hotplug search regexes
+        for pattern in self._hotplug_search_regexes:
+            hotplug_match = pattern.finditer(after_hotplug)
+            matches_list = list(hotplug_match)
+            if not list(matches_list):
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
                     raise LisaException("Testpmd crashed after device removal.")
@@ -987,38 +1002,38 @@ class DpdkTestpmd(Tool):
 
         self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
 
-        before_reenable = after_rescind[: last_match.start()]
-        after_reenable = after_rescind[last_match.end() :]
-        self._testpmd_output_during_rescind = before_reenable
+        before_reenable = after_hotplug[: last_match.start()]
+        after_reenable = after_hotplug[last_match.end() :]
+        self._testpmd_output_during_hotplug = before_reenable
         self._testpmd_output_after_reenable = after_reenable
 
-    def _get_pps_sriov_rescind(
+    def _get_pps_sriov_hotplug(
         self,
         key_constant: str,
     ) -> Tuple[int, int, int]:
         if not all(
             [
-                self._testpmd_output_during_rescind,
+                self._testpmd_output_during_hotplug,
                 self._testpmd_output_after_reenable,
-                self._testpmd_output_before_rescind,
+                self._testpmd_output_before_hotplug,
             ]
         ):
             self._split_testpmd_output()
 
-        before_rescind = self.get_data_from_testpmd_output(
+        before_hotplug = self.get_data_from_testpmd_output(
             key_constant,
-            self._testpmd_output_before_rescind,
+            self._testpmd_output_before_hotplug,
         )
-        during_rescind = self.get_data_from_testpmd_output(
+        during_hotplug = self.get_data_from_testpmd_output(
             key_constant,
-            self._testpmd_output_during_rescind,
+            self._testpmd_output_during_hotplug,
         )
         after_reenable = self.get_data_from_testpmd_output(
             key_constant,
             self._testpmd_output_after_reenable,
         )
         before, during, after = map(
-            _mean, [before_rescind, during_rescind, after_reenable]
+            _mean, [before_hotplug, during_hotplug, after_reenable]
         )
         return before, during, after
 
@@ -1044,7 +1059,7 @@ def _discard_first_and_last_sample(data: List[int]) -> List[int]:
     # can mess up the average since we're using an unweighted mean
 
     # discard first and last sample so long as there are enough to
-    # practically, we expect there to be > 20 unless rescind
+    # practically, we expect there to be > 20 unless hotplug
     # performance is hugely improved in the cloud
     if len(data) < 3:
         return data
@@ -1053,7 +1068,7 @@ def _discard_first_and_last_sample(data: List[int]) -> List[int]:
 
 
 def _mean(data: List[int]) -> int:
-    return sum(data) // len(data)
+    return 0 if len(data) == 0 else (sum(data) // len(data))
 
 
 def _check_for_dpdk_build_errors(result: ExecutableResult) -> None:

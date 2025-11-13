@@ -451,6 +451,22 @@ class ResourceDiskType(str, Enum):
     NVME = constants.STORAGE_INTERFACE_TYPE_NVME
 
 
+class VirtualizationHostType(str, Enum):
+    """
+    Virtualization host type enumeration.
+    Defines the type of hypervisor or virtualization platform being used.
+    """
+
+    # Physical hardware without virtualization
+    BareMetal = "BareMetal"
+    # Microsoft Hyper-V hypervisor
+    HyperV = "HyperV"
+    # QEMU/KVM virtualization
+    QEMU = "QEMU"
+    # Cloud Hypervisor
+    CloudHypervisor = "CloudHypervisor"
+
+
 disk_controller_type_priority: List[DiskControllerType] = [
     DiskControllerType.SCSI,
     DiskControllerType.NVME,
@@ -844,6 +860,104 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         value.data_path = getattr(search_space, f"{method.value}_setspace_by_priority")(
             self.data_path, capability.data_path, _network_data_path_priority
         )
+        return value
+
+
+@dataclass_json()
+@dataclass()
+class VirtualizationSettings(FeatureSettings):
+    """
+    Virtualization feature settings to specify the host type.
+    Used to indicate the type of hypervisor or virtualization platform.
+    """
+
+    type: str = constants.FEATURE_VIRTUALIZATION
+    # Host type - specifies the virtualization platform being used
+    # Default is None (no restrictions/requirements)
+    host_type: Optional[
+        Union[
+            search_space.SetSpace[VirtualizationHostType],
+            VirtualizationHostType,
+        ]
+    ] = field(
+        default=None,
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=VirtualizationHostType,
+                default_values=[],
+            )
+        ),
+    )
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, VirtualizationSettings), f"actual: {type(o)}"
+        return super().__eq__(o) and self.host_type == o.host_type
+
+    def __hash__(self) -> int:
+        return hash(self._get_key())
+
+    def _get_key(self) -> str:
+        # Include host_type in key for different hash values
+        host_type_str = str(self.host_type) if self.host_type else "None"
+        return f"{self.type}_{host_type_str}"
+
+    def __repr__(self) -> str:
+        return f"type:{self.type}, " f"host_type:{self.host_type}"
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        result = super().check(capability)
+        assert isinstance(capability, VirtualizationSettings)
+
+        # Check host_type compatibility
+        if self.host_type is not None:
+            if capability.host_type is None:
+                # Requirement specifies host_type but capability doesn't provide it
+                result.add_reason(
+                    f"requirement specifies host_type {self.host_type} "
+                    f"but capability has no host_type specified"
+                )
+            else:
+                # Both have host_type, check compatibility
+                result.merge(
+                    search_space.check_setspace(self.host_type, capability.host_type)
+                )
+
+        return result
+
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
+        assert isinstance(capability, VirtualizationSettings)
+        value = type(self)()
+
+        # Handle host_type intersection/generation based on method
+        if self.host_type is not None and capability.host_type is not None:
+            # Convert single values to SetSpace if needed
+            if isinstance(self.host_type, VirtualizationHostType):
+                self_host_type = search_space.SetSpace(
+                    is_allow_set=True, items=[self.host_type]
+                )
+            else:
+                self_host_type = self.host_type
+
+            if isinstance(capability.host_type, VirtualizationHostType):
+                cap_host_type = search_space.SetSpace(
+                    is_allow_set=True, items=[capability.host_type]
+                )
+            else:
+                cap_host_type = capability.host_type
+
+            # Use SetSpace methods directly
+            if method == search_space.RequirementMethod.intersect:
+                value.host_type = self_host_type.intersect(cap_host_type)
+            elif method == search_space.RequirementMethod.generate_min_capability:
+                value.host_type = self_host_type.generate_min_capability(cap_host_type)
+        elif capability.host_type is not None:
+            value.host_type = capability.host_type
+        else:
+            value.host_type = self.host_type
+
         return value
 
 
@@ -1246,6 +1360,10 @@ class Node(TypedSchema, ExtendableSchemaMixin):
     name: str = ""
     is_default: bool = field(default=False)
 
+    # A node is disabled if it's False. It helps to disable node by
+    # variables.
+    enabled: bool = True
+
 
 @dataclass_json()
 @dataclass
@@ -1371,6 +1489,10 @@ class Environment:
         metadata=field_metadata(data_key=constants.NODES),
     )
     nodes_requirement: Optional[List[NodeSpace]] = None
+
+    # An environment is disabled if it's False. It helps to disable environment
+    # by variables.
+    enabled: bool = True
 
     _original_nodes_requirement: Optional[List[NodeSpace]] = None
 

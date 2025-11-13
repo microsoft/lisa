@@ -111,7 +111,7 @@ Linux VM on Azure.
 
    After the test is completed, you can check the LISA console log, or the html
    report file for the test results. Refer to :doc:`Understand test results
-   <understand_results>` for more detailed explanation of the logs and report.
+   <troubleshoot_failures>` for more detailed explanation of the logs and report.
    See an example html report as below:
 
    .. figure:: ../img/smoke_test_result.png

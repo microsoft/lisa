@@ -1773,6 +1773,7 @@ def check_or_create_storage_account(
     log: Logger,
     sku: str = "Standard_LRS",
     kind: str = "StorageV2",
+    minimum_tls_version: str = "TLS1_2",
     enable_https_traffic_only: bool = True,
     allow_shared_key_access: bool = False,
     allow_blob_public_access: bool = False,
@@ -1799,6 +1800,7 @@ def check_or_create_storage_account(
                 enable_https_traffic_only=enable_https_traffic_only,
                 allow_shared_key_access=allow_shared_key_access,
                 allow_blob_public_access=allow_blob_public_access,
+                minimum_tls_version=minimum_tls_version,
             )
             operation = storage_client.storage_accounts.begin_create(
                 resource_group_name=resource_group_name,

@@ -8,6 +8,7 @@ from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
+    Pmd,
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -101,7 +102,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB, result=result
         )
 
     @TestCaseMetadata(
@@ -155,7 +156,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "netvsc", HugePageSize.HUGE_1GB, result=result
+            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_1GB, result=result
         )
 
     @TestCaseMetadata(
@@ -183,7 +184,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "failsafe", HugePageSize.HUGE_2MB, result=result
+            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB, result=result
         )
 
     @TestCaseMetadata(
@@ -211,7 +212,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, "failsafe", HugePageSize.HUGE_1GB, result=result
+            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_1GB, result=result
         )
 
     @TestCaseMetadata(
@@ -240,7 +241,7 @@ class Dpdk(TestSuite):
         force_dpdk_default_source(variables)
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, "netvsc", HugePageSize.HUGE_2MB
+                node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -326,7 +327,7 @@ class Dpdk(TestSuite):
         # multiprocess test requires dpdk source.
         force_dpdk_default_source(variables)
         kill = node.tools[Kill]
-        pmd = "failsafe"
+        pmd = Pmd.FAILSAFE
         server_app_name = "dpdk-mp_server"
         client_app_name = "dpdk-mp_client"
         # initialize DPDK with sample applications selected for build
@@ -417,17 +418,88 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
         ),
     )
-    def verify_dpdk_sriov_rescind_failover_receiver(
+    def verify_dpdk_testpmd_hotplug_receiver_failsafe_pmd(
         self,
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
+        self.run_testpmd_hotplug_recv_test(
+            environment, log, variables, pmd=Pmd.FAILSAFE
+        )
+
+    @TestCaseMetadata(
+        description="""
+            test sriov failsafe during vf revoke (receive side)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_receiver_netvsc_pmd(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        self.run_testpmd_hotplug_recv_test(environment, log, variables, pmd=Pmd.NETVSC)
+
+    @TestCaseMetadata(
+        description="""
+            testpmd with hotplug vf for failsafe pmd (send only version)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_sender_failsafe_pmd(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.FAILSAFE)
+
+    @TestCaseMetadata(
+        description="""
+            testpmd with hotplug vf for netvsc pmd (send only version)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_sender_netvsc_pmd(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.NETVSC)
+
+    # common testpmd hotplug functions, send only and receiver versions
+    # support both netvsc and failsafe pmd
+    def run_testpmd_hotplug_recv_test(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        pmd: Pmd = Pmd.FAILSAFE,
+    ) -> None:
         test_kits = init_nodes_concurrent(
             environment,
             log,
             variables,
-            "failsafe",
+            pmd,
             HugePageSize.HUGE_2MB,
         )
 
@@ -442,34 +514,25 @@ class Dpdk(TestSuite):
         receiver.switch_sriov = True
         sender.switch_sriov = False
 
-        kit_cmd_pairs = generate_send_receive_run_info("failsafe", sender, receiver)
+        kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
 
         run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
         )
 
-        rescind_tx_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_rescind()
-        self._check_rx_or_tx_pps_sriov_rescind("RX", rescind_tx_pps_set)
+        hotplug_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
+        self._check_rx_or_tx_pps_sriov_hotplug("RX", hotplug_pps_set)
 
-    @TestCaseMetadata(
-        description="""
-            test sriov failsafe during vf revoke (send only version)
-        """,
-        priority=2,
-        requirement=simple_requirement(
-            min_core_count=8,
-            min_nic_count=2,
-            network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def verify_dpdk_sriov_rescind_failover_send_only(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+    def run_testpmd_hotplug_send_test(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        pmd: Pmd = Pmd.FAILSAFE,
     ) -> None:
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+                node, log, variables, pmd, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -481,19 +544,24 @@ class Dpdk(TestSuite):
         }
 
         run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
         )
 
-        rescind_tx_pps_set = testpmd.get_mean_tx_pps_sriov_rescind()
-        self._check_rx_or_tx_pps_sriov_rescind("TX", rescind_tx_pps_set)
+        hotplug_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
+        self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_pps_set)
 
-    def _check_rx_or_tx_pps_sriov_rescind(
+    def _check_rx_or_tx_pps_sriov_hotplug(
         self, tx_or_rx: str, pps: Tuple[int, int, int]
     ) -> None:
-        before_rescind, during_rescind, after_reenable = pps
-        self._check_rx_or_tx_pps(tx_or_rx, before_rescind, sriov_enabled=True)
-        self._check_rx_or_tx_pps(tx_or_rx, during_rescind, sriov_enabled=False)
+        before_hotplug, during_hotplug, after_reenable = pps
+        self._check_rx_or_tx_pps(tx_or_rx, before_hotplug, sriov_enabled=True)
+        self._check_rx_or_tx_pps(tx_or_rx, during_hotplug, sriov_enabled=False)
         self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
+        after_over_before = after_reenable / before_hotplug
+        assert_that(after_over_before).described_as(
+            "Error: pps of vf was very different before and after hotplug. "
+            f"before: {before_hotplug} after: {after_reenable}"
+        ).is_close_to(1, tolerance=0.125)
 
     def _check_rx_or_tx_pps(
         self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
@@ -503,11 +571,11 @@ class Dpdk(TestSuite):
                 f"{tx_or_rx}-PPS ({pps}) should have been greater "
                 "than 2^20 (~1m) PPS before sriov disable."
             ).is_greater_than(2**20)
-        else:
-            assert_that(pps).described_as(
-                f"{tx_or_rx}-PPS ({pps}) should have been less "
-                "than 2^20 (~1m) PPS after sriov disable."
-            ).is_less_than(2**20)
+        # not checking if traffic is below some arbitrary
+        # threshold because it's a moving target. New skus
+        # will be faster. Let's just check for the hotplug
+        # messages to verify we got the hotplug
+        # from the lower level.
 
     @TestCaseMetadata(
         description="""
@@ -541,7 +609,7 @@ class Dpdk(TestSuite):
             )
         try:
             initialize_node_resources(
-                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+                node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -591,7 +659,7 @@ class Dpdk(TestSuite):
         # setup and unwrap the resources for this test
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+                node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -677,7 +745,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "failsafe", result=result
+                environment, log, variables, Pmd.FAILSAFE, result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -708,7 +776,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result, set_mtu=9000
+                environment, log, variables, Pmd.NETVSC, result=result, set_mtu=9000
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -738,7 +806,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc", result=result
+                environment, log, variables, Pmd.NETVSC, result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -771,7 +839,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "failsafe",
+                Pmd.FAILSAFE,
                 HugePageSize.HUGE_2MB,
                 result=result,
             )
@@ -807,7 +875,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "failsafe",
+                Pmd.FAILSAFE,
                 HugePageSize.HUGE_1GB,
                 result=result,
             )
@@ -842,7 +910,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "netvsc",
+                Pmd.NETVSC,
                 HugePageSize.HUGE_2MB,
                 result=result,
             )
@@ -878,7 +946,7 @@ class Dpdk(TestSuite):
                 environment,
                 log,
                 variables,
-                "netvsc",
+                Pmd.NETVSC,
                 HugePageSize.HUGE_1GB,
                 result=result,
             )
@@ -915,7 +983,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
-        pmd = "netvsc"
+        pmd = Pmd.NETVSC
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
         )
@@ -950,7 +1018,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
-        pmd = "netvsc"
+        pmd = Pmd.NETVSC
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment,
             log,
@@ -958,7 +1026,7 @@ class Dpdk(TestSuite):
             HugePageSize.HUGE_2MB,
             pmd=pmd,
             result=result,
-            rescind_sriov=True,
+            hotplug_sriov=True,
         )
 
     @TestCaseMetadata(
@@ -989,7 +1057,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
-        pmd = "netvsc"
+        pmd = Pmd.NETVSC
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment,
             log,

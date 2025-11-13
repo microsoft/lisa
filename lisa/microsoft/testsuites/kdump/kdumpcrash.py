@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 from pathlib import Path
 from random import randint
-from typing import Any
+from typing import Any, cast
 
 from lisa import (
     Logger,
@@ -14,9 +14,9 @@ from lisa import (
     node_requirement,
     schema,
     search_space,
-    simple_requirement,
 )
-from lisa.features.security_profile import CvmDisabled
+from lisa.features import SecurityProfile
+from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
 from lisa.operating_system import BSD, Windows
 from lisa.tools import KdumpCheck, Lscpu
 
@@ -43,6 +43,22 @@ class KdumpCrash(TestSuite):
         node: Node = kwargs["node"]
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
+        # Skip kdump tests on CVMs (Confidential VMs) as they are not supported
+        # Only skip if SecurityProfile is present AND it's CVM or Stateless type
+        # Platforms without SecurityProfile support (e.g., Hyper-V) will run kdump tests
+        if node.features.is_supported(SecurityProfile):
+            security_profile_settings = cast(
+                SecurityProfileSettings, node.features[SecurityProfile].get_settings()
+            )
+            if security_profile_settings.security_profile in [
+                SecurityProfileType.CVM,
+                SecurityProfileType.Stateless,
+            ]:
+                raise SkippedException(
+                    "Kdump is not supported on Confidential VMs. "
+                    "Skipping test due to security profile type: "
+                    f"{security_profile_settings.security_profile}"
+                )
         self.kdump_util = node.tools[KdumpCheck]
 
     @TestCaseMetadata(
@@ -75,7 +91,6 @@ class KdumpCrash(TestSuite):
             node=schema.NodeSpace(
                 core_count=1, memory_mb=search_space.IntRange(min=2048)
             ),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_single_core(
@@ -94,7 +109,6 @@ class KdumpCrash(TestSuite):
             node=schema.NodeSpace(
                 core_count=search_space.IntRange(min=2, max=8),
             ),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_smp(self, node: Node, log_path: Path, log: Logger) -> None:
@@ -107,9 +121,6 @@ class KdumpCrash(TestSuite):
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
         priority=1,
-        requirement=simple_requirement(
-            supported_features=[CvmDisabled()],
-        ),
     )
     def verify_kdumpcrash_on_random_cpu(
         self, node: Node, log_path: Path, log: Logger
@@ -131,7 +142,6 @@ class KdumpCrash(TestSuite):
         priority=2,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=33, max=192)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu32(
@@ -151,7 +161,6 @@ class KdumpCrash(TestSuite):
         priority=2,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=193, max=415)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu192(
@@ -171,7 +180,6 @@ class KdumpCrash(TestSuite):
         priority=4,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=416)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu415(
@@ -188,9 +196,6 @@ class KdumpCrash(TestSuite):
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[CvmDisabled()],
-        ),
     )
     def verify_kdumpcrash_auto_size(
         self, node: Node, log_path: Path, log: Logger
@@ -209,7 +214,6 @@ class KdumpCrash(TestSuite):
         priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(memory_mb=search_space.IntRange(min=2097152)),
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_large_memory_auto_size(

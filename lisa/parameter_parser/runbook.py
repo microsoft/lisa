@@ -25,6 +25,9 @@ _get_init_logger = partial(get_logger, "init", "runbook")
 _lisa_root_path = Path(__file__).parent.parent.parent.resolve()
 _old_microsoft_path = (_lisa_root_path / "microsoft").resolve()
 _old_examples_path = (_lisa_root_path / "examples").resolve()
+# New paths after code reorganization, it will be used to detect and fix the
+# extension name to "microsoft", so that the cross imports work well.
+_new_microsoft_path = (_lisa_root_path / "lisa" / "microsoft").resolve()
 
 
 class RunbookBuilder:
@@ -195,19 +198,17 @@ class RunbookBuilder:
         path = path.absolute().resolve()
         old_name = name
         old_path = path
-        if path.is_relative_to(_old_microsoft_path):
-            path = _lisa_root_path.joinpath(
-                "lisa", "microsoft", path.relative_to(_old_microsoft_path)
-            )
+        if path.is_relative_to(_old_microsoft_path) or path.is_relative_to(
+            _new_microsoft_path
+        ):
+            path = _lisa_root_path.joinpath("lisa", "microsoft")
         elif path.is_relative_to(_old_examples_path):
-            path = _lisa_root_path.joinpath(
-                "lisa", "examples", path.relative_to(_old_examples_path)
-            )
+            path = _lisa_root_path.joinpath("lisa", "examples")
         else:
             return path, name
 
         self._log.info(
-            f"Fixing extension path for old code layout, "
+            f"Updated the extension path for path, "
             f"from '{old_path}' to '{path}', "
             f"and name from '{old_name}' to '{path.name}'",
         )

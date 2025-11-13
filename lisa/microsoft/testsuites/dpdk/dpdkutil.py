@@ -16,6 +16,7 @@ from microsoft.testsuites.dpdk.common import (
     GitDownloader,
     Installer,
     PackageManagerInstall,
+    Pmd,
     TarDownloader,
     check_dpdk_support,
     is_url_for_git_repo,
@@ -197,7 +198,7 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
 
 
 def generate_send_receive_run_info(
-    pmd: str,
+    pmd: Pmd,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
     multiple_queues: bool = False,
@@ -289,9 +290,9 @@ def enable_uio_hv_generic(node: Node) -> None:
 
 
 def do_pmd_driver_setup(
-    node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: str = "failsafe"
+    node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
 ) -> None:
-    if pmd == "netvsc":
+    if pmd == Pmd.NETVSC:
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic(node)
@@ -318,7 +319,7 @@ def initialize_node_resources(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     test_nics: Union[List[NicInfo], None] = None,
@@ -412,11 +413,11 @@ def initialize_node_resources(
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
 
 
-def check_pmd_support(node: Node, pmd: str) -> None:
+def check_pmd_support(node: Node, pmd: Pmd) -> None:
     # Check environment (kernel, drivers, etc) supports selected PMD.
-    if pmd == "failsafe" and node.nics.is_mana_device_present():
+    if pmd == Pmd.FAILSAFE and node.nics.is_mana_device_present():
         raise SkippedException("Failsafe PMD test on MANA is not supported.")
-    if pmd == "netvsc" and not (
+    if pmd == Pmd.NETVSC and not (
         node.tools[Modprobe].load("uio_hv_generic", dry_run=True)
     ):
         raise SkippedException(
@@ -440,12 +441,12 @@ def run_testpmd_concurrent(
     node_cmd_pairs: Dict[DpdkTestResources, str],
     seconds: int,
     log: Logger,
-    rescind_sriov: bool = False,
+    hotplug_sriov: bool = False,
 ) -> Dict[DpdkTestResources, str]:
     output: Dict[DpdkTestResources, str] = dict()
 
     task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
-    if rescind_sriov:
+    if hotplug_sriov:
         time.sleep(10)  # run testpmd for a bit before disabling sriov
 
         test_kits = node_cmd_pairs.keys()
@@ -506,7 +507,7 @@ def init_nodes_concurrent(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     test_nic_count: int = 1,
@@ -548,7 +549,7 @@ def verify_dpdk_build(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
@@ -587,7 +588,7 @@ def verify_dpdk_send_receive(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
     multiple_queues: bool = False,
@@ -678,7 +679,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
-    pmd: str,
+    pmd: Pmd,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
@@ -810,11 +811,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     log: Logger,
     variables: Dict[str, Any],
     hugepage_size: HugePageSize,
-    pmd: str = "netvsc",
+    pmd: Pmd = Pmd.NETVSC,
     force_single_queue: bool = False,
     is_perf_test: bool = False,
     result: Optional[TestResult] = None,
-    rescind_sriov: bool = False,
+    hotplug_sriov: bool = False,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
@@ -1074,8 +1075,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         threads_count=ntttcp_threads_count,
         run_time_seconds=ntttcp_run_time,
     )
-    # rescind sriov and run again
-    if rescind_sriov:
+    # hotplug sriov and run again
+    if hotplug_sriov:
         forwarder.features[NetworkInterface].switch_sriov(
             enable=False, wait=False, reset_connections=False
         )
@@ -1113,8 +1114,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
         sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
     }
-    # compare results with those after the rescind if needed
-    if rescind_sriov:
+    # compare results with those after the hotplug if needed
+    if hotplug_sriov:
         _ntttcp_results_after = {
             receiver: ntttcp[receiver].create_ntttcp_result(
                 _receiver_after_result, role="server"
@@ -1430,8 +1431,8 @@ def run_dpdk_symmetric_mp(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
-    trigger_rescind: bool = False,
-    rescind_times: int = 1,
+    trigger_hotplug: bool = False,
+    hotplug_times: int = 1,
 ) -> None:
     """
     A runner function for symmetric_mp, one of the
@@ -1471,7 +1472,7 @@ def run_dpdk_symmetric_mp(
             node,
             log,
             variables,
-            "netvsc",
+            Pmd.NETVSC,
             HugePageSize.HUGE_2MB,
             test_nics=test_nics,
         )
@@ -1546,7 +1547,7 @@ def run_dpdk_symmetric_mp(
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
 
-    # expect 150 pings by default, if we rescind we'll add to this count
+    # expect 150 pings by default, if we hotplug we'll add to this count
     expected_pings = 150
     ping.ping_async(
         target=test_nics[0].ip_addr,
@@ -1561,11 +1562,11 @@ def run_dpdk_symmetric_mp(
         ignore_error=True,
         interval=0.05,
     )
-    # optionally trigger rescind
-    if trigger_rescind:
-        # allow multiple rescinds for stress testing
-        while rescind_times > 0:
-            rescind_times -= 1
+    # optionally trigger hotplug
+    if trigger_hotplug:
+        # allow multiple hotplugs for stress testing
+        while hotplug_times > 0:
+            hotplug_times -= 1
             # turn SRIOV off
 
             node.features[NetworkInterface].switch_sriov(
@@ -1601,7 +1602,7 @@ def run_dpdk_symmetric_mp(
                 ignore_error=True,
                 interval=0.05,
             )
-            # expect additional pings for each post-rescind instance
+            # expect additional pings for each post-hotplug instance
             expected_pings += 100
 
     ping.ping_async(
