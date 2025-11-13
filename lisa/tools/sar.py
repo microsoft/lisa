@@ -237,7 +237,6 @@ class Sar(Tool):
             },
             {
                 "name": "test_type",
-                "value": 0.0,
                 "str_value": test_type,
                 "relativity": MetricRelativity.Parameter,
                 "unit": "",
