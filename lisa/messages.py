@@ -150,6 +150,7 @@ class UnifiedPerfMessage(PerfMessage):
     type: str = "UnifiedPerformance"
     metric_name: str = ""
     metric_value: float = 0.0
+    metric_str_value: str = ""
     metric_unit: str = ""
     metric_description: str = ""
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA
@@ -409,6 +410,7 @@ def send_unified_perf_message(
     metric_name: str = "",
     metric_value: float = 0.0,
     metric_unit: str = "",
+    metric_str_value: str = "",
     metric_description: str = "",
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
     tool: str = "",
@@ -431,6 +433,7 @@ def send_unified_perf_message(
     message.metric_unit = metric_unit
     message.metric_description = metric_description
     message.metric_relativity = metric_relativity
+    message.metric_str_value = metric_str_value
 
     message.tool = tool
 
