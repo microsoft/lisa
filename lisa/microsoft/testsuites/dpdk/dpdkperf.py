@@ -446,7 +446,8 @@ class DpdkPerformance(TestSuite):
             metrics.append(
                 {
                     "name": "test_type",
-                    "value": float(hash(test_type)),
+                    "value": 0.0,
+                    "str_value": test_type,
                     "relativity": MetricRelativity.Parameter,
                     "unit": "",
                 }
@@ -457,7 +458,8 @@ class DpdkPerformance(TestSuite):
             metrics.append(
                 {
                     "name": "role",
-                    "value": float(hash(role)),
+                    "value": 0.0,
+                    "str_value": role,
                     "relativity": MetricRelativity.Parameter,
                     "unit": "",
                 }
@@ -475,6 +477,7 @@ class DpdkPerformance(TestSuite):
                 metric_name=cast(str, metric["name"]),
                 metric_value=cast(float, metric["value"]),
                 metric_unit=cast(str, metric["unit"]),
+                metric_str_value=cast(str, metric.get("str_value", "")),
                 metric_relativity=cast(MetricRelativity, metric["relativity"]),
                 protocol_type=protocol_type,
             )
