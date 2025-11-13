@@ -62,11 +62,46 @@ __url_pattern = re.compile(
 )
 
 
-# used to filter ansi escapes for better layout in log and other place
-# Example:
-# Text: "\x1b[?1h\x1b=\rAdd linux-next specific files for 20230221\x1b[m\r\n\r\x1b[K\x1b[?1l\x1b>"  # noqa: E501
-# Escape Result: '\rAdd linux-next specific files for 20230221\r\n\r'
-__ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_=<>a-kzNM78]|\[[0-?]*[ -/]*[@-~])")
+# Used to filter ANSI escape sequences for better layout in logs and other output.
+# ANSI escapes are special character sequences that control terminal behavior
+# (colors, cursor movement, etc.) but interfere with text parsing.
+#
+# Examples of sequences we filter:
+# 1. CSI (Control Sequence Introducer): "\x1b[31m" (red color), "\x1b[2J" (clear screen)
+# 2. OSC (Operating System Command): "\x1b]0;Title\x07" (set window title)
+# 3. OSC 3008 audit logs: "\x1b]3008;user=test;...\x1b\" (sudo audit from systemd 258+)
+# 4. Single-char escapes: "\x1bM" (reverse line feed), "\x1b7" (save cursor)
+#
+# Note: This regex captures the most common ANSI sequences encountered in terminal output.
+# It does NOT capture all possible ANSI escapes (e.g., DCS, PM, APC sequences), but it
+# handles the sequences that typically appear in command output and logs. For LISA's
+# use case (filtering terminal output for parsing), this provides sufficient coverage.
+#
+# Pattern breakdown (order matters - OSC must come first!):
+# 1. OSC sequences: ESC ] <data> (BEL|ESC\)
+#    - Matches: \x1b]...\x07 or \x1b]...\x1b\
+#    - Must be first to prevent ']' from matching in single-char range
+# 2. Single-char escapes: ESC followed by one character from [@-Z\\-_=<>a-kzNM78]
+#    - Matches: \x1b7, \x1bM, etc.
+# 3. CSI sequences: ESC [ <params> <command>
+#    - Matches: \x1b[31m, \x1b[2J, etc.
+__ansi_escape = re.compile(
+    r"\x1B(?:"  # Start: ESC character followed by one of three patterns
+    # Pattern 1: OSC (Operating System Command) - ESC ] <data> <terminator>
+    r"\]"  # Literal ']' character after ESC
+    r"(?:[^\x07\x1B]|\x1B(?!\\))*"  # Data: any char except BEL/ESC, or ESC not followed by \
+    r"(?:\x07|\x1B\\)"  # Terminator: BEL (\x07) or ST (ESC \)
+    r"|"  # OR
+    # Pattern 2: Single-character escapes - ESC <char>
+    r"[@-Z\\-_=<>a-kzNM78]"  # One character from these ranges
+    r"|"  # OR
+    # Pattern 3: CSI (Control Sequence Introducer) - ESC [ <params> <final>
+    r"\["  # Literal '[' character after ESC
+    r"[0-?]*"  # Parameter bytes (optional)
+    r"[ -/]*"  # Intermediate bytes (optional)
+    r"[@-~]"  # Final byte (required)
+    r")"  # End of alternation
+)
 
 # 10.0.22000.100
 # 18.04.5
