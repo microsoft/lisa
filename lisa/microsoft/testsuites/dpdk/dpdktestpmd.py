@@ -411,10 +411,18 @@ class DpdkTestpmd(Tool):
 
     _tx_pps_key = "transmit-packets-per-second"
     _rx_pps_key = "receive-packets-per-second"
+    _tx_drop_key = "tx-packet-drops"
+    _rx_drop_key = "rx-packet-drops"
+    _tx_total_key = "tx-total-packets"
+    _rx_total_key = "rx-total-packets"
 
     _testpmd_output_regex = {
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
+        _tx_drop_key: r"TX-dropped:\s+([0-9]+)",
+        _rx_drop_key: r"RX-dropped:\s+([0-9]+)",
+        _tx_total_key: r"TX-packets:\s+([0-9]+)",
+        _rx_total_key: r"TX-packets:\s+([0-9]+)",
     }
     _source_build_dest_dir = "/usr/local/bin"
 
@@ -720,6 +728,18 @@ class DpdkTestpmd(Tool):
         self.tx_pps_data = self.get_data_from_testpmd_output(
             self._tx_pps_key, self._last_run_output
         )
+        self.tx_packet_drops = self.get_data_from_testpmd_output(
+            self._tx_drop_key, self._last_run_output
+        )[-1]
+        self.rx_packet_drops = self.get_data_from_testpmd_output(
+            self._rx_drop_key, self._last_run_output
+        )[-1]
+        self.tx_total_packets = self.get_data_from_testpmd_output(
+            self._tx_total_key, self._last_run_output
+        )[-1]
+        self.rx_total_packets = self.get_data_from_testpmd_output(
+            self._rx_total_key, self._last_run_output
+        )[-1]
 
     def get_mean_rx_pps(self) -> int:
         self._check_pps_data("RX")
@@ -744,6 +764,26 @@ class DpdkTestpmd(Tool):
     def get_min_tx_pps(self) -> int:
         self._check_pps_data("TX")
         return min(self.tx_pps_data)
+
+    def check_tx_packet_drops(self) -> None:
+        if self.tx_total_packets == 0:
+            raise AssertionError(
+                "Test bug: tx packet data was 0, could not check dropped packets"
+            )
+        dropped_packet_percentage = self.tx_packet_drops / self.tx_total_packets
+        assert_that(dropped_packet_percentage).described_as(
+            "More than 20% of the tx packets were dropped!"
+        ).is_close_to(0, 0.2)
+
+    def check_rx_packet_drops(self) -> None:
+        if self.rx_total_packets == 0:
+            raise AssertionError(
+                "Test bug: rx packet data was 0 could not check dropped packets."
+            )
+        dropped_packet_percentage = self.rx_packet_drops / self.rx_total_packets
+        assert_that(dropped_packet_percentage).described_as(
+            "More than 1% of the received packets were dropped!"
+        ).is_close_to(0, 0.01)
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_hotplug(self._tx_pps_key)

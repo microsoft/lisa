@@ -767,6 +767,12 @@ def verify_dpdk_send_receive(
         "Throughput for SEND was below the correct order of magnitude"
     ).is_greater_than(DPDK_PPS_THRESHOLD)
 
+    # verify sender didn't drop most of the packets
+    sender.testpmd.check_tx_packet_drops()
+
+    # verify receiver didn't drop most of the packets
+    receiver.testpmd.check_rx_packet_drops()
+
     return sender, receiver
 
 
