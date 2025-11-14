@@ -529,7 +529,7 @@ class DpdkTestpmd(Tool):
 
     def generate_testpmd_command(
         self,
-        nic_to_include: NicInfo,
+        nic_to_include: List[NicInfo],
         vdev_id: int,
         mode: str,
         extra_args: str = "",
@@ -563,7 +563,10 @@ class DpdkTestpmd(Tool):
         txd = 256
 
         # generate the flags for which devices to include in the tests
-        nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
+        nic_include_infos = []
+        for nic in nic_to_include:
+            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id)]
+            vdev_id += 1
 
         # infer core count to assign based on number of queues
         threads_available = self.node.tools[Lscpu].get_thread_count()
@@ -571,7 +574,7 @@ class DpdkTestpmd(Tool):
             "DPDK tests need more than 4 threads, recommended more than 8 threads"
         ).is_greater_than(4)
 
-        queues_and_servicing_core = queues + service_cores
+        queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
 
         while queues_and_servicing_core > (threads_available - 2):
             # if less, split the number of queues
@@ -622,9 +625,10 @@ class DpdkTestpmd(Tool):
         # add debug logging args, EAL ones are very verbose
         # but netvsc are useful for identifying hotplugs on azure
         debug_logging = "--log-level netvsc,debug"
+        nic_includes = " ".join(nic_include_infos)
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} {debug_logging} -- --forward-mode={mode} "
+            f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 

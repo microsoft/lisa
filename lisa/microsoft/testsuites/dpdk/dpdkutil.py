@@ -48,6 +48,7 @@ from lisa import (
     notifier,
 )
 from lisa.base_tools.uname import Uname
+from lisa.executable import Process
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
@@ -221,7 +222,7 @@ def generate_send_receive_run_info(
     else:
         maxmtu_int = 0
     snd_cmd = sender.testpmd.generate_testpmd_command(
-        snd_nic,
+        [snd_nic],
         0,
         "txonly",
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
@@ -231,7 +232,7 @@ def generate_send_receive_run_info(
         mbuf_size=maxmtu_int,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
-        rcv_nic,
+        [rcv_nic],
         0,
         "rxonly",
         multiple_queues=multiple_queues,
@@ -244,6 +245,96 @@ def generate_send_receive_run_info(
         sender: snd_cmd,
         receiver: rcv_cmd,
     }
+
+    return kit_cmd_pairs
+
+
+def generate_testpmd_multiple_port_command(
+    pmd: Pmd,
+    senders: List[DpdkTestResources],
+    receiver: DpdkTestResources,
+    multiple_queues: bool = False,
+    use_service_cores: int = 1,
+    set_mtu: int = 0,
+) -> Dict[DpdkTestResources, str]:
+    # for N senders, make a list of subnets from
+    # 10.0.1.0/24 to 10.0.N.0/24.
+    # these can be arbitrarily picked, each VM has nics on each
+    # subnets, so it doesn't matter which is picked for each VM
+    # as long as the senders are on distinct subnets.
+    subnets = []
+    for i in range(len(senders)):
+        subnets += [f"10.0.{i + 1}.0/24"]
+    sender_nics: Dict[DpdkTestResources, NicInfo] = dict()
+    receiver_nics: Dict[str, NicInfo] = dict()
+    for i in range(len(senders)):
+        # pick one nic per subnet for the senders
+        subnet = subnets[i]  # defined above as "10.0.{i + 1}.0/24"
+        sender = senders[i]
+        sender_nics[sender] = sender.node.nics.get_nic_by_subnet(subnet)
+        # and the corresponding nic on the receiver for that subnet.
+        receiver_nics[subnet] = receiver.node.nics.get_nic_by_subnet(subnet)
+
+    # for MTU test: check that we can fetch the max MTU size for the NIC
+    if set_mtu:
+        for sender in senders:
+            # fixme: this will break with mana direct vf
+            check_nic = sender_nics[sender].lower
+            maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+            if not maxmtu:
+                raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+            maxmtu_int = int(maxmtu)
+            if set_mtu > maxmtu_int:
+                raise SkippedException(
+                    "Requested MTU size exceeds max mtu for DPDK mtu test: "
+                    f"{set_mtu} > {maxmtu}."
+                )
+    else:
+        maxmtu_int = 0
+    kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
+    receiver_includes: List[str] = []
+    for i in range(len(senders)):
+        # get the sender
+        sender = senders[i]
+        sender_subnet = subnets[i]  # defined above as "10.0.{i + 1}.0/24"
+        # get the sender nic we picked
+        sender_nic = sender_nics[sender]
+        # get the subnet for that nic (follows the pattern from before)
+
+        # get the corresponding receiver nic for that subnet
+        receiver_nic = receiver_nics[sender_subnet]
+        # generate the command for the sender
+        snd_cmd = sender.testpmd.generate_testpmd_command(
+            [sender_nic],
+            0,
+            "txonly",
+            extra_args=f"--tx-ip={sender_nic.ip_addr},{receiver_nic.ip_addr}",
+            multiple_queues=multiple_queues,
+            service_cores=use_service_cores,
+            mtu=set_mtu,
+            mbuf_size=maxmtu_int,
+        )
+        # store this senders command
+        kit_cmd_pairs[sender] = snd_cmd
+        # receiver needs multiple ports, so only generate the include.
+        receiver_include = receiver.testpmd.generate_testpmd_include(
+            receiver_nics[sender_subnet], i
+        )
+        # and save it
+        receiver_includes += [receiver_include]
+
+    # and generate the command with multiple ports for the single receiver:
+    rcv_cmd = receiver.testpmd.generate_testpmd_command(
+        list([receiver_nics[key] for key in receiver_nics]),
+        0,
+        "rxonly",
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+    )
+
+    kit_cmd_pairs[receiver] = rcv_cmd
 
     return kit_cmd_pairs
 
@@ -511,6 +602,7 @@ def init_nodes_concurrent(
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     test_nic_count: int = 1,
+    specific_pairings: Optional[Dict[Node, List[NicInfo]]] = None,
 ) -> List[DpdkTestResources]:
     assert test_nic_count > 0, "Test Bug: test_nic_count must be > 0"
     # quick check when initializing, have each node ping the other nodes.
@@ -530,7 +622,9 @@ def init_nodes_concurrent(
                     pmd,
                     hugepage_size=hugepage_size,
                     sample_apps=sample_apps,
-                    test_nics=[
+                    test_nics=specific_pairings[node]
+                    if specific_pairings
+                    else [
                         nic
                         for nic in node.nics.nics.values()
                         if nic is not node.nics.get_primary_nic()
@@ -569,7 +663,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic, 0, "txonly", multiple_queues=multiple_queues
+        [test_nic], 0, "txonly", multiple_queues=multiple_queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -696,6 +790,127 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         result=result,
         set_mtu=set_mtu,
     )
+
+
+# Multiple ports test
+#  to simplify this
+def verify_dpdk_mutliple_ports(
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: Pmd,
+    hugepage_size: HugePageSize,
+    use_service_cores: int = 1,
+    multiple_queues: bool = False,
+    result: Optional[TestResult] = None,
+    set_mtu: int = 0,
+) -> Tuple[DpdkTestResources, DpdkTestResources, DpdkTestResources]:
+    # helpful to have the public ips labeled for debugging
+    external_ips = []
+    for node in environment.nodes.list():
+        if isinstance(node, RemoteNode):
+            external_ips += node.connection_info[
+                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+            ]
+        else:
+            raise SkippedException()
+        # skip MTU test if not on MANA (for now).
+        if set_mtu and not node.nics.is_mana_device_present():
+            raise SkippedException("set mtu test is intended for MANA VMs only.")
+    log.debug(
+        (f"receiver:{external_ips[0]}\nsenders:{external_ips[1]},{external_ips[2]}\n")
+    )
+    receiver, sender_a, sender_b = environment.nodes.list()
+    nic_pairings = {
+        receiver: [
+            receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
+            receiver.nics.get_nic_by_subnet("10.0.2.0/24"),
+        ],
+        sender_a: [sender_a.nics.get_nic_by_subnet("10.0.1.0/24")],
+        sender_b: [sender_b.nics.get_nic_by_subnet("10.0.2.0/24")],
+    }
+    # get test duration variable if set
+    # enables long-running tests to shakeQoS and SLB issue
+    test_duration: int = variables.get("dpdk_test_duration", 15)
+    kill_timeout = test_duration + 5
+
+    test_kits = init_nodes_concurrent(
+        environment,
+        log,
+        variables,
+        pmd,
+        hugepage_size=hugepage_size,
+        specific_pairings=nic_pairings,
+    )
+
+    check_send_receive_compatibility(test_kits)
+    receiver_kit = [kit for kit in test_kits if kit.node is receiver].pop()
+    sender_port_a = [kit for kit in test_kits if kit.node is sender_a].pop()
+    sender_port_b = [kit for kit in test_kits if kit.node is sender_b].pop()
+    sender_kits = [sender_port_a, sender_port_b]
+
+    # annotate test result before starting
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=receiver_kit, test_result=result, log=log)
+
+    kit_cmd_pairs = generate_testpmd_multiple_port_command(
+        pmd,
+        [sender_port_a, sender_port_b],
+        receiver_kit,
+        use_service_cores=use_service_cores,
+        multiple_queues=multiple_queues,
+        set_mtu=set_mtu,
+    )
+    receive_timeout = kill_timeout + 10
+    receive_result = receiver.tools[Timeout].start_with_timeout(
+        kit_cmd_pairs[receiver_kit],
+        receive_timeout,
+        constants.SIGINT,
+        kill_timeout=receive_timeout,
+    )
+    receive_result.wait_output("start packet forwarding")
+    sender_results: Dict[DpdkTestResources, Process] = dict()
+    for sender in sender_kits:
+        sender_results[sender] = sender.node.tools[Timeout].start_with_timeout(
+            kit_cmd_pairs[sender],
+            test_duration,
+            constants.SIGINT,
+            kill_timeout=kill_timeout,
+        )
+
+    results = dict()
+    for sender in sender_results:
+        results[sender] = sender.testpmd.process_testpmd_output(
+            sender_results[sender].wait_result()
+        )
+    results[receiver_kit] = receiver_kit.testpmd.process_testpmd_output(
+        receive_result.wait_result()
+    )
+
+    # helpful to have the outputs labeled
+    for i in range(0, len(sender_kits)):
+        log.debug(f"\nSENDERS_{i}:\n{results[sender_kits[i]]}")
+    log.debug(f"\nRECEIVER:\n{results[receiver_kit]}")
+
+    rcv_rx_pps = receiver_kit.testpmd.get_mean_rx_pps()
+    log.info(f"receiver rx-pps: {rcv_rx_pps}")
+    sender_pps_measurements = []
+    for i in range(0, len(sender_kits)):
+        sender_pps_measurements += [sender_kits[i].testpmd.get_mean_tx_pps()]
+        log.info(f"sender_{i} tx-pps: {sender_pps_measurements[i]}")
+    for i in range(0, len(sender_kits)):
+        sender_kits[i].dmesg.check_kernel_errors(force_run=True)
+    receiver_kit.dmesg.check_kernel_errors(force_run=True)
+    # differences in NIC type throughput can lead to different snd/rcv counts
+    assert_that(rcv_rx_pps).described_as(
+        "Throughput for RECEIVE was below the correct order-of-magnitude"
+    ).is_greater_than(2**20)
+    for sender_pps in sender_pps_measurements:
+        assert_that(sender_pps).described_as(
+            "Throughput for SEND was below the correct order of magnitude"
+        ).is_greater_than(2**20)
+
+    return receiver_kit, sender_port_a, sender_port_b
 
 
 def do_parallel_cleanup(environment: Environment) -> None:
