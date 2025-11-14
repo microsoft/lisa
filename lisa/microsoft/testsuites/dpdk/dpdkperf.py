@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.dpdk.common import Pmd, force_dpdk_default_source
@@ -25,9 +25,11 @@ from lisa import (
 )
 from lisa.features import Gpu, Infiniband, Sriov
 from lisa.messages import (
+    MetricRelativity,
     NetworkPPSPerformanceMessage,
     TransportProtocol,
     create_perf_message,
+    send_unified_perf_message,
 )
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
@@ -87,6 +89,12 @@ class DpdkPerformance(TestSuite):
             test_case_name,
             sender_fields,
         )
+
+        # Send unified performance messages
+        self._send_pps_unified_perf_messages(
+            sender_fields, node, test_case_name, result
+        )
+
         notifier.notify(send_results)
 
     @TestCaseMetadata(
@@ -133,6 +141,12 @@ class DpdkPerformance(TestSuite):
             test_case_name,
             sender_fields,
         )
+
+        # Send unified performance messages
+        self._send_pps_unified_perf_messages(
+            sender_fields, node, test_case_name, result
+        )
+
         notifier.notify(send_results)
 
     @TestCaseMetadata(
@@ -354,7 +368,117 @@ class DpdkPerformance(TestSuite):
             receiver_fields,
         )
 
+        # Send unified performance messages
+        self._send_pps_unified_perf_messages(
+            sender_fields, send_kit.node, test_case_name, test_result
+        )
+        self._send_pps_unified_perf_messages(
+            receiver_fields, receive_kit.node, test_case_name, test_result
+        )
+
         return send_results, receive_results
+
+    def _send_pps_unified_perf_messages(
+        self,
+        result_fields: Dict[str, Any],
+        node: Node,
+        test_case_name: str,
+        test_result: TestResult,
+    ) -> None:
+        """Send unified performance messages for PPS metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
+
+        metrics = []
+
+        # Add rx metrics if they exist
+        if "rx_pps_maximum" in result_fields:
+            metrics.extend(
+                [
+                    {
+                        "name": "rx_pps_maximum",
+                        "value": float(result_fields["rx_pps_maximum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": "rx_pps_average",
+                        "value": float(result_fields["rx_pps_average"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": "rx_pps_minimum",
+                        "value": float(result_fields["rx_pps_minimum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                ]
+            )
+
+        # Add tx metrics if they exist
+        if "tx_pps_maximum" in result_fields:
+            metrics.extend(
+                [
+                    {
+                        "name": "tx_pps_maximum",
+                        "value": float(result_fields["tx_pps_maximum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": "tx_pps_average",
+                        "value": float(result_fields["tx_pps_average"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                    {
+                        "name": "tx_pps_minimum",
+                        "value": float(result_fields["tx_pps_minimum"]),
+                        "relativity": MetricRelativity.HigherIsBetter,
+                        "unit": "packets/second",
+                    },
+                ]
+            )
+
+        # Add parameter metrics
+        test_type = result_fields.get("test_type", "")
+        if test_type:
+            metrics.append(
+                {
+                    "name": "test_type",
+                    "str_value": test_type,
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "",
+                }
+            )
+
+        role = result_fields.get("role", "")
+        if role:
+            metrics.append(
+                {
+                    "name": "role",
+                    "str_value": role,
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "",
+                }
+            )
+
+        # Get protocol_type from result_fields if it exists
+        protocol_type = result_fields.get("protocol_type")
+
+        for metric in metrics:
+            send_unified_perf_message(
+                node=node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=cast(str, metric["name"]),
+                metric_value=cast(float, metric["value"]),
+                metric_unit=cast(str, metric["unit"]),
+                metric_str_value=cast(str, metric.get("str_value", "")),
+                metric_relativity=cast(MetricRelativity, metric["relativity"]),
+                protocol_type=protocol_type,
+            )
 
     def _validate_core_counts_are_equal(self, test_result: TestResult) -> None:
         environment = test_result.environment
