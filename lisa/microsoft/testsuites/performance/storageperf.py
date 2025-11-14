@@ -162,7 +162,27 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance with 4K block size.
+        This test case uses fio to test data disk performance using 1024K block size
+        using io_uring as io engine.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=16),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(node, result, block_size=1024)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test data disk performance with 4K block size using
+        io_uring as io engine.
         """,
         priority=3,
         timeout=TIME_OUT,
@@ -184,7 +204,7 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance using 1024K block size.
+        This test case uses fio to test data disk performance with 4K block size.
         """,
         priority=3,
         timeout=TIME_OUT,
@@ -197,8 +217,16 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks(node, result, block_size=1024)
+    def perf_premium_datadisks_1024k_io_uring(
+        self, node: Node, result: TestResult
+    ) -> None:
+        self._perf_premium_datadisks(
+            node,
+            ioengine=IoEngine.IO_URING,
+            test_result=result,
+            max_iodepth=1024,
+            block_size=1024,
+        )
 
     @TestCaseMetadata(
         description="""
