@@ -180,7 +180,7 @@ class Sar(Tool):
         """Send unified performance messages for PPS metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_SAR
 
-        metrics = [
+        metrics: List[Dict[str, Any]] = [
             {
                 "name": "rx_pps_maximum",
                 "value": float(result_fields["rx_pps_maximum"]),
@@ -249,11 +249,11 @@ class Sar(Tool):
                 test_result=test_result,
                 test_case_name=test_case_name,
                 tool=tool,
-                metric_name=cast(str, metric["name"]),
-                metric_value=cast(float, metric["value"]),
-                metric_unit=cast(str, metric["unit"]),
-                metric_str_value=cast(str, metric.get("str_value", "")),
-                metric_relativity=cast(MetricRelativity, metric["relativity"]),
+                metric_name=metric["name"],
+                metric_value=metric.get("value", 0.0),
+                metric_unit=metric["unit"],
+                metric_str_value=metric.get("str_value", ""),
+                metric_relativity=metric["relativity"],
             )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
