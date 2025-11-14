@@ -15,6 +15,7 @@ import lisa.notifiers.env_stats  # noqa: F401
 import lisa.notifiers.file  # noqa: F401
 import lisa.notifiers.junit  # noqa: F401
 import lisa.notifiers.perfdump  # noqa: F401
+import lisa.notifiers.perfevaluation.perfevaluation  # noqa: F401
 import lisa.notifiers.text_result  # noqa: F401
 import lisa.runners.lisa_runner  # noqa: F401
 import lisa.sut_orchestrator.ready  # noqa: F401

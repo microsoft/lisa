@@ -959,6 +959,141 @@ Example of log_agent notifier:
 The AI analysis results are stored in the test result message's ``analysis["AI"]``
 field and can be consumed by other notifiers like HTML or custom reporting systems.
 
+perfevaluation
+^^^^^^^^^^^^^^
+
+Performance evaluation notifier automatically evaluates test results against 
+predefined performance criteria and generates detailed evaluation reports. It 
+supports flexible configuration through both JSON files and direct dict 
+definitions in runbooks.
+
+**Key Features:**
+
+- Automatic evaluation of ``UnifiedPerfMessage`` against performance criteria
+- VM size pattern matching with wildcard support
+- Unit conversion between compatible units (time, data rate, data size, frequency)
+- Smart evaluation using ``MetricRelativity`` when explicit criteria aren't defined
+- Comprehensive JSON evaluation reports
+
+**Configuration Methods:**
+
+1. **JSON File Method** (Traditional):
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria_file: "./*_criteria.json"
+       output_file: "performance_results.json"
+
+2. **Direct Dict Method** (Recommended for dynamic configuration):
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria:
+         perf_nvme:
+           size_patterns:
+             "Standard_L8as_v3":
+               qdepth_4_iodepth_1_numjob_4_setup_raw_bs_4k_cores_4_disks_1_randread_iops:
+                 unit: "IOPS"
+                 min_value: 150000.0
+                 target_value: 171000.0
+                 tolerance_percent: 15.0
+         perf_tcp_ntttcp_sriov:
+           size_patterns:
+             "Standard_D*_v5":
+               conn_1_throughput:
+                 unit: "Gbps"
+                 min_value: 15.0
+                 target_value: 20.0
+                 tolerance_percent: 20.0
+
+3. **Mixed Usage** (Dict overrides file):
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria_file: "./*_criteria.json"  # Fallback
+       criteria:  # Overrides file for same test cases
+         perf_nvme:
+           size_patterns:
+             "Standard_L8as_v3":
+               # Custom criteria...
+
+**Configuration Parameters:**
+
+criteria_file
+'''''''''''''
+
+type: str, optional, default: "*_criteria.json"
+
+Path or pattern to JSON files containing performance criteria. Supports glob 
+patterns for loading multiple files.
+
+criteria
+''''''''
+
+type: dict, optional, default: None
+
+Direct dictionary definition of performance criteria in the runbook. Takes 
+priority over criteria_file when both are specified.
+
+output_file
+'''''''''''
+
+type: str, optional, default: None
+
+Output file path for detailed evaluation results in JSON format.
+
+**Performance Criteria Structure:**
+
+Each test case can define criteria using VM size patterns:
+
+.. code:: yaml
+
+   criteria:
+     test_case_name:
+       size_patterns:
+         "VM_Pattern":  # e.g., "Standard_D*_v5", "Standard_L8as_v3"
+           metric_name:
+             unit: "unit_type"           # IOPS, Gbps, microseconds, etc.
+             min_value: 100.0            # Minimum acceptable value
+             max_value: 200.0            # Maximum acceptable value  
+             target_value: 150.0         # Target/expected value
+             tolerance_percent: 10.0     # Tolerance around target
+
+**VM Size Pattern Matching:**
+
+- **Wildcards**: Use ``*`` for any characters, ``?`` for single character
+- **Priority**: More specific patterns override general ones
+- **Examples**:
+  - ``Standard_D*_v5``: Matches Standard_D2s_v5, Standard_D4s_v5, etc.
+  - ``Standard_L8as_v3``: Exact match for Standard_L8as_v3
+  - ``*``: Matches any VM size (lowest priority)
+
+**Unit Conversion:**
+
+Automatic conversion between compatible units:
+
+- **Time**: seconds, milliseconds, microseconds, ms, us
+- **Data Rate**: bps, Kbps, Mbps, Gbps
+- **Data Size**: bytes, KB, MB, GB
+- **Frequency**: Hz, KHz, MHz, GHz
+- **Performance**: IOPS, requests/sec, cycles/byte, %
+
+**Use Cases:**
+
+- **CI/CD Integration**: Dynamic criteria based on environment
+- **A/B Testing**: Different criteria for different configurations  
+- **Regression Testing**: Validate performance against baselines
+- **Stress Testing**: Monitor performance under load
+
+Example evaluation output includes success rates, detailed results, and unit 
+conversion information for comprehensive performance analysis.
+
 environment
 ~~~~~~~~~~~
 
