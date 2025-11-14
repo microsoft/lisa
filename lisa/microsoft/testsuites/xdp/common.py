@@ -5,12 +5,11 @@ import re
 from time import sleep
 from typing import Dict, List, Pattern
 
-from microsoft.testsuites.xdp.xdpdump import XdpDump
-
 from lisa import Logger, Node, SkippedException, UnsupportedDistroException
 from lisa.nic import NicInfo
 from lisa.tools import Echo, Ethtool, Ls, Mount
 from lisa.tools.mkfs import FileSystem
+from microsoft.testsuites.xdp.xdpdump import XdpDump
 
 _rx_drop_patterns = [
     # rx_queue_0_xdp_drop
@@ -38,7 +37,7 @@ _nic_not_found = re.compile(r"Couldn't get device .* statistics", re.M)
 
 def get_xdpdump(node: Node) -> XdpDump:
     try:
-        xdpdump: XdpDump = node.tools[XdpDump]
+        xdpdump = node.tools[XdpDump]
     except UnsupportedDistroException as e:
         raise SkippedException(e)
 
@@ -146,7 +145,7 @@ def _aggregate_count(
     patterns: List[Pattern[str]],
 ) -> int:
     ethtool = node.tools[Ethtool]
-    nic_names = [nic.name, nic.lower]
+    nic_names = [nic.name, nic.pci_device_name]
 
     # aggregate xdp drop count by different nic type
     new_count = -previous_count
@@ -167,7 +166,7 @@ def _aggregate_count(
                     log.debug(f"nic {nic_name} not found, need to reload nics")
                     sleep(2)
                     node.nics.reload()
-                    nic_name = node.nics.get_primary_nic().lower
+                    nic_name = node.nics.get_primary_nic().pci_device_name
                     attempts += 1
                 else:
                     raise e
