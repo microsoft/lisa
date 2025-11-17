@@ -1658,7 +1658,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         value.data_disk_throughput = 0
         value.data_disk_size = 0
 
-        if method == RequirementMethod.generate_min_capability:
+        if method == RequirementMethod.choose_value:
             assert isinstance(
                 value.data_disk_type, schema.DiskType
             ), f"actual: {type(value.data_disk_type)}"
