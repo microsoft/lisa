@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import string
+import sys
 import time
 from dataclasses import dataclass, field
 from functools import partial
@@ -1687,8 +1688,18 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 cap_disk_throughput = search_space.count_space_to_int_range(
                     capability.data_disk_throughput
                 )
-                min_throughput = max(req_disk_throughput.min, cap_disk_throughput.min)
-                max_throughput = min(req_disk_throughput.max, cap_disk_throughput.max)
+                # If throughput is not specified (default IntRange(min=0, max=0)),
+                # treat it as "any throughput is acceptable"
+                if req_disk_throughput.min == 0 and req_disk_throughput.max == 0:
+                    min_throughput = 0
+                    max_throughput = sys.maxsize
+                else:
+                    min_throughput = max(
+                        req_disk_throughput.min, cap_disk_throughput.min
+                    )
+                    max_throughput = min(
+                        req_disk_throughput.max, cap_disk_throughput.max
+                    )
 
                 req_disk_size = search_space.count_space_to_int_range(
                     self.data_disk_size
@@ -1700,15 +1711,25 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 max_size = min(req_disk_size.max, cap_disk_size.max)
 
                 # Find matching disk sizes that meet all criteria
+                # For PremiumV2 and UltraSSD, IOPS/throughput are configurable
+                # independently, so we only need to check that the disk supports
+                # at least the minimum required values
+                is_configurable_disk = value.data_disk_type in [
+                    schema.DiskType.PremiumV2SSDLRS,
+                    schema.DiskType.UltraSSDLRS,
+                ]
+                
                 matching_disk_sizes = [
                     size
                     for size, iops, throughput in disk_type_performance
-                    if iops >= min_iops
-                    and iops <= max_iops
-                    and throughput >= min_throughput
-                    and throughput <= max_throughput
-                    and size >= min_size
-                    and size <= max_size
+                    if (
+                        iops >= min_iops
+                        and (is_configurable_disk or iops <= max_iops)
+                        and throughput >= min_throughput
+                        and (is_configurable_disk or throughput <= max_throughput)
+                        and size >= min_size
+                        and size <= max_size
+                    )
                 ]
 
                 if not matching_disk_sizes:
@@ -2790,9 +2811,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile[
-                "disk_encryption_set_id"
-            ] = settings.disk_encryption_set_id
+            node_parameters.security_profile["disk_encryption_set_id"] = (
+                settings.disk_encryption_set_id
+            )
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
