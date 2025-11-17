@@ -14,7 +14,7 @@ from lisa.search_space import (
     ResultReason,
     SetSpace,
     check,
-    generate_min_capability,
+    choose_value,
 )
 from lisa.testsuite import (
     DEFAULT_REQUIREMENT,
@@ -46,15 +46,13 @@ class UtTestCaseRequirement(TestCaseRequirement, RequirementMixin):
 
         return result
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _choose_value(self, capability: Any) -> Any:
         assert isinstance(
             capability, UtTestCaseRequirement
         ), f"actual: {type(capability)}"
-        environment = generate_min_capability(self.environment, capability.environment)
-        platform_type = generate_min_capability(
-            self.platform_type, capability.platform_type
-        )
-        os = generate_min_capability(self.os_type, capability.os_type)
+        environment = choose_value(self.environment, capability.environment)
+        platform_type = choose_value(self.platform_type, capability.platform_type)
+        os = choose_value(self.os_type, capability.os_type)
         result = TestCaseSchema(
             environment=environment, platform_type=platform_type, operating_system=os
         )
@@ -114,12 +112,12 @@ UT_DEFAULT_REQUIREMENT = UtTestCaseRequirement(
 class RequirementTestCase(SearchSpaceTestCase):
     def test_supported_simple_requirement(self) -> None:
         n1 = schema.NodeSpace()
-        n1 = n1.generate_min_capability(n1)
+        n1 = n1.choose_value(n1)
         n4 = schema.load_by_type(
             schema.NodeSpace,
             {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 4},
         )
-        n4 = n4.generate_min_capability(n4)
+        n4 = n4.choose_value(n4)
         n4g1 = schema.load_by_type(
             schema.NodeSpace,
             {
@@ -128,12 +126,12 @@ class RequirementTestCase(SearchSpaceTestCase):
                 "gpu_count": 1,
             },
         )
-        n4g1 = n4g1.generate_min_capability(n4g1)
+        n4g1 = n4g1.choose_value(n4g1)
         n6 = schema.load_by_type(
             schema.NodeSpace,
             {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 6},
         )
-        n6 = n6.generate_min_capability(n6)
+        n6 = n6.choose_value(n6)
         n6g2 = schema.load_by_type(
             schema.NodeSpace,
             {
@@ -142,7 +140,7 @@ class RequirementTestCase(SearchSpaceTestCase):
                 "gpu_count": 2,
             },
         )
-        n6g2 = n6g2.generate_min_capability(n6g2)
+        n6g2 = n6g2.choose_value(n6g2)
         n6g1 = schema.load_by_type(
             schema.NodeSpace,
             {
@@ -151,12 +149,12 @@ class RequirementTestCase(SearchSpaceTestCase):
                 "gpu_count": 1,
             },
         )
-        n6g1 = n6g1.generate_min_capability(n6g1)
+        n6g1 = n6g1.choose_value(n6g1)
         n10 = schema.load_by_type(
             schema.NodeSpace,
             {"type": constants.ENVIRONMENTS_NODES_REQUIREMENT, "core_count": 10},
         )
-        n10 = n10.generate_min_capability(n10)
+        n10 = n10.choose_value(n10)
 
         partial_testcase_schema = partial(
             TestCaseSchema,
