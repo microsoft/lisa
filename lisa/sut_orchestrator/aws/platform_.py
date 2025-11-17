@@ -925,7 +925,7 @@ class AwsPlatform(Platform):
                 private_key_file=node_context.private_key_file,
             )
 
-    @retry(tries=10, delay=1, jitter=(0.5, 1))
+    @retry(tries=10, delay=1, jitter=(0.5, 1))  # type: ignore
     def _load_location_info_from_file(
         self, cached_file_name: Path, log: Logger
     ) -> Optional[AwsLocation]:

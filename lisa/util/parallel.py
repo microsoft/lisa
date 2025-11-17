@@ -1,12 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from concurrent.futures import (
-    ALL_COMPLETED,
-    FIRST_COMPLETED,
-    Future,
-    ThreadPoolExecutor,
-    wait,
-)
+import threading
+import time
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from queue import Queue
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
 from assertpy import assert_that
@@ -16,7 +13,7 @@ from lisa.util.perf_timer import create_timer
 
 from . import LisaException
 
-T_RESULT = TypeVar("T_RESULT")
+T_RESULT = TypeVar("T_RESULT")  # noqa: N808
 
 
 class Task(Generic[T_RESULT]):
@@ -35,6 +32,8 @@ class Task(Generic[T_RESULT]):
         self._is_verbose = is_verbose
         if self._is_verbose:
             self._log.debug(f"Generate task: {self}")
+
+        self.result: Optional[T_RESULT] = None
 
     def close(self) -> None:
         self._lifecycle_timer.elapsed()
@@ -85,6 +84,9 @@ class TaskManager(Generic[T_RESULT]):
         self._cancelled = False
         self._future_task_map: Dict[Future[T_RESULT], Task[T_RESULT]] = {}
         self._is_verbose = is_verbose
+        self._pending_tasks: Queue[Task[T_RESULT]] = Queue()
+        self._process_lock = threading.Lock()
+        self._stored_exceptions: Queue[Future[T_RESULT]] = Queue()
 
     def __enter__(self) -> Any:
         return self._pool.__enter__()
@@ -97,9 +99,8 @@ class TaskManager(Generic[T_RESULT]):
         return len(self._futures)
 
     def submit_task(self, task: Task[T_RESULT]) -> None:
-        future: Future[T_RESULT] = self._pool.submit(task)
-        self._future_task_map[future] = task
-        self._futures.append(future)
+        self._pending_tasks.put(task)
+        self._process_pending_tasks()
 
     def cancel(self) -> None:
         self._log.info("Called to cancel all tasks.")
@@ -121,24 +122,70 @@ class TaskManager(Generic[T_RESULT]):
 
         wait(self._futures[:], return_when=return_condition)
         self._process_done_futures()
+        self.join_exceptions()
         return len(self._futures) > 0
+
+    def wait_for_all_workers(self) -> None:
+        while True:
+            self._process_pending_tasks()
+            has_remaining = not self._pending_tasks.empty() or self.wait_worker()
+            if not has_remaining:
+                break
+            time.sleep(0)
+
+        assert_that(has_remaining).is_false()
+
+    def join_exceptions(self) -> None:
+        # Delay join exceptions to main thread.
+        while not self._stored_exceptions.empty():
+            future = self._stored_exceptions.get()
+            # exception will throw at this point
+            future.result()
 
     def _process_done_futures(self) -> None:
         for future in self._futures[:]:
             if future.done():
-                # join exceptions of subthreads to main thread
-                result = future.result()
-                # removed finished threads
-                self._futures.remove(future)
-                # exception will throw at this point
-                if self._callback:
-                    self._callback(result)
-                self._future_task_map[future].close()
-                self._future_task_map.pop(future)
+                success = False
+                try:
+                    result = future.result()
+                    success = True
+                except Exception:
+                    # save exceptions of subthreads to main thread
+                    self._stored_exceptions.put(future)
+                finally:
+                    # removed finished threads
+                    self._futures.remove(future)
+                task = self._future_task_map.pop(future)
+                task.close()
+                if success:
+                    # set result back for tracking order
+                    task.result = result
 
-    def wait_for_all_workers(self) -> None:
-        remaining_worker_count = self.wait_worker(return_condition=ALL_COMPLETED)
-        assert_that(remaining_worker_count).is_zero()
+                    # exception will throw at this point
+                    if self._callback:
+                        self._callback(result)
+
+    def _process_pending_tasks(self) -> None:
+        new_futures: List[Future[T_RESULT]] = []
+        with self._process_lock:
+            while not self._pending_tasks.empty() and self.has_idle_worker():
+                self.check_cancelled()
+                task = self._pending_tasks.get()
+                future: Future[T_RESULT] = self._pool.submit(task)
+                self._future_task_map[future] = task
+                self._futures.append(future)
+                new_futures.append(future)
+
+        # Add a callback to trigger scheduling when this future completes
+        # It cannot be in the lock, because if it's finished the done callback will
+        # be called immediately. It causes deadlock.
+        for future in new_futures:
+            future.add_done_callback(self._on_future_done)
+
+    def _on_future_done(self, future: Future[T_RESULT]) -> None:
+        # Process the completed future and schedule next task. This runs in the
+        # worker thread that completed the task.
+        self._process_pending_tasks()
 
 
 _default_task_manager: Optional[TaskManager[Any]] = None
@@ -178,17 +225,25 @@ def run_in_parallel(
     tasks: List[Callable[[], T_RESULT]], log: Optional[Logger] = None
 ) -> List[T_RESULT]:
     """
-    The simple version of concurrency task. It wait all task complete
+    Run tasks in parallel, wait for all to complete, and return the results in the same
+    order as the input tasks.
     """
-    results: List[T_RESULT] = []
+    # set a fixed size list to keep the order of results
+    results: List[Optional[T_RESULT]] = [None] * len(tasks)
+    wrapped_tasks: List[Task[T_RESULT]] = []
 
-    def simple_collect_result(result: T_RESULT) -> None:
-        """
-        Because the task is wait for all completed, and then call back the result, so
-        the results are ordered.
-        """
-        results.append(result)
+    task_manager = TaskManager[T_RESULT](
+        max_workers=len(tasks), callback=lambda _: None
+    )
 
-    task_manager = run_in_parallel_async(tasks, simple_collect_result, log)
+    for index, task in enumerate(tasks):
+        task = Task(task_id=index, task=task, parent_logger=log)
+        wrapped_tasks.append(task)
+        task_manager.submit_task(task)
+
     task_manager.wait_for_all_workers()
-    return results
+
+    for wrapped_task in wrapped_tasks:
+        results[wrapped_task.id] = wrapped_task.result
+
+    return results  # type: ignore

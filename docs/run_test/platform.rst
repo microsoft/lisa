@@ -6,6 +6,7 @@ Run tests on different platforms
    *  `Use vhd <#use-vhd>`__
    *  `Use marketplace image <#use-marketplace-image>`__
    *  `Use shared image gallery <#use-shared-image-gallery>`__
+   *  `Use community gallery image <#use-community-gallery-image>`__
    *  `Use existing VMs <#use-existing-vms>`__
    *  `Set other Azure parameters <#set-other-azure-parameters>`__
 
@@ -21,9 +22,9 @@ Run on Azure
 ------------
 
 VM can be deployed on Azure using images from vhd, shared image
-gallery or marketplace. If multiple types are specified, the first
+gallery, community gallery or marketplace. If multiple types are specified, the first
 non-empty type is picked in the following order :
-vhd, shared image gallery and marketplace.
+vhd, shared image gallery, community gallery and marketplace.
 
 Use vhd
 ^^^^^^^
@@ -39,16 +40,18 @@ To run using vhd, add the following to runbook :
          ...
          azure:
             ...
-            vhd: "<VHD URL>"
-            hyperv_generation: <1 or 2>
+            vhd:
+               vhd_path: "<VHD URL>"
+               hyperv_generation: <1 or 2>
 
 The ``<VHD URL>`` can either be a SAS url or a blob url. If it is a SAS url, the image is copied to the resource group: ``lisa_shared_resource``, storage
 account: ``lisat{location}{subscription_id[last 8 digits]}`` and container:
 ``lisa-sas-copied`` in the subscription used to run LISA, which could potentially
 increase the runtime. The copied VHD has to be manually deleted by the user.
 
-If the selected VM Size's Hypervisor Generation is '2', hyperv_generation
-parameter is necessary, and should be specified as 2.
+If the selected VM Size's Hypervisor Generation is '2', the ``hyperv_generation``
+parameter is necessary, and should be specified as 2. If ``hyperv_generation`` is
+not needed, you can specify the VHD path directly as a string: ``vhd: "<VHD URL>"``.
 
 Use marketplace image
 ^^^^^^^^^^^^^^^^^^^^^
@@ -97,6 +100,46 @@ the shared image gallery.
          azure:
             ...
             shared_gallery: "<subscription_id>/<resource_group>/<image_gallery>/<image_definition>/<image_version>"
+
+Use community gallery image
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To run using a community gallery image, add the following to runbook:
+
+.. code:: yaml
+
+   platform:
+   - type: azure
+      ...
+      requirement:
+         ...
+         azure:
+            ...
+            community_gallery_image: "<location>/<image_gallery>/<image_definition>/<image_version>"
+
+The ``community_gallery_image`` parameter allows you to use publicly shared
+images from Azure Compute Gallery (formerly known as Shared Image Gallery).
+Community gallery images are shared publicly by publishers and can be used
+without needing access to a specific subscription or resource group.
+
+The format is: ``<location>/<image_gallery>/<image_definition>/<image_version>``
+
+Where:
+
+* **location**: The Azure region where the community gallery is available (e.g., ``westus3``, ``eastus``)
+* **image_gallery**: The name of the public gallery
+* **image_definition**: The name of the image definition within the gallery
+* **image_version**: The specific version of the image, or ``latest`` to use the most recent version
+
+Examples:
+
+.. code:: yaml
+
+   # Using a specific version
+   community_gallery_image: "westus3/ContosoImages/UbuntuServer/1.0.0"
+
+   # Using the latest version
+   community_gallery_image: "eastus/ContosoImages/UbuntuServer/latest"
 
 The remaining steps are same as outlined in
 :doc:`Getting started with Azure <quick_run>`.
@@ -149,6 +192,9 @@ deployment.
          use_ipv6: "<true or false>"
          enable_vm_nat: "<true or false>"
          source_address_prefixes: $(source_address_prefixes)
+         resource_group_tags:
+            Environment: Testing
+            Project: LISA
       requirement:
          ...
          ignored_capability:
@@ -162,7 +208,7 @@ deployment.
             osdisk_size_in_gb: <disk size in gb>
 
 * **admin_private_key_file**: This step is optional. If not provided, LISA will generate a new key pair for you,
-  which can be found in the log folder. LISA connects to the Azure test VM via SSH using key authentication. Before running the test, ensure you have a key pair 
+  which can be found in the log folder. LISA connects to the Azure test VM via SSH using key authentication. Before running the test, ensure you have a key pair
   (both public and private keys). If you already have one, you can skip this step. Otherwise, generate a new key pair using the command below:
 
   .. code:: bash
@@ -172,24 +218,25 @@ deployment.
 .. warning::
 
    Do not use a passphrase to protect your key, as LISA does not support it.
+
 * **virtual_network_resource_group**. Specify if an existing virtual network
   should be used. If `virtual_network_resource_group` is not provided, a virtual
   network will be created in the default resource group. If
   `virtual_network_resource_group` is provided, an existing virtual network will
   be used.
-* **virtual_network_name**. Specify the desired virtual network name.  If 
+* **virtual_network_name**. Specify the desired virtual network name.  If
   `virtual_network_resource_group` is not provided, a virtual network will be
   created and the resulting virtual network name will be
   `<virtual_network_name>`.  If `virtual_network_resource_group` is provided,
   an existing virtual network, with the name equal to `virtual_network_name`,
   will be used.
-* **subnet_prefix**. Specify the desired subnet prefix.  If 
+* **subnet_prefix**. Specify the desired subnet prefix.  If
   `virtual_network_resource_group` is not provided, a virtual network and
-  subnet will be created and the resulting subnets will look like 
-  `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If 
+  subnet will be created and the resulting subnets will look like
+  `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If
   `virtual_network_resource_group` is provided, an existing virtual network and
   subnet, with the name equal to `subnet_prefix`, will be used.
-* **use_public_address**. True means to connect to the Azure VMs with their 
+* **use_public_address**. True means to connect to the Azure VMs with their
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
   addresses.
@@ -198,31 +245,45 @@ deployment.
   the connections will default to create a public IP address. It only can be used when use_public_address is set to false.
   When enable_vm_nat is set to true, the VM can access the internet even without a public IP address.
   If enable_vm_nat is set to false, the VM cannot access the internet without a public IP address.
-* **use_ipv6**. When use_ipv6 is set to true, LISA uses IPv6 to connect VMs and 
-  the platform may enable IPv6 connections during creating VMs. 
+* **use_ipv6**. When use_ipv6 is set to true, LISA uses IPv6 to connect VMs and
+  the platform may enable IPv6 connections during creating VMs.
   The default value is `false`, it means IPv4 only.
-* **enable_vm_nat**. When enable_vm_nat is set to true, the DefaultOutboundAccess 
+* **enable_vm_nat**. When enable_vm_nat is set to true, the DefaultOutboundAccess
   property of the subnet will be set to "True". This allows the VMs in the
   subnet to access the internet. The default value is `false`, it means that
   the DefaultOutboundAccess property of the subnet will be set to "False".
   This means that the VMs in the subnet cannot access the internet.
-* **source_address_prefixes**. Specify source IP address ranges that are 
+* **source_address_prefixes**. Specify source IP address ranges that are
   allowed to access the VMs through network security group rules. If not
-  provided, your current public IP address will be automatically detected and 
+  provided, your current public IP address will be automatically detected and
   used. You can specify multiple IP ranges using either comma-separated string
   format or YAML list format. Examples:
-  
+
   .. code:: bash
-  
+
      # Single IP range (string format)
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24"
-     
+
      # Multiple IP ranges (comma-separated string format)
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24,10.0.0.0/8"
-     
+
      # List format
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:['192.168.1.0/24','10.0.0.0/8']"
-* **ignored_capability**. Specify feature names which will be ignored in 
+* **resource_group_tags**. Specify tags to apply to resource groups created by LISA
+  as key-value pairs. Tags help organize and categorize Azure resources for tracking,
+  cost management, and governance. If not provided, no tags will be applied to the
+  resource groups.
+
+  Example:
+
+  .. code:: yaml
+
+     azure:
+       resource_group_tags:
+         Environment: Testing
+         Project: LISA
+
+* **ignored_capability**. Specify feature names which will be ignored in
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
 

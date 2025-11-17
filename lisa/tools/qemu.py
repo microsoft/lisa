@@ -6,7 +6,7 @@ import time
 from typing import Any, List, Optional
 
 from assertpy.assertpy import assert_that
-from randmac import RandMac  # type: ignore
+from randmac import RandMac
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix, Redhat

@@ -22,31 +22,69 @@ class ResizePartition(Tool):
 
     def expand_os_partition(self) -> None:
         if isinstance(self.node.os, Redhat):
+            # Get physical volume information
             pv_result = self.node.execute("pvscan -s", sudo=True, shell=True).stdout
-            # The output of pvscan -s is like below.:
+            # The output of pvscan -s is like below for scsi disks:
             #  /dev/sda4
             #  Total: 1 [299.31 GiB] / in use: 1 [299.31 GiB] / in no VG: 0 [0   ]
-            pattern = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)$", re.M)
+
+            # The output of pvscan -s is like below for nvme disks:
+            # /dev/nvme0n1p4
+            # Total: 1 [63.31 GiB] / in use: 1 [63.31 GiB] / in no VG: 0 [0   ]
+
+            # Parse device to get disk and partition number
+            pattern = re.compile(
+                r"(?P<disk>/dev/(?:nvme\d+n\d+|sd[a-z]+))p?(?P<number>\d+)$", re.M
+            )
             matched = find_group_in_lines(pv_result, pattern)
             if not matched:
-                self._log.debug(
+                self._log.info(
                     "No physical volume found. Does not require partition resize."
                 )
                 return
+
             disk = matched.get("disk")
-            number = matched.get("number")
-            self.node.execute(f"growpart {disk} {number}", sudo=True)
-            self.node.execute(f"pvresize {pv_result.splitlines()[0]}", sudo=True)
+            partition_number = matched.get("number")
+
+            # Validate that we got the required values
+            if not disk or not partition_number:
+                self._log.info(
+                    "Could not parse disk or partition number from pvscan output"
+                )
+                return
+
+            # Reconstruct the full device path
+            if "nvme" in disk:
+                pv_device = f"{disk}p{partition_number}"  # /dev/nvme0n1p4
+            else:
+                pv_device = f"{disk}{partition_number}"  # /dev/sda4
+
+            # 1. Extend the partition to use full disk
+            self._log.debug(f"Growing partition {disk} {partition_number}")
+            self.node.execute(f"growpart {disk} {partition_number}", sudo=True)
+
+            # 2. Resize the physical volume
+            self._log.debug(f"Resizing physical volume {pv_device}")
+            self.node.execute(f"pvresize {pv_device}", sudo=True)
+
+            # Get root partition info to determine logical volume and filesystem type
             root_partition = self.node.tools[Mount].get_partition_info("/")[0]
             device_name = root_partition.name
             device_type = root_partition.type
+
+            # Check if this is a logical volume
             cmd_result = self.node.execute(f"lvdisplay {device_name}", sudo=True)
             if cmd_result.exit_code == 0:
+                # 3. Extend the logical volume
+                self._log.debug(f"Extending logical volume {device_name}")
                 self.node.execute(
                     cmd=f"lvextend -l 100%FREE {device_name}",
                     sudo=True,
                     shell=True,
                 )
+
+                # 4. Resize the filesystem
+                self._log.debug(f"Resizing {device_type} filesystem")
                 if device_type == "xfs":
                     self.node.execute(f"xfs_growfs {device_name}", sudo=True)
                 elif device_type == "ext4":
@@ -54,7 +92,7 @@ class ResizePartition(Tool):
                 else:
                     raise LisaException(f"Unknown partition type: {device_type}")
             else:
-                self._log.debug("No LV found. Does not require LV resize.")
+                self._log.info("No LV found. Does not require LV resize.")
                 return
         elif isinstance(self.node.os, Ubuntu) or isinstance(self.node.os, CBLMariner):
             # Get the root partition info

@@ -36,7 +36,7 @@ from .common import (
     copy_vhd_using_azcopy,
     generate_user_delegation_sas_token,
     get_compute_client,
-    get_deployable_vhd_path,
+    get_deployable_storage_path,
     get_environment_context,
     get_or_create_storage_container,
     get_primary_ip_addresses,
@@ -54,7 +54,7 @@ DEFAULT_EXPORTED_VHD_CONTAINER_NAME = "lisa-vhd-exported"
 DEFAULT_VHD_SUFFIX = "exported"
 
 
-@retry(tries=10, jitter=(1, 2))
+@retry(tries=10, jitter=(1, 2))  # type: ignore
 def _generate_vhd_path(container_client: Any, file_name_part: str = "") -> str:
     path = PurePosixPath(
         f"{get_date_str()}/{get_datetime_path()}_"
@@ -347,7 +347,7 @@ class VhdTransformer(Transformer):
             public_ip_address
         ), "cannot find public IP address, make sure the VM is in running status."
 
-        return public_ip_address
+        return public_ip_address  # type: ignore
 
 
 class DeployTransformer(Transformer):
@@ -601,7 +601,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_resource_group_location = image_location
         if not runbook.gallery_location:
             runbook.gallery_location = image_location
-        vhd_path = get_deployable_vhd_path(
+        vhd_path = get_deployable_storage_path(
             platform, runbook.vhd, image_location, self._log
         )
         vhd_details = get_vhd_details(platform, vhd_path)

@@ -34,6 +34,7 @@ from .security_profile import (
 )
 from .serial_console import SerialConsole
 from .startstop import StartStop, StopState, VMStatus
+from .virtualization import Virtualization
 
 __all__ = [
     "ACC",
@@ -73,4 +74,5 @@ __all__ = [
     "VMStatus",
     "Synthetic",
     "StartStop",
+    "Virtualization",
 ]

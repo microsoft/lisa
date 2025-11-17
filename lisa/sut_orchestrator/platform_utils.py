@@ -1,5 +1,6 @@
 import re
 
+from lisa import features
 from lisa.node import Node
 from lisa.tools import Dmesg
 from lisa.util import get_matched_str
@@ -10,11 +11,20 @@ from lisa.util.logger import filter_ansi_escape
 VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
 
 # MSHV version:
-# [    2.353669] misc mshv: Versions: current: 27818  min: 27744  max: 27751
-MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
+# [    0.929461] Hyper-V: Host Build 10.0.27924.1000-1-0
+MSHV_VERSION_PATTERN = re.compile(
+    r"Hyper-V: Host Build \d+\.\d+\.(?P<mshv_version>\d+\.\d+)", re.M
+)
+
+# Hyper-V Host version pattern
+# [    0.000000] Hyper-V: Host Build 10.0.27924.1000-1-0
+HOST_VERSION_PATTERN = re.compile(
+    r"Hyper-V:? (?:Host Build|Version)[\s|:][ ]?([^\r\n;]*)", re.M
+)
 
 KEY_VMM_VERSION = "vmm_version"
 KEY_MSHV_VERSION = "mshv_version"
+KEY_HOST_VERSION = "host_version"
 
 
 def get_vmm_version(node: Node) -> str:
@@ -49,4 +59,35 @@ def get_mshv_version(node: Node) -> str:
                 node.log.debug(f"error on run dmesg: {e}")
     except Exception as e:
         node.log.debug(f"error on run mshv: {e}")
+    return result
+
+
+def get_host_version(node: Node) -> str:
+    """
+    Get Hyper-V Host Build version from dmesg.
+    This function is used by Azure, Baremetal, and Hyper-V platforms.
+    """
+    result: str = ""
+
+    try:
+        if node.is_connected and node.is_posix:
+            node.log.debug("detecting host version from dmesg...")
+            dmesg = node.tools[Dmesg]
+            result = get_matched_str(
+                dmesg.get_output(), HOST_VERSION_PATTERN, first_match=False
+            )
+    except Exception as e:
+        # It happens on some error VMs. Those errors should be caught earlier in
+        # test cases not here. So ignore any error here to collect information only.
+        node.log.debug(f"error on run dmesg: {e}")
+
+    # Skip for Windows
+    if not node.is_connected or node.is_posix:
+        # If not found, try again from serial console log.
+        # Skip if node is not initialized.
+        if not result and hasattr(node, "features"):
+            if node.features.is_supported(features.SerialConsole):
+                serial_console = node.features[features.SerialConsole]
+                result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
+
     return result

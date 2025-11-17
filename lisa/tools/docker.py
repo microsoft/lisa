@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from typing import Optional
+
 from retry import retry
 
 from lisa.base_tools import Service, Wget
@@ -11,6 +13,7 @@ from lisa.util import (
     RepoNotExistException,
     UnsupportedDistroException,
 )
+from lisa.util.process import ExecutableResult
 
 
 class Docker(Tool):
@@ -22,7 +25,7 @@ class Docker(Tool):
     def can_install(self) -> bool:
         return True
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def build_image(self, image_name: str, dockerfile: str) -> None:
         # alpine image build need to specify '--network host'
         self.run(
@@ -43,24 +46,62 @@ class Docker(Tool):
         self._log.debug(f"Removing Docker Container {container_name}")
         self.run(f"rm {container_name}", sudo=True, force_run=True)
 
+    def pull_image(self, image: str, timeout: int = 600) -> None:
+        self.run(
+            f"pull {image}",
+            sudo=True,
+            force_run=True,
+            timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to pull image {image}",
+        )
+
     def remove_image(self, image_name: str) -> None:
         self._log.debug(f"Removing Docker Image {image_name}")
         self.run(f"rmi {image_name}", sudo=True, force_run=True)
 
+    def info(self) -> str:
+        return self.run("info", sudo=True, force_run=True).stdout
+
     def run_container(
         self,
         image_name: str,
-        container_name: str,
-        docker_run_output: str,
-    ) -> None:
-        self.run(
-            f"run --name {container_name} {image_name} > {docker_run_output} 2>&1",
-            shell=True,
+        ephemeral: bool = True,
+        container_name: Optional[str] = None,
+        command: Optional[str] = None,
+        extra_args: Optional[str] = None,
+        expected_exit_code: Optional[int] = 0,
+    ) -> ExecutableResult:
+        """
+        Run a container using `docker run`
+
+        :param image_name: Name of the Docker image to run
+        :param ephemeral: Whether the container should be auto removed after exit.
+        :param container_name: Optional name for the container
+        :param command: Optional command to run inside the container
+        :param extra_args: Optional extra arguments to pass to the docker run command
+        :param expected_exit_code: Expected exit code for the docker run command
+        """
+
+        parts = ["run"]
+        if ephemeral:
+            parts.append("--rm")
+        if extra_args:
+            parts.append(extra_args)
+        if container_name:
+            parts.append(f"--name {container_name}")
+        parts.append(image_name)
+        if command:
+            parts.append(command)
+        cmd = " ".join(parts)
+
+        return self.run(
+            cmd,
             sudo=True,
-            cwd=self.node.working_path,
+            shell=True,
             force_run=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Docker run failed.",
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message="Docker run failed",
         )
 
     def start(self) -> None:

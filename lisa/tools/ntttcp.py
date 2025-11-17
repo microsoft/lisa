@@ -83,6 +83,7 @@ class NtttcpResult:
     rx_packets: Decimal = Decimal(0)
     pkts_interrupt: Decimal = Decimal(0)
     cycles_per_byte: Decimal = Decimal(0)
+    mtu: int = -1
 
 
 class Ntttcp(Tool):
@@ -389,10 +390,16 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
+        client_mtu: int = -1,
+        server_mtu: int = -1,
     ) -> NetworkTCPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
         other_fields["buffer_size"] = Decimal(buffer_size)
+        if client_mtu != -1:
+            other_fields["client_mtu"] = client_mtu
+        if server_mtu != -1:
+            other_fields["server_mtu"] = server_mtu
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time
         )
@@ -415,6 +422,8 @@ class Ntttcp(Tool):
             buffer_size,
             test_case_name,
             test_result,
+            client_mtu,
+            server_mtu,
         )
 
         return create_perf_message(
@@ -433,10 +442,14 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
+        client_mtu: int = -1,
+        server_mtu: int = -1,
     ) -> NetworkUDPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
         other_fields["send_buffer_size"] = Decimal(buffer_size)
+        other_fields["client_mtu"] = client_mtu
+        other_fields["server_mtu"] = server_mtu
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time
         )
@@ -458,6 +471,8 @@ class Ntttcp(Tool):
             buffer_size,
             test_case_name,
             test_result,
+            client_mtu,
+            server_mtu,
         )
 
         return create_perf_message(
@@ -500,6 +515,8 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
+        client_mtu: int,
+        server_mtu: int,
     ) -> None:
         """Send unified performance messages for TCP ntttcp metrics."""
         # Include connections_num in metric names to distinguish results
@@ -521,7 +538,7 @@ class Ntttcp(Tool):
             {
                 "name": f"buffer_size{conn_suffix}",
                 "value": float(buffer_size),
-                "relativity": MetricRelativity.NA,
+                "relativity": MetricRelativity.Parameter,
                 "unit": "KB",
             },
             {
@@ -567,6 +584,25 @@ class Ntttcp(Tool):
                 "unit": "cycles/byte",
             },
         ]
+        # Only send MTU metrics if they are valid (not -1)
+        if client_mtu != -1:
+            metrics.append(
+                {
+                    "name": f"client_mtu{conn_suffix}",
+                    "value": int(client_mtu),
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "bytes",
+                }
+            )
+        if server_mtu != -1:
+            metrics.append(
+                {
+                    "name": f"server_mtu{conn_suffix}",
+                    "value": int(server_mtu),
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "bytes",
+                },
+            )
 
         self._send_unified_perf_metrics(
             metrics, test_case_name, test_result, TransportProtocol.Tcp
@@ -580,6 +616,8 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
+        client_mtu: int,
+        server_mtu: int,
     ) -> None:
         """Send unified performance messages for UDP ntttcp metrics."""
         # Include connections_num in metric names to distinguish results
@@ -614,7 +652,7 @@ class Ntttcp(Tool):
             {
                 "name": f"send_buffer_size{conn_suffix}",
                 "value": float(buffer_size),
-                "relativity": MetricRelativity.NA,
+                "relativity": MetricRelativity.Parameter,
                 "unit": "KB",
             },
             {
@@ -630,6 +668,26 @@ class Ntttcp(Tool):
                 "unit": "cycles/byte",
             },
         ]
+
+        # Only send MTU metrics if they are valid (not -1)
+        if client_mtu != -1:
+            metrics.append(
+                {
+                    "name": f"client_mtu{conn_suffix}",
+                    "value": int(client_mtu),
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "bytes",
+                }
+            )
+        if server_mtu != -1:
+            metrics.append(
+                {
+                    "name": f"server_mtu{conn_suffix}",
+                    "value": int(server_mtu),
+                    "relativity": MetricRelativity.Parameter,
+                    "unit": "bytes",
+                },
+            )
 
         self._send_unified_perf_metrics(
             metrics, test_case_name, test_result, TransportProtocol.Udp
@@ -817,7 +875,7 @@ class BSDNtttcp(Ntttcp):
         )
         cmd = (
             f" -s{server_ip} -P {ports_count} -n {threads_count}"
-            f" -t {run_time_seconds}  -b {buffer_size}k "
+            f" -t {run_time_seconds} -b {buffer_size}k "
         )
         if udp_mode:
             raise LisaException("UDP mode is not supported in FreeBSD")

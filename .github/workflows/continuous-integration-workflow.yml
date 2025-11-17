@@ -30,24 +30,24 @@ jobs:
             task: shellcheck
 
           - os: ubuntu-latest
-            python-version: '3.8'
+            python-version: '3.12'
             nox-session: flake8
 
           - os: ubuntu-latest
-            python-version: '3.10'
+            python-version: '3.12'
             nox-session: pylint
             additional-sys-deps: libvirt-dev
 
           - os: ubuntu-latest
-            python-version: '3.8'
+            python-version: '3.12'
             nox-session: mypy
 
           - os: ubuntu-latest
-            python-version: '3.8'
+            python-version: '3.12'
             nox-session: docs
 
           - os: ubuntu-latest
-            python-version: '3.8'
+            python-version: '3.12'
             nox-session: coverage
 
     env:

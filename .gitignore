@@ -4,6 +4,7 @@
 
 # lisa runtime folder
 runtime/*
+environments/*
 
 # python cache
 __pycache__

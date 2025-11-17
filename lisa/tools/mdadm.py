@@ -107,7 +107,8 @@ class Mdadm(Tool):
             or isinstance(self.node.os, Debian)
             or isinstance(self.node.os, Suse)
         ):
-            pass
+            # skip package installation, but no error is raised.
+            return
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."

@@ -40,7 +40,7 @@ from lisa.util import (
 T = TypeVar("T")
 
 
-class ListableValidator(validate.Validator):
+class ListableValidator(validate.Validator):  # type: ignore[misc]
     default_message = ""
 
     def __init__(
@@ -96,7 +96,7 @@ class ListableValidator(validate.Validator):
 @dataclass_json(undefined=Undefined.INCLUDE)
 @dataclass
 class ExtendableSchemaMixin:
-    extended_schemas: CatchAll = field(default_factory=dict)  # type: ignore
+    extended_schemas: CatchAll = field(default_factory=dict)
 
     def get_extended_runbook(self, runbook_type: Type[T], type_name: str = "") -> T:
         """
@@ -334,6 +334,11 @@ class Notifier(TypedSchema, ExtendableSchemaMixin):
     # variables.
     enabled: bool = True
 
+    # priority is used to decide the order of calling notifiers, the order is for
+    # modifying messages. If multiple notifiers modify the message, the
+    # smaller priority will be called first.
+    priority: int = 100
+
 
 @dataclass_json()
 @dataclass()
@@ -444,6 +449,22 @@ class DiskControllerType(str, Enum):
 class ResourceDiskType(str, Enum):
     SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI
     NVME = constants.STORAGE_INTERFACE_TYPE_NVME
+
+
+class VirtualizationHostType(str, Enum):
+    """
+    Virtualization host type enumeration.
+    Defines the type of hypervisor or virtualization platform being used.
+    """
+
+    # Physical hardware without virtualization
+    BareMetal = "BareMetal"
+    # Microsoft Hyper-V hypervisor
+    HyperV = "HyperV"
+    # QEMU/KVM virtualization
+    QEMU = "QEMU"
+    # Cloud Hypervisor
+    CloudHypervisor = "CloudHypervisor"
 
 
 disk_controller_type_priority: List[DiskControllerType] = [
@@ -844,6 +865,104 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
 
 @dataclass_json()
 @dataclass()
+class VirtualizationSettings(FeatureSettings):
+    """
+    Virtualization feature settings to specify the host type.
+    Used to indicate the type of hypervisor or virtualization platform.
+    """
+
+    type: str = constants.FEATURE_VIRTUALIZATION
+    # Host type - specifies the virtualization platform being used
+    # Default is None (no restrictions/requirements)
+    host_type: Optional[
+        Union[
+            search_space.SetSpace[VirtualizationHostType],
+            VirtualizationHostType,
+        ]
+    ] = field(
+        default=None,
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=VirtualizationHostType,
+                default_values=[],
+            )
+        ),
+    )
+
+    def __eq__(self, o: object) -> bool:
+        assert isinstance(o, VirtualizationSettings), f"actual: {type(o)}"
+        return super().__eq__(o) and self.host_type == o.host_type
+
+    def __hash__(self) -> int:
+        return hash(self._get_key())
+
+    def _get_key(self) -> str:
+        # Include host_type in key for different hash values
+        host_type_str = str(self.host_type) if self.host_type else "None"
+        return f"{self.type}_{host_type_str}"
+
+    def __repr__(self) -> str:
+        return f"type:{self.type}, " f"host_type:{self.host_type}"
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        result = super().check(capability)
+        assert isinstance(capability, VirtualizationSettings)
+
+        # Check host_type compatibility
+        if self.host_type is not None:
+            if capability.host_type is None:
+                # Requirement specifies host_type but capability doesn't provide it
+                result.add_reason(
+                    f"requirement specifies host_type {self.host_type} "
+                    f"but capability has no host_type specified"
+                )
+            else:
+                # Both have host_type, check compatibility
+                result.merge(
+                    search_space.check_setspace(self.host_type, capability.host_type)
+                )
+
+        return result
+
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
+        assert isinstance(capability, VirtualizationSettings)
+        value = type(self)()
+
+        # Handle host_type intersection/generation based on method
+        if self.host_type is not None and capability.host_type is not None:
+            # Convert single values to SetSpace if needed
+            if isinstance(self.host_type, VirtualizationHostType):
+                self_host_type = search_space.SetSpace(
+                    is_allow_set=True, items=[self.host_type]
+                )
+            else:
+                self_host_type = self.host_type
+
+            if isinstance(capability.host_type, VirtualizationHostType):
+                cap_host_type = search_space.SetSpace(
+                    is_allow_set=True, items=[capability.host_type]
+                )
+            else:
+                cap_host_type = capability.host_type
+
+            # Use SetSpace methods directly
+            if method == search_space.RequirementMethod.intersect:
+                value.host_type = self_host_type.intersect(cap_host_type)
+            elif method == search_space.RequirementMethod.generate_min_capability:
+                value.host_type = self_host_type.generate_min_capability(cap_host_type)
+        elif capability.host_type is not None:
+            value.host_type = capability.host_type
+        else:
+            value.host_type = self.host_type
+
+        return value
+
+
+@dataclass_json()
+@dataclass()
 class FeaturesSpace(
     search_space.SetSpace[Union[str, FeatureSettings]],
 ):
@@ -861,7 +980,6 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     type: str = field(
         default=constants.ENVIRONMENTS_NODES_REQUIREMENT,
         metadata=field_metadata(
-            required=True,
             validate=validate.OneOf([constants.ENVIRONMENTS_NODES_REQUIREMENT]),
         ),
     )
@@ -1242,6 +1360,10 @@ class Node(TypedSchema, ExtendableSchemaMixin):
     name: str = ""
     is_default: bool = field(default=False)
 
+    # A node is disabled if it's False. It helps to disable node by
+    # variables.
+    enabled: bool = True
+
 
 @dataclass_json()
 @dataclass
@@ -1367,6 +1489,10 @@ class Environment:
         metadata=field_metadata(data_key=constants.NODES),
     )
     nodes_requirement: Optional[List[NodeSpace]] = None
+
+    # An environment is disabled if it's False. It helps to disable environment
+    # by variables.
+    enabled: bool = True
 
     _original_nodes_requirement: Optional[List[NodeSpace]] = None
 
@@ -1582,8 +1708,6 @@ class TestCase(BaseTestCaseFilter):
     # it uses to work around some cases temporarily, don't overuse it.
     # default is false
     ignore_failure: bool = False
-    # case should run on a specified environment
-    environment: str = ""
 
     @classmethod
     def type_name(cls) -> str:
@@ -1637,6 +1761,9 @@ class Runbook:
     # run name prefix to help grouping results and put it in title.
     name: str = "not_named"
     exit_with_failed_count: bool = True
+    # Exit at the first failed test case, useful for reproducing issues.
+    # When True, all not started test cases will be marked as skipped.
+    exit_on_first_failure: bool = False
     test_project: str = ""
     test_pass: str = ""
     tags: Optional[List[str]] = None
@@ -1651,6 +1778,8 @@ class Runbook:
     environment: Optional[EnvironmentRoot] = field(default=None)
     notifier: Optional[List[Notifier]] = field(default=None)
     platform: List[Platform] = field(default_factory=list)
+    # if it's true, import built-in test cases: lisa/microsoft
+    import_builtin_tests: bool = False
     #  will be parsed in runner.
     testcase_raw: List[Any] = field(
         default_factory=list, metadata=field_metadata(data_key=constants.TESTCASE)
@@ -1684,7 +1813,7 @@ def load_by_type(schema_type: Type[T], raw_runbook: Any, many: bool = False) -> 
     """
     Convert dict, list or base typed schema to specified typed schema.
     """
-    if type(raw_runbook) == schema_type:
+    if type(raw_runbook) is schema_type:
         return raw_runbook
 
     if not isinstance(raw_runbook, dict) and not many:

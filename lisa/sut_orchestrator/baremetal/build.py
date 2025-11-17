@@ -6,7 +6,7 @@ import re
 from pathlib import Path, PurePath
 from typing import Dict, List, Type
 
-from smb.SMBConnection import SMBConnection  # type: ignore
+from smb.SMBConnection import SMBConnection
 
 from lisa import schema
 from lisa.node import quick_connect

@@ -49,10 +49,10 @@ from azure.mgmt.keyvault.models import (
     VaultCreateOrUpdateParameters,
     VaultProperties,
 )
-from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
+from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements
 from azure.mgmt.msi import ManagedServiceIdentityClient
-from azure.mgmt.network import NetworkManagementClient  # type: ignore
-from azure.mgmt.network.models import (  # type: ignore
+from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.network.models import (
     PrivateDnsZoneConfig,
     PrivateDnsZoneGroup,
     PrivateEndpoint,
@@ -60,18 +60,15 @@ from azure.mgmt.network.models import (  # type: ignore
     PrivateLinkServiceConnectionState,
     Subnet,
 )
-from azure.mgmt.privatedns import PrivateDnsManagementClient  # type: ignore
-from azure.mgmt.privatedns.models import (  # type: ignore
+from azure.mgmt.privatedns import PrivateDnsManagementClient
+from azure.mgmt.privatedns.models import (
     ARecord,
     PrivateZone,
     RecordSet,
     SubResource,
     VirtualNetworkLink,
 )
-from azure.mgmt.resource import (  # type: ignore
-    ResourceManagementClient,
-    SubscriptionClient,
-)
+from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters
 from azure.storage.blob import (
@@ -85,7 +82,7 @@ from azure.storage.blob import (
 from azure.storage.fileshare import ShareServiceClient
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
-from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud
 from PIL import Image, UnidentifiedImageError
 from requests.exceptions import ChunkedEncodingError
 from retry import retry
@@ -212,14 +209,10 @@ class AzureVmPurchasePlanSchema:
 @dataclass_json
 @dataclass
 class AzureImageSchema(schema.ImageSchema):
-    architecture: Union[
-        schema.ArchitectureType, search_space.SetSpace[schema.ArchitectureType]
-    ] = field(  # type: ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            is_allow_set=True,
-            items=[schema.ArchitectureType.x64, schema.ArchitectureType.Arm64],
-        ),
+    architecture: Optional[
+        Union[schema.ArchitectureType, search_space.SetSpace[schema.ArchitectureType]]
+    ] = field(
+        default=None,
         metadata=field_metadata(
             decoder=partial(
                 search_space.decode_nullable_set_space,
@@ -229,19 +222,17 @@ class AzureImageSchema(schema.ImageSchema):
                     schema.ArchitectureType.x64,
                     schema.ArchitectureType.Arm64,
                 ],
-            )
+            ),
+            required=False,
+            allow_none=True,
         ),
     )
     disk_controller_type: Optional[
         Union[
             search_space.SetSpace[schema.DiskControllerType], schema.DiskControllerType
         ]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            is_allow_set=True,
-            items=[schema.DiskControllerType.SCSI, schema.DiskControllerType.NVME],
-        ),
+    ] = field(
+        default=None,
         metadata=field_metadata(
             decoder=partial(
                 search_space.decode_nullable_set_space,
@@ -251,52 +242,36 @@ class AzureImageSchema(schema.ImageSchema):
                     schema.DiskControllerType.SCSI,
                     schema.DiskControllerType.NVME,
                 ],
-            )
+            ),
+            required=False,
+            allow_none=True,
         ),
     )
-    hyperv_generation: Optional[
-        Union[search_space.SetSpace[int], int]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            is_allow_set=True,
-            items=[1, 2],
-        ),
+    hyperv_generation: Optional[Union[search_space.SetSpace[int], int]] = field(
+        default=None,
         metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=int)
+            decoder=partial(search_space.decode_set_space_by_type, base_type=int),
+            required=False,
+            allow_none=True,
         ),
     )
     network_data_path: Optional[
         Union[search_space.SetSpace[schema.NetworkDataPath], schema.NetworkDataPath]
-    ] = field(  # type: ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            is_allow_set=True,
-            items=[
-                schema.NetworkDataPath.Synthetic,
-                schema.NetworkDataPath.Sriov,
-            ],
-        ),
+    ] = field(
+        default=None,
         metadata=field_metadata(
             decoder=partial(
                 search_space.decode_set_space_by_type,
                 base_type=schema.NetworkDataPath,
-            )
+            ),
+            required=False,
+            allow_none=True,
         ),
     )
-    security_profile: Union[
-        search_space.SetSpace[SecurityProfileType], SecurityProfileType
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            is_allow_set=True,
-            items=[
-                SecurityProfileType.Standard,
-                SecurityProfileType.SecureBoot,
-                SecurityProfileType.CVM,
-                SecurityProfileType.Stateless,
-            ],
-        ),
+    security_profile: Optional[
+        Union[search_space.SetSpace[SecurityProfileType], SecurityProfileType]
+    ] = field(
+        default=None,
         metadata=field_metadata(
             decoder=partial(
                 search_space.decode_nullable_set_space,
@@ -308,16 +283,17 @@ class AzureImageSchema(schema.ImageSchema):
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
                 ],
-            )
+            ),
+            required=False,
+            allow_none=True,
         ),
     )
-    encrypt_disk: Union[search_space.SetSpace[bool], bool] = field(
-        default_factory=partial(
-            search_space.SetSpace[bool], is_allow_set=True, items=[False, True]
-        ),
+    encrypt_disk: Optional[Union[search_space.SetSpace[bool], bool]] = field(
+        default=None,
         metadata=field_metadata(
             decoder=partial(search_space.decode_set_space_by_type, base_type=bool),
             required=False,
+            allow_none=True,
         ),
     )
 
@@ -336,11 +312,16 @@ class AzureImageSchema(schema.ImageSchema):
 
     def _parse_info(self, raw_features: Dict[str, Any], log: Logger) -> None:
         """Parse raw image tags to AzureImageSchema"""
-        self._parse_architecture(raw_features, log)
-        self._parse_disk_controller_type(raw_features, log)
-        self._parse_hyperv_generation(raw_features, log)
-        self._parse_network_data_path(raw_features, log)
-        self._parse_security_profile(raw_features, log)
+        if self.architecture is None:
+            self._parse_architecture(raw_features, log)
+        if self.disk_controller_type is None:
+            self._parse_disk_controller_type(raw_features, log)
+        if self.hyperv_generation is None:
+            self._parse_hyperv_generation(raw_features, log)
+        if self.network_data_path is None:
+            self._parse_network_data_path(raw_features, log)
+        if self.security_profile is None:
+            self._parse_security_profile(raw_features, log)
 
     def _parse_architecture(self, raw_features: Dict[str, Any], log: Logger) -> None:
         arch = raw_features.get("architecture")
@@ -541,17 +522,19 @@ class SharedImageGallerySchema(AzureImageSchema):
 @dataclass
 class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
-    vmgs_path: Optional[str] = None
+    cvm_gueststate_path: Optional[str] = None
+    cvm_metadata_path: Optional[str] = None
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
         # There are no platform tags to parse, but we can assume the
         # security profile based on the presence of a VMGS path.
-        if self.vmgs_path:
+        if self.cvm_gueststate_path:
             self.security_profile = search_space.SetSpace(
                 True,
                 [
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
+                    SecurityProfileType.SecureBoot,
                 ],
             )
             self.encrypt_disk = search_space.SetSpace(True, [True, False])
@@ -686,10 +669,6 @@ class AzureNodeSchema:
     )
     community_gallery_image_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="community_gallery_image")
-    )
-    hyperv_generation: int = field(
-        default=1,
-        metadata=field_metadata(validate=validate.OneOf([1, 2])),
     )
     # for marketplace image, which need to accept terms
     _purchase_plan: InitVar[Optional[AzureVmPurchasePlanSchema]] = None
@@ -892,8 +871,10 @@ class AzureNodeSchema:
             else:
                 add_secret(vhd.vhd_path, PATTERN_URL)
                 self._orignal_vhd_path = replace(vhd.vhd_path, mask=PATTERN_URL)
-                if vhd.vmgs_path:
-                    add_secret(vhd.vmgs_path, PATTERN_URL)
+                if vhd.cvm_gueststate_path:
+                    add_secret(vhd.cvm_gueststate_path, PATTERN_URL)
+                if vhd.cvm_metadata_path:
+                    add_secret(vhd.cvm_metadata_path, PATTERN_URL)
                 # this step makes vhd_raw is validated, and
                 # filter out any unwanted content.
                 self.vhd_raw = vhd.to_dict()  # type: ignore
@@ -1046,7 +1027,13 @@ class AzureNodeSchema:
 
         if isinstance(raw_data, dict):
             normalized_data = {
-                k: (v.lower() if isinstance(v, str) and hasattr(schema_type, k) else v)
+                k: (
+                    v.lower()
+                    if isinstance(v, str)
+                    and not isinstance(v, Enum)
+                    and hasattr(schema_type, k)
+                    else v
+                )
                 for k, v in raw_data.items()
             }
             prop_value = schema.load_by_type(schema_type, normalized_data)
@@ -1086,6 +1073,7 @@ class AzureNodeSchema:
 @dataclass_json()
 @dataclass
 class AzureNodeArmParameter(AzureNodeSchema):
+    hyperv_generation: int = 2
     nic_count: int = 1
     enable_sriov: bool = False
     os_disk_type: str = ""
@@ -1785,6 +1773,7 @@ def check_or_create_storage_account(
     log: Logger,
     sku: str = "Standard_LRS",
     kind: str = "StorageV2",
+    minimum_tls_version: str = "TLS1_2",
     enable_https_traffic_only: bool = True,
     allow_shared_key_access: bool = False,
     allow_blob_public_access: bool = False,
@@ -1811,6 +1800,7 @@ def check_or_create_storage_account(
                 enable_https_traffic_only=enable_https_traffic_only,
                 allow_shared_key_access=allow_shared_key_access,
                 allow_blob_public_access=allow_blob_public_access,
+                minimum_tls_version=minimum_tls_version,
             )
             operation = storage_client.storage_accounts.begin_create(
                 resource_group_name=resource_group_name,
@@ -1896,7 +1886,7 @@ def copy_vhd_to_storage(
     properties = original_blob_client.get_blob_properties()
     content_settings: Optional[ContentSettings] = properties.content_settings
     if content_settings:
-        original_key = content_settings.get("content_md5", None)  # type: ignore
+        original_key = content_settings.get("content_md5", None)
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
@@ -1917,9 +1907,7 @@ def copy_vhd_to_storage(
             if blob:
                 # check if hash key matched with original key.
                 if blob.content_settings:
-                    cached_key = blob.content_settings.get(
-                        "content_md5", None
-                    )  # type: ignore
+                    cached_key = blob.content_settings.get("content_md5", None)
                 if is_stuck_copying(blob_client, log):
                     # Delete the stuck vhd.
                     blob_client.delete_blob(delete_snapshots="include")
@@ -2173,7 +2161,7 @@ def save_console_log(
         log.debug(f"Failed to save console log: {ex}")
         return b""
 
-    return log_response.content
+    return log_response.content  # type: ignore
 
 
 def load_environment(
@@ -2262,7 +2250,7 @@ def get_vm(platform: "AzurePlatform", node: Node) -> Any:
     return vm
 
 
-@retry(exceptions=LisaException, tries=150, delay=2)
+@retry(exceptions=LisaException, tries=150, delay=2)  # type: ignore
 def get_primary_ip_addresses(
     platform: "AzurePlatform",
     resource_group_name: str,
@@ -2351,6 +2339,7 @@ def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
     }
 
 
+@lru_cache(maxsize=256)  # noqa: B019
 def find_storage_account(
     platform: "AzurePlatform", sc_name: str, subscription_id: str
 ) -> Any:
@@ -2360,7 +2349,13 @@ def find_storage_account(
     # sometimes it will fail for below reason if list storage accounts like this way
     # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
     # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
-    sc_list = storage_client.storage_accounts.list()
+
+    # storage_client.storage_accounts.list() returns a paged iterator, which triggers
+    # additional API calls during iteration. Frequent or concurrent iterations can
+    # exceed Azure's request limits, resulting in throttling errors. To mitigate this,
+    # we cache the full list of storage accounts using list(), prevent
+    # 'ResourceCollectionRequestsThrottled' errors.
+    sc_list = list(storage_client.storage_accounts.list())
     found_sc = None
     for sc in sc_list:
         if sc.name.lower() == sc_name.lower():
@@ -2402,14 +2397,17 @@ def _generate_sas_token_for_vhd(
 
 
 @lru_cache(maxsize=10)  # noqa: B019
-def get_deployable_vhd_path(
-    platform: "AzurePlatform", vhd_path: str, location: str, log: Logger
+def get_deployable_storage_path(
+    platform: "AzurePlatform", vhd_path: Optional[str], location: str, log: Logger
 ) -> str:
     """
     The sas url is not able to create a vm directly, so this method check if
-    the vhd_path is a sas url. If so, copy it to a location in current
-    subscription, so it can be deployed.
+    the vhd_path (disk image, CVM guest state, or CVM metadata) is a sas url.
+    If so, copy it to a location in current subscription, so it can be deployed.
     """
+    if not vhd_path:
+        return ""
+
     matches = SAS_URL_PATTERN.match(vhd_path)
     if not matches:
         vhd_details = get_vhd_details(platform, vhd_path)
@@ -2421,6 +2419,7 @@ def get_deployable_vhd_path(
             return vhd_path
         else:
             vhd_path = _generate_sas_token_for_vhd(platform, vhd_details)
+            assert isinstance(vhd_path, str), f"fail to generate sas url for {vhd_path}"
             matches = SAS_URL_PATTERN.match(vhd_path)
             assert matches, f"fail to generate sas url for {vhd_path}"
             add_secret(vhd_path, PATTERN_URL)
@@ -2644,7 +2643,7 @@ def check_or_create_gallery_image_version(
                         "hostCaching": host_caching_type,
                         "source": {
                             "uri": vhd_path,
-                            "id": (
+                            "storageAccountId": (
                                 f"/subscriptions/{platform.subscription_id}/"
                                 f"resourceGroups/{vhd_resource_group_name}"
                                 "/providers/Microsoft.Storage/storageAccounts/"
@@ -2831,7 +2830,7 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
-class StaticAccessTokenCredential(TokenCredential):
+class StaticAccessTokenCredential(TokenCredential):  # type: ignore
     def __init__(self, token: str) -> None:
         """
         Initialize StaticAccessTokenCredential with the provided token.
@@ -3151,7 +3150,7 @@ def assign_access_policy(
     return keyvault_poller.result()
 
 
-@retry(tries=5, delay=1)
+@retry(tries=5, delay=1)  # type: ignore
 def create_certificate(
     platform: "AzurePlatform",
     vault_url: str,
@@ -3218,7 +3217,7 @@ def check_certificate_existence(
             )
 
 
-@retry(tries=10, delay=1)
+@retry(tries=10, delay=1)  # type: ignore
 def rotate_certificate(
     platform: "AzurePlatform",
     vault_url: str,
@@ -3261,7 +3260,7 @@ def rotate_certificate(
     )
 
 
-@retry(tries=10, delay=1)
+@retry(tries=10, delay=1)  # type: ignore
 def delete_certificate(
     platform: "AzurePlatform",
     vault_url: str,
@@ -3289,7 +3288,7 @@ def is_cloud_init_enabled(node: Node) -> bool:
     return False
 
 
-@retry(tries=10, delay=1, jitter=(0.5, 1))
+@retry(tries=10, delay=1, jitter=(0.5, 1))  # type: ignore
 def load_location_info_from_file(
     cached_file_name: Path, log: Logger
 ) -> Optional[AzureLocation]:

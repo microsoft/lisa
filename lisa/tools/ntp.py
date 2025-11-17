@@ -29,7 +29,7 @@ class Ntp(Tool):
         posix_os.install_packages("ntp")
         return self._check_exists()
 
-    @retry(tries=300, delay=1)
+    @retry(tries=300, delay=1)  # type: ignore
     def check_leap_code(self) -> None:
         cmd_result = self.run("-c rv", shell=True, sudo=True, force_run=True)
         if not self.__leap_pattern.match(cmd_result.stdout):

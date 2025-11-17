@@ -10,7 +10,18 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from random import randint
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Pattern,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import websockets
 from assertpy import assert_that
@@ -30,10 +41,10 @@ from azure.mgmt.compute.models import (
     VirtualMachineUpdate,
 )
 from azure.mgmt.core.exceptions import ARMErrorFormat
-from azure.mgmt.network.models import RouteTable  # type: ignore
-from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignore
-from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
-from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
+from azure.mgmt.network.models import RouteTable
+from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient
+from azure.mgmt.serialconsole.models import SerialPort, SerialPortState
+from azure.mgmt.serialconsole.operations import SerialPortsOperations
 from dataclasses_json import dataclass_json
 from retry import retry
 
@@ -59,7 +70,6 @@ from lisa.tools import (
     Dmesg,
     Find,
     IpInfo,
-    LisDriver,
     Ls,
     Lsblk,
     Lspci,
@@ -329,27 +339,27 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
-    @retry(tries=3, delay=5)
+    @retry(tries=3, delay=5)  # type: ignore
     def write(self, data: str) -> None:
         # websocket connection is not stable, so we need to retry
         try:
             self._write(data)
             return
-        except websockets.ConnectionClosed as e:  # type: ignore
+        except websockets.ConnectionClosed as e:
             # If the connection is closed, we need to reconnect
             self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
             self._get_connection()
             raise e
 
-    @retry(tries=3, delay=5)
+    @retry(tries=3, delay=5)  # type: ignore
     def read(self) -> str:
         # websocket connection is not stable, so we need to retry
         try:
             # run command with timeout
             output = self._read()
             return output
-        except websockets.ConnectionClosed as e:  # type: ignore
+        except websockets.ConnectionClosed as e:
             # If the connection is closed, we need to reconnect
             self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
@@ -378,7 +388,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
             # create websocket connection
             ws = self._get_event_loop().run_until_complete(
-                websockets.connect(connection_str)  # type: ignore
+                websockets.connect(connection_str)
             )
 
             token = self._get_access_token()
@@ -521,11 +531,17 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         r"Standard_NV[\d]+ad(ms|s)_A10_v5)",
         re.I,
     )
-    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/windows/n-series-amd-driver-setup # noqa: E501
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/linux/azure-n-series-amd-gpu-driver-linux-installation-guide # noqa: E501
     # - NGads V620 Series: Standard_NG[^_]+_V620_v[0-9]+
+    # - NVads V710 Series: Standard_NV[^_]+ads_V710_v[0-9]+
     # - NVv4 Series: Standard_NV[^_]+_v4
+    # - NDisr MI300X Series: Standard_ND[^_]+isr_MI300X_v[0-9]+
     _amd_supported_skus = re.compile(
-        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
+        r"^(Standard_NG[^_]+_V620_v[0-9]+|"
+        r"Standard_NV[^_]+ads_V710_v[0-9]+|"
+        r"Standard_NV[^_]+_v4|"
+        r"Standard_ND[^_]+isr_MI300X_v[0-9]+)$",
+        re.I,
     )
 
     _grid_supported_distros: Dict[Any, List[str]] = {
@@ -575,8 +591,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
         return supported
 
-    def get_supported_driver(self) -> List[ComputeSDK]:
-        driver_list = []
+    def get_supported_driver(self) -> ComputeSDK:
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
@@ -584,19 +599,11 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             re.match(self._grid_supported_skus, node_runbook.vm_size)
             and self.is_grid_supported_os()
         ):
-            driver_list.append(ComputeSDK.GRID)
+            return ComputeSDK.GRID
         elif re.match(self._amd_supported_skus, node_runbook.vm_size):
-            driver_list.append(ComputeSDK.AMD)
-            self._is_nvidia: bool = False
+            return ComputeSDK.AMD
         else:
-            driver_list.append(ComputeSDK.CUDA)
-
-        if not driver_list:
-            raise LisaException(
-                "No valid Compute SDK found to install for the VM size -"
-                f" {node_runbook.vm_size}."
-            )
-        return driver_list
+            return ComputeSDK.CUDA
 
     # GRID driver is supported on a limited number of distros.
     # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-grid-drivers # noqa: E501
@@ -630,19 +637,23 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
-        self._is_nvidia = True
 
     def _install_driver_using_platform_feature(self) -> None:
-        # https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
+        """
+        Install GPU drivers using Azure VM extension.
+
+        Reference:
+        https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
+        """
         supported_versions: Dict[Any, List[str]] = {
-            Redhat: ["7.9"],
-            Ubuntu: ["20.04"],
+            Redhat: ["7.9", "8.2"],
+            Ubuntu: ["20.04", "22.04", "24.04"],
             CentOs: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
         }
         release = self._node.os.information.release
         if release not in supported_versions.get(type(self._node.os), []):
             raise UnsupportedOperationException("GPU Extension not supported")
-        if type(self._node.os) == Redhat:
+        if type(self._node.os) is Redhat:
             self._node.os.handle_rhui_issue()
         extension = self._node.features[AzureExtension]
         try:
@@ -670,16 +681,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             return
         else:
             raise LisaException("GPU Extension Provisioning Failed")
-
-    def install_compute_sdk(self, version: str = "") -> None:
-        try:
-            # install LIS driver if required and not already installed.
-            self._node.tools[LisDriver]
-        except Exception as e:
-            self._log.debug(
-                f"LisDriver is not installed. It might not be required. {e}"
-            )
-        super().install_compute_sdk(version)
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
@@ -872,6 +873,61 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             "routing table was not assigned to any subnet! "
             f"targeted subnet: {subnet_mask} with route table: {route_table}"
         )
+
+    def add_route_to_table(
+        self,
+        route_name: str,
+        subnet_mask: str,
+        next_hop_type: str,
+        dest_hop: str,
+        em_first_hop: str = "",
+        route_table_name: str = "",
+    ) -> None:
+        try:
+            # Get platform instance
+            platform: AzurePlatform = self._platform  # type: ignore
+            network_client = get_network_client(platform)
+
+            # Set up first hop routing rule
+            address_prefix = em_first_hop if em_first_hop else subnet_mask
+
+            # Get existing route table
+            route_table = network_client.route_tables.get(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name,
+            )
+
+            # Create new route
+            new_route = {
+                "name": f"{route_name}-route",
+                "properties": {
+                    "addressPrefix": address_prefix,
+                    "nextHopType": next_hop_type,
+                    "nextHopIpAddress": dest_hop,
+                },
+            }
+
+            # Add new route to existing routes
+            if not route_table.routes:
+                route_table.routes = []
+            route_table.routes.append(new_route)
+
+            # Update route table
+            result = network_client.route_tables.begin_create_or_update(
+                resource_group_name=self._resource_group_name,
+                route_table_name=route_table_name,
+                parameters=route_table,
+            ).result()
+
+            self._log.info(
+                f'Added route "{route_name}" to route table "{route_table_name}"'
+                f' with result: "{result}"'
+            )
+
+        except Exception as e:
+            raise LisaException(
+                f"Fail to add route {route_name} to route table {route_table_name}, {e}"
+            )
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
@@ -1098,12 +1154,12 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def reload_module(self) -> None:
         modprobe_tool = self._node.tools[Modprobe]
-        modprobe_tool.reload(["hv_netvsc"])
+        modprobe_tool.reload("hv_netvsc")
 
     # Subroutine for applying route table to subnet.
     # We don't want to retry the entire routine if we
     # catch an exception in this section.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_update_subnet(
         self,
         virtual_network_name: str,
@@ -1118,9 +1174,42 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             virtual_network_name=virtual_network_name,
             subnet_name=subnet_name,
         )
-        self._log.debug(f"Checking subnet: {subnet_az.address_prefix} == {subnet_mask}")
-        # Step 4: once we find the matching subnet, assign the routing table to it.
-        if subnet_az.address_prefix == subnet_mask:
+        # Check the subnet address prefixes to find the desired subnet
+        # must handle the case where there is a single address prefix
+        # or an array of prefixes. These use distinct property names for some reason
+        if subnet_az.address_prefix is not None:
+            # single prefix is easy, save for later
+            az_subnet = subnet_az.address_prefix
+        # otherwise, check the prefixes in the array if it exists.
+        elif subnet_az.address_prefix is None and subnet_az.address_prefixes:
+            az_subnet = ""
+            # check subnet address prefixes if there are more than one
+            for subnet in subnet_az.address_prefixes:
+                self._log.debug(f"Checking address prefixes: {subnet} == {subnet_mask}")
+                if subnet == subnet_mask:
+                    az_subnet = subnet
+            # if we could not find any, warn and return.
+            if not az_subnet:
+                self._log.debug(
+                    "Warning: could not find subnet to update in vnet "
+                    f"{virtual_network_name} skipping updates. "
+                    "Checked subnet prefixes: " + " ".join(subnet_az.address_prefixes)
+                )
+                return False
+        # Else, this is a weird situation where a virtual network has no subnets.
+        # warn and return. It's unexpected, but we check every vnet in the RG.
+        # so it's possible there's just another one that contains the subnet we want.
+        # so just warn and return to the higher function to keep checking.
+        else:
+            self._log.debug(
+                "Warning: found a virtual network "
+                f"{virtual_network_name}"
+                " with no subnets."
+            )
+            return False
+        # finally, apply the routing table if we have a matching subnet
+        self._log.debug(f"Checking subnet: {az_subnet} == {subnet_mask}")
+        if az_subnet == subnet_mask:
             subnet_az.route_table = route_table
             result = network_client.subnets.begin_create_or_update(
                 resource_group_name=self._resource_group_name,
@@ -1139,7 +1228,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     # Subroutine to create the route table,
     # seperated because the create/apply process has multiple potential timeouts.
     # We don't want to restart the entire process if one step fails.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_create_route_table(
         self,
         em_first_hop: str,
@@ -1195,7 +1284,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         return route_table
 
-    @retry(tries=60, delay=10)
+    @retry(tries=60, delay=10)  # type: ignore
     def _check_sriov_enabled(
         self, enabled: bool, reset_connections: bool = True
     ) -> None:
@@ -1718,6 +1807,7 @@ class Disk(AzureFeatureMixin, features.Disk):
     LUN_PATTERN_BSD = re.compile(
         r"at\s+scbus\d+\s+target\s+\d+\s+lun\s+(\d+)\s+\(.*(da\d+)", re.M
     )
+    _resource_disk_type: Optional[schema.ResourceDiskType] = None
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -1935,7 +2025,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         # create managed disk
         managed_disks = []
         for i in range(count):
-            name = f"lisa_data_disk_{i+current_disk_count}_{self._node.name}"
+            name = f"lisa_data_disk_{i + current_disk_count}_{self._node.name}"
             async_disk_update = compute_client.disks.begin_create_or_update(
                 self._resource_group_name,
                 name,
@@ -2036,12 +2126,14 @@ class Disk(AzureFeatureMixin, features.Disk):
     # function returns the type of resource disk/disks available on the VM
     # raises exception if no resource disk is available
     def get_resource_disk_type(self) -> schema.ResourceDiskType:
-        resource_disks = self.get_resource_disks()
-        if not resource_disks:
-            raise LisaException("No Resource disks are available on VM")
-        return schema.ResourceDiskType(
-            self._node.features[Disk].get_disk_type(disk=resource_disks[0])
-        )
+        if self._resource_disk_type is None:
+            resource_disks = self.get_resource_disks()
+            if not resource_disks:
+                raise LisaException("No Resource disks are available on VM")
+            self._resource_disk_type = schema.ResourceDiskType(
+                self._node.features[Disk].get_disk_type(disk=resource_disks[0])
+            )
+        return self._resource_disk_type
 
     def get_resource_disks(self) -> List[str]:
         resource_disk_list = []
@@ -2259,7 +2351,7 @@ class Resize(AzureFeatureMixin, features.Resize):
             (
                 feature
                 for feature in current_vm_size.capability.features
-                if feature.type == VhdGenerationSettings.type
+                if feature.type == HyperVGenerationSettings.type
             ),
             None,
         )
@@ -2267,13 +2359,13 @@ class Resize(AzureFeatureMixin, features.Resize):
             (
                 feature
                 for feature in candidate_size.capability.features
-                if feature.type == VhdGenerationSettings.type
+                if feature.type == HyperVGenerationSettings.type
             ),
             None,
         )
 
-        if isinstance(current_gen, VhdGenerationSettings) and isinstance(
-            candidate_gen, VhdGenerationSettings
+        if isinstance(current_gen, HyperVGenerationSettings) and isinstance(
+            candidate_gen, HyperVGenerationSettings
         ):
             result = search_space.check_setspace(current_gen.gen, candidate_gen.gen)
             return result.result
@@ -2542,14 +2634,6 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
 
 
 class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
-    # Convert Security Profile Setting to Arm Parameter Value
-    _security_profile_mapping = {
-        SecurityProfileType.Standard: "",
-        SecurityProfileType.SecureBoot: "TrustedLaunch",
-        SecurityProfileType.CVM: "ConfidentialVM",
-        SecurityProfileType.Stateless: "ConfidentialVM",
-    }
-
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
@@ -2603,7 +2687,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        return SecurityProfileSettings(security_profile=image.security_profile)
+        if image.security_profile:
+            return SecurityProfileSettings(security_profile=image.security_profile)
+        return None
 
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
@@ -2613,42 +2699,81 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         assert len(environment.nodes._list) == len(arm_parameters.nodes)
         for node, node_parameters in zip(environment.nodes._list, arm_parameters.nodes):
             assert node.capability.features
+
             security_profile = [
                 feature_setting
                 for feature_setting in node.capability.features.items
                 if feature_setting.type == FEATURE_NAME_SECURITY_PROFILE
             ]
-            if security_profile:
-                settings = security_profile[0]
-                assert isinstance(settings, SecurityProfileSettings)
-                assert isinstance(settings.security_profile, SecurityProfileType)
-                assert isinstance(settings.encrypt_disk, bool)
-                node_parameters.security_profile[
-                    "security_type"
-                ] = cls._security_profile_mapping[settings.security_profile]
-                if settings.security_profile == SecurityProfileType.Stateless:
-                    node_parameters.security_profile["secure_boot"] = False
-                    node_parameters.security_profile[
-                        "encryption_type"
-                    ] = "NonPersistedTPM"
+            if not security_profile:
+                continue
+
+            settings = security_profile[0]
+            assert isinstance(settings, SecurityProfileSettings)
+            assert isinstance(settings.security_profile, SecurityProfileType)
+            assert isinstance(settings.encrypt_disk, bool)
+
+            # Set Security Type and Encryption Type
+            # microsoft.compute/virtualmachines
+            #     SecurityProfile.securityType =
+            #         {'TrustedLaunch', 'ConfidentialVM', ''}
+            #     VMDiskSecurityProfile.securityEncryptionType =
+            #         {'DiskWithVMGuestState', 'NonPersistedTPM', 'VMGuestStateOnly'}
+            # microsoft.compute/disks (Replaces VMDiskSecurityProfile for VHDs)
+            #     DiskSecurityProfile.securityType =
+            #         {ConfidentialVM_DiskEncryptedWithCustomerKey',
+            #         'ConfidentialVM_DiskEncryptedWithPlatformKey',
+            #         'ConfidentialVM_NonPersistedTPM',
+            #         'ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey',
+            #         'TrustedLaunch'}
+            is_vhd = bool(node_parameters.vhd)
+            if SecurityProfileType.Standard == settings.security_profile:
+                node_parameters.security_profile["security_type"] = ""
+            elif SecurityProfileType.SecureBoot == settings.security_profile:
+                node_parameters.security_profile["secure_boot"] = True
+                node_parameters.security_profile["security_type"] = "TrustedLaunch"
+                node_parameters.security_profile["encryption_type"] = "TrustedLaunch"
+            elif SecurityProfileType.Stateless == settings.security_profile:
+                node_parameters.security_profile["secure_boot"] = False
+                node_parameters.security_profile["security_type"] = "ConfidentialVM"
+                node_parameters.security_profile["encryption_type"] = (
+                    "ConfidentialVM_NonPersistedTPM" if is_vhd else "NonPersistedTPM"
+                )
+            elif SecurityProfileType.CVM == settings.security_profile:
+                node_parameters.security_profile["secure_boot"] = True
+                node_parameters.security_profile["security_type"] = "ConfidentialVM"
+                if settings.encrypt_disk:
+                    if settings.disk_encryption_set_id:
+                        node_parameters.security_profile["encryption_type"] = (
+                            "ConfidentialVM_DiskEncryptedWithCustomerKey"
+                            if is_vhd
+                            else "DiskWithVMGuestState"
+                        )
+                    else:
+                        node_parameters.security_profile["encryption_type"] = (
+                            "ConfidentialVM_DiskEncryptedWithPlatformKey"
+                            if is_vhd
+                            else "DiskWithVMGuestState"
+                        )
                 else:
-                    node_parameters.security_profile["secure_boot"] = True
                     node_parameters.security_profile["encryption_type"] = (
-                        "DiskWithVMGuestState"
-                        if settings.encrypt_disk
+                        "ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey"
+                        if is_vhd
                         else "VMGuestStateOnly"
                     )
-                node_parameters.security_profile[
-                    "disk_encryption_set_id"
-                ] = settings.disk_encryption_set_id
 
-                if node_parameters.security_profile["security_type"] == "":
-                    node_parameters.security_profile.clear()
-                elif 1 == node_parameters.hyperv_generation:
-                    raise SkippedException(
-                        f"{settings.security_profile} "
-                        "can only be set on gen2 image/vhd."
-                    )
+            # Disk Encryption Set ID
+            node_parameters.security_profile[
+                "disk_encryption_set_id"
+            ] = settings.disk_encryption_set_id
+
+            # Return Skipped Exception if security profile is set on Gen 1 VM
+            if node_parameters.security_profile["security_type"] == "":
+                node_parameters.security_profile.clear()
+            elif node_parameters.image and 1 == node_parameters.image.hyperv_generation:
+                raise SkippedException(
+                    f"{settings.security_profile} " "can only be set on gen2 image/vhd."
+                )
 
 
 availability_type_priority: List[AvailabilityType] = [
@@ -2913,15 +3038,21 @@ class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualizatio
 
 
 class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
-    @classmethod
-    def create_setting(
-        cls, *args: Any, **kwargs: Any
-    ) -> Optional[schema.FeatureSettings]:
-        resource_sku: Any = kwargs.get("resource_sku")
+    # List of compiled regex patterns for VM families that support nested virtualization
+    _SUPPORTED_VM_PATTERNS = [
+        # Pattern for E-series with 'b' prefix and 's' suffix: ebsv, ebdsv
+        re.compile(r"^standardebd?sv\d+family$", re.IGNORECASE),
+        # Pattern for E-series with optional 'd' and 's' suffix: esv, edsv
+        re.compile(r"^standarded?sv\d+family$", re.IGNORECASE),
+        # Pattern for E-series with 'd' but no 's': edv (matches edv4, edv5, etc.)
+        re.compile(r"^standardedv\d+family$", re.IGNORECASE),
+        # Pattern for E-series base variants: ev (matches ev3, ev4, ev5, etc.)
+        re.compile(r"^standardev\d+family$", re.IGNORECASE),
+    ]
 
-        # add vm which support nested virtualization
-        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family.casefold() in [
+    @classmethod
+    def _get_supported_vm_families(cls) -> List[str]:
+        return [
             "standardddsv5family",
             "standardddv4family",
             "standardddv5family",
@@ -2937,18 +3068,6 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
             "standardeiv5family",
             "standardeadsv5family",
             "standardeasv5family",
-            "standardedsv4family",
-            "standardedsv5family",
-            "standardesv3family",
-            "standardesv4family",
-            "standardesv5family",
-            "standardebdsv5family",
-            "standardebsv5family",
-            "standardedv4family",
-            "standardev4family",
-            "standardedv5family",
-            "standardev3family",
-            "standardev5family",
             "standardxeidsv4family",
             "standardxeisv4family",
             "standardfsv2family",
@@ -2957,8 +3076,30 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
             "standardlsv3family",
             "standardmsfamily",
             "standardmsmediummemoryv2family",
-        ]:
+        ]
+
+    @classmethod
+    def _get_supported_vm_patterns(cls) -> List[Pattern[str]]:
+        return cls._SUPPORTED_VM_PATTERNS
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        family_lower = resource_sku.family.casefold()
+
+        if family_lower in cls._get_supported_vm_families():
             return schema.FeatureSettings.create(cls.name())
+
+        patterns = cls._get_supported_vm_patterns()
+        matches = find_patterns_in_lines(family_lower, patterns)
+
+        for pattern_matches in matches:
+            if pattern_matches:
+                return schema.FeatureSettings.create(cls.name())
+
         return None
 
 
@@ -3296,9 +3437,9 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
 @dataclass_json()
 @dataclass()
-class VhdGenerationSettings(schema.FeatureSettings):
-    type: str = "VhdGeneration"
-    # vhd generation in hyper-v
+class HyperVGenerationSettings(schema.FeatureSettings):
+    type: str = "HyperVGeneration"
+    # Hyper-V Generation capabilities of the VM
     gen: Optional[Union[search_space.SetSpace[int], int]] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
@@ -3313,7 +3454,7 @@ class VhdGenerationSettings(schema.FeatureSettings):
         if not super().__eq__(o):
             return False
 
-        assert isinstance(o, VhdGenerationSettings), f"actual: {type(o)}"
+        assert isinstance(o, HyperVGenerationSettings), f"actual: {type(o)}"
         return self.type == o.type and self.gen == o.gen
 
     def __repr__(self) -> str:
@@ -3330,7 +3471,7 @@ class VhdGenerationSettings(schema.FeatureSettings):
 
     def check(self, capability: Any) -> search_space.ResultReason:
         assert isinstance(
-            capability, VhdGenerationSettings
+            capability, HyperVGenerationSettings
         ), f"actual: {type(capability)}"
         result = super().check(capability)
 
@@ -3345,10 +3486,10 @@ class VhdGenerationSettings(schema.FeatureSettings):
         self, method: RequirementMethod, capability: Any
     ) -> Any:
         assert isinstance(
-            capability, VhdGenerationSettings
+            capability, HyperVGenerationSettings
         ), f"actual: {type(capability)}"
 
-        value = VhdGenerationSettings()
+        value = HyperVGenerationSettings()
         if self.gen or capability.gen:
             value.gen = getattr(search_space, f"{method.value}_setspace_by_priority")(
                 self.gen, capability.gen, [1, 2]
@@ -3356,7 +3497,7 @@ class VhdGenerationSettings(schema.FeatureSettings):
         return value
 
 
-class VhdGeneration(AzureFeatureMixin, Feature):
+class HyperVGeneration(AzureFeatureMixin, Feature):
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -3372,7 +3513,7 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         if "V2" in versions:
             gens.append(2)
 
-        settings = VhdGenerationSettings(gen=search_space.SetSpace(items=gens))
+        settings = HyperVGenerationSettings(gen=search_space.SetSpace(items=gens))
 
         return settings
 
@@ -3381,11 +3522,11 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        return VhdGenerationSettings(gen=image.hyperv_generation)
+        return HyperVGenerationSettings(gen=image.hyperv_generation)
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
-        return VhdGenerationSettings
+        return HyperVGenerationSettings
 
     @classmethod
     def can_disable(cls) -> bool:
@@ -3481,7 +3622,9 @@ class Architecture(AzureFeatureMixin, Feature):
         cls, image: schema.ImageSchema
     ) -> Optional[schema.FeatureSettings]:
         assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
-        return ArchitectureSettings(arch=image.architecture)
+        if image.architecture:
+            return ArchitectureSettings(arch=image.architecture)
+        return None
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -3737,3 +3880,31 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 sudo=True,
                 append=True,
             )
+
+
+class Virtualization(AzureFeatureMixin, features.Virtualization):
+    """
+    Azure-specific implementation of Virtualization feature.
+
+    Automatically sets host_type to HyperV for Azure VMs since Azure
+    uses Microsoft Hyper-V hypervisor technology as its underlying
+    virtualization platform. Azure's hypervisor is based on Hyper-V.
+    """
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        """
+        Create Azure virtualization settings.
+
+        Azure VMs always run on Microsoft Hyper-V hypervisor technology,
+        so we set host_type to HyperV by default. Azure's underlying
+        virtualization is based on the Hyper-V hypervisor.
+
+        Returns:
+            VirtualizationSettings with host_type=HyperV
+        """
+        return schema.VirtualizationSettings(
+            host_type=schema.VirtualizationHostType.HyperV
+        )

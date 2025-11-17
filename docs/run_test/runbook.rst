@@ -9,6 +9,7 @@ Runbook Reference
    -  `Use variable and secrets <#use-variable-and-secrets>`__
    -  `Use partial runbook <#use-partial-runbook>`__
    -  `Use extensions <#use-extensions>`__
+   -  `Conditionally enable/disable environments or nodes <#conditionally-enable-disable-environments-or-nodes>`__
 
 -  `Reference <#reference>`__
 
@@ -17,6 +18,8 @@ Runbook Reference
    -  `test_pass <#test-pass>`__
    -  `tags <#tags>`__
    -  `concurrency <#concurrency>`__
+   -  `exit_on_first_failure <#exit-on-first-failure>`__
+   -  `import_internal_tests <#import-builtin-tests>`__
    -  `include <#include>`__
 
       -  `path <#path>`__
@@ -70,6 +73,16 @@ Runbook Reference
          -  `include_subtest <#include-subtest>`__
          -  `append_message_id <#append-message-id>`__
 
+      -  `log_agent <#log-agent>`__
+
+         -  `azure_openai_endpoint <#azure-openai-endpoint>`__
+         -  `azure_openai_api_key <#azure-openai-api-key>`__
+         -  `general_deployment_name <#general-deployment-name>`__
+         -  `software_deployment_name <#software-deployment-name>`__
+         -  `embedding_endpoint <#embedding-endpoint>`__
+         -  `selected_flow <#selected-flow>`__
+         -  `skip_duplicate_errors <#skip-duplicate-errors>`__
+
    -  `environment <#environment>`__
 
       -  `retry <#retry>`__
@@ -77,6 +90,7 @@ Runbook Reference
       -  `environments <#environments>`__
 
          -  `name <#name-4>`__
+         -  `enabled <#enabled>`__
          -  `topology <#topology>`__
          -  `nodes <#nodes>`__
          -  `nodes_requirement <#nodes-requirement>`__
@@ -87,6 +101,11 @@ Runbook Reference
    -  `testcase <#testcase>`__
 
       -  `criteria <#criteria>`__
+      -  `times <#times>`__
+      -  `retry <#retry-1>`__
+      -  `timeout <#timeout>`__
+      -  `use_new_environment <#use-new-environment>`__
+      -  `ignore_failure <#ignore-failure>`__
 
 What is a runbook
 -----------------
@@ -109,6 +128,7 @@ Below section is for running cases on Azure platform, it specifies:
 -  admin_private_key_file: the private key file to access the Azure VM. (Optional)
 -  subscription_id: Azure VM is created under this subscription.
 -  azcopy_path: the installation path of the AzCopy tool on the machine where LISA is installed. It speeds up copying VHDs between Azure storage accounts. (Optional)
+-  resource_group_tags: tags to apply to created resource groups as key-value pairs. (Optional)
 
 .. code:: yaml
 
@@ -118,6 +138,9 @@ Below section is for running cases on Azure platform, it specifies:
        azure:
          subscription_id: $(subscription_id)
          azcopy_path: $(azcopy_path)
+         resource_group_tags:
+           Environment: Testing
+           Project: LISA
 
 Select and set test cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -133,6 +156,23 @@ name ``hello``.
      - criteria:
          name: hello
        select_action: exclude
+
+Below section demonstrates how to configure test cases with retry, repetition,
+and timeout settings. The first test case will automatically retry up to 2 times
+if it fails, redeploying the environment for each retry attempt. The second test
+case demonstrates stress testing by running 3 times unconditionally (regardless
+of pass/fail) with a custom timeout of 1 hour.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         priority: 0
+       retry: 2
+     - criteria:
+         name: verify_reboot_in_platform
+       times: 3
+       timeout: 3600
 
 Use variable and secrets
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -222,6 +262,59 @@ modules for test cases or extended features.
      - name: extended_features
        path: ../../extensions
      - ../../lisa/microsoft/testsuites/core
+
+Conditionally enable/disable environments or nodes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can use the ``enabled`` field to conditionally enable or disable entire
+environments or individual nodes within an environment. This is particularly
+useful when combined with variables for dynamic configuration.
+
+Below example shows how to enable/disable environments based on a variable:
+
+.. code:: yaml
+
+   variable:
+     - name: use_prod
+       value: true
+     - name: use_dev
+       value: false
+
+   environment:
+     environments:
+       - name: production_env
+         enabled: $(use_prod)  # Controlled by variable
+         nodes:
+           - type: local
+       - name: dev_env
+         enabled: $(use_dev)  # This environment will be skipped
+         nodes:
+           - type: local
+
+Below example shows how to selectively disable specific nodes within an environment:
+
+.. code:: yaml
+
+   environment:
+     environments:
+       - name: multi_node_env
+         nodes:
+           - name: primary_node
+             type: local
+             enabled: true  # Always enabled
+           - name: secondary_node
+             type: local
+             enabled: false  # Temporarily disabled
+           - name: optional_node
+             type: remote
+             address: 192.168.1.100
+             enabled: $(include_remote_node)  # Variable-controlled
+
+This allows you to:
+
+- Temporarily disable environments or nodes without deleting their configuration
+- Use variables to control which environments/nodes are active
+- Maintain multiple environment configurations and switch between them dynamically
 
 Use transformers
 ~~~~~~~~~~~~~~~~
@@ -335,6 +428,37 @@ concurrency
 type: int, optional, default is 1.
 
 The number of concurrent running environments.
+
+exit_on_first_failure
+~~~~~~~~~~~~~~~~~~~~~
+
+type: bool, optional, default is False.
+
+When set to True, LISA will terminate test execution immediately after the first
+test case failure. All remaining queued test cases will be marked as skipped
+with the message "Test execution stops early." This is particularly useful for
+debugging and reproducing specific test failures quickly.
+
+.. code:: yaml
+
+   exit_on_first_failure: true
+
+.. note::
+   This setting only affects test case execution order. Test cases that are already
+   running in parallel when a failure occurs will continue to completion.
+
+import_builtin_tests
+~~~~~~~~~~~~~~~~~~~~
+
+type: bool, optional, default is False.
+
+When set to True, LISA will import and make available built-in Microsoft test
+cases located in the `lisa/microsoft` directory. These are test cases provided
+by Microsoft Linux System Group for comprehensive system validation.
+
+.. code:: yaml
+
+   import_builtin_tests: true
 
 include
 ~~~~~~~
@@ -718,6 +842,123 @@ Example of junit notifier:
        include_subtest: true
        append_message_id: false
 
+log_agent
+^^^^^^^^^
+
+AI-powered log analysis notifier for automated test failure investigation.
+This notifier leverages Azure OpenAI to automatically analyze failed test
+cases, providing intelligent insights into potential root causes by examining
+test execution logs and code context from the LISA framework.
+
+The log_agent notifier uses a multi-agent AI system that combines:
+
+- **LogSearchAgent**: Specialized in searching and analyzing log files for error patterns
+- **CodeSearchAgent**: Examines source code files and analyzes implementations related to errors
+- **Magentic Orchestration**: Coordinates the agents to provide comprehensive analysis
+
+The analysis results are attached to test result messages and made available to
+downstream notifiers and reporting systems.
+
+**Prerequisites:**
+
+1. **Azure OpenAI Access** with the following deployments:
+   - GPT-4.1 or GPT-4o for general analysis
+   - GPT-4.1 for software-specific analysis (optional)
+   - Text-embedding-3-large for similarity calculations (optional)
+
+2. **Required Python packages** (automatically included with LISA):
+   - python-dotenv
+   - semantic-kernel
+   - azure-ai-inference
+   - retry
+
+azure_openai_endpoint
+'''''''''''''''''''''
+
+type: str, required
+
+Azure OpenAI service endpoint URL for the AI analysis service.
+
+Example: ``https://your-resource.openai.azure.com``
+
+azure_openai_api_key
+''''''''''''''''''''
+
+type: str, optional, default: ""
+
+Azure OpenAI API key for authentication. If not set, the notifier will use
+default authentication methods available in the environment.
+
+Note: This value is automatically marked as secret and will be masked in logs.
+
+general_deployment_name
+'''''''''''''''''''''''
+
+type: str, optional, default: "gpt-4o"
+
+Primary GPT model deployment name for general analysis tasks. This model is used
+by the orchestration manager to coordinate the analysis and synthesize findings.
+
+software_deployment_name
+''''''''''''''''''''''''
+
+type: str, optional, default: "gpt-4.1"
+
+Specialized GPT model deployment name for software-specific analysis tasks.
+This model is used by the CodeSearchAgent for examining source code.
+
+embedding_endpoint
+''''''''''''''''''
+
+type: str, optional, default: ""
+
+Optional embedding service endpoint for similarity calculations and analysis
+quality measurement.
+
+selected_flow
+'''''''''''''
+
+type: str, optional, default: "default"
+
+Analysis workflow type to execute. Currently supported flows:
+
+- **default**: Standard multi-agent analysis workflow
+- **gpt-5**: Advanced analysis workflow (future enhancement)
+
+skip_duplicate_errors
+'''''''''''''''''''''
+
+type: bool, optional, default: True
+
+When set to True, the notifier will skip analysis for errors that have already
+been analyzed in the current test run, improving performance and avoiding
+redundant processing.
+
+Example of log_agent notifier:
+
+.. code:: yaml
+
+   notifier:
+     - type: log_agent
+       azure_openai_endpoint: https://your-resource.openai.azure.com
+       azure_openai_api_key: $(azure_openai_api_key)
+       general_deployment_name: gpt-4o
+       software_deployment_name: gpt-4.1
+       selected_flow: default
+       skip_duplicate_errors: true
+
+**How it works:**
+
+1. **Failure Detection**: Automatically triggered when test cases fail
+2. **Log Analysis**: Searches through test execution logs for error patterns
+3. **Code Review**: Examines related source code if call traces are available
+4. **Hypothesis Generation**: Generates possible reasons for the failure
+5. **Evidence Gathering**: Searches for supporting evidence in logs
+6. **Root Cause Analysis**: Provides comprehensive analysis with actionable insights
+
+The AI analysis results are stored in the test result message's ``analysis["AI"]``
+field and can be consumed by other notifiers like HTML or custom reporting systems.
+
 environment
 ~~~~~~~~~~~
 
@@ -743,6 +984,30 @@ type: str, optional, default is empty
 
 The name of the environment.
 
+enabled
+'''''''
+
+type: bool, optional, default is true
+
+Controls whether the environment is loaded and used during test execution. When
+set to ``false``, the environment will be skipped during initialization. This is
+useful for definining multiple similar environments in the same runbook.
+
+Example:
+
+.. code:: yaml
+
+   environment:
+     environments:
+       - name: prod_env
+         enabled: true  # This environment will be loaded
+         nodes:
+           - type: local
+       - name: dev_env
+         enabled: $(use_dev_env)  # Variable-controlled
+         nodes:
+           - type: local
+
 topology
 ''''''''
 
@@ -757,6 +1022,32 @@ List of node, it can be a virtual machine on Azure or Hyper-V, bare metal or
 others. For more information, refer to :ref:`write_test/concepts:node and
 environment`.
 
+Each node supports an ``enabled`` field:
+
+**enabled** (bool, optional, default is true): Controls whether the node is
+loaded during environment initialization. When set to ``false``, the node will
+be skipped. This is useful for selecting specific nodes from the same
+environment configuration.
+
+Example:
+
+.. code:: yaml
+
+   environment:
+     environments:
+       - name: test_env
+         nodes:
+           - name: node1
+             type: local
+             enabled: true  # This node will be loaded
+           - name: node2
+             type: local
+             enabled: false  # This node will be skipped
+           - name: node3
+             type: remote
+             address: 192.168.1.100
+             enabled: $(enable_node3)  # Variable-controlled
+
 nodes_requirement
 '''''''''''''''''
 
@@ -768,7 +1059,7 @@ node can be created once the node requirement is met.
 .. _type-1:
 
 type
-    
+
 
 type: str, optional, default value is “requirement”, supported values
 are “requirement”, “remote”, “local”.
@@ -806,3 +1097,105 @@ select_action can be “none”, “include”, “exclude”, “forceInclude�
      - criteria:
          priority: 1
        select_action: exclude
+
+times
+^^^^^
+
+type: int, optional, default is 1
+
+Run this group of test cases the specified number of times. This is useful for
+stress testing or ensuring test reliability.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         priority: 0
+       times: 3
+
+.. _retry-1:
+
+retry
+^^^^^
+
+type: int, optional, default is 0
+
+Number of retry attempts if a test case fails. When a test case fails, LISA
+will automatically retry it up to the specified number of times. The test
+environment is deleted and recreated for each retry attempt to ensure a clean
+state.
+
+This is particularly useful for:
+
+- Tests that may experience transient failures
+- Flaky tests that need multiple attempts to pass
+- Tests that interact with external services
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         priority: 0
+       retry: 2
+
+.. note::
+   The retry count is independent of the times count. If both are set, the test
+   will run times × (1 + retry attempts) in the worst case where all attempts fail.
+
+timeout
+^^^^^^^
+
+type: int, optional, default is 0
+
+Timeout in seconds for each test case. When a test case runs, LISA uses the
+maximum value between the timeout specified in the runbook and the test case's
+own metadata timeout. If this field is set to 0 (default) or not specified, only
+the test case's metadata timeout is used (which defaults to 3600 seconds / 1 hour
+if not explicitly set in the test case). This allows you to extend timeouts for
+specific test runs without modifying the test case code.
+
+Note that this timeout applies to the overall test case execution. Any additional
+command-level timeouts set within the test case code itself will not be affected
+by this setting.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         name: verify_deployment_provision_ultra_datadisk
+       timeout: 3600
+
+use_new_environment
+^^^^^^^^^^^^^^^^^^^
+
+type: bool, optional, default is False
+
+When set to True, each test case with this rule will be run in a newly created
+environment. This ensures complete isolation between test cases but increases
+the overall test execution time.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         name: verify_stop_start_in_platform
+       use_new_environment: true
+
+ignore_failure
+^^^^^^^^^^^^^^
+
+type: bool, optional, default is False
+
+When set to True, failed test results will be rewritten as success. This is
+intended as a temporary workaround for known issues and should not be overused.
+
+.. code:: yaml
+
+   testcase:
+     - criteria:
+         name: known_flaky_test
+       ignore_failure: true
+
+.. warning::
+   This setting masks test failures and should only be used as a temporary
+   measure. Do not use it to hide real issues.

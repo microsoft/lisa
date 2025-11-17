@@ -86,6 +86,7 @@ class TestResultMessage(TestResultMessageBase):
     suite_name: str = ""
     suite_full_name: str = ""
     log_file: str = ""
+    analysis: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -130,6 +131,7 @@ class MetricRelativity(str, Enum):
     NA = ""
     HigherIsBetter = "HigherIsBetter"
     LowerIsBetter = "LowerIsBetter"
+    Parameter = "Parameter"
 
     @classmethod
     def parse(cls, str_value: str) -> "MetricRelativity":
@@ -137,6 +139,8 @@ class MetricRelativity(str, Enum):
             return MetricRelativity.HigherIsBetter
         elif str_value.upper() == cls.LowerIsBetter.upper():
             return MetricRelativity.LowerIsBetter
+        elif str_value.upper() == cls.Parameter.upper():
+            return MetricRelativity.Parameter
         else:
             return MetricRelativity.NA
 
@@ -146,6 +150,7 @@ class UnifiedPerfMessage(PerfMessage):
     type: str = "UnifiedPerformance"
     metric_name: str = ""
     metric_value: float = 0.0
+    metric_str_value: str = ""
     metric_unit: str = ""
     metric_description: str = ""
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA
@@ -168,9 +173,12 @@ DiskType = Enum(
     [
         "unknown",
         "nvme",
+        "localnvme",
         "premiumssd",
+        "localssd",
         "premiumv2ssd",
         "ultradisk",
+        "standardssd",
     ],
 )
 
@@ -247,6 +255,8 @@ class NetworkTCPPerformanceMessage(PerfMessage):
     retransmitted_segments: Decimal = Decimal(0)
     congestion_windowsize_kb: Decimal = Decimal(0)
     protocol_type: Optional[str] = TransportProtocol.Tcp
+    client_mtu: int = -1
+    server_mtu: int = -1
 
 
 @dataclass
@@ -262,6 +272,8 @@ class NetworkUDPPerformanceMessage(PerfMessage):
     data_loss: Decimal = Decimal(0)
     packet_size_kbytes: Decimal = Decimal(0)
     protocol_type: Optional[str] = TransportProtocol.Udp
+    client_mtu: int = -1
+    server_mtu: int = -1
 
 
 @dataclass
@@ -398,6 +410,7 @@ def send_unified_perf_message(
     metric_name: str = "",
     metric_value: float = 0.0,
     metric_unit: str = "",
+    metric_str_value: str = "",
     metric_description: str = "",
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
     tool: str = "",
@@ -420,6 +433,7 @@ def send_unified_perf_message(
     message.metric_unit = metric_unit
     message.metric_description = metric_description
     message.metric_relativity = metric_relativity
+    message.metric_str_value = metric_str_value
 
     message.tool = tool
 

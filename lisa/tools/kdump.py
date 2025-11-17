@@ -8,7 +8,7 @@ from pathlib import Path, PurePath, PurePosixPath
 from time import sleep
 from typing import TYPE_CHECKING, Any, List, Type, cast
 
-from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_set_timeout
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Service, Wget
@@ -623,8 +623,8 @@ class KdumpCBLMariner(KdumpBase):
 
     def ensure_nr_cpus(self) -> None:
         lscpu = self.node.tools[Lscpu]
-        core_count = lscpu.get_core_count()
-        preferred_nr_cpus = math.ceil(core_count / 56)
+        thread_count = lscpu.get_thread_count()
+        preferred_nr_cpus = math.ceil(thread_count / 56)
         conf_file = "/etc/sysconfig/kdump"
         sed = self.node.tools[Sed]
         # replace nr_cpus=<whatever> to nr_cpus=preferred_nr_cpus
@@ -779,7 +779,7 @@ class KdumpCheck(Tool):
         if self._is_system_with_more_memory():
             # As system memory is more than free os disk size, need to
             # change the dump path and increase the timeout duration
-            kdump.config_resource_disk_dump_path(self._get_resource_disk_dump_path())
+            kdump.config_resource_disk_dump_path(self._get_disk_dump_path())
             self.timeout_of_dump_crash = 1200
             if "T" in total_memory and float(total_memory.strip("T")) > 6:
                 self.timeout_of_dump_crash = 2000
@@ -794,7 +794,7 @@ class KdumpCheck(Tool):
         )
 
         # Reboot system to make kdump take effect
-        self.node.reboot()
+        self.node.reboot(time_out=600)
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
@@ -828,8 +828,8 @@ class KdumpCheck(Tool):
 
     def trigger_kdump_on_specified_cpu(self, cpu_num: int, log_path: Path) -> None:
         lscpu = self.node.tools[Lscpu]
-        cpu_count = lscpu.get_core_count()
-        if cpu_count > cpu_num:
+        thread_count = lscpu.get_thread_count()
+        if thread_count > cpu_num:
             trigger_kdump_cmd = f"taskset -c {cpu_num} echo c > /proc/sysrq-trigger"
             self.kdump_test(
                 log_path=log_path,
@@ -838,7 +838,7 @@ class KdumpCheck(Tool):
         else:
             raise SkippedException(
                 "The cpu count can't meet the test case's requirement. "
-                f"Expected more than {cpu_num} cpus, actual {cpu_count}"
+                f"Expected more than {cpu_num} cpus, actual {thread_count}"
             )
 
     def _check_exists(self) -> bool:
@@ -874,15 +874,13 @@ class KdumpCheck(Tool):
             ):
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
 
-    def _get_resource_disk_dump_path(self) -> str:
-        from lisa.features import Disk
-
+    def _get_disk_dump_path(self) -> str:
         # Try to access Disk feature (available on Azure platform)
         try:
-            mount_point = self.node.features[Disk].get_resource_disk_mount_point()
+            mount_point = self.node.find_partition_with_freespace(25, raise_error=False)
             dump_path = mount_point + "/crash"
         except LisaException as e:
-            # Fallback for platforms without resource disk (baremetal, MSHV, etc.)
+            # Fallback for environments without finding enough space
             # Use /var/crash as it's the standard kdump path.
             dump_path = "/var/crash"
             self._log.debug(
@@ -942,6 +940,20 @@ class KdumpCheck(Tool):
             sudo=True,
         )
         return result.stdout
+
+    def _get_disk_space_debug_info(self, dump_path: str) -> str:
+        df = self.node.tools[Df]
+        available_space_gb = df.get_filesystem_available_space(dump_path, True)
+
+        # Consider disk space low if less low_space_threshold_gb
+        low_space_threshold_gb = 1.0
+
+        debug_info = f"Available space in {dump_path}: {available_space_gb:.1f}GB."
+
+        if available_space_gb < low_space_threshold_gb:
+            debug_info += " Failure is likely due to insufficient disk space."
+
+        return debug_info
 
     def _check_kdump_result(self, log_path: Path, kdump: KdumpBase) -> None:
         # We use this function to check if the dump file is generated.
@@ -1012,10 +1024,13 @@ class KdumpCheck(Tool):
                             serial_console.get_console_log(
                                 saved_path=log_path, force_run=True
                             )
-                            self.node.execute("df -h")
+                            disk_debug_info = self._get_disk_space_debug_info(
+                                kdump.dump_path
+                            )
                             raise LisaException(
                                 "The vmcore file is incomplete with file size"
-                                f" {round(incomplete_file_size/1024/1024, 2)}MB"
+                                f" {round(incomplete_file_size / 1024 / 1024, 2)}MB. "
+                                f"{disk_debug_info}"
                             )
                 else:
                     # If there is no any dump file in 100s, then raise exception
@@ -1024,9 +1039,13 @@ class KdumpCheck(Tool):
                         serial_console.get_console_log(
                             saved_path=log_path, force_run=True
                         )
+                        disk_debug_info = self._get_disk_space_debug_info(
+                            kdump.dump_path
+                        )
                         raise LisaException(
                             "No vmcore or vmcore-incomplete is found under "
-                            f"{kdump.dump_path} with file size greater than 10M."
+                            f"{kdump.dump_path} with file size greater than 10M. "
+                            f"{disk_debug_info}"
                         )
                 if timer.elapsed(False) > self.timeout_of_dump_crash:
                     serial_console.get_console_log(saved_path=log_path, force_run=True)

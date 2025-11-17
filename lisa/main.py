@@ -21,7 +21,7 @@ from lisa.util.logger import (
     create_file_handler,
     get_logger,
     remove_handler,
-    set_level,
+    set_console_level,
     uninit_logger,
 )
 from lisa.util.perf_timer import create_timer
@@ -52,7 +52,7 @@ def _dump_code_information(log: Logger) -> None:
         log.info(f"submodules: {output}")
 
 
-@retry(FileExistsError, tries=10, delay=0.2)
+@retry(FileExistsError, tries=10, delay=0.2)  # type: ignore
 def test_path(
     log_root_path: Path, working_root_path: Path, run_id: str = ""
 ) -> PurePath:
@@ -117,7 +117,7 @@ def main() -> int:
         initialize_runtime_folder(args.log_path, args.working_path, args.run_id)
 
         log_level = DEBUG if (args.debug) else INFO
-        set_level(log_level)
+        set_console_level(log_level)
 
         file_handler = create_file_handler(
             Path(f"{constants.RUN_LOCAL_LOG_PATH}/lisa-{constants.RUN_ID}.log")

@@ -1,0 +1,674 @@
+[0m[30m[47mWelcome to GRUB!
+
+[0m[37m[40m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+prefix: (hd0,gpt1)/EFI/BOOT
+root: hd0,gpt1
+list_trusted:
+3f71 701b a45f d267 5cbb 40fa ebb3 f386 3ed3 2c09 
+0859 2332 20b3 2a4c 2b7f f114 a382 e849 6157 0cd8 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[0m[30m[40m[2J[01;01H[0m[37m[40m[0m[30m[40m[2J[01;01H[0m[37m[40m[02;30HGNU GRUB  version 2.04
+
+[04;02H┌────────────────────────────────────────────────────────────────────────────┐[05;02H│[05;79H│[06;02H│[06;79H│[07;02H│[07;79H│[08;02H│[08;79H│[09;02H│[09;79H│[10;02H│[10;79H│[11;02H│[11;79H│[12;02H│[12;79H│[13;02H│[13;79H│[14;02H│[14;79H│[15;02H│[15;79H│[16;02H│[16;79H│[17;02H└────────────────────────────────────────────────────────────────────────────┘[18;02H[19;02H     Use the ▲ and ▼ keys to select which entry is highlighted.          
+      Press enter to boot the selected OS, `e' to edit the commands       
+      before booting or `c' for a command-line. ESC to return previous    
+      menu.                                                               [05;80H [0m[30m[47m[05;03H*SBS                                                                        [0m[37m[40m[05;78H[06;03H SBS-rescue                                                                 [06;78H[07;03H                                                                            [07;78H[08;03H                                                                            [08;78H[09;03H                                                                            [09;78H[10;03H                                                                            [10;78H[11;03H                                                                            [11;78H[12;03H                                                                            [12;78H[13;03H                                                                            [13;78H[14;03H                                                                            [14;78H[15;03H                                                                            [15;78H[16;03H                                                                            [16;78H[16;80H [05;78H[23;01H   The highlighted entry will be executed automatically in 5s.                 [05;78H[23;01H   The highlighted entry will be executed automatically in 4s.                 [05;78H[23;01H   The highlighted entry will be executed automatically in 3s.                 [05;78H[23;01H   The highlighted entry will be executed automatically in 2s.                 [05;78H[23;01H   The highlighted entry will be executed automatically in 1s.                 [05;78H[23;01H   The highlighted entry will be executed automatically in 0s.                 [05;78H[0m[30m[40m[2J[01;01H[0m[37m[40m[0m[30m[40m[2J[01;01H[0m[37m[40m  Booting `SBS'
+
+Valid signature for /sbs/sbs-rootfs
+Valid signature for /sbs/sbs-kernel
+Valid signature for /sbs/sbs-initrd
+Starting version 244.5+
+SBS booting, please wait...
+[    5.066589] sbs-diskinit.sh[704]: Running on Azure requires a data disk attached on LUN 0, shutting down in 30 seconds.
+[   35.214581] sbs-diskinit.sh[753]: Device bin is not compatible.
+[   35.234834] sbs-diskinit.sh[754]: Device boot is not compatible.
+[   35.237382] sbs-diskinit.sh[755]: Device data is not compatible.
+[   35.239532] sbs-diskinit.sh[756]: Device dev is not compatible.
+[   35.241671] sbs-diskinit.sh[757]: Device etc is not compatible.
+[   35.244016] sbs-diskinit.sh[758]: Device home is not compatible.
+[   35.246278] sbs-diskinit.sh[759]: Device lib is not compatible.
+[   35.248557] sbs-diskinit.sh[760]: Device media is not compatible.
+[   35.250913] sbs-diskinit.sh[761]: Device mnt is not compatible.
+[   35.253107] sbs-diskinit.sh[762]: Device opt is not compatible.
+[   35.255468] sbs-diskinit.sh[763]: Device proc is not compatible.
+[   35.257705] sbs-diskinit.sh[764]: Device run is not compatible.
+[   35.259993] sbs-diskinit.sh[765]: Device sbin is not compatible.
+[   35.262204] sbs-diskinit.sh[766]: Device sys is not compatible.
+[   35.264366] sbs-diskinit.sh[767]: Device system is not compatible.
+[   35.266838] sbs-diskinit.sh[768]: Device tmp is not compatible.
+[   35.269104] sbs-diskinit.sh[769]: Device usr is not compatible.
+[   35.271220] sbs-diskinit.sh[770]: Device var is not compatible.
+[   35.345693] sbs-diskinit.sh[780]: GPT PMBR size mismatch (2097151 != 62914559) will be corrected by write.
+[   35.349447] sbs-diskinit.sh[780]: The backup GPT table is not on the end of the device. This problem will be corrected by write.
+[   35.402863] sbs-diskinit.sh[783]: Error: Could not stat device unit - No such file or directory.
+[[0;32m  OK  [0m] Started [0;1;39mSBS partition initialization[0m.
+[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (36s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (36s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (37s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (37s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (38s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (38s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (39s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (39s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (40s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (40s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (41s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/disk/by-label/SBS-Data (41s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/disk/by-label/SBS-Data (42s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/disk/by-label/SBS-Data (42s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (43s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (43s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (44s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (44s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (45s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (45s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (46s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (46s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (47s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (47s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (48s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/disk/by-label/SBS-Data (48s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/disk/by-label/SBS-Data (49s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/disk/by-label/SBS-Data (49s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (50s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (50s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (51s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (51s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (52s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (52s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (53s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (53s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (54s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (54s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (55s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/disk/by-label/SBS-Data (55s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/disk/by-label/SBS-Data (56s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/disk/by-label/SBS-Data (56s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (57s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (57s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (58s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (58s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (59s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (59s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (1min / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/disk/by-label/SBS-Data (1min / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 1s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 1s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 2s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 2s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 3s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 3s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 4s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 4s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 5s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 5s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 6s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 6s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 7s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 7s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 8s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 8s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 9s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (1min 9s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 10s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 10s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 11s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 11s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 12s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 12s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 13s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 13s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 14s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 14s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 15s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 15s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 16s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 16s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 17s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 17s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 18s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 18s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 19s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 19s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 20s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 20s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 21s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 21s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 22s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 22s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 23s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 23s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 24s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 24s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 25s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 25s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 26s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 26s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 27s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 27s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 28s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 28s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 29s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 29s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 30s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 30s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 31s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 31s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 32s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 32s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 33s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 33s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 34s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 34s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 35s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 35s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 36s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 36s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 37s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 37s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 38s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 38s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 39s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 39s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 40s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 40s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 41s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 41s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 42s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 42s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 43s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 43s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 44s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 44s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 45s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 45s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 46s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 46s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 47s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 47s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 48s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 48s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 49s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 49s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 50s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 50s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 51s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 51s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 52s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 52s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 53s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 53s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 54s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 54s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 55s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 55s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 56s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 56s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 57s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 57s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 58s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 58s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 59s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (1min 59s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/disk/by-label/SBS-Data (2min / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (2min / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 1s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 1s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 2s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 2s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 3s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 3s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 4s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 4s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 5s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 5s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 6s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 6s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 7s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 7s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 8s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 8s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 9s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (2min 9s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 10s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 10s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 11s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 11s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 12s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 12s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 13s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 13s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 14s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 14s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 15s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 15s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 16s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 16s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 17s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 17s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 18s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 18s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 19s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 19s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 20s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 20s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 21s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 21s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 22s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 22s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 23s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 23s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 24s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 24s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 25s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 25s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 26s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 26s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 27s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 27s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 28s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 28s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 29s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 29s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 30s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 30s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 31s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 31s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 32s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 32s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 33s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 33s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 34s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 34s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 35s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 35s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 36s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 36s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 37s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 37s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 38s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 38s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 39s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 39s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 40s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 40s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 41s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 41s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 42s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 42s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 43s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 43s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 44s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 44s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 45s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 45s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 46s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 46s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 47s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 47s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 48s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 48s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 49s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 49s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 50s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 50s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 51s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 51s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 52s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 52s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 53s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 53s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 54s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 54s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 55s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 55s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 56s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 56s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 57s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 57s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 58s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 58s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 59s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (2min 59s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (3min / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/disk/by-label/SBS-Data (3min / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 1s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 1s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 2s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 2s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 3s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 3s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 4s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 4s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 5s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 5s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 6s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 6s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 7s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 7s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 8s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 8s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 9s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…by-label/SBS-Data (3min 9s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 10s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 10s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 11s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 11s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 12s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 12s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 13s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 13s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 14s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 14s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 15s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 15s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 16s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 16s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 17s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 17s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 18s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 18s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 19s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 19s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 20s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 20s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 21s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 21s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 22s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 22s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 23s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 23s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 24s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 24s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 25s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 25s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 26s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 26s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 27s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 27s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 28s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 28s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 29s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 29s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 30s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 30s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 31s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 31s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 32s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 32s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 33s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 33s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 34s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 34s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 35s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 35s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 36s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 36s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 37s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 37s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 38s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 38s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 39s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 39s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 40s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 40s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 41s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 41s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 42s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 42s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 43s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 43s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 44s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 44s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 45s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 45s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 46s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 46s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 47s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 47s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 48s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 48s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 49s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 49s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 50s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 50s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 51s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 51s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 52s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 52s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 53s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 53s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 54s / 4min)
+M[K[     [0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 54s / 4min)
+M[K[    [0;31m*[0;1;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 55s / 4min)
+M[K[   [0;31m*[0;1;31m*[0m[0;31m*[0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 55s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 56s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 56s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 57s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 57s / 4min)
+M[K[[0m[0;31m*     [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 58s / 4min)
+M[K[[0;1;31m*[0m[0;31m*    [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 58s / 4min)
+M[K[[0;31m*[0;1;31m*[0m[0;31m*   [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 59s / 4min)
+M[K[ [0;31m*[0;1;31m*[0m[0;31m*  [0m] A start job is running for /dev/dis…y-label/SBS-Data (3min 59s / 4min)
+M[K[  [0;31m*[0;1;31m*[0m[0;31m* [0m] A start job is running for /dev/disk/by-label/SBS-Data (4min / 4min)
+M[K[[0;1;31m TIME [0m] Timed out waiting for device [0;1;39m/dev/disk/by-label/SBS-Data[0m.
+[K[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS data directory[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS mount bind resolved.conf[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS mount bind hosts[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mRabbitMQ service[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS mount bind shadow[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS update[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS mount bind passwd[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS undo[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mLoad/Save Random Seed[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal File Systems[0m.
+         Starting [0;1;39mSBS service to handle /data mount failure[0m...
+         Starting [0;1;39mSBS mount hardening options[0m...
+         Starting [0;1;39mApply Kernel Variables[0m...
+[  244.677419] sbs-data-mount-failure.sh[789]: Ignoring data mount error on Center distribution
+         Starting [0;1;39mCreate Volatile Files and Directories[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSBS service to handle /data mount failure[0m.
+[[0;32m  OK  [0m] Started [0;1;39mApply Kernel Variables[0m.
+[[0;32m  OK  [0m] Started [0;1;39mCreate Volatile Files and Directories[0m.
+         Starting [0;1;39mUpdate UTMP about System Boot/Shutdown[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSBS mount hardening options[0m.
+[[0;32m  OK  [0m] Started [0;1;39mUpdate UTMP about System Boot/Shutdown[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Started [0;1;39mDiscard unused blocks once a week[0m.
+[[0;32m  OK  [0m] Started [0;1;39mHourly rotation checks of log files[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNotify disconnected sensors[0m.
+[[0;32m  OK  [0m] Started [0;1;39mDevice Engine[0m.
+[[0;32m  OK  [0m] Started [0;1;39mDaily Cleanup of Temporary Directories[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mTimers[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mD-Bus System Message Bus Socket[0m.
+         Starting [0;1;39msockets activating pxgrid-agent[0m.
+         Starting [0;1;39mSmartAgent Socket[0m.
+         Starting [0;1;39msshd.socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39msockets activating pxgrid-agent[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mSmartAgent Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39msshd.socket[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSockets[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mBasic System[0m.
+[[0;32m  OK  [0m] Started [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mD-Bus System Message Bus[0m.
+[[0;32m  OK  [0m] Started [0;1;39mirqbalance daemon[0m.
+         Starting [0;1;39mNetwork Time Service (one-shot ntpdate mode)[0m...
+         Starting [0;1;39mSBS partition initialization (common post)[0m...
+         Starting [0;1;39mLogin Service[0m...
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Time Service (one-shot ntpdate mode)[0m.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mSBS partit… initialization (common post)[0m.
+See 'systemctl status sbs-diskinit-post.service' for details.
+         Starting [0;1;39mSBS admin SSH key generation[0m...
+         Starting [0;1;39mSBS-config initialization[0m...
+         Starting [0;1;39mSBS partition initialization (center post)[0m...
+         Starting [0;1;39mSBS Snort conf init[0m...
+         Starting [0;1;39mSBS hardware initialization[0m...
+         Starting [0;1;39mOpenSSH Key Generation[0m...
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mSBS partit… initialization (center post)[0m.
+See 'systemctl status sbs-diskinit-center-post.service' for details.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mSBS Snort conf init[0m.
+See 'systemctl status sbs-diskinit-post-snort.service' for details.
+         Starting [0;1;39mIp set utility[0m...
+         Starting [0;1;39mSBS automatic network interface renaming[0m...
+         Starting [0;1;39mCisco Cyber Visio…stgreSQL Settings Generator[0m...
+[  245.022672] sbs-eth-naming[830]: cat: /data/etc/metadata/system-product-name: No such file or directory
+[[0;32m  OK  [0m] Started [0;1;39mSBS automatic network interface renaming[0m.
+         Starting [0;1;39mSBS automatic network configuration[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mLogin Service[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mIp set utility[0m.
+         Starting [0;1;39mPacket Filtering Framework[0m...
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mPacket Filtering Framework[0m.
+See 'systemctl status iptables.service' for details.
+[[0;32m  OK  [0m] Stopped [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetfilter userspace log daemon[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Started [0;1;39mPeriodic Command Scheduler[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mPeriodic Command Scheduler[0m.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mPeriodic Command Scheduler[0m.
+See 'systemctl status crond.service' for details.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mCisco Cybe…PostgreSQL Settings Generator[0m.
+See 'systemctl status sbs-pg-settings-generator.service' for details.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mSBS admin SSH key generation[0m.
+See 'systemctl status sbs-adminkeygen.service' for details.
+[[0;32m  OK  [0m] Started [0;1;39mSBS automatic network configuration[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSBS hardware initialization[0m.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mOpenSSH Key Generation[0m.
+See 'systemctl status sshdgenkeys.service' for details.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mSBS-config initialization[0m.
+See 'systemctl status sbs-config-init.service' for details.
+         Starting [0;1;39mCyber Vision Center Setup Center Network[0m...
+[  247.541328] setup-center-network[891]: setup-center Cannot recover network configuration from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:24]
+[  247.548311] setup-center-network[891]: setup-center Cannot recover dns configuration from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:29]
+[  247.555477] setup-center-network[891]: setup-center Cannot recover single interface configuration from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:33]
+[  247.562638] setup-center-network[891]: setup-center Cannot recover FQDN configuration from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:37]
+[  247.569346] setup-center-network[891]: setup-center Cannot recover center type configuration from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:42]
+[  247.576392] setup-center-network[891]: setup-center Cannot recover center id from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:46]
+[  247.582827] setup-center-network[891]: setup-center Cannot recover firewall whitelist from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:50]
+[  247.589885] setup-center-network[891]: setup-center Cannot recover user password hashes from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:54]
+[  247.596632] setup-center-network[891]: setup-center Cannot recover public keys from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:58]
+[  247.603121] setup-center-network[891]: setup-center Cannot recover sensors password hash from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:62]
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mCyber Vision Center Setup Center Network[0m.
+[  247.604003] setup-center-network[891]: setup-center Cannot recover keymap from the existing setup Cannot read config file: Cannot acquire lock: open /data/etc/sbs/sbs-config.lock: no such file or directory [caller=main.go:66]
+See 'systemctl status setup-center-network.service' for details.
+[  247.613221] setup-center-network[891]: panic: runtime error: invalid memory address or nil pointer dereference
+[[0;32m  OK  [0m] Reached target [0;1;39mNetwork (Pre)[0m.
+[  247.620986] setup-center-network[891]: [signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x7858f9]
+         Starting [0;1;39mNetwork Service[0m...
+[  247.628073] setup-center-network[891]: goroutine 1 [running]:
+[  247.631144] setup-center-network[891]: cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center/config.(*SBSConfig).Close(...)
+[  247.634740] setup-center-network[891]: 	/srv/scratch/build/build-center-ccv-4.2/tmp/work/core2-64-poky-linux/ccv-go/0.1+gitAUTOINC+9f1b389b65-r0/build/src/cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center/config/config.go:276
+[  247.640789] setup-center-network[891]: cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center.(*SetupCenter).LoadConfig.func1()
+[  247.644294] setup-center-network[891]: 	/srv/scratch/build/build-center-ccv-4.2/tmp/work/core2-64-poky-linux/ccv-go/0.1+gitAUTOINC+9f1b389b65-r0/build/src/cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center/setup.go:108 +0x19
+[  247.650386] setup-center-network[891]: cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center.(*SetupCenter).LoadConfig(0xc000028378?)
+[  247.654084] setup-center-network[891]: 	/srv/scratch/build/build-center-ccv-4.2/tmp/work/core2-64-poky-linux/ccv-go/0.1+gitAUTOINC+9f1b389b65-r0/build/src/cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center/setup.go:111 +0x89
+[  247.660401] setup-center-network[891]: main.configure(0xc0000df490)
+[  247.662516] setup-center-network[891]: 	/srv/scratch/build/build-center-ccv-4.2/tmp/work/core2-64-poky-linux/ccv-go/0.1+gitAUTOINC+9f1b389b65-r0/build/src/cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center/cmd/setup-center-network/main.go:78 +0x7b
+[  247.669317] setup-center-network[891]: main.main()
+[  247.670958] setup-center-network[891]: 	/srv/scratch/build/build-center-ccv-4.2/tmp/work/core2-64-poky-linux/ccv-go/0.1+gitAUTOINC+9f1b389b65-r0/build/src/cv-gitlab.cisco.com/sentryo-labs/ccv-go/setup-center/cmd/setup-center-network/main.go:126 +0xe5
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Service[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSBS authd daemon[0m.
+         Starting [0;1;39mWait for Network to be Configured[0m...
+         Starting [0;1;39mNetwork Name Resolution[0m...
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Name Resolution[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mNetwork[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mHost and Network Name Lookups[0m.
+         Starting [0;1;39mGenerate a passwo… route with HTTP basic auth[0m...
+[[0;32m  OK  [0m] Started [0;1;39mNetwork time service[0m.
+         Starting [0;1;39mPostgreSQL upgrade service[0m...
+         Starting [0;1;39mSmart Agent Daemon[0m...
+         Starting [0;1;39mCyber Vision Center Setup Center PKI[0m...
+         Starting [0;1;39mSimple Network Ma…rotocol (SNMP) Trap Daemon.[0m...
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mGenerate a…cs route with HTTP basic auth[0m.
+See 'systemctl status haproxy-admin-genpass.service' for details.
+[[0;32m  OK  [0m] Started [0;1;39mSmart Agent Daemon[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSmart Agent Daemon[0m.
+         Starting [0;1;39mSmart Agent Daemon[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSmart Agent Daemon[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSmart Agent Daemon[0m.
+         Starting [0;1;39mSmart Agent Daemon[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSmart Agent Daemon[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSmart Agent Daemon[0m.
+         Starting [0;1;39mSmart Agent Daemon[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSmart Agent Daemon[0m.
+[[0;32m  OK  [0m] Started [0;1;39mPostgreSQL upgrade service[0m.
+         Starting [0;1;39mPostgreSQL database server[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mSmart Agent Daemon[0m.
+         Starting [0;1;39mSmart Agent Daemon[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSmart Agent Daemon[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSmart Agent Daemon[0m.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mSmart Agent Daemon[0m.
+See 'systemctl status sbs-smart-agent-daemon.service' for details.
+[[0;32m  OK  [0m] Started [0;1;39mSimple Network Man… Protocol (SNMP) Trap Daemon.[0m.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mCyber Vision Center Setup Center PKI[0m.
+See 'systemctl status setup-center-pki.service' for details.
+[[0;32m  OK  [0m] Started [0;1;39mSBS backup backend[0m.
+         Starting [0;1;39mCyber Vision Center Setup Center Network[0m...
+[[0;32m  OK  [0m] Started [0;1;39mFlow analysis daemon on center[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSBS backup backend[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSBS backup backend[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSBS backup backend[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSBS backup backend[0m.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mPostgreSQL database server[0m.
+See 'systemctl status postgresql.service' for details.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…ision Center Database service[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS restoration daemon[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…ter Active Scanning Scheduler[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mDaem…the interface with extensions[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mmarmotd persistence service[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mLoca…enter synchronisation service[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisco Cyber Vision Center Worker[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mPostgreSQL exporter for Prometheus[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mLoca…s for synchronization service[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mDevice Engine[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mGlob…enter synchronisation service[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mSBS enrollment daemon[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…ion Center KDB import service[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…Sysinfo Sensor Handler Daemon[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…r Vision Center Sensor Inputd[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…r Vision System Health Daemon[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…ter Network Anomaly Detection[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisco Cyber Vision Center Burrow[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…r Vision Refresh Views Daemon[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisco Cyber Vision Center Backend[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisc…enter Threat Event Dispatcher[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mCisco Cyber Vision Sysinfo Daemon[0m.
+[[0;1;38;5;185mDEPEND[0m] Dependency failed for [0;1;39mAgent for interfacing with pxGrid[0m.
+[[0;32m  OK  [0m] Started [0;1;39mGetty on tty1[0m.
+[[0;32m  OK  [0m] Started [0;1;39mrrdcached daemon[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSBS backup backend[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSBS backup backend[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSerial Getty on ttyS0[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLogin Prompts[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSBS backup backend[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSBS backup backend[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSBS backup backend[0m.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mSBS backup backend[0m.
+See 'systemctl status sbs-alfred.service' for details.
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                             [1;34m.:|:.:|:. Cisco Cyber Vision .:|:.:|:.[0m                              │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│                          [1mWARNING, READ THIS BEFORE ATTEMPTING TO LOGON[0m                          │
+│                                    [1mConfidential Information[0m                                     │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ This system is for the use of authorized users only.  Individuals using this computer without   │
+│ authority, or in excess of their authority, are subject to having all of their activities on    │
+│ this system monitored and recorded by system personnel.  In the course of monitoring            │
+│ individuals improperly using this system, or in the course of system maintenance, the           │
+│ activities of authorized users may also be monitored.  Anyone using this system expressly       │
+│ consents to such monitoring and is advised that if such monitoring reveals possible criminal    │
+│ activity, system personnel may provide the evidence of such monitoring to law enforcement       │
+│ officials.                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+SBS 4.2.0 center ttyS0
+
+
+)07[?47h[1;24r[m[4l[H[2J[2J[?47l8[H[2J[?1h=[?1000h[m[?1h=[m[36m[44m[1m Cisco Cyber Vision Center Setup                                                [2;1H qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq [3;1H                                                                                [4;1H                                                                                [5;1H                                                                                [6;1H                                                                                [7;1H                                                                                [8;1H              [37m[47mlqqqqqqqqqqqq[34m[47mMissing serial number[37m[47mqqqqqqqqqqqqqqq[m[30m[47mk[36m[44m[1m                [9;1H              [37m[47mx[m[30m[47m                                                x[30m[40m[1m  [36m[44m              [10;1H              [37m[47mx[m[30m[47m                                                x[30m[40m[1m  [36m[44m              [11;1H              [37m[47mx[m[30m[47m                                                x[30m[40m[1m  [36m[44m              [12;1H              [37m[47mx[m[30m[47m                                                x[30m[40m[1m  [36m[44m              [13;1H              [37m[47mtqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq[m[30m[47mu[30m[40m[1m  [36m[44m              [14;1H              [37m[47mx[m[30m[47m                   [37m[44m[1m<[33m[44m  [37m[44mO[33m[44mK  [37m[44m>[m[30m[47m                     x[30m[40m[1m  [36m[44m              [15;1H              [37m[47mm[m[30m[47mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj[30m[40m[1m  [36m[44m              [16;1H                [30m[40m                                                  [36m[44m              [17;1H                                                                                [18;1H                                                                                [19;1H                                                                                [20;1H                                                                                [21;1H                                                                                [22;1H                                                                                [23;1H                                                                                [24;1H                                                                                [4h [4l[14;38H[m[m[10;17H[30m[47mUnable to proceed to setup Cisco Cyber Vision[11;17HCenter, setup canceled.
+
+
+[m[m                        

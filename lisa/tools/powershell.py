@@ -84,7 +84,12 @@ class PowerShell(Tool):
         no_debug_log: bool = True,
     ) -> ExecutableResult:
         result = process.wait_result(timeout=timeout)
-        stderr = self._parse_error_message(result.stderr)
+
+        # If Powershell is used to run cmd, there maybe no stderr.
+        stderr = ""
+        if result.stderr:
+            stderr = self._parse_error_message(result.stderr)
+
         if result.exit_code != 0 or stderr:
             if fail_on_error:
                 raise LisaException(

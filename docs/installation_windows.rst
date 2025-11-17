@@ -26,7 +26,7 @@ The full installer allows greater customization and doesn't have the security re
 of the Microsoft Store packages, so may be preferred in some situations.
 
 Navigate to `Python releases for Windows <https://www.python.org/downloads/windows/>`__.
-Download and install *Windows installer (64-bit)* for Python 3.8 64-bit or above.
+Download and install *Windows installer (64-bit)* for Python 3.12 64-bit or above.
 
 More information on the full installer, including installation without a GUI,
 can be found `here <https://docs.python.org/3/using/windows.html#the-full-installer>`_.

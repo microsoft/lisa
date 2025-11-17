@@ -273,9 +273,21 @@ class HyperV(Tool):
         if not is_ready:
             raise LisaException(f"VM {name} did not start")
 
-    def stop_vm(self, name: str) -> None:
-        # stop vm
-        self._run_hyperv_cmdlet("Stop-VM", f"-Name {name} -Force", force_run=True)
+    def stop_vm(self, name: str, is_graceful: bool = False) -> None:
+        """
+        Stop a Hyper-V VM.
+
+        Args:
+            name: VM name to stop
+            is_graceful: If True, attempts graceful shutdown with -Force.
+                        If False (default), performs immediate -TurnOff.
+        """
+        if is_graceful:
+            # Graceful shutdown (cleaner, but slower)
+            self._run_hyperv_cmdlet("Stop-VM", f"-Name {name} -Force", force_run=True)
+        else:
+            # Immediate power-off (fast, for recycling)
+            self._run_hyperv_cmdlet("Stop-VM", f"-Name {name} -TurnOff", force_run=True)
 
     def restart_vm(
         self,
@@ -320,7 +332,7 @@ class HyperV(Tool):
     def exists_switch(self, name: str, switch_type: str = "") -> bool:
         cmd = f"Get-VMSwitch -Name {name}"
         if switch_type != "":
-            cmd += f"  -SwitchType '{switch_type}'"
+            cmd += f" -SwitchType '{switch_type}'"
         output = self.node.tools[PowerShell].run_cmdlet(
             cmdlet=cmd,
             fail_on_error=False,
