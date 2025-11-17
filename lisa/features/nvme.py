@@ -252,12 +252,12 @@ class NvmeSettings(FeatureSettings):
 
         return result
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _choose_value(self, capability: Any) -> Any:
         assert isinstance(capability, NvmeSettings), f"actual: {type(capability)}"
         min_value = NvmeSettings()
 
         if self.disk_count or capability.disk_count:
-            min_value.disk_count = search_space.generate_min_capability_countspace(
+            min_value.disk_count = search_space.choose_value_countspace(
                 self.disk_count, capability.disk_count
             )
 

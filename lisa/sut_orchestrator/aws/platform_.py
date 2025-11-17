@@ -326,7 +326,7 @@ class AwsPlatform(Platform):
         1. If predefined location exists on node level, check conflict and use it.
         2. If predefined vm size exists on node level, check exists and use it.
         3. check capability for each node by order of pattern.
-        4. get min capability for each match
+        4. choose a value for each capability match
         """
         is_success: bool = True
         ec2_resource = boto3.resource("ec2")
@@ -1109,9 +1109,7 @@ class AwsPlatform(Platform):
         aws_capability: AwsCapability,
         location: str,
     ) -> schema.NodeSpace:
-        min_cap: schema.NodeSpace = requirement.generate_min_capability(
-            aws_capability.capability
-        )
+        min_cap: schema.NodeSpace = requirement.choose_value(aws_capability.capability)
         # Apply aws specified values.
         aws_node_runbook = min_cap.get_extended_runbook(AwsNodeSchema, AWS)
         if aws_node_runbook.location:
