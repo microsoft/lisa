@@ -1361,25 +1361,21 @@ _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = 
         (32767, 20000, 900),
     ],
     schema.DiskType.PremiumV2SSDLRS: [
-        # (size_GiB, max_IOPS, max_throughput_MBps)
-        # Baseline: 3000 IOPS (free up to 6 GiB), 125 MB/s (free)
-        # After 6 GiB: IOPS increases by 500 per GiB, up to 80,000 max
-        # Throughput: 0.25 MB/s per configured IOPS, up to 1,200 MB/s max
-        (4, 3000, 125),          # Min size, baseline
-        (8, 4000, 125),          # 3000 + 500*(8-6)
-        (16, 8000, 125),         # 3000 + 500*(16-6)
-        (32, 16000, 125),        # 3000 + 500*(32-6)
-        (64, 32000, 125),        # 3000 + 500*(64-6)
-        (128, 64000, 125),       # 3000 + 500*(128-6)
-        (256, 80000, 1200),      # 3000 + 500*(256-6) = 128k, capped at 80k
-        (512, 80000, 1200),      # Already at 80k IOPS cap
-        (1024, 80000, 1200),     # Already at 80k IOPS cap
-        (2048, 80000, 1200),     # Already at 80k IOPS cap (2 TiB)
-        (4096, 80000, 1200),     # Already at 80k IOPS cap (4 TiB)
-        (8192, 80000, 1200),     # Already at 80k IOPS cap (8 TiB)
-        (16384, 80000, 1200),    # Already at 80k IOPS cap (16 TiB)
-        (32768, 80000, 1200),    # Already at 80k IOPS cap (32 TiB)
-        (65536, 80000, 1200),    # Max size: 64 TiB
+        (4, 1200, 300),
+        (8, 2400, 600),
+        (16, 4800, 1200),
+        (32, 9600, 2400),
+        (64, 19200, 4000),
+        (128, 38400, 4000),
+        (256, 76800, 4000),
+        (512, 153600, 4000),
+        (1024, 160000, 4000),
+        (2048, 160000, 4000),
+        (4096, 160000, 4000),
+        (8192, 160000, 4000),
+        (16384, 160000, 4000),
+        (32768, 160000, 4000),
+        (65536, 160000, 4000),  # 64 TB max for Premium V2
     ],
     schema.DiskType.StandardHDDLRS: [
         (32, 500, 60),
@@ -1703,7 +1699,8 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 min_size = max(req_disk_size.min, cap_disk_size.min)
                 max_size = min(req_disk_size.max, cap_disk_size.max)
 
-                value.data_disk_size = min(
+                # Find matching disk sizes that meet all criteria
+                matching_disk_sizes = [
                     size
                     for size, iops, throughput in disk_type_performance
                     if iops >= min_iops
@@ -1712,14 +1709,35 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     and throughput <= max_throughput
                     and size >= min_size
                     and size <= max_size
-                )
+                ]
 
-                (
-                    value.data_disk_iops,
-                    value.data_disk_throughput,
-                ) = self._get_disk_performance_from_size(
-                    value.data_disk_size, disk_type_performance
-                )
+                if not matching_disk_sizes:
+                    raise LisaException(
+                        f"No disk size found for disk type '{value.data_disk_type}' "
+                        f"that meets the requirements: "
+                        f"IOPS [{min_iops}, {max_iops}], "
+                        f"throughput [{min_throughput}, {max_throughput}] MB/s, "
+                        f"size [{min_size}, {max_size}] GiB. "
+                        f"Available disk configurations: {disk_type_performance}"
+                    )
+
+                value.data_disk_size = min(matching_disk_sizes)
+
+                # For Premium V2, use the requested IOPS and throughput directly
+                # instead of looking them up from the performance map, since
+                # Premium V2 allows independent configuration of size, IOPS, and throughput
+                if value.data_disk_type == schema.DiskType.PremiumV2SSDLRS:
+                    # Use the minimum required IOPS and throughput from the request
+                    value.data_disk_iops = min_iops
+                    value.data_disk_throughput = min_throughput
+                else:
+                    # For other disk types, look up IOPS and throughput from the performance map
+                    (
+                        value.data_disk_iops,
+                        value.data_disk_throughput,
+                    ) = self._get_disk_performance_from_size(
+                        value.data_disk_size, disk_type_performance
+                    )
 
         elif method == RequirementMethod.intersect:
             value.data_disk_iops = search_space.intersect_countspace(
