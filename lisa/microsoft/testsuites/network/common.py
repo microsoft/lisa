@@ -391,8 +391,13 @@ def reload_modules(environment: Environment) -> bool:
     reload_modules = False
     for node in environment.nodes.list():
         for module_name in node.nics.get_used_modules(["hv_netvsc"]):
+            print(f"Checking module: {module_name}")
             if node.nics.is_module_reloadable(module_name):
+                print(f"Module {module_name} is reloadable, attempting to reload")
                 node.nics.unload_module(module_name)
                 node.nics.load_module(module_name)
                 reload_modules = True
+            else:
+                print(f"Module {module_name} is not reloadable (built-in)")
+    print(f"reload_modules final value: {reload_modules}")
     return reload_modules
