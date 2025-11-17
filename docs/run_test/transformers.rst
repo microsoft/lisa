@@ -412,6 +412,54 @@ type: bool | Default: false
 VM is stopped for exporting VHD. Restore can be set to true to start the VM after exporting.
 
 
+Use File Uploader Transformer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This transformer is used to upload files from local to remote nodes. It should be used when the environment is connected.
+
+Usage
+``````
+.. code:: yaml
+
+  transformer:
+    - type: file_uploader
+      phase: expanded
+      connection:
+        address: $(build_vm_address)
+        private_key_file: $(admin_private_key_file)
+      source: "/local/path/to/files"
+      destination: "/remote/path/to/upload"
+      files:
+        - "file1.txt"
+        - "file2.sh"
+        - "config.yaml"
+
+Outputs
+````````
+ - uploaded_files
+
+Reference
+`````````
+
+source (Required)
+^^^^^^^^^^^^^^^^^
+type: string
+
+The local source path containing the files to be uploaded. This path must exist on the local machine.
+
+destination (Required)
+^^^^^^^^^^^^^^^^^^^^^^
+type: string
+
+The remote destination path where files will be uploaded. If the destination directory does not exist, it will be created automatically.
+
+files (Required)
+^^^^^^^^^^^^^^^^
+type: List[str]
+
+List of file names to upload from the source directory. Each file name is relative to the source path.
+
+
 Use Script File Transformer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
