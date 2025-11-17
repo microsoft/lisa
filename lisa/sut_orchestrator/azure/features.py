@@ -1370,6 +1370,12 @@ _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = 
         (256, 76800, 4000),
         (512, 153600, 4000),
         (1024, 160000, 4000),
+        (2048, 160000, 4000),
+        (4096, 160000, 4000),
+        (8192, 160000, 4000),
+        (16384, 160000, 4000),
+        (32768, 160000, 4000),
+        (65536, 160000, 4000),  # 64 TB max for Premium V2
     ],
     schema.DiskType.StandardHDDLRS: [
         (32, 500, 60),
