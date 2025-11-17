@@ -29,7 +29,7 @@ class GpuSettings(schema.FeatureSettings):
     def _get_key(self) -> str:
         return f"{self.type}/{self.is_enabled}"
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _choose_value(self, capability: Any) -> Any:
         return self
 
 
