@@ -1361,21 +1361,25 @@ _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = 
         (32767, 20000, 900),
     ],
     schema.DiskType.PremiumV2SSDLRS: [
-        (4, 1200, 300),
-        (8, 2400, 600),
-        (16, 4800, 1200),
-        (32, 9600, 2400),
-        (64, 19200, 4000),
-        (128, 38400, 4000),
-        (256, 76800, 4000),
-        (512, 153600, 4000),
-        (1024, 160000, 4000),
-        (2048, 160000, 4000),
-        (4096, 160000, 4000),
-        (8192, 160000, 4000),
-        (16384, 160000, 4000),
-        (32768, 160000, 4000),
-        (65536, 160000, 4000),  # 64 TB max for Premium V2
+        # (size_GiB, max_IOPS, max_throughput_MBps)
+        # Baseline: 3000 IOPS (free up to 6 GiB), 125 MB/s (free)
+        # After 6 GiB: IOPS increases by 500 per GiB, up to 80,000 max
+        # Throughput: 0.25 MB/s per configured IOPS, up to 1,200 MB/s max
+        (4, 3000, 125),          # Min size, baseline
+        (8, 4000, 125),          # 3000 + 500*(8-6)
+        (16, 8000, 125),         # 3000 + 500*(16-6)
+        (32, 16000, 125),        # 3000 + 500*(32-6)
+        (64, 32000, 125),        # 3000 + 500*(64-6)
+        (128, 64000, 125),       # 3000 + 500*(128-6)
+        (256, 80000, 1200),      # 3000 + 500*(256-6) = 128k, capped at 80k
+        (512, 80000, 1200),      # Already at 80k IOPS cap
+        (1024, 80000, 1200),     # Already at 80k IOPS cap
+        (2048, 80000, 1200),     # Already at 80k IOPS cap (2 TiB)
+        (4096, 80000, 1200),     # Already at 80k IOPS cap (4 TiB)
+        (8192, 80000, 1200),     # Already at 80k IOPS cap (8 TiB)
+        (16384, 80000, 1200),    # Already at 80k IOPS cap (16 TiB)
+        (32768, 80000, 1200),    # Already at 80k IOPS cap (32 TiB)
+        (65536, 80000, 1200),    # Max size: 64 TiB
     ],
     schema.DiskType.StandardHDDLRS: [
         (32, 500, 60),
