@@ -489,7 +489,7 @@ class Iperf3(Tool):
         """Send unified performance messages for TCP iperf3 metrics."""
         buffer_size = int(other_fields["buffer_size_bytes"])
         suffix = f"_conn_{connections_num}_buffer_{buffer_size}"
-        
+
         metrics = [
             {
                 "name": f"rx_throughput_in_gbps{suffix}",
@@ -531,7 +531,7 @@ class Iperf3(Tool):
         """Send unified performance messages for UDP iperf3 metrics."""
         buffer_size = int(other_fields["send_buffer_size"])
         suffix = f"_conn_{connections_num}_buffer_{buffer_size}"
-        
+
         metrics = [
             {
                 "name": f"tx_throughput_in_gbps{suffix}",
