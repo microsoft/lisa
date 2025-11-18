@@ -423,10 +423,7 @@ Usage
 
   transformer:
     - type: file_uploader
-      phase: expanded
-      connection:
-        address: $(build_vm_address)
-        private_key_file: $(admin_private_key_file)
+      phase: environment_connected
       source: "/local/path/to/files"
       destination: "/remote/path/to/upload"
       files:
