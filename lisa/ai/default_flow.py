@@ -5,9 +5,6 @@ import asyncio
 import os
 from typing import (
     Any,
-    AsyncIterable,
-    Awaitable,
-    Callable,
     Dict,
     List,
     Literal,
@@ -15,22 +12,19 @@ from typing import (
     Union,
 )
 
-from semantic_kernel import Kernel
-
 # pylint: disable=no-name-in-module
 from semantic_kernel.agents import (
     ChatCompletionAgent,
     MagenticOrchestration,
     StandardMagenticManager,
 )
-from semantic_kernel.agents.agent import AgentResponseItem, AgentThread
 from semantic_kernel.agents.runtime import InProcessRuntime
 from semantic_kernel.connectors.ai.chat_completion_client_base import (
     ChatCompletionClientBase,
 )
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
-from semantic_kernel.contents import AuthorRole, ChatMessageContent
-from semantic_kernel.functions import KernelArguments, kernel_function
+from semantic_kernel.contents import ChatMessageContent
+from semantic_kernel.functions import kernel_function
 
 from . import logger
 from .common import create_agent_execution_settings, get_current_directory
@@ -523,131 +517,6 @@ class FileSearchAgentBase(ChatCompletionAgent):  # type: ignore
         )
 
     # Execution settings are provided by the module-level helper
-
-    async def invoke_with_context(
-        self,
-        *,
-        messages: Optional[
-            Union[str, ChatMessageContent, List[Union[str, ChatMessageContent]]]
-        ] = None,
-        thread: Optional[AgentThread] = None,
-        on_intermediate_message: Optional[
-            Callable[[ChatMessageContent], Awaitable[None]]
-        ] = None,
-        arguments: Optional[KernelArguments] = None,
-        kernel: Optional[Kernel] = None,
-        additional_context: Optional[str] = None,
-        **kwargs: Any,
-    ) -> AsyncIterable[AgentResponseItem[ChatMessageContent]]:
-        """
-        Invoke the log analyzer agent with enhanced context handling.
-
-        This method extends the base invoke functionality with log analyzer-specific
-        features like automatic context injection and path information.
-
-        Args:
-            messages: The input messages (string, ChatMessageContent, or either).
-            thread: Optional agent thread for conversation management.
-            on_intermediate_message: Callback for intermediate message handling.
-            arguments: Kernel arguments for function execution.
-            kernel: Kernel instance for function execution.
-            additional_context: Extra context to inject into the conversation.
-            **kwargs: Additional arguments passed to the base invoke method.
-
-        Yields:
-            AgentResponseItem[ChatMessageContent]: Streaming responses from the agent.
-        """
-        # Normalize input messages to consistent format
-        normalized_messages = self._normalize_messages(messages)
-
-        # Inject log analyzer-specific context
-        context_parts = []
-
-        if additional_context:
-            context_parts.append(f"Additional context: {additional_context}")
-
-        if context_parts:
-            context_message = "Available resources and context:\n" + "\n".join(
-                context_parts
-            )
-            normalized_messages.append(
-                ChatMessageContent(role=AuthorRole.USER, content=context_message)
-            )
-
-        # Filter out empty or function-only messages to avoid polluting context
-        # This is crucial for log analysis where function call results can be verbose
-        messages_to_pass = [
-            m for m in normalized_messages if m.content and m.content.strip()
-        ]
-
-        # Call the underlying ChatCompletionAgent with cleaned messages
-        async for response in super().invoke(
-            messages=messages_to_pass,
-            thread=thread,
-            on_intermediate_message=on_intermediate_message,
-            arguments=arguments,
-            kernel=kernel,
-            execution_settings=create_agent_execution_settings(),
-            **kwargs,
-        ):
-            yield response
-
-    async def invoke_simple(self, prompt: str) -> str:
-        """
-        Simplified invoke method that returns just the content string.
-
-        This is a convenience method for simple use cases where you just want
-        the AI's response as a string without dealing with streaming or complex types.
-
-        Args:
-            prompt: Simple string prompt to send to the agent.
-
-        Returns:
-            str: The agent's response content, or a default message if no response.
-        """
-        async for response in self.invoke(messages=prompt):
-            if response.content and response.content.content:
-                return str(response.content.content)
-        return "No response generated"
-
-    def _normalize_messages(
-        self,
-        messages: Optional[
-            Union[str, ChatMessageContent, List[Union[str, ChatMessageContent]]]
-        ],
-    ) -> List[ChatMessageContent]:
-        """
-        Normalize various message input formats to a
-        consistent list of ChatMessageContent.
-
-        This method handles the complexity of different input formats
-        that might be passed to log analyzer agents, ensuring consistent
-        processing regardless of input type.
-
-        Args:
-            messages: Input messages in various formats
-            (None, string, ChatMessageContent, or lists).
-
-        Returns:
-            list[ChatMessageContent]: Normalized list of ChatMessageContent objects.
-        """
-        if messages is None:
-            return []
-
-        if isinstance(messages, (str, ChatMessageContent)):
-            messages = [messages]
-
-        normalized: List[ChatMessageContent] = []
-
-        for msg in messages:
-            if isinstance(msg, str):
-                # Convert strings to USER role messages
-                normalized.append(ChatMessageContent(role=AuthorRole.USER, content=msg))
-            else:
-                # Preserve existing ChatMessageContent as-is
-                normalized.append(msg)
-
-        return normalized
 
 
 class LogSearchAgent(FileSearchAgentBase):
