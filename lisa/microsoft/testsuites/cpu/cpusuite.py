@@ -243,10 +243,8 @@ class CPUSuite(TestSuite):
             if "exceeds maximum" in msg or "Invalid argument" in msg:
                 if final_tgt != dev_max:
                     log.debug(
-                        "Retrying with device max due to '%s': tgt=%s -> %s",
-                        msg,
-                        final_tgt,
-                        dev_max,
+                        f"Retrying with device max due to '{msg}': "
+                        f"tgt={final_tgt} -> {dev_max}"
                     )
                     node.tools[Ethtool].change_device_channels_info("eth0", dev_max)
                     return dev_max
@@ -312,9 +310,7 @@ class CPUSuite(TestSuite):
         origin_channels = self._read_current(node)
         dev_max0 = self._read_max_supported(node)
         log.debug(
-            "Baseline channels: current=%d, device_max=%d",
-            origin_channels,
-            dev_max0,
+            f"Baseline channels: current={origin_channels}, device_max={dev_max0}"
         )
         if dev_max0 <= 1:
             raise SkippedException(
@@ -323,11 +319,11 @@ class CPUSuite(TestSuite):
 
         # Find idle CPUs; if none, shrink once to 1 and retry
         idle = get_idle_cpus(node)
-        log.debug("Idle CPUs (initial): %s", idle)
+        log.debug(f"Idle CPUs (initial): {idle}")
         if len(idle) == 0:
             node.tools[Ethtool].change_device_channels_info("eth0", 1)
             idle = get_idle_cpus(node)
-            log.debug("Idle CPUs (after shrink to 1): %s", idle)
+            log.debug(f"Idle CPUs (after shrink to 1): {idle}")
         if len(idle) == 0:
             raise SkippedException(
                 "All CPUs are associated with vmbus channels; no idle CPU available."
@@ -347,16 +343,13 @@ class CPUSuite(TestSuite):
             if cur1 > upper1:
                 node.tools[Ethtool].change_device_channels_info("eth0", upper1)
                 cur1 = self._read_current(node)
-                log.debug("Reduced current channels at phase1: %d", cur1)
+                log.debug(f"Reduced current channels at phase1: {cur1}")
 
             tgt1 = self._pick_target_not_eq_current(cur1, upper1)
             new1 = self._set_channels_with_retry(log, node, tgt1, cur1, upper1)
             log.debug(
-                "Phase1 set: cur=%d -> %d (upper=%d, dev_max1=%d)",
-                cur1,
-                new1,
-                upper1,
-                dev_max1,
+                f"Phase1 set: cur={cur1} -> {new1} "
+                f"(upper={upper1}, dev_max1={dev_max1})"
             )
 
             self._verify_no_irq_on_offline(node, idle, new1)
@@ -375,16 +368,13 @@ class CPUSuite(TestSuite):
             if cur2 > upper2:
                 node.tools[Ethtool].change_device_channels_info("eth0", upper2)
                 cur2 = self._read_current(node)
-                log.debug("Reduced current channels at phase2: %d", cur2)
+                log.debug(f"Reduced current channels at phase2: {cur2}")
 
             tgt2 = self._pick_target_not_eq_current(cur2, upper2)
             new2 = self._set_channels_with_retry(log, node, tgt2, cur2, upper2)
             log.debug(
-                "Phase2 set: cur=%d -> %d (upper=%d, dev_max2=%d)",
-                cur2,
-                new2,
-                upper2,
-                dev_max2,
+                f"Phase2 set: cur={cur2} -> {new2} "
+                f"(upper={upper2}, dev_max2={dev_max2})"
             )
 
         finally:
@@ -392,7 +382,7 @@ class CPUSuite(TestSuite):
             try:
                 set_cpu_state_serial(log, node, idle, CPUState.ONLINE)
             except Exception as e:
-                log.error("Failed to bring CPUs online during cleanup: %s", e)
+                log.error(f"Failed to bring CPUs online during cleanup: {e}")
 
             try:
                 # Re-read device cap for a safe restore
@@ -401,6 +391,6 @@ class CPUSuite(TestSuite):
                 cur_now = self._read_current(node)
                 if cur_now != safe_origin:
                     node.tools[Ethtool].change_device_channels_info("eth0", safe_origin)
-                    log.debug("Restored channels to origin value: %d", safe_origin)
+                    log.debug(f"Restored channels to origin value: {safe_origin}")
             except Exception as e:
-                log.error("Restore channels failed (target=%d): %s", origin_channels, e)
+                log.error(f"Restore channels failed (target={origin_channels}): {e}")
