@@ -149,19 +149,10 @@ class HibernationSetup(Tool):
                 return 0
             return len(matched_lines[0])
 
-        # Use grep to search the log file efficiently
-        # Get count of matches using grep -c
-        count_result = grep.search(
+        return grep.count(
             pattern=pattern,
             file=log_file,
             sudo=True,
-            count_only=True,
             no_debug_log=True,
             force_run=True,
         )
-
-        try:
-            return int(count_result.strip())
-        except ValueError:
-            # If count is not a number, return 0
-            return 0
