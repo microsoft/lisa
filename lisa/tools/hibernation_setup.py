@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import List, Pattern, Type
+from typing import List, Type
 
 from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
@@ -12,6 +12,7 @@ from lisa.tools.journalctl import Journalctl
 from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 from .git import Git
+from .grep import Grep
 from .ls import Ls
 from .make import Make
 
@@ -19,15 +20,13 @@ from .make import Make
 class HibernationSetup(Tool):
     _repo = "https://github.com/microsoft/hibernation-setup-tool"
     # [  159.967060] PM: hibernation entry
-    _entry_pattern = re.compile(r"^(.*hibernation entry.*)$", re.MULTILINE)
+    _entry_pattern = "hibernation entry"
     # [   22.813227] PM: hibernation exit
-    _exit_pattern = re.compile(r"^(.*hibernation exit.*)$", re.MULTILINE)
+    _exit_pattern = "hibernation exit"
     # [  159.898723] hv_utils: Hibernation request received
-    _received_pattern = re.compile(
-        r"^(.*Hibernation request received.*)$", re.MULTILINE
-    )
+    _received_pattern = "Hibernation request received"
     # [  159.898806] hv_utils: Sent hibernation uevent
-    _uevent_pattern = re.compile(r"^(.*Sent hibernation uevent.*)$", re.MULTILINE)
+    _uevent_pattern = "Sent hibernation uevent"
 
     # hibernation-setup-tool: ERROR: System needs a swap area of 322170 MB;
     # but only has 294382 MB free space on device
@@ -126,18 +125,43 @@ class HibernationSetup(Tool):
         make.make_install(code_path)
         return self._check_exists()
 
-    def _check(self, pattern: Pattern[str]) -> int:
-        cat = self.node.tools[Cat]
-        log_output = ""
+    def _check(self, pattern: str) -> int:
+        """
+        Check for pattern matches in log files using grep for efficiency.
+        This avoids reading large log files entirely which can cause timeouts.
+        """
+        grep = self.node.tools[Grep]
         ls = self.node.tools[Ls]
+
+        # Determine which log file to use
         if ls.path_exists("/var/log/syslog", sudo=True):
-            log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
+            log_file = "/var/log/syslog"
         elif ls.path_exists("/var/log/messages", sudo=True):
-            log_output = cat.read("/var/log/messages", force_run=True, sudo=True)
+            log_file = "/var/log/messages"
         else:
+            # Fall back to journalctl for systems without traditional log files
             journalctl = self.node.tools[Journalctl]
             log_output = journalctl.first_n_logs_from_boot(no_of_lines=0)
-        matched_lines = find_patterns_in_lines(log_output, [pattern])
-        if not matched_lines:
+            # Compile pattern only when needed for journalctl path
+            compiled_pattern = re.compile(pattern)
+            matched_lines = find_patterns_in_lines(log_output, [compiled_pattern])
+            if not matched_lines:
+                return 0
+            return len(matched_lines[0])
+
+        # Use grep to search the log file efficiently
+        # Get count of matches using grep -c
+        count_result = grep.search(
+            pattern=pattern,
+            file=log_file,
+            sudo=True,
+            count_only=True,
+            no_debug_log=True,
+            force_run=True,
+        )
+
+        try:
+            return int(count_result.strip())
+        except ValueError:
+            # If count is not a number, return 0
             return 0
-        return len(matched_lines[0])
