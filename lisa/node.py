@@ -147,14 +147,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     def _check_sudo_available(self) -> bool:
         # Check if 'sudo' command exists
         process = self._execute("command -v sudo", shell=True, no_info_log=True)
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             self.log.debug("node doesn't support 'sudo', may cause failure later.")
             return False
 
         # Further test: try running 'ls' with sudo /bin/sh
         process = self._execute("ls", shell=True, sudo=True, no_info_log=True)
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             # e.g. raw error: "user is not allowed to execute '/bin/sh -c ...'"
             if "not allowed" in result.stderr:
@@ -716,7 +716,7 @@ class RemoteNode(Node):
             sudo=True,
             no_info_log=True,
         )
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             for prompt in self._sudo_password_prompts:
                 if prompt in result.stdout:
@@ -751,7 +751,7 @@ class RemoteNode(Node):
                 sudo=True,
                 no_info_log=True,
             )
-            result = process.wait_result(10)
+            result = process.wait_result(timeout=10, raise_on_timeout=False)
             if result.exit_code != 0:
                 raise RequireUserPasswordException(
                     "The password might be invalid for running sudo command"
@@ -770,7 +770,7 @@ class RemoteNode(Node):
         # wordpress-red-hat images.
         if not self.has_checked_bash_prompt:
             process = self._execute(f"echo {constants.LISA_TEST_FOR_BASH_PROMPT}")
-            result = process.wait_result(10)
+            result = process.wait_result(timeout=10, raise_on_timeout=False)
             if result.stdout.endswith(f"{constants.LISA_TEST_FOR_BASH_PROMPT}"):
                 bash_prompt = result.stdout.replace(
                     constants.LISA_TEST_FOR_BASH_PROMPT, ""
