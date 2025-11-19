@@ -75,7 +75,8 @@ class TimeSync(TestSuite):
     chrony_path = [
         "/etc/chrony.conf",
         "/etc/chrony/chrony.conf",
-        "/etc/chrony.d/azure.conf",
+        "/etc/chrony.d/*.conf",
+        "/etc/chrony/conf.d/*.conf",
     ]
     current_clocksource = (
         "/sys/devices/system/clocksource/clocksource0/current_clocksource"
@@ -147,10 +148,18 @@ class TimeSync(TestSuite):
         # 4. Chrony should be configured to use the symlink /dev/ptp_hyperv
         #  instead of /dev/ptp0 or /dev/ptp1.
         all_chrony_configs: str = ""
-        for chrony_config in self.chrony_path:
-            if node.shell.exists(PurePosixPath(chrony_config)):
+        paths_string = " ".join(self.chrony_path)
+        result = node.execute(
+            f"ls -1 {paths_string} || true",
+            sudo=True,
+            shell=True,
+            no_error_log=True,
+        )
+        if result.stdout.strip():
+            config_files = result.stdout.strip().split("\n")
+            for config_file in config_files:
                 config_data = cat.run(
-                    f"{chrony_config}", sudo=True, shell=True, force_run=True
+                    config_file.strip(), sudo=True, shell=True, force_run=True
                 )
                 all_chrony_configs = all_chrony_configs + config_data.stdout + "\n"
         assert_that(all_chrony_configs).described_as(
