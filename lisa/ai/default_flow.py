@@ -5,6 +5,8 @@ import asyncio
 import os
 from typing import (
     Any,
+    Awaitable,
+    Callable,
     Dict,
     List,
     Literal,
@@ -12,22 +14,19 @@ from typing import (
     Union,
 )
 
-# pylint: disable=no-name-in-module
-from semantic_kernel.agents import (
-    ChatCompletionAgent,
-    MagenticOrchestration,
-    StandardMagenticManager,
+from agent_framework import (
+    ChatAgent,
+    MagenticBuilder,
+    MagenticAgentMessageEvent,
+    MagenticAgentDeltaEvent,
+    MagenticFinalResultEvent,
+    MagenticOrchestratorMessageEvent,
 )
-from semantic_kernel.agents.runtime import InProcessRuntime
-from semantic_kernel.connectors.ai.chat_completion_client_base import (
-    ChatCompletionClientBase,
-)
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
-from semantic_kernel.contents import ChatMessageContent
-from semantic_kernel.functions import kernel_function
+from agent_framework.azure import AzureOpenAIChatClient
+
 
 from . import logger
-from .common import create_agent_execution_settings, get_current_directory
+from .common import get_current_directory
 
 
 def _load_prompt(prompt_filename: str, flow: str) -> str:
@@ -55,47 +54,12 @@ def _load_prompt(prompt_filename: str, flow: str) -> str:
     except FileNotFoundError:
         raise FileNotFoundError(f"System prompt file not found: {prompt_path}")
 
-
-def _agent_response_callback(
-    message: Union[ChatMessageContent, List[ChatMessageContent]]
-) -> None:
-    """
-    Async callback function that logs each agent's response as the
-    orchestration progresses.
-    Supports both ChatMessageContent and list[ChatMessageContent].
-    """
-    if isinstance(message, list):
-        for msg in message:
-            _agent_response_callback(msg)
-        return
-
-    if not message.content:
-        # Check if this is a function call
-        if hasattr(message, "items") and message.items:
-            pass
-        else:
-            logger.info(f"💭 {message.name} is thinking...")
-    else:
-        log_message = f"🤖 {message.name}: {message.content.strip()}"
-
-        # Check for any function calls in the message
-        if hasattr(message, "items") and message.items:
-            for item in message.items:
-                if hasattr(item, "function_name"):
-                    log_message += f". Also calling: {item.function_name}"
-
-        logger.info(log_message)
-
-
 class FileSearchPlugin:
     def __init__(self, paths: List[str]) -> None:
         self._paths: List[str] = []
         for path in paths:
             self._paths.append(os.path.normpath(path))
 
-    @kernel_function(  # type: ignore[misc]
-        name="search_files",
-    )
     def search_files(
         self, search_string: str, path: str, file_extensions: str
     ) -> Dict[str, Any]:
@@ -182,9 +146,6 @@ class FileSearchPlugin:
 
         return log_context
 
-    @kernel_function(  # type: ignore[misc]
-        name="read_text_file",
-    )
     def read_text_file(
         self, start_line_offset: int, file_path: str, line_count: int
     ) -> Dict[str, str]:
@@ -382,9 +343,6 @@ class FileSearchPlugin:
             },
         }
 
-    @kernel_function(  # type: ignore[misc]
-        name="list_files",
-    )
     def list_files(
         self,
         folder_path: str,
@@ -457,7 +415,7 @@ class FileSearchPlugin:
         return {"error": f"Path is out of allowed directories: {path}"}
 
 
-class FileSearchAgentBase(ChatCompletionAgent):  # type: ignore
+class FileSearchAgentBase(ChatAgent):  # type: ignore
     """
     Custom agent base class for LISA file search agents.
 
@@ -482,41 +440,49 @@ class FileSearchAgentBase(ChatCompletionAgent):  # type: ignore
         api_key: str,
         base_url: str,
     ) -> None:
+        print(f"FileSearchAgentBase.__init__ called")
+        chat_client = self._create_chat_client(
+            deployment_name=deployment_name,
+            api_key=api_key,
+            base_url=base_url,
+        )
+
+        plugin = FileSearchPlugin(paths=paths)
+        tools = [
+            plugin.search_files,
+            plugin.read_text_file,
+            plugin.list_files,
+        ]
+
         super().__init__(
-            service=self._create_ai_service(deployment_name, api_key, base_url),
+            chat_client=chat_client,
             name=name,
             description=description,
             instructions=instructions,
-            plugins=[FileSearchPlugin(paths=paths)],
+            tools=tools,
         )
 
-    def _create_ai_service(
+    def _create_chat_client(
         self,
         deployment_name: str,
         api_key: str,
         base_url: str,
         instruction_role: Literal["system", "developer"] = "system",
-    ) -> ChatCompletionClientBase:
-        """Create an AI service for the file search agent using AzureAIInference.
+    ) -> AzureOpenAIChatClient:
+        """Create an AI chat client for the file search agent using Azure OpenAI.
 
         Args:
             deployment_name: The model deployment name for Azure AI Inference
             api_key: The API key for Azure AI Inference
             base_url: The endpoint URL for Azure AI Inference
             instruction_role: Unused parameter, kept for compatibility
-
-        Returns:
-            ChatCompletionClientBase: The configured AI service instance.
         """
-
-        return AzureChatCompletion(
+        return AzureOpenAIChatClient(
             deployment_name=deployment_name,
             api_key=api_key,
             endpoint=base_url,
             api_version="2024-12-01-preview",
         )
-
-    # Execution settings are provided by the module-level helper
 
 
 class LogSearchAgent(FileSearchAgentBase):
@@ -537,10 +503,9 @@ class LogSearchAgent(FileSearchAgentBase):
         api_key: str,
         base_url: str,
     ) -> None:
-        # Load specialized system prompt for log search
+        print(f"LogSearchAgent.__init__ called")
         instructions = _load_prompt("log_search.txt", flow="default")
 
-        # Initialize with Azure OpenAI service and log analysis plugin
         super().__init__(
             name="LogSearchAgent",
             description=(
@@ -573,7 +538,7 @@ class CodeSearchAgent(FileSearchAgentBase):
         api_key: str,
         base_url: str,
     ) -> None:
-        # Load specialized system prompt for code search
+        print(f"CodeSearchAgent.__init__ called")
         instructions = _load_prompt("code_search.txt", flow="default")
 
         # Initialize with Azure OpenAI service and log analysis plugin
@@ -603,6 +568,7 @@ async def async_analyze_default(
     """
     Default async analysis method using multi-agent orchestration.
     """
+    print(f"async_analyze_default called")
     system_instructions = _load_prompt("user.txt", flow="default")
 
     # Include the actual error message in the analysis prompt
@@ -632,94 +598,61 @@ async def async_analyze_default(
         base_url=azure_openai_endpoint,
     )
 
-    agents = [log_search_agent, code_search_agent]
-
-    logger.info("Setting up Magentic orchestration")
-
-    # Create magentic orchestration
-    chat_completion_service = AzureChatCompletion(
-        deployment_name=general_deployment_name,
+    manager_chat_client = AzureOpenAIChatClient(
         api_key=azure_openai_api_key,
         endpoint=azure_openai_endpoint,
-        api_version="2024-12-01-preview",
+        deployment_name=general_deployment_name,
     )
 
-    # Load the final answer prompt
     final_answer_prompt = _load_prompt("final_answer.txt", flow="default")
 
+    logger.info("Building Magentic workflow...")    
+    workflow = (
+        MagenticBuilder()
+        .participants(LogSearchAgent=log_search_agent, CodeSearchAgent=code_search_agent)
+        .with_standard_manager(
+            chat_client=manager_chat_client,
+            final_answer_prompt=final_answer_prompt,
+            max_round_count=1,
+            max_stall_count=1,
+        )
+        .build()
+    )
+
+    # todo: add the following to the builder or agent
     # Create execution settings for the manager using the shared builder
-    manager_execution_settings = create_agent_execution_settings()
+    #manager_execution_settings = create_agent_execution_settings()
+    logger.info("executing run...")
+    async def _run() -> str:
+        final_text: str = ""
+        async for event in workflow.run_stream(analysis_prompt):
+            if isinstance(event, MagenticAgentMessageEvent):
+                if getattr(event, "message", None) and getattr(event.message, "text", None):
+                    logger.info(f"[AgentMessage] {event.agent_id}: {event.message.text}")
+            elif isinstance(event, MagenticAgentDeltaEvent):
+                pass
+            elif isinstance(event, MagenticOrchestratorMessageEvent):
+                pass
+            elif isinstance(event, MagenticFinalResultEvent):
+                if getattr(event, "message", None) and getattr(event.message, "text", None):
+                    final_text = event.message.text.strip()
+                    logger.info("🎯 FINAL RESULT (JSON)")
+                    logger.info(final_text)
+        return final_text
 
-    manager = StandardMagenticManager(
-        chat_completion_service=chat_completion_service,
-        final_answer_prompt=final_answer_prompt,
-        execution_settings=manager_execution_settings,
-    )
 
-    magentic_orchestration = MagenticOrchestration(
-        members=agents,
-        manager=manager,
-        agent_response_callback=_agent_response_callback,
-    )
-
-    runtime = InProcessRuntime()
-    runtime.start()
-
-    logger.info(f"Starting analysis for: {error_message[:100]}...")
-
-    try:
-        # Execute analysis with timeout protection and retry logic
-        async def run_analysis() -> Any:
-            orchestration_result = await magentic_orchestration.invoke(
-                task=analysis_prompt,
-                runtime=runtime,
-            )
-            return await orchestration_result.get()
-
-        # Retry configuration
-        max_retries = 3
-
+    async def _run_with_timeout_and_retry(coro_factory: Callable[[], Awaitable[str]], timeout_sec: float = 300.0) -> str:
+        max_retries = 1
+        last_exc: Exception | None = None
         for attempt in range(max_retries + 1):
             try:
-                # Set a reasonable timeout (5 minutes) with retry
-                value: Any = await asyncio.wait_for(run_analysis(), timeout=300.0)
-
-                # if the result is not the last message, the format is not
-                # correct. It will raise an exception, and trigger retry.
-                if isinstance(value, list):
-                    value = " ".join(
-                        (
-                            msg.content.strip()
-                            if hasattr(msg, "content") and msg.content
-                            else ""
-                        )
-                        for msg in value
-                    )
-                elif hasattr(value, "content"):
-                    value = value.content.strip()
-                else:
-                    value = str(value).strip()
-
-                break
-
+                return await asyncio.wait_for(coro_factory(), timeout=timeout_sec)
             except Exception as e:
+                last_exc = e
+                logger.info(f"[Magentic] Attempt {attempt + 1} failed: {e}")
                 if attempt == max_retries:
-                    # Last attempt failed, re-raise the exception
-                    logger.info(
-                        f"Analysis failed after {max_retries + 1} attempts: {e}"
-                    )
                     raise
+        raise last_exc if last_exc else RuntimeError("Unknown error")
 
-                # Calculate delay with exponential backoff
-                logger.info(f"Analysis attempt {attempt + 1} failed: {e}")
-
-        logger.info("🎯 **FINAL ANALYSIS RESULT**")
-        logger.info(value)
-        return str(value)
-
-    finally:
-        try:
-            await runtime.stop_when_idle()
-            await runtime.close()
-        except Exception as e:
-            logger.debug(f"Error during runtime cleanup: {e}")
+    value = await _run_with_timeout_and_retry(_run)
+    return str(value)
