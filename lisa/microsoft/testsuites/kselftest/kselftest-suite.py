@@ -1,10 +1,9 @@
 from typing import Any, Dict
 
-from microsoft.testsuites.kselftest.kselftest import Kselftest
-
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.util import SkippedException, UnsupportedDistroException
+from microsoft.testsuites.kselftest.kselftest import Kselftest
 
 
 @TestSuiteMetadata(
@@ -16,9 +15,10 @@ from lisa.util import SkippedException, UnsupportedDistroException
 )
 class KselftestTestsuite(TestSuite):
     # kselftests take about a one and half an hour to complete,
-    # timeout below is in seconds and set to 2 hours.
-    _CASE_TIME_OUT = 7200
-    _KSELF_TIMEOUT = 6700
+    # timeout below is in seconds and set _KSELF_TIMEOUT to 2 hours.
+    # for SoC，it needs more time, set to 6 hours.
+    _CASE_TIME_OUT = 36000
+    _KSELF_TIMEOUT = 18000
 
     @TestCaseMetadata(
         description="""
@@ -60,6 +60,7 @@ class KselftestTestsuite(TestSuite):
         file_path = variables.get("kselftest_file_path", "")
         working_path = variables.get("kselftest_working_path", "")
         run_as_root = variables.get("kselftest_run_as_root", False)
+        kself_timeout = variables.get("kselftest_timeout", self._KSELF_TIMEOUT)
         test_collection_list = (
             variables.get("kselftest_include_test_collections", "").split(",")
             if variables.get("kselftest_include_test_collections", "")
@@ -80,7 +81,7 @@ class KselftestTestsuite(TestSuite):
             kselftest.run_all(
                 test_result=result,
                 log_path=log_path,
-                timeout=self._KSELF_TIMEOUT,
+                timeout=kself_timeout,
                 run_test_as_root=run_as_root,
                 run_collections=test_collection_list,
                 skip_tests=skip_tests_list,
