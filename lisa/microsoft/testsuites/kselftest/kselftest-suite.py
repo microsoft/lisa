@@ -16,9 +16,9 @@ from microsoft.testsuites.kselftest.kselftest import Kselftest
 class KselftestTestsuite(TestSuite):
     # kselftests take about a one and half an hour to complete,
     # timeout below is in seconds and set _KSELF_TIMEOUT to 2 hours.
-    # for SoC，it needs more time, set to 6 hours.
+    # for SoC，it needs more time, set to 10 hours.
     _CASE_TIME_OUT = 36000
-    _KSELF_TIMEOUT = 18000
+    _KSELF_TIMEOUT = 35000
 
     @TestCaseMetadata(
         description="""
