@@ -724,7 +724,8 @@ class TestSuite:
             case_kwargs.update({"result": case_result})
 
             case_log.info(
-                f"test case '{case_result.runtime_data.full_name}' is running"
+                f"test case '{case_result.runtime_data.full_name}' "
+                f"is running on environment '{environment.name}'"
             )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
@@ -778,7 +779,9 @@ class TestSuite:
                     )
 
             case_log.info(
-                f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
+                f"result: {case_result.status.name}, "
+                f"elapsed: {total_timer}, "
+                f"environment: {environment.name}"
             )
             case_result.unsubscribe_log(environment.log)
             case_result.close_log_file_handler()
