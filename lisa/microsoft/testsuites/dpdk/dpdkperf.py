@@ -473,7 +473,7 @@ class DpdkPerformance(TestSuite):
                 test_case_name=test_case_name,
                 tool=tool,
                 metric_name=cast(str, metric["name"]),
-                metric_value=cast(float, metric["value"]),
+                metric_value=cast(float, metric.get("value", 0.0)),
                 metric_unit=cast(str, metric["unit"]),
                 metric_str_value=cast(str, metric.get("str_value", "")),
                 metric_relativity=cast(MetricRelativity, metric["relativity"]),
