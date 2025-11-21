@@ -7,6 +7,7 @@ from typing import Any, cast
 from assertpy import assert_that
 from func_timeout import func_timeout
 from microsoft.testsuites.power.common import (
+    check_hibernation_disk_requirements,
     cleanup_env,
     is_distro_supported,
     run_network_workload,
@@ -45,6 +46,8 @@ class Power(TestSuite):
         node: Node = kwargs["node"]
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
+
+        check_hibernation_disk_requirements(node)
 
     @TestCaseMetadata(
         description="""
