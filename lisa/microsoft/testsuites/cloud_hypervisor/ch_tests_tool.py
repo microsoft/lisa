@@ -682,18 +682,27 @@ class CloudHypervisorTests(Tool):
             assert_msg = assertions[0].strip()[:100]
             diagnostic_messages.append(f"Assertion: {assert_msg}")
 
-        # Add "likely hung in" diagnostic for timeouts based on last successful test
-        oks = re.findall(r"test\s+(\S+)\s+\.\.\.\s+ok", stdout)
-        if oks and hasattr(self, "_ordered_subtests"):
-            try:
-                last_ok = oks[-1]
-                i = self._ordered_subtests.index(last_ok)
-                if i + 1 < len(self._ordered_subtests):
-                    diagnostic_messages.append(
-                        f"Likely hung in: {self._ordered_subtests[i + 1]}"
-                    )
-            except (ValueError, IndexError):
-                pass
+        # Add "likely hung in" diagnostic for timeouts
+        # Look for tests that started but didn't finish
+        started_pattern = r"test\s+(\S+)\s+\.\.\."
+        started_tests = re.findall(started_pattern, stdout)
+        
+        # Get tests that finished (ok, FAILED, ignored, etc.)
+        finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
+        finished_tests = [match[0] for match in re.findall(finished_pattern, stdout)]
+        
+        # Find tests that started but never finished
+        hung_tests = [test for test in started_tests if test not in finished_tests]
+        
+        if hung_tests:
+            # Use the first unfinished test (most likely where it hung)
+            diagnostic_messages.append(f"Likely hung in: {hung_tests[0]}")
+        elif finished_tests:
+            # All detected tests finished but watchdog still triggered
+            # This means hang occurred after last successful test (setup/teardown/next test)
+            diagnostic_messages.append(
+                f"Hang occurred after last successful test: {finished_tests[-1]}"
+            )
 
         return diagnostic_messages
 
