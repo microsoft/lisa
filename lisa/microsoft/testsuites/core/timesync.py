@@ -28,6 +28,7 @@ from lisa.tools import (
     Chrony,
     Dmesg,
     Echo,
+    Find,
     Hwclock,
     Ls,
     Lscpu,
@@ -147,21 +148,20 @@ class TimeSync(TestSuite):
 
         # 4. Chrony should be configured to use the symlink /dev/ptp_hyperv
         #  instead of /dev/ptp0 or /dev/ptp1.
-        all_chrony_configs: str = ""
-        paths_string = " ".join(self.chrony_path)
-        result = node.execute(
-            f"ls -1 {paths_string} || true",
+        find = node.tools[Find]
+        config_files = find.find_files(
+            node.get_pure_path("/etc"),
+            path_pattern=self.chrony_path,
+            file_type="f",
             sudo=True,
-            shell=True,
-            no_error_log=True,
+            ignore_not_exist=True,
+            force_run=True,
         )
-        if result.stdout.strip():
-            config_files = result.stdout.strip().split("\n")
-            for config_file in config_files:
-                config_data = cat.run(
-                    config_file.strip(), sudo=True, shell=True, force_run=True
-                )
-                all_chrony_configs = all_chrony_configs + config_data.stdout + "\n"
+
+        all_chrony_configs: str = ""
+        for config_file in config_files:
+            config_data = cat.run(config_file, sudo=True, shell=True, force_run=True)
+            all_chrony_configs = all_chrony_configs + config_data.stdout + "\n"
         assert_that(all_chrony_configs).described_as(
             "Chrony config file should use the symlink /dev/ptp_hyperv."
         ).contains(self.hyperv_ptp_udev_rule)
