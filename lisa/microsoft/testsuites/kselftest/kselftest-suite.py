@@ -18,7 +18,7 @@ class KselftestTestsuite(TestSuite):
     # timeout below is in seconds and set _KSELF_TIMEOUT to 2 hours.
     # for SoC，it needs more time, set to 10 hours.
     _CASE_TIME_OUT = 36000
-    _KSELF_TIMEOUT = 35000
+    _KSELF_TIMEOUT = 7000
 
     @TestCaseMetadata(
         description="""
