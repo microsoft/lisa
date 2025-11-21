@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
+    DPDK_PPS_THRESHOLD,
     DPDK_STABLE_GIT_REPO,
     Downloader,
     GitDownloader,
@@ -674,7 +675,7 @@ def verify_dpdk_build(
     node.tools[Dmesg].check_kernel_errors(force_run=True)
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
-    ).is_greater_than(2**20)
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
     return test_kit
 
 
@@ -761,10 +762,10 @@ def verify_dpdk_send_receive(
     # differences in NIC type throughput can lead to different snd/rcv counts
     assert_that(rcv_rx_pps).described_as(
         "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(2**20)
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
     assert_that(snd_tx_pps).described_as(
         "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(2**20)
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
 
     return sender, receiver
 
@@ -904,11 +905,11 @@ def verify_dpdk_mutliple_ports(
     # differences in NIC type throughput can lead to different snd/rcv counts
     assert_that(rcv_rx_pps).described_as(
         "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(2**20)
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
     for sender_pps in sender_pps_measurements:
         assert_that(sender_pps).described_as(
             "Throughput for SEND was below the correct order of magnitude"
-        ).is_greater_than(2**20)
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
 
     return receiver_kit, sender_port_a, sender_port_b
 

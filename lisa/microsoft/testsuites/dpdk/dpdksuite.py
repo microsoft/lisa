@@ -6,6 +6,7 @@ from typing import Any, Dict, Tuple
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
+    DPDK_PPS_THRESHOLD,
     DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
     Pmd,
@@ -571,7 +572,7 @@ class Dpdk(TestSuite):
             assert_that(pps).described_as(
                 f"{tx_or_rx}-PPS ({pps}) should have been greater "
                 "than 2^20 (~1m) PPS before sriov disable."
-            ).is_greater_than(2**20)
+            ).is_greater_than(DPDK_PPS_THRESHOLD)
         # not checking if traffic is below some arbitrary
         # threshold because it's a moving target. New skus
         # will be faster. Let's just check for the hotplug
