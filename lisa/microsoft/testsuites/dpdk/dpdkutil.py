@@ -773,7 +773,22 @@ def verify_dpdk_send_receive(
     # verify receiver didn't drop most of the packets
     receiver.testpmd.check_rx_packet_drops()
 
+    # annotate the amount of dropped packets on the receiver
+    annotate_packet_drops(log, result, receiver)
+
     return sender, receiver
+
+
+def annotate_packet_drops(
+    log: Logger, result: Optional[TestResult], receiver: DpdkTestResources
+) -> None:
+    try:
+        if result and hasattr(receiver.testpmd, "dropped_packet_percentage"):
+            dropped_packets = receiver.testpmd.dropped_packet_percentage
+            result.information["rx_pkt_drop_percent"] = int(100 * dropped_packets)
+            log.debug(f"Adding packet drop percentage: {dropped_packets}")
+    except AssertionError as err:
+        receiver.node.log.debug(f"Could not add rx packet drop percentage: {str(err)}")
 
 
 def verify_dpdk_send_receive_multi_txrx_queue(
