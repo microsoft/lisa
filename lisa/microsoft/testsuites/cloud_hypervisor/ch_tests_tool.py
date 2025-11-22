@@ -683,35 +683,44 @@ class CloudHypervisorTests(Tool):
             diagnostic_messages.append(f"Assertion: {assert_msg}")
 
         # Add "likely hung in" diagnostic for timeouts
-        # Priority 1: Look for "has been running for over X seconds" message
-        # This is the most reliable indicator of a hung test
-        running_pattern = r"(\S+)\s+has been running for over \d+ seconds"
+        # Look for tests that started but didn't finish
+        started_pattern = r"test\s+(\S+)\s+\.\.\."
+        started_tests = re.findall(started_pattern, stdout)
+        
+        # Get tests that finished (ok, FAILED, ignored, etc.)
+        finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
+        finished_matches = re.findall(finished_pattern, stdout)
+        finished_tests = [match[0] for match in finished_matches]
+        
+        # Find tests that started but never finished
+        hung_tests = [test for test in started_tests if test not in finished_tests]
+        
+        # Priority 1: Check for "has been running" messages for tests that didn't finish
+        running_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
         running_tests = re.findall(running_pattern, stdout)
         
-        if running_tests:
-            # Found test explicitly marked as running too long
-            diagnostic_messages.append(f"Likely hung in: {running_tests[0]}")
-        else:
-            # Priority 2: Look for tests that started but didn't finish
-            started_pattern = r"test\s+(\S+)\s+\.\.\."
-            started_tests = re.findall(started_pattern, stdout)
-            
-            # Get tests that finished (ok, FAILED, ignored, etc.)
-            finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
-            finished_tests = [match[0] for match in re.findall(finished_pattern, stdout)]
-            
-            # Find tests that started but never finished
-            hung_tests = [test for test in started_tests if test not in finished_tests]
-            
-            if hung_tests:
-                # Use the first unfinished test (most likely where it hung)
-                diagnostic_messages.append(f"Likely hung in: {hung_tests[0]}")
-            elif finished_tests:
-                # All detected tests finished but watchdog still triggered
-                # This means hang occurred after last successful test (setup/teardown/next test)
-                diagnostic_messages.append(
-                    f"Hang occurred after last successful test: {finished_tests[-1]}"
-                )
+        # DEBUG: Log what we found
+        self._log.debug(f"[DIAGNOSTIC DEBUG] running_tests: {running_tests[:5]}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] finished_tests: {finished_tests[-5:]}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] hung_tests: {hung_tests[:5]}")
+        
+        # Cross-check: only report running tests that actually didn't finish
+        hung_running_tests = [t for t in running_tests if t in hung_tests]
+        
+        self._log.debug(f"[DIAGNOSTIC DEBUG] hung_running_tests: {hung_running_tests[:5]}")
+        
+        if hung_running_tests:
+            # Found test explicitly marked as running too long AND didn't finish
+            diagnostic_messages.append(f"Likely hung in: {hung_running_tests[0]}")
+        elif hung_tests:
+            # Use the first unfinished test (most likely where it hung)
+            diagnostic_messages.append(f"Likely hung in: {hung_tests[0]}")
+        elif finished_tests:
+            # All detected tests finished but watchdog still triggered
+            # This means hang occurred after last successful test (setup/teardown/next test)
+            diagnostic_messages.append(
+                f"Hang occurred after last successful test: {finished_tests[-1]}"
+            )
 
         return diagnostic_messages
 
