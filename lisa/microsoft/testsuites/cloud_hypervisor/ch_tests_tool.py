@@ -699,22 +699,25 @@ class CloudHypervisorTests(Tool):
         running_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
         running_tests = re.findall(running_pattern, stdout)
         
-        # DEBUG: Log what we found
-        self._log.debug(f"[DIAGNOSTIC DEBUG] running_tests: {running_tests[:5]}")
-        self._log.debug(f"[DIAGNOSTIC DEBUG] finished_tests: {finished_tests[-5:]}")
-        self._log.debug(f"[DIAGNOSTIC DEBUG] hung_tests: {hung_tests[:5]}")
-        
         # Cross-check: only report running tests that actually didn't finish
         hung_running_tests = [t for t in running_tests if t in hung_tests]
         
-        self._log.debug(f"[DIAGNOSTIC DEBUG] hung_running_tests: {hung_running_tests[:5]}")
+        # DEBUG: Log what we found
+        self._log.debug(f"[DIAGNOSTIC DEBUG] Total tests started: {len(started_tests)}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] Total tests finished: {len(finished_tests)}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] Total tests hung: {len(hung_tests)}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] started_tests (last 5): {started_tests[-5:]}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] finished_tests (last 5): {finished_tests[-5:]}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] hung_tests (all): {hung_tests}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] running_tests (all): {running_tests}")
+        self._log.debug(f"[DIAGNOSTIC DEBUG] hung_running_tests: {hung_running_tests}")
         
         if hung_running_tests:
             # Found test explicitly marked as running too long AND didn't finish
             diagnostic_messages.append(f"Likely hung in: {hung_running_tests[0]}")
         elif hung_tests:
-            # Use the first unfinished test (most likely where it hung)
-            diagnostic_messages.append(f"Likely hung in: {hung_tests[0]}")
+            # Use the LAST unfinished test (most recent one that didn't complete)
+            diagnostic_messages.append(f"Likely hung in: {hung_tests[-1]}")
         elif finished_tests:
             # All detected tests finished but watchdog still triggered
             # This means hang occurred after last successful test (setup/teardown/next test)
