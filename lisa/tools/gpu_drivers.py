@@ -527,15 +527,19 @@ class NvidiaCudaDriver(GpuDriver):
         if hw_platform != CpuArchitecture.X64:
             raise SkippedException("CUDA driver only supported on x64 architecture")
 
+        major_version = self.node.os.information.version.major
+
         # Add Mariner NVIDIA repository
         self.node.os.add_repository(
-            "https://raw.githubusercontent.com/microsoft/CBL-Mariner/2.0/"
-            "toolkit/docs/nvidia/mariner-nvidia.repo"
+            f"https://raw.githubusercontent.com/microsoft/CBL-Mariner/"
+            f"{major_version}.0/toolkit/docs/nvidia/mariner-nvidia.repo"
         )
 
         # Install CUDA
         self.node.os.install_packages("cuda", signed=False)
-        self._log.info("Successfully installed CUDA driver for CBL-Mariner")
+        self._log.info(
+            f"Successfully installed CUDA driver for CBL-Mariner {major_version}"
+        )
 
 
 class AmdGpuDriver(GpuDriver):
