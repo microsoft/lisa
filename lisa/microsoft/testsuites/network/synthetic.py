@@ -9,6 +9,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, StartStop
+from lisa.search_space import IntRange
 
 from .common import initialize_nic_info, remove_extra_nics, restore_extra_nics
 
@@ -25,7 +26,7 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -33,10 +34,10 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics(
@@ -46,7 +47,7 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -56,10 +57,10 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics_reboot(
@@ -72,7 +73,7 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -82,10 +83,10 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics_reboot_from_platform(
@@ -99,7 +100,7 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -109,10 +110,10 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics_stop_start_from_platform(
@@ -139,8 +140,7 @@ class Synthetic(TestSuite):
         use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                data_path=schema.NetworkDataPath.Synthetic
             ),
         ),
     )
@@ -172,8 +172,7 @@ class Synthetic(TestSuite):
         use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                data_path=schema.NetworkDataPath.Synthetic
             ),
         ),
     )
