@@ -71,8 +71,10 @@ class Reboot(Tool):
         # who -b doesn't return correct content in Ubuntu 14.04, but uptime works.
         # uptime has no -s parameter in some distros, so not use is as default.
         try:
+            print("Trying to get last boot time using who -b in the beginning of the reboot process")
             last_boot_time = who.last_boot()
-        except Exception:
+        except Exception as e:
+            print(f"who -b failed with:: {e}")
             uptime = self.node.tools[Uptime]
             last_boot_time = uptime.since_time()
         current_boot_time = last_boot_time
@@ -117,6 +119,7 @@ class Reboot(Tool):
         while (timer.elapsed(False) < time_out) or tried_times < 1:
             tried_times += 1
             try:
+                print("Trying to get last boot time using who -b in the reconnection while loop")
                 self.node.close()
                 current_boot_time = _who_last(who)
                 connected = True

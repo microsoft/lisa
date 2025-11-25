@@ -276,15 +276,30 @@ class Provisioning(TestSuite):
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         reboot_times = []
         try:
-            for i in range(100):
-                elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
+            i=0
+            # for i in range(100):
+            while i<100:
+                log.debug(f"Starting reboot iteration {i + 1}/100")
+                try:
+                    elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
+                except PassedException as e:
+                    if str(e) == "SSH session not active":
+                        print(f"This exception '{e}' is ignorable. Try again")
+                        node.close()
+                        print(f"SSH session reclosed. Rerunning the iteration {i + 1}/100")
+                        continue
                 reboot_times.append((i + 1, elapsed))
                 log.debug(f"Reboot iterations {i + 1}/100 completed in {elapsed:.2f}s")
+                i+=1
         except PassedException as e:
+            log.info(f"partially passed at {i+1} iterations: {e}")
+            raise LisaException(e)
+        except Exception as e:
+            log.error(f"failed at {i+1} iterations: {e}")
             raise LisaException(e)
         finally:
             times = [time for _, time in reboot_times if isinstance(time, (int, float))]
-            log.info(f"completed {i + 1}/100 iterations;summary:")
+            log.info(f"completed {i}/100 iterations;summary:")
             log.info(f"Min reboot time: {min(times):.2f}s")
             log.info(f"Max reboot time: {max(times):.2f}s")
             log.info(f"Average reboot time: {mean(times):.2f}s")
@@ -409,7 +424,9 @@ class Provisioning(TestSuite):
                         "no panic found in serial log during reboot",
                     )
             else:
+                log.info(f"Rebooting node '{node.name}' without platform restart")
                 node.reboot()
+                log.info(f"Rebooted node '{node.name}' without platform restart")
             log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as e:
             if node.features.is_supported(SerialConsole):
