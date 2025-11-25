@@ -175,6 +175,7 @@ LOCATIONS = [
     "brazilsouth",
     "australiaeast",
     "uksouth",
+    "eastus2",
 ]
 RESOURCE_GROUP_LOCATION = "westus3"
 
