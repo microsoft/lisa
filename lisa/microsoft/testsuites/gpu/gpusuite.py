@@ -14,6 +14,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    schema,
     simple_requirement,
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole
@@ -27,7 +28,9 @@ from lisa.operating_system import (
     Ubuntu,
     Windows,
 )
+from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.testsuite import node_requirement
 from lisa.tools import Lspci, Mkdir, Modprobe, Reboot, Tar, Wget
 from lisa.tools.gpu_drivers import ComputeSDK, GpuDriver
 from lisa.tools.python import PythonVenv
@@ -123,11 +126,17 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         # min_gpu_count is 8 since it is current
         # max GPU count available in Azure
-        requirement=simple_requirement(min_gpu_count=8),
+        requirement=node_requirement(
+            node=schema.NodeSpace(gpu_count=IntRange(min=2, choose_max_value=True))
+        ),
         priority=3,
     )
     def verify_max_gpu_provision(self, node: Node, log: Logger) -> None:
-        _gpu_provision_check(8, node, log)
+        assert isinstance(node.capability.gpu_count, int), (
+            "GPU count is not an integer, "
+            f"actual type is {type(node.capability.gpu_count)}"
+        )
+        _gpu_provision_check(node.capability.gpu_count, node, log)
 
     @TestCaseMetadata(
         description="""

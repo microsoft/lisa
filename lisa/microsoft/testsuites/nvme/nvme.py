@@ -14,6 +14,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Nvme, NvmeSettings, Sriov
+from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Df, Echo, Fdisk, Lscpu, Lspci, Mkfs, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
@@ -82,7 +83,9 @@ class NvmeTestSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[NvmeSettings(disk_count=10)],
+            supported_features=[
+                NvmeSettings(disk_count=IntRange(min=8, choose_max_value=True))
+            ],
         ),
     )
     def verify_nvme_max_disk(self, environment: Environment, node: Node) -> None:
