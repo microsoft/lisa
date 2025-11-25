@@ -142,30 +142,52 @@ def perf_disk(
     # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
     if ioengine == IoEngine.LIBAIO:
         numjob = min(numjob, 256)
-    for mode in FIOMODES:
-        iodepth = start_iodepth
-        numjobindex = 0
-        while iodepth <= max_iodepth:
-            if num_jobs:
-                numjob = num_jobs[numjobindex]
-            fio_result = fio.launch(
-                name=f"iteration{numjobiterator}",
-                filename=filename,
-                mode=mode.name,
-                time=time,
-                size_gb=size_mb,
-                block_size=f"{block_size}K",
-                iodepth=iodepth,
-                overwrite=overwrite,
-                numjob=numjob,
-                cwd=cwd,
-                ioengine=ioengine,
-                verify="crc32",
-            )
-            fio_result_list.append(fio_result)
-            iodepth = iodepth * 2
-            numjobindex += 1
-            numjobiterator += 1
+    # for mode in FIOMODES:
+    iodepth = start_iodepth
+    numjobindex = 0
+    while iodepth <= max_iodepth:
+        if num_jobs:
+            numjob = num_jobs[numjobindex]
+        
+        # Run 1: write with verification enabled
+        fio_result_write = fio.launch(
+            name=f"write_iteration{numjobiterator}",
+            filename=filename,
+            mode="write",  # mode.name
+            time=time,
+            size_gb=size_mb,
+            block_size=f"{block_size}K",
+            iodepth=iodepth,
+            overwrite=overwrite,
+            numjob=numjob,
+            cwd=cwd,
+            ioengine=ioengine,
+            verify="crc32c",
+            do_verify=False,
+        )
+        fio_result_list.append(fio_result_write)
+        
+        # Run 2: verify-only (exact same bs/size/offset/numjobs)
+        fio_result_verify = fio.launch(
+            name=f"verify_iteration{numjobiterator}",
+            filename=filename,
+            mode="read",
+            time=time,
+            size_gb=size_mb,
+            block_size=f"{block_size}K",
+            iodepth=iodepth,
+            overwrite=overwrite,
+            numjob=numjob,
+            cwd=cwd,
+            ioengine=ioengine,
+            verify="crc32c",
+            verify_only=True,
+        )
+        fio_result_list.append(fio_result_verify)
+        
+        iodepth = iodepth * 2
+        numjobindex += 1
+        numjobiterator += 1
 
     other_fields: Dict[str, Any] = {}
     other_fields["core_count"] = core_count
