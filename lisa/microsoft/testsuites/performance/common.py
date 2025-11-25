@@ -150,10 +150,11 @@ def perf_disk(
             numjob = num_jobs[numjobindex]
         
         # Run 1: write with verification checksums
+        # [write] rw=write, verify=crc32c, verify_fatal=1, refill_buffers=1
         fio_result_write = fio.launch(
             name=f"write_iteration{numjobiterator}",
             filename=filename,
-            mode="write",  # mode.name
+            mode="write",
             time=time,
             size_gb=size_mb,
             block_size=f"{block_size}K",
@@ -163,11 +164,17 @@ def perf_disk(
             cwd=cwd,
             ioengine=ioengine,
             verify="crc32c",
-            do_verify=False,
+            verify_fatal=True,
+            refill_buffers=True,
+            direct=True,
+            fsync_on_close=True,
+            norandommap=True,
+            randseed=12345,  # deterministic seed for consistent offsets
         )
         fio_result_list.append(fio_result_write)
         
-        # Run 2: read with verification enabled (verify written data)
+        # Run 2: verify-only read
+        # [verify] rw=read, verify=crc32c, verify_only=1, verify_fatal=1
         fio_result_verify = fio.launch(
             name=f"verify_iteration{numjobiterator}",
             filename=filename,
@@ -176,13 +183,17 @@ def perf_disk(
             size_gb=size_mb,
             block_size=f"{block_size}K",
             iodepth=iodepth,
-            overwrite=False,  # Don't overwrite, read existing data
+            overwrite=False,
             numjob=numjob,
             cwd=cwd,
             ioengine=ioengine,
             verify="crc32c",
-            do_verify=True,
+            verify_only=True,
             verify_fatal=True,
+            direct=True,
+            fsync_on_close=True,
+            norandommap=True,
+            randseed=12345,  # same seed for deterministic offsets
         )
         fio_result_list.append(fio_result_verify)
         

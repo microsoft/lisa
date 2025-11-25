@@ -109,6 +109,11 @@ class Fio(Tool):
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
+        refill_buffers: bool = False,
+        norandommap: bool = False,
+        randseed: Optional[int] = None,
+        fsync_on_close: bool = False,
+        verify_only: bool = False,
     ) -> FIOResult:
         cmd = self._get_command(
             name,
@@ -130,6 +135,11 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            refill_buffers,
+            norandommap,
+            randseed,
+            fsync_on_close,
+            verify_only,
         )
         result = self.run(
             cmd,
@@ -167,6 +177,11 @@ class Fio(Tool):
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
+        refill_buffers: bool = False,
+        norandommap: bool = False,
+        randseed: Optional[int] = None,
+        fsync_on_close: bool = False,
+        verify_only: bool = False,
     ) -> Process:
         cmd = self._get_command(
             name,
@@ -188,6 +203,11 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            refill_buffers,
+            norandommap,
+            randseed,
+            fsync_on_close,
+            verify_only,
         )
         process = self.run_async(
             cmd,
@@ -338,6 +358,11 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
+        refill_buffers: bool = False,
+        norandommap: bool = False,
+        randseed: Optional[int] = None,
+        fsync_on_close: bool = False,
+        verify_only: bool = False,
     ) -> str:
         if isinstance(self.node.os, BSD):
             ioengine = IoEngine.POSIXAIO
@@ -376,6 +401,16 @@ class Fio(Tool):
             cmd += " --verify_fatal=1"
         if verify:
             cmd += f" --verify={verify}"
+        if refill_buffers:
+            cmd += " --refill_buffers=1"
+        if norandommap:
+            cmd += " --norandommap=1"
+        if randseed is not None:
+            cmd += f" --randseed={randseed}"
+        if fsync_on_close:
+            cmd += " --fsync_on_close=1"
+        if verify_only:
+            cmd += " --verify_only=1"
 
         return cmd
 
