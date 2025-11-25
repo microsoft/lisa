@@ -160,6 +160,7 @@ def perf_disk(
                 numjob=numjob,
                 cwd=cwd,
                 ioengine=ioengine,
+                verify="crc32",
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
