@@ -81,6 +81,7 @@ class Power(TestSuite):
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
+        timeout=7200,
     )
     def verify_hibernation_sriov_network(self, node: Node, log: Logger) -> None:
         is_distro_supported(node)
