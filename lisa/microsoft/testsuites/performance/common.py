@@ -149,7 +149,7 @@ def perf_disk(
         if num_jobs:
             numjob = num_jobs[numjobindex]
         
-        # Run 1: write with verification enabled
+        # Run 1: write with verification checksums
         fio_result_write = fio.launch(
             name=f"write_iteration{numjobiterator}",
             filename=filename,
@@ -167,7 +167,7 @@ def perf_disk(
         )
         fio_result_list.append(fio_result_write)
         
-        # Run 2: verify-only (exact same bs/size/offset/numjobs)
+        # Run 2: read with verification enabled (verify written data)
         fio_result_verify = fio.launch(
             name=f"verify_iteration{numjobiterator}",
             filename=filename,
@@ -176,12 +176,13 @@ def perf_disk(
             size_gb=size_mb,
             block_size=f"{block_size}K",
             iodepth=iodepth,
-            overwrite=overwrite,
+            overwrite=False,  # Don't overwrite, read existing data
             numjob=numjob,
             cwd=cwd,
             ioengine=ioengine,
             verify="crc32c",
-            verify_only=True,
+            do_verify=True,
+            verify_fatal=True,
         )
         fio_result_list.append(fio_result_verify)
         
