@@ -213,6 +213,7 @@ class Power(TestSuite):
             network_interface=Synthetic(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
+        timeout=7200,
     )
     def verify_hibernation_synthetic_network_max_nics(
         self, node: Node, log: Logger
@@ -231,6 +232,7 @@ class Power(TestSuite):
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
+        timeout=7200,
     )
     def verify_hibernation_sriov_network_max_nics(
         self, node: Node, log: Logger
