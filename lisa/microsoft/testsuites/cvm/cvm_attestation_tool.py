@@ -89,7 +89,7 @@ class AzureCVMAttestationTests(Tool):
 
         git.clone(self.repo, root_path)
 
-        posix_os._install_package_from_url(
+        posix_os.install_package_from_url(
             self.deb_file, package_name="azguestattestation1.deb"
         )
         self.node.execute(

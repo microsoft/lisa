@@ -687,7 +687,7 @@ class Posix(OperatingSystem, BaseClassMixin):
             self._initialize_package_installation()
         return package_names
 
-    def _install_package_from_url(
+    def install_package_from_url(
         self,
         package_url: str,
         package_name: str = "",
