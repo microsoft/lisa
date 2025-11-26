@@ -114,7 +114,7 @@ class Nested(TestSuite):
             supported_features=[NestedVirtualization],
         ),
     )
-    def verify_hv_ballon(
+    def verify_hv_balloon(
         self, node: RemoteNode, variables: Dict[str, Any]
     ) -> None:
         (
