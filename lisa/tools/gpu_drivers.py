@@ -11,6 +11,7 @@ from lisa.executable import Tool
 from lisa.operating_system import (
     CBLMariner,
     CpuArchitecture,
+    Debian,
     Oracle,
     Posix,
     Redhat,
@@ -326,6 +327,10 @@ class NvidiaCudaDriver(GpuDriver):
             return bool(os_info.version >= "7.0.0")
         elif isinstance(self.node.os, Ubuntu):
             return bool(os_info.version >= "16.4.0")
+        elif isinstance(self.node.os, Debian):
+            # Only Debian 10, 11, 12 are currently supported by NVIDIA CUDA repos
+            major_version = os_info.version.major
+            return bool(os_info.version >= "10.0.0" and major_version <= 12)
         elif isinstance(self.node.os, CBLMariner):
             return bool(os_info.version >= "2.0.0")
 
@@ -369,6 +374,12 @@ class NvidiaCudaDriver(GpuDriver):
                 "linux-tools-$(uname -r)",
                 "linux-cloud-tools-$(uname -r)",
             ]
+        elif isinstance(self.node.os, Debian):
+            dependencies = [
+                "build-essential",
+                "libelf-dev",
+                "linux-headers-$(uname -r)",
+            ]
         # CBL-Mariner dependencies
         elif isinstance(self.node.os, CBLMariner):
             dependencies = ["build-essential", "binutils", "kernel-devel"]
@@ -406,6 +417,8 @@ class NvidiaCudaDriver(GpuDriver):
             self._install_cuda_redhat()
         elif isinstance(self.node.os, Ubuntu):
             self._install_cuda_ubuntu()
+        elif isinstance(self.node.os, Debian):
+            self._install_cuda_debian()
         elif isinstance(self.node.os, CBLMariner):
             self._install_cuda_mariner()
         else:
@@ -516,6 +529,71 @@ class NvidiaCudaDriver(GpuDriver):
             self.node.os.install_packages(package_name)
 
         self._log.info("Successfully installed CUDA driver for Ubuntu")
+
+    def _install_cuda_debian(self) -> None:
+        """Install CUDA driver on Debian"""
+        self._log.debug("Installing CUDA driver for Debian")
+
+        assert isinstance(self.node.os, Posix), "CUDA installation requires Posix OS"
+
+        cuda_package_name = "cuda-drivers"
+        cuda_drivers_package_pattern = re.compile(
+            r"^cuda-drivers-(\d+)\s", re.MULTILINE
+        )
+
+        os_info = self.node.os.information
+        major_version = str(os_info.version.major)
+
+        # Debian CUDA repos follow pattern: debian{major_version}
+        release = f"debian{major_version}"
+
+        # Install CUDA public GPG key
+        cuda_keyring = "cuda-keyring_1.1-1_all.deb"
+        self.node.tools[Wget].get(
+            f"https://developer.download.nvidia.com/compute/cuda/repos/"
+            f"{release}/x86_64/{cuda_keyring}"
+        )
+        self.node.execute(
+            f"dpkg -i {cuda_keyring}",
+            sudo=True,
+            cwd=self.node.get_working_path(),
+        )
+
+        # Add CUDA repository
+        repo_entry = (
+            f"deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] "
+            f"https://developer.download.nvidia.com/compute/cuda/repos/"
+            f"{release}/x86_64/ /"
+        )
+
+        # Add repository to sources.list.d
+        echo = self.node.tools[Echo]
+        echo.write_to_file(
+            repo_entry,
+            PurePosixPath(f"/etc/apt/sources.list.d/cuda-{release}.list"),
+            sudo=True,
+            ignore_error=False,
+        )
+
+        # Update apt cache to fetch packages from the new repository
+        self.node.execute("apt-get update", sudo=True)
+
+        # Find available CUDA driver versions using package manager
+        result = self.node.execute(
+            f"apt-cache search --names-only ^{cuda_package_name}", sudo=True
+        )
+        available_versions = cuda_drivers_package_pattern.findall(result.stdout)
+
+        if available_versions:
+            # Sort versions and select the highest one
+            highest_version = max(available_versions, key=int)
+            package_name = f"{cuda_package_name}-{highest_version}"
+        else:
+            raise MissingPackagesException([cuda_package_name])
+
+        self.node.os.install_packages(package_name)
+
+        self._log.info("Successfully installed CUDA driver for Debian")
 
     def _install_cuda_mariner(self) -> None:
         """Install CUDA driver on CBL-Mariner"""
