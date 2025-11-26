@@ -191,6 +191,7 @@ class Modprobe(Tool):
             f"{mod_name} {times} {verbose_flag} {dhclient_command} {interface}"
         )
         self._log.debug(f"running with parameters: {parameters}")
+        self._log.info(f"nohup_output_log_file_name: {nohup_output_log_file_name}")
         modprobe_reloader_script: CustomScript = self.node.tools[modprobe_reloader_tool]
         modprobe_reloader_script.run(parameters, sudo=True, shell=True, nohup=True)
 
@@ -231,6 +232,27 @@ class Modprobe(Tool):
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"
         )
+
+        # Print the complete nohup log file content for debugging
+        try:
+            nohup_log_content = self.node.execute(
+                f"cat {nohup_output_log_file_name}",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
+            if nohup_log_content.stdout.strip():
+                self._log.info(
+                    f"Complete nohup log content for {mod_name}:\n"
+                    f"{'='*50}\n"
+                    f"{nohup_log_content.stdout}\n"
+                    f"{'='*50}"
+                )
+            else:
+                self._log.info(f"Nohup log file {nohup_output_log_file_name} is empty")
+        except Exception as e:
+            self._log.debug(f"Failed to read nohup log file: {e}")
 
         # in few OSes escape sequence is needed to be added. For example, this:
         # grep -E 'insmod /lib/modules/6.12.41+deb13-cloud-arm64/kernel/drivers/net
