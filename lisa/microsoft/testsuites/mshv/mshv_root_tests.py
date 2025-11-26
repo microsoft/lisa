@@ -308,9 +308,9 @@ class MshvHostTestSuite(TestSuite):
             create_result = node.execute(f"{mshvtrace_path} create", sudo=True)
             assert_that(create_result.exit_code).is_equal_to(0)
 
-            # 3. Collect trace for 5 seconds using timeout tool
+            # 3. Collect trace for 15 seconds using timeout tool
             collect_result = node.tools[Timeout].run_with_timeout(
-                command=f"{mshvtrace_path} collect -o {trace_output}", timeout=5
+                command=f"{mshvtrace_path} collect -o {trace_output}", timeout=15
             )
             assert_that(collect_result.exit_code).is_equal_to(0)
 
