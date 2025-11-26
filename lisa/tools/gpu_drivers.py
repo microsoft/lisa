@@ -27,12 +27,7 @@ from lisa.tools.gpu_smi import GpuSmi
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.usermod import Usermod
 from lisa.tools.whoami import Whoami
-from lisa.util import (
-    BaseClassMixin,
-    LisaException,
-    MissingPackagesException,
-    SkippedException,
-)
+from lisa.util import BaseClassMixin, LisaException, SkippedException
 from lisa.util.subclasses import Factory
 
 
@@ -566,7 +561,7 @@ class NvidiaCudaDriver(GpuDriver):
         # Update apt cache to fetch packages from the new repository
         self.node.execute("apt-get update", sudo=True)
 
-        # Find available CUDA driver versions using package manager
+        # Search for versioned CUDA driver packages
         result = self.node.execute(
             f"apt-cache search --names-only ^{cuda_package_name}", sudo=True
         )
@@ -576,8 +571,17 @@ class NvidiaCudaDriver(GpuDriver):
             # Sort versions and select the highest one
             highest_version = max(available_versions, key=int)
             package_name = f"{cuda_package_name}-{highest_version}"
+            self._log.debug(
+                f"Found versioned packages, installing {package_name} "
+                f"(version {highest_version})"
+            )
         else:
-            raise MissingPackagesException([cuda_package_name])
+            # No versioned packages found, use base package (meta-package)
+            package_name = cuda_package_name
+            self._log.debug(
+                f"No versioned packages found, installing base package "
+                f"{package_name}"
+            )
 
         self.node.os.install_packages(package_name)
 
