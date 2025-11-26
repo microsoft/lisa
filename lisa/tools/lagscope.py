@@ -266,53 +266,51 @@ class Lagscope(Tool, KillableMixin):
 
         metrics = [
             {
-                "name": "min_latency",
+                "name": (
+                    f"min_latency_interval_{int(interval_us)}_freq_{int(frequency)}"
+                ),
                 "value": float(min_latency_us),
                 "unit": "microseconds",
                 "description": "Minimum latency",
                 "relativity": MetricRelativity.LowerIsBetter,
             },
             {
-                "name": "max_latency",
+                "name": (
+                    f"max_latency_interval_{int(interval_us)}_freq_{int(frequency)}"
+                ),
                 "value": float(max_latency_us),
                 "unit": "microseconds",
                 "description": "Maximum latency",
                 "relativity": MetricRelativity.LowerIsBetter,
             },
             {
-                "name": "average_latency",
+                "name": (
+                    f"average_latency_interval_{int(interval_us)}_freq_{int(frequency)}"
+                ),
                 "value": float(average_latency_us),
                 "unit": "microseconds",
                 "description": "Average latency",
                 "relativity": MetricRelativity.LowerIsBetter,
             },
             {
-                "name": "latency_95th_percentile",
+                "name": (
+                    "latency_95th_percentile_interval_"
+                    f"{int(interval_us)}_freq_{int(frequency)}"
+                ),
                 "value": float(latency95_percentile_us),
                 "unit": "microseconds",
                 "description": "95th percentile latency",
                 "relativity": MetricRelativity.LowerIsBetter,
             },
             {
-                "name": "latency_99th_percentile",
+                "name": (
+                    "latency_99th_percentile_interval_"
+                    f"{int(interval_us)}_freq_{int(frequency)}"
+                ),
                 "value": float(latency99_percentile_us),
                 "unit": "microseconds",
                 "description": "99th percentile latency",
                 "relativity": MetricRelativity.LowerIsBetter,
-            },
-            {
-                "name": "interval_us",
-                "value": float(interval_us),
-                "unit": "microseconds",
-                "description": "Test interval",
-                "relativity": MetricRelativity.Parameter,
-            },
-            {
-                "name": "frequency",
-                "value": float(frequency),
-                "unit": "Hz",
-                "description": "Test frequency",
-                "relativity": MetricRelativity.Parameter,
             },
         ]
 
@@ -322,6 +320,7 @@ class Lagscope(Tool, KillableMixin):
             metric_unit: str = metric["unit"]  # type: ignore
             metric_description: str = metric["description"]  # type: ignore
             metric_relativity: MetricRelativity = metric["relativity"]  # type: ignore
+
             send_unified_perf_message(
                 node=self.node,
                 test_result=test_result,

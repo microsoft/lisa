@@ -101,6 +101,14 @@ class XdpDump(Tool):
             sudo=True,
         )
 
+        # Fix Makefile compilation rule
+        sed.substitute(
+            "-O2 -emit-llvm -c -g \\$<",
+            "-O2 -emit-llvm -g $< -o ${<:.c=.ll}",
+            f"{self._code_path}/Makefile",
+            sudo=True,
+        )
+
         # create a default version for exists checking.
         make = self.node.tools[Make]
         make.make(
