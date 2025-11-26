@@ -77,7 +77,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=1,
     )
@@ -143,7 +143,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=2,
     )
@@ -178,7 +178,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=2,
     )
@@ -254,7 +254,7 @@ class GpuTestSuite(TestSuite):
         priority=3,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
     )
     def verify_gpu_cuda_with_pytorch(

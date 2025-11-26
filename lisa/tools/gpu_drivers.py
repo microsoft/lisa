@@ -303,6 +303,10 @@ class NvidiaCudaDriver(GpuDriver):
     """
 
     DEFAULT_CUDA_VERSION = "10.1.243-1"
+    DEFAULT_CUDA_PACKAGE = "cuda-drivers"
+    NVIDIA_CUDA_REPO_BASE_URL = (
+        "https://developer.download.nvidia.com/compute/cuda/repos"
+    )
 
     @classmethod
     def type_name(cls) -> str:
@@ -328,9 +332,7 @@ class NvidiaCudaDriver(GpuDriver):
         elif isinstance(self.node.os, Ubuntu):
             return bool(os_info.version >= "16.4.0")
         elif isinstance(self.node.os, Debian):
-            # Only Debian 10, 11, 12 are currently supported by NVIDIA CUDA repos
-            major_version = os_info.version.major
-            return bool(os_info.version >= "10.0.0" and major_version <= 12)
+            return bool(os_info.version >= "10.0.0")
         elif isinstance(self.node.os, CBLMariner):
             return bool(os_info.version >= "2.0.0")
 
@@ -406,10 +408,11 @@ class NvidiaCudaDriver(GpuDriver):
             if release == "7":
                 assert isinstance(self.node.os, Posix)
                 self._log.debug("Installing vulkan-filesystem for CentOS 7")
-                self.node.os._install_package_from_url(
+                package_url = (
                     "https://vault.centos.org/centos/7/os/x86_64/Packages/"
                     "vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm"
                 )
+                self.node.os.install_package_from_url(package_url, signed=False)
 
     def _install_driver(self) -> None:
         """Install CUDA driver based on OS"""
@@ -436,8 +439,8 @@ class NvidiaCudaDriver(GpuDriver):
 
         # Add CUDA repository
         self.node.os.add_repository(
-            f"http://developer.download.nvidia.com/compute/cuda/"
-            f"repos/rhel{release}/x86_64/cuda-rhel{release}.repo"
+            f"{self.NVIDIA_CUDA_REPO_BASE_URL}/"
+            f"rhel{release}/x86_64/cuda-rhel{release}.repo"
         )
 
         # Install CUDA packages
@@ -450,108 +453,93 @@ class NvidiaCudaDriver(GpuDriver):
 
     def _install_cuda_ubuntu(self) -> None:
         """Install CUDA driver on Ubuntu"""
-        self._log.debug("Installing CUDA driver for Ubuntu")
-
-        assert isinstance(self.node.os, Posix), "CUDA installation requires Posix OS"
-
-        cuda_package_name = "cuda-drivers"
-        cuda_drivers_package_pattern = re.compile(
-            r"^cuda-drivers-(\d+)/.*$", re.MULTILINE
-        )
-
         os_info = self.node.os.information
-        release = re.sub("[^0-9]+", "", os_info.release)
 
-        # Handle unsupported releases by using closest supported version
-        if release in ["2110", "2104"]:
-            release = "2004"
-        if release in ["2210", "2304", "2310"]:
-            release = "2204"
+        # NVIDIA only provides CUDA repos for LTS releases (even major version, XX.04)
+        # For non-LTS releases or odd major versions, use the previous LTS release
+        # e.g., 21.10 -> 20.04, 22.10 -> 22.04, 23.04 -> 22.04, 23.10 -> 22.04
+        major_version = os_info.version.major
+        minor_version = os_info.version.minor
 
-        # Install CUDA public GPG key
-        cuda_keyring = "cuda-keyring_1.1-1_all.deb"
-        self.node.tools[Wget].get(
-            f"https://developer.download.nvidia.com/compute/cuda/repos/"
-            f"ubuntu{release}/x86_64/{cuda_keyring}"
-        )
-        self.node.execute(
-            f"dpkg -i {cuda_keyring}",
-            sudo=True,
-            cwd=self.node.get_working_path(),
-        )
+        # If odd major version (e.g., 21, 23), use previous even major version
+        if major_version % 2 == 1:
+            major_version = major_version - 1
+            release = f"{major_version}04"
+            self._log.debug(
+                f"Using previous LTS release {release} for CUDA repository "
+                f"(original: {os_info.release}, odd major version)"
+            )
+        elif minor_version != 4:
+            # Even major but non-LTS release (not XX.04), use corresponding LTS
+            release = f"{major_version}04"
+            self._log.debug(
+                f"Using LTS release {release} for CUDA repository "
+                f"(original: {os_info.release})"
+            )
+        else:
+            # LTS release (even major, XX.04)
+            release = f"{major_version}{minor_version:0>2}"
 
         # For Ubuntu 16.04, use legacy installation method
         if release == "1604":
-            cuda_repo_pkg = (
-                f"cuda-repo-ubuntu{release}_" f"{self.DEFAULT_CUDA_VERSION}_amd64.deb"
+            self._log.debug("Installing CUDA driver for Ubuntu 16.04 (legacy method)")
+
+            assert isinstance(self.node.os, Ubuntu), "Ubuntu installation expected"
+
+            # Install CUDA keyring
+            cuda_keyring_url = (
+                f"{self.NVIDIA_CUDA_REPO_BASE_URL}/"
+                f"ubuntu{release}/x86_64/cuda-keyring_1.1-1_all.deb"
             )
-            cuda_repo = (
-                f"http://developer.download.nvidia.com/compute/cuda/repos/"
-                f"ubuntu{release}/x86_64/{cuda_repo_pkg}"
+            self.node.os.install_package_from_url(
+                cuda_keyring_url,
+                package_name="cuda-keyring.deb",
+                signed=False,
             )
-            self.node.os._install_package_from_url(
-                cuda_repo, package_name="cuda-drivers.deb", signed=False
+
+            # Install CUDA repository package
+            cuda_repo_url = (
+                f"{self.NVIDIA_CUDA_REPO_BASE_URL}/"
+                f"ubuntu{release}/x86_64/cuda-repo-ubuntu{release}_"
+                f"{self.DEFAULT_CUDA_VERSION}_amd64.deb"
+            )
+            self.node.os.install_package_from_url(
+                cuda_repo_url,
+                package_name="cuda-drivers.deb",
+                signed=False,
             )
         else:
-            # Modern Ubuntu versions
-            self.node.tools[Wget].get(
-                f"https://developer.download.nvidia.com/compute/cuda/repos/"
-                f"ubuntu{release}/x86_64/cuda-ubuntu{release}.pin",
-                "/etc/apt/preferences.d",
-                "cuda-repository-pin-600",
-                sudo=True,
-                overwrite=False,
-            )
-
-            # Add CUDA repository
-            repo_entry = (
-                f"deb http://developer.download.nvidia.com/compute/cuda/repos/"
-                f"ubuntu{release}/x86_64/ /"
-            )
-            self.node.execute(
-                f'add-apt-repository -y "{repo_entry}"',
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=f"failed to add repo {repo_entry}",
-            )
-
-            # Find available CUDA driver versions
-            result = self.node.execute(f"apt search {cuda_package_name}", sudo=True)
-            available_versions = cuda_drivers_package_pattern.findall(result.stdout)
-
-            if available_versions:
-                # Sort versions and select the highest one
-                highest_version = max(available_versions, key=int)
-                package_name = f"{cuda_package_name}-{highest_version}"
-            else:
-                raise MissingPackagesException([cuda_package_name])
-
-            self.node.os.install_packages(package_name)
+            # Modern Ubuntu versions use the same method as Debian
+            self._install_cuda_debian_based(f"ubuntu{release}")
 
         self._log.info("Successfully installed CUDA driver for Ubuntu")
 
     def _install_cuda_debian(self) -> None:
         """Install CUDA driver on Debian"""
-        self._log.debug("Installing CUDA driver for Debian")
+        os_info = self.node.os.information
+        major_version = str(os_info.version.major)
+        release = f"debian{major_version}"
+        self._install_cuda_debian_based(release)
+        self._log.info("Successfully installed CUDA driver for Debian")
+
+    def _install_cuda_debian_based(self, release: str) -> None:
+        """
+        Shared installation method for Debian-based distributions.
+        Supports both Debian and Ubuntu.
+        """
+        self._log.debug(f"Installing CUDA driver for {release}")
 
         assert isinstance(self.node.os, Posix), "CUDA installation requires Posix OS"
 
-        cuda_package_name = "cuda-drivers"
+        cuda_package_name = self.DEFAULT_CUDA_PACKAGE
         cuda_drivers_package_pattern = re.compile(
-            r"^cuda-drivers-(\d+)\s", re.MULTILINE
+            rf"^{cuda_package_name}-(\d+)\s", re.MULTILINE
         )
-
-        os_info = self.node.os.information
-        major_version = str(os_info.version.major)
-
-        # Debian CUDA repos follow pattern: debian{major_version}
-        release = f"debian{major_version}"
 
         # Install CUDA public GPG key
         cuda_keyring = "cuda-keyring_1.1-1_all.deb"
         self.node.tools[Wget].get(
-            f"https://developer.download.nvidia.com/compute/cuda/repos/"
-            f"{release}/x86_64/{cuda_keyring}"
+            f"{self.NVIDIA_CUDA_REPO_BASE_URL}/{release}/x86_64/{cuda_keyring}"
         )
         self.node.execute(
             f"dpkg -i {cuda_keyring}",
@@ -562,7 +550,7 @@ class NvidiaCudaDriver(GpuDriver):
         # Add CUDA repository
         repo_entry = (
             f"deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] "
-            f"https://developer.download.nvidia.com/compute/cuda/repos/"
+            f"{self.NVIDIA_CUDA_REPO_BASE_URL}/"
             f"{release}/x86_64/ /"
         )
 
@@ -592,8 +580,6 @@ class NvidiaCudaDriver(GpuDriver):
             raise MissingPackagesException([cuda_package_name])
 
         self.node.os.install_packages(package_name)
-
-        self._log.info("Successfully installed CUDA driver for Debian")
 
     def _install_cuda_mariner(self) -> None:
         """Install CUDA driver on CBL-Mariner"""
