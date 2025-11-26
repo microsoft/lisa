@@ -95,6 +95,67 @@ class Nested(TestSuite):
         # verify that files could be downloaded from internet on L2 VM
         l2_vm.tools[Wget].get(NESTED_VM_TEST_PUBLIC_FILE_URL)
 
+    @TestCaseMetadata(
+        description="""
+        This test case will validate dynamic memory (hv_ballooning) on Hyper-V guests.
+        Steps:
+        1. Create L2 VM with Hyper-V.
+        2. Capture the Memory usage on L2 VM.
+        3. Bloat Memory usage with stress-ng.
+        3. Free-up the L2 VM Memory from Hyper-V host.
+        4. Check if the L2 Memory is freed.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
+            ),
+            supported_features=[NestedVirtualization],
+        ),
+    )
+    def verify_hv_ballon(
+        self, node: RemoteNode, variables: Dict[str, Any]
+    ) -> None:
+        (
+            nested_image_username,
+            nested_image_password,
+            nested_image_port,
+            nested_image_url,
+        ) = parse_nested_image_variables(variables)
+
+        # get l2 vm
+        l2_vm = qemu_connect_nested_vm(
+            node,
+            nested_image_username,
+            nested_image_password,
+            nested_image_port,
+            nested_image_url,
+        )
+
+        # verify file is correctly copied from L1 VM to L2 VM
+        node.tools[Echo].write_to_file(
+            NESTED_VM_TEST_FILE_CONTENT,
+            node.get_pure_path(NESTED_VM_TEST_FILE_NAME),
+        )
+        node.tools[Sshpass].copy(
+            NESTED_VM_TEST_FILE_NAME,
+            NESTED_VM_TEST_FILE_NAME,
+            "localhost",
+            nested_image_username,
+            nested_image_password,
+            nested_image_port,
+        )
+
+        uploaded_message = l2_vm.tools[Cat].read(NESTED_VM_TEST_FILE_NAME)
+        assert_that(
+            uploaded_message,
+            "Content of the file uploaded to L2 vm from L1 should match",
+        ).is_equal_to(NESTED_VM_TEST_FILE_CONTENT)
+
+        # verify that files could be downloaded from internet on L2 VM
+        l2_vm.tools[Wget].get(NESTED_VM_TEST_PUBLIC_FILE_URL)
+
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         # cleanup any nested VM's added as part of the test
         # If the cleanup operation fails, mark node to be recycled
