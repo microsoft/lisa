@@ -23,7 +23,6 @@ from lisa.operating_system import (
     Debian,
     Linux,
     Oracle,
-    Suse,
     Ubuntu,
     Windows,
 )
@@ -32,6 +31,7 @@ from lisa.tools import Lspci, Mkdir, Modprobe, Reboot, Tar, Wget
 from lisa.tools.gpu_drivers import ComputeSDK, GpuDriver
 from lisa.tools.python import PythonVenv
 from lisa.util import UnsupportedOperationException, get_matched_str
+
 
 _cudnn_location = (
     "https://developer.download.nvidia.com/compute/redist/cudnn/"
@@ -77,7 +77,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle],
         ),
         priority=1,
     )
@@ -143,7 +143,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle],
         ),
         priority=2,
     )
@@ -178,7 +178,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle],
         ),
         priority=2,
     )
@@ -254,7 +254,7 @@ class GpuTestSuite(TestSuite):
         priority=3,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
-            unsupported_os=[Suse, AlmaLinux, Oracle],
+            unsupported_os=[AlmaLinux, Oracle],
         ),
     )
     def verify_gpu_cuda_with_pytorch(
