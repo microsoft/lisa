@@ -577,7 +577,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     )
 
     def is_supported(self) -> bool:
-        # TODO: more supportability can be defined here
+        # TODO: The GPU Feature is supposed to handle cloud related
+        # requirements. The OS related dependendencies should be
+        # moved to gpu_drivers and smi tools.
         node = self._node
         supported = False
         if isinstance(node.os, Redhat):
