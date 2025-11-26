@@ -323,10 +323,6 @@ class GpuTestSuite(TestSuite):
 
 def _check_driver_installed(node: Node, log: Logger) -> None:
     gpu = node.features[Gpu]
-
-    if not gpu.is_supported():
-        raise SkippedException(f"GPU is not supported with distro {node.os.name}")
-
     lspci_gpucount = gpu.get_gpu_count_with_lspci()
 
     compute_sdk = _get_supported_driver(node)
