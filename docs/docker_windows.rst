@@ -27,3 +27,9 @@ Use below command to launch the LISA container.
 .. code:: powershell
 
    docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r ./examples/runbook/hello_world.yml
+
+Develop with Dev Containers
+----------------------------
+
+For developers who want to contribute to LISA or develop test cases, see :doc:`dev_containers` for instructions 
+on using VS Code Dev Containers with all dependencies pre-configured.
