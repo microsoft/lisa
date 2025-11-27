@@ -959,6 +959,229 @@ Example of log_agent notifier:
 The AI analysis results are stored in the test result message's ``analysis["AI"]``
 field and can be consumed by other notifiers like HTML or custom reporting systems.
 
+perfevaluation
+^^^^^^^^^^^^^^
+
+Performance evaluation notifier automatically evaluates test results against 
+predefined performance criteria and generates detailed evaluation reports. It 
+supports flexible configuration through YAML files (including 
+hierarchical format) and direct dict definitions in runbooks.
+
+**Key Features:**
+
+- Automatic evaluation of ``UnifiedPerfMessage`` against performance criteria
+- Support for YAML configuration files
+- **NEW**: Hierarchical YAML format with groups, conditions, and metrics
+- VM size pattern matching with wildcard support using ``fnmatch``
+- Unit conversion between compatible units (time, data rate, data size, frequency)
+- Smart evaluation using ``MetricRelativity`` when explicit criteria aren't defined
+- **NEW**: Test failure control with ``fail_test_on_performance_failure`` option
+- Comprehensive JSON evaluation reports with detailed pass/fail analysis
+
+**Configuration Methods:**
+
+1. **YAML File Method** (Recommended - supports hierarchical format):
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria_file: "*_criteria.yml"  # Supports glob patterns
+       output_file: "performance_results.json"
+       fail_test_on_performance_failure: true
+
+2. **Hierarchical YAML Format** (New structured approach):
+
+.. code:: yaml
+
+   # perf_nvme_criteria.yml
+   statistics_times: 3
+   error_threshold: 0.1
+
+   groups:
+     - name: "NVMe Performance - L64s_v2"
+       description: "Criteria for Standard_L64s_v2 VMs"
+       error_threshold: 0.20
+       statistics_type: average
+       statistics_times: 1
+       
+       conditions:
+         - name: "test_case"
+           type: "metadata"
+           value: "perf_nvme"
+         - name: "vm_size" 
+           type: "information"
+           value: "Standard_L64s_v2"
+       
+       metrics:
+         - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+           min_value: 300000.0
+           target_value: 400000.0
+           error_threshold: 0.25
+         - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_latency"
+           max_value: 100.0
+           target_value: 79.66
+           error_threshold: 0.20
+
+3. **Direct Dict Method** (Dynamic configuration in runbook):
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria:
+         perf_nvme:
+           size_patterns:
+             "Standard_L*s_v2":
+               qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops:
+                 min_value: 300000.0
+                 target_value: 400000.0
+                 tolerance_percent: 25.0
+
+**Configuration Parameters:**
+
+criteria_file
+'''''''''''''
+
+type: str, optional, default: "*_criteria.yml"
+
+Path or glob pattern to YAML files containing performance criteria. 
+Supports:
+
+- ``*.yml`` or ``*.yaml``: YAML format (supports hierarchical structure)
+- Glob patterns like ``*_criteria.yml`` load multiple matching files
+
+criteria
+''''''''
+
+type: dict, optional, default: None
+
+Direct dictionary definition of performance criteria in the runbook. Takes 
+priority over criteria_file when both are specified. Supports both legacy 
+and hierarchical formats.
+
+output_file
+'''''''''''
+
+type: str, optional, default: None
+
+Output file path for detailed evaluation results in JSON format. Contains
+comprehensive pass/fail analysis, metric values, and evaluation details.
+
+fail_test_on_performance_failure
+''''''''''''''''''''''''''''''''
+
+type: bool, optional, default: False
+
+**NEW**: When set to True, test cases will be marked as failed if performance 
+criteria are not met. When False, performance failures only generate warnings 
+but don't affect test pass/fail status.
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria_file: "perf_criteria.yml"
+       fail_test_on_performance_failure: true
+
+statistics_times
+''''''''''''''''
+
+type: int, optional, default: None
+
+Override global statistics_times setting from criteria files. Determines how
+many measurement samples to use for statistical evaluation.
+
+**Hierarchical YAML Structure:**
+
+The new hierarchical format provides better organization and flexibility:
+
+.. code:: yaml
+
+   # Global settings
+   statistics_times: 3
+   error_threshold: 0.1
+   statistics_type: average
+
+   groups:
+     - name: "Group Name"
+       description: "Group description" 
+       error_threshold: 0.15  # Group-specific override
+       statistics_type: average
+       statistics_times: 1
+       
+       # Conditions determine when this group applies
+       conditions:
+         - name: "test_case"      # or "test_suite"
+           type: "metadata"       # or "information"  
+           value: "perf_nvme"     # Supports fnmatch patterns
+         - name: "vm_size"
+           type: "information" 
+           value: "Standard_L*s_v2"  # Wildcard matching
+       
+       # Metrics define performance criteria
+       metrics:
+         - name: "metric_name_pattern"  # Supports fnmatch patterns
+           min_value: 100.0             # Minimum acceptable
+           max_value: 1000.0            # Maximum acceptable
+           target_value: 500.0          # Expected target
+           error_threshold: 0.20        # Metric-specific tolerance
+
+**Condition Matching:**
+
+- **test_case/test_suite**: Match against test case or suite names
+- **vm_size**: Match against VM size from environment information
+- **fnmatch patterns**: Support wildcards (``*``, ``?``, ``[seq]``)
+- **All conditions**: Must match for group to apply (AND logic)
+
+**VM Size Pattern Matching:**
+
+- **Wildcards**: Use ``*`` for any characters, ``?`` for single character
+- **Priority**: More specific patterns override general ones
+- **Examples**:
+  - ``Standard_D*_v5``: Matches Standard_D2s_v5, Standard_D4s_v5, etc.
+  - ``Standard_L64s_v2``: Exact match for Standard_L64s_v2
+  - ``Standard_L*s_v2``: Matches Standard_L8s_v2, Standard_L64s_v2, etc.
+  - ``*``: Matches any VM size (lowest priority)
+
+**Metric Evaluation:**
+
+- **min_value**: Metric must be >= this value
+- **max_value**: Metric must be <= this value  
+- **target_value + error_threshold**: Metric must be within tolerance of target
+- **Smart evaluation**: Uses ``MetricRelativity`` when no explicit criteria defined
+
+**Unit Conversion:**
+
+Automatic conversion between compatible units:
+
+- **Time**: seconds, milliseconds, microseconds, ms, us
+- **Data Rate**: bps, Kbps, Mbps, Gbps
+- **Data Size**: bytes, KB, MB, GB
+- **Frequency**: Hz, KHz, MHz, GHz
+- **Performance**: IOPS, requests/sec, cycles/byte, %
+
+**Use Cases:**
+
+- **CI/CD Integration**: Automated performance regression detection
+- **A/B Testing**: Compare performance between configurations
+- **Regression Testing**: Validate performance against baselines
+- **Stress Testing**: Monitor performance degradation under load
+- **Multi-VM Testing**: Different criteria per VM size/configuration
+
+**Migration Guide:**
+
+To migrate from legacy format to hierarchical YAML:
+
+1. **Convert structure**: Move from flat dict to groups array
+2. **Add conditions**: Define when each group applies  
+3. **Organize metrics**: Group related metrics together
+4. **Use patterns**: Leverage fnmatch for flexible matching
+5. **Set tolerances**: Define appropriate error thresholds per group
+
+Example evaluation output includes success rates, detailed results, metric-by-metric
+analysis, and comprehensive performance insights.
+
 environment
 ~~~~~~~~~~~
 
