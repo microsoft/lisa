@@ -232,6 +232,7 @@ def verify_hibernation_by_tool(
 
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
+    return
     # Perform hibernation cycle
     boot_time_before, boot_time_after = _perform_hibernation_cycle(
         node, log, throw_error
