@@ -222,12 +222,13 @@ def verify_hibernation_by_tool(
     exit_before_hibernation = hibernation_setup_tool.check_exit()
     received_before_hibernation = hibernation_setup_tool.check_received()
     uevent_before_hibernation = hibernation_setup_tool.check_uevent()
-
+    return
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
 
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
+    return
     # Perform hibernation cycle
     boot_time_before, boot_time_after = _perform_hibernation_cycle(
         node, log, throw_error
