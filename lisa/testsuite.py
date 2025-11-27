@@ -467,7 +467,6 @@ def simple_requirement(
     min_memory_mb: Optional[int] = None,
     min_nic_count: Optional[int] = None,
     min_data_disk_count: Optional[int] = None,
-    min_os_disk_size: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
     network_interface: Optional[schema.NetworkInterfaceOptionSettings] = None,
     supported_platform_type: Optional[List[str]] = None,
@@ -492,13 +491,11 @@ def simple_requirement(
     if min_memory_mb:
         node.memory_mb = search_space.IntRange(min=min_memory_mb)
 
-    if min_data_disk_count or min_os_disk_size or disk:
+    if min_data_disk_count or disk:
         if not disk:
             disk = schema.DiskOptionSettings()
         if min_data_disk_count:
             disk.data_disk_count = search_space.IntRange(min=min_data_disk_count)
-        if min_os_disk_size:
-            disk.os_disk_size = search_space.IntRange(min=min_os_disk_size)
         node.disk = disk
 
     if min_nic_count or network_interface:

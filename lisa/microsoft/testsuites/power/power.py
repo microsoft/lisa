@@ -63,7 +63,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             network_interface=Synthetic(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
@@ -79,7 +78,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
@@ -99,7 +97,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
@@ -142,7 +139,6 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_count=2,
-            min_os_disk_size=128,
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
@@ -166,7 +162,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
@@ -187,7 +182,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
@@ -214,7 +208,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             min_nic_count=8,
             network_interface=Synthetic(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
@@ -233,7 +226,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             min_nic_count=8,
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
@@ -252,7 +244,6 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             min_nic_count=8,
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
             min_data_disk_count=32,
@@ -286,7 +277,6 @@ class Power(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_os_disk_size=128,
             supported_features=[
                 HibernationEnabled(),
                 AvailabilityTypeNoRedundancy(),
