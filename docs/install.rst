@@ -8,6 +8,7 @@ Currently we support installation on Linux & Windows.
 
     Use docker images on Linux <docker_linux>
     Use docker images on Windows <docker_windows>
+    Develop with VS Code Dev Containers <dev_containers>
     Installation on Linux <installation_linux>
     Installation on Windows <installation_windows>
     Updating LISA <update>
