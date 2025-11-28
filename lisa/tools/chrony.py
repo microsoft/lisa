@@ -8,7 +8,16 @@ from retry import retry
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
-from lisa.operating_system import BSD, Cat, CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import (
+    BSD,
+    Cat,
+    CBLMariner,
+    Debian,
+    Fedora,
+    Posix,
+    Redhat,
+    Suse,
+)
 from lisa.tools.ls import Ls
 from lisa.util import LisaException
 
@@ -44,6 +53,7 @@ class Chrony(Tool):
             or isinstance(self.node.os, Suse)
             or isinstance(self.node.os, CBLMariner)
             or isinstance(self.node.os, BSD)
+            or isinstance(self.node.os, Fedora)
         ):
             service_name = "chronyd"
         else:
@@ -55,7 +65,7 @@ class Chrony(Tool):
         service = self.node.tools[Service]
         service.restart_service(service_name)
 
-    @retry(exceptions=LisaException, tries=240, delay=0.5)
+    @retry(exceptions=LisaException, tries=240, delay=0.5)  # type: ignore
     def check_tracking(self) -> None:
         cmd_result = self.run("tracking", force_run=True, sudo=True)
         cmd_result.assert_exit_code()
@@ -74,7 +84,7 @@ class Chrony(Tool):
             echo.run("server 2.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
             echo.run("server 3.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
 
-    @retry(exceptions=LisaException, tries=40, delay=0.5)
+    @retry(exceptions=LisaException, tries=40, delay=0.5)  # type: ignore
     def check_sources_and_stats(self) -> None:
         cmd_result = self.run("sources", force_run=True, sudo=True)
         if self.__service_not_ready in cmd_result.stdout:

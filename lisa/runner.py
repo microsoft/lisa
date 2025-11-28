@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
+import json
 import time
 from logging import FileHandler
 from pathlib import Path
@@ -12,7 +13,7 @@ from lisa.action import Action
 from lisa.combinator import Combinator
 from lisa.environment import Environment
 from lisa.messages import TestResultMessage, TestResultMessageBase, TestStatus
-from lisa.notifier import register_notifier
+from lisa.notifier import flush_notifications, register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
 from lisa.util.logger import create_file_handler, get_logger, remove_handler
@@ -60,6 +61,20 @@ def print_results(
         output_with_ending(
             f"{result_name:>50}: {result_status.name:<8} {test_result.message}"
         )
+
+        analysis: Dict[str, Any] = test_result.analysis  # type: ignore
+        if analysis and "AI" in analysis:
+            try:
+                ai_analysis = json.loads(analysis["AI"])
+            except Exception:
+                ai_analysis = analysis["AI"]
+
+            if isinstance(ai_analysis, dict) and "summary" in ai_analysis:
+                summary = ai_analysis["summary"]
+            else:
+                summary = str(ai_analysis)
+            output_with_ending(f"{'':<61}AI Analysis: {summary}")
+
         result_count = result_count_dict.get(result_status, 0)
         result_count += 1
         result_count_dict[result_status] = result_count
@@ -303,8 +318,7 @@ class RootRunner(Action):
                 )
 
                 runners = self._generate_runners(sub_runbook_builder, variables)
-                for runner in runners:
-                    yield runner
+                yield from runners
 
                 transformer.run(
                     sub_runbook_builder,
@@ -316,10 +330,9 @@ class RootRunner(Action):
                 self._runbook_builder, phase=constants.TRANSFORMER_PHASE_EXPANDED
             )
 
-            for runner in self._generate_runners(
+            yield from self._generate_runners(
                 self._runbook_builder, self._runbook_builder.variables
-            ):
-                yield runner
+            )
 
             transformer.run(
                 self._runbook_builder,
@@ -457,9 +470,12 @@ class RootRunner(Action):
             for runner in self._runners:
                 runner.close()
         except Exception as e:
-            self._log.warn(f"error on close runner: {e}")
+            self._log.warning(f"error on close runner: {e}")
 
+        # wait for all test result messages are processed and notified
+        self._log.debug("waiting for all test result messages to be processed")
+        flush_notifications()
         try:
             transformer.run(self._runbook_builder, constants.TRANSFORMER_PHASE_CLEANUP)
         except Exception as e:
-            self._log.warn(f"error on run cleanup transformers: {e}")
+            self._log.warning(f"error on run cleanup transformers: {e}")

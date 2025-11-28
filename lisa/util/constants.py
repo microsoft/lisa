@@ -43,6 +43,8 @@ DEFAULT_USER_NAME = "lisatest"
 
 # feature names
 FEATURE_DISK = "Disk"
+# Virtualization feature to specify host type (BareMetal, HyperV, etc.)
+FEATURE_VIRTUALIZATION = "Virtualization"
 
 # list types
 LIST = "list"

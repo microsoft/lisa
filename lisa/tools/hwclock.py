@@ -52,7 +52,7 @@ class Hwclock(Tool):
             expected_exit_code_failure_message="fail to set date",
         )
 
-    @retry(exceptions=LisaException, tries=20, delay=1)
+    @retry(exceptions=LisaException, tries=20, delay=1)  # type: ignore
     def get(self, no_error_log: bool = True) -> datetime:
         command_result = self.run(
             no_error_log=no_error_log,
@@ -65,7 +65,7 @@ class Hwclock(Tool):
                 f"fail to run hwclock, output: {command_result.stdout},"
                 f" error: {command_result.stderr}"
             )
-        return parser().parse(command_result.stdout)
+        return parser().parse(command_result.stdout)  # type: ignore
 
 
 class HwclockFreebsd(Hwclock):

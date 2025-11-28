@@ -1,8 +1,9 @@
 import re
 from functools import partial
-from typing import Any, List, Pattern, Tuple
+from typing import Any, Dict, List, Pattern, Tuple
 
 from lisa.environment import Environment
+from lisa.sut_orchestrator.azure.common import AzureCapability
 from lisa.util import (
     ResourceAwaitableException,
     SkippedException,
@@ -31,6 +32,19 @@ class AzureHookSpec:
         Args:
             template: the dict object, which is loaded from the arm_template.json.
             environment: the deploying environment.
+        """
+        ...
+
+    @hookspec
+    def azure_update_vm_capabilities(
+        self, location: str, capabilities: Dict[str, AzureCapability]
+    ) -> None:
+        """
+        Implement it to update the vm capabilities.
+
+        Args:
+            capabilities: the dict object mapping VM SKU name to Azure capability,
+                which is compiled from the output of _resource_sku_to_capability()
         """
         ...
 
@@ -85,6 +99,26 @@ class AzureHookSpecDefaultImpl:
                 " VirtualMachine Hibernation feature"
             ),
             SkippedException,
+        ),
+        (
+            # ResourceCollectionRequestsThrottled - Too many requests to Azure API
+            "Azure API throttling detected. The deployment was throttled "
+            "due to too many requests",
+            re.compile(
+                r"ResourceCollectionRequestsThrottled.*Operation '.*' failed as server "
+                r"encountered too many requests.*Please try after '\d+' seconds"
+            ),
+            ResourceAwaitableException,
+        ),
+        (
+            # ResourceGroupQuotaExceeded - Resource group limit reached
+            "Resource group quota exceeded. Please delete some "
+            "resource groups before retrying",
+            re.compile(
+                r"ResourceGroupQuotaExceeded.*Creating the resource group.*would "
+                r"exceed the quota of '\d+'.*current resource group count is '\d+'"
+            ),
+            ResourceAwaitableException,
         ),
     ]
 

@@ -30,7 +30,7 @@ nox.needs_version = ">=2022.8.7"
 # --- Testing ---
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["test", "all"])
+@nox.session(python=CURRENT_PYTHON, tags=["test", "all"])  # type: ignore
 def test(session: nox.Session) -> None:
     """Run tests"""
     session.install(
@@ -39,14 +39,14 @@ def test(session: nox.Session) -> None:
     session.run("python", "-m", "unittest", "discover")
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["test", "all"])
+@nox.session(python=CURRENT_PYTHON, tags=["test", "all"])  # type: ignore
 def example(session: nox.Session) -> None:
     """Run example"""
     session.install("--editable", ".", "--config-settings", "editable_mode=compat")
     session.run("lisa", "--debug")
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["all"])
+@nox.session(python=CURRENT_PYTHON, tags=["all"])  # type: ignore
 def coverage(session: nox.Session) -> None:
     """Check test coverage"""
     session.install(
@@ -65,14 +65,14 @@ def coverage(session: nox.Session) -> None:
 # --- Formatting ---
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["format", "all"])
+@nox.session(python=CURRENT_PYTHON, tags=["format", "all"])  # type: ignore
 def black(session: nox.Session) -> None:
     """Run black"""
     session.install(*OPTIONAL_DEPENDENCIES["black"])
     session.run("black", ".")
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["format", "all"])
+@nox.session(python=CURRENT_PYTHON, tags=["format", "all"])  # type: ignore
 def isort(session: nox.Session) -> None:
     """Run isort"""
     session.install(*OPTIONAL_DEPENDENCIES["isort"])
@@ -82,7 +82,7 @@ def isort(session: nox.Session) -> None:
 # --- Linting ---
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["lint", "all"])
+@nox.session(python=CURRENT_PYTHON, tags=["lint", "all"])  # type: ignore
 def flake8(session: nox.Session) -> None:
     """Run flake8"""
     session.install(
@@ -93,7 +93,7 @@ def flake8(session: nox.Session) -> None:
     session.run("flake8")
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["lint", "all"])
+@nox.session(python=CURRENT_PYTHON, tags=["lint", "all"])  # type: ignore
 def pylint(session: nox.Session) -> None:
     """Run pylint"""
     session.install(
@@ -103,14 +103,13 @@ def pylint(session: nox.Session) -> None:
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["baremetal"],
         *OPTIONAL_DEPENDENCIES["libvirt"],
+        *OPTIONAL_DEPENDENCIES["ai"],
         *OPTIONAL_DEPENDENCIES["pylint"],
         *OPTIONAL_DEPENDENCIES["typing"],
     )
     session.run(
         "pylint",
         "lisa",
-        "microsoft",
-        "examples",
         "selftests",
         "docs/tools",
         "docs",
@@ -121,26 +120,27 @@ def pylint(session: nox.Session) -> None:
 # --- Typing ---
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["typing", "all"])
+@nox.session(python=CURRENT_PYTHON, tags=["typing", "all"])  # type: ignore
 def mypy(session: nox.Session) -> None:
     """Run mypy"""
     session.install(
         *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["azure"],
+        *OPTIONAL_DEPENDENCIES["ai"],
         *OPTIONAL_DEPENDENCIES["mypy"],
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
     )
 
     session.run("mypy", "-p", "lisa")
-    session.run("mypy", "docs", "microsoft")
+    session.run("mypy", "docs")
     session.run("mypy", "noxfile.py")
 
 
 # --- Utility ---
 
 
-@nox.session(python=CURRENT_PYTHON, tags=["all"])
+@nox.session(python=CURRENT_PYTHON, tags=["all"])  # type: ignore
 def docs(session: nox.Session) -> None:
     """Build docs"""
     session.install(
@@ -153,7 +153,7 @@ def docs(session: nox.Session) -> None:
     session.run("sphinx-build", "-Eab", "html", "docs", "docs/_build/html")
 
 
-@nox.session(python=CURRENT_PYTHON)
+@nox.session(python=CURRENT_PYTHON)  # type: ignore
 def dev(session: nox.Session) -> None:
     """
     Create virtual environment for development

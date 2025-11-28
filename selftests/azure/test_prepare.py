@@ -64,7 +64,9 @@ class AzurePrepareTestCase(TestCase):
                 "restrictions": [],
             }
         )
-        node = self._platform._resource_sku_to_capability("eastus", resource_sku)
+        node = self._platform._resource_sku_to_capability(
+            "eastus", resource_sku, self._platform._log
+        )
         self.assertEqual(48, node.core_count)
         self.assertEqual(458752, node.memory_mb)
         assert node.network_interface
@@ -332,6 +334,63 @@ class AzurePrepareTestCase(TestCase):
             expected_cost=8,
             environment=env,
         )
+
+    def test_vm_size_fallback_patterns(self) -> None:
+        # Test VM_SIZE_FALLBACK_PATTERNS prioritization
+        from lisa.sut_orchestrator.azure.platform_ import VM_SIZE_FALLBACK_PATTERNS
+
+        # Test data: (vm_size, expected_pattern_index, description)
+        test_cases = [
+            # First priority: Standard_D series with single digit (excluding D1)
+            ("Standard_D2_v2", 0, "D-series single digit should match pattern 0"),
+            ("Standard_DS2_v2", 0, "DS-series single digit should match pattern 0"),
+            ("Standard_D4s_v3", 0, "D4s_v3 should match pattern 0"),
+            ("Standard_D8a_v4", 0, "D8a_v4 should match pattern 0"),
+            # Should NOT match first pattern (D1 excluded)
+            ("Standard_D1_v2", 2, "D1_v2 should be excluded from pattern 0"),
+            ("Standard_DS1_v2", 2, "DS1_v2 should be excluded from pattern 0"),
+            # Second priority: D series with multi-digit core count
+            ("Standard_D12_v5", 1, "D12 should match pattern 1"),
+            ("Standard_DS15_v2", 1, "DS15 should match pattern 1"),
+            ("Standard_D24s_v3", 1, "D24s should match pattern 1"),
+            ("Standard_D48ads_v5", 1, "D48 should match pattern 1"),
+            # Third priority: Other Standard VM sizes
+            ("Standard_A8_v2", 2, "A8_v2 should match pattern 2"),
+            ("Standard_F32as_v6", 2, "F32as_v6 should match pattern 2"),
+            ("Standard_E16ads_v5", 2, "E16ads_v5 should match pattern 2"),
+            ("Standard_B2s_v2", 2, "B2s_v2 should match pattern 2"),
+            ("Standard_DC8ads_v6", 2, "Standard_DC8ads_v6 should match pattern 2"),
+            # Fourth priority: Catch-all pattern (non-versioned or non-standard)
+            ("Standard_B1ls", 3, "B1ls (no version) should match catch-all pattern 3"),
+            ("Basic_A1", 3, "Basic_A1 should match catch-all pattern 3"),
+            (
+                "Standard_D12_v5_promo",
+                3,
+                "Standard_D12_v5_promo VM should match catch-all pattern 3",
+            ),
+        ]
+
+        for vm_size, expected_pattern_index, description in test_cases:
+            with self.subTest(vm_size=vm_size, description=description):
+                matched_pattern_index = None
+
+                # Find which pattern matches first
+                for i, pattern in enumerate(VM_SIZE_FALLBACK_PATTERNS):
+                    if pattern.match(vm_size):
+                        matched_pattern_index = i
+                        break
+
+                self.assertIsNotNone(
+                    matched_pattern_index,
+                    f"VM size {vm_size} should match at least one pattern",
+                )
+                self.assertEqual(
+                    expected_pattern_index,
+                    matched_pattern_index,
+                    f"{description}. VM {vm_size} matched pattern "
+                    f"{matched_pattern_index} but expected pattern "
+                    f"{expected_pattern_index}",
+                )
 
     def verify_exists_vm_size(
         self, location: str, vm_size: str, expect_exists: bool

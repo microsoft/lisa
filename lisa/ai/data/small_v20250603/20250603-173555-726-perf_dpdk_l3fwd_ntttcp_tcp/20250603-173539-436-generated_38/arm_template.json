@@ -1,0 +1,1179 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "languageVersion": "2.0",
+    "contentVersion": "1.0.0.0",
+    "metadata": {
+        "_generator": {
+            "name": "bicep",
+            "version": "0.33.93.31351",
+            "templateHash": "9070223824614413840"
+        }
+    },
+    "functions": [
+        {
+            "namespace": "__bicep",
+            "members": {
+                "isCvm": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "bool",
+                        "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.vmgs_path))))]"
+                    }
+                },
+                "isVhd": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "bool",
+                        "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.vhd_path))))]"
+                    }
+                },
+                "getOSDisk": {
+                    "parameters": [
+                        {
+                            "type": "string",
+                            "name": "diskName"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "createOption": "Attach",
+                            "osType": "Linux",
+                            "managedDisk": {
+                                "id": "[resourceId('Microsoft.Compute/disks', parameters('diskName'))]"
+                            }
+                        }
+                    }
+                },
+                "getOsDiskVhd": {
+                    "parameters": [
+                        {
+                            "type": "string",
+                            "name": "vmName"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "id": "[resourceId('Microsoft.Compute/images', format('{0}-image', parameters('vmName')))]"
+                        }
+                    }
+                },
+                "getLinuxConfiguration": {
+                    "parameters": [
+                        {
+                            "type": "string",
+                            "name": "keyPath"
+                        },
+                        {
+                            "type": "string",
+                            "name": "publicKeyData"
+                        },
+                        {
+                            "type": "bool",
+                            "name": "disable_password_authentication"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "disablePasswordAuthentication": "[parameters('disable_password_authentication')]",
+                            "ssh": {
+                                "publicKeys": [
+                                    {
+                                        "path": "[parameters('keyPath')]",
+                                        "keyData": "[parameters('publicKeyData')]"
+                                    }
+                                ]
+                            },
+                            "provisionVMAgent": true
+                        }
+                    }
+                },
+                "getEphemeralOSImage": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "name": "[format('{0}-osDisk', parameters('node').name)]",
+                            "diffDiskSettings": {
+                                "option": "local",
+                                "placement": "[parameters('node').ephemeral_disk_placement_type]"
+                            },
+                            "caching": "ReadOnly",
+                            "createOption": "FromImage",
+                            "diskSizeGB": "[parameters('node').osdisk_size_in_gb]"
+                        }
+                    }
+                },
+                "getCreateDisk": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "disk"
+                        },
+                        {
+                            "type": "string",
+                            "name": "diskName"
+                        },
+                        {
+                            "type": "int",
+                            "name": "index"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "name": "[parameters('diskName')]",
+                            "createOption": "[parameters('disk').create_option]",
+                            "caching": "[parameters('disk').caching_type]",
+                            "diskSizeGB": "[parameters('disk').size]",
+                            "lun": "[parameters('index')]",
+                            "managedDisk": {
+                                "storageAccountType": "[parameters('disk').type]"
+                            }
+                        }
+                    }
+                },
+                "getAttachDisk": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "disk"
+                        },
+                        {
+                            "type": "string",
+                            "name": "diskName"
+                        },
+                        {
+                            "type": "int",
+                            "name": "index"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "lun": "[parameters('index')]",
+                            "createOption": "attach",
+                            "caching": "[parameters('disk').caching_type]",
+                            "managedDisk": {
+                                "id": "[resourceId('Microsoft.Compute/disks', parameters('diskName'))]"
+                            }
+                        }
+                    }
+                },
+                "getDataDisk": {
+                    "parameters": [
+                        {
+                            "type": "string",
+                            "name": "nodeName"
+                        },
+                        {
+                            "type": "object",
+                            "name": "dataDisk"
+                        },
+                        {
+                            "type": "int",
+                            "name": "index"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": "[if(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
+                    }
+                },
+                "getOsDiskSharedGallery": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "shared_gallery"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "id": "[resourceId(parameters('shared_gallery').subscription_id, if(empty(parameters('shared_gallery').resource_group_name), 'None', parameters('shared_gallery').resource_group_name), 'Microsoft.Compute/galleries/images/versions', parameters('shared_gallery').image_gallery, parameters('shared_gallery').image_definition, parameters('shared_gallery').image_version)]"
+                        }
+                    }
+                },
+                "getOSDiskCommunityGalleryImage": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "community_gallery_image"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "communityGalleryImageId": "[format('/CommunityGalleries/{0}/Images/{1}/Versions/{2}', parameters('community_gallery_image').image_gallery, parameters('community_gallery_image').image_definition, parameters('community_gallery_image').image_version)]"
+                        }
+                    }
+                },
+                "getOsDiskMarketplace": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "marketplace"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "publisher": "[parameters('marketplace').publisher]",
+                            "offer": "[parameters('marketplace').offer]",
+                            "sku": "[parameters('marketplace').sku]",
+                            "version": "[parameters('marketplace').version]"
+                        }
+                    }
+                },
+                "generateImageReference": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": "[if(__bicep.isVhd(parameters('node')), __bicep.getOsDiskVhd(parameters('node').name), if(not(empty(parameters('node').shared_gallery)), __bicep.getOsDiskSharedGallery(parameters('node').shared_gallery), if(not(empty(parameters('node').community_gallery_image)), __bicep.getOSDiskCommunityGalleryImage(parameters('node').community_gallery_image), __bicep.getOsDiskMarketplace(parameters('node').marketplace))))]"
+                    }
+                },
+                "getSecurityProfileForOSDisk": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": "[if(empty(parameters('node').security_profile.disk_encryption_set_id), createObject('securityEncryptionType', parameters('node').security_profile.encryption_type), createObject('securityEncryptionType', parameters('node').security_profile.encryption_type, 'diskEncryptionSet', createObject('id', parameters('node').security_profile.disk_encryption_set_id)))]"
+                    }
+                },
+                "generateOsProfile": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        },
+                        {
+                            "type": "string",
+                            "name": "admin_username"
+                        },
+                        {
+                            "type": "string",
+                            "name": "admin_password"
+                        },
+                        {
+                            "type": "string",
+                            "name": "admin_key_data"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "computername": "[parameters('node').short_name]",
+                            "adminUsername": "[parameters('admin_username')]",
+                            "adminPassword": "[if(empty(parameters('admin_password')), null(), parameters('admin_password'))]",
+                            "linuxConfiguration": "[if(and(not(empty(parameters('admin_key_data'))), parameters('node').is_linux), __bicep.getLinuxConfiguration(format('/home/{0}/.ssh/authorized_keys', parameters('admin_username')), parameters('admin_key_data'), empty(parameters('admin_password'))), null())]"
+                        }
+                    }
+                },
+                "generateSecurityProfile": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "uefiSettings": {
+                                "secureBootEnabled": "[parameters('node').security_profile.secure_boot]",
+                                "vTpmEnabled": true
+                            },
+                            "securityType": "[parameters('node').security_profile.security_type]"
+                        }
+                    }
+                },
+                "getOsProfile": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        },
+                        {
+                            "type": "string",
+                            "name": "admin_username"
+                        },
+                        {
+                            "type": "string",
+                            "name": "admin_password"
+                        },
+                        {
+                            "type": "string",
+                            "name": "admin_key_data"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "nullable": true,
+                        "value": "[if(__bicep.isCvm(parameters('node')), null(), __bicep.generateOsProfile(parameters('node'), parameters('admin_username'), parameters('admin_password'), parameters('admin_key_data')))]"
+                    }
+                },
+                "getImageReference": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "nullable": true,
+                        "value": "[if(__bicep.isCvm(parameters('node')), null(), __bicep.generateImageReference(parameters('node')))]"
+                    }
+                },
+                "getSecurityProfile": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "nullable": true,
+                        "value": "[if(empty(parameters('node').security_profile), null(), __bicep.generateSecurityProfile(parameters('node')))]"
+                    }
+                },
+                "getOSImage": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "name": "[format('{0}-osDisk', parameters('node').name)]",
+                            "managedDisk": {
+                                "storageAccountType": "[parameters('node').os_disk_type]",
+                                "securityProfile": "[if(or(empty(parameters('node').security_profile), not(equals(parameters('node').security_profile.security_type, 'ConfidentialVM'))), null(), __bicep.getSecurityProfileForOSDisk(parameters('node')))]"
+                            },
+                            "caching": "[if(equals(parameters('node').os_disk_type, 'Ephemeral'), 'ReadOnly', 'ReadWrite')]",
+                            "createOption": "FromImage",
+                            "diskSizeGB": "[parameters('node').osdisk_size_in_gb]"
+                        }
+                    }
+                },
+                "getVMOsDisk": {
+                    "parameters": [
+                        {
+                            "type": "object",
+                            "name": "node"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": "[if(__bicep.isCvm(parameters('node')), __bicep.getOSDisk(format('{0}-disk', parameters('node').name)), if(equals(parameters('node').os_disk_type, 'Ephemeral'), __bicep.getEphemeralOSImage(parameters('node')), __bicep.getOSImage(parameters('node'))))]"
+                    }
+                },
+                "getAvailabilitySetId": {
+                    "parameters": [
+                        {
+                            "type": "string",
+                            "name": "availability_set_name"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "id": "[resourceId('Microsoft.Compute/availabilitySets', parameters('availability_set_name'))]"
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "parameters": {
+        "vhd_storage_name": {
+            "type": "string",
+            "metadata": {
+                "description": "storage name for copied vhds"
+            }
+        },
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "location"
+            }
+        },
+        "nodes": {
+            "type": "array",
+            "metadata": {
+                "description": "all nodes"
+            }
+        },
+        "admin_username": {
+            "type": "string",
+            "metadata": {
+                "description": "user name"
+            }
+        },
+        "admin_password": {
+            "type": "string",
+            "metadata": {
+                "description": "password"
+            }
+        },
+        "admin_key_data": {
+            "type": "string",
+            "metadata": {
+                "description": "public key data"
+            }
+        },
+        "shared_resource_group_name": {
+            "type": "string",
+            "metadata": {
+                "description": "the name of shared resource group"
+            }
+        },
+        "subnet_count": {
+            "type": "int",
+            "metadata": {
+                "description": "created subnet count"
+            }
+        },
+        "availability_options": {
+            "type": "object",
+            "metadata": {
+                "description": "options for availability sets, zones, and VMSS"
+            }
+        },
+        "virtual_network_resource_group": {
+            "type": "string",
+            "metadata": {
+                "description": "the name of vnet resource group"
+            }
+        },
+        "virtual_network_name": {
+            "type": "string",
+            "metadata": {
+                "description": "the name of vnet"
+            }
+        },
+        "subnet_prefix": {
+            "type": "string",
+            "metadata": {
+                "description": "the prefix of the subnets"
+            }
+        },
+        "vm_tags": {
+            "type": "object",
+            "metadata": {
+                "description": "tags of virtual machine"
+            }
+        },
+        "tags": {
+            "type": "object",
+            "metadata": {
+                "description": "tags of azure resources"
+            }
+        },
+        "data_disks": {
+            "type": "array",
+            "metadata": {
+                "description": "data disk array."
+            }
+        },
+        "is_ultradisk": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "whether to use ultra disk"
+            }
+        },
+        "ip_service_tags": {
+            "type": "object",
+            "metadata": {
+                "description": "IP Service Tags"
+            }
+        },
+        "use_ipv6": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "whether to use ipv6"
+            }
+        },
+        "enable_vm_nat": {
+            "type": "bool",
+            "metadata": {
+                "description": "whether to enable network outbound access"
+            }
+        },
+        "source_address_prefixes": {
+            "type": "array",
+            "metadata": {
+                "description": "The source IP address prefixes allowed in NSG"
+            }
+        },
+        "create_public_address": {
+            "type": "bool",
+            "metadata": {
+                "description": "Generate public IP address for each node"
+            }
+        }
+    },
+    "variables": {
+        "copy": [
+            {
+                "name": "ip_tags",
+                "count": "[length(objectKeys(parameters('ip_service_tags')))]",
+                "input": {
+                    "ipTagType": "[objectKeys(parameters('ip_service_tags'))[copyIndex('ip_tags')]]",
+                    "tag": "[parameters('ip_service_tags')[objectKeys(parameters('ip_service_tags'))[copyIndex('ip_tags')]]]"
+                }
+            }
+        ],
+        "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtual_network_name'))]",
+        "node_count": "[length(parameters('nodes'))]",
+        "availability_set_name_value": "lisa-availabilitySet",
+        "existing_subnet_ref": "[if(empty(parameters('virtual_network_resource_group')), '', resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')))]",
+        "availability_set_tags": "[parameters('availability_options').availability_set_tags]",
+        "availability_set_properties": "[parameters('availability_options').availability_set_properties]",
+        "availability_zones": "[parameters('availability_options').availability_zones]",
+        "availability_type": "[parameters('availability_options').availability_type]",
+        "use_availability_set": "[equals(variables('availability_type'), 'availability_set')]",
+        "use_availability_zones": "[equals(variables('availability_type'), 'availability_zone')]",
+        "availability_set_value": "[if(variables('use_availability_set'), __bicep.getAvailabilitySetId(variables('availability_set_name_value')), null())]",
+        "combined_vm_tags": "[union(parameters('tags'), parameters('vm_tags'))]",
+        "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]"
+    },
+    "resources": {
+        "virtual_network_name_resource": {
+            "condition": "[empty(parameters('virtual_network_resource_group'))]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2024-05-01",
+            "name": "[parameters('virtual_network_name')]",
+            "tags": "[parameters('tags')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "copy": [
+                    {
+                        "name": "subnets",
+                        "count": "[length(range(0, parameters('subnet_count')))]",
+                        "input": {
+                            "name": "[format('{0}{1}', parameters('subnet_prefix'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
+                            "properties": {
+                                "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
+                                "defaultOutboundAccess": "[parameters('enable_vm_nat')]",
+                                "networkSecurityGroup": {
+                                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'internal-nsg')]"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "addressSpace": {
+                    "addressPrefixes": "[concat(createArray('10.0.0.0/16'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
+                }
+            },
+            "dependsOn": [
+                "nsg",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', 'internal-nsg')]"
+            ]
+        },
+        "nsg": {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2024-05-01",
+            "name": "[format('{0}-nsg', toLower(parameters('virtual_network_name')))]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "LISASSH",
+                        "properties": {
+                            "priority": 100,
+                            "direction": "Inbound",
+                            "access": "Allow",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
+                            "destinationAddressPrefix": "*"
+                        }
+                    },
+                    {
+                        "name": "LISAKVMSSH",
+                        "properties": {
+                            "description": "Allows nested VM SSH traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "60020-60030",
+                            "destinationAddressPrefix": "*",
+                            "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
+                            "access": "Allow",
+                            "priority": 206,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "LISALIBVIRTSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic to Libvirt Platform Guests",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "49152-49352",
+                            "destinationAddressPrefix": "*",
+                            "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
+                            "access": "Allow",
+                            "priority": 208,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        "availability_set": {
+            "condition": "[variables('use_availability_set')]",
+            "type": "Microsoft.Compute/availabilitySets",
+            "apiVersion": "2019-07-01",
+            "name": "[variables('availability_set_name_value')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('combined_aset_tags')]",
+            "sku": {
+                "name": "Aligned"
+            },
+            "properties": "[variables('availability_set_properties')]"
+        },
+        "nodes_public_ip": {
+            "copy": {
+                "name": "nodes_public_ip",
+                "count": "[length(range(0, variables('node_count')))]"
+            },
+            "condition": "[parameters('create_public_address')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2020-05-01",
+            "name": "[format('{0}-public-ip', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+            "location": "[parameters('location')]",
+            "tags": "[parameters('tags')]",
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "ipTags": "[if(empty(variables('ip_tags')), null(), variables('ip_tags'))]"
+            },
+            "sku": {
+                "name": "Standard"
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
+        },
+        "nodes_public_ip_ipv6": {
+            "copy": {
+                "name": "nodes_public_ip_ipv6",
+                "count": "[length(range(0, variables('node_count')))]"
+            },
+            "condition": "[and(parameters('use_ipv6'), parameters('create_public_address'))]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2020-05-01",
+            "name": "[format('{0}-public-ipv6', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+            "location": "[parameters('location')]",
+            "tags": "[parameters('tags')]",
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "ipTags": "[if(empty(variables('ip_tags')), null(), variables('ip_tags'))]",
+                "publicIPAddressVersion": "IPv6"
+            },
+            "sku": {
+                "name": "Standard"
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
+        },
+        "nodes_image": {
+            "copy": {
+                "name": "nodes_image",
+                "count": "[length(range(0, variables('node_count')))]"
+            },
+            "condition": "[and(__bicep.isVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]), empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vmgs_path))]",
+            "type": "Microsoft.Compute/images",
+            "apiVersion": "2019-03-01",
+            "name": "[format('{0}-image', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+            "tags": "[parameters('tags')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "storageProfile": {
+                    "osDisk": {
+                        "osType": "Linux",
+                        "osState": "Generalized",
+                        "blobUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vhd_path]",
+                        "storageAccountType": "Standard_LRS"
+                    }
+                },
+                "hyperVGeneration": "[format('V{0}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].hyperv_generation)]"
+            }
+        },
+        "nodes_disk": {
+            "copy": {
+                "name": "nodes_disk",
+                "count": "[length(range(0, variables('node_count')))]"
+            },
+            "condition": "[__bicep.isCvm(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2021-04-01",
+            "name": "[format('{0}-disk', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+            "tags": "[parameters('tags')]",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "properties": {
+                "osType": "Linux",
+                "hyperVGeneration": "[format('V{0}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].hyperv_generation)]",
+                "securityProfile": {
+                    "securityType": "ConfidentialVM_VMGuestStateOnlyEncryptedWithPlatformKey"
+                },
+                "creationData": {
+                    "createOption": "ImportSecure",
+                    "storageAccountId": "[resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('vhd_storage_name'))]",
+                    "securityDataUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vmgs_path]",
+                    "sourceUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vhd_path]"
+                }
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
+        },
+        "nodes_data_disks": {
+            "copy": {
+                "name": "nodes_data_disks",
+                "count": "[length(range(0, mul(length(parameters('data_disks')), variables('node_count'))))]"
+            },
+            "condition": "[parameters('is_ultradisk')]",
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2022-03-02",
+            "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
+            "location": "[parameters('location')]",
+            "tags": "[parameters('tags')]",
+            "properties": {
+                "diskSizeGB": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].size]",
+                "creationData": {
+                    "createOption": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].create_option]"
+                },
+                "diskIOPSReadWrite": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].iops]",
+                "diskMBpsReadWrite": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].throughput]"
+            },
+            "sku": {
+                "name": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].type]"
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
+        },
+        "nodes_vms": {
+            "copy": {
+                "name": "nodes_vms",
+                "count": "[length(range(0, variables('node_count')))]"
+            },
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2024-03-01",
+            "name": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name]",
+            "location": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].location]",
+            "tags": "[variables('combined_vm_tags')]",
+            "plan": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].purchase_plan]",
+            "properties": {
+                "availabilitySet": "[variables('availability_set_value')]",
+                "hardwareProfile": {
+                    "vmSize": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vm_size]"
+                },
+                "osProfile": "[__bicep.getOsProfile(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]], parameters('admin_username'), parameters('admin_password'), parameters('admin_key_data'))]",
+                "storageProfile": {
+                    "copy": [
+                        {
+                            "name": "dataDisks",
+                            "count": "[length(parameters('data_disks'))]",
+                            "input": "[__bicep.getDataDisk(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, parameters('data_disks')[copyIndex('dataDisks')], copyIndex('dataDisks'))]"
+                        }
+                    ],
+                    "imageReference": "[__bicep.getImageReference(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
+                    "osDisk": "[__bicep.getVMOsDisk(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
+                    "diskControllerType": "[if(equals(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].disk_controller_type, 'SCSI'), null(), parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].disk_controller_type)]"
+                },
+                "networkProfile": {
+                    "copy": [
+                        {
+                            "name": "networkInterfaces",
+                            "count": "[length(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count))]",
+                            "input": {
+                                "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count)[copyIndex('networkInterfaces')]))]",
+                                "properties": {
+                                    "primary": "[if(equals(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count)[copyIndex('networkInterfaces')], 0), true(), false())]"
+                                }
+                            }
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true
+                    }
+                },
+                "additionalCapabilities": {
+                    "ultraSSDEnabled": "[if(equals(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].data_disk_type, 'UltraSSD_LRS'), true(), false())]"
+                },
+                "securityProfile": "[__bicep.getSecurityProfile(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]"
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]",
+            "dependsOn": [
+                "availability_set",
+                "nodes_disk",
+                "nodes_image",
+                "nodes_nics",
+                "virtual_network_name_resource"
+            ]
+        },
+        "nodes_nics": {
+            "copy": {
+                "name": "nodes_nics",
+                "count": "[length(range(0, variables('node_count')))]"
+            },
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2022-09-01",
+            "name": "[format('{0}-nics', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+            "properties": {
+                "expressionEvaluationOptions": {
+                    "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                    "vmName": {
+                        "value": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name]"
+                    },
+                    "nic_count": {
+                        "value": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count]"
+                    },
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "vnet_id": {
+                        "value": "[variables('vnet_id')]"
+                    },
+                    "subnet_prefix": {
+                        "value": "[parameters('subnet_prefix')]"
+                    },
+                    "existing_subnet_ref": {
+                        "value": "[variables('existing_subnet_ref')]"
+                    },
+                    "enable_sriov": {
+                        "value": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].enable_sriov]"
+                    },
+                    "tags": {
+                        "value": "[parameters('tags')]"
+                    },
+                    "use_ipv6": {
+                        "value": "[parameters('use_ipv6')]"
+                    },
+                    "create_public_address": {
+                        "value": "[parameters('create_public_address')]"
+                    }
+                },
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "languageVersion": "2.0",
+                    "contentVersion": "1.0.0.0",
+                    "metadata": {
+                        "_generator": {
+                            "name": "bicep",
+                            "version": "0.33.93.31351",
+                            "templateHash": "6914571954054027821"
+                        }
+                    },
+                    "functions": [
+                        {
+                            "namespace": "__bicep",
+                            "members": {
+                                "getPublicIpAddress": {
+                                    "parameters": [
+                                        {
+                                            "type": "string",
+                                            "name": "vmName"
+                                        },
+                                        {
+                                            "type": "string",
+                                            "name": "publicIpName"
+                                        }
+                                    ],
+                                    "output": {
+                                        "type": "object",
+                                        "value": {
+                                            "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIpName'))]"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "parameters": {
+                        "vmName": {
+                            "type": "string"
+                        },
+                        "nic_count": {
+                            "type": "int"
+                        },
+                        "location": {
+                            "type": "string"
+                        },
+                        "vnet_id": {
+                            "type": "string"
+                        },
+                        "subnet_prefix": {
+                            "type": "string"
+                        },
+                        "existing_subnet_ref": {
+                            "type": "string"
+                        },
+                        "enable_sriov": {
+                            "type": "bool"
+                        },
+                        "tags": {
+                            "type": "object"
+                        },
+                        "use_ipv6": {
+                            "type": "bool"
+                        },
+                        "create_public_address": {
+                            "type": "bool"
+                        }
+                    },
+                    "variables": {
+                        "publicIpAddress": "[__bicep.getPublicIpAddress(parameters('vmName'), format('{0}-public-ip', parameters('vmName')))]",
+                        "publicIpAddressV6": "[__bicep.getPublicIpAddress(parameters('vmName'), format('{0}-public-ipv6', parameters('vmName')))]"
+                    },
+                    "resources": {
+                        "vm_nics": {
+                            "copy": {
+                                "name": "vm_nics",
+                                "count": "[length(range(0, parameters('nic_count')))]"
+                            },
+                            "type": "Microsoft.Network/networkInterfaces",
+                            "apiVersion": "2023-06-01",
+                            "name": "[format('{0}-nic-{1}', parameters('vmName'), range(0, parameters('nic_count'))[copyIndex()])]",
+                            "location": "[parameters('location')]",
+                            "tags": "[parameters('tags')]",
+                            "properties": {
+                                "ipConfigurations": "[concat(createArray(createObject('name', 'IPv4Config', 'properties', createObject('privateIPAddressVersion', 'IPv4', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddress'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), if(parameters('use_ipv6'), createArray(createObject('name', 'IPv6Config', 'properties', createObject('privateIPAddressVersion', 'IPv6', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddressV6'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), createArray()))]",
+                                "enableAcceleratedNetworking": "[parameters('enable_sriov')]"
+                            }
+                        }
+                    }
+                }
+            },
+            "dependsOn": [
+                "[format('nodes_public_ip[{0}]', range(0, variables('node_count'))[copyIndex()])]",
+                "[format('nodes_public_ip_ipv6[{0}]', range(0, variables('node_count'))[copyIndex()])]",
+                "virtual_network_name_resource"
+            ]
+        },
+        "nsg_resource": {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "internal-nsg",
+            "location": "[parameters('location')]",
+            "apiVersion": "2020-05-01",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "1ESPoolSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "1ESResourceManager",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 200,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "1ESLibvirtSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic to Libvirt Platform Guests",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "49152-49352",
+                            "sourceAddressPrefix": "1ESResourceManager",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 208,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "1ESHyperVSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic to HyperV Platform Guests",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "50000-50200",
+                            "sourceAddressPrefix": "1ESResourceManager",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 209,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "1ESPoolKVM",
+                        "properties": {
+                            "description": "Allows nested VM SSH traffic",
+                            "protocol": "Tcp",
+                            "sourceAddressPrefix": "1ESResourceManager",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "60020-60030",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 204,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "ManagedVPNSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 201,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [
+                                "20.120.143.192/28",
+                                "20.241.227.160/28",
+                                "20.31.68.160/28",
+                                "20.198.165.176/28",
+                                "20.83.242.194/32"
+                            ],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "CorpNetPublicSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "CorpNetPublic",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 202,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "CorpNetSawSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "CorpNetSAW",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 203,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "AitlResourceProviderSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic from AITLs RP",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "AzureImageTestingForLinux",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 207,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "LISATriggerSSH",
+                        "properties": {
+                            "description": "Allows SSH traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound",
+                            "sourceAddressPrefixes": [
+                                "52.159.208.214"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "LISATriggerKVMs",
+                        "properties": {
+                            "description": "Allows nested VM SSH traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "60020-60030",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 206,
+                            "direction": "Inbound",
+                            "sourceAddressPrefixes": [
+                                "52.159.208.214"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

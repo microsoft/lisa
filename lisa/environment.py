@@ -438,6 +438,12 @@ class Environment(ContextMixin, InitializableMixin):
 
         has_default_node = False
         for node_runbook in self.runbook.nodes:
+            # Skip disabled nodes
+            if not node_runbook.enabled:
+                node_name = node_runbook.name or "unnamed"
+                self.log.info(f"skipping to load disabled node: {node_name}")
+                continue
+
             self.create_node_from_exists(
                 node_runbook=node_runbook,
             )
@@ -545,9 +551,17 @@ def load_environments(
         environments_runbook = root_runbook.environments
         for environment_runbook in environments_runbook:
             id_ = _get_environment_id()
+            name = environment_runbook.name or f"customized_{id_}"
+
+            # Skip disabled environments
+            if not environment_runbook.enabled:
+                log = _get_init_logger()
+                log.info(f"skipping to load disabled environment: {name}")
+                continue
+
             env = environments.from_runbook(
                 runbook=environment_runbook,
-                name=environment_runbook.name or f"customized_{id_}",
+                name=name,
                 is_predefined_runbook=True,
                 id_=id_,
             )

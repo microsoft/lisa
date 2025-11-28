@@ -12,7 +12,7 @@ from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
-from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_timeout
 from retry import retry
 
 from lisa import notifier, schema, search_space
@@ -30,9 +30,7 @@ from lisa.util import (
     constants,
     fields_to_dict,
     get_datetime_path,
-    hookspec,
     is_unittest,
-    plugin_manager,
     set_filtered_fields,
 )
 from lisa.util.logger import (
@@ -86,16 +84,17 @@ class TestResult:
     log_file: str = ""
     stacktrace: Optional[str] = None
     retried_times: int = 0
-    _log_file_handler: Optional[logging.FileHandler] = None
-    _case_log_path: Optional[Path] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        self.log = get_logger(f"case[{self.name}]", self.id_)
+
         self._send_result_message()
         self._timer: Timer
 
         self._environment_information: Dict[str, Any] = {}
-        # parent_log = get_logger("suite", self.runtime_data.metadata.suite.name)
-        self.log = get_logger("case", self.name)
+
+        self._log_file_handler: Optional[logging.FileHandler] = None
+        self._case_log_path: Optional[Path] = None
 
     @property
     def is_queued(self) -> bool:
@@ -122,10 +121,6 @@ class TestResult:
             )
 
         return self._environment_information
-
-    @hookspec
-    def update_test_result_message(self, message: TestResultMessage) -> None:
-        ...
 
     def handle_exception(
         self, exception: Exception, log: Logger, phase: str = ""
@@ -271,14 +266,29 @@ class TestResult:
         return result
 
     def subscribe_log(self, log: Logger) -> None:
-        add_handler(self._get_log_file_handler(), log)
+        if self._log_file_handler:
+            add_handler(self._log_file_handler, log)
+        else:
+            # create_file_handler will call add_handler internally.
+            case_log_path = self.get_case_log_path()
+            case_log_file = case_log_path / f"{case_log_path.name}.log"
+            self.log_file = case_log_file.relative_to(
+                constants.RUN_LOCAL_LOG_PATH
+            ).as_posix()
+
+            self._log_file_handler = create_file_handler(case_log_file, log)
 
     def unsubscribe_log(self, log: Logger) -> None:
-        remove_handler(self._get_log_file_handler(), log)
+        if is_unittest():
+            return
+
+        assert self._log_file_handler, "Log file handler is not set"
+        remove_handler(self._log_file_handler, log)
 
     def get_case_log_path(self) -> Path:
         if not self._case_log_path:
             self._case_log_path = self.__create_case_log_path()
+        assert self._case_log_path, "case log path is not set"
         return self._case_log_path
 
     def _get_log_file_handler(self) -> logging.FileHandler:
@@ -354,12 +364,9 @@ class TestResult:
         result_message.suite_full_name = self.runtime_data.metadata.suite.full_name
         result_message.stacktrace = stacktrace
 
-        # some extensions may need to update or fill information.
-        plugin_manager.hook.update_test_result_message(message=result_message)
-
         notifier.notify(result_message)
 
-    @retry(exceptions=FileExistsError, tries=30, delay=0.1)
+    @retry(exceptions=FileExistsError, tries=30, delay=0.1)  # type: ignore
     def __create_case_log_path(self) -> Path:
         case_name = self.runtime_data.name
         while True:
@@ -566,6 +573,7 @@ class TestCaseMetadata:
         use_new_environment: bool = False,
         owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
+        tags: Optional[List[str]] = None,
     ) -> None:
         self.suite: TestSuiteMetadata
 
@@ -575,7 +583,8 @@ class TestCaseMetadata:
         self.use_new_environment = use_new_environment
         if requirement:
             self.requirement = requirement
-
+        if tags:
+            self.tags = tags
         self._owner = owner
 
     def __getattr__(self, key: str) -> Any:
@@ -645,7 +654,6 @@ class TestCaseRuntimeData:
             constants.TESTCASE_RETRY,
             constants.TESTCASE_USE_NEW_ENVIRONMENT,
             constants.TESTCASE_IGNORE_FAILURE,
-            constants.ENVIRONMENT,
         ]
         set_filtered_fields(self, cloned, fields)
         return cloned
@@ -696,6 +704,8 @@ class TestSuite:
             raise LisaException("after_suite is not supported. Please use after_case")
         #  replace to case's logger temporarily
         for case_result in case_results:
+            case_result.subscribe_log(case_result.log)
+
             case_result.environment = environment
             case_log = case_result.log
             case_result.subscribe_log(environment.log)
@@ -714,7 +724,8 @@ class TestSuite:
             case_kwargs.update({"result": case_result})
 
             case_log.info(
-                f"test case '{case_result.runtime_data.full_name}' is running"
+                f"test case '{case_result.runtime_data.full_name}' "
+                f"is running on environment '{environment.name}'"
             )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
@@ -768,7 +779,9 @@ class TestSuite:
                     )
 
             case_log.info(
-                f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
+                f"result: {case_result.status.name}, "
+                f"elapsed: {total_timer}, "
+                f"environment: {environment.name}"
             )
             case_result.unsubscribe_log(environment.log)
             case_result.close_log_file_handler()
@@ -925,7 +938,8 @@ def _add_case_to_suite(
 ) -> None:
     test_case.suite = test_suite
     test_case.full_name = f"{test_suite.name}.{test_case.name}"
+    # Append tags from test_suite if exists to test_case tags and remove duplicates
+    suite_tags = getattr(test_suite, "tags", []) or []
+    case_tags = getattr(test_case, "tags", []) or []
+    test_case.tags = list(dict.fromkeys(case_tags + suite_tags))
     test_suite.cases.append(test_case)
-
-
-plugin_manager.add_hookspecs(TestResult)

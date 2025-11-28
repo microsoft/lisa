@@ -132,33 +132,37 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     @property
     def support_sudo(self) -> bool:
         self.initialize()
-
         # self._support_sudo already set, return it directly.
         if self._support_sudo is not None:
             return self._support_sudo
 
-        if not self.is_posix:
-            # Windows or non-POSIX: assume sudo not needed
+        if self.is_posix:
+            self._support_sudo = self._check_sudo_available()
+        else:
+            # set Windows to true to ignore sudo asks.
             self._support_sudo = True
-            return self._support_sudo
 
-        self._support_sudo = self._check_sudo_available()
         return self._support_sudo
 
     def _check_sudo_available(self) -> bool:
         # Check if 'sudo' command exists
         process = self._execute("command -v sudo", shell=True, no_info_log=True)
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             self.log.debug("node doesn't support 'sudo', may cause failure later.")
             return False
 
         # Further test: try running 'ls' with sudo /bin/sh
         process = self._execute("ls", shell=True, sudo=True, no_info_log=True)
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
-            self.log.debug("node doesn't support sudo /bin/sh.")
-            return False
+            # e.g. raw error: "user is not allowed to execute '/bin/sh -c ...'"
+            if "not allowed" in result.stderr:
+                self.log.debug(
+                    "The command 'sudo /bin/sh -c ls' may fail due to SELinux policies"
+                    " that restrict the use of sudo in combination with /bin/sh."
+                )
+                return False
 
         return True
 
@@ -712,7 +716,7 @@ class RemoteNode(Node):
             sudo=True,
             no_info_log=True,
         )
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             for prompt in self._sudo_password_prompts:
                 if prompt in result.stdout:
@@ -747,7 +751,7 @@ class RemoteNode(Node):
                 sudo=True,
                 no_info_log=True,
             )
-            result = process.wait_result(10)
+            result = process.wait_result(timeout=10, raise_on_timeout=False)
             if result.exit_code != 0:
                 raise RequireUserPasswordException(
                     "The password might be invalid for running sudo command"
@@ -766,7 +770,7 @@ class RemoteNode(Node):
         # wordpress-red-hat images.
         if not self.has_checked_bash_prompt:
             process = self._execute(f"echo {constants.LISA_TEST_FOR_BASH_PROMPT}")
-            result = process.wait_result(10)
+            result = process.wait_result(timeout=10, raise_on_timeout=False)
             if result.stdout.endswith(f"{constants.LISA_TEST_FOR_BASH_PROMPT}"):
                 bash_prompt = result.stdout.replace(
                     constants.LISA_TEST_FOR_BASH_PROMPT, ""
@@ -1123,8 +1127,7 @@ class Nodes:
         return self._default
 
     def list(self) -> Iterable[Node]:
-        for node in self._list:
-            yield node
+        yield from self._list
 
     def initialize(self) -> None:
         run_in_parallel([x.initialize for x in self._list])

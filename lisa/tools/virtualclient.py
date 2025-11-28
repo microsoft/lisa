@@ -20,7 +20,7 @@ from lisa.messages import (
     send_unified_perf_message,
 )
 from lisa.operating_system import Posix
-from lisa.util import LisaException
+from lisa.util import LisaException, MissingPackagesException
 from lisa.util.process import Process
 
 from .chmod import Chmod
@@ -414,6 +414,11 @@ class VcRunner:
         client_info = next(info for info in self._targets if info.role == "client")
         client_process = results[client_info.node.name]
         process_result = client_process.wait_result(timeout=(timeout + 5) * 60)
+
+        # Check for unauthorized package download error
+        if "ErrorCode: NoAuthenticationInformation" in process_result.stdout:
+            raise MissingPackagesException(["VirtualClient packages"])
+
         matched = self.exit_code_pattern.match(process_result.stdout)
         assert matched, "can't find the matched str 'Exit Code'"
         assert_that(matched.group("exit_code")).described_as(

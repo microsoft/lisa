@@ -156,7 +156,7 @@ class PlatformTestCase(TestCase):
             "no capability found for environment: Environment("
             "name='customized_0', topology='subnet', nodes_raw=[{'type': 'local', "
             "'capability': {'core_count': {'min': 4}}}], nodes_requirement=None, "
-            "_original_nodes_requirement=None)",
+            "enabled=True, _original_nodes_requirement=None)",
             str(cm.exception),
         )
 

@@ -55,6 +55,8 @@ failure of high-priority test cases to speed up the analysis.
    impact.
 -  **P4**. The system has obvious but not serious problems on long-haul,
    stress or performance test scenarios.
+-  **P5**. Test cases that require more than 1 day to execute or utility
+   test cases that don't verify meaningful functionality for validation.
 
 Please Note that the above examples do not cover all situations and are
 for reference. For example, in a cloud environment, one host version may
@@ -114,6 +116,12 @@ Microsoft tests are organized under the folder ``microsoft/runbook``.
 The root folder contains runbooks for azure, ready, and local. Learn
 more from :doc:`how to run LISA tests <run>` to run different tiers on
 an image or existing environment.
+
+.. note::
+   To access Microsoft's internal test cases, you need to set
+   ``import_builtin_tests: true`` in your runbook. This will import
+   built-in test cases from the ``lisa/microsoft`` directory.
+   See :doc:`runbook reference <runbook>` for more details.
 
 LISA comes with a set of test suites to verify Linux distro/kernel
 quality on Microsoft's platforms (including Azure, and HyperV). The test

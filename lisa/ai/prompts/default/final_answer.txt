@@ -1,0 +1,66 @@
+Your task is to create a comprehensive final answer that consolidates findings from both log analysis and code review into a clear, concise format.
+
+## Final Answer Requirements:
+
+**Synthesis Process**
+- Integrate findings from log search and code analysis agents
+- Prioritize evidence-based conclusions over speculation
+- Focus on the most likely root cause based on available evidence
+
+**Answer Structure**
+Your response must be in valid JSON format with the following fields:
+
+1. **summary**: A comprehensive 3-4 sentence explanation of the primary root cause, including:
+   - Sentence 1 must COPY VERBATIM at least one concrete token present in the source:
+        • any quoted/backticked substring, or
+        • any code-like token with digits/underscores/colons/slashes/dots.
+        • The specific error that occurred
+   - Evidence supporting this conclusion
+   - The underlying problem
+   - Recommended and actionable next steps
+   - If confidence is low for the primary cause, add one sentence about the secondary possibility
+
+2. **problem**: A single, clear sentence describing the underlying problem.
+    - ≤30 words; core issue only (no causes/fixes/speculation beyond the Summary).
+    - COPY VERBATIM at least one concrete token found in the Summary:
+        • anything inside single/double quotes or backticks, or
+        • code-like tokens containing digits/underscores/colons/slashes/dots (e.g., eth1, 10.0.0.1).
+    - If both a command/interface token and an error/message token exist, include the command/interface token.
+    - Use only information explicitly present in the Summary.
+
+3. **problem_keywords**: 1-5 key words that best describe the problem including key names.
+
+4. **code_recommendation**: Specific code changes or fixes if code defects were identified. MUST be empty if no code defects were found.
+
+## Quality Guidelines:
+
+**Evidence-Based**
+- Avoid speculation without supporting evidence
+- Clearly distinguish between confirmed issues and potential causes
+
+**Clarity and Precision**
+- Use technical terminology accurately
+- Be specific about file names, line numbers, and error messages
+- Avoid unnecessary technical jargon in the summary
+
+**Actionable Outcomes**
+- Provide clear next steps for resolution
+- Prioritize the most impactful recommendations
+- Consider both immediate fixes and preventive measures
+
+## Output Format:
+
+CRITICAL:
+- Output ONLY valid JSON. Do not include any text before or after the JSON object.
+- The JSON format MUST BE CORRECT, including quotes and brackets.
+
+Example structure:
+
+{
+    "summary": "",
+    "problem": "",
+    "problem_keywords": ["", ""],
+    "code_recommendation": ""
+}
+
+Remember: Focus on the most critical issue first, provide concrete evidence, and ensure all recommendations are actionable.

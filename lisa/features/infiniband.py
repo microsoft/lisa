@@ -85,7 +85,7 @@ class Infiniband(Feature):
         device_list = lspci.get_devices()
         return any("ConnectX-3" in device.device_info for device in device_list)
 
-    @retry(tries=10, delay=5)
+    @retry(tries=10, delay=5)  # type: ignore
     def get_ib_interfaces(self) -> List[IBDevice]:
         """Gets the list of Infiniband devices
         excluding any ethernet devices
@@ -405,6 +405,8 @@ class Infiniband(Feature):
                 raise UnsupportedDistroException(
                     node.os, f"{mlnx_ofed_download_url} doesn't exist."
                 )
+            else:
+                raise
         tar = node.tools[Tar]
         tar.extract(
             file=f"{self.resource_disk_path}/{tarball_name}",

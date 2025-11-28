@@ -16,7 +16,7 @@ Install Python on Linux
 -----------------------
 
 LISA has been tested to work with `Python >=3.8 64-bit <https://www.python.org/>`__.
-Python 3.11 is recommended.
+Python 3.12 is recommended.
 If you find that LISA is not compatible with a supported version,
 `please file an issue <https://github.com/microsoft/lisa/issues/new>`__.
 
@@ -29,12 +29,12 @@ To check which version of Python is used on your system, run the following:
 If you need to install a different Python package, there are likely packaged versions for
 your distro.
 
-Here is an example to install Python 3.11 on Ubuntu 22.04
+Here is an example to install Python 3.12 on Ubuntu 22.04
 
 .. code:: bash
 
    sudo apt update
-   sudo apt install python3.11 python3.11-dev -y
+   sudo apt install python3.12 python3.12-dev -y
 
 For Azure Linux, Python installation is included in the system dependencies section below and does not need to be installed separately.
 
@@ -53,6 +53,12 @@ Run the command below to install the dependencies on Azure Linux:
 .. code:: bash
 
    sudo tdnf install -y git gcc gobject-introspection-devel cairo-gobject cairo-devel pkg-config libvirt-devel python3-devel python3-pip python3-virtualenv build-essential cairo-gobject-devel curl wget tar azure-cli ca-certificates
+
+Run the command below to install the dependencies on Fedora 41 & above:
+
+.. code:: bash
+
+   sudo dnf install -y git gcc gobject-introspection-devel cairo-devel qemu-img libvirt-devel python3-pip python3-virtualenv -y
 
 If you're using a different distribution or python version, adjust the command as needed
 

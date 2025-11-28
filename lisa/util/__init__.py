@@ -106,6 +106,15 @@ PANIC_IGNORABLE_PATTERNS: List[Pattern[str]] = [
     re.compile(r"(.*RIP: 0010:topology_sane.isra.*)$", re.MULTILINE),
 ]
 
+# Root filesystem mount failure patterns
+ROOTFS_FAILURE_PATTERNS: List[Pattern[str]] = [
+    # Warning: dracut-initqueue timeout - starting timeout scripts
+    # Warning: dracut-initqueue: starting timeout scripts
+    re.compile(r"^(.*dracut-initqueue.*timeout.*)$", re.MULTILINE),
+    # ALERT!  UUID=fbf1c3fe-02ca-4347-93ae-458f0bce93a6 does not exist.  Dropping to a shell!  # noqa: E501
+    re.compile(r"^(.*UUID=.*does not exist.*)$", re.MULTILINE),
+]
+
 
 class LisaException(Exception):
     def __init__(self, *args: object) -> None:
@@ -336,6 +345,24 @@ class KernelPanicException(LisaException):
             "details from the serial console log. Please download the test logs and "
             "retrieve the serial_log from 'environments' directory, or you can ask "
             f"support. Detected Panic phrases: {self.panics}"
+        )
+
+
+class RootFsMountFailedException(LisaException):
+    """
+    This exception is used to indicate root filesystem mount failure.
+    """
+
+    def __init__(self, message: List[Any], source: str = "serial log") -> None:
+        self.message = message
+        self.source = source
+
+    def __str__(self) -> str:
+        return (
+            f"found root filesystem mount failure in {self.source}. Possible causes "
+            "include: missing or incorrect UUID, unsupported or corrupted filesystem, "
+            "or missing storage drivers. Please verify disk presence, UUID accuracy, "
+            f"and initramfs contents. Detected root filesystem issues: {self.message}"
         )
 
 
@@ -758,7 +785,7 @@ def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> 
         assert_that(len(prefix)).described_as(
             f"kept length must be greater than prefix '{prefix}'"
         ).is_less_than_or_equal_to(kept_len)
-    return f"{prefix}{content[len(prefix) : ][-kept_len+len(prefix):]}"
+    return f"{prefix}{content[len(prefix) :][-kept_len + len(prefix):]}"
 
 
 def generate_random_chars(
@@ -913,6 +940,18 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
         raise KernelPanicException(stage, panics)
 
 
+def check_rootfs_failure(content: str, log: "Logger") -> None:
+    """
+    Check if console log contains root filesystem mount failure message.
+    If found, raise RootFsMountFailedException.
+    """
+    log.debug("checking root filesystem mount failure...")
+    matched = find_patterns_in_lines(str(content), ROOTFS_FAILURE_PATTERNS)
+    all_matches = [item for sublist in matched for item in sublist]
+    if all_matches:
+        raise RootFsMountFailedException(all_matches)
+
+
 def to_bool(value: Union[str, bool, int]) -> bool:
     """
     Convert a string to a boolean value.
@@ -952,7 +991,7 @@ def to_bool(value: Union[str, bool, int]) -> bool:
     )
 
 
-@retry(tries=10, delay=0.5)
+@retry(tries=10, delay=0.5)  # type: ignore
 def get_public_ip() -> str:
     response = requests.get("https://api.ipify.org/", timeout=5)
     result = response.text

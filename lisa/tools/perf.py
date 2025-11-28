@@ -41,10 +41,9 @@ class Perf(Tool):
                 # Similar issue: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=983314 # noqa: E501
                 self.node.os.install_packages("linux-perf-5.10")
                 self._command = "perf_5.10"
-            elif (
-                isinstance(self.node.os, Debian)
-                and self.node.os.information.codename == "bookworm"
-            ):
+            elif isinstance(
+                self.node.os, Debian
+            ) and self.node.os.information.codename in {"bookworm", "trixie"}:
                 # bookworm, where command "perf" works
                 self.node.os.install_packages("linux-perf")
             else:

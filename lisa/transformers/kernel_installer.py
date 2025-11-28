@@ -161,13 +161,18 @@ class KernelInstallerTransformer(DeploymentTransformer):
             # the installed kernel version is lower than current kernel version.
             from lisa.transformers.dom0_kernel_installer import Dom0Installer
             from lisa.transformers.kernel_source_installer import SourceInstaller
+            from lisa.transformers.rpm_kernel_installer import RPMInstaller
 
             if (
-                isinstance(installer, RepoInstaller)
-                and "fde" not in installer.runbook.source
-            ) or (
-                isinstance(installer, SourceInstaller)
-                and not isinstance(installer, Dom0Installer)
+                (
+                    isinstance(installer, RepoInstaller)
+                    and "fde" not in installer.runbook.source
+                )
+                or (
+                    isinstance(installer, SourceInstaller)
+                    and not isinstance(installer, Dom0Installer)
+                )
+                or isinstance(installer, RPMInstaller)
             ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
@@ -281,7 +286,19 @@ class RepoInstaller(BaseInstaller):
             # the kernel installation from proposed repos to fail.
             self._log.info("Removing repo: https://esm.ubuntu.com/fips/ubuntu")
             ubuntu.remove_repository("https://esm.ubuntu.com/fips/ubuntu")
+            # Disable fips-updates to avoid the package conflict
+            self._log.info("Disabling fips-updates")
+            node.execute(
+                "pro disable fips-updates --assume-yes",
+                sudo=True,
+                shell=True,
+            )
         self._log.info(f"installing kernel package: {full_package_name}")
+        node.execute(
+            f"apt-cache madison {full_package_name}",
+            sudo=True,
+            shell=True,
+        )
         ubuntu.install_packages(full_package_name)
 
         kernel_version = self._get_kernel_version(runbook.source, node)
@@ -295,9 +312,23 @@ class RepoInstaller(BaseInstaller):
         # linux-image-4.18.0-1025-azure/bionic-updates,bionic-security,now
         # 4.18.0-1025.27~18.04.1 amd64 [installed]
         # output 4.18.0-1025
+        # Ubuntu plucky example:
+        # Sorting... 0%
+        # Full Text Search... 50%
+        # linux-image-azure/plucky,now 6.14.0-1012.12 amd64 [installed,automatic]
+        # Linux kernel image for Azure systems (vmlinuz).
+        # linux-image-azure-6.14/plucky 6.14.0-1012.12 amd64
+        # Linux kernel image for Azure systems (vmlinuz).
+        # linux-image-azure-fde/plucky 6.14.0-1012.12 amd64
+        # Linux kernel image for Azure systems (kernel.efi).
+        # linux-image-azure-fde-6.14/plucky 6.14.0-1012.12 amd64
+        # Linux kernel image for Azure systems (kernel.efi).
+        # Note that starting from Ubuntu 2404 \r is seen before the identified line.
+        # The \r is not recognized by ^ in Python.
+        # So [\r\n]+ is used instead of ^ to match the line.
         kernel_version_package_pattern = re.compile(
-            f"^{source}/[^ ]+ "
-            r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*[\r\n]+",
+            f"[\r\n]+{source}/[^ ]+ "  # noqa: E202
+            r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*installed.*[\r\n]+",
             re.M,
         )
         result = node.execute(f"apt search {source}", shell=True)
@@ -324,15 +355,10 @@ class PpaInstaller(RepoInstaller):
     def install(self) -> str:
         runbook: PpaInstallerSchema = self.runbook
         node: Node = self._node
-
-        # the key is optional
-        if runbook.openpgp_key:
-            node.execute(
-                f"apt-key adv --keyserver keyserver.ubuntu.com --recv-keys "
-                f"{runbook.openpgp_key}",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="error on import key",
+        if runbook.openpgp_key and isinstance(node.os, Ubuntu):
+            node.os.add_key(
+                server_name="keyserver.ubuntu.com",
+                key=runbook.openpgp_key,
             )
 
         # replace default repo url

@@ -3,6 +3,7 @@ from typing import Optional
 from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Posix
+from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
 from lisa.tools.mkdir import Mkdir
@@ -11,9 +12,9 @@ from lisa.util import ReleaseEndOfLifeException, RepoNotExistException
 
 
 class Aria(Tool):
-    _DOWNLOAD_LOCATION = "https://github.com/q3aql/aria2-static-builds/releases/download/v1.35.0/aria2-1.35.0-linux-gnu-64bit-build1.tar.bz2"  # noqa: E501
-    _DOWNLOAD_TAR_NAME = "aria2-1.35.0-linux-gnu-64bit-build1.tar.bz2"
-    _DOWNLOAD_NAME = "aria2-1.35.0-linux-gnu-64bit-build1"
+    _DOWNLOAD_LOCATION = "https://github.com/aria2/aria2/releases/download/release-1.35.0/aria2-1.35.0.tar.xz"  # noqa: E501
+    _DOWNLOAD_TAR_NAME = "aria2-1.35.0.tar.xz"
+    _DOWNLOAD_NAME = "aria2-1.35.0"
 
     @property
     def command(self) -> str:
@@ -43,12 +44,21 @@ class Aria(Tool):
             self.node.tools[Tar].extract(
                 file=downloaded_file_path, dest_dir=str(self.node.working_path)
             )
-
+            posix_os.install_packages("openssl-devel")
+            self.node.tools[Gcc].install_cpp_compiler()
+            current_path = self.node.working_path / self._DOWNLOAD_NAME
+            self.node.execute(
+                "./configure --disable-dependency-tracking",
+                shell=True,
+                cwd=current_path,
+            ).assert_exit_code()
             # make and install aria2
-            self.node.tools[Make].make_install(
-                cwd=self.node.working_path / self._DOWNLOAD_NAME
+            self.node.tools[Make].make_install(cwd=current_path)
+            self.node.execute(
+                "ln -s /usr/local/bin/aria2c /usr/bin/aria2c",
+                sudo=True,
+                cwd=current_path,
             )
-
         return self._check_exists()
 
     def get(
@@ -75,7 +85,7 @@ class Aria(Tool):
         # on the node, or 16 which is the max number of connections aria2 can
         # handle
         if not num_connections:
-            num_connections = min(self.node.tools[Lscpu].get_core_count(), 16)
+            num_connections = min(self.node.tools[Lscpu].get_thread_count(), 16)
 
         # setup aria2c command and run
         command = f"-x {num_connections} --dir={file_path} --out={filename} "

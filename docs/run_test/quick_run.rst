@@ -111,11 +111,24 @@ Linux VM on Azure.
 
    After the test is completed, you can check the LISA console log, or the html
    report file for the test results. Refer to :doc:`Understand test results
-   <understand_results>` for more detailed explanation of the logs and report.
+   <troubleshoot_failures>` for more detailed explanation of the logs and report.
    See an example html report as below:
 
    .. figure:: ../img/smoke_test_result.png
       :alt: image
+
+#. Test specific cases with debug runbook
+
+   LISA provides a debug runbook to run specific test cases by name. This is useful for debugging and testing individual cases.
+
+   Simple example with case and origin:
+
+   .. code:: bash
+
+      lisa -r microsoft/runbook/debug.yml \
+        -v "case:hello" \
+        -v "origin:azure.yml" \
+        -v subscription_id:<subscription id>
 
 .. note::
    See :doc:`Run LISA <run>` for more advanced usages.

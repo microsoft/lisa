@@ -10,10 +10,12 @@ from retry import retry
 
 from lisa.executable import Tool
 from lisa.messages import (
+    MetricRelativity,
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
     TransportProtocol,
     create_perf_message,
+    send_unified_perf_message,
 )
 from lisa.operating_system import Posix
 from lisa.tools import Cat
@@ -174,7 +176,7 @@ class Iperf3(Tool):
             expected_exit_code_failure_message="fail to launch iperf3 server",
         )
 
-    @retry(tries=10, delay=2)
+    @retry(tries=10, delay=2)  # type: ignore
     def run_as_client_async(  # noqa: C901
         self,
         server_ip: str,
@@ -306,11 +308,12 @@ class Iperf3(Tool):
             ip_version,
             udp_mode,
         )
-        return process.wait_result(
+        result = process.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to launch iperf3 client",
             timeout=run_time_seconds,
         )
+        return result  # type: ignore
 
     def create_iperf_tcp_performance_message(
         self,
@@ -344,6 +347,15 @@ class Iperf3(Tool):
             other_fields["retransmitted_segments"] = client_stream["sender"][
                 "retransmits"
             ]
+
+        # Send unified performance messages
+        self.send_iperf3_tcp_unified_perf_messages(
+            other_fields,
+            connections_num,
+            test_case_name,
+            test_result,
+        )
+
         return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
@@ -427,13 +439,122 @@ class Iperf3(Tool):
         )
         other_fields["send_buffer_size"] = Decimal(buffer_length)
         other_fields["connections_num"] = connections_num
-        other_fields["protocol_type"] = TransportProtocol.Udp
+
+        # Send unified performance messages
+        self.send_iperf3_udp_unified_perf_messages(
+            other_fields,
+            connections_num,
+            test_case_name,
+            test_result,
+        )
+
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
             test_result,
             test_case_name,
             other_fields,
+        )
+
+    def _send_unified_perf_metrics(
+        self,
+        metrics: List[Dict[str, Any]],
+        test_case_name: str,
+        test_result: "TestResult",
+        protocol_type: str,
+    ) -> None:
+        """Helper method to send unified performance metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_IPERF
+
+        for metric in metrics:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric["name"],
+                metric_value=metric["value"],
+                metric_unit=metric.get("unit", ""),
+                metric_relativity=metric["relativity"],
+                protocol_type=protocol_type,
+            )
+
+    def send_iperf3_tcp_unified_perf_messages(
+        self,
+        other_fields: Dict[str, Any],
+        connections_num: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for TCP iperf3 metrics."""
+        buffer_size = int(other_fields["buffer_size_bytes"])
+        suffix = f"_conn_{connections_num}_buffer_{buffer_size}"
+
+        metrics = [
+            {
+                "name": f"rx_throughput_in_gbps{suffix}",
+                "value": float(other_fields["rx_throughput_in_gbps"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
+            },
+            {
+                "name": f"tx_throughput_in_gbps{suffix}",
+                "value": float(other_fields["tx_throughput_in_gbps"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
+            },
+            {
+                "name": f"congestion_windowsize_kb{suffix}",
+                "value": float(other_fields["congestion_windowsize_kb"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "KB",
+            },
+            {
+                "name": f"retransmitted_segments{suffix}",
+                "value": float(other_fields["retransmitted_segments"]),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "",
+            },
+        ]
+
+        self._send_unified_perf_metrics(
+            metrics, test_case_name, test_result, TransportProtocol.Tcp
+        )
+
+    def send_iperf3_udp_unified_perf_messages(
+        self,
+        other_fields: Dict[str, Any],
+        connections_num: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for UDP iperf3 metrics."""
+        buffer_size = int(other_fields["send_buffer_size"])
+        suffix = f"_conn_{connections_num}_buffer_{buffer_size}"
+
+        metrics = [
+            {
+                "name": f"tx_throughput_in_gbps{suffix}",
+                "value": float(other_fields["tx_throughput_in_gbps"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
+            },
+            {
+                "name": f"rx_throughput_in_gbps{suffix}",
+                "value": float(other_fields["rx_throughput_in_gbps"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
+            },
+            {
+                "name": f"data_loss{suffix}",
+                "value": float(other_fields["data_loss"]),
+                "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "%",
+            },
+        ]
+
+        self._send_unified_perf_metrics(
+            metrics, test_case_name, test_result, TransportProtocol.Udp
         )
 
     def get_sender_bandwidth(self, result: str) -> Decimal:

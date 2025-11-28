@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
 from lisa import notifier
 from lisa.executable import Tool
-from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
+from lisa.messages import (
+    MetricRelativity,
+    NetworkLatencyPerformanceMessage,
+    create_perf_message,
+    send_unified_perf_message,
+)
 from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, constants, find_groups_in_lines, get_datetime_path
 from lisa.util.process import ExecutableResult, Process
@@ -240,6 +245,94 @@ class Lagscope(Tool, KillableMixin):
             self._log.debug(f"no average latency found in {result.stdout}")
             return Decimal(-1.0)
 
+    def _send_latency_unified_perf_messages(
+        self,
+        other_fields: Dict[str, Any],
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for network latency metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_LAGSCOPE
+
+        min_latency_us = other_fields["min_latency_us"]
+        max_latency_us = other_fields["max_latency_us"]
+        average_latency_us = other_fields["average_latency_us"]
+        latency95_percentile_us = other_fields.get(
+            "latency95_percentile_us", Decimal(0)
+        )
+        latency99_percentile_us = other_fields["latency99_percentile_us"]
+        interval_us = other_fields["interval_us"]
+        frequency = other_fields["frequency"]
+
+        metrics = [
+            {
+                "name": (
+                    f"min_latency_interval_{int(interval_us)}_freq_{int(frequency)}"
+                ),
+                "value": float(min_latency_us),
+                "unit": "microseconds",
+                "description": "Minimum latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+            {
+                "name": (
+                    f"max_latency_interval_{int(interval_us)}_freq_{int(frequency)}"
+                ),
+                "value": float(max_latency_us),
+                "unit": "microseconds",
+                "description": "Maximum latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+            {
+                "name": (
+                    f"average_latency_interval_{int(interval_us)}_freq_{int(frequency)}"
+                ),
+                "value": float(average_latency_us),
+                "unit": "microseconds",
+                "description": "Average latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+            {
+                "name": (
+                    "latency_95th_percentile_interval_"
+                    f"{int(interval_us)}_freq_{int(frequency)}"
+                ),
+                "value": float(latency95_percentile_us),
+                "unit": "microseconds",
+                "description": "95th percentile latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+            {
+                "name": (
+                    "latency_99th_percentile_interval_"
+                    f"{int(interval_us)}_freq_{int(frequency)}"
+                ),
+                "value": float(latency99_percentile_us),
+                "unit": "microseconds",
+                "description": "99th percentile latency",
+                "relativity": MetricRelativity.LowerIsBetter,
+            },
+        ]
+
+        for metric in metrics:
+            metric_name: str = metric["name"]  # type: ignore
+            metric_value: float = metric["value"]  # type: ignore
+            metric_unit: str = metric["unit"]  # type: ignore
+            metric_description: str = metric["description"]  # type: ignore
+            metric_relativity: MetricRelativity = metric["relativity"]  # type: ignore
+
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric_name,
+                metric_value=metric_value,
+                metric_unit=metric_unit,
+                metric_description=metric_description,
+                metric_relativity=metric_relativity,
+            )
+
     def create_latency_performance_messages(
         self,
         result: ExecutableResult,
@@ -274,6 +367,14 @@ class Lagscope(Tool, KillableMixin):
             )
             other_fields["frequency"] = int(matched_result["frequency"])
             other_fields["interval_us"] = int(matched_result["interval_us"])
+
+            # Send unified performance messages
+            self._send_latency_unified_perf_messages(
+                other_fields=other_fields,
+                test_case_name=test_case_name,
+                test_result=test_result,
+            )
+
             message = create_perf_message(
                 NetworkLatencyPerformanceMessage,
                 self.node,
@@ -456,6 +557,14 @@ class BSDLagscope(Lagscope):
             stats["total_observations"] / stats["run_time_seconds"]
         )
         other_fields["interval_us"] = stats["run_time_seconds"] * 1000000
+
+        # Send unified performance messages
+        # Note: BSDLagscope uses sockperf which doesn't provide 95th percentile
+        self._send_latency_unified_perf_messages(
+            other_fields=other_fields,
+            test_case_name=test_case_name,
+            test_result=test_result,
+        )
 
         message = create_perf_message(
             NetworkLatencyPerformanceMessage,

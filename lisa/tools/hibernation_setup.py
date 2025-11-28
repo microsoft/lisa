@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import re
-from typing import List, Pattern, Type
+from typing import List, Type
 
 from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.tools.journalctl import Journalctl
-from lisa.util import find_patterns_in_lines, get_matched_str
+from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
 from .git import Git
+from .grep import Grep
 from .ls import Ls
 from .make import Make
 
@@ -19,15 +20,21 @@ from .make import Make
 class HibernationSetup(Tool):
     _repo = "https://github.com/microsoft/hibernation-setup-tool"
     # [  159.967060] PM: hibernation entry
-    _entry_pattern = re.compile(r"^(.*hibernation entry.*)$", re.MULTILINE)
+    _entry_pattern = "hibernation entry"
     # [   22.813227] PM: hibernation exit
-    _exit_pattern = re.compile(r"^(.*hibernation exit.*)$", re.MULTILINE)
+    _exit_pattern = "hibernation exit"
     # [  159.898723] hv_utils: Hibernation request received
-    _received_pattern = re.compile(
-        r"^(.*Hibernation request received.*)$", re.MULTILINE
-    )
+    _received_pattern = "Hibernation request received"
     # [  159.898806] hv_utils: Sent hibernation uevent
-    _uevent_pattern = re.compile(r"^(.*Sent hibernation uevent.*)$", re.MULTILINE)
+    _uevent_pattern = "Sent hibernation uevent"
+
+    # hibernation-setup-tool: ERROR: System needs a swap area of 322170 MB;
+    # but only has 294382 MB free space on device
+    _insufficient_swap_space_pattern = re.compile(
+        r"hibernation-setup-tool: ERROR: System needs a swap area of \d+ MB; "
+        r"but only has \d+ MB free space on device",
+        re.MULTILINE,
+    )
 
     """
     The below shows an example output of `filefrag -v /hibfile.sys`
@@ -58,11 +65,16 @@ class HibernationSetup(Tool):
         return True
 
     def start(self) -> None:
-        self.run(
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to start",
-        )
+        result = self.run(sudo=True)
+
+        # Analyze stdout for error patterns first
+        self._analyze_stdout_for_errors(result.stdout)
+
+        # If no errors found in stdout but exit code is non-zero, raise generic failure
+        if result.exit_code != 0:
+            raise LisaException(
+                f"hibernation-setup-tool failed with exit code {result.exit_code}"
+            )
 
     def check_entry(self) -> int:
         return self._check(self._entry_pattern)
@@ -75,6 +87,12 @@ class HibernationSetup(Tool):
 
     def check_uevent(self) -> int:
         return self._check(self._uevent_pattern)
+
+    def _analyze_stdout_for_errors(self, stdout: str) -> None:
+        # Check for insufficient swap space error
+        error_message = get_matched_str(stdout, self._insufficient_swap_space_pattern)
+        if error_message:
+            raise LisaException(f"Hibernation setup failed: {error_message}")
 
     def hibernate(self) -> None:
         self.node.tools[Systemctl].hibernate()
@@ -91,6 +109,11 @@ class HibernationSetup(Tool):
         offset = get_matched_str(cmdline, self._cmdline_resume_offset_pattern)
         return offset
 
+    def get_hibernate_resume_offset_from_sys_power(self) -> str:
+        cat = self.node.tools[Cat]
+        offset = cat.read("/sys/power/resume_offset", force_run=True, sudo=True)
+        return offset
+
     def _install(self) -> bool:
         if isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
@@ -102,18 +125,34 @@ class HibernationSetup(Tool):
         make.make_install(code_path)
         return self._check_exists()
 
-    def _check(self, pattern: Pattern[str]) -> int:
-        cat = self.node.tools[Cat]
-        log_output = ""
+    def _check(self, pattern: str) -> int:
+        """
+        Check for pattern matches in log files using grep for efficiency.
+        This avoids reading large log files entirely which can cause timeouts.
+        """
+        grep = self.node.tools[Grep]
         ls = self.node.tools[Ls]
+
+        # Determine which log file to use
         if ls.path_exists("/var/log/syslog", sudo=True):
-            log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
+            log_file = "/var/log/syslog"
         elif ls.path_exists("/var/log/messages", sudo=True):
-            log_output = cat.read("/var/log/messages", force_run=True, sudo=True)
+            log_file = "/var/log/messages"
         else:
+            # Fall back to journalctl for systems without traditional log files
             journalctl = self.node.tools[Journalctl]
             log_output = journalctl.first_n_logs_from_boot(no_of_lines=0)
-        matched_lines = find_patterns_in_lines(log_output, [pattern])
-        if not matched_lines:
-            return 0
-        return len(matched_lines[0])
+            # Compile pattern only when needed for journalctl path
+            compiled_pattern = re.compile(pattern)
+            matched_lines = find_patterns_in_lines(log_output, [compiled_pattern])
+            if not matched_lines:
+                return 0
+            return len(matched_lines[0])
+
+        return grep.count(
+            pattern=pattern,
+            file=log_file,
+            sudo=True,
+            no_debug_log=True,
+            force_run=True,
+        )

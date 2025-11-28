@@ -86,7 +86,7 @@ class Mount(Tool):
     def can_install(self) -> bool:
         return True
 
-    @retry(tries=24, delay=5)
+    @retry(tries=24, delay=5)  # type: ignore
     def mount(
         self,
         name: str,
@@ -108,7 +108,7 @@ class Mount(Tool):
         cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
         cmd_result.assert_exit_code()
 
-    @retry(tries=24, delay=5)
+    @retry(tries=24, delay=5)  # type: ignore
     def remount(
         self,
         point: str,

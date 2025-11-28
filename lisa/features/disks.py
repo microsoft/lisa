@@ -84,9 +84,10 @@ class Disk(Feature):
 
     # Get boot partition of VM by looking for "/boot", "/boot/efi", and "/efi"
     def get_os_boot_partition(self) -> Optional[PartitionInfo]:
-        # We need to access /efi to force systemd to
+        # We need to access /efi and /boot to force systemd to
         # mount the boot partition on some distros.
         self._node.tools[Ls].path_exists("/efi", sudo=True)
+        self._node.tools[Ls].path_exists("/boot", sudo=True)
 
         partition_info = self._node.tools[Mount].get_partition_info()
         boot_partition: Optional[PartitionInfo] = None

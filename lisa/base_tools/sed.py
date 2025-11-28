@@ -24,7 +24,11 @@ class Sed(Tool):
         match_lines: str = "",
         sudo: bool = False,
     ) -> None:
-        # always force run, make sure it happens every time.
+        # Escape slashes (must be done before crafting sed expression,
+        # as we want to preserve slashes after)
+        regexp = regexp.replace("/", r"\/")
+        replacement = replacement.replace("/", r"\/")
+
         if match_lines != "":
             expression = f"/{match_lines}/s/{regexp}/{replacement}/g"
         else:
@@ -61,6 +65,20 @@ class Sed(Tool):
             force_run=True,
             no_error_log=True,
             no_info_log=True,
+            sudo=sudo,
+            shell=True,
+        )
+        result.assert_exit_code(message=result.stdout)
+
+    def insert_line_beginning(
+        self,
+        line: str,
+        file: str,
+        sudo: bool = False,
+    ) -> None:
+        result = self.run(
+            f"-i.bak '1i {line}' {file}",
+            force_run=True,
             sudo=sudo,
             shell=True,
         )

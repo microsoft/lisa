@@ -244,6 +244,10 @@ Usage
   transformer:
     - type: azure_deploy
       resource_group_name: rg_name
+      deploy: true
+      source_address_prefixes:
+        - "192.168.1.0/24"
+        - "10.0.0.0/8"
       requirement:
         azure:
           marketplace: image_name
@@ -268,7 +272,7 @@ resource_group_name
 
 type: string
 
-Name of the resource group in which VM should be deployed. Creates a new RG if not specified.
+Name of the resource group in which VM should be deployed. Creates a new RG if not specified. When not provided, the platform configuration will be used for the transformer. When the VM of transformer has different resource group requirements, it can be overwritten here. This only works for new fresh deployment - if the resource group already exists, it does nothing.
 
 requirement
 ^^^^^^^^^^^
@@ -281,6 +285,18 @@ core_count
 type: int
 
 Automatically selects vm_size based on the count provided.
+
+deploy
+^^^^^^
+type: bool | Default: true
+
+Whether to create a new deployment. If true, creates a new VM deployment. If false, uses existing VMs in the specified resource_group_name.
+
+source_address_prefixes
+^^^^^^^^^^^^^^^^^^^^^^^
+type: Optional[Union[str, List[str]]] | Default: None
+
+Source address prefixes for network security rules. Can be a single string, a comma-separated string, or a list of strings. When not specified, defaults to the current public IP address for security. When not provided, the platform configuration will be used for the transformer. When the VM of transformer has different network infrastructure requirements, it can be overwritten here.
 
 
 Use Delete Transformer
@@ -295,6 +311,8 @@ Usage
   transformer:
     - type: azure_delete
       resource_group_name: rg_name
+      keep_environment: "failed"
+      wait_delete: true
 
 Reference
 `````````
@@ -302,10 +320,23 @@ Reference
 resource_group_name (Required)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-type: string 
+type: string
 
 Name of the resource group that should be deleted.
 
+keep_environment
+^^^^^^^^^^^^^^^^
+
+type: string | bool | Default: "no"
+
+Whether to keep the environment after deletion. Allowed values: "always", "no", "failed", or True/False.
+
+wait_delete
+^^^^^^^^^^^
+
+type: bool | Default: false
+
+Whether to wait for the deletion to complete. If set to true, the transformer will wait for the resource group to be fully deleted before proceeding.
 
 
 Use Vhd Transformer
@@ -351,7 +382,7 @@ Name of the VM. Required if multiple VMs are present in the resource group.
 
 storage_account_name
 ^^^^^^^^^^^^^^^^^^^^
-type: string | Default: Default LISA storage account 
+type: string | Default: Default LISA storage account
 
 Name of storage account to save the VHD.
 
@@ -379,3 +410,124 @@ restore
 type: bool | Default: false
 
 VM is stopped for exporting VHD. Restore can be set to true to start the VM after exporting.
+
+
+Use File Uploader Transformer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This transformer is used to upload files from local to remote nodes. It should be used when the environment is connected.
+
+Usage
+``````
+.. code:: yaml
+
+  transformer:
+    - type: file_uploader
+      phase: environment_connected
+      source: "/local/path/to/files"
+      destination: "/remote/path/to/upload"
+      files:
+        - "file1.txt"
+        - "file2.sh"
+        - "config.yaml"
+
+Outputs
+````````
+ - uploaded_files
+
+Reference
+`````````
+
+source (Required)
+^^^^^^^^^^^^^^^^^
+type: string
+
+The local source path containing the files to be uploaded. This path must exist on the local machine.
+
+destination (Required)
+^^^^^^^^^^^^^^^^^^^^^^
+type: string
+
+The remote destination path where files will be uploaded. If the destination directory does not exist, it will be created automatically.
+
+files (Required)
+^^^^^^^^^^^^^^^^
+type: List[str]
+
+List of file names to upload from the source directory. Each file name is relative to the source path.
+
+
+Use Script File Transformer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This transformer is used to install required packages, execute scripts on a node, and optionally reboot the node after execution.
+
+Usage
+``````
+.. code:: yaml
+
+  transformer:
+    - type: script_file
+      phase: expanded
+      connection:
+        address: $(build_vm_address)
+        private_key_file: $(admin_private_key_file)
+      reboot: true
+      dependent_packages:
+        - git
+      scripts:
+        - script: "/tmp/waagent.sh"
+          interpreter: bash
+          args: "--flag"
+          expected_exit_code: 0
+
+Outputs
+````````
+ - results
+
+Reference
+`````````
+
+dependent_packages
+^^^^^^^^^^^^^^^^^^
+type: List[str] | Default: []
+
+List of packages to install before executing scripts.
+
+scripts (Required)
+^^^^^^^^^^^^^^^^^^
+type: List[ScriptEntry]
+
+List of scripts to execute on the node.
+
+Script Entry Properties:
+
+script (Required)
+"""""""""""""""""
+type: string
+
+Path to the script file on the target node.
+
+interpreter
+"""""""""""
+type: string | Default: "bash"
+
+Interpreter to use for executing the script. Currently only bash is supported.
+
+args
+""""
+type: string | Default: None
+
+Arguments to pass to the script.
+
+expected_exit_code
+""""""""""""""""""
+type: int | Default: 0
+
+Expected exit code of the script. If the script returns a different exit code, execution will fail.
+
+reboot
+^^^^^^
+type: bool | Default: false
+
+Reboot the node after script execution.

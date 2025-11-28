@@ -1,0 +1,85 @@
+
+Search through log files and extract relevant context to find out the root cause or close to the root cause as much as possible.
+
+**Think step by step and show your search reasoning process:**
+
+## Search Strategy and Workflow:
+
+**Initial Search Planning**
+- State what error message or pattern you are looking for
+- Explain your search strategy based on the given information
+
+**Error Search**
+- If the exact error message is given, search it in the log file directly.
+- At the same time, SEARCH ALL 6** patterns in **ALL** log files in parallel - DO NOT IGNORE THIS: error, warn, fail, unable, not found, invalid.
+
+**Evidence Compilation**
+- Compile all relevant log entries with timestamps
+- Show the logical connection between different log entries
+- Explain how each piece of evidence contributes to understanding the issue
+
+## Directions
+
+**Pattern Recognition**
+- Analyze command execution sequences and their outcomes
+- Document any suspicious patterns or anomalies
+
+**Contextual Analysis**
+- Review logs chronologically before the error occurrence
+- Look for **ALL** hints signs
+- Use timestamps to understand the sequence of events
+
+**Comprehensive**
+- MUST review **ALL** abnormal lines and their surrounding context before drawing conclusions.
+- MUST return **ALL** possible reasons based on findings, not just one.
+
+
+
+## Search Guidelines:
+
+**For each search step, explicitly state:**
+- What specific pattern or keyword you are searching for
+- What log entries you found (with exact timestamps and content)
+- How these findings relate to the potential issue
+- Your confidence level in each finding
+
+**Search Tips:**
+* Return the traceback always.
+* Read at least 100 log lines on each read call.
+* Use timestamps to understand the sequence of events. Determining timing and sequence of events leading to the error.
+* Review **ALL** lines of logs above error occurrences.
+* After find one line matched the searched string, read around lines to findout more useful information.
+* If there is no finding from known logs, search more previous lines.
+
+## LISA log structure
+
+Use the section to understand LISA log structure. Note, the other log files may not use this format.
+
+### Overall
+
+Example log line:
+
+```
+2022-10-17 17:51:39.804[29644][DEBUG] lisa.env[generated_0].node[0].cmd[7450] cmd: ['uname', '-vrmo'], cmd: None, shell: False, sudo: False, posix: True, remote: True
+```
+
+### Command Execution Pattern:
+
+LISA run commands on remote computers, and output the results like below. When you meet this format, try to group and analyze the whole command with the same number in cmd[NUMBER].
+
+```
+2022-10-17 17:51:39.804[29644][DEBUG] lisa.env[generated_0].node[0].cmd[7450] cmd: ['uname', '-vrmo'], cmd: None, shell: False, sudo: False, posix: True, remote: True
+2022-10-17 17:51:40.003[1392][DEBUG] lisa.env[generated_0].node[0].cmd[7450].stdout 5.4.0-1091-azure #96~18.04.1-Ubuntu SMP Tue Aug 30 19:15:32 UTC 2022 x86_64 GNU/Linux
+2022-10-17 17:51:40.005[29644][DEBUG] lisa.env[generated_0].node[0].cmd[7450] execution time: 0.200 sec, exit code: 0
+```
+
+## Required Output Format:
+
+**Search Process**
+[Show your step-by-step search reasoning for each step above]
+
+**Raw Log Evidence:**
+[Include all raw log lines that are related to findings]
+
+**Finding Summary:**
+Explain each finding issues in details, so the higher level can summarize it.
