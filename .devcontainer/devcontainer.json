@@ -7,7 +7,7 @@
 		"vscode": {
 			"settings": {
 				"python.defaultInterpreterPath": "/usr/bin/python3",
-				"terminal.integrated.shell.linux": "/bin/bash",
+				"terminal.integrated.defaultProfile.linux": "bash",
 				"[python]": {
 					"editor.defaultFormatter": "ms-python.black-formatter"
 				},
