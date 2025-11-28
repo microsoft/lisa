@@ -127,6 +127,8 @@ class XdpTool(Tool):
             elif self.node.os.is_package_in_repo("clang-10"):
                 package_list.append("clang-10")
                 config_envs.update({"CLANG": "clang-10", "LLC": "llc-10"})
+            elif self.node.os.is_package_in_repo("clang"):
+                package_list.append("clang")
             self.node.os.install_packages(package_list)
 
         elif isinstance(self.node.os, Fedora):
