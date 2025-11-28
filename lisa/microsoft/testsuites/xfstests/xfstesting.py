@@ -4,8 +4,6 @@ import string
 from pathlib import Path
 from typing import Any, Dict, Optional, Union, cast
 
-from microsoft.testsuites.xfstests.xfstests import Xfstests
-
 from lisa import (
     Logger,
     Node,
@@ -33,6 +31,7 @@ from lisa.util import (
     constants,
     generate_random_chars,
 )
+from microsoft.testsuites.xfstests.xfstests import Xfstests
 
 # Global variables
 # Section : NFS options. <TODO>

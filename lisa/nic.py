@@ -83,9 +83,12 @@ class NicInfo:
     @property
     def is_pci_only_nic(self) -> bool:
         """
-        Check if this is an Accelerated Networking (AN) NIC without synthetic NIC pairing.
+        Check if this is an Accelerated Networking (AN) NIC without
+        synthetic NIC pairing.
         """
-        return not self.lower and self.is_pci_device and self.module_name != "hv_netvsc"
+        return (
+            not self.lower and self.is_pci_device and self.module_name != "hv_netvsc"
+        )
 
     @property
     def pci_device_name(self) -> str:
@@ -171,7 +174,8 @@ class Nics(InitializableMixin):
         for nic in self.nics.values():
             is_synthetic = not nic.lower and not nic.is_pci_device
             self._node.log.debug(
-                f"  NIC {nic.name}: lower='{nic.lower}', is_pci_device={nic.is_pci_device}, "
+                f"  NIC {nic.name}: lower='{nic.lower}', "
+                f"is_pci_device={nic.is_pci_device}, "
                 f"pci_slot='{nic.pci_slot}', module_name='{nic.module_name}', "
                 f"is_synthetic={is_synthetic}"
             )
@@ -342,7 +346,8 @@ class Nics(InitializableMixin):
         if not nic_name:
             assert_that(sorted(found_nics)).described_as(
                 f"Could not locate nic info for all nics. "
-                f"Nic set was {self.nics.keys()} and only found info for {found_nics}"
+                f"Nic set was {self.nics.keys()} and only found info for "
+                f"{found_nics}"
             ).is_equal_to(sorted(self.nics.keys()))
 
     def reload(self) -> None:
@@ -512,8 +517,9 @@ class Nics(InitializableMixin):
 
     def _discover_standalone_pci_nics(self, lspci: Lspci) -> None:
         """
-        Discover standalone PCI NICs by checking device paths for PCI information.
-        This handles scenarios where NICs operate as standalone PCI devices without synthetic pairing.
+        Discover standalone PCI NICs by checking device paths for PCI
+        information. This handles scenarios where NICs operate as standalone
+        PCI devices without synthetic pairing.
         """
         # Get unpaired NICs that might have PCI devices
         unpaired_nics = self.get_unpaired_devices()
@@ -561,7 +567,6 @@ class Nics(InitializableMixin):
                         f"Could not extract PCI slot from device path for {nic_name}: "
                         f"{device_path}"
                     )
-
 
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
