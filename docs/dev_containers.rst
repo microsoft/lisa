@@ -2,18 +2,16 @@ Develop LISA using VS Code Dev Containers
 ==========================================
 
 For developers who want to contribute to LISA or develop test cases, you can use VS Code Dev Containers 
-to work inside a Docker container with all dependencies pre-configured. This approach works on both 
-Linux and Windows.
+to work inside a Linux-based Docker container with all dependencies pre-configured.
+
+**Note:** Only Linux containers are currently supported. Windows containers cannot be used with VS Code Dev Containers
 
 Prerequisites
 -------------
 
 1. Install `Visual Studio Code <https://code.visualstudio.com/>`__
 2. Install the `Dev Containers extension <https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers>`__
-3. Ensure Docker is installed and running:
-   
-   - On Linux: See :doc:`docker_linux`
-   - On Windows: See :doc:`docker_windows`
+3. Ensure Docker is installed and running
 
 Using the Dev Container
 ------------------------
@@ -44,9 +42,8 @@ Using the Dev Container
 5. Once inside the container, you have a full development environment with:
 
    - Python 3 with all LISA dependencies installed
-   - Python extensions (Python language support and Pylance for IntelliSense)
-   - Your workspace mounted at ``/app/lisa`` from your host machine
    - All changes are persisted to your local filesystem
+   - Your workspace mounted from your host machine
    - Your source code is synced between the container and host machine, so you can use Git directly on your host system.
 
 Rebuilding the Container
