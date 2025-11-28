@@ -3,6 +3,13 @@
 from typing import Any, cast
 
 from assertpy import assert_that
+from microsoft.testsuites.network.common import (
+    cleanup_iperf3,
+    initialize_nic_info,
+    sriov_basic_test,
+    sriov_disable_enable,
+    sriov_vf_connection_test,
+)
 
 from lisa import (
     Environment,
@@ -21,13 +28,6 @@ from lisa.features import StartStop
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import Cat, Iperf3
-from microsoft.testsuites.network.common import (
-    cleanup_iperf3,
-    initialize_nic_info,
-    sriov_basic_test,
-    sriov_disable_enable,
-    sriov_vf_connection_test,
-)
 
 
 @TestSuiteMetadata(
@@ -139,8 +139,8 @@ class Stress(TestSuite):
             for nic in node.nics.nics.values():
                 if nic.is_pci_only_nic:
                     raise SkippedException(
-                        f"SRIOV stress disable/enable test not applicable for PCI-only NIC {nic.name} "
-                        f"on node {node.name}."
+                        f"SRIOV stress disable/enable test not applicable "
+                        f"for PCI-only NIC {nic.name} on node {node.name}."
                     )
 
         sriov_disable_enable(environment, times=50)

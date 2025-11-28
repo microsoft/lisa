@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Tuple, Union, cast
 
 from assertpy import assert_that
+from microsoft.testsuites.network.common import cleanup_iperf3
 
 from lisa import (
     Environment,
@@ -25,7 +26,6 @@ from lisa.base_tools import Uname
 from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
 from lisa.tools import Ethtool, Iperf3, KernelConfig, Ls, Modinfo, Nm
 from lisa.util import parse_version
-from microsoft.testsuites.network.common import cleanup_iperf3
 
 
 @TestSuiteMetadata(
