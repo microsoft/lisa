@@ -137,6 +137,7 @@ class XdpTool(Tool):
                     "http://mirror.stream.centos.org/9-stream/AppStream/"
                     f"{arch}/os/Packages/libpcap-devel-1.10.0-4.el9.{arch}.rpm"
                 )
+                self.node.os.install_packages("libpcap-devel")
             else:
                 if isinstance(self.node.os, CentOs) or isinstance(
                     self.node.os, AlmaLinux
