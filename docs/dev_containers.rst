@@ -53,7 +53,7 @@ Rebuilding the Container
 -------------------------
 
 If you make changes to the ``.devcontainer/devcontainer.json`` file, the Dockerfile, or Python dependencies 
-(``pyproject.toml`` or ``poetry.lock``), you'll need to rebuild the container:
+(``pyproject.toml``), you'll need to rebuild the container:
 
 1. Press ``F1`` or ``Ctrl+Shift+P`` to open the command palette
 2. Type "Dev Containers: Rebuild Container" and select it
