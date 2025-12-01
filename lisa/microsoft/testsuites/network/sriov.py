@@ -211,7 +211,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=8,
+                nic_count=15,
                 data_path=schema.NetworkDataPath.Sriov,
             ),
         ),
@@ -332,7 +332,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
-                max_nic_count=8,
+                max_nic_count=15,
             ),
         ),
     )
@@ -343,7 +343,7 @@ class Sriov(TestSuite):
         try:
             node = cast(RemoteNode, environment.nodes[0])
             network_interface_feature = node.features[NetworkInterface]
-            network_interface_feature.attach_nics(extra_nic_count=7)
+            network_interface_feature.attach_nics(extra_nic_count=14)
             is_ready, tcp_error_code = wait_tcp_port_ready(
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],

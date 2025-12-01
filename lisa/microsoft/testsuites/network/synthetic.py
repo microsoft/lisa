@@ -33,7 +33,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -184,7 +184,7 @@ class Synthetic(TestSuite):
         try:
             for node in environment.nodes.list():
                 network_interface_feature = node.features[NetworkInterface]
-                for _ in range(7):
+                for _ in range(14):
                     network_interface_feature.attach_nics(
                         extra_nic_count=1, enable_accelerated_networking=False
                     )
