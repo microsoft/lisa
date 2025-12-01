@@ -94,12 +94,12 @@ def check_hibernation_disk_requirements(node: Node) -> None:
 
     if available_space_gb < required_space_with_buffer:
         raise LisaException(
-            f"Insufficient disk space for hibernation. "
+            "Insufficient disk space for hibernation. "
             f"Memory size: {total_memory_gb:.2f} GB, "
             f"Available space: {available_space_gb:.2f} GB, "
             f"Required space: {required_space_gb:.2f} GB ({formula}), "
             f"Recommended (20% buffer): {required_space_with_buffer:.2f} GB. "
-            f"Please increase 'osdisk_size_in_gb'."
+            "Please increase 'osdisk_size_in_gb'."
         )
 
 
