@@ -92,7 +92,7 @@ class KernelDebug(TestSuite):
                     "/sys/kernel/debug/tracing/kprobe_events",
                     sudo=True,
                     force_run=True,
-                )
+                ).strip()
             ).described_as(
                 "after echoing 'p:my filp_close' to "
                 "/sys/kernel/debug/tracing/kprobe_events, "
@@ -105,7 +105,7 @@ class KernelDebug(TestSuite):
                     "/sys/kernel/debug/tracing/events/kprobes/my/enable",
                     sudo=True,
                     force_run=True,
-                )
+                ).strip()
             ).described_as(
                 "after echoing '1' to "
                 "/sys/kernel/debug/tracing/events/kprobes/my/enable, "
