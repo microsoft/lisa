@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Union
 
 from retry import retry
 from openai import AsyncAzureOpenAI
-from azure.core.credentials import AzureKeyCredential
 
 from . import logger
 from .default_flow import async_analyze_default
@@ -109,6 +108,7 @@ async def _calculate_similarity_async(
         return similarity
     finally:
         await client.close()
+
 def _calculate_similarity(text1: str, text2: str, endpoint: str, api_key: str) -> float:
     """
     Calculate cosine similarity between two texts using AzureAIInferenceTextEmbedding.
@@ -357,7 +357,7 @@ def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
     return keywords_str
 
 
-@retry(tries=3, delay=2)  # type: ignore
+#@retry(tries=1, delay=2)  # type: ignore
 def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str, Any]:
     """
     Process a single test case and gather results.

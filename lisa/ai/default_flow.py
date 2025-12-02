@@ -12,6 +12,7 @@ from typing import (
     Literal,
     Optional,
     Union,
+    cast,
 )
 
 from agent_framework import (
@@ -21,12 +22,19 @@ from agent_framework import (
     MagenticAgentDeltaEvent,
     MagenticFinalResultEvent,
     MagenticOrchestratorMessageEvent,
+    WorkflowOutputEvent,
+    SequentialBuilder,  # added
+    WorkflowStartedEvent,        # added
+    ExecutorInvokedEvent,        # added
+    ExecutorCompletedEvent,      # added
+    WorkflowStatusEvent,         # added
+    ChatMessage,                 # added (for typing of WorkflowOutputEvent.data)
 )
 from agent_framework.azure import AzureOpenAIChatClient
 
 
 from . import logger
-from .common import get_current_directory
+from .common import create_agent_chat_options, get_current_directory
 
 
 def _load_prompt(prompt_filename: str, flow: str) -> str:
@@ -77,6 +85,7 @@ class FileSearchPlugin:
         Returns:
             Dictionary containing structured results with file paths and line numbers
         """
+        logger.info("-------------search_files called---------------")
 
         path = os.path.normpath(path)
         search_string = search_string.lower()
@@ -160,6 +169,7 @@ class FileSearchPlugin:
         Returns:
             Dictionary containing either file content or error information
         """
+        logger.info("-------------read_text_file called---------------")
 
         traceback: List[str] = []
         norm_path = os.path.normpath(file_path)
@@ -368,6 +378,7 @@ class FileSearchPlugin:
             Dictionary containing either file paths or error information,
             along with pagination metadata
         """
+        logger.info("-------------read_text_file called---------------")
 
         logger.debug(
             f"Listing files under {folder_path} "
@@ -460,6 +471,7 @@ class FileSearchAgentBase(ChatAgent):  # type: ignore
             description=description,
             instructions=instructions,
             tools=tools,
+            default_chat_options=create_agent_chat_options(),
         )
 
     def _create_chat_client(
@@ -568,7 +580,6 @@ async def async_analyze_default(
     """
     Default async analysis method using multi-agent orchestration.
     """
-    print(f"async_analyze_default called")
     system_instructions = _load_prompt("user.txt", flow="default")
 
     # Include the actual error message in the analysis prompt
@@ -606,15 +617,37 @@ async def async_analyze_default(
 
     final_answer_prompt = _load_prompt("final_answer.txt", flow="default")
 
-    logger.info("Building Magentic workflow...")    
+    # logger.info("Building Magentic workflow...")    
+    # workflow = (
+    #     MagenticBuilder()
+    #     .participants(LogSearchAgent=log_search_agent, CodeSearchAgent=code_search_agent)
+    #     .with_standard_manager(
+    #         chat_client=manager_chat_client,
+    #         final_answer_prompt=final_answer_prompt,
+    #         max_round_count=3,
+    #         max_stall_count=2,
+    #     )
+    #     .build()
+    # )
+    # Summary agent that aggregates using final_answer_prompt
+    summary_agent = ChatAgent(
+        chat_client=manager_chat_client,
+        name="SummaryAgent",
+        description="Summarizes and formats final answer.",
+        instructions=final_answer_prompt,
+        tools=[],
+        default_chat_options=create_agent_chat_options(),
+    )
+
+    logger.info("Building Sequential workflow...")
     workflow = (
-        MagenticBuilder()
-        .participants(LogSearchAgent=log_search_agent, CodeSearchAgent=code_search_agent)
-        .with_standard_manager(
-            chat_client=manager_chat_client,
-            final_answer_prompt=final_answer_prompt,
-            max_round_count=1,
-            max_stall_count=1,
+        SequentialBuilder()
+        .participants(
+            [
+                log_search_agent,
+                code_search_agent,
+                summary_agent,
+            ]
         )
         .build()
     )
@@ -623,23 +656,105 @@ async def async_analyze_default(
     # Create execution settings for the manager using the shared builder
     #manager_execution_settings = create_agent_execution_settings()
     logger.info("executing run...")
+
+    # Helper: extract final text from list[ChatMessage]
+    def _extract_final_text(messages: List[ChatMessage]) -> str:
+        # Prefer last assistant message; fallback to last message content
+        for msg in reversed(messages):
+            author = getattr(msg, "author_name", None)
+            text = getattr(msg, "text", None)
+            if author == "SummaryAgent" and isinstance(text, str) and text.strip():
+                return text.strip()
+        # Fallback: use last message's text or str(content)
+        if messages:
+            last = messages[-1]
+            if isinstance(getattr(last, "text", None), str):
+                return cast(str, last.text).strip()
+        return ""
+
     async def _run() -> str:
         final_text: str = ""
         async for event in workflow.run_stream(analysis_prompt):
-            if isinstance(event, MagenticAgentMessageEvent):
-                if getattr(event, "message", None) and getattr(event.message, "text", None):
-                    logger.info(f"[AgentMessage] {event.agent_id}: {event.message.text}")
-            elif isinstance(event, MagenticAgentDeltaEvent):
-                pass
-            elif isinstance(event, MagenticOrchestratorMessageEvent):
-                pass
-            elif isinstance(event, MagenticFinalResultEvent):
-                if getattr(event, "message", None) and getattr(event.message, "text", None):
-                    final_text = event.message.text.strip()
-                    logger.info("🎯 FINAL RESULT (JSON)")
-                    logger.info(final_text)
-        return final_text
+            # if isinstance(event, MagenticAgentMessageEvent):
+            #     logger.info("---------------- Agent Message ----------------")
+            #     if getattr(event, "message", None) and getattr(event.message, "text", None):
+            #         logger.info(f"-------------[AgentMessage] {event.agent_id}: {event.message.text}")
+            # elif isinstance(event, MagenticAgentDeltaEvent):
+            #     #logger.info("---------------- Agent Delta Message ----------------")
+            #     pass
+            # elif isinstance(event, MagenticOrchestratorMessageEvent):
+            #     logger.info("---------------- Orchestrator Message ----------------")
+            #     if getattr(event, "message", None) and getattr(event.message, "text", None):
+            #         logger.info(f"----------[OrchestratorMessage] {event.kind} {event.orchestrator_id}: {event.message.text}")
+            #     pass
+            # elif isinstance(event, WorkflowOutputEvent):
+            #     logger.info("---------------- Workflow Output ----------------")
+            #     final_text = cast(str, event.data)
+            #     logger.info(final_text)
+            # elif isinstance(event, MagenticFinalResultEvent):
+            #     logger.info("---------------- Final Message ----------------")
+            #     if getattr(event, "message", None) and getattr(event.message, "text", None):
+            #         final_text = event.message.text.strip()
+            #         logger.info("🎯 FINAL RESULT (JSON)")
+            #         logger.info(final_text)
+            # Final aggregated output from SequentialBuilder
+            # Lifecycle: workflow started
+            if isinstance(event, WorkflowStartedEvent):
+                logger.info("---------------- Workflow Started ----------------")
+                wf_id = getattr(event, "workflow_id", None)
+                start_ts = getattr(event, "timestamp", None)
+                logger.info(f"[WorkflowStarted] id={wf_id} ts={start_ts}")
+                continue
 
+            # Lifecycle: executor invoked
+            if isinstance(event, ExecutorInvokedEvent):
+                logger.info("---------------- Executor Invoked ----------------")
+                exec_id = getattr(event, "executor_id", None)
+                step_id = getattr(event, "step_id", None)
+                agent_id = getattr(event, "agent_id", None)
+                logger.info(f"[ExecutorInvoked] executor={exec_id} step={step_id} agent={agent_id}")
+                continue
+
+            # Lifecycle: executor completed
+            if isinstance(event, ExecutorCompletedEvent):
+                logger.info("---------------- Executor Completed ----------------")
+                exec_id = getattr(event, "executor_id", None)
+                status = getattr(event, "status", None)
+                duration_ms = getattr(event, "duration_ms", None)
+                logger.info(f"[ExecutorCompleted] executor={exec_id} status={status} duration_ms={duration_ms}")
+                continue
+
+            # Lifecycle/status updates across steps
+            if isinstance(event, WorkflowStatusEvent):
+                logger.info("---------------- Workflow Status ----------------")
+                status = getattr(event, "status", None)
+                idx = getattr(event, "current_step_index", None)
+                total = getattr(event, "total_steps", None)
+                current_agent = getattr(event, "agent_id", None)
+                logger.info(f"[WorkflowStatus] status={status} step={idx}/{total} agent={current_agent}")
+                continue
+
+            # Final aggregated output from SequentialBuilder: list[ChatMessage]
+            if isinstance(event, WorkflowOutputEvent):
+                logger.info("---------------- Workflow Output ----------------")
+                try:
+                    final_messages = cast(List[ChatMessage], event.data)
+                    final_text = _extract_final_text(final_messages)
+                    logger.info(final_text)
+                except Exception as e:
+                    logger.info(f"[WorkflowOutput] parse error: {e}")
+                    final_text = cast(str, event.data)  # fallback
+                continue
+        if final_messages:
+            logger.info(f"---------------- all ----------------")
+            for msg in final_messages:
+                author = getattr(msg, "author_name", None)
+                text = getattr(msg, "text", None)
+                if (author == "LogSearchAgent" or author == "CodeSearchAgent") and isinstance(text, str) and text.strip():
+                    logger.info(f"{author}: {text.strip()}")
+
+        logger.info(final_text)
+        return final_text
 
     async def _run_with_timeout_and_retry(coro_factory: Callable[[], Awaitable[str]], timeout_sec: float = 300.0) -> str:
         max_retries = 1
