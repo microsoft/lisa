@@ -36,6 +36,12 @@ class HibernationSetup(Tool):
         re.MULTILINE,
     )
 
+    # Defrag size is larger than filesystem's free space
+    _defrag_space_error_pattern = re.compile(
+        r"Defrag size is larger than filesystem's free space",
+        re.MULTILINE,
+    )
+
     """
     The below shows an example output of `filefrag -v /hibfile.sys`
     We are interested in the physical offset of the hibfile.
@@ -90,9 +96,17 @@ class HibernationSetup(Tool):
 
     def _analyze_stdout_for_errors(self, stdout: str) -> None:
         # Check for insufficient swap space error
-        error_message = get_matched_str(stdout, self._insufficient_swap_space_pattern)
-        if error_message:
-            raise LisaException(f"Hibernation setup failed: {error_message}")
+        swap_error = get_matched_str(stdout, self._insufficient_swap_space_pattern)
+        if swap_error:
+            raise LisaException(f"Hibernation setup failed: {swap_error}")
+
+        # Check for defrag space error
+        defrag_error = get_matched_str(stdout, self._defrag_space_error_pattern)
+        if defrag_error:
+            raise LisaException(
+                f"Hibernation setup failed: {defrag_error}. "
+                "Please increase osdisk_size_in_gb."
+            )
 
     def hibernate(self) -> None:
         self.node.tools[Systemctl].hibernate()
