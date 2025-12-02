@@ -24,7 +24,7 @@ dependencies = [
     "semver ~= 2.13.0",
     "simpleeval ~= 0.9.12",
     "spurplus ~= 2.3.5",
-    "websockets ~= 13.1",
+    "websockets ~= 15.0.1",
     "charset_normalizer ~= 2.1.1",
     "requests ~= 2.32.4",
 ]
@@ -62,9 +62,9 @@ azure = [
 ]
 
 ai = [
-    "semantic-kernel ~= 1.35.3",
-    "azure-ai-inference ~= 1.0.0b9",
-    "dotenv ~= 0.9.9",
+    "agent-framework-core ~= 1.0.0b251120",
+    "agent-framework-azure-ai ~= 1.0.0b251120",
+    "openai ~= 2.8.1",
 ]
 
 ado = [

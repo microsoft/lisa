@@ -867,9 +867,9 @@ downstream notifiers and reporting systems.
    - Text-embedding-3-large for similarity calculations (optional)
 
 2. **Required Python packages** (automatically included with LISA):
-   - python-dotenv
-   - semantic-kernel
-   - azure-ai-inference
+   - openai
+   - agent-framework-core
+   - agent-framework-azure-ai
    - retry
 
 azure_openai_endpoint

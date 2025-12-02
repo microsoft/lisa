@@ -146,6 +146,12 @@ def init_logger() -> None:
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(_console_handler)
 
+    # Some libraries (such as Microsoft Agent Framework) might call logging.basicConfig
+    # during initialization. logging.basicConfig() is used for configuration of root
+    # and it might automatically attach a StreamHandler that writes to sys.stderr.
+    # Setting propagate to False to prevent messages from being propagated to root
+    root_logger.propagate = False
+
     stdout_logger = get_logger("stdout")
     stderr_logger = get_logger("stderr")
     sys.stdout = cast(TextIO, LogWriter(stdout_logger, logging.INFO))
