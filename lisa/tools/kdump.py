@@ -74,11 +74,25 @@ class Kexec(Tool):
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix)
+        
+        # For Debian-based systems on ARM64, ensure zlib is installed first
+        if isinstance(self.node.os, Debian):
+            arch = self.node.os.get_kernel_information().hardware_platform
+            if arch == "aarch64" or arch == "arm64":
+                # Install zlib1g-dev before kexec-tools for ARM64 decompression support
+                self.node.os.install_packages(["zlib1g-dev"])
+        
         self.node.os.install_packages("kexec-tools")
+        
         if isinstance(self.node.os, Debian):
             version = self._get_version()
             if version < self._target_kexec_version:
+                self._log.info(
+                    f"Current kexec version {version} is older than target {self._target_kexec_version}. "
+                    f"Installing from source..."
+                )
                 self._install_from_src()
+    
         return self._check_exists()
 
     def _get_version(self) -> VersionInfo:
@@ -113,10 +127,19 @@ class Kexec(Tool):
             tool_path, name_pattern="kexec-tools*", file_type="d"
         )
         code_path = tool_path.joinpath(kexec_source_folder[0])
+        
+        # Install build dependencies including zlib for decompression support
+        assert isinstance(self.node.os, Posix)
+        if isinstance(self.node.os, Debian):
+            # Install zlib1g-dev for decompression support - critical for ARM64
+            self.node.os.install_packages(["build-essential", "zlib1g-dev"])
+        
         self.node.tools.get(Gcc)  # Ensure gcc is installed
         make = self.node.tools[Make]
+        
+        # Configure with zlib support explicitly
         self.node.execute(
-            "./configure",
+            "./configure --with-zlib",
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Fail to run configure when compiling kexec-tools from source code"
@@ -125,14 +148,71 @@ class Kexec(Tool):
             sudo=True,
         )
         make.make_install(cwd=code_path, sudo=True)
+        
+        # Copy the new kexec binary to /sbin/ where kdump-config expects it
+        # This ensures kdump-config uses the updated version
         self.node.execute(
-            "yes | cp -f /usr/local/sbin/kexec /sbin/",
+            "yes | cp -f /usr/local/sbin/kexec /sbin/kexec",
             expected_exit_code=0,
-            expected_exit_code_failure_message=("It is failed to copy kexec to /sbin/"),
+            expected_exit_code_failure_message=("Failed to copy kexec to /sbin/"),
             sudo=True,
             shell=True,
         )
+        
+        # Also update kdump (if it exists) to ensure consistency
+        self.node.execute(
+            "yes | cp -f /usr/local/sbin/kdump /sbin/kdump 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+        
+        # Verify the installation
+        result = self.node.execute(
+            "/sbin/kexec --version",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("Failed to verify kexec installation"),
+            sudo=True,
+        )
+        self._log.info(f"Installed kexec version: {result.stdout}")
 
+    def verify_kexec_installation(self) -> None:
+        """
+        Verify that kexec is properly installed and kdump-config is using the correct version
+        """
+        # Check if kdump-config exists and verify it's using the correct kexec
+        kdump_config_path = "/sbin/kdump-config"
+        if self.node.shell.exists(PurePosixPath(kdump_config_path)):
+            result = self.node.execute(
+                f"grep 'KEXEC=' {kdump_config_path}",
+                expected_exit_code=0,
+                sudo=True,
+            )
+            
+            if "/sbin/kexec" not in result.stdout:
+                self._log.warning(
+                    f"kdump-config is not using /sbin/kexec. Current setting: {result.stdout}"
+                )
+                # Update kdump-config to use the correct kexec path
+                self.node.tools[Sed].substitute(
+                    match_lines="^KEXEC=",
+                    regexp="KEXEC=.*",
+                    replacement="KEXEC=/sbin/kexec",
+                    file=kdump_config_path,
+                    sudo=True,
+                )
+                self._log.info("Updated kdump-config to use /sbin/kexec")
+        
+        # Verify kexec can load with compression support
+        result = self.node.execute(
+            "/sbin/kexec --help 2>&1 | grep -i zlib || echo 'zlib support not found'",
+            shell=True,
+            sudo=True,
+        )
+        
+        if "zlib support not found" in result.stdout:
+            self._log.warning(
+                "kexec may not have zlib support. This could cause issues on ARM64 systems."
+            )
 
 class Makedumpfile(Tool):
     """
@@ -448,6 +528,14 @@ class KdumpBase(Tool):
             )
 
     def check_crashkernel_loaded(self, crashkernel_memory: str) -> None:
+        # Verify kexec installation first on ARM64 Debian systems
+        if isinstance(self.node.os, Debian):
+            arch = self.node.os.get_kernel_information().hardware_platform
+            if arch in ["aarch64", "arm64"]:
+                kexec = self.node.tools[Kexec]
+                if hasattr(kexec, 'verify_kexec_installation'):
+                    kexec.verify_kexec_installation()
+        
         if crashkernel_memory:
             # Check crashkernel parameter in cmdline
             self._check_crashkernel_in_cmdline(crashkernel_memory)
@@ -553,6 +641,10 @@ class KdumpDebian(KdumpBase):
     def _install(self) -> bool:
         assert isinstance(self.node.os, Debian)
         self.node.os.install_packages("kdump-tools")
+        # Ensure kexec is properly installed with compression support
+        kexec = self.node.tools[Kexec]
+        if hasattr(kexec, 'verify_kexec_installation'):
+            kexec.verify_kexec_installation()
         return self._check_exists()
 
     def calculate_crashkernel_size(self, total_memory: str) -> str:
