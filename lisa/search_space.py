@@ -63,8 +63,12 @@ class RequirementMixin:
         return self._generate_min_capability(capability)
 
     def intersect(self, capability: Any) -> Any:
+        print(f"[DEBUG SEARCHSPACE] intersect() called with self: {self}, capability: {capability}")
+        print(f"[DEBUG SEARCHSPACE] intersect() self type: {type(self)}, capability type: {type(capability)}")
         self._validate_result(capability)
-        return self._intersect(capability)
+        result = self._intersect(capability)
+        print(f"[DEBUG SEARCHSPACE] intersect() result: {result}")
+        return result
 
     def _call_requirement_method(
         self, method: RequirementMethod, capability: Any
@@ -83,8 +87,13 @@ class RequirementMixin:
         )
 
     def _validate_result(self, capability: Any) -> None:
+        print(f"[DEBUG SEARCHSPACE] _validate_result() called with self: {self}, capability: {capability}")
         check_result = self.check(capability)
+        print(f"[DEBUG SEARCHSPACE] _validate_result() check_result: {check_result}")
+        print(f"[DEBUG SEARCHSPACE] _validate_result() check_result.result: {check_result.result}")
+        print(f"[DEBUG SEARCHSPACE] _validate_result() check_result.reasons: {check_result.reasons}")
         if not check_result.result:
+            print(f"[DEBUG SEARCHSPACE] _validate_result() RAISING NotMeetRequirementException: capability doesn't support requirement: {check_result.reasons}")
             raise NotMeetRequirementException(
                 f"capability doesn't support requirement: {check_result.reasons}"
             )
@@ -201,23 +210,31 @@ class IntRange(RequirementMixin):
         return result
 
     def _intersect(self, capability: Any) -> Any:
+        print(f"[DEBUG SEARCHSPACE] IntRange._intersect() self: {self}, capability: {capability} (type: {type(capability)})")
         if isinstance(capability, int):
+            print(f"[DEBUG SEARCHSPACE] IntRange._intersect() capability is int, returning: {capability}")
             return capability
         elif isinstance(capability, IntRange):
             result = IntRange(
                 min=self.min, max=self.max, max_inclusive=self.max_inclusive
             )
+            print(f"[DEBUG SEARCHSPACE] IntRange._intersect() initial result: {result}")
             if self.min < capability.min:
                 result.min = capability.min
+                print(f"[DEBUG SEARCHSPACE] IntRange._intersect() updated min to capability.min: {result.min}")
             if self.max > capability.max:
                 result.max = capability.max
                 result.max_inclusive = capability.max_inclusive
+                print(f"[DEBUG SEARCHSPACE] IntRange._intersect() updated max to capability: max={result.max}, max_inclusive={result.max_inclusive}")
             elif self.max == capability.max:
                 result.max_inclusive = capability.max_inclusive and self.max_inclusive
+                print(f"[DEBUG SEARCHSPACE] IntRange._intersect() max values equal, updated max_inclusive: {result.max_inclusive}")
         else:
+            print(f"[DEBUG SEARCHSPACE] IntRange._intersect() RAISING NotImplementedError: IntRange doesn't support other intersect on {type(capability)}")
             raise NotImplementedError(
                 f"IntRange doesn't support other intersect on {type(capability)}."
             )
+        print(f"[DEBUG SEARCHSPACE] IntRange._intersect() final result: {result}")
         return result
 
 
@@ -390,9 +407,11 @@ def decode_set_space_by_type(
 
 
 def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultReason:
+    print(f"[DEBUG SEARCHSPACE] check_countspace() requirement: {requirement} (type: {type(requirement)}), capability: {capability} (type: {type(capability)})")
     result = ResultReason()
     if requirement is not None:
         if capability is None:
+            print(f"[DEBUG SEARCHSPACE] check_countspace() capability is None, adding reason")
             result.add_reason(
                 "if requirements isn't None, capability shouldn't be None"
             )
@@ -471,23 +490,32 @@ def generate_min_capability_countspace(
 
 
 def intersect_countspace(requirement: CountSpace, capability: CountSpace) -> Any:
+    print(f"[DEBUG SEARCHSPACE] intersect_countspace() requirement: {requirement} (type: {type(requirement)}), capability: {capability} (type: {type(capability)})")
     check_result = check_countspace(requirement, capability)
+    print(f"[DEBUG SEARCHSPACE] intersect_countspace() check_result: {check_result}")
     if not check_result.result:
+        print(f"[DEBUG SEARCHSPACE] intersect_countspace() RAISING NotMeetRequirementException: cannot get intersect, capability doesn't support requirement: {check_result.reasons}")
         raise NotMeetRequirementException(
             "cannot get intersect, capability doesn't support requirement: "
             f"{check_result.reasons}"
         )
     if requirement is None and capability:
+        print(f"[DEBUG SEARCHSPACE] intersect_countspace() requirement is None, returning copy of capability")
         return copy.copy(capability)
     if isinstance(requirement, int):
+        print(f"[DEBUG SEARCHSPACE] intersect_countspace() requirement is int, returning requirement: {requirement}")
         result = requirement
     elif isinstance(requirement, IntRange):
+        print(f"[DEBUG SEARCHSPACE] intersect_countspace() requirement is IntRange, calling requirement.intersect(capability)")
         result = requirement.intersect(capability)
+        print(f"[DEBUG SEARCHSPACE] intersect_countspace() IntRange intersect result: {result}")
     else:
+        print(f"[DEBUG SEARCHSPACE] intersect_countspace() RAISING LisaException: not support to get intersect on countspace type: {type(requirement)}")
         raise LisaException(
             f"not support to get intersect on countspace type: {type(requirement)}"
         )
 
+    print(f"[DEBUG SEARCHSPACE] intersect_countspace() final result: {result}")
     return result
 
 
@@ -632,8 +660,12 @@ def _call_requirement_method(
     requirement: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
     capability: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
 ) -> Any:
+    print(f"[DEBUG SEARCHSPACE] _call_requirement_method() method: {method}, requirement: {requirement}, capability: {capability}")
     check_result = check(requirement, capability)
+    print(f"[DEBUG SEARCHSPACE] _call_requirement_method() check_result: {check_result}")
     if not check_result.result:
+        print(f"[DEBUG SEARCHSPACE] _call_requirement_method() RAISING NotMeetRequirementException: cannot call {method.value}, capability doesn't support requirement")
+        print(f"[DEBUG SEARCHSPACE] _call_requirement_method() check_result.reasons: {check_result.reasons}")
         raise NotMeetRequirementException(
             f"cannot call {method.value}, capability doesn't support requirement"
         )

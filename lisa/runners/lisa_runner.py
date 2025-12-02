@@ -779,16 +779,21 @@ class LisaRunner(BaseRunner):
         existing_environments: Environments,
         platform_type: str,
     ) -> None:
+        print(f"[DEBUG RUNNER] _merge_test_requirements() start, platform_type: {platform_type}")
+        print(f"[DEBUG RUNNER] _merge_test_requirements() test_results count: {len(test_results)}")
         assert platform_type
 
         cases_ignored_features: Dict[str, Set[str]] = {}
         # if platform defined requirement, replace the requirement from
         # test case.
         for test_result in test_results:
+            print(f"[DEBUG RUNNER] _merge_test_requirements() processing test_result: {test_result.name}")
             # the platform requirement maybe used later, so it won't be a shared
             # object cross test results.
             platform_requirement = self._create_platform_requirement()
+            print(f"[DEBUG RUNNER] _merge_test_requirements() test: {test_result.name}, platform_requirement: {platform_requirement}")
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
+            print(f"[DEBUG RUNNER] _merge_test_requirements() test: {test_result.name}, test_req.environment: {test_req.environment}")
 
             check_result = test_result.check_platform(platform_type)
             if not check_result.result:
@@ -874,13 +879,23 @@ class LisaRunner(BaseRunner):
                             ),
                         )
 
-                        try:
-                            node_requirement = original_node_requirement.intersect(
-                                platform_requirement
-                            )
-                        except NotMeetRequirementException as e:
-                            test_result.set_status(TestStatus.SKIPPED, str(e))
-                            break
+                        print(f"[DEBUG] About to intersect node requirements for test {test_result.name}")
+                        print(f"[DEBUG] Original node requirement: {original_node_requirement}")
+                        print(f"[DEBUG] Platform requirement: {platform_requirement}")
+                        print(f"[DEBUG] Original node requirement network_interface: {getattr(original_node_requirement, 'network_interface', 'None')}")
+                        print(f"[DEBUG] Platform requirement network_interface: {getattr(platform_requirement, 'network_interface', 'None')}")
+                        
+                        # try:
+                        node_requirement = original_node_requirement.intersect(
+                            platform_requirement
+                        )
+                        print(f"[DEBUG] Intersection successful for test {test_result.name}")
+                        print(f"[DEBUG] Resulting node requirement: {node_requirement}")
+                        print(f"[DEBUG] Resulting node requirement network_interface: {getattr(node_requirement, 'network_interface', 'None')}")
+                        # except NotMeetRequirementException as e:
+                        #     print(f"[DEBUG] NotMeetRequirementException for test {test_result.name}: {str(e)}")
+                        #     test_result.set_status(TestStatus.SKIPPED, str(e))
+                        #     break
 
                         assert isinstance(platform_requirement.extended_schemas, dict)
                         assert isinstance(node_requirement.extended_schemas, dict)

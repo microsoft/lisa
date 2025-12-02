@@ -1909,16 +1909,19 @@ class AzurePlatform(Platform):
             )
 
         max_nic_count = azure_raw_capabilities.get("MaxNetworkInterfaces", None)
+        print(f"[DEBUG AZURE] _resource_sku_to_capability() VM size: {resource_sku.name}, MaxNetworkInterfaces: {max_nic_count}")
         if max_nic_count:
             # set a min value for nic_count work around for an azure python sdk bug
             # nic_count is 0 when get capability for some sizes e.g. Standard_D8a_v3
             sku_nic_count = int(max_nic_count)
             if sku_nic_count == 0:
                 sku_nic_count = 1
+            print(f"[DEBUG AZURE] _resource_sku_to_capability() VM size: {resource_sku.name}, setting nic_count: IntRange(min=1, max={sku_nic_count})")
             node_space.network_interface.nic_count = search_space.IntRange(
                 min=1, max=sku_nic_count
             )
             node_space.network_interface.max_nic_count = sku_nic_count
+            print(f"[DEBUG AZURE] _resource_sku_to_capability() VM size: {resource_sku.name}, final node_space.network_interface: {node_space.network_interface}")
 
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
             node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
@@ -2562,6 +2565,7 @@ class AzurePlatform(Platform):
     def _get_capabilities(
         self, vm_sizes: List[str], location: str, use_max_capability: bool, log: Logger
     ) -> List[AzureCapability]:
+        print(f"[DEBUG AZURE] _get_capabilities() vm_sizes count: {len(vm_sizes)}, use_max_capability: {use_max_capability}")
         candidate_caps: List[AzureCapability] = []
         caps = self.get_location_info(location, log).capabilities
 
@@ -2569,7 +2573,9 @@ class AzurePlatform(Platform):
             # force to use max capability to run test cases as much as possible,
             # or force to support non-exists vm size.
             if use_max_capability:
-                candidate_caps.append(self._generate_max_capability(vm_size, location))
+                max_cap = self._generate_max_capability(vm_size, location)
+                print(f"[DEBUG AZURE] _get_capabilities() generating max capability for vm_size: {vm_size}, max_cap.capability.network_interface: {max_cap.capability.network_interface}")
+                candidate_caps.append(max_cap)
                 continue
 
             if vm_size in caps:
@@ -2584,8 +2590,14 @@ class AzurePlatform(Platform):
                     cap_features
                     and [x for x in cap_features if features.IaaS.name() == x.type]
                 ):
+                    print(f"[DEBUG AZURE] _get_capabilities() adding vm_size: {vm_size}, network_interface: {caps[vm_size].capability.network_interface}")
                     candidate_caps.append(caps[vm_size])
+                else:
+                    print(f"[DEBUG AZURE] _get_capabilities() skipping vm_size: {vm_size} (no IaaS capability)")
+            else:
+                print(f"[DEBUG AZURE] _get_capabilities() vm_size not found in caps: {vm_size}")
 
+        print(f"[DEBUG AZURE] _get_capabilities() final candidate_caps count: {len(candidate_caps)}")
         return candidate_caps
 
     def _get_meet_capabilities(
@@ -2596,21 +2608,38 @@ class AzurePlatform(Platform):
         # assertion for type checks
         assert isinstance(requirement, schema.NodeSpace)
         assert isinstance(candidates, list)
+        
+        print(f"[DEBUG AZURE] _get_meet_capabilities() requirement: {requirement}")
+        print(f"[DEBUG AZURE] _get_meet_capabilities() requirement.network_interface: {requirement.network_interface}")
+        print(f"[DEBUG AZURE] _get_meet_capabilities() candidates count: {len(candidates)}")
 
         # filter allowed vm sizes
-        for azure_cap in candidates:
+        for i, azure_cap in enumerate(candidates):
+            print(f"[DEBUG AZURE] _get_meet_capabilities() checking candidate[{i}]: {azure_cap.vm_size}")
+            print(f"[DEBUG AZURE] _get_meet_capabilities() candidate[{i}].capability.network_interface: {azure_cap.capability.network_interface}")
             check_result = requirement.check(azure_cap.capability)
+            print(f"[DEBUG AZURE] _get_meet_capabilities() candidate[{i}] check_result: {check_result}")
             if check_result.result:
+                print(f"[DEBUG AZURE] _get_meet_capabilities() candidate[{i}] PASSED check, generating min capability")
                 min_cap = self._generate_min_capability(
                     requirement, azure_cap, azure_cap.location
                 )
+                print(f"[DEBUG AZURE] _get_meet_capabilities() candidate[{i}] generated min_cap: {min_cap}")
                 yield min_cap
+            else:
+                print(f"[DEBUG AZURE] _get_meet_capabilities() candidate[{i}] FAILED check, reasons: {check_result.reasons}")
 
         return False
 
     def _get_azure_capabilities(
         self, location: str, nodes_requirement: List[schema.NodeSpace], log: Logger
     ) -> Tuple[List[Union[AzureCapability, bool]], str]:
+        print(f"[DEBUG AZURE] _get_azure_capabilities() location: {location}")
+        print(f"[DEBUG AZURE] _get_azure_capabilities() nodes_requirement: {nodes_requirement}")
+        for i, req in enumerate(nodes_requirement):
+            print(f"[DEBUG AZURE] _get_azure_capabilities() nodes_requirement[{i}]: {req}")
+            print(f"[DEBUG AZURE] _get_azure_capabilities() nodes_requirement[{i}].network_interface: {req.network_interface}")
+        
         # one of errors for all requirements. It's enough for troubleshooting.
         error: str = ""
 
@@ -2622,9 +2651,11 @@ class AzurePlatform(Platform):
         # get allowed vm sizes. Either it's from the runbook defined, or
         # from subscription supported.
         for req in nodes_requirement:
+            print(f"[DEBUG AZURE] _get_azure_capabilities() processing requirement: {req}")
             candidate_caps, sub_error = self._get_allowed_capabilities(
                 req, location, log
             )
+            print(f"[DEBUG AZURE] _get_azure_capabilities() candidate_caps count: {len(candidate_caps) if candidate_caps else 0}, sub_error: {sub_error}")
             if sub_error:
                 # no candidate found, so try next one.
                 error = sub_error
@@ -2696,6 +2727,8 @@ class AzurePlatform(Platform):
     def _get_allowed_capabilities(
         self, req: schema.NodeSpace, location: str, log: Logger
     ) -> Tuple[List[AzureCapability], str]:
+        print(f"[DEBUG AZURE] _get_allowed_capabilities() req: {req}")
+        print(f"[DEBUG AZURE] _get_allowed_capabilities() req.network_interface: {req.network_interface}")
         node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
         error: str = ""
         if node_runbook.vm_size:
@@ -2703,6 +2736,7 @@ class AzurePlatform(Platform):
             allowed_vm_sizes = self._get_normalized_vm_sizes(
                 name=node_runbook.vm_size, location=location, log=log
             )
+            print(f"[DEBUG AZURE] _get_allowed_capabilities() specified vm_size: {node_runbook.vm_size}, allowed_vm_sizes: {allowed_vm_sizes}")
 
             # Some preview vm size may not be queried from the list.
             # Force to add.
@@ -2715,6 +2749,9 @@ class AzurePlatform(Platform):
         else:
             location_info = self.get_location_info(location, log)
             allowed_vm_sizes = [key for key, _ in location_info.capabilities.items()]
+            print(f"[DEBUG AZURE] _get_allowed_capabilities() no specific vm_size, all allowed_vm_sizes count: {len(allowed_vm_sizes)}")
+            # Print first 10 VM sizes for debugging without overwhelming output
+            print(f"[DEBUG AZURE] _get_allowed_capabilities() first 10 allowed_vm_sizes: {allowed_vm_sizes[:10]}")
 
         # build the capability of vm sizes. The information is useful to
         # check quota.

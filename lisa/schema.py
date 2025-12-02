@@ -806,7 +806,9 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         )
 
     def check(self, capability: Any) -> search_space.ResultReason:
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings.check() self: {self}, capability: {capability}")
         if not capability:
+            print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings.check() capability is None")
             return search_space.ResultReason(
                 result=False,
                 reasons=["capability is None, it may be caused by preparation failed."],
@@ -816,27 +818,30 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
         result = super().check(capability)
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings.check() super() result: {result}")
 
-        result.merge(
-            search_space.check_countspace(self.nic_count, capability.nic_count),
-            "nic_count",
-        )
+        nic_count_check = search_space.check_countspace(self.nic_count, capability.nic_count)
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings.check() nic_count check - self.nic_count: {self.nic_count}, capability.nic_count: {capability.nic_count}, result: {nic_count_check}")
+        result.merge(nic_count_check, "nic_count")
 
-        result.merge(
-            search_space.check_setspace(self.data_path, capability.data_path),
-            "data_path",
-        )
+        data_path_check = search_space.check_setspace(self.data_path, capability.data_path)
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings.check() data_path check - self.data_path: {self.data_path}, capability.data_path: {capability.data_path}, result: {data_path_check}")
+        result.merge(data_path_check, "data_path")
 
-        result.merge(
-            search_space.check_countspace(self.max_nic_count, capability.max_nic_count),
-            "max_nic_count",
-        )
+        max_nic_count_check = search_space.check_countspace(self.max_nic_count, capability.max_nic_count)
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings.check() max_nic_count check - self.max_nic_count: {self.max_nic_count}, capability.max_nic_count: {capability.max_nic_count}, result: {max_nic_count_check}")
+        result.merge(max_nic_count_check, "max_nic_count")
 
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings.check() final result: {result}")
         return result
 
     def _call_requirement_method(
         self, method: search_space.RequirementMethod, capability: Any
     ) -> Any:
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() method: {method}, self: {self}, capability: {capability}")
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() self.nic_count: {self.nic_count}, capability.nic_count: {capability.nic_count}")
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() self.max_nic_count: {self.max_nic_count}, capability.max_nic_count: {capability.max_nic_count}")
+        
         assert isinstance(
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
@@ -846,20 +851,28 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         value = NetworkInterfaceOptionSettings()
         value.extended_schemas = parent_value.extended_schemas
 
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() calling {method.value}_countspace for max_nic_count")
         value.max_nic_count = getattr(search_space, f"{method.value}_countspace")(
             self.max_nic_count, capability.max_nic_count
         )
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() max_nic_count result: {value.max_nic_count}")
 
         if self.nic_count or capability.nic_count:
+            print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() calling {method.value}_countspace for nic_count")
             value.nic_count = getattr(search_space, f"{method.value}_countspace")(
                 self.nic_count, capability.nic_count
             )
+            print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() nic_count result: {value.nic_count}")
         else:
+            print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() RAISING LisaException: nic_count cannot be zero")
             raise LisaException("nic_count cannot be zero")
 
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() calling {method.value}_setspace_by_priority for data_path")
         value.data_path = getattr(search_space, f"{method.value}_setspace_by_priority")(
             self.data_path, capability.data_path, _network_data_path_priority
         )
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() data_path result: {value.data_path}")
+        print(f"[DEBUG SCHEMA] NetworkInterfaceOptionSettings._call_requirement_method() final value: {value}")
         return value
 
 
@@ -1192,6 +1205,9 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     def _call_requirement_method(
         self, method: search_space.RequirementMethod, capability: Any
     ) -> Any:
+        print(f"[DEBUG SCHEMA] NodeSpace._call_requirement_method() method: {method}, self: {self}, capability: {capability}")
+        print(f"[DEBUG SCHEMA] NodeSpace._call_requirement_method() self.network_interface: {self.network_interface}")
+        print(f"[DEBUG SCHEMA] NodeSpace._call_requirement_method() capability.network_interface: {capability.network_interface}")
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
         # copy to duplicate extended schema
@@ -1223,9 +1239,14 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         if self.disk or capability.disk:
             value.disk = getattr(search_space, method.value)(self.disk, capability.disk)
         if self.network_interface or capability.network_interface:
+            print(f"[DEBUG SCHEMA] NodeSpace processing network_interface - self.network_interface: {self.network_interface}, capability.network_interface: {capability.network_interface}")
+            print(f"[DEBUG SCHEMA] NodeSpace calling search_space.{method.value} on network interfaces")
             value.network_interface = getattr(search_space, method.value)(
                 self.network_interface, capability.network_interface
             )
+            print(f"[DEBUG SCHEMA] NodeSpace network_interface result: {value.network_interface}")
+        else:
+            print(f"[DEBUG SCHEMA] NodeSpace no network_interface processing needed")
 
         if self.gpu_count or capability.gpu_count:
             value.gpu_count = getattr(search_space, f"{method.value}_countspace")(
