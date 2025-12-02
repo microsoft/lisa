@@ -131,49 +131,89 @@ class Kexec(Tool):
         # Install build dependencies including zlib for decompression support
         assert isinstance(self.node.os, Posix)
         if isinstance(self.node.os, Debian):
-            # Install zlib1g-dev for decompression support - critical for ARM64
-            self.node.os.install_packages(["build-essential", "zlib1g-dev"])
+            # Install all required dependencies for ARM64
+            self.node.os.install_packages([
+                "build-essential",
+                "zlib1g-dev",
+                "libssl-dev",
+                "liblzma-dev",
+                "libbz2-dev"
+            ])
         
         self.node.tools.get(Gcc)  # Ensure gcc is installed
         make = self.node.tools[Make]
         
-        # Configure with zlib support explicitly
+        # Get architecture
+        arch = self.node.os.get_kernel_information().hardware_platform
+        
+        # Configure with appropriate options for ARM64
+        if arch in ["aarch64", "arm64"]:
+            configure_cmd = "./configure --with-zlib --build=aarch64-linux-gnu"
+        else:
+            configure_cmd = "./configure --with-zlib"
+        
         self.node.execute(
-            "./configure --with-zlib",
+            configure_cmd,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Fail to run configure when compiling kexec-tools from source code"
             ),
             cwd=code_path,
             sudo=True,
+            shell=True,
         )
+        
+        # Build and install
         make.make_install(cwd=code_path, sudo=True)
         
-        # Copy the new kexec binary to /sbin/ where kdump-config expects it
-        # This ensures kdump-config uses the updated version
-        self.node.execute(
-            "yes | cp -f /usr/local/sbin/kexec /sbin/kexec",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=("Failed to copy kexec to /sbin/"),
-            sudo=True,
-            shell=True,
-        )
+        # Create symlinks for compatibility
+        symlink_commands = [
+            "ln -sf /usr/local/sbin/kexec /usr/sbin/kexec",
+            "ln -sf /usr/local/sbin/kexec /sbin/kexec",
+            "ln -sf /usr/local/sbin/kdump /usr/sbin/kdump 2>/dev/null || true",
+            "ln -sf /usr/local/sbin/kdump /sbin/kdump 2>/dev/null || true",
+        ]
         
-        # Also update kdump (if it exists) to ensure consistency
-        self.node.execute(
-            "yes | cp -f /usr/local/sbin/kdump /sbin/kdump 2>/dev/null || true",
-            sudo=True,
-            shell=True,
-        )
+        for cmd in symlink_commands:
+            self.node.execute(cmd, sudo=True, shell=True)
         
         # Verify the installation
         result = self.node.execute(
-            "/sbin/kexec --version",
+            "kexec --version",
             expected_exit_code=0,
             expected_exit_code_failure_message=("Failed to verify kexec installation"),
             sudo=True,
         )
         self._log.info(f"Installed kexec version: {result.stdout}")
+        
+        # On ARM64 Debian, ensure kdump-config uses the new version
+        if arch in ["aarch64", "arm64"] and isinstance(self.node.os, Debian):
+            self._update_kdump_config_paths()
+
+    def _update_kdump_config_paths(self) -> None:
+        """Update kdump-config to use the newly installed kexec"""
+        kdump_config_paths = ["/usr/sbin/kdump-config", "/sbin/kdump-config"]
+        
+        for path in kdump_config_paths:
+            if self.node.shell.exists(PurePosixPath(path)):
+                # Check current KEXEC setting
+                result = self.node.execute(
+                    f"grep -E '^KEXEC=' {path} || echo 'not found'",
+                    sudo=True,
+                    shell=True,
+                )
+                
+                if "not found" not in result.stdout:
+                    # Update to use the new kexec
+                    self.node.tools[Sed].substitute(
+                        match_lines="^KEXEC=",
+                        regexp="KEXEC=.*",
+                        replacement="KEXEC=/usr/local/sbin/kexec",
+                        file=path,
+                        sudo=True,
+                    )
+                    self._log.info(f"Updated {path} to use /usr/local/sbin/kexec")
+
 
     def verify_kexec_installation(self) -> None:
         """
@@ -640,12 +680,185 @@ class KdumpDebian(KdumpBase):
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Debian)
-        self.node.os.install_packages("kdump-tools")
-        # Ensure kexec is properly installed with compression support
+        
+        # Get architecture first
+        arch = self.node.os.get_kernel_information().hardware_platform
+        
+        # For ARM64, ensure proper dependencies are installed first
+        if arch in ["aarch64", "arm64"]:
+            self._log.info("Installing ARM64 kdump dependencies...")
+            # Install zlib and other dependencies for ARM64
+            self.node.os.install_packages([
+                "zlib1g-dev",
+                "build-essential",
+                "kdump-tools",
+                "kexec-tools",
+                "makedumpfile"
+            ])
+            
+            # Check if kdump-config exists and is properly configured
+            kdump_config_path = "/usr/sbin/kdump-config"
+            if not self.node.shell.exists(PurePosixPath(kdump_config_path)):
+                # Try alternate path
+                kdump_config_path = "/sbin/kdump-config"
+            
+            if self.node.shell.exists(PurePosixPath(kdump_config_path)):
+                # Ensure kdump-config uses the correct kexec binary
+                result = self.node.execute(
+                    f"grep -E '^KEXEC=' {kdump_config_path} || echo 'KEXEC not found'",
+                    sudo=True,
+                    shell=True,
+                )
+                if "KEXEC not found" in result.stdout or "/usr/local/sbin/kexec" in result.stdout:
+                    # Update to use system kexec
+                    sed = self.node.tools[Sed]
+                    sed.substitute(
+                        match_lines="^KEXEC=",
+                        regexp="KEXEC=.*",
+                        replacement="KEXEC=/usr/sbin/kexec",
+                        file=kdump_config_path,
+                        sudo=True,
+                    )
+                    self._log.info(f"Updated kdump-config to use /usr/sbin/kexec")
+        else:
+            # For non-ARM64 systems, install normally
+            self.node.os.install_packages("kdump-tools")
+        
+        # Check version and install from source if needed
         kexec = self.node.tools[Kexec]
-        if hasattr(kexec, 'verify_kexec_installation'):
-            kexec.verify_kexec_installation()
+        version = kexec._get_version()
+        if version < kexec._target_kexec_version:
+            self._log.info(
+                f"Current kexec version {version} is older than target {kexec._target_kexec_version}. "
+                f"Installing from source..."
+            )
+            kexec._install_from_src()
+            
+            # After installing from source on ARM64, update kdump-config
+            if arch in ["aarch64", "arm64"]:
+                self._update_kdump_config_for_arm64()
+        
         return self._check_exists()
+
+    def _update_kdump_config_for_arm64(self) -> None:
+        """Update kdump-config to use the correct kexec binary on ARM64"""
+        kdump_config_paths = ["/usr/sbin/kdump-config", "/sbin/kdump-config"]
+        
+        for path in kdump_config_paths:
+            if self.node.shell.exists(PurePosixPath(path)):
+                sed = self.node.tools[Sed]
+                # Update KEXEC path
+                sed.substitute(
+                    match_lines="^KEXEC=",
+                    regexp="KEXEC=.*",
+                    replacement="KEXEC=/usr/local/sbin/kexec",
+                    file=path,
+                    sudo=True,
+                )
+                
+                # Also update any hardcoded paths in the script
+                self.node.execute(
+                    f"sed -i 's|/sbin/kexec|/usr/local/sbin/kexec|g' {path}",
+                    sudo=True,
+                    shell=True,
+                )
+                
+                self._log.info(f"Updated {path} for ARM64 kexec support")
+                break
+
+    def check_crashkernel_loaded(self, crashkernel_memory: str) -> None:
+        """Override to add ARM64-specific checks"""
+        arch = self.node.os.get_kernel_information().hardware_platform
+        
+        if arch in ["aarch64", "arm64"]:
+            # On ARM64, first ensure kdump service is properly configured
+            self._log.info("Performing ARM64-specific kdump checks...")
+            
+            # Check if kdump-tools service is active
+            result = self.node.execute(
+                "systemctl status kdump-tools.service",
+                sudo=True,
+                shell=True,
+                no_error_log=True,
+            )
+            
+            if result.exit_code != 0:
+                # Try to restart the service
+                self._log.info("Restarting kdump-tools service...")
+                self.restart_kdump_service()
+                
+                # Give it time to initialize
+                import time
+                time.sleep(5)
+            
+            # Verify kexec can load the kernel
+            result = self.node.execute(
+                "kdump-config status",
+                sudo=True,
+                shell=True,
+                no_error_log=True,
+            )
+            
+            if "Not ready to kdump" in result.stdout or result.exit_code != 0:
+                # Try to reload kdump
+                self._log.info("Kdump not ready, attempting to reload...")
+                self.node.execute(
+                    "kdump-config reload",
+                    sudo=True,
+                    shell=True,
+                )
+                
+                # Give it time to load
+                import time
+                time.sleep(10)
+        
+        # Call parent implementation
+        super().check_crashkernel_loaded(crashkernel_memory)
+
+    def config_crashkernel_memory(self, crashkernel: str) -> None:
+        """Override to handle ARM64-specific configuration"""
+        if not crashkernel:
+            return
+            
+        arch = self.node.os.get_kernel_information().hardware_platform
+        
+        # On ARM64, ensure we have enough memory reserved
+        if arch in ["aarch64", "arm64"] and crashkernel != "auto":
+            # Parse the crashkernel value
+            import re
+            match = re.match(r"(\d+)([MG])?", crashkernel)
+            if match:
+                size = int(match.group(1))
+                unit = match.group(2) or "M"
+                
+                # Convert to MB
+                if unit == "G":
+                    size = size * 1024
+                
+                # ARM64 needs more memory for kdump kernel
+                if size < 256:
+                    self._log.warning(
+                        f"Crashkernel size {crashkernel} may be too small for ARM64. "
+                        f"Increasing to 256M minimum."
+                    )
+                    crashkernel = "256M"
+        
+        # Call parent implementation
+        super().config_crashkernel_memory(crashkernel)
+        
+        # On ARM64, also update kdump-tools configuration
+        if arch in ["aarch64", "arm64"]:
+            kdump_defaults = "/etc/default/kdump-tools"
+            if self.node.shell.exists(PurePosixPath(kdump_defaults)):
+                sed = self.node.tools[Sed]
+                # Ensure USE_KDUMP is set to 1
+                sed.substitute(
+                    match_lines="^USE_KDUMP=",
+                    regexp="USE_KDUMP=.*",
+                    replacement="USE_KDUMP=1",
+                    file=kdump_defaults,
+                    sudo=True,
+                )
 
     def calculate_crashkernel_size(self, total_memory: str) -> str:
         # If the function returns empty string, it means using the default crash kernel
