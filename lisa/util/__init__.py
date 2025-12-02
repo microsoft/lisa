@@ -137,15 +137,11 @@ PANIC_PATTERNS: List[Pattern[str]] = [
 
 # ignore some return lines, which shouldn't be a panic line.
 PANIC_IGNORABLE_PATTERNS: List[Pattern[str]] = [
-    re.compile(
-        r"^(.*ipt_CLUSTERIP: ClusterIP.*loaded successfully.*)$",
-        re.MULTILINE,
-    ),
+    re.compile(r"^(.*ipt_CLUSTERIP: ClusterIP.*loaded successfully.*)$", re.MULTILINE),
     # This is a known issue with Hyper-V when running on AMD processors.
-    # The problem occurs in VM sizes that have 16 or more vCPUs which
-    # means 2 or more NUMA nodes on AMD processors.
-    # The call trace is annoying but does not affect correct operation
-    # of the VM.
+    # The problem occurs in VM sizes that have 16 or more vCPUs which means 2 or
+    # more NUMA nodes on AMD processors.
+    # The call trace is annoying but does not affect correct operation of the VM.
     re.compile(r"(.*RIP: 0010:topology_sane.isra.*)$", re.MULTILINE),
 ]
 
@@ -161,9 +157,7 @@ ROOTFS_FAILURE_PATTERNS: List[Pattern[str]] = [
 
 class LisaException(Exception):
     def __init__(self, *args: object) -> None:
-        args = tuple(  # noqa: E501
-            secret.mask(arg) if isinstance(arg, str) else arg for arg in args
-        )
+        args = tuple(secret.mask(arg) if isinstance(arg, str) else arg for arg in args)
         super().__init__(*args)
 
 
@@ -188,8 +182,10 @@ class MissingPackagesException(LisaException):
         )
 
     def __str__(self) -> str:
-        packages_str = " ".join(self.packages)
-        return f"Package manager could not install packages: {packages_str}"
+        return (
+            f"Package manager could not install packages: "
+            f"{' '.join(self.packages)}"
+        )
 
 
 class UnsupportedDistroException(LisaException):
@@ -574,9 +570,9 @@ def get_or_generate_key_pairs(
     public_key_file: str = str(constants.RUN_LOCAL_LOG_PATH / "id_rsa.pub")
     private_key_file: str = str(constants.RUN_LOCAL_LOG_PATH / "id_rsa")
 
-    private_exists = Path(private_key_file).exists()
-    public_exists = Path(public_key_file).exists()
-    if not (private_exists and public_exists):
+    if not (
+        Path(private_key_file).exists() and Path(public_key_file).exists()
+    ):
         key_class = algorthim_dict.get(algorthim.upper(), None)
         assert key_class, f"unsupported key algorthim: {algorthim}"
         key = key_class.generate(key_length)
@@ -593,8 +589,9 @@ def get_public_key_data(private_key_file_path: str = "") -> str:
     # TODO: support ppk, if it's needed.
     private_key_path = Path(private_key_file_path)
     if not private_key_path.exists():
-        msg = f"private key file not exist {private_key_file_path}"
-        raise LisaException(msg)
+        raise LisaException(
+            f"private key file not exist {private_key_file_path}"
+        )
 
     public_key_file = Path(private_key_path).stem
     public_key_path = private_key_path.parent / f"{public_key_file}.pub"
@@ -654,7 +651,7 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
             setattr(dest, field_name, copied_value)
 
 
-def find_patterns_in_lines(  # noqa: E501
+def find_patterns_in_lines(
     lines: str, patterns: List[Pattern[str]]
 ) -> List[List[Any]]:
     """
@@ -738,7 +735,7 @@ def find_group_in_lines(
     return result
 
 
-def deep_update_dict(  # noqa: E501
+def deep_update_dict(
     src: Dict[str, Any], dest: Dict[str, Any]
 ) -> Dict[str, Any]:
     if (
@@ -820,7 +817,7 @@ def parse_version(version: str) -> LisaVersionInfo:
         if key != "prerelease"
     }
     ver["prerelease"] = match["prerelease"]
-    rest = match.string[match.end() :]  # noqa: E203
+    rest = match.string[match.end():]
     ver["build"] = rest
     release_version = LisaVersionInfo(version, **ver)
 
@@ -854,7 +851,7 @@ def is_unittest() -> bool:
     return "unittest" in sys.argv[0]
 
 
-def truncate_keep_prefix(  # noqa: E501
+def truncate_keep_prefix(
     content: str, kept_len: int, prefix: str = "lisa-"
 ) -> str:
     """
@@ -894,8 +891,9 @@ def generate_random_chars(
 
 def generate_strong_password(length: int = 20) -> str:
     if length < 4:
-        msg = "length must be greater than 4 to contains all types."
-        raise ValueError(msg)
+        raise ValueError(
+            "length must be greater than 4 to contains all types."
+        )
 
     # Removed \ and - from standard punctuation due to Azure password
     # doesn't support.
@@ -960,11 +958,10 @@ def retry_without_exceptions(
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
-                    is_skipped = any(  # noqa: E501
+                    if any(
                         isinstance(e, ex_type)
-                        for ex_type in skipped_exceptions  # noqa: E501
-                    )
-                    if is_skipped:
+                        for ex_type in skipped_exceptions
+                    ):
                         raise
                     else:
                         current_tries += 1
@@ -975,8 +972,9 @@ def retry_without_exceptions(
                         sleep(current_delay)
                         # Apply jitter if specified as a tuple (min, max)
                         if isinstance(jitter, tuple):
-                            jitter_val = random.uniform(jitter[0], jitter[1])
-                            current_delay += jitter_val
+                            current_delay += random.uniform(
+                                jitter[0], jitter[1]
+                            )
                         elif jitter > 0:
                             current_delay += random.uniform(0, jitter)
                         current_delay *= backoff
@@ -1028,11 +1026,13 @@ def get_first_combination(
 
 def check_panic(content: str, stage: str, log: "Logger") -> None:
     log.debug("checking panic...")
-    ignorable_patterns = find_patterns_in_lines(  # noqa: E501
-        str(content), PANIC_IGNORABLE_PATTERNS
-    )
-    ignored_candidates = [  # noqa: E501
-        x for sublist in ignorable_patterns for x in sublist if x
+    ignored_candidates = [
+        x
+        for sublist in find_patterns_in_lines(
+            str(content), PANIC_IGNORABLE_PATTERNS
+        )
+        for x in sublist
+        if x
     ]
     panics = [
         x
