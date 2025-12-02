@@ -10,17 +10,12 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
 
+from openai import AsyncAzureOpenAI
 from retry import retry
-from semantic_kernel import Kernel
-from semantic_kernel.connectors.ai.azure_ai_inference import (
-    AzureAIInferenceTextEmbedding,
-)
 
 from . import logger
+from .common import VERBOSITY_LENGTH_THRESHOLD
 from .default_flow import async_analyze_default
-
-# Constants used in the code
-VERBOSITY_LENGTH_THRESHOLD = 1000  # Max length for verbose log messages
 
 
 def get_current_directory() -> str:
@@ -91,7 +86,7 @@ async def _calculate_similarity_async(
     text1: str, text2: str, endpoint: str, api_key: str
 ) -> float:
     """
-    Calculate cosine similarity between two texts using AzureAIInferenceTextEmbedding.
+    Calculate cosine similarity between two texts using Azure OpenAI embeddings.
 
     Args:
         text1: First text string.
@@ -99,33 +94,30 @@ async def _calculate_similarity_async(
         endpoint: Azure OpenAI endpoint.
         api_key: Azure OpenAI API key.
     """
-    kernel = Kernel()
-    # Pass all recommended parameters: endpoint, api_key, deployment_name
-
     deployment_name = "text-embedding-3-large"
-
-    embed = AzureAIInferenceTextEmbedding(
-        endpoint=endpoint, api_key=api_key, ai_model_id=deployment_name
+    client = AsyncAzureOpenAI(
+        api_key=api_key,
+        azure_endpoint=endpoint,
+        api_version="2024-02-15-preview",
     )
-    kernel.add_service(embed)
-
-    texts = [text1, text2]
-
     try:
-        resp = await embed.generate_embeddings(texts=texts)
-
-        # Calculate cosine similarity
-        similarity = _cosine_similarity(resp[0], resp[1])
+        resp = await client.embeddings.create(
+            model=deployment_name, input=[text1, text2]
+        )
+        if not resp.data or len(resp.data) < 2:
+            raise ValueError("Embedding response did not return two embeddings.")
+        emb1 = resp.data[0].embedding
+        emb2 = resp.data[1].embedding
+        similarity = _cosine_similarity(emb1, emb2)
         logger.info(f"Cosine similarity: {similarity}")
-
         return similarity
     finally:
-        await embed.client.close()
+        await client.close()
 
 
 def _calculate_similarity(text1: str, text2: str, endpoint: str, api_key: str) -> float:
     """
-    Calculate cosine similarity between two texts using AzureAIInferenceTextEmbedding.
+    Calculate cosine similarity between two texts using Azure OpenAI embeddings.
     Synchronous wrapper around async implementation.
 
     Args:
@@ -206,30 +198,8 @@ class VerbosityFilter(logging.Filter):
         return True
 
 
-class ConsoleFilter(logging.Filter):
-    """
-    A filter to only allow WARN level and above for in_process_runtime logs on console.
-    Other loggers will continue to use INFO level.
-    """
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        # For in_process_runtime logs, only allow WARN and above
-        if (
-            record.name.startswith("in_process_runtime")
-            or record.name.startswith(
-                "semantic_kernel.connectors.ai.open_ai.services.open_ai_handler"
-            )
-            or record.name.startswith("semantic_kernel.functions.kernel_function")
-        ):
-            if record.levelno < logging.WARNING:
-                record.levelno = logging.DEBUG
-
-        return True
-
-
 def setuplogger() -> str:
     """
-    Set up debug logging for all Semantic Kernel operations to a timestamped file.
     Also sets up console logging for INFO level messages.
     This will capture all agent communications, function calls, and LLM interactions.
     """
@@ -264,13 +234,6 @@ def setuplogger() -> str:
     file_handler.addFilter(verbosity_filter)
 
     # Set specific log levels for noisy loggers
-    logging.getLogger("semantic_kernel.functions.kernel_function_decorator").setLevel(
-        logging.ERROR
-    )
-    logging.getLogger("in_process_runtime").setLevel(logging.WARNING)
-    logging.getLogger("semantic_kernel.contents.streaming_content_mixin").setLevel(
-        logging.WARNING
-    )
     logging.getLogger("httpcore").setLevel(logging.INFO)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
