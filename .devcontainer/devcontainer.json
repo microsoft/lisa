@@ -1,0 +1,32 @@
+{
+	"name": "LISA Development",
+	"dockerFile": "../Dockerfile.linux",
+	"context": "..",
+	"workspaceFolder": "/app/lisa",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/bin/python3",
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"[python]": {
+					"editor.defaultFormatter": "ms-python.black-formatter"
+				},
+				"python.analysis.diagnosticMode": "workspace"
+			},
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"ms-python.black-formatter"
+			]
+		}
+	},
+	// Use 'postCreateCommand' to run commands after the container is created
+	"postCreateCommand": "echo 'LISA Dev container ready!'",
+	// Mount the workspace to preserve git history and changes
+	// Using consistency=cached for performance optimization on macOS/Windows (ignored on Linux)
+	"mounts": [
+		"source=${localWorkspaceFolder},target=/app/lisa,type=bind,consistency=cached"
+		// Uncomment the line below to share Azure CLI credentials from host machine
+		// "source=${localEnv:HOME}${localEnv:USERPROFILE}/.azure,target=/root/.azure,type=bind,consistency=cached"
+	]
+}
