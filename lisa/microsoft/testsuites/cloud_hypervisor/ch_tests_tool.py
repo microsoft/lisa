@@ -682,53 +682,28 @@ class CloudHypervisorTests(Tool):
             assert_msg = assertions[0].strip()[:100]
             diagnostic_messages.append(f"Assertion: {assert_msg}")
 
-        # Only check for hung tests if we don't already have explicit test
-        # failures (failed tests have their own diagnostic messages, hung
-        # test detection is for timeouts)
-        if not failed_tests:
-            # Add "likely hung in" diagnostic for timeouts
-            # Look for tests that started but didn't finish
-            started_pattern = r"test\s+(\S+)\s+\.\.\."
-            started_tests = re.findall(started_pattern, stdout)
+        # Check for hung tests using "has been running" messages
+        # Note: Cargo test doesn't print "test foo ..." until the test completes,
+        # so we can't detect hung tests by comparing started vs finished.
+        # We rely on the "has been running for over X seconds" messages.
+        running_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
+        running_tests = re.findall(running_pattern, stdout)
 
-            # Get tests that finished (ok, FAILED, ignored, etc.)
+        if running_tests:
+            # Get list of tests that actually finished
             finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
             finished_matches = re.findall(finished_pattern, stdout)
             finished_tests = [match[0] for match in finished_matches]
 
-            # Find tests that started but never finished, preserving order
-            # and uniqueness
-            hung_tests = list(
-                dict.fromkeys(
-                    [test for test in started_tests if test not in finished_tests]
-                )
-            )
+            # Cross-check: only report tests marked as "running too long"
+            # that didn't actually finish (these are truly hung)
+            hung_tests = [t for t in running_tests if t not in finished_tests]
 
-            # Priority 1: Check for "has been running" messages for tests
-            # that didn't finish
-            running_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
-            running_tests = re.findall(running_pattern, stdout)
-
-            # Cross-check: only report running tests that actually didn't
-            # finish
-            hung_running_tests = [t for t in running_tests if t in hung_tests]
-
-            if hung_running_tests:
-                # Found test explicitly marked as running too long AND
-                # didn't finish
-                diagnostic_messages.append(f"Likely hung in: {hung_running_tests[0]}")
-            elif hung_tests:
-                # Use the LAST unfinished test (most recent one that
-                # didn't complete)
-                diagnostic_messages.append(f"Likely hung in: {hung_tests[-1]}")
-            elif finished_tests:
-                # All detected tests finished but watchdog still triggered
-                # This means hang occurred after last successful test
-                # (setup/teardown/next test)
-                diagnostic_messages.append(
-                    f"Hang occurred after last successful test: "
-                    f"{finished_tests[-1]}"
-                )
+            if hung_tests:
+                # Remove duplicates while preserving order
+                unique_hung_tests = list(dict.fromkeys(hung_tests))
+                tests_list = ", ".join(unique_hung_tests)
+                diagnostic_messages.append(f"Likely hung in: {tests_list}")
 
         return diagnostic_messages
 
