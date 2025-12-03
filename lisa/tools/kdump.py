@@ -831,26 +831,20 @@ class KdumpDebian(KdumpBase):
         super().check_crashkernel_loaded(crashkernel_memory)
 
     def config_crashkernel_memory(self, crashkernel: str) -> None:
-        """Override to handle ARM64-specific configuration"""
         if not crashkernel:
             return
-            
+        
         arch = self.node.os.get_kernel_information().hardware_platform
         
-        # On ARM64, ensure we have enough memory reserved
+        # Ensure minimum memory for ARM64
         if arch in ["aarch64", "arm64"] and crashkernel != "auto":
-            # Parse the crashkernel value
             import re
             match = re.match(r"(\d+)([MG])?", crashkernel)
             if match:
                 size = int(match.group(1))
                 unit = match.group(2) or "M"
-                
-                # Convert to MB
                 if unit == "G":
                     size = size * 1024
-                
-                # ARM64 needs more memory for kdump kernel
                 if size < 256:
                     self._log.warning(
                         f"Crashkernel size {crashkernel} may be too small for ARM64. "
@@ -858,22 +852,154 @@ class KdumpDebian(KdumpBase):
                     )
                     crashkernel = "256M"
         
-        # Call parent implementation
-        super().config_crashkernel_memory(crashkernel)
+        # Get the appropriate config file
+        cfg_file = self._get_crashkernel_cfg_file()
+        cfg_line = self._get_crashkernel_cfg_cmdline()
         
-        # On ARM64, also update kdump-tools configuration
-        if arch in ["aarch64", "arm64"]:
-            kdump_defaults = "/etc/default/kdump-tools"
-            if self.node.shell.exists(PurePosixPath(kdump_defaults)):
-                sed = self.node.tools[Sed]
-                # Ensure USE_KDUMP is set to 1
+        sed = self.node.tools[Sed]
+        cat = self.node.tools[Cat]
+        
+        # For ARM64 Ubuntu 24.04, we need special handling
+        if arch in ["aarch64", "arm64"] and self.node.os.information.version >= "24.04":
+            # 1. Update /etc/default/grub directly
+            grub_default = "/etc/default/grub"
+            
+            # Read current GRUB_CMDLINE_LINUX_DEFAULT
+            result = cat.run(grub_default, sudo=True, force_run=True)
+            
+            # Check if crashkernel is already present
+            if "crashkernel=" in result.stdout:
+                # Replace existing crashkernel value
                 sed.substitute(
-                    match_lines="^USE_KDUMP=",
-                    regexp="USE_KDUMP=.*",
-                    replacement="USE_KDUMP=1",
-                    file=kdump_defaults,
+                    match_lines="^GRUB_CMDLINE_LINUX_DEFAULT",
+                    regexp=r"crashkernel=\S+",
+                    replacement=f"crashkernel={crashkernel}",
+                    file=grub_default,
                     sudo=True,
                 )
+            else:
+                # Add crashkernel to the end of GRUB_CMDLINE_LINUX_DEFAULT
+                sed.substitute(
+                    match_lines="^GRUB_CMDLINE_LINUX_DEFAULT",
+                    regexp='"$',
+                    replacement=f' crashkernel={crashkernel}"',
+                    file=grub_default,
+                    sudo=True,
+                )
+            
+            # 2. Also update GRUB_CMDLINE_LINUX for consistency
+            result = cat.run(grub_default, sudo=True, force_run=True)
+            if "GRUB_CMDLINE_LINUX=" in result.stdout:
+                if "crashkernel=" in result.stdout:
+                    sed.substitute(
+                        match_lines="^GRUB_CMDLINE_LINUX=",
+                        regexp=r"crashkernel=\S+",
+                        replacement=f"crashkernel={crashkernel}",
+                        file=grub_default,
+                        sudo=True,
+                    )
+                else:
+                    sed.substitute(
+                        match_lines="^GRUB_CMDLINE_LINUX=",
+                        regexp='"$',
+                        replacement=f' crashkernel={crashkernel}"',
+                        file=grub_default,
+                        sudo=True,
+                    )
+            
+            # 3. Ensure kdump-tools.cfg exists and is configured
+            kdump_cfg = "/etc/default/grub.d/kdump-tools.cfg"
+            if not self.node.shell.exists(PurePosixPath(kdump_cfg)):
+                # Create the file if it doesn't exist
+                self.node.execute(
+                    f'echo \'GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT crashkernel={crashkernel}"\' | sudo tee {kdump_cfg}',
+                    shell=True,
+                    sudo=True,
+                )
+            else:
+                # Update existing file
+                result = cat.run(kdump_cfg, sudo=True, force_run=True)
+                if "crashkernel=" in result.stdout:
+                    sed.substitute(
+                        match_lines="",
+                        regexp=r"crashkernel=\S+",
+                        replacement=f"crashkernel={crashkernel}",
+                        file=kdump_cfg,
+                        sudo=True,
+                    )
+                else:
+                    self.node.execute(
+                        f'echo \'GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT crashkernel={crashkernel}"\' | sudo tee -a {kdump_cfg}',
+                        shell=True,
+                        sudo=True,
+                    )
+            
+            # 4. Update GRUB configuration
+            # For ARM64 UEFI systems, we need to update multiple locations
+            update_cmds = [
+                "update-grub",
+                "update-grub2",
+                "grub-mkconfig -o /boot/grub/grub.cfg",
+            ]
+            
+            for cmd in update_cmds:
+                result = self.node.execute(
+                    cmd,
+                    shell=True,
+                    sudo=True,
+                    no_error_log=True,
+                )
+                if result.exit_code == 0:
+                    self._log.info(f"Successfully executed: {cmd}")
+            
+            # 5. For UEFI systems, also check and update EFI grub.cfg
+            efi_grub_cfg = "/boot/efi/EFI/ubuntu/grub.cfg"
+            if self.node.shell.exists(PurePosixPath(efi_grub_cfg)):
+                # This file usually sources /boot/grub/grub.cfg, but let's verify
+                result = cat.run(efi_grub_cfg, sudo=True, force_run=True)
+                if "source" not in result.stdout or "/boot/grub/grub.cfg" not in result.stdout:
+                    # If it's not sourcing the main grub.cfg, regenerate it
+                    self.node.execute(
+                        f"grub-mkconfig -o {efi_grub_cfg}",
+                        shell=True,
+                        sudo=True,
+                        no_error_log=True,
+                    )
+            
+            # 6. Verify the change was applied
+            import time
+            time.sleep(2)  # Give system time to sync files
+            
+            # Check if grub.cfg contains crashkernel
+            grub_cfg_paths = ["/boot/grub/grub.cfg", efi_grub_cfg]
+            found = False
+            for grub_cfg in grub_cfg_paths:
+                if self.node.shell.exists(PurePosixPath(grub_cfg)):
+                    result = cat.run(grub_cfg, sudo=True, force_run=True)
+                    if f"crashkernel={crashkernel}" in result.stdout:
+                        found = True
+                        self._log.info(f"Verified crashkernel={crashkernel} in {grub_cfg}")
+                        break
+            
+            if not found:
+                self._log.warning(
+                    f"crashkernel={crashkernel} not found in grub.cfg after update. "
+                    "The system may need a reboot to apply changes."
+                )
+        else:
+            # For non-ARM64 or older Ubuntu versions, use the standard method
+            super().config_crashkernel_memory(crashkernel)
+        
+        # Enable kdump-tools
+        kdump_defaults = "/etc/default/kdump-tools"
+        if self.node.shell.exists(PurePosixPath(kdump_defaults)):
+            sed.substitute(
+                match_lines="^USE_KDUMP=",
+                regexp="USE_KDUMP=.*",
+                replacement="USE_KDUMP=1",
+                file=kdump_defaults,
+                sudo=True,
+            )
 
     def calculate_crashkernel_size(self, total_memory: str) -> str:
         # If the function returns empty string, it means using the default crash kernel
@@ -904,11 +1030,16 @@ class KdumpDebian(KdumpBase):
     def _get_crashkernel_cfg_file(self) -> str:
         arch = self.node.os.get_kernel_information().hardware_platform
         
-        # For ARM64 Ubuntu 24.04, use the main grub file instead of kdump-tools.cfg
+        # For ARM64 Ubuntu 24.04, primarily use /etc/default/grub
         if arch in ["aarch64", "arm64"] and self.node.os.information.version >= "24.04":
             return "/etc/default/grub"
         
-        return "/etc/default/grub.d/kdump-tools.cfg"
+        # For other systems, check if kdump-tools.cfg exists
+        kdump_cfg = "/etc/default/grub.d/kdump-tools.cfg"
+        if self.node.shell.exists(PurePosixPath(kdump_cfg)):
+            return kdump_cfg
+        
+        return "/etc/default/grub"
     
     def _get_crashkernel_cfg_cmdline(self) -> str:
         arch = self.node.os.get_kernel_information().hardware_platform
@@ -920,25 +1051,7 @@ class KdumpDebian(KdumpBase):
         return "GRUB_CMDLINE_LINUX"
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
-        arch = self.node.os.get_kernel_information().hardware_platform
-        
-        # For ARM64 systems with UEFI, we need to update the correct grub config
-        if arch in ["aarch64", "arm64"]:
-            # Check if this is a UEFI system
-            if self.node.shell.exists(PurePosixPath("/sys/firmware/efi")):
-                # First try update-grub
-                result = self.node.execute("update-grub", sudo=True, shell=True)
-                
-                # Also update grub.cfg directly for ARM64 UEFI systems
-                grub_cfg_paths = [
-                    "/boot/grub/grub.cfg",
-                    "/boot/efi/EFI/ubuntu/grub.cfg",
-                ]
-                
-                for grub_cfg in grub_cfg_paths:
-                    if self.node.shell.exists(PurePosixPath(grub_cfg)):
-                        return f"update-grub && grub-mkconfig -o {grub_cfg}"
-            
+        # For all Debian/Ubuntu systems, use update-grub
         return "update-grub"
 
     def _get_kdump_service_name(self) -> str:
