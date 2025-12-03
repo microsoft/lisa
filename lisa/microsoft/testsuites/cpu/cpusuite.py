@@ -38,10 +38,17 @@ from lisa.util import SkippedException
     category="functional",
     description="""
     This test suite is used to run cpu related tests, set cpu core 16 as minimal
-    requreiemnt, since test case relies on idle cpus to do the testing.
+    requirement, since test case relies on idle cpus to do the testing.
     """,
 )
 class CPUSuite(TestSuite):
+    # Constants for network channel management
+    MAX_CHANNELS_LIMIT = 64
+    FIO_BASE_RUNTIME_SECONDS = 300
+    CPU_TOGGLE_TIME_SECONDS = 10
+    FIO_IODEPTH = 128
+    FIO_NUM_JOBS = 10
+
     @TestCaseMetadata(
         description="""
             This test will check cpu hotplug.
@@ -92,14 +99,17 @@ class CPUSuite(TestSuite):
         fio_data_size_in_gb = 1
         try:
             image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
-            # Each CPU takes ~10 seconds to toggle offline-online
-            fio_run_time = 300 + (node.tools[Lscpu].get_thread_count() * 10)
+            # Each CPU takes approximately CPU_TOGGLE_TIME_SECONDS to toggle
+            # offline-online
+            fio_run_time = self.FIO_BASE_RUNTIME_SECONDS + (
+                node.tools[Lscpu].get_thread_count() * self.CPU_TOGGLE_TIME_SECONDS
+            )
             fio_process = node.tools[Fio].launch_async(
                 name="workload",
                 filename=f"{image_folder_path}/fiodata",
                 mode="readwrite",
-                iodepth=128,
-                numjob=10,
+                iodepth=self.FIO_IODEPTH,
+                numjob=self.FIO_NUM_JOBS,
                 time=fio_run_time,
                 block_size="1M",
                 size_gb=fio_data_size_in_gb,
@@ -120,7 +130,7 @@ class CPUSuite(TestSuite):
             # verify that the fio was running when hotplug was triggered
             assert_that(
                 fio_process.is_running(),
-                "Storage workload was not running during CPUhotplug",
+                "Storage workload was not running during CPU hotplug",
             ).is_true()
         finally:
             # kill fio process
@@ -164,16 +174,13 @@ class CPUSuite(TestSuite):
             client.tools[Kill].by_name("iperf3", ignore_not_exist=True)
 
     # ---- CPUSuite helpers ----
-    def _clamp_channels(self, val: int) -> int:
-        return max(1, min(int(val), 64))
-
     def _read_max_supported(self, node: Node) -> int:
         """
         Return conservative device max 'combined' channels for eth0.
         Fallback strategy: Try to collect all possible candidates from ethtool fields
         (max_combined, max_channels, max_current, current_channels); if none are found,
         fall back to lsvmbus queue count; if that fails, fall back to thread count.
-        Always clamp to [1, 64].
+        Always clamp to [1, MAX_CHANNELS_LIMIT].
         """
         try:
             info = node.tools[Ethtool].get_device_channels_info("eth0", True)
@@ -187,16 +194,16 @@ class CPUSuite(TestSuite):
                         # Ignore values that cannot be converted to int
                         # (may be missing or malformed)
                         pass
-            cur = getattr(info, "current_channels", None)
-            if cur is not None:
+            current_channels = getattr(info, "current_channels", None)
+            if current_channels is not None:
                 try:
-                    candidates.append(int(cur))
+                    candidates.append(int(current_channels))
                 except Exception:
                     # Ignore values that cannot be converted to int
                     # (may be missing or malformed)
                     pass
             if candidates:
-                return max(1, min(max(candidates), 64))
+                return max(1, min(max(candidates), self.MAX_CHANNELS_LIMIT))
         except Exception:
             # Ignore ethtool exceptions to allow fallback to lsvmbus method
             pass
@@ -205,49 +212,49 @@ class CPUSuite(TestSuite):
             chans = node.tools[Lsvmbus].get_device_channels(force_run=True)
             for ch in chans:
                 if ch.class_id == HV_NETVSC_CLASS_ID:
-                    return max(1, min(len(ch.channel_vp_map), 64))
+                    return max(1, min(len(ch.channel_vp_map), self.MAX_CHANNELS_LIMIT))
         except Exception:
             # Ignore lsvmbus exceptions to allow fallback to threads method
             # (lsvmbus may not be available)
             pass
 
         threads = node.tools[Lscpu].get_thread_count()
-        return max(1, min(int(threads), 64))
+        return max(1, min(int(threads), self.MAX_CHANNELS_LIMIT))
 
     def _read_current(self, node: Node) -> int:
         """
         Read current combined channels.
         """
         info = node.tools[Ethtool].get_device_channels_info("eth0", True)
-        cur = getattr(info, "current_channels", 1)
-        return max(1, int(cur))
+        current_channels = getattr(info, "current_channels", 1)
+        return max(1, int(current_channels))
 
     def _set_channels_with_retry(
-        self, log: Logger, node: Node, tgt: int, cur: int, soft_upper: int
+        self, log: Logger, node: Node, target: int, current: int, soft_upper: int
     ) -> int:
         """
-        Set channels to tgt with a single safe retry if it exceeds device max.
+        Set channels to target with a single safe retry if it exceeds device max.
         We clamp to min(device_max, soft_upper) first; if still failing with
         'exceeds maximum', we shrink to device_max and retry once.
         """
-        dev_max = self._read_max_supported(node)
-        final_tgt = max(1, min(int(tgt), int(soft_upper), int(dev_max)))
-        if final_tgt == int(cur):
-            return cur
+        device_max = self._read_max_supported(node)
+        final_target = max(1, min(int(target), int(soft_upper), int(device_max)))
+        if final_target == int(current):
+            return current
 
         try:
-            node.tools[Ethtool].change_device_channels_info("eth0", final_tgt)
-            return final_tgt
+            node.tools[Ethtool].change_device_channels_info("eth0", final_target)
+            return final_target
         except Exception as e:
             msg = str(e)
             if "exceeds maximum" in msg or "Invalid argument" in msg:
-                if final_tgt != dev_max:
+                if final_target != device_max:
                     log.debug(
                         f"Retrying with device max due to '{msg}': "
-                        f"tgt={final_tgt} -> {dev_max}"
+                        f"target={final_target} -> {device_max}"
                     )
-                    node.tools[Ethtool].change_device_channels_info("eth0", dev_max)
-                    return dev_max
+                    node.tools[Ethtool].change_device_channels_info("eth0", device_max)
+                    return device_max
             raise
 
     def _pick_target_not_eq_current(
@@ -269,8 +276,8 @@ class CPUSuite(TestSuite):
         if not candidates:
             return current
 
-        tgt = random.choice(candidates)
-        return min(max(tgt, lower), upper)
+        target = random.choice(candidates)
+        return min(max(target, lower), upper)
 
     def _verify_no_irq_on_offline(
         self, node: Node, offline: List[str], expect_len: int
@@ -308,11 +315,12 @@ class CPUSuite(TestSuite):
 
         # Baseline capability with CPUs online
         origin_channels = self._read_current(node)
-        dev_max0 = self._read_max_supported(node)
+        baseline_device_max = self._read_max_supported(node)
         log.debug(
-            f"Baseline channels: current={origin_channels}, device_max={dev_max0}"
+            f"Baseline channels: current={origin_channels}, "
+            f"device_max={baseline_device_max}"
         )
-        if dev_max0 <= 1:
+        if baseline_device_max <= 1:
             raise SkippedException(
                 "Device Combined max <= 1 at baseline; cannot add channels."
             )
@@ -333,26 +341,46 @@ class CPUSuite(TestSuite):
             # ---------- Phase 1: CPUs taken offline ----------
             set_cpu_state_serial(log, node, idle, CPUState.OFFLINE)
 
-            threads1 = node.tools[Lscpu].get_thread_count()
-            dev_max1 = self._read_max_supported(node)
-            upper1 = max(1, min(threads1 - len(idle), dev_max1, 64))
-
-            cur1 = self._read_current(node)
-
-            # If current exceeds the new upper bound, reduce first
-            if cur1 > upper1:
-                node.tools[Ethtool].change_device_channels_info("eth0", upper1)
-                cur1 = self._read_current(node)
-                log.debug(f"Reduced current channels at phase1: {cur1}")
-
-            tgt1 = self._pick_target_not_eq_current(cur1, upper1)
-            new1 = self._set_channels_with_retry(log, node, tgt1, cur1, upper1)
-            log.debug(
-                f"Phase1 set: cur={cur1} -> {new1} "
-                f"(upper={upper1}, dev_max1={dev_max1})"
+            threads_phase1 = node.tools[Lscpu].get_thread_count()
+            device_max_phase1 = self._read_max_supported(node)
+            upper_limit_phase1 = max(
+                1,
+                min(
+                    threads_phase1 - len(idle),
+                    device_max_phase1,
+                    self.MAX_CHANNELS_LIMIT,
+                ),
             )
 
-            self._verify_no_irq_on_offline(node, idle, new1)
+            current_channels_phase1 = self._read_current(node)
+
+            # If current exceeds the new upper bound, reduce first
+            if current_channels_phase1 > upper_limit_phase1:
+                node.tools[Ethtool].change_device_channels_info(
+                    "eth0", upper_limit_phase1
+                )
+                current_channels_phase1 = self._read_current(node)
+                log.debug(
+                    f"Reduced current channels at phase1: {current_channels_phase1}"
+                )
+
+            target_channels_phase1 = self._pick_target_not_eq_current(
+                current_channels_phase1, upper_limit_phase1
+            )
+            new_channels_phase1 = self._set_channels_with_retry(
+                log,
+                node,
+                target_channels_phase1,
+                current_channels_phase1,
+                upper_limit_phase1,
+            )
+            log.debug(
+                f"Phase1 set: current={current_channels_phase1} -> "
+                f"{new_channels_phase1} (upper={upper_limit_phase1}, "
+                f"device_max={device_max_phase1})"
+            )
+
+            self._verify_no_irq_on_offline(node, idle, new_channels_phase1)
 
             # ---------- Phase 2: CPUs back online ----------
             set_cpu_state_serial(log, node, idle, CPUState.ONLINE)
@@ -360,21 +388,36 @@ class CPUSuite(TestSuite):
             # after CPU hotplug operations to avoid SSH connection issues
             node.tools[Reboot].reboot()
 
-            threads2 = node.tools[Lscpu].get_thread_count()
-            dev_max2 = self._read_max_supported(node)
-            upper2 = max(1, min(threads2, dev_max2, 64))
+            threads_phase2 = node.tools[Lscpu].get_thread_count()
+            device_max_phase2 = self._read_max_supported(node)
+            upper_limit_phase2 = max(
+                1, min(threads_phase2, device_max_phase2, self.MAX_CHANNELS_LIMIT)
+            )
 
-            cur2 = self._read_current(node)
-            if cur2 > upper2:
-                node.tools[Ethtool].change_device_channels_info("eth0", upper2)
-                cur2 = self._read_current(node)
-                log.debug(f"Reduced current channels at phase2: {cur2}")
+            current_channels_phase2 = self._read_current(node)
+            if current_channels_phase2 > upper_limit_phase2:
+                node.tools[Ethtool].change_device_channels_info(
+                    "eth0", upper_limit_phase2
+                )
+                current_channels_phase2 = self._read_current(node)
+                log.debug(
+                    f"Reduced current channels at phase2: {current_channels_phase2}"
+                )
 
-            tgt2 = self._pick_target_not_eq_current(cur2, upper2)
-            new2 = self._set_channels_with_retry(log, node, tgt2, cur2, upper2)
+            target_channels_phase2 = self._pick_target_not_eq_current(
+                current_channels_phase2, upper_limit_phase2
+            )
+            new_channels_phase2 = self._set_channels_with_retry(
+                log,
+                node,
+                target_channels_phase2,
+                current_channels_phase2,
+                upper_limit_phase2,
+            )
             log.debug(
-                f"Phase2 set: cur={cur2} -> {new2} "
-                f"(upper={upper2}, dev_max2={dev_max2})"
+                f"Phase2 set: current={current_channels_phase2} -> "
+                f"{new_channels_phase2} (upper={upper_limit_phase2}, "
+                f"device_max={device_max_phase2})"
             )
 
         finally:
@@ -386,10 +429,10 @@ class CPUSuite(TestSuite):
 
             try:
                 # Re-read device cap for a safe restore
-                dev_max_final = self._read_max_supported(node)
-                safe_origin = max(1, min(int(origin_channels), int(dev_max_final)))
-                cur_now = self._read_current(node)
-                if cur_now != safe_origin:
+                final_device_max = self._read_max_supported(node)
+                safe_origin = max(1, min(int(origin_channels), int(final_device_max)))
+                current_now = self._read_current(node)
+                if current_now != safe_origin:
                     node.tools[Ethtool].change_device_channels_info("eth0", safe_origin)
                     log.debug(f"Restored channels to origin value: {safe_origin}")
             except Exception as e:
