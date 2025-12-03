@@ -475,6 +475,21 @@ class CloudHypervisorTests(Tool):
         trace: str = ""
         result = None
 
+        # Surgical per-test FIO overrides (scoped; no host changes)
+        self._apply_surgical_fio_overrides(testcase)
+        _fio_keys = [
+            "CH_FIO_NUMJOBS",
+            "CH_FIO_IODEPTH",
+            "CH_FIO_RAMP",
+            "CH_FIO_RUNTIME",
+            "CH_FIO_IODEPTH_BATCH",
+            "CH_FIO_IODEPTH_BATCH_COMPLETE",
+            "CH_FIO_RANDREPEAT",
+            "CH_FIO_NORANDOMMAP",
+            "CH_FIO_TIME_BASED",
+        ]
+        _prev_fio_env = {k: self.env_vars.get(k) for k in _fio_keys}
+
         # Apply cache policy per-test for consistent cache state (reduces CV%)
         self._apply_cache_policy(testcase)
 
@@ -521,6 +536,15 @@ class CloudHypervisorTests(Tool):
 
         # Store result for log writing
         self._last_result = result
+
+        # --- ensure no leakage to the next test ---
+        for k in _fio_keys:
+            prev_val = _prev_fio_env[k]
+            if prev_val is None:
+                self.env_vars.pop(k, None)
+            else:
+                self.env_vars[k] = prev_val
+
         return status, metrics, trace
 
     def _build_metrics_cmd_args(
@@ -1941,6 +1965,100 @@ exit $ec
                     return True, f"perf_block_policy: {pattern}=buffered"
 
         return should_drop, reason
+
+    def _apply_surgical_fio_overrides(self, test_name: str) -> None:
+        """
+        Minimal surgical overrides for only the 3-4 tests that need help.
+        Everything else runs with Schd_Root defaults (no overrides).
+        Rules:
+          • block_random_write_IOPS  → lighter depth + batching:
+                                       numjobs=2, iodepth=8, ramp=90, runtime=150, batch=4/4
+          • block_random_write_MiBps → single job for steadier bandwidth:
+                                       numjobs=1, iodepth=16, ramp=90, runtime=150
+          • block_write_MiBps        → single job for steady sequential write:
+                                       numjobs=1, iodepth=16, ramp=60, runtime=120
+          • block_random_read_MiBps  → modest timing extension:
+                                       ramp=60, runtime=120
+        Uses direct assignment (not setdefault) to prevent leakage across tests.
+        """
+        if not test_name.startswith("block_"):
+            return
+
+        # Ensure fio is installed once per test run (only for block tests)
+        # Use a class-level flag to avoid repeated checks
+        if not hasattr(self, "_fio_installed"):
+            result = self.node.execute("command -v fio", shell=True)
+            if result.exit_code != 0:
+                self._log.debug("Installing fio for block tests")
+                self.node.os.install_packages(["fio"])  # type: ignore[attr-defined]
+            self._fio_installed = True
+
+        # Deterministic random pattern + time-based sampling for ALL block tests
+        # (no-ops for sequential tests; critical for random workloads)
+        self.env_vars["CH_FIO_RANDREPEAT"] = "1"
+        self.env_vars["CH_FIO_NORANDOMMAP"] = "1"
+        self.env_vars["CH_FIO_TIME_BASED"] = "1"
+
+        # Only override the 3-4 tests that truly need help
+        if test_name == "block_random_write_IOPS":
+            # Lighter depth + batching to reduce burst variance
+            self.env_vars["CH_FIO_NUMJOBS"] = "2"
+            self.env_vars["CH_FIO_IODEPTH"] = "8"
+            self.env_vars["CH_FIO_RAMP"] = "90"
+            self.env_vars["CH_FIO_RUNTIME"] = "150"
+            self.env_vars["CH_FIO_IODEPTH_BATCH"] = "4"
+            self.env_vars["CH_FIO_IODEPTH_BATCH_COMPLETE"] = "4"
+            self._log.info(
+                "[fio-override] %-40s → numjobs=%s iodepth=%s ramp=%ss runtime=%ss batch=%s/%s",
+                test_name,
+                self.env_vars["CH_FIO_NUMJOBS"],
+                self.env_vars["CH_FIO_IODEPTH"],
+                self.env_vars["CH_FIO_RAMP"],
+                self.env_vars["CH_FIO_RUNTIME"],
+                self.env_vars["CH_FIO_IODEPTH_BATCH"],
+                self.env_vars["CH_FIO_IODEPTH_BATCH_COMPLETE"],
+            )
+
+        elif test_name == "block_random_write_MiBps":
+            # Single job for steadier bandwidth measurement
+            self.env_vars["CH_FIO_NUMJOBS"] = "1"
+            self.env_vars["CH_FIO_IODEPTH"] = "16"
+            self.env_vars["CH_FIO_RAMP"] = "90"
+            self.env_vars["CH_FIO_RUNTIME"] = "150"
+            self._log.info(
+                "[fio-override] %-40s → numjobs=%s iodepth=%s ramp=%ss runtime=%ss",
+                test_name,
+                self.env_vars["CH_FIO_NUMJOBS"],
+                self.env_vars["CH_FIO_IODEPTH"],
+                self.env_vars["CH_FIO_RAMP"],
+                self.env_vars["CH_FIO_RUNTIME"],
+            )
+
+        elif test_name == "block_write_MiBps":
+            # Single job for steady sequential write throughput
+            self.env_vars["CH_FIO_NUMJOBS"] = "1"
+            self.env_vars["CH_FIO_IODEPTH"] = "16"
+            self.env_vars["CH_FIO_RAMP"] = "60"
+            self.env_vars["CH_FIO_RUNTIME"] = "120"
+            self._log.info(
+                "[fio-override] %-40s → numjobs=%s iodepth=%s ramp=%ss runtime=%ss",
+                test_name,
+                self.env_vars["CH_FIO_NUMJOBS"],
+                self.env_vars["CH_FIO_IODEPTH"],
+                self.env_vars["CH_FIO_RAMP"],
+                self.env_vars["CH_FIO_RUNTIME"],
+            )
+
+        elif test_name == "block_random_read_MiBps":
+            # Modest timing extension only (determinism already set above)
+            self.env_vars["CH_FIO_RAMP"] = "60"
+            self.env_vars["CH_FIO_RUNTIME"] = "120"
+            self._log.info(
+                "[fio-override] %-40s → ramp=%ss runtime=%ss (determinism ON)",
+                test_name,
+                self.env_vars["CH_FIO_RAMP"],
+                self.env_vars["CH_FIO_RUNTIME"],
+            )
 
 
 def extract_jsons(input_string: str) -> List[Any]:
