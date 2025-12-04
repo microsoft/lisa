@@ -475,8 +475,6 @@ class CloudHypervisorTests(Tool):
         trace: str = ""
         result = None
 
-        # Surgical per-test FIO overrides (scoped; no host changes)
-        self._apply_surgical_fio_overrides(testcase)
         _fio_keys = [
             "CH_FIO_NUMJOBS",
             "CH_FIO_IODEPTH",
@@ -488,7 +486,11 @@ class CloudHypervisorTests(Tool):
             "CH_FIO_NORANDOMMAP",
             "CH_FIO_TIME_BASED",
         ]
+        # Snapshot BEFORE applying overrides so we can truly restore later
         _prev_fio_env = {k: self.env_vars.get(k) for k in _fio_keys}
+
+        # Surgical per-test FIO overrides (scoped; no host changes)
+        self._apply_surgical_fio_overrides(testcase)
 
         # Apply cache policy per-test for consistent cache state (reduces CV%)
         self._apply_cache_policy(testcase)
@@ -497,55 +499,55 @@ class CloudHypervisorTests(Tool):
         cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
 
         try:
-            cmd_timeout = self._get_metrics_timeout()
-            safe_tc = self._sanitize_name(testcase)
-            test_name = f"ch_metrics_{safe_tc}_{hypervisor}"
-
             try:
-                result = self._run_with_enhanced_diagnostics(
-                    cmd_args=cmd_args,
-                    timeout=cmd_timeout,
-                    log_path=log_path,
-                    test_name=test_name,
-                )
-            finally:
-                self._copy_back_artifacts(log_path, test_name)
+                cmd_timeout = self._get_metrics_timeout()
+                safe_tc = self._sanitize_name(testcase)
+                test_name = f"ch_metrics_{safe_tc}_{hypervisor}"
 
-            status, metrics, trace = self._process_metrics_result(
-                result, testcase, log_path, test_name
-            )
-
-        except Exception as e:
-            self._log.info(f"Testcase failed, tescase name: {testcase}")
-            status = TestStatus.FAILED
-            trace = str(e)
-            result = None
-
-            # Check for kernel panic when test fails
-            if self.node.features.is_supported(SerialConsole):
-                panic_info = self.node.features[SerialConsole].check_panic(
-                    saved_path=log_path, force_run=True
-                )
-                if panic_info:
-                    # Append panic information to the trace
-                    panic_msg = (
-                        f"Kernel Panic Detected: {panic_info.panic_type} "
-                        f"({panic_info.error_codes})"
+                try:
+                    result = self._run_with_enhanced_diagnostics(
+                        cmd_args=cmd_args,
+                        timeout=cmd_timeout,
+                        log_path=log_path,
+                        test_name=test_name,
                     )
-                    trace = f"{trace}\n{panic_msg}"
+                finally:
+                    self._copy_back_artifacts(log_path, test_name)
 
-        # Store result for log writing
-        self._last_result = result
+                status, metrics, trace = self._process_metrics_result(
+                    result, testcase, log_path, test_name
+                )
 
-        # --- ensure no leakage to the next test ---
-        for k in _fio_keys:
-            prev_val = _prev_fio_env[k]
-            if prev_val is None:
-                self.env_vars.pop(k, None)
-            else:
-                self.env_vars[k] = prev_val
+            except Exception as e:
+                self._log.info(f"Testcase failed, tescase name: {testcase}")
+                status = TestStatus.FAILED
+                trace = str(e)
+                result = None
 
-        return status, metrics, trace
+                # Check for kernel panic when test fails
+                if self.node.features.is_supported(SerialConsole):
+                    panic_info = self.node.features[SerialConsole].check_panic(
+                        saved_path=log_path, force_run=True
+                    )
+                    if panic_info:
+                        # Append panic information to the trace
+                        panic_msg = (
+                            f"Kernel Panic Detected: {panic_info.panic_type} "
+                            f"({panic_info.error_codes})"
+                        )
+                        trace = f"{trace}\n{panic_msg}"
+
+            # Store result for log writing
+            self._last_result = result
+            return status, metrics, trace
+        finally:
+            # --- ensure no leakage to the next test ---
+            for k in _fio_keys:
+                prev_val = _prev_fio_env[k]
+                if prev_val is None:
+                    self.env_vars.pop(k, None)
+                else:
+                    self.env_vars[k] = prev_val
 
     def _build_metrics_cmd_args(
         self, testcase: str, hypervisor: str, subtest_timeout: Optional[int]
