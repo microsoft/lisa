@@ -309,6 +309,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        tolerance_seconds: int = 60,
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -344,6 +345,7 @@ class Ntttcp(Tool):
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+            timeout=run_time_seconds + tolerance_seconds,
         )
         return result
 
@@ -868,6 +870,7 @@ class BSDNtttcp(Ntttcp):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        tolerance_seconds: int = 60,
     ) -> ExecutableResult:
         self._log.debug(
             "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
@@ -887,6 +890,7 @@ class BSDNtttcp(Ntttcp):
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+            timeout=run_time_seconds + tolerance_seconds,
         )
         return result
 

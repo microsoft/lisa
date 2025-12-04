@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
+import time
 from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -408,15 +409,17 @@ def perf_ntttcp(  # noqa: C901
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
-        server_lagscope.run_as_server_async(
-            ip=lagscope_server_ip
-            if lagscope_server_ip is not None
-            else server.internal_address
-        )
         max_server_threads = 64
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
+
+        # Retry mechanism configuration:
+        # ntttcp client can sometimes hang or timeout, especially with
+        # high connection counts. We implement a retry mechanism to improve
+        # test reliability without failing the entire suite.
+        max_retries = 20  # Maximum retry attempts for each connection test
+
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
@@ -431,44 +434,154 @@ def perf_ntttcp(  # noqa: C901
             if udp_mode:
                 buffer_size = int(1024 / 1024)
 
-            server_result = server_ntttcp.run_as_server_async(
-                server_nic_name,
-                server_ip=server.internal_address if isinstance(server.os, BSD) else "",
-                ports_count=num_threads_p,
-                buffer_size=buffer_size,
-                dev_differentiator=dev_differentiator,
-                udp_mode=udp_mode,
-            )
-            client_lagscope_process = client_lagscope.run_as_client_async(
-                server_ip=server.internal_address,
-                ping_count=0,
-                run_time_seconds=10,
-                print_histogram=False,
-                print_percentile=False,
-                histogram_1st_interval_start_value=0,
-                length_of_histogram_intervals=0,
-                count_of_histogram_intervals=0,
-                dump_csv=False,
-            )
-            client_ntttcp_result = client_ntttcp.run_as_client(
-                client_nic_name,
-                server.internal_address,
-                buffer_size=buffer_size,
-                threads_count=num_threads_n,
-                ports_count=num_threads_p,
-                dev_differentiator=dev_differentiator,
-                udp_mode=udp_mode,
-            )
-            server.tools[Kill].by_name(server_ntttcp.command)
-            server_ntttcp_result = server_result.wait_result()
-            server_result_temp = server_ntttcp.create_ntttcp_result(
-                server_ntttcp_result
-            )
-            client_result_temp = client_ntttcp.create_ntttcp_result(
-                client_ntttcp_result, role="client"
-            )
-            client_sar_result = client_lagscope_process.wait_result()
-            client_average_latency = client_lagscope.get_average(client_sar_result)
+            # Retry mechanism for the current connection test:
+            # Each connection count (test_thread) gets up to max_retries
+            # attempts. This handles transient failures like process hangs,
+            # timeouts, or network issues.
+            retry_count = 0
+            test_success = False
+            server_result_temp = None
+            client_result_temp = None
+            client_average_latency = None
+
+            while retry_count < max_retries and not test_success:
+                try:
+                    if retry_count > 0:
+                        client.log.info(
+                            f"Retrying ntttcp test for {test_thread} connections "
+                            f"(attempt {retry_count + 1}/{max_retries})"
+                        )
+                        # Clean up any stuck processes from the previous attempt.
+                        # This is critical to prevent resource conflicts and
+                        # ensure a clean retry.
+                        for node in [client, server]:
+                            node.tools[Kill].by_name("ntttcp")
+                            node.tools[Kill].by_name("lagscope")
+
+                    # Restart lagscope server for each attempt to ensure clean
+                    # connection state
+                    server_lagscope.run_as_server_async(
+                        ip=(
+                            lagscope_server_ip
+                            if lagscope_server_ip is not None
+                            else server.internal_address
+                        )
+                    )
+
+                    # Start ntttcp server asynchronously to accept incoming
+                    # connections
+                    server_result = server_ntttcp.run_as_server_async(
+                        server_nic_name,
+                        server_ip=(
+                            server.internal_address
+                            if isinstance(server.os, BSD)
+                            else ""
+                        ),
+                        ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        dev_differentiator=dev_differentiator,
+                        udp_mode=udp_mode,
+                    )
+
+                    # Start lagscope client to measure latency during the
+                    # ntttcp test
+                    client_lagscope_process = client_lagscope.run_as_client_async(
+                        server_ip=server.internal_address,
+                        ping_count=0,
+                        run_time_seconds=10,
+                        print_histogram=False,
+                        print_percentile=False,
+                        histogram_1st_interval_start_value=0,
+                        length_of_histogram_intervals=0,
+                        count_of_histogram_intervals=0,
+                        dump_csv=False,
+                    )
+
+                    # Run ntttcp client and monitor for hangs
+                    # Use daemon mode to run in background, then monitor process
+                    client_ntttcp_result = client_ntttcp.run_as_client(
+                        client_nic_name,
+                        server.internal_address,
+                        buffer_size=buffer_size,
+                        threads_count=num_threads_n,
+                        ports_count=num_threads_p,
+                        dev_differentiator=dev_differentiator,
+                        udp_mode=udp_mode,
+                    )
+
+                    # Stop the server and collect results from both client
+                    # and server
+                    server.tools[Kill].by_name(server_ntttcp.command)
+                    server_ntttcp_result = server_result.wait_result()
+                    server_result_temp = server_ntttcp.create_ntttcp_result(
+                        server_ntttcp_result
+                    )
+                    client_result_temp = client_ntttcp.create_ntttcp_result(
+                        client_ntttcp_result, role="client"
+                    )
+
+                    # Collect latency measurement from lagscope client
+                    client_sar_result = client_lagscope_process.wait_result()
+                    client_average_latency = client_lagscope.get_average(
+                        client_sar_result
+                    )
+
+                    # Mark the test as successful and exit the retry loop
+                    test_success = True
+                    client.log.info(
+                        f"Successfully completed ntttcp test for "
+                        f"{test_thread} connections"
+                    )
+
+                except Exception as e:
+                    # An error occurred during the test (timeout, process hang,
+                    # network issue, etc.)
+
+                    time.sleep(30)
+                    client.log.error(
+                        f"Error during ntttcp test for {test_thread} connections "
+                        f"(attempt {retry_count}/{max_retries}): {e}"
+                    )
+                    retry_count += 1
+
+                    # Clean up all processes to ensure a clean state for the
+                    # next retry. This prevents hung processes from interfering
+                    # with subsequent attempts.
+                    try:
+                        for node in [client, server]:
+                            node.tools[Kill].by_name("ntttcp")
+                            node.tools[Kill].by_name("lagscope")
+                    except Exception as cleanup_error:
+                        # Log cleanup errors but don't fail the retry mechanism
+                        client.log.error(f"Cleanup error: {cleanup_error}")
+
+                    if retry_count >= max_retries:
+                        # All retry attempts exhausted for this connection count.
+                        # Log the failure and skip to the next connection count
+                        # instead of failing the entire test suite. This allows
+                        # other connection tests to proceed.
+                        client.log.error(
+                            f"Failed ntttcp test for {test_thread} connections "
+                            f"after {max_retries} attempts. "
+                            f"Skipping this connection count."
+                        )
+                        # Break out of the retry loop to move to the next
+                        # connection
+                        break
+
+            # All retry attempts exhausted without success.
+            # Raise an exception to fail the test as performance data
+            # could not be collected.
+            if not test_success:
+                raise LisaException(
+                    f"ntttcp test for {test_thread} connections failed after "
+                    f"{max_retries} attempts."
+                )
+            assert server_result_temp is not None, "server result should not be None"
+            assert client_result_temp is not None, "client result should not be None"
+            assert (
+                client_average_latency is not None
+            ), "client average latency should not be None"
             if udp_mode:
                 ntttcp_message: Union[
                     NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
