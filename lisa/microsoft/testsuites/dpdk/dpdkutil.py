@@ -783,10 +783,11 @@ def annotate_packet_drops(
     log: Logger, result: Optional[TestResult], receiver: DpdkTestResources
 ) -> None:
     try:
-        if result and hasattr(receiver.testpmd, "dropped_packet_percentage"):
-            dropped_packets = receiver.testpmd.dropped_packet_percentage
-            result.information["rx_pkt_drop_percent"] = int(100 * dropped_packets)
-            log.debug(f"Adding packet drop percentage: {dropped_packets}")
+        if result and hasattr(receiver.testpmd, "packet_drop_rate"):
+            dropped_packets = receiver.testpmd.packet_drop_rate
+            fmt_drop_rate = f"{dropped_packets:.2f}"
+            result.information["rx_pkt_drop_rate"] = fmt_drop_rate
+            log.debug(f"Adding packet drop percentage: {fmt_drop_rate}")
     except AssertionError as err:
         receiver.node.log.debug(f"Could not add rx packet drop percentage: {str(err)}")
 

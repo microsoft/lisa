@@ -770,8 +770,8 @@ class DpdkTestpmd(Tool):
             raise AssertionError(
                 "Test bug: tx packet data was 0, could not check dropped packets"
             )
-        self.dropped_packet_percentage = self.tx_packet_drops / self.tx_total_packets
-        assert_that(self.dropped_packet_percentage).described_as(
+        self.packet_drop_rate = self.tx_packet_drops / self.tx_total_packets
+        assert_that(self.packet_drop_rate).described_as(
             "More than 33% of the tx packets were dropped!"
         ).is_close_to(0, 0.33)
 
@@ -780,8 +780,8 @@ class DpdkTestpmd(Tool):
             raise AssertionError(
                 "Test bug: rx packet data was 0 could not check dropped packets."
             )
-        self.dropped_packet_percentage = self.rx_packet_drops / self.rx_total_packets
-        assert_that(self.dropped_packet_percentage).described_as(
+        self.packet_drop_rate = self.rx_packet_drops / self.rx_total_packets
+        assert_that(self.packet_drop_rate).described_as(
             "More than 1% of the received packets were dropped!"
         ).is_close_to(0, 0.01)
 
