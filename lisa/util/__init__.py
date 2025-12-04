@@ -92,7 +92,7 @@ __ansi_escape = re.compile(
     r"\x1B(?:"  # Start: ESC character followed by one of three patterns
     # Pattern 1: OSC (Operating System Command) - ESC ] <data> <terminator>
     r"\]"  # Literal ']' character after ESC
-    # Data: any char except BEL/ESC, or ESC not followed by \  # noqa: E502
+    # Data: any char except BEL/ESC, or ESC not followed by \
     r"(?:[^\x07\x1B]|\x1B(?!\\))*"
     r"(?:\x07|\x1B\\)"  # Terminator: BEL (\x07) or ST (ESC \)
     r"|"  # OR
@@ -177,31 +177,21 @@ class MissingPackagesException(LisaException):
 
     def __init__(self, packages: List[str]) -> None:
         self.packages = packages
-        super().__init__(
-            f"Package manager could not install packages: {' '.join(packages)}"
-        )
 
     def __str__(self) -> str:
-        return (
-            f"Package manager could not install packages: "
-            f"{' '.join(self.packages)}"
-        )
+        return f"Package manager could not install packages: {' '.join(self.packages)}"
 
 
 class UnsupportedDistroException(LisaException):
     """
-    This exception is used to indicate that a test case does not support
-    the testing distro.
+    This exception is used to indicate that a test case does not support the testing
+    distro.
     """
 
     def __init__(self, os: "OperatingSystem", message: str = "") -> None:
         self.name = os.name
         self.version = os.information.full_version
         self._extended_message = message
-        error_msg = f"Unsupported system: '{self.version}'"
-        if message:
-            error_msg = f"{error_msg}. {message}"
-        super().__init__(os, message)
 
     def __str__(self) -> str:
         message = f"Unsupported system: '{self.version}'"
@@ -219,10 +209,6 @@ class RepoNotExistException(LisaException):
         self.name = os.name
         self.version = os.information.full_version
         self._extended_message = message
-        error_msg = f"Repo not existing in '{self.version}'"
-        if message:
-            error_msg = f"{error_msg}. {message}"
-        super().__init__(os, message)
 
     def __str__(self) -> str:
         message = f"Repo not existing in '{self.version}'"
@@ -240,10 +226,6 @@ class ReleaseEndOfLifeException(LisaException):
         self.name = os.name
         self.version = os.information.full_version
         self._extended_message = message
-        error_msg = f"The release '{self.version}' is end of life"
-        if message:
-            error_msg = f"{error_msg}. {message}"
-        super().__init__(os, message)
 
     def __str__(self) -> str:
         message = f"The release '{self.version}' is end of life"
@@ -254,8 +236,8 @@ class ReleaseEndOfLifeException(LisaException):
 
 class UnsupportedKernelException(LisaException):
     """
-    This exception is used to indicate that a test case does not support
-    the testing kernel.
+    This exception is used to indicate that a test case does not support the testing
+    kernel.
     """
 
     def __init__(self, os: "OperatingSystem", message: str = "") -> None:
@@ -266,18 +248,10 @@ class UnsupportedKernelException(LisaException):
                 os.get_kernel_information().raw_version  # type: ignore
             )
         self._extended_message = message
-        error_msg = (
-            f"Unsupported kernel version: '{self.kernel_version}' "
-            f"on '{self.version}'"
-        )
-        if message:
-            error_msg = f"{error_msg}. {message}"
-        super().__init__(os, message)
 
     def __str__(self) -> str:
         message = (
-            f"Unsupported kernel version: '{self.kernel_version}' "
-            f"on '{self.version}'"
+            f"Unsupported kernel version: '{self.kernel_version}' on '{self.version}'"
         )
         if self._extended_message:
             message = f"{message}. {self._extended_message}"
@@ -286,16 +260,11 @@ class UnsupportedKernelException(LisaException):
 
 class NotEnoughMemoryException(LisaException):
     """
-    This exception is used to indicate that the system does not have
-    enough memory.
+    This exception is used to indicate that that the system does not have enough memory.
     """
 
     def __init__(self, message: str = "") -> None:
         self._extended_message = message
-        error_msg = "Not enough memory"
-        if message:
-            error_msg = f"{error_msg}. {message}"
-        super().__init__(message)
 
     def __str__(self) -> str:
         message = "Not enough memory"
@@ -312,7 +281,6 @@ class UnsupportedCpuArchitectureException(LisaException):
 
     def __init__(self, arch: str = "") -> None:
         self.arch = arch
-        super().__init__(arch)
 
     def __str__(self) -> str:
         return f"Unsupported CPU architecture {self.arch}"
@@ -328,10 +296,9 @@ class SkippedException(LisaException):
 
 class PassedException(LisaException):
     """
-    A test case may verify several things, but part of verification cannot
-    be done. In this situation, the test case may be considered to passed
-    also. Raise this Exception to bring an error message, and make test
-    pass also.
+    A test case may verify several things, but part of verification cannot be done. In
+    this situation, the test case may be considered to passed also. Raise this
+    Exception to bring an error message, and make test pass also.
     """
 
     ...
@@ -339,8 +306,8 @@ class PassedException(LisaException):
 
 class BadEnvironmentStateException(LisaException):
     """
-    A test might leave the environment in bad state after failing. Use this
-    exception to indicate the environment is in a bad state.
+    A test might leave the environment in bad state after failing. Use this exception
+    to indicate the environment is in a bad state.
     """
 
     ...
@@ -362,7 +329,6 @@ class ResourceAwaitableException(Exception):
     def __init__(self, resource_name: str, message: str = "") -> None:
         self.resource_name = resource_name
         self.message = message
-        super().__init__(resource_name, message)
 
     def __str__(self) -> str:
         return (
@@ -383,7 +349,6 @@ class TcpConnectionException(LisaException):
         self.port = port
         self.tcp_error_code = tcp_error_code
         self.message = message
-        super().__init__(address, port, tcp_error_code, message)
 
     def __str__(self) -> str:
         format_str = (
@@ -412,15 +377,13 @@ class KernelPanicException(LisaException):
         self.stage = stage
         self.panics = panics
         self.source = source
-        super().__init__(stage, panics, source)
 
     def __str__(self) -> str:
         return (
-            f"{self.stage} found panic in {self.source}. You can check "
-            "the panic details from the serial console log. Please "
-            "download the test logs and retrieve the serial_log from "
-            "'environments' directory, or you can ask support. Detected "
-            f"Panic phrases: {self.panics}"
+            f"{self.stage} found panic in {self.source}. You can check the panic "
+            "details from the serial console log. Please download the test logs and "
+            "retrieve the serial_log from 'environments' directory, or you can ask "
+            f"support. Detected Panic phrases: {self.panics}"
         )
 
 
@@ -432,16 +395,13 @@ class RootFsMountFailedException(LisaException):
     def __init__(self, message: List[Any], source: str = "serial log") -> None:
         self.message = message
         self.source = source
-        super().__init__(message, source)
 
     def __str__(self) -> str:
         return (
-            f"found root filesystem mount failure in {self.source}. "
-            "Possible causes include: missing or incorrect UUID, "
-            "unsupported or corrupted filesystem, or missing storage "
-            "drivers. Please verify disk presence, UUID accuracy, and "
-            f"initramfs contents. Detected root filesystem issues: "
-            f"{self.message}"
+            f"found root filesystem mount failure in {self.source}. Possible causes "
+            "include: missing or incorrect UUID, unsupported or corrupted filesystem, "
+            "or missing storage drivers. Please verify disk presence, UUID accuracy, "
+            f"and initramfs contents. Detected root filesystem issues: {self.message}"
         )
 
 
@@ -478,10 +438,9 @@ class InitializableMixin:
     """
     This mixin uses to do one time but delay initialization work.
 
-    __init__ shouldn't do time costing work as most design recommendation.
-    But something may be done let an object works. _initialize uses to
-    call for one time initialization. If an object is initialized, it do
-    nothing.
+    __init__ shouldn't do time costing work as most design recommendation. But
+    something may be done let an object works. _initialize uses to call for one time
+    initialization. If an object is initialized, it do nothing.
     """
 
     def __init__(self) -> None:
@@ -490,8 +449,7 @@ class InitializableMixin:
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
-        override for initialization logic. This mixin makes sure it's
-        called only once.
+        override for initialization logic. This mixin makes sure it's called only once.
         """
         raise NotImplementedError()
 
@@ -570,9 +528,7 @@ def get_or_generate_key_pairs(
     public_key_file: str = str(constants.RUN_LOCAL_LOG_PATH / "id_rsa.pub")
     private_key_file: str = str(constants.RUN_LOCAL_LOG_PATH / "id_rsa")
 
-    if not (
-        Path(private_key_file).exists() and Path(public_key_file).exists()
-    ):
+    if not (Path(private_key_file).exists() and Path(public_key_file).exists()):
         key_class = algorthim_dict.get(algorthim.upper(), None)
         assert key_class, f"unsupported key algorthim: {algorthim}"
         key = key_class.generate(key_length)
@@ -589,9 +545,7 @@ def get_public_key_data(private_key_file_path: str = "") -> str:
     # TODO: support ppk, if it's needed.
     private_key_path = Path(private_key_file_path)
     if not private_key_path.exists():
-        raise LisaException(
-            f"private key file not exist {private_key_file_path}"
-        )
+        raise LisaException(f"private key file not exist {private_key_file_path}")
 
     public_key_file = Path(private_key_path).stem
     public_key_path = private_key_path.parent / f"{public_key_file}.pub"
@@ -651,9 +605,7 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
             setattr(dest, field_name, copied_value)
 
 
-def find_patterns_in_lines(
-    lines: str, patterns: List[Pattern[str]]
-) -> List[List[Any]]:
+def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[List[Any]]:
     """
     For each pattern: if a pattern needs one return, it returns [str]. if it
     needs multiple return, it returns like [(str, str)].
@@ -703,8 +655,7 @@ def find_patterns_groups_in_lines(
         for index, pattern in enumerate(patterns):
             finds = pattern.findall(lines)
             if len(pattern.groupindex) == 1:
-                # if there is only one group, findall returns the string,
-                # not a list.
+                # if there is only one group, findall returns the string, not a list.
                 results[index].append(dict(zip(pattern.groupindex, finds)))
             else:
                 for find in finds:
@@ -735,9 +686,7 @@ def find_group_in_lines(
     return result
 
 
-def deep_update_dict(
-    src: Dict[str, Any], dest: Dict[str, Any]
-) -> Dict[str, Any]:
+def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
     if (
         dest is None
         or isinstance(dest, int)
@@ -777,9 +726,8 @@ def filter_ansi_escape(content: str) -> str:
 
 
 def dump_file(file_name: Path, content: Any) -> None:
-    # This is for path validation. If provided file path isn't under run
-    # local path, an error will be raised. Want to ensure logs only put
-    # under run local path
+    # This is for path validation. If provided file path isn't under run local path,
+    # an error will be raised. Want to ensure logs only put under run local path
     file_name.absolute().relative_to(constants.RUN_LOCAL_LOG_PATH)
     file_name.parent.mkdir(parents=True, exist_ok=True)
     with open(file_name, "w") as f:
@@ -817,7 +765,7 @@ def parse_version(version: str) -> LisaVersionInfo:
         if key != "prerelease"
     }
     ver["prerelease"] = match["prerelease"]
-    rest = match.string[match.end():]
+    rest = match.string[match.end() :]
     ver["build"] = rest
     release_version = LisaVersionInfo(version, **ver)
 
@@ -825,9 +773,7 @@ def parse_version(version: str) -> LisaVersionInfo:
 
 
 def field_metadata(
-    field_function: Optional[Callable[..., Any]] = None,
-    *args: Any,
-    **kwargs: Any,
+    field_function: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any
 ) -> Any:
     """
     wrap for shorter
@@ -851,9 +797,7 @@ def is_unittest() -> bool:
     return "unittest" in sys.argv[0]
 
 
-def truncate_keep_prefix(
-    content: str, kept_len: int, prefix: str = "lisa-"
-) -> str:
+def truncate_keep_prefix(content: str, kept_len: int, prefix: str = "lisa-") -> str:
     """
     This method is used to truncate names, when some resource has length
     limitation. It keeps meaningful part and the defined prefix.
@@ -880,7 +824,7 @@ def truncate_keep_prefix(
         assert_that(len(prefix)).described_as(
             f"kept length must be greater than prefix '{prefix}'"
         ).is_less_than_or_equal_to(kept_len)
-    return f"{prefix}{content[len(prefix):][-kept_len + len(prefix):]}"
+    return f"{prefix}{content[len(prefix) :][-kept_len + len(prefix):]}"
 
 
 def generate_random_chars(
@@ -891,12 +835,9 @@ def generate_random_chars(
 
 def generate_strong_password(length: int = 20) -> str:
     if length < 4:
-        raise ValueError(
-            "length must be greater than 4 to contains all types."
-        )
+        raise ValueError("length must be greater than 4 to contains all types.")
 
-    # Removed \ and - from standard punctuation due to Azure password
-    # doesn't support.
+    # Removed \ and - from standard punctuation due to Azure password doesn't support.
     special_chars = r"""!"#$%&'()*+,./:;<=>?@[]^_`{|}~"""
     upper_char = random.choice(string.ascii_uppercase)
     lower_char = random.choice(string.ascii_lowercase)
@@ -958,10 +899,7 @@ def retry_without_exceptions(
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
-                    if any(
-                        isinstance(e, ex_type)
-                        for ex_type in skipped_exceptions
-                    ):
+                    if any(isinstance(e, ex_type) for ex_type in skipped_exceptions):
                         raise
                     else:
                         current_tries += 1
@@ -970,11 +908,9 @@ def retry_without_exceptions(
                         if max_delay is not None and current_delay > max_delay:
                             current_delay = max_delay
                         sleep(current_delay)
-                        # Apply jitter if specified as a tuple (min, max)
+                        # Apply jitter if it's specified as a tuple (min, max)
                         if isinstance(jitter, tuple):
-                            current_delay += random.uniform(
-                                jitter[0], jitter[1]
-                            )
+                            current_delay += random.uniform(jitter[0], jitter[1])
                         elif jitter > 0:
                             current_delay += random.uniform(0, jitter)
                         current_delay *= backoff
@@ -1028,9 +964,7 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
     log.debug("checking panic...")
     ignored_candidates = [
         x
-        for sublist in find_patterns_in_lines(
-            str(content), PANIC_IGNORABLE_PATTERNS
-        )
+        for sublist in find_patterns_in_lines(str(content), PANIC_IGNORABLE_PATTERNS)
         for x in sublist
         if x
     ]
