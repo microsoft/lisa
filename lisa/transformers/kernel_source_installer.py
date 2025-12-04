@@ -231,7 +231,7 @@ class SourceInstaller(BaseInstaller):
             arch = node.tools[Lscpu].get_architecture()
             image_path = ""
             if arch == CpuArchitecture.ARM64:
-                image_path = "arch/arm64/boot/bzImage"
+                image_path = "arch/arm64/boot/Image"
             elif arch == CpuArchitecture.X64:
                 image_path = "arch/x86/boot/bzImage"
             else:
