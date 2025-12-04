@@ -92,7 +92,7 @@ __ansi_escape = re.compile(
     r"\x1B(?:"  # Start: ESC character followed by one of three patterns
     # Pattern 1: OSC (Operating System Command) - ESC ] <data> <terminator>
     r"\]"  # Literal ']' character after ESC
-    # Data: any char except BEL/ESC, or ESC not followed by \
+    # Data: any char except BEL/ESC, or ESC not followed by \ # noqa: E502
     r"(?:[^\x07\x1B]|\x1B(?!\\))*"
     r"(?:\x07|\x1B\\)"  # Terminator: BEL (\x07) or ST (ESC \)
     r"|"  # OR
