@@ -660,7 +660,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             result = extension.create_or_update(
                 type_="NvidiaGpuDriverLinux",
                 publisher="Microsoft.HpcCompute",
-                type_handler_version="1.6",
                 auto_upgrade_minor_version=True,
                 settings={},
             )
