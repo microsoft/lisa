@@ -3076,6 +3076,10 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
             "standardlsv3family",
             "standardmsfamily",
             "standardmsmediummemoryv2family",
+            "standarddsv7family",
+            "standardddsv7family",
+            "standardesv7family",
+            "standardedsv7family",
         ]
 
     @classmethod
