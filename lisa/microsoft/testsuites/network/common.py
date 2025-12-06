@@ -206,6 +206,7 @@ def _setup_nic_monitoring(
 
     # Determine which NIC to monitor for packet counts
     if source_nic_info.lower and source_nic_info.pci_device_name:
+        print(f"source_nic_info: {source_nic_info}")
         source_pci_nic = source_nic_info.pci_device_name
         source_nic = source_pci_nic
     else:
@@ -213,6 +214,7 @@ def _setup_nic_monitoring(
         source_nic = source_synthetic_nic
 
     if dest_nic_info.lower and dest_nic_info.pci_device_name:
+        print(f"dest_nic_info: {dest_nic_info}")
         dest_pci_nic = dest_nic_info.pci_device_name
         dest_nic = dest_pci_nic
     else:
@@ -224,6 +226,7 @@ def _setup_nic_monitoring(
         source_nic = source_synthetic_nic
         dest_nic = dest_synthetic_nic
 
+    print(f"source_nic: {source_nic}, dest_nic: {dest_nic}, source_pci_nic: {source_pci_nic}, dest_pci_nic: {dest_pci_nic}")
     return source_nic, dest_nic, source_pci_nic, dest_pci_nic
 
 

@@ -316,6 +316,7 @@ class Sriov(TestSuite):
     def verify_sriov_disable_enable_on_guest(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
+        print("Start calling sriov_vf_connection_test()")
         sriov_vf_connection_test(environment, vm_nics, turn_off_lower=True)
 
     @TestCaseMetadata(

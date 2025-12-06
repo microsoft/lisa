@@ -363,6 +363,7 @@ class Provisioning(TestSuite):
             log=log,
             timeout=self.TIME_OUT,
         )
+        log.debug(f"is_ready: {is_ready} tcp_error_code: {tcp_error_code}")
         if not is_ready:
             if node.features.is_supported(SerialConsole):
                 serial_console = node.features[SerialConsole]
