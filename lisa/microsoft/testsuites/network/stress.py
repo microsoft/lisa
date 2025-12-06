@@ -25,6 +25,7 @@ from lisa import (
 )
 from lisa.features import StartStop
 from lisa.nic import NicInfo
+from lisa.search_space import IntRange
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import Cat, Iperf3
 
@@ -137,7 +138,7 @@ class Stress(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -148,8 +149,8 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
         ),
@@ -165,7 +166,7 @@ class Stress(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -176,8 +177,8 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
         ),
@@ -194,7 +195,7 @@ class Stress(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -205,8 +206,8 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
         ),
@@ -224,7 +225,7 @@ class Stress(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max (8) sriov nics.
+        This case verify VM works well when provisioning with max sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
@@ -235,8 +236,10 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
-            network_interface=features.Sriov(),
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
+                data_path=schema.NetworkDataPath.Sriov,
+            ),
         ),
     )
     def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
@@ -250,7 +253,7 @@ class Stress(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max (8) sriov nics.
+        This case verify VM works well when provisioning with max sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
@@ -261,8 +264,10 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
-            network_interface=features.Sriov(),
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
+                data_path=schema.NetworkDataPath.Sriov,
+            ),
         ),
     )
     def stress_sriov_with_max_nics_reboot_from_platform(
@@ -279,7 +284,7 @@ class Stress(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max (8) sriov nics.
+        This case verify VM works well when provisioning with max sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
@@ -290,8 +295,10 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
-            network_interface=features.Sriov(),
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
+                data_path=schema.NetworkDataPath.Sriov,
+            )
         ),
     )
     def stress_sriov_with_max_nics_stop_start_from_platform(
