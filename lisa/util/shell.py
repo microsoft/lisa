@@ -98,6 +98,9 @@ def wait_tcp_port_ready(
                     times += 1
             except Exception as e:
                 raise LisaException(f"failed to connect to {address}:{port}: {e}")
+    log.debug(
+        f"is ready: {is_ready} result: {result} after {times} tries"
+    )
     return is_ready, result
 
 
