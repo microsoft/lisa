@@ -5,7 +5,6 @@ import pathlib
 import re
 from typing import Dict, List, Optional
 
-from assertpy import assert_that
 from semver import VersionInfo
 
 from lisa.executable import Tool
@@ -260,6 +259,7 @@ class Git(Tool):
         contains: str = "",
         return_last: bool = True,
         filter_: str = "",
+        fail_on_not_found: bool = True,
     ) -> str:
         sort_arg = ""
         contains_arg = ""
@@ -299,10 +299,19 @@ class Git(Tool):
         error_info = f"sortby:{sort_by} contains:{contains}"
         if filter_:
             error_info += f" filter:{filter_}"
-        assert_that(len(tags)).described_as(
-            "Error: could not find any tags with this sort or "
-            f"filter setting: {error_info}"
-        ).is_greater_than(0)
+
+        if len(tags) == 0:
+            if fail_on_not_found:
+                raise LisaException(
+                    "Could not find any tags with this sort or "
+                    f"filter setting: {error_info}"
+                )
+            else:
+                self._log.debug(
+                    "Could not find any tags with this sort or "
+                    f"filter setting: {error_info}"
+                )
+                return ""
 
         if return_last:
             return tags[-1]
