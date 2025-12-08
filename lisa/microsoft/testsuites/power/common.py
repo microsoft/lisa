@@ -193,7 +193,7 @@ def _verify_common_hibernation_requirements(
 
     node_nic = node.nics
     node_nic.initialize()
-    lower_nics_after_hibernation = node_nic.get_lower_nics()
+    lower_nics_after_hibernation = node_nic.get_pci_nics()
     upper_nics_after_hibernation = node_nic.get_nic_names()
 
     assert_that(len(lower_nics_after_hibernation)).described_as(
@@ -216,7 +216,7 @@ def verify_hibernation_by_tool(
     then verifies hibernation through tool-specific logs and metrics.
     """
     node_nic = node.nics
-    lower_nics_before_hibernation = node_nic.get_lower_nics()
+    lower_nics_before_hibernation = node_nic.get_pci_nics()
     upper_nics_before_hibernation = node_nic.get_nic_names()
 
     hibernation_setup_tool = node.tools[HibernationSetup]
@@ -320,7 +320,7 @@ def verify_hibernation_by_vm_extension(
         raise
 
     node_nic = node.nics
-    lower_nics_before_hibernation = node_nic.get_lower_nics()
+    lower_nics_before_hibernation = node_nic.get_pci_nics()
     upper_nics_before_hibernation = node_nic.get_nic_names()
 
     # Perform hibernation cycle
