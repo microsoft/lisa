@@ -246,7 +246,7 @@ class TlbStress(Tool):
     def _install_azurelinux_deps(self) -> None:
         """Install dependencies for Azure Linux/CBL Mariner systems"""
         # Install essential packages first
-        essential_packages = ["gcc", "make", "glibc-devel"]
+        essential_packages = ["gcc", "make", "glibc-devel", "binutils"]
         self.node.os.install_packages(essential_packages)  # type: ignore
 
         # Try optional packages (best-effort)
