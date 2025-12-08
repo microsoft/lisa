@@ -909,6 +909,7 @@ class AzurePlatform(Platform):
         node_runbook: Optional[AzureNodeSchema] = None
         if environment.nodes:
             node: Optional[Node] = environment.default_node
+            information["node_count"] = str(len(environment.nodes))
         else:
             node = None
 
