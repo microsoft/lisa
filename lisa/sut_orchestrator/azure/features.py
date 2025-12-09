@@ -2200,7 +2200,8 @@ class Disk(AzureFeatureMixin, features.Disk):
             os_disk_controller = nvme.get_nvme_os_disk_controller()
             # When disk_controller_type is NVME, all remote disks are connected to
             # same NVMe controller. The same controller is used by OS disk.
-            if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
+            #if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
+            if disk != os_disk_namespace:
                 return True
             return False
 
