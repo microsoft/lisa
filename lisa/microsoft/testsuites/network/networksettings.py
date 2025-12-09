@@ -591,10 +591,12 @@ class NetworkSettings(TestSuite):
             Steps:
             1. Get all the device's statistics.
             2. Validate device statistics lists per queue statistics as well.
-            3. Run traffic using iperf3 and check stats for each device.
-            4. if the same queue (say queue #0) is inactive repeatitively,
-                and the count of channels is >= 4 (total #queues), test should fail
-                and require further investigation.
+            3. Run traffic using iperf3 with adaptive stream counts (16, 32, then 64 streams)
+               for improved reliability on various network infrastructures.
+            4. Check stats for each device during traffic generation.
+            5. If the same queue (say queue #0) is inactive repeatedly,
+               and the count of channels is >= 4 (total #queues), test should fail
+               and require further investigation.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -622,7 +624,26 @@ class NetworkSettings(TestSuite):
         timeout = 300
         timer = create_timer()
 
-        self._run_iperf3(server_node, client_node, run_time_seconds=timeout)
+        # Try adaptive stream counts: 16, 32, then 64 streams for better reliability
+        stream_counts = [16, 32, 64]
+        iperf3_success = False
+        
+        for stream_count in stream_counts:
+            log.info(f"Attempting iperf3 test with {stream_count} parallel streams")
+            try:
+                self._run_iperf3(server_node, client_node, run_time_seconds=120, parallel_number=stream_count)
+                log.info(f"iperf3 test succeeded with {stream_count} streams")
+                iperf3_success = True
+                break
+            except Exception as e:
+                log.warning(f"iperf3 test with {stream_count} streams failed: {str(e)}")
+                if stream_count == stream_counts[-1]:  # Last attempt
+                    raise
+                log.info(f"Retrying with next stream count...")
+                time.sleep(10)  # Brief pause before retry
+        
+        if not iperf3_success:
+            raise LisaException("All iperf3 stream count attempts failed")
 
         while timer.elapsed(False) < timeout:
             per_tx_queue_packets: List[int] = []
@@ -822,7 +843,7 @@ class NetworkSettings(TestSuite):
                     )
 
     def _run_iperf3(
-        self, server_node: RemoteNode, client_node: RemoteNode, run_time_seconds: int
+        self, server_node: RemoteNode, client_node: RemoteNode, run_time_seconds: int, parallel_number: int = 64
     ) -> None:
         # run iperf3 on server side and client side
         # iperfResults.log stored client side log
@@ -831,6 +852,6 @@ class NetworkSettings(TestSuite):
         source_iperf3.run_as_server_async()
         dest_iperf3.run_as_client_async(
             server_ip=server_node.internal_address,
-            parallel_number=64,
-            run_time_seconds=120,
+            parallel_number=parallel_number,
+            run_time_seconds=run_time_seconds,
         )
