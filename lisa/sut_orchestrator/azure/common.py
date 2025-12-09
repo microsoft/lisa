@@ -765,11 +765,23 @@ class AzureNodeSchema:
             self.marketplace_raw = self.marketplace_raw.strip()
 
             if self.marketplace_raw:
+                # Extract security_profile if present in brackets [profile1,profile2]
+                security_profile_match = re.search(r"\[(.*?)\]$", self.marketplace_raw)
+                security_profile_str = None
+                marketplace_base = self.marketplace_raw
+
+                if security_profile_match:
+                    security_profile_str = security_profile_match.group(1)
+                    # Remove the security_profile part from the string
+                    marketplace_base = self.marketplace_raw[
+                        : security_profile_match.start()
+                    ].strip()
+
                 # Users decide the cases of image names,
                 #  the inconsistent cases cause the mismatched error in notifiers.
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
-                marketplace_strings = re.split(r"[:\s]+", self.marketplace_raw.lower())
+                marketplace_strings = re.split(r"[:\s]+", marketplace_base.lower())
 
                 if len(marketplace_strings) == 4:
                     marketplace = AzureVmMarketplaceSchema(
@@ -778,6 +790,27 @@ class AzureNodeSchema:
                         sku=marketplace_strings[2],
                         version=marketplace_strings[3],
                     )
+
+                    # Parse security_profile if present
+                    if security_profile_str:
+                        # Split by comma and strip whitespace
+                        profile_list = [
+                            p.strip().lower() for p in security_profile_str.split(",")
+                        ]
+                        # Convert to SecurityProfileType enum
+                        security_profiles = []
+                        for profile in profile_list:
+                            try:
+                                security_profiles.append(SecurityProfileType(profile))
+                            except ValueError:
+                                raise LisaException(
+                                    f"Invalid security_profile value: '{profile}'. "
+                                    f"Valid values: secureboot, cvm, stateless, none"
+                                )
+                        marketplace.security_profile = search_space.SetSpace(
+                            is_allow_set=True, items=security_profiles
+                        )
+
                     # marketplace_raw is used
                     self.marketplace_raw = marketplace.to_dict()
                 else:
@@ -786,7 +819,8 @@ class AzureNodeSchema:
                         f"parameter: '{self.marketplace_raw}'."
                         f"The marketplace parameter should be in the format: "
                         f"'<Publisher> <Offer> <Sku> <Version>' "
-                        f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
+                        f"or '<Publisher>:<Offer>:<Sku>:<Version>' "
+                        f"or '<Publisher> <Offer> <Sku> <Version> [Profile1,Profile2]'"
                     )
         self._marketplace = marketplace
         return (
