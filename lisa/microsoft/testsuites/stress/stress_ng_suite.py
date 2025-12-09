@@ -73,6 +73,7 @@ class StressNgTestSuite(TestSuite):
     @TestCaseMetadata(
         description="Runs stress-ng's 'cpu' class stressors for 60s each.",
         priority=4,
+        timeout=7200,  # 2 hours
     )
     def stress_ng_cpu_stressors(
         self,
