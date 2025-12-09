@@ -14,14 +14,19 @@ from semver import VersionInfo
 from lisa.base_tools import Cat, Sed, Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
-from lisa.tools import Find, Gcc
 from lisa.tools.df import Df
 from lisa.tools.echo import Echo
+from lisa.tools.find import Find
 from lisa.tools.free import Free
 from lisa.tools.fstab import Fstab
+from lisa.tools.gcc import Gcc
+from lisa.tools.ls import Ls
 from lisa.tools.lsblk import Lsblk
 from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
+from lisa.tools.mkdir import Mkdir
+from lisa.tools.mkfs import FileSystem, Mkfs
+from lisa.tools.mount import Mount
 from lisa.tools.stat import Stat
 from lisa.tools.sysctl import Sysctl
 from lisa.tools.tar import Tar
@@ -327,12 +332,9 @@ class KdumpBase(Tool):
         cfg_file = self._get_crashkernel_cfg_file()
         cmdline = self._get_crashkernel_cfg_cmdline()
         if cfg_file:
-            self.node.execute(
-                f"ls -lt {cfg_file}",
-                expected_exit_code=0,
-                expected_exit_code_failure_message=f"{cfg_file} doesn't exist",
-                sudo=True,
-            )
+            ls = self.node.tools[Ls]
+            if not ls.path_exists(cfg_file, sudo=True):
+                raise LisaException(f"{cfg_file} doesn't exist")
             cat = self.node.tools[Cat]
             sed = self.node.tools[Sed]
             result = cat.run(cfg_file, sudo=True, force_run=True)
@@ -423,19 +425,12 @@ class KdumpBase(Tool):
         dump_mount_point = str(PurePosixPath(self.dump_path).parent)
 
         # Ensure mount point directory exists
-        self.node.execute(
-            f"mkdir -p {dump_mount_point}",
-            shell=True,
-            sudo=True,
-        )
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(dump_mount_point, sudo=True)
 
         # Try to mount unmounted fstab entries
-        # Ignore errors since some entries might already be mounted
-        self.node.execute(
-            "mount -a",
-            shell=True,
-            sudo=True,
-        )
+        mount = self.node.tools[Mount]
+        mount.reload_fstab_config()
 
         self.restart_kdump_service()
 
@@ -483,10 +478,10 @@ class KdumpBase(Tool):
             raise LisaException(
                 f"{self.kexec_crash} file doesn't exist. Kexec crash is not loaded."
             )
-        
+
         # Ensure dump path is mounted before checking kdump service
         self._ensure_dump_path_mounted()
-        
+
         self._check_kexec_crash_loaded()
 
         # Check if memory is reserved for crash kernel
@@ -559,13 +554,8 @@ class KdumpRedhat(KdumpBase):
         may not be enough to store the dump file, need to change the dump path
         """
         kdump_conf = "/etc/kdump.conf"
-        self.node.execute(
-            f"mkdir -p {dump_path}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
-            shell=True,
-            sudo=True,
-        )
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(dump_path, sudo=True)
         self.dump_path = dump_path
         # Change dump path in kdump conf
         sed = self.node.tools[Sed]
@@ -726,13 +716,8 @@ class KdumpCBLMariner(KdumpBase):
             sudo=True,
         )
 
-        self.node.execute(
-            f"mkdir -p {dump_path}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
-            shell=True,
-            sudo=True,
-        )
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(dump_path, sudo=True)
         self.dump_path = dump_path
         # Change dump path in kdump conf
         kdump_conf = "/etc/kdump.conf"
@@ -821,11 +806,10 @@ class KdumpCheck(Tool):
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
         # Cleaning up any previous crash dump files
-        self.node.execute(
-            f"mkdir -p {kdump.dump_path} && rm -rf {kdump.dump_path}/*",
-            shell=True,
-            sudo=True,
-        )
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(kdump.dump_path, sudo=True)
+        # Remove contents but keep directory
+        self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
         # Reboot system to make kdump take effect
         self.node.reboot(time_out=600)
@@ -914,8 +898,6 @@ class KdumpCheck(Tool):
         Adds fstab entry for mount persistence across reboots.
         """
         from lisa.features import Disk
-        from lisa.tools import Lsblk, Mkfs, Mount
-        from lisa.tools.mkfs import FileSystem
 
         # Check if Disk feature is supported on this platform
         if not self.node.features.is_supported(Disk):
@@ -953,7 +935,9 @@ class KdumpCheck(Tool):
         self._log.info(
             f"Formatting {new_disk.device_name} and mounting to {mount_point}"
         )
-        self.node.execute(f"mkdir -p {mount_point}", sudo=True)
+
+        mkdir_tool = self.node.tools[Mkdir]
+        mkdir_tool.create_directory(mount_point, sudo=True)
         mkfs.format_disk(new_disk.device_name, FileSystem.ext4)
         mount.mount(new_disk.device_name, mount_point, format_=False)
 
