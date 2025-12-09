@@ -80,7 +80,7 @@ class StressNg(Tool):
         v_flag = "-v" if verbose else ""
         return self.run_async(
             f"{v_flag} --sequential {num_workers} --class {class_name} "
-            f"--timeout {timeout_secs}",
+            f"--timeout {timeout_secs} --oom-avoid",
             sudo=sudo,
         )
 
