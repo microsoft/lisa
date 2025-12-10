@@ -340,10 +340,6 @@ def perf_ntttcp(  # noqa: C901
             else:
                 connections = NTTTCP_TCP_CONCURRENCY
 
-    client_ntttcp, server_ntttcp = run_in_parallel(
-        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
-    )
-
     # Initialize variables before try block
     client_lagscope = None
     server_lagscope = None
@@ -351,6 +347,9 @@ def perf_ntttcp(  # noqa: C901
     server_ntttcp = None
     
     try:
+        client_ntttcp, server_ntttcp = run_in_parallel(
+            [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
+        )
         client_lagscope, server_lagscope = run_in_parallel(
             [
                 lambda: client.tools[Lagscope],  # type: ignore
