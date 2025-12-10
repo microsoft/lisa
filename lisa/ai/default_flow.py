@@ -605,67 +605,65 @@ async def async_analyze_default(
     # Create specialized agents using the custom base class
     logger.info("Initializing agents")
 
-    # Set global logger for callbacks
-    log_search_agent = LogSearchAgent(
-        log_paths=log_folder_path,
-        deployment_name=software_deployment_name,
-        api_key=azure_openai_api_key,
-        base_url=azure_openai_endpoint,
-    )
-    code_search_agent = CodeSearchAgent(
-        code_paths=[code_path],
-        deployment_name=software_deployment_name,
-        api_key=azure_openai_api_key,
-        base_url=azure_openai_endpoint,
-    )
+    def make_participants() -> List[ChatAgent]:
+        final_answer_prompt = _load_prompt("final_answer.txt", flow="default")
+        chat_options = create_agent_chat_options()
+        summary_chat_client = AzureOpenAIChatClient(
+            api_key=azure_openai_api_key,
+            endpoint=azure_openai_endpoint,
+            deployment_name=general_deployment_name,
+        )
+        return [
+            LogSearchAgent(
+                log_paths=log_folder_path,
+                deployment_name=software_deployment_name,
+                api_key=azure_openai_api_key,
+                base_url=azure_openai_endpoint,
+            ),
+            CodeSearchAgent(
+                code_paths=[code_path],
+                deployment_name=software_deployment_name,
+                api_key=azure_openai_api_key,
+                base_url=azure_openai_endpoint,
+            ),
+            ChatAgent(
+                chat_client=summary_chat_client,
+                name=SUMMARY_AGENT_NAME,
+                description="Summarizes and formats final answer.",
+                instructions=final_answer_prompt,
+                tools=[],
+                temperature=chat_options.temperature,
+                top_p=chat_options.top_p,
+                max_tokens=chat_options.max_tokens,
+            ),
+        ]
 
     # Create summary agent for final answer synthesis
-    final_answer_prompt = _load_prompt("final_answer.txt", flow="default")
-    chat_options = create_agent_chat_options()
-    summary_chat_client = AzureOpenAIChatClient(
-        api_key=azure_openai_api_key,
-        endpoint=azure_openai_endpoint,
-        deployment_name=general_deployment_name,
-    )
-    summary_agent = ChatAgent(
-        chat_client=summary_chat_client,
-        name=SUMMARY_AGENT_NAME,
-        description="Summarizes and formats final answer.",
-        instructions=final_answer_prompt,
-        tools=[],
-        temperature=chat_options.temperature,
-        top_p=chat_options.top_p,
-        max_tokens=chat_options.max_tokens,
-    )
-
     logger.info("Building Sequential workflow...")
+    print("Building Sequential workflow...")
     workflow = (
-        SequentialBuilder()
-        .participants(
-            [
-                log_search_agent,
-                code_search_agent,
-                summary_agent,
-            ]
-        )
-        .build()
+        SequentialBuilder().participants(participants=make_participants()).build()
     )
 
     logger.info("executing run...")
+    print("Executing run...")
 
     async def _run() -> str:
         final_text: str = ""
+        print("running workflow run stream...")
         async for event in workflow.run_stream(analysis_prompt):
             # Lifecycle: executor invoked
             if isinstance(event, ExecutorInvokedEvent):
                 exec_id = getattr(event, "executor_id", None)
                 logger.info(f"[ExecutorInvoked] executor={exec_id}")
+                print(f"[ExecutorInvoked] executor={exec_id}")
                 continue
 
             # Lifecycle: executor completed
             if isinstance(event, ExecutorCompletedEvent):
                 exec_id = getattr(event, "executor_id", None)
                 logger.info(f"[ExecutorCompleted] executor={exec_id}")
+                print(f"[ExecutorCompleted] executor={exec_id}")
                 continue
 
             # Final aggregated output from SequentialBuilder: list[ChatMessage]
