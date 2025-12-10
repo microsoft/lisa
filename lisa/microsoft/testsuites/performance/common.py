@@ -345,7 +345,7 @@ def perf_ntttcp(  # noqa: C901
     server_lagscope = None
     client_ntttcp = None
     server_ntttcp = None
-    
+
     try:
         client_ntttcp, server_ntttcp = run_in_parallel(
             [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
@@ -616,7 +616,7 @@ def perf_ntttcp(  # noqa: C901
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
     except Exception as ex:
-        client.log.error(f"Exception during ntttcp performance test: {ex}")
+        client.log.warning(f"Exception during ntttcp performance test: {ex}")
         raise
     finally:
         error_msg = ""
@@ -789,6 +789,6 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info.reload()
 
     assert_that(len(node_nic_info.get_lower_nics())).described_as(
-        f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+        f"VF count inside VM is {len(node_nic_info.get_lower_nics())}, "
         f"actual sriov nic count is {sriov_count}"
     ).is_equal_to(sriov_count)
