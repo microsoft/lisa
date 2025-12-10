@@ -77,6 +77,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=1,
     )
@@ -142,6 +143,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=2,
     )
@@ -176,6 +178,7 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=2,
     )
@@ -251,6 +254,7 @@ class GpuTestSuite(TestSuite):
         priority=3,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
     )
     def verify_gpu_cuda_with_pytorch(
@@ -319,15 +323,6 @@ class GpuTestSuite(TestSuite):
 
 def _check_driver_installed(node: Node, log: Logger) -> None:
     gpu = node.features[Gpu]
-
-    if not gpu.is_supported():
-        raise SkippedException(f"GPU is not supported with distro {node.os.name}")
-
-    if isinstance(node.os, (Suse, AlmaLinux, Oracle)):
-        raise SkippedException(
-            f"{node.os.name} doesn't support GPU driver installation."
-        )
-
     lspci_gpucount = gpu.get_gpu_count_with_lspci()
 
     compute_sdk = _get_supported_driver(node)
