@@ -529,7 +529,7 @@ class KdumpRedhat(KdumpBase):
             # then add the new one
             return (
                 "grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
-                ' --remove-args="crashkernel" &&'
+                ' --remove-args="crashkernel";'
                 " grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
                 f' --args="crashkernel={crashkernel}"'
             )
