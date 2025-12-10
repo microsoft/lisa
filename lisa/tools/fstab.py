@@ -163,14 +163,19 @@ class Fstab(Tool):
 
             lsblk = self.node.tools[Lsblk]
             try:
-                disk = lsblk.find_disk_by_mountpoint(mount_point, force_run=True)
-                device = disk.device_name
+                # Try to find partition first
+                partition = lsblk.find_partition_by_mountpoint(mount_point, force_run=True)
+                device = partition.device_name
             except LisaException:
-                raise LisaException(
-                    f"Could not auto-detect device for mount point {mount_point}. "
-                    "Please provide device parameter."
-                )
-
+                try:
+                    # Fall back to disk if partition not found
+                    disk = lsblk.find_disk_by_mountpoint(mount_point, force_run=True)
+                    device = disk.device_name
+                except LisaException:
+                    raise LisaException(
+                        f"Could not auto-detect device for mount point {mount_point}. "
+                        "Please provide device parameter."
+                    )
         # Convert to UUID if requested
         device_str = device
         if use_uuid and device.startswith("/dev/"):

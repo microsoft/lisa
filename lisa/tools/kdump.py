@@ -1030,7 +1030,7 @@ class KdumpCheck(Tool):
 
         # Fallback to /var/crash as last resort
         dump_path = "/var/crash"
-        self._log.warning(
+        self._log.info(
             f"Using default dump path {dump_path}. "
             f"May not have sufficient space ({required_space_gb}GB required) "
             "for vmcore file. Kdump may fail during crash dump."
