@@ -402,6 +402,18 @@ class Lagscope(Tool, KillableMixin):
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path, ref=self.branch)
         code_path = tool_path.joinpath("lagscope")
+
+        # Fix CMake version compatibility issue
+        cmake_file = code_path.joinpath("CMakeLists.txt")
+        
+        # Read the CMakeLists.txt file and update the version requirement
+        self.node.execute(
+            f"sed -i 's/cmake_minimum_required(VERSION [0-9.]\\+)/cmake_minimum_required(VERSION 3.5)/' {cmake_file}",
+            cwd=code_path,
+            sudo=True,
+            shell=True,
+        )
+
         self.node.execute(
             "./do-cmake.sh build",
             cwd=code_path,
