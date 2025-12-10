@@ -146,8 +146,11 @@ class Fstab(Tool):
             pass_num: Pass field (default: 2)
             use_uuid: If True, use UUID instead of device name (default: True)
 
+        Returns:
+            None. Returns early without error if entry already exists.
+
         Raises:
-            LisaException: If entry already exists or device cannot be determined
+            LisaException: If device cannot be determined
         """
         # Check if entry already exists
         if self.has_entry(mount_point=mount_point, force_run=True):
