@@ -408,10 +408,12 @@ class Lagscope(Tool, KillableMixin):
         
         # Read the CMakeLists.txt file and update the version requirement
         self.node.execute(
-            f"sed -i 's/cmake_minimum_required(VERSION [0-9.]\\+)/cmake_minimum_required(VERSION 3.5)/' {cmake_file}",
+            f"sed -i 's/cmake_minimum_required(VERSION [0-9.]\\+)/cmake_minimum_required(VERSION 3.5)/' CMakeLists.txt",
             cwd=code_path,
             sudo=True,
             shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to update CMakeLists.txt",
         )
 
         self.node.execute(

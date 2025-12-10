@@ -616,6 +616,9 @@ def perf_ntttcp(  # noqa: C901
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+    except Exception as ex:
+        client.log.error(f"Exception during ntttcp performance test: {ex}")
+        raise
     finally:
         error_msg = ""
         throw_error = False
