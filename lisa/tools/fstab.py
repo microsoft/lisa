@@ -164,7 +164,9 @@ class Fstab(Tool):
             lsblk = self.node.tools[Lsblk]
             try:
                 # Try to find partition first
-                partition = lsblk.find_partition_by_mountpoint(mount_point, force_run=True)
+                partition = lsblk.find_partition_by_mountpoint(
+                    mount_point, force_run=True
+                )
                 device = partition.device_name
             except LisaException:
                 try:
@@ -173,8 +175,8 @@ class Fstab(Tool):
                     device = disk.device_name
                 except LisaException:
                     raise LisaException(
-                        f"Could not auto-detect device for mount point {mount_point}. "
-                        "Please provide device parameter."
+                        "Could not auto-detect device for mount point "
+                        f"{mount_point}. Please provide device parameter."
                     )
         # Convert to UUID if requested
         device_str = device
@@ -190,11 +192,11 @@ class Fstab(Tool):
                     device_str = f"UUID={partition_info.uuid}"
                     self._log.debug(f"Using UUID for device {device}: {device_str}")
                 else:
-                    self._log.warning(
+                    self._log.info(
                         f"Could not get UUID for {device}, using device name"
                     )
             except LisaException as e:
-                self._log.warning(
+                self._log.info(
                     f"Could not get UUID for {device}: {e}. Using device name"
                 )
 
