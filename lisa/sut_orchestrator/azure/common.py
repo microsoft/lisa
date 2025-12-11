@@ -369,12 +369,26 @@ class AzureImageSchema(schema.ImageSchema):
         self, raw_features: Dict[str, Any], log: Logger
     ) -> None:
         security_profile = raw_features.get("SecurityType")
+        os_type = raw_features.get("os_type", "")
         security_profile_capabilities: List[SecurityProfileType] = []
         encrypt_capability: List[bool] = [False]
         if security_profile in ["TrustedLaunchSupported", "TrustedLaunch"]:
             security_profile_capabilities.extend(
                 [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
             )
+        elif (
+            security_profile == "TrustedLaunchAndConfidentialVmSupported"
+            and os_type == "Windows"
+        ):
+            security_profile_capabilities.extend(
+                [
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.SecureBoot,
+                    SecurityProfileType.CVM,
+                    SecurityProfileType.Stateless,
+                ]
+            )
+            encrypt_capability.append(True)
         elif security_profile in (
             "TrustedLaunchAndConfidentialVmSupported",
             "ConfidentialVmSupported",
@@ -406,6 +420,17 @@ def _get_image_tags(image: Any) -> Dict[str, Any]:
         image_tags["hyper_v_generation"] = image.hyper_v_generation
     if hasattr(image, "architecture") and image.architecture:
         image_tags["architecture"] = image.architecture
+    if (
+        hasattr(image, "os_disk_image")
+        and image.os_disk_image
+        and hasattr(image.os_disk_image, "operating_system")
+        and image.os_disk_image.operating_system
+    ):
+        # Marketplace Image tagging style
+        image_tags["os_type"] = image.os_disk_image.operating_system
+    elif hasattr(image, "os_type") and image.os_type:
+        # Shared Image Gallery tagging style
+        image_tags["os_type"] = image.os_type
     if (
         hasattr(image, "features")
         and image.features
