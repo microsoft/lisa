@@ -596,7 +596,11 @@ class CloudHypervisorTests(Tool):
         testcase_log_file = log_path.joinpath(f"{testcase}.log")
         with open(testcase_log_file, "w") as f:
             if hasattr(self, "_last_result") and self._last_result is not None:
-                f.write(self._last_result.stdout)
+                if self._last_result.stdout:
+                    f.write(self._last_result.stdout)
+                if self._last_result.stderr:
+                    f.write("\n=== STDERR ===\n")
+                    f.write(self._last_result.stderr)
             else:
                 f.write(f"Test failed before execution: {trace}")
 
@@ -804,7 +808,7 @@ class CloudHypervisorTests(Tool):
         # Tunables (pull from env if provided; else use sane defaults)
         idle_secs = int(os.environ.get("CH_IDLE_SECS", "600"))
         hang_kill_secs = int(os.environ.get("CH_HANG_KILL_SECS", "1800"))
-        check_interval = int(os.environ.get("CH_CHECK_INTERVAL", "30"))
+        check_interval = int(os.environ.get("CH_CHECK_INTERVAL", "10"))
 
         # --- 1) Rich Rust diagnostics ---
         enhanced_env_vars = self.env_vars.copy()
@@ -864,11 +868,13 @@ if [ -n "$numa_prefix" ]; then
   echo "[perf-stable] NUMA binding: $numa_prefix"
 fi
 
-# start tests, line-buffered if available, stream to log
+# Capture BOTH stdout and stderr into the main log
+# This makes watchdog log-growth detection reliable and captures all diagnostics
 if command -v stdbuf >/dev/null; then
-  ( stdbuf -oL -eL $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+    ( stdbuf -oL -eL $numa_prefix scripts/dev_cli.sh {cmd_args} 2>&1 \
+            | tee -a "$log_file" ) &
 else
-  ( $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+    ( $numa_prefix scripts/dev_cli.sh {cmd_args} 2>&1 | tee -a "$log_file" ) &
 fi
 pid=$!
 
@@ -907,27 +913,59 @@ while kill -0 $pid 2>/dev/null; do
     fi
     [ -z "$tpid" ] && tpid="$pid"
 
+    # Verify the target pid is still alive. If it raced away, fall back to $pid.
+    if ! kill -0 "$tpid" 2>/dev/null; then
+      echo "[watchdog] Selected pid $tpid is not alive;" \\
+        " falling back to pid $pid" | tee -a "$log_file"
+      tpid="$pid"
+    fi
+
     # Best-effort freeze to avoid the attach race
     sudo kill -STOP "$tpid" 2>/dev/null || true
 
-    # Snapshot a core ASAP (prefer gcore; fall back to gdb generate-core-file)
-    core_out="core.$(basename "$tpid").$(date +%s)"
+    # Use consistent core filename pattern that matches search pattern
+    core_out="core.integration-$(date +%s)"
+    echo "[watchdog] Generating core: $core_out" | tee -a "$log_file"
     if command -v gcore >/dev/null 2>&1; then
-      sudo gcore -o "$core_out" "$tpid" >/dev/null 2>&1 || true
+      sudo gcore -o "$core_out" "$tpid" 2>&1 | tee -a "$log_file" || true
     else
       sudo gdb -batch -p "$tpid" \\
         -ex "set pagination off" \\
         -ex "generate-core-file $core_out" \\
-        -ex "detach" -ex "quit" >/dev/null 2>&1 || true
+        -ex "detach" -ex "quit" 2>&1 | tee -a "$log_file" || true
     fi
 
-    # Then grab a concise live backtrace
+    # Write live backtrace to BOTH main log and side file
+    echo "[watchdog] Attaching gdb to pid $tpid for live backtrace" \\
+      | tee -a "$log_file"
+    {{
+      echo "[watchdog] gdb attach target pid=$tpid parent_pid=$pid";
+      # Keep this robust: avoid complex quoting/command-substitution.
+      echo "[watchdog] comm(target)=$(cat /proc/$tpid/comm 2>/dev/null ||" \\
+        " echo n/a)";
+      echo "[watchdog] comm(parent)=$(cat /proc/$pid/comm 2>/dev/null ||" \\
+        " echo n/a)";
+    }} 2>/dev/null | tee -a "$log_file" || true
     sudo gdb -batch -p "$tpid" \\
       -ex "set pagination off" \\
       -ex "set print elements 0" \\
       -ex "set backtrace limit 64" \\
       -ex "thread apply all bt" \\
-      -ex "info threads" > "$live_bt_file" 2>&1 || true
+      -ex "info threads" \\
+      2>&1 | tee -a "$log_file" \\
+      > "$live_bt_file" || true
+    # If attach failed (e.g. tpid exited/raced), retry once against the main pid
+    if grep -q "No such process" "$live_bt_file" 2>/dev/null; then
+      echo "[watchdog] gdb attach on pid $tpid failed;" \\
+        " retrying against pid $pid" | tee -a "$log_file"
+      sudo gdb -batch -p "$pid" \\
+        -ex "set pagination off" \\
+        -ex "set print elements 0" \\
+        -ex "set backtrace limit 64" \\
+        -ex "thread apply all bt" \\
+        -ex "info threads" \\
+        2>&1 | tee -a "$log_file" > "$live_bt_file" || true
+    fi
 
     # Let it run again
     sudo kill -CONT "$tpid" 2>/dev/null || true
@@ -969,23 +1007,40 @@ kill $watchdog_pid 2>/dev/null || true
 # on failure, try to symbolize a core dump
 if [ $ec -ne 0 ]; then
   core=""
+  # Use consistent core filename pattern that matches search pattern
   for dir in . .. /var/crash /cores /var/lib/systemd/coredump /tmp; do
-    c=$(ls -t "$dir"/core.integration-* 2>/dev/null | head -1)
+    c=$(ls -t "$dir"/core.integration-* 2>/dev/null \\
+      | head -1)
     [ -n "$c" ] && core="$c" && break || true
   done
+  # Loosen binary discovery - search more locations
   bin=$(ls -t target/*/deps/integration-* 2>/dev/null | head -1 || true)
   # If test runs under workspace path, widen further:
   shopt -s globstar nullglob
   [ -z "$bin" ] && bin=$(ls -t **/target/*/deps/integration-* 2>/dev/null \\
     | head -1 || true)
+  # Fall back to cloud-hypervisor binary if integration test binary not found
+    if [ -z "$bin" ]; then
+        bin="$(command -v cloud-hypervisor || true)"
+        if [ -n "$bin" ]; then
+            echo "[warning] core symbolization fallback binary: $bin" \
+                | tee -a "$log_file"
+            echo "[warning] stack traces may be inaccurate for integration cores" \
+                | tee -a "$log_file"
+        fi
+    fi
+
   if [ -n "$core" ] && [ -n "$bin" ]; then
     echo "[diagnostics] Found core: $core, binary: $bin" | tee -a "$log_file"
+    echo "[diagnostics] Symbolizing core dump..." | tee -a "$log_file"
     sudo gdb -batch -q "$bin" "$core" \\
       -ex "set pagination off" \\
       -ex "thread apply all bt full" \\
-      -ex "info threads" > "$core_bt_file" 2>&1 || true
+            -ex "info threads" 2>&1 \\
+                | tee -a "$log_file" | tee "$core_bt_file" >/dev/null || true
   else
-    echo "[diagnostics] No core/bin found for symbolization" | tee -a "$log_file"
+    echo "[diagnostics] No core/bin found for symbolization (core=$core, bin=$bin)" \\
+      | tee -a "$log_file"
   fi
 fi
 
