@@ -48,7 +48,7 @@ class AzureDiskFeatureTestCase(TestCase):
         reason = req.check(cap)
         self.assertFalse(reason.result)
         with self.assertRaises(LisaException) as cm:
-            req.generate_min_capability(cap)
+            req.choose_value(cap)
         self.assertIsInstance(cm.exception, LisaException)
         self.assertIn("capability doesn't support requirement", str(cm.exception))
 
@@ -183,7 +183,7 @@ class AzureDiskFeatureTestCase(TestCase):
     ) -> None:
         reason = req.check(cap)
         self.assertTrue(reason.result, f"check reasons: {reason.reasons}")
-        min_value: features.AzureDiskOptionSettings = req.generate_min_capability(cap)
+        min_value: features.AzureDiskOptionSettings = req.choose_value(cap)
         self.assertEqual(disk_type, min_value.data_disk_type)
         self.assertEqual(data_disk_count, min_value.data_disk_count)
         self.assertEqual(data_disk_caching_type, min_value.data_disk_caching_type)

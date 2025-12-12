@@ -119,7 +119,7 @@ class HypervPlatform(Platform):
             if not node_space.check(nodes_capabilities):
                 return False
 
-            requirement = node_space.generate_min_capability(nodes_capabilities)
+            requirement = node_space.choose_value(nodes_capabilities)
             nodes_requirement.append(requirement)
 
         if not self._is_host_resources_enough(nodes_requirement, log):
