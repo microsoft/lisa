@@ -194,6 +194,14 @@ class Modprobe(Tool):
         modprobe_reloader_script: CustomScript = self.node.tools[modprobe_reloader_tool]
         modprobe_reloader_script.run(parameters, sudo=True, shell=True, nohup=True)
 
+        original_user = self.node.connection_info.get('username', None)
+        if original_user:
+            self.node.execute(
+                f"chown {original_user}:{original_user} {loop_process_pid_file_name}",
+                sudo=True,
+                shell=True,
+            )
+
         cat = self.node.tools[Cat]
         tried_times: int = 0
         timer = create_timer()
