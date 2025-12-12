@@ -704,6 +704,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        timeout=12000,
     )
     def verify_os_update(self, node: Node) -> None:
         if isinstance(node.os, Posix):
