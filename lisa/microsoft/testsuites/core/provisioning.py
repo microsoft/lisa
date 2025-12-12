@@ -24,6 +24,7 @@ from lisa import (
 from lisa.environment import EnvironmentStatus
 from lisa.features import (
     AvailabilityZoneEnabled,
+    Disk,
     DiskEphemeral,
     DiskPremiumSSDLRS,
     DiskStandardSSDLRS,
@@ -300,15 +301,27 @@ class Provisioning(TestSuite):
         where memory is encrypted and direct DMA access isn't possible.
         In such cases, bounce buffering becomes mandatory.
 
+        Regression: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=730ff06d3f5cc2ce0348414b78c10528b767d4a3 # noqa
+
         Steps:
         1. Set the swiotlb=force kernel parameter in grub configuration
         2. Reboot the system to apply the kernel parameter
         3. Run smoke test to verify system functionality
         4. Verify the system is responsive after reboot
+        
+        TODO: This test is currently unsupported on CVM because modifying boot
+        parameters in CVM requires rebuilding, which needs access to kernel image,
+        modules, and initramfs all unbundled. With just UEFI image, more research
+        is needed to determine if it's possible
+
+        TODO: Ideally this should run on all UEFI scenarios, not just Grub-based
+        systems. However, since LISA does not have a common UEFI interface yet,
+        we skip non-grub scenarios for now.
         """,
         priority=2,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_deployment_provision_swiotlb_force(
@@ -321,15 +334,41 @@ class Provisioning(TestSuite):
 
         try:
             cat = node.tools[Cat]
-            grub_config = node.tools[GrubConfig]
+            try:
+                grub_config = node.tools[GrubConfig]
+            except Exception as e:
+                # Skip if grub is not available on this distribution
+                # TODO: Should support UEFI-based parameter modification when
+                # LISA has a common UEFI interface
+                raise SkippedException(
+                    f"GrubConfig is not available on this distribution: {e}"
+                )
 
-            grub_config.set_kernel_cmdline_arg("swiotlb", "force")
+            # Check disk controller type and set appropriate swiotlb parameters
+            disk_feature = node.features[Disk]
+            disk_controller_type = disk_feature.get_os_disk_controller_type()
+            swiotlb_value = "force"
+
+            if disk_controller_type == schema.DiskControllerType.NVME:
+                # For NVMe, use larger pool size: swiotlb=force,524288
+                # NVMe devices can have higher I/O throughput and queue depths,
+                # requiring more bounce buffer slots to handle concurrent DMA
+                # operations. Additionally, NVMe initialization happens early in
+                # the boot sequence, and insufficient swiotlb buffers can cause
+                # boot failures.
+                swiotlb_value = "force,524288"
+
+            log.debug(
+                f"Disk controller type: {disk_controller_type}, "
+                f"Setting swiotlb kernel parameter to: {swiotlb_value}"
+            )
+            grub_config.set_kernel_cmdline_arg("swiotlb", swiotlb_value)
             node.reboot()
             cmdline_result = cat.read("/proc/cmdline", sudo=True, force_run=True)
             assert_that(cmdline_result).described_as(
-                "swiotlb=force kernel parameter should be present in: "
+                f"swiotlb={swiotlb_value} kernel parameter should be present in: "
                 f"{cmdline_result}"
-            ).contains("swiotlb=force")
+            ).contains(f"swiotlb={swiotlb_value}")
 
             self._smoke_test(
                 log=log,
