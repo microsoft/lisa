@@ -404,10 +404,25 @@ class Lagscope(Tool, KillableMixin):
         code_path = tool_path.joinpath("lagscope")
 
         src_path = code_path.joinpath("src")
-        # Read the CMakeLists.txt file and update the version requirement
+        
+        # Get the installed CMake version dynamically
+        cmake_version_result = self.node.execute(
+            "cmake --version | head -n1 | grep -oP '\\d+\\.\\d+'",
+            shell=True,
+        )
+        
+        if cmake_version_result.exit_code == 0 and cmake_version_result.stdout.strip():
+            cmake_version = cmake_version_result.stdout.strip()
+            self._log.debug(f"Detected CMake version: {cmake_version}")
+        else:
+            # Fallback to a safe minimum version if detection fails
+            cmake_version = "3.5"
+            self._log.warning(f"Could not detect CMake version, using fallback: {cmake_version}")
+        
+        # Update CMakeLists.txt with the detected version
         self.node.execute(
             f"sed -i 's/cmake_minimum_required(VERSION [0-9.]\\+)/"
-            f"cmake_minimum_required(VERSION 3.5)/' "
+            f"cmake_minimum_required(VERSION {cmake_version})/' "
             f"{src_path}/CMakeLists.txt",
             cwd=code_path,
             sudo=True,
