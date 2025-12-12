@@ -103,6 +103,16 @@ class Waagent(Tool):
         for package in list(["python-setuptools", "python3-setuptools"]):
             if self.node.os.is_package_in_repo(package):  # type: ignore
                 self.node.os.install_packages(package)  # type: ignore
+
+        # Ensure compatible versions of setuptools and packaging to avoid
+        # TypeError: canonicalize_version() got an unexpected keyword argument
+        # 'strip_trailing_zero' error when running setup.py install
+        self.node.execute(
+            f"{python_cmd} -m pip install --upgrade setuptools packaging",
+            sudo=True,
+            # Don't fail if pip upgrade fails - try to proceed anyway
+        )
+
         self.node.execute(
             f"{python_cmd} setup.py install --force",
             sudo=True,
