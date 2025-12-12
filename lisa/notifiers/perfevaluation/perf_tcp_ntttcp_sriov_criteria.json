@@ -1,0 +1,1195 @@
+{
+  "metadata": {
+    "generated_by": "manual", 
+    "generated_at": "2025-10-31T00:00:00"
+  },
+  "perf_tcp_ntttcp_sriov": {
+    "size_patterns": {
+      "Standard_D2*_v5": {
+        "throughput_in_gbps_conn_1": {
+          "unit": "Gbps",
+          "min_value": 15.0,
+          "target_value": 18.0,
+          "tolerance_percent": 15.0
+        },
+        "throughput_in_gbps_conn_2": {
+          "unit": "Gbps",
+          "min_value": 28.0,
+          "target_value": 32.0,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_4": {
+          "unit": "Gbps",
+          "min_value": 28.0,
+          "target_value": 32.0,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_8": {
+          "unit": "Gbps",
+          "min_value": 28.0,
+          "target_value": 32.0,
+          "tolerance_percent": 12.0
+        },
+        "latency_us_conn_1": {
+          "unit": "microseconds",
+          "max_value": 400.0,
+          "target_value": 300.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_2": {
+          "unit": "microseconds",
+          "max_value": 90.0,
+          "target_value": 60.0,
+          "tolerance_percent": 30.0
+        },
+        "latency_us_conn_4": {
+          "unit": "microseconds",
+          "max_value": 200.0,
+          "target_value": 150.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8": {
+          "unit": "microseconds",
+          "max_value": 220.0,
+          "target_value": 170.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "Standard_D4*_v5": {
+        "throughput_in_gbps_conn_1": {
+          "unit": "Gbps",
+          "min_value": 18.0,
+          "target_value": 22.0,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_2": {
+          "unit": "Gbps",
+          "min_value": 32.0,
+          "target_value": 36.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_4": {
+          "unit": "Gbps",
+          "min_value": 32.0,
+          "target_value": 36.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8": {
+          "unit": "Gbps",
+          "min_value": 32.0,
+          "target_value": 36.0,
+          "tolerance_percent": 10.0
+        },
+        "latency_us_conn_1": {
+          "unit": "microseconds",
+          "max_value": 300.0,
+          "target_value": 220.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_2": {
+          "unit": "microseconds",
+          "max_value": 70.0,
+          "target_value": 45.0,
+          "tolerance_percent": 30.0
+        },
+        "latency_us_conn_4": {
+          "unit": "microseconds",
+          "max_value": 160.0,
+          "target_value": 120.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8": {
+          "unit": "microseconds",
+          "max_value": 180.0,
+          "target_value": 140.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "Standard_D8*_v5": {
+        "throughput_in_gbps_conn_1": {
+          "unit": "Gbps",
+          "min_value": 20.0,
+          "target_value": 24.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_2": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 38.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_4": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 38.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 38.0,
+          "tolerance_percent": 10.0
+        },
+        "latency_us_conn_1": {
+          "unit": "microseconds",
+          "max_value": 250.0,
+          "target_value": 180.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_2": {
+          "unit": "microseconds",
+          "max_value": 60.0,
+          "target_value": 40.0,
+          "tolerance_percent": 30.0
+        },
+        "latency_us_conn_4": {
+          "unit": "microseconds",
+          "max_value": 140.0,
+          "target_value": 100.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8": {
+          "unit": "microseconds",
+          "max_value": 160.0,
+          "target_value": 120.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "Standard_D16*_v5": {
+        "throughput_in_gbps_conn_1": {
+          "unit": "Gbps",
+          "min_value": 22.0,
+          "target_value": 28.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_2": {
+          "unit": "Gbps",
+          "min_value": 36.0,
+          "target_value": 40.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_4": {
+          "unit": "Gbps",
+          "min_value": 36.0,
+          "target_value": 40.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8": {
+          "unit": "Gbps",
+          "min_value": 36.0,
+          "target_value": 40.0,
+          "tolerance_percent": 10.0
+        },
+        "latency_us_conn_1": {
+          "unit": "microseconds",
+          "max_value": 200.0,
+          "target_value": 150.0,
+          "tolerance_percent": 20.0
+        },
+        "latency_us_conn_2": {
+          "unit": "microseconds",
+          "max_value": 55.0,
+          "target_value": 35.0,
+          "tolerance_percent": 30.0
+        },
+        "latency_us_conn_4": {
+          "unit": "microseconds",
+          "max_value": 120.0,
+          "target_value": 85.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8": {
+          "unit": "microseconds",
+          "max_value": 140.0,
+          "target_value": 100.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "Standard_D32*_v5": {
+        "throughput_in_gbps_conn_1": {
+          "unit": "Gbps",
+          "min_value": 25.0,
+          "target_value": 32.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_2": {
+          "unit": "Gbps",
+          "min_value": 38.0,
+          "target_value": 42.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_4": {
+          "unit": "Gbps",
+          "min_value": 38.0,
+          "target_value": 42.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8": {
+          "unit": "Gbps",
+          "min_value": 38.0,
+          "target_value": 42.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8192": {
+          "unit": "Gbps",
+          "min_value": 35.0,
+          "target_value": 40.0,
+          "tolerance_percent": 10.0
+        },
+        "latency_us_conn_1": {
+          "unit": "microseconds",
+          "max_value": 180.0,
+          "target_value": 120.0,
+          "tolerance_percent": 20.0
+        },
+        "latency_us_conn_2": {
+          "unit": "microseconds",
+          "max_value": 50.0,
+          "target_value": 30.0,
+          "tolerance_percent": 30.0
+        },
+        "latency_us_conn_4": {
+          "unit": "microseconds",
+          "max_value": 100.0,
+          "target_value": 70.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8": {
+          "unit": "microseconds",
+          "max_value": 120.0,
+          "target_value": 85.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "Standard_D64*_v5": {
+        "throughput_in_gbps_conn_1": {
+          "unit": "Gbps",
+          "min_value": 30.0,
+          "target_value": 38.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_2": {
+          "unit": "Gbps",
+          "min_value": 40.0,
+          "target_value": 45.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_4": {
+          "unit": "Gbps",
+          "min_value": 40.0,
+          "target_value": 45.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8": {
+          "unit": "Gbps",
+          "min_value": 40.0,
+          "target_value": 45.0,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8192": {
+          "unit": "Gbps",
+          "min_value": 38.0,
+          "target_value": 45.0,
+          "tolerance_percent": 10.0
+        },
+        "latency_us_conn_1": {
+          "unit": "microseconds",
+          "max_value": 150.0,
+          "target_value": 100.0,
+          "tolerance_percent": 20.0
+        },
+        "latency_us_conn_2": {
+          "unit": "microseconds",
+          "max_value": 45.0,
+          "target_value": 25.0,
+          "tolerance_percent": 30.0
+        },
+        "latency_us_conn_4": {
+          "unit": "microseconds",
+          "max_value": 90.0,
+          "target_value": 60.0,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8": {
+          "unit": "microseconds",
+          "max_value": 110.0,
+          "target_value": 75.0,
+          "tolerance_percent": 25.0
+        }
+      },
+      "default": {
+        "throughput_in_gbps_conn_1": {
+          "unit": "Gbps",
+          "min_value": 18.0,
+          "target_value": 20.46,
+          "tolerance_percent": 15.0
+        },
+        "throughput_in_gbps_conn_2": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 37.93,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_4": {
+          "unit": "Gbps", 
+          "min_value": 34.0,
+          "target_value": 37.84,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_8": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 37.83,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_16": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 37.82,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_32": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 37.84,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_64": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 37.78,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_128": {
+          "unit": "Gbps",
+          "min_value": 34.0,
+          "target_value": 37.60,
+          "tolerance_percent": 10.0
+        },
+        "throughput_in_gbps_conn_256": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 37.35,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_512": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 37.45,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_1024": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 37.36,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_2048": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 37.22,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_4096": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 36.91,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_6144": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 36.84,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_8192": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 36.81,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_10240": {
+          "unit": "Gbps",
+          "min_value": 33.0,
+          "target_value": 36.78,
+          "tolerance_percent": 12.0
+        },
+        "throughput_in_gbps_conn_20480": {
+          "unit": "Gbps",
+          "min_value": 32.0,
+          "target_value": 36.56,
+          "tolerance_percent": 14.0
+        },
+        "latency_us_conn_1": {
+          "unit": "microseconds",
+          "max_value": 350.0,
+          "target_value": 260.77,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_2": {
+          "unit": "microseconds",
+          "max_value": 80.0,
+          "target_value": 51.43,
+          "tolerance_percent": 30.0
+        },
+        "latency_us_conn_4": {
+          "unit": "microseconds",
+          "max_value": 180.0,
+          "target_value": 128.25,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8": {
+          "unit": "microseconds",
+          "max_value": 200.0,
+          "target_value": 150.63,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_16": {
+          "unit": "microseconds",
+          "max_value": 250.0,
+          "target_value": 178.75,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_32": {
+          "unit": "microseconds",
+          "max_value": 300.0,
+          "target_value": 227.18,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_64": {
+          "unit": "microseconds",
+          "max_value": 350.0,
+          "target_value": 244.33,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_128": {
+          "unit": "microseconds",
+          "max_value": 500.0,
+          "target_value": 398.39,
+          "tolerance_percent": 20.0
+        },
+        "latency_us_conn_256": {
+          "unit": "microseconds",
+          "max_value": 700.0,
+          "target_value": 534.29,
+          "tolerance_percent": 20.0
+        },
+        "latency_us_conn_512": {
+          "unit": "microseconds",
+          "max_value": 800.0,
+          "target_value": 632.77,
+          "tolerance_percent": 20.0
+        },
+        "latency_us_conn_1024": {
+          "unit": "microseconds",
+          "max_value": 1000.0,
+          "target_value": 804.43,
+          "tolerance_percent": 20.0
+        },
+        "latency_us_conn_2048": {
+          "unit": "microseconds",
+          "max_value": 350.0,
+          "target_value": 255.49,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_4096": {
+          "unit": "microseconds",
+          "max_value": 220.0,
+          "target_value": 161.45,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_6144": {
+          "unit": "microseconds",
+          "max_value": 200.0,
+          "target_value": 146.18,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_8192": {
+          "unit": "microseconds",
+          "max_value": 150.0,
+          "target_value": 115.21,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_10240": {
+          "unit": "microseconds",
+          "max_value": 150.0,
+          "target_value": 116.19,
+          "tolerance_percent": 25.0
+        },
+        "latency_us_conn_20480": {
+          "unit": "microseconds",
+          "max_value": 120.0,
+          "target_value": 85.57,
+          "tolerance_percent": 30.0
+        },
+        "tx_packets_conn_1": {
+          "min_value": 16000000.0,
+          "target_value": 18518511.0,
+          "tolerance_percent": 15.0
+        },
+        "tx_packets_conn_2": {
+          "min_value": 30000000.0,
+          "target_value": 34479225.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_4": {
+          "min_value": 30000000.0,
+          "target_value": 34192657.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_8": {
+          "min_value": 30000000.0,
+          "target_value": 34211972.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_16": {
+          "min_value": 30000000.0,
+          "target_value": 34241499.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_32": {
+          "min_value": 30000000.0,
+          "target_value": 34281145.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_64": {
+          "min_value": 30000000.0,
+          "target_value": 34296006.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_128": {
+          "min_value": 30000000.0,
+          "target_value": 34283370.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_256": {
+          "min_value": 30000000.0,
+          "target_value": 34256152.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_512": {
+          "min_value": 30000000.0,
+          "target_value": 34307464.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_1024": {
+          "min_value": 30000000.0,
+          "target_value": 34285232.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_2048": {
+          "min_value": 30000000.0,
+          "target_value": 34268230.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_4096": {
+          "min_value": 30000000.0,
+          "target_value": 34280984.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_6144": {
+          "min_value": 30000000.0,
+          "target_value": 34327427.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_8192": {
+          "min_value": 30000000.0,
+          "target_value": 34320518.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_10240": {
+          "min_value": 30000000.0,
+          "target_value": 34288664.0,
+          "tolerance_percent": 10.0
+        },
+        "tx_packets_conn_20480": {
+          "min_value": 30000000.0,
+          "target_value": 34332538.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_1": {
+          "min_value": 16000000.0,
+          "target_value": 18453078.0,
+          "tolerance_percent": 15.0
+        },
+        "rx_packets_conn_2": {
+          "min_value": 30000000.0,
+          "target_value": 34306038.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_4": {
+          "min_value": 30000000.0,
+          "target_value": 34188353.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_8": {
+          "min_value": 30000000.0,
+          "target_value": 34199555.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_16": {
+          "min_value": 30000000.0,
+          "target_value": 34183668.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_32": {
+          "min_value": 30000000.0,
+          "target_value": 34214321.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_64": {
+          "min_value": 30000000.0,
+          "target_value": 34919456.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_128": {
+          "min_value": 31000000.0,
+          "target_value": 35192691.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_256": {
+          "min_value": 30000000.0,
+          "target_value": 34108862.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_512": {
+          "min_value": 30000000.0,
+          "target_value": 33852949.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_1024": {
+          "min_value": 30000000.0,
+          "target_value": 33764954.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_2048": {
+          "min_value": 30000000.0,
+          "target_value": 34580560.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_4096": {
+          "min_value": 29000000.0,
+          "target_value": 33592946.0,
+          "tolerance_percent": 12.0
+        },
+        "rx_packets_conn_6144": {
+          "min_value": 29000000.0,
+          "target_value": 33847779.0,
+          "tolerance_percent": 12.0
+        },
+        "rx_packets_conn_8192": {
+          "min_value": 29000000.0,
+          "target_value": 33959173.0,
+          "tolerance_percent": 12.0
+        },
+        "rx_packets_conn_10240": {
+          "min_value": 30000000.0,
+          "target_value": 34167585.0,
+          "tolerance_percent": 10.0
+        },
+        "rx_packets_conn_20480": {
+          "min_value": 30000000.0,
+          "target_value": 34454684.0,
+          "tolerance_percent": 10.0
+        },
+        "retrans_segments_conn_1": {
+          "max_value": 100000.0,
+          "target_value": 58327.0,
+          "tolerance_percent": 50.0
+        },
+        "retrans_segments_conn_2": {
+          "max_value": 200000.0,
+          "target_value": 108841.0,
+          "tolerance_percent": 50.0
+        },
+        "retrans_segments_conn_4": {
+          "max_value": 80000.0,
+          "target_value": 37767.0,
+          "tolerance_percent": 60.0
+        },
+        "retrans_segments_conn_8": {
+          "max_value": 100000.0,
+          "target_value": 50935.0,
+          "tolerance_percent": 60.0
+        },
+        "retrans_segments_conn_16": {
+          "max_value": 120000.0,
+          "target_value": 57570.0,
+          "tolerance_percent": 60.0
+        },
+        "retrans_segments_conn_32": {
+          "max_value": 170000.0,
+          "target_value": 84762.0,
+          "tolerance_percent": 60.0
+        },
+        "retrans_segments_conn_64": {
+          "max_value": 300000.0,
+          "target_value": 170696.0,
+          "tolerance_percent": 50.0
+        },
+        "retrans_segments_conn_128": {
+          "max_value": 500000.0,
+          "target_value": 330375.0,
+          "tolerance_percent": 40.0
+        },
+        "retrans_segments_conn_256": {
+          "max_value": 800000.0,
+          "target_value": 538584.0,
+          "tolerance_percent": 40.0
+        },
+        "retrans_segments_conn_512": {
+          "max_value": 800000.0,
+          "target_value": 543205.0,
+          "tolerance_percent": 40.0
+        },
+        "retrans_segments_conn_1024": {
+          "max_value": 850000.0,
+          "target_value": 572446.0,
+          "tolerance_percent": 40.0
+        },
+        "retrans_segments_conn_2048": {
+          "max_value": 950000.0,
+          "target_value": 641417.0,
+          "tolerance_percent": 40.0
+        },
+        "retrans_segments_conn_4096": {
+          "max_value": 1200000.0,
+          "target_value": 913979.0,
+          "tolerance_percent": 25.0
+        },
+        "retrans_segments_conn_6144": {
+          "max_value": 1300000.0,
+          "target_value": 1017200.0,
+          "tolerance_percent": 25.0
+        },
+        "retrans_segments_conn_8192": {
+          "max_value": 1400000.0,
+          "target_value": 1120586.0,
+          "tolerance_percent": 25.0
+        },
+        "retrans_segments_conn_10240": {
+          "max_value": 1600000.0,
+          "target_value": 1254039.0,
+          "tolerance_percent": 25.0
+        },
+        "retrans_segments_conn_20480": {
+          "max_value": 2200000.0,
+          "target_value": 1744018.0,
+          "tolerance_percent": 25.0
+        },
+        "sender_cycles_per_byte_conn_1": {
+          "unit": "cycles/byte",
+          "max_value": 1.0,
+          "target_value": 0.46,
+          "tolerance_percent": 70.0
+        },
+        "sender_cycles_per_byte_conn_2": {
+          "unit": "cycles/byte",
+          "max_value": 1.5,
+          "target_value": 0.89,
+          "tolerance_percent": 50.0
+        },
+        "sender_cycles_per_byte_conn_4": {
+          "unit": "cycles/byte",
+          "max_value": 1.5,
+          "target_value": 0.76,
+          "tolerance_percent": 60.0
+        },
+        "sender_cycles_per_byte_conn_8": {
+          "unit": "cycles/byte",
+          "max_value": 2.0,
+          "target_value": 1.18,
+          "tolerance_percent": 50.0
+        },
+        "sender_cycles_per_byte_conn_16": {
+          "unit": "cycles/byte",
+          "max_value": 1.5,
+          "target_value": 0.86,
+          "tolerance_percent": 60.0
+        },
+        "sender_cycles_per_byte_conn_32": {
+          "unit": "cycles/byte",
+          "max_value": 2.0,
+          "target_value": 1.29,
+          "tolerance_percent": 50.0
+        },
+        "sender_cycles_per_byte_conn_64": {
+          "unit": "cycles/byte",
+          "max_value": 2.5,
+          "target_value": 1.64,
+          "tolerance_percent": 40.0
+        },
+        "sender_cycles_per_byte_conn_128": {
+          "unit": "cycles/byte",
+          "max_value": 3.0,
+          "target_value": 1.91,
+          "tolerance_percent": 40.0
+        },
+        "sender_cycles_per_byte_conn_256": {
+          "unit": "cycles/byte",
+          "max_value": 4.0,
+          "target_value": 2.54,
+          "tolerance_percent": 40.0
+        },
+        "sender_cycles_per_byte_conn_512": {
+          "unit": "cycles/byte",
+          "max_value": 7.0,
+          "target_value": 5.26,
+          "tolerance_percent": 30.0
+        },
+        "sender_cycles_per_byte_conn_1024": {
+          "unit": "cycles/byte",
+          "max_value": 9.0,
+          "target_value": 6.68,
+          "tolerance_percent": 30.0
+        },
+        "sender_cycles_per_byte_conn_2048": {
+          "unit": "cycles/byte",
+          "max_value": 14.0,
+          "target_value": 10.54,
+          "tolerance_percent": 25.0
+        },
+        "sender_cycles_per_byte_conn_4096": {
+          "unit": "cycles/byte",
+          "max_value": 17.0,
+          "target_value": 13.50,
+          "tolerance_percent": 25.0
+        },
+        "sender_cycles_per_byte_conn_6144": {
+          "unit": "cycles/byte",
+          "max_value": 18.0,
+          "target_value": 14.87,
+          "tolerance_percent": 20.0
+        },
+        "sender_cycles_per_byte_conn_8192": {
+          "unit": "cycles/byte",
+          "max_value": 14.0,
+          "target_value": 11.22,
+          "tolerance_percent": 25.0
+        },
+        "sender_cycles_per_byte_conn_10240": {
+          "unit": "cycles/byte",
+          "max_value": 22.0,
+          "target_value": 17.06,
+          "tolerance_percent": 25.0
+        },
+        "sender_cycles_per_byte_conn_20480": {
+          "unit": "cycles/byte",
+          "max_value": 17.0,
+          "target_value": 13.69,
+          "tolerance_percent": 25.0
+        },
+        "receiver_cycles_per_byte_conn_1": {
+          "unit": "cycles/byte",
+          "max_value": 2.0,
+          "target_value": 1.31,
+          "tolerance_percent": 40.0
+        },
+        "receiver_cycles_per_byte_conn_2": {
+          "unit": "cycles/byte",
+          "max_value": 2.5,
+          "target_value": 1.56,
+          "tolerance_percent": 40.0
+        },
+        "receiver_cycles_per_byte_conn_4": {
+          "unit": "cycles/byte",
+          "max_value": 2.0,
+          "target_value": 1.25,
+          "tolerance_percent": 40.0
+        },
+        "receiver_cycles_per_byte_conn_8": {
+          "unit": "cycles/byte",
+          "max_value": 3.0,
+          "target_value": 2.06,
+          "tolerance_percent": 35.0
+        },
+        "receiver_cycles_per_byte_conn_16": {
+          "unit": "cycles/byte",
+          "max_value": 7.0,
+          "target_value": 4.92,
+          "tolerance_percent": 35.0
+        },
+        "receiver_cycles_per_byte_conn_32": {
+          "unit": "cycles/byte",
+          "max_value": 11.0,
+          "target_value": 8.42,
+          "tolerance_percent": 25.0
+        },
+        "receiver_cycles_per_byte_conn_64": {
+          "unit": "cycles/byte",
+          "max_value": 18.0,
+          "target_value": 14.07,
+          "tolerance_percent": 25.0
+        },
+        "receiver_cycles_per_byte_conn_128": {
+          "unit": "cycles/byte",
+          "max_value": 19.0,
+          "target_value": 15.20,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_256": {
+          "unit": "cycles/byte",
+          "max_value": 20.0,
+          "target_value": 15.85,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_512": {
+          "unit": "cycles/byte",
+          "max_value": 22.0,
+          "target_value": 17.31,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_1024": {
+          "unit": "cycles/byte",
+          "max_value": 24.0,
+          "target_value": 19.22,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_2048": {
+          "unit": "cycles/byte",
+          "max_value": 24.0,
+          "target_value": 19.06,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_4096": {
+          "unit": "cycles/byte",
+          "max_value": 23.0,
+          "target_value": 18.65,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_6144": {
+          "unit": "cycles/byte",
+          "max_value": 24.0,
+          "target_value": 19.15,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_8192": {
+          "unit": "cycles/byte",
+          "max_value": 25.0,
+          "target_value": 19.93,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_10240": {
+          "unit": "cycles/byte",
+          "max_value": 26.0,
+          "target_value": 20.41,
+          "tolerance_percent": 20.0
+        },
+        "receiver_cycles_per_byte_conn_20480": {
+          "unit": "cycles/byte",
+          "max_value": 30.0,
+          "target_value": 23.94,
+          "tolerance_percent": 20.0
+        },
+        "pkts_interrupts_conn_1": {
+          "min_value": 50.0,
+          "target_value": 62.93,
+          "tolerance_percent": 20.0
+        },
+        "pkts_interrupts_conn_2": {
+          "min_value": 40.0,
+          "target_value": 49.26,
+          "tolerance_percent": 20.0
+        },
+        "pkts_interrupts_conn_4": {
+          "min_value": 35.0,
+          "target_value": 46.48,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_8": {
+          "min_value": 18.0,
+          "target_value": 24.73,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_16": {
+          "min_value": 14.0,
+          "target_value": 18.70,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_32": {
+          "min_value": 10.0,
+          "target_value": 14.12,
+          "tolerance_percent": 30.0
+        },
+        "pkts_interrupts_conn_64": {
+          "min_value": 9.0,
+          "target_value": 12.73,
+          "tolerance_percent": 30.0
+        },
+        "pkts_interrupts_conn_128": {
+          "min_value": 12.0,
+          "target_value": 16.21,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_256": {
+          "min_value": 13.0,
+          "target_value": 17.47,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_512": {
+          "min_value": 26.0,
+          "target_value": 34.83,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_1024": {
+          "min_value": 55.0,
+          "target_value": 73.98,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_2048": {
+          "min_value": 75.0,
+          "target_value": 101.19,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_4096": {
+          "min_value": 70.0,
+          "target_value": 92.84,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_6144": {
+          "min_value": 68.0,
+          "target_value": 90.65,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_8192": {
+          "min_value": 68.0,
+          "target_value": 91.42,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_10240": {
+          "min_value": 84.0,
+          "target_value": 112.19,
+          "tolerance_percent": 25.0
+        },
+        "pkts_interrupts_conn_20480": {
+          "min_value": 146.0,
+          "target_value": 195.26,
+          "tolerance_percent": 25.0
+        },
+        "connections_created_time_conn_1": {
+          "unit": "microseconds",
+          "max_value": 2000.0,
+          "target_value": 1179.0,
+          "tolerance_percent": 50.0
+        },
+        "connections_created_time_conn_2": {
+          "unit": "microseconds",
+          "max_value": 2000.0,
+          "target_value": 1209.0,
+          "tolerance_percent": 50.0
+        },
+        "connections_created_time_conn_4": {
+          "unit": "microseconds",
+          "max_value": 2200.0,
+          "target_value": 1332.0,
+          "tolerance_percent": 50.0
+        },
+        "connections_created_time_conn_8": {
+          "unit": "microseconds",
+          "max_value": 3500.0,
+          "target_value": 2036.0,
+          "tolerance_percent": 50.0
+        },
+        "connections_created_time_conn_16": {
+          "unit": "microseconds",
+          "max_value": 2200.0,
+          "target_value": 1240.0,
+          "tolerance_percent": 60.0
+        },
+        "connections_created_time_conn_32": {
+          "unit": "microseconds",
+          "max_value": 3000.0,
+          "target_value": 1750.0,
+          "tolerance_percent": 50.0
+        },
+        "connections_created_time_conn_64": {
+          "unit": "microseconds",
+          "max_value": 80000.0,
+          "target_value": 58852.0,
+          "tolerance_percent": 30.0
+        },
+        "connections_created_time_conn_128": {
+          "unit": "microseconds",
+          "max_value": 80000.0,
+          "target_value": 59279.0,
+          "tolerance_percent": 30.0
+        },
+        "connections_created_time_conn_256": {
+          "unit": "microseconds",
+          "max_value": 180000.0,
+          "target_value": 122970.0,
+          "tolerance_percent": 30.0
+        },
+        "connections_created_time_conn_512": {
+          "unit": "microseconds",
+          "max_value": 180000.0,
+          "target_value": 134751.0,
+          "tolerance_percent": 30.0
+        },
+        "connections_created_time_conn_1024": {
+          "unit": "microseconds",
+          "max_value": 200000.0,
+          "target_value": 146754.0,
+          "tolerance_percent": 30.0
+        },
+        "connections_created_time_conn_2048": {
+          "unit": "microseconds",
+          "max_value": 1500000.0,
+          "target_value": 1199165.0,
+          "tolerance_percent": 20.0
+        },
+        "connections_created_time_conn_4096": {
+          "unit": "microseconds",
+          "max_value": 3200000.0,
+          "target_value": 2544769.0,
+          "tolerance_percent": 20.0
+        },
+        "connections_created_time_conn_6144": {
+          "unit": "microseconds",
+          "max_value": 3300000.0,
+          "target_value": 2654401.0,
+          "tolerance_percent": 20.0
+        },
+        "connections_created_time_conn_8192": {
+          "unit": "microseconds",
+          "max_value": 4300000.0,
+          "target_value": 3427625.0,
+          "tolerance_percent": 20.0
+        },
+        "connections_created_time_conn_10240": {
+          "unit": "microseconds",
+          "max_value": 4400000.0,
+          "target_value": 3507230.0,
+          "tolerance_percent": 20.0
+        },
+        "connections_created_time_conn_20480": {
+          "unit": "microseconds",
+          "max_value": 5800000.0,
+          "target_value": 4655555.0,
+          "tolerance_percent": 20.0
+        },
+        "client_mtu_conn_1": {
+          "unit": "bytes",
+          "min_value": 1450.0,
+          "max_value": 1520.0,
+          "target_value": 1500.0,
+          "tolerance_percent": 2.0
+        },
+        "server_mtu_conn_1": {
+          "unit": "bytes",
+          "min_value": 1450.0,
+          "max_value": 1520.0,
+          "target_value": 1500.0,
+          "tolerance_percent": 2.0
+        },
+        "buffer_size_conn_1": {
+          "unit": "KB",
+          "min_value": 900.0,
+          "max_value": 1100.0,
+          "target_value": 1024.0,
+          "tolerance_percent": 8.0
+        }
+      }
+    }
+  }
+}
