@@ -715,6 +715,7 @@ class TlbStress(Tool):
 
         # Create working directory
         self.node.execute(f"mkdir -p {self._work}", sudo=True)
+        self.node.execute(f"chmod 777 {self._work}", sudo=True)
 
         # Get the C program from the same directory
         c_program_path = Path(__file__).parent / "tlb_flush_stress.c"
