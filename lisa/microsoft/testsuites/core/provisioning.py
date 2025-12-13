@@ -142,8 +142,11 @@ class Provisioning(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            disk=DiskPremiumSSDLRS(),
-            data_disk_count=search_space.IntRange(min=64),
+            disk=schema.DiskOptionSettings(
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_count=search_space.IntRange(min=64),
+            ),
         ),
     )
     def verify_deployment_provision_premium_disk(
