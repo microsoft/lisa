@@ -71,6 +71,9 @@ class Provisioning(TestSuite):
         priority=0,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
+            disk=schema.DiskOptionSettings(
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+            ),
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
