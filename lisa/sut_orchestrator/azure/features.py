@@ -129,6 +129,7 @@ from .common import (
     get_node_context,
     get_or_create_file_share,
     get_primary_ip_addresses,
+    get_storage_client,
     get_storage_credential,
     get_virtual_networks,
     get_vm,
@@ -3698,8 +3699,23 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         self._initialize_fileshare_information()
 
     def _initialize_fileshare_information(self) -> None:
-        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
-        self._storage_account_name = f"lisasc{random_str}"
+        platform: AzurePlatform = self._platform  # type: ignore
+        storage_client = get_storage_client(
+            platform.credential, platform.subscription_id, platform.cloud
+        )
+        storage_accounts = storage_client.storage_accounts.list_by_resource_group(
+            self._resource_group_name
+        )
+        for account in storage_accounts:
+            if account.name.startswith("lisasc"):
+                self._storage_account_name = account.name
+                break
+        else:
+            random_str = generate_random_chars(
+                string.ascii_lowercase + string.digits, 10
+            )
+            self._storage_account_name = f"lisasc{random_str}"
+
         self._fstab_info = (
             f"nofail,vers={self.get_smb_version()},"
             "credentials=/etc/smbcredentials/lisa.cred"
@@ -3743,6 +3759,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         # No changes need to be done in code calling function
         # For Quota, currently all volumes will share same quota number.
         # Ensure that you use the highest value applicable for your shares
+        # Reuse existing file shares if they exist, otherwise create new ones
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,

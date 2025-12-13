@@ -600,6 +600,10 @@ class Storage(TestSuite):
         Downgrading priority from 1 to 5. The file share relies on the
          storage account key, which we cannot use currently.
         Will change it back once file share works with MSI.
+
+        TODO: Test this case with storage account reuse changes in
+         AzureFileShare class (features.py). This test does NOT use
+         private endpoints (enable_private_endpoint=False by default).
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(
@@ -619,7 +623,9 @@ class Storage(TestSuite):
 
         try:
             fs_url_dict = azure_file_share.create_file_share(
-                file_share_names=[fileshare_name], environment=environment
+                file_share_names=[fileshare_name],
+                environment=environment,
+                allow_shared_key_access=True,
             )
             test_folders_share_dict = {
                 test_folder: fs_url_dict[fileshare_name],
