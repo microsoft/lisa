@@ -1240,6 +1240,38 @@ def get_compute_client(
     )
 
 
+def _get_private_endpoint_ip(
+    network: Any,
+    resource_group_name: str,
+    private_endpoint: Any,
+    log: Logger,
+) -> Optional[str]:
+    """
+    Helper function to extract IP address from a private endpoint.
+    Tries multiple methods: custom_dns_configs, then network interface.
+    """
+    # Method 1: Try custom_dns_configs
+    if (
+        private_endpoint.custom_dns_configs
+        and private_endpoint.custom_dns_configs[0].ip_addresses
+    ):
+        return str(private_endpoint.custom_dns_configs[0].ip_addresses[0])
+
+    # Method 2: Get IP from network interface
+    if private_endpoint.network_interfaces:
+        try:
+            nic_id = private_endpoint.network_interfaces[0].id
+            # Extract NIC name from resource ID
+            nic_name = nic_id.split("/")[-1]
+            nic = network.network_interfaces.get(resource_group_name, nic_name)
+            if nic.ip_configurations and nic.ip_configurations[0].private_ip_address:
+                return str(nic.ip_configurations[0].private_ip_address)
+        except Exception as e:
+            log.debug(f"Failed to get IP from network interface: {e}")
+
+    return None
+
+
 def create_update_private_endpoints(
     platform: "AzurePlatform",
     resource_group_name: str,
@@ -1253,6 +1285,24 @@ def create_update_private_endpoints(
     private_endpoint_name = "pe_test"
     status = "Approved"
     description = "Auto-Approved"
+
+    # Check if private endpoint already exists
+    try:
+        existing_pe = network.private_endpoints.get(
+            resource_group_name=resource_group_name,
+            private_endpoint_name=private_endpoint_name,
+        )
+        log.debug(f"found existing private endpoint: {private_endpoint_name}")
+        # Return IP from existing endpoint if available
+        ip_address = _get_private_endpoint_ip(
+            network, resource_group_name, existing_pe, log
+        )
+        if ip_address:
+            return ip_address
+        log.debug("Could not get IP from existing endpoint, will recreate...")
+    except Exception:
+        log.debug(f"private endpoint {private_endpoint_name} not found, creating...")
+
     private_endpoint = network.private_endpoints.begin_create_or_update(
         resource_group_name=resource_group_name,
         private_endpoint_name=private_endpoint_name,
@@ -1275,7 +1325,26 @@ def create_update_private_endpoints(
     )
     log.debug(f"create private endpoints: {private_endpoint_name}")
     result = private_endpoint.result()
-    return result.custom_dns_configs[0].ip_addresses[0]
+
+    # Try to get IP from the creation result
+    ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
+    if ip_address:
+        return ip_address
+
+    # DNS configs may not be immediately available, fetch endpoint again
+    log.debug("IP not in result, fetching endpoint again...")
+    result = network.private_endpoints.get(
+        resource_group_name=resource_group_name,
+        private_endpoint_name=private_endpoint_name,
+    )
+
+    ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
+    if ip_address:
+        return ip_address
+
+    raise LisaException(
+        f"Failed to get IP address from private endpoint {private_endpoint_name}"
+    )
 
 
 def delete_private_endpoints(
