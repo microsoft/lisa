@@ -104,22 +104,35 @@ class Waagent(Tool):
             if self.node.os.is_package_in_repo(package):  # type: ignore
                 self.node.os.install_packages(package)  # type: ignore
 
-        # Ensure compatible versions of setuptools and packaging to avoid
+        # Fix setuptools/packaging version incompatibility that causes:
         # TypeError: canonicalize_version() got an unexpected keyword argument
-        # 'strip_trailing_zero' error when running setup.py install
-        self.node.execute(
-            f"{python_cmd} -m pip install --upgrade setuptools packaging",
+        # 'strip_trailing_zero'
+        # Downgrade setuptools to a version compatible with older packaging library
+        downgrade_result = self.node.execute(
+            f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall",
             sudo=True,
-            # Don't fail if pip upgrade fails - try to proceed anyway
         )
 
-        self.node.execute(
-            f"{python_cmd} setup.py install --force",
-            sudo=True,
-            cwd=self.node.working_path.joinpath("WALinuxAgent"),
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to install waagent",
-        )
+        # If downgrade failed, try using pip install instead of setup.py
+        if downgrade_result.exit_code != 0:
+            self._log.debug(
+                "Failed to downgrade setuptools, trying pip install instead"
+            )
+            self.node.execute(
+                f"{python_cmd} -m pip install --force-reinstall .",
+                sudo=True,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to install waagent",
+            )
+        else:
+            self.node.execute(
+                f"{python_cmd} setup.py install --force",
+                sudo=True,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to install waagent",
+            )
 
     def restart(self) -> None:
         service = self.node.tools[Service]
