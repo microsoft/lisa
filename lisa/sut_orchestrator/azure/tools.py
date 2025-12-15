@@ -100,11 +100,22 @@ class Waagent(Tool):
                 cwd=self.node.working_path.joinpath("WALinuxAgent"),
             )
         python_cmd, _ = self.get_python_cmd()
-        for package in list(["python-setuptools", "python3-setuptools"]):
-            if self.node.os.is_package_in_repo(package):  # type: ignore
-                self.node.os.install_packages(package)  # type: ignore
+
+        # Install pip if not available, then use pip install
         self.node.execute(
-            f"{python_cmd} setup.py install --force",
+            f"{python_cmd} -m ensurepip --upgrade",
+            sudo=True,
+        )
+
+        # Upgrade pip and packaging to ensure compatibility
+        self.node.execute(
+            f"{python_cmd} -m pip install --upgrade pip packaging",
+            sudo=True,
+        )
+
+        # Use pip install instead of deprecated setup.py install
+        self.node.execute(
+            f"{python_cmd} -m pip install .",
             sudo=True,
             cwd=self.node.working_path.joinpath("WALinuxAgent"),
             expected_exit_code=0,
@@ -220,7 +231,7 @@ class Waagent(Tool):
 
         # Try to use waagent code to detect
         result = self.node.execute(
-            f'{python_cmd} -c "from azurelinuxagent.common.osutil import get_osutil;'
+            f'{python_cmd} -c "from azurelinuxagent.common.osutil import get_osutil; '
             'print(get_osutil().agent_conf_file_path)"',
             sudo=use_sudo,
         )
@@ -250,7 +261,7 @@ class Waagent(Tool):
 
         # Try to use waagent code to detect
         result = self.node.execute(
-            f'{python_cmd} -c "from azurelinuxagent.common.version import get_distro;'
+            f'{python_cmd} -c "from azurelinuxagent.common.version import get_distro; '
             "print('-'.join(get_distro()[0:3]))\"",
             sudo=use_sudo,
         )
@@ -259,7 +270,7 @@ class Waagent(Tool):
         else:
             # try to compat with old waagent versions
             result = self.node.execute(
-                f'{python_cmd} -c "import platform;'
+                f'{python_cmd} -c "import platform; '
                 "print('-'.join(platform.linux_distribution(0)))\"",
                 sudo=use_sudo,
             )
