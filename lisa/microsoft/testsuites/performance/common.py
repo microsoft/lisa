@@ -16,8 +16,10 @@ from lisa import (
     SkippedException,
     notifier,
     run_in_parallel,
+    schema,
 )
 from lisa.features import Nvme
+from lisa.features.disks import Disk
 from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
@@ -771,6 +773,103 @@ def perf_sockperf(
 
         for sysctl in sysctls:
             sysctl.reset()
+
+
+def perf_premium_datadisks(
+    node: Node,
+    test_result: TestResult,
+    disk_setup_type: DiskSetupType = DiskSetupType.raw,
+    disk_type: DiskType = DiskType.premiumssd,
+    block_size: int = 4,
+    start_iodepth: int = 1,
+    max_iodepth: int = 256,
+) -> None:
+    disk = node.features[Disk]
+    data_disks = disk.get_raw_data_disks()
+    disk_count = len(data_disks)
+    assert_that(disk_count).described_as(
+        "At least 1 data disk for fio testing."
+    ).is_greater_than(0)
+    partition_disks = reset_partitions(node, data_disks)
+    filename = ":".join(partition_disks)
+    cpu = node.tools[Lscpu]
+    thread_count = cpu.get_thread_count()
+    perf_disk(
+        node,
+        start_iodepth,
+        max_iodepth,
+        filename,
+        test_name=inspect.stack()[1][3],
+        core_count=thread_count,
+        disk_count=disk_count,
+        disk_setup_type=disk_setup_type,
+        disk_type=disk_type,
+        numjob=thread_count,
+        block_size=block_size,
+        size_mb=8192,
+        overwrite=True,
+        test_result=test_result,
+    )
+
+
+def perf_resource_disks(
+    node: Node,
+    test_result: TestResult,
+    disk_setup_type: DiskSetupType = DiskSetupType.raw,
+    block_size: int = 4,
+    start_iodepth: int = 1,
+    max_iodepth: int = 256,
+) -> None:
+    disk = node.features[Disk]
+    resource_disks = disk.get_resource_disks()
+    disk_count = len(resource_disks)
+    if disk_count == 0:
+        raise SkippedException(
+            "No resource disk found, skipping resource disk performance test."
+        )
+    resource_disk_type = disk.get_resource_disk_type()
+    if schema.ResourceDiskType.NVME == resource_disk_type:
+        perf_nvme(
+            node,
+            test_result,
+            disk_type=DiskType.localnvme,
+        )
+        return
+    elif schema.ResourceDiskType.SCSI == resource_disk_type:
+        # If there is only one resource disk and its SCSI type,
+        # it will be mounted at /mnt.
+        # Create a file under and use it as fio filename.
+        # If there are multiple resource disks, reset partitions and
+        # use the partition disks as fio filename.
+        if disk_count == 1:
+            filename = f"{disk.get_resource_disk_mount_point()}/fiodata"
+        else:
+            partition_disks = reset_partitions(node, resource_disks)
+            filename = ":".join(partition_disks)
+        core_count = node.tools[Lscpu].get_core_count()
+
+        perf_disk(
+            node,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=disk_count,
+            disk_setup_type=disk_setup_type,
+            disk_type=DiskType.localssd,
+            numjob=core_count,
+            block_size=block_size,
+            size_mb=8192,
+            overwrite=True,
+            test_result=test_result,
+        )
+
+    else:
+        raise SkippedException(
+            f"Resource disk type {resource_disk_type} not supported for "
+            f"performance test."
+        )
 
 
 def calculate_middle_average(values: List[Union[float, int]]) -> float:
