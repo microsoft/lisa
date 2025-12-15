@@ -100,27 +100,40 @@ class Waagent(Tool):
                 cwd=self.node.working_path.joinpath("WALinuxAgent"),
             )
         python_cmd, _ = self.get_python_cmd()
+        for package in list(["python-setuptools", "python3-setuptools"]):
+            if self.node.os.is_package_in_repo(package):  # type: ignore
+                self.node.os.install_packages(package)  # type: ignore
 
-        # Install pip if not available, then use pip install
-        self.node.execute(
-            f"{python_cmd} -m ensurepip --upgrade",
+        # Downgrading setuptools is required because:
+        # 1. Old WALinuxAgent versions have compatibility issues with pip's build
+        #    isolation (missing 'distro' module, deprecated platform APIs)
+        # 2. The legacy 'setup.py install' works but requires compatible setuptools
+        downgrade_result = self.node.execute(
+            f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall",
             sudo=True,
         )
 
-        # Upgrade pip and packaging to ensure compatibility
-        self.node.execute(
-            f"{python_cmd} -m pip install --upgrade pip packaging",
-            sudo=True,
-        )
-
-        # Use pip install instead of deprecated setup.py install
-        self.node.execute(
-            f"{python_cmd} -m pip install .",
-            sudo=True,
-            cwd=self.node.working_path.joinpath("WALinuxAgent"),
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to install waagent",
-        )
+        if downgrade_result.exit_code != 0:
+            self._log.debug(
+                "Failed to downgrade setuptools, trying pip install instead"
+            )
+            # Fallback: try pip install with --no-build-isolation to avoid
+            # downloading latest setuptools in isolated environment
+            self.node.execute(
+                f"{python_cmd} -m pip install --no-build-isolation .",
+                sudo=True,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to install waagent",
+            )
+        else:
+            self.node.execute(
+                f"{python_cmd} setup.py install --force",
+                sudo=True,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to install waagent",
+            )
 
     def restart(self) -> None:
         service = self.node.tools[Service]
