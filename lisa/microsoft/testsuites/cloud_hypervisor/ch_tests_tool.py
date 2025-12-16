@@ -100,6 +100,15 @@ class CloudHypervisorTests(Tool):
     perf_read_cache_policy: str = "hot"
     perf_mtu: int = 1500
 
+    # Reduce first-run variance by waiting for the guest OS to settle
+    # (cloud-init/systemd background work) before running performance metrics.
+    perf_system_settle_enabled: bool = True
+    perf_system_settle_timeout_s: int = 600
+    # Per-core load threshold (scaled by CPU count, capped at 8.0) for
+    # "system is calm" gating.
+    perf_system_settle_load_threshold: float = 1.0
+    perf_system_settle_stable_seconds: int = 60
+
     # Perf-stable profile constants
     # Sleep time for nc to bind to port
     NC_BIND_SLEEP_SECONDS = 2
@@ -109,6 +118,7 @@ class CloudHypervisorTests(Tool):
         # Perf-stable profile instance state
         self._numa_node: int = 0
         self._host_setup_done: bool = False
+        self._metrics_disk_device: str = ""
 
     @property
     def command(self) -> str:
@@ -385,6 +395,16 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        # Reset per-run state in case this Tool instance is reused across runs.
+        self._metrics_disk_device = ""
+
+        if ref:
+            self.node.tools[Git].checkout(ref, self.repo_root)
+
+        subtests = self._prepare_metrics_subtests(hypervisor, only, skip)
+        # Pick disk first so warmup targets the actual metrics disk (pmem vs nvme)
+        self._setup_disk_for_metrics(log_path)
+
         # Initialize perf-stable profile (one-time per metrics test run)
         # Metrics tests always use perf-stable setup
         if not self._host_setup_done:
@@ -393,15 +413,15 @@ class CloudHypervisorTests(Tool):
             self._setup_host_perf_policies()
             self._setup_storage_hygiene()
             self._setup_network_hygiene()
-            # One-time warmup during host setup
-            self._run_warmup()
+            # Best-effort settle phase to reduce variance from background services.
+            # Run it as part of the one-time host preparation (after policies are
+            # applied) so we don't pay the settle cost for every metrics run.
+            if self.perf_stable_enabled and self.perf_system_settle_enabled:
+                self._settle_system()
+            if self.perf_stable_enabled:
+                self._read_back_and_log_host_state()
+                self._run_warmup()
             self._host_setup_done = True
-
-        if ref:
-            self.node.tools[Git].checkout(ref, self.repo_root)
-
-        subtests = self._prepare_metrics_subtests(hypervisor, only, skip)
-        self._setup_disk_for_metrics(log_path)
         failed_testcases: List[str] = []
 
         for testcase in subtests:
@@ -443,6 +463,14 @@ class CloudHypervisorTests(Tool):
         if disk_name:
             self._log.debug(f"Using disk: {disk_name}, for block tests")
             self.env_vars["DATADISK_NAME"] = disk_name
+            if disk_name.startswith("/dev/"):
+                self._metrics_disk_device = disk_name
+            else:
+                self._metrics_disk_device = f"/dev/{disk_name}"
+            self._log.info(
+                "[perf-stable] metrics disk device selected: "
+                f"{self._metrics_disk_device}"
+            )
             self._save_kernel_logs(log_path)
 
     def _prepare_metrics_subtests(
@@ -475,8 +503,9 @@ class CloudHypervisorTests(Tool):
         trace: str = ""
         result = None
 
-        # Apply cache policy per-test for consistent cache state (reduces CV%)
-        self._apply_cache_policy(testcase)
+        # Apply per-test policies (block vs net vs other). Avoid applying cache
+        # policies to network tests to prevent confusing log noise.
+        self._apply_per_test_policies(testcase)
 
         self._set_block_size_env_var(testcase)
         cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
@@ -522,6 +551,54 @@ class CloudHypervisorTests(Tool):
         # Store result for log writing
         self._last_result = result
         return status, metrics, trace
+
+    def _is_net_test(self, testcase: str) -> bool:
+        tl = testcase.lower()
+        return tl.startswith("net_") or tl.startswith("virtio_net")
+
+    def _apply_network_test_policy(self, testcase: str) -> None:
+        # Stability-first (least invasive): keep irqbalance ON, keep MTU
+        # consistent, and do a tiny per-test warmup to reduce variance from
+        # cold start effects (ARP/route cache, initial softirq scheduling).
+        _ = testcase
+        warmup_seconds = 8
+        numa_prefix = self._get_numa_prefix()
+
+        has_nc = self.node.execute("command -v nc", shell=True).exit_code == 0
+        if has_nc:
+            nc_sleep = self.NC_BIND_SLEEP_SECONDS
+            warmup_cmd = (
+                f"{numa_prefix} bash -lc 'port=$((20000 + RANDOM % 20000)); "
+                'nc -lk "$port" > /dev/null & NC_PID=$!; '
+                f"sleep {nc_sleep}; "
+                "timeout 5 dd if=/dev/zero bs=1M count=64 | "
+                'nc 127.0.0.1 "$port" || true; '
+                "kill $NC_PID || true; "
+                "wait $NC_PID || true'"
+            )
+            self.node.execute(
+                warmup_cmd,
+                shell=True,
+                sudo=True,
+                timeout=15,
+            )
+        else:
+            self.node.execute(
+                f"{numa_prefix} timeout {warmup_seconds} "
+                "ping -c 40 -i 0.02 127.0.0.1 || true",
+                shell=True,
+                sudo=True,
+                timeout=10,
+            )
+
+    def _apply_per_test_policies(self, testcase: str) -> None:
+        if not self.perf_stable_enabled:
+            return
+
+        # Block tests: no extra cache policy here because CH perf uses fio.
+        # with --direct=1 (host-side caching knobs would be misleading noise).
+        if self._is_net_test(testcase):
+            self._apply_network_test_policy(testcase)
 
     def _build_metrics_cmd_args(
         self, testcase: str, hypervisor: str, subtest_timeout: Optional[int]
@@ -1533,7 +1610,7 @@ exit $ec
         Log all perf-stable knobs at start of run for reproducibility.
         This proves parity across runs by recording exact configuration.
         """
-        knobs = {
+        knobs: Dict[str, Any] = {
             "perf_stable_enabled": self.perf_stable_enabled,
             "perf_numa_node": self.perf_numa_node,
             "perf_warmup_seconds": self.perf_warmup_seconds,
@@ -1659,6 +1736,181 @@ exit $ec
 
         # Export NUMA node for CH launcher
         os.environ["CH_NUMA_NODE"] = str(self._numa_node)
+
+    def _read_back_and_log_host_state(self) -> None:
+        """Read back key host state and log it (best-effort).
+
+        These commands are intentionally robust (|| true) but the *outputs*
+        provide proof of what was actually applied on the host.
+        """
+
+        cmd = (
+            "set -u; "
+            "echo '=== PERF-STABLE HOST STATE (READ-BACK) ==='; "
+            "echo '-- cpu governor (cpu0)'; "
+            "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null "
+            "|| echo 'unavailable'; "
+            "echo '-- intel turbo (no_turbo)'; "
+            "cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null "
+            "|| echo 'unavailable'; "
+            "echo '-- amd boost'; "
+            "cat /sys/devices/system/cpu/cpufreq/boost 2>/dev/null "
+            "|| echo 'unavailable'; "
+            "echo '-- thp enabled'; "
+            "cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null "
+            "|| echo 'unavailable'; "
+            "echo '-- irqbalance'; "
+            "systemctl is-active irqbalance 2>/dev/null || echo 'unavailable'; "
+            "echo '-- hugepages (per node)'; "
+            "for n in /sys/devices/system/node/node*; do "
+            '[ -d "$n" ] || continue; '
+            'node=$(basename "$n"); '
+            'hp1="$n/hugepages/hugepages-1048576kB/nr_hugepages"; '
+            'hp2="$n/hugepages/hugepages-2048kB/nr_hugepages"; '
+            'v1=$(cat "$hp1" 2>/dev/null || echo -); '
+            'v2=$(cat "$hp2" 2>/dev/null || echo -); '
+            'echo "$node: 1G=$v1 2M=$v2"; '
+            "done; "
+            "echo '-- primary nic (route to 1.1.1.1)'; "
+            "nic=$(ip route get 1.1.1.1 2>/dev/null | "
+            "sed -n 's/.* dev \\([^ ]*\\).*/\\1/p' | head -n1); "
+            'if [ -n "$nic" ]; then '
+            'echo "nic=$nic"; '
+            "echo '-- ip -s link'; ip -s link show \"$nic\" || true; "
+            "echo '-- ethtool driver'; ethtool -i \"$nic\" 2>/dev/null || true; "
+            "echo '-- ethtool channels'; ethtool -l \"$nic\" 2>/dev/null || true; "
+            "echo '-- ethtool offloads'; ethtool -k \"$nic\" 2>/dev/null || true; "
+            "echo '-- nic msi irqs'; "
+            'irq_dir="/sys/class/net/$nic/device/msi_irqs"; '
+            'if [ -d "$irq_dir" ]; then '
+            'ls -1 "$irq_dir" 2>/dev/null || true; '
+            "echo '-- nic irq affinities (smp_affinity_list)'; "
+            'for i in $(ls -1 "$irq_dir" 2>/dev/null); do '
+            "aff=$(cat /proc/irq/$i/smp_affinity_list 2>/dev/null || echo -); "
+            'echo "irq_affinity $i $aff"; '
+            "done; "
+            "else echo 'msi_irqs unavailable'; fi; "
+            "echo '-- rps_cpus'; "
+            "for f in /sys/class/net/$nic/queues/*/rps_cpus; do "
+            '[ -f "$f" ] || continue; v=$(cat "$f" 2>/dev/null || echo -); '
+            'echo "$f $v"; done; '
+            "echo '-- xps_cpus'; "
+            "for f in /sys/class/net/$nic/queues/*/xps_cpus; do "
+            '[ -f "$f" ] || continue; v=$(cat "$f" 2>/dev/null || echo -); '
+            'echo "$f $v"; done; '
+            "echo '-- cpu contention (mpstat/sar)'; "
+            "if command -v mpstat >/dev/null 2>&1; then "
+            "mpstat -P ALL 1 5 || true; "
+            "elif command -v sar >/dev/null 2>&1; then "
+            "sar -u 1 5 || true; "
+            "else echo 'mpstat/sar unavailable'; fi; "
+            "echo '-- pidstat top (irq/softirq/ch)'; "
+            "if command -v pidstat >/dev/null 2>&1; then "
+            "pidstat -t -p ALL 1 3 2>/dev/null "
+            "| egrep 'cloud-hypervisor|ksoftirqd|irq/' || true; "
+            "else echo 'pidstat unavailable'; fi; "
+            "echo '-- numa topology (numactl -H)'; "
+            "if command -v numactl >/dev/null 2>&1; then numactl -H || true; "
+            "else echo 'numactl unavailable'; fi; "
+            "echo '-- cpu topology (lscpu -e)'; "
+            "if command -v lscpu >/dev/null 2>&1; then lscpu -e || true; "
+            "else echo 'lscpu unavailable'; fi; "
+            "echo '-- thread cpu placement (ch/softirq/irq)'; "
+            "ps -eLo pid,psr,comm,%cpu 2>/dev/null "
+            "| egrep 'cloud-hypervisor|ksoftirqd|irq/' | head -n 30 || true; "
+            "echo '-- /proc/stat (head)'; head -n 50 /proc/stat 2>/dev/null || true; "
+            "echo '-- interrupts (filtered)'; "
+            "cat /proc/interrupts 2>/dev/null | egrep -i 'virtio|mlx|eth|ens|net' "
+            "|| true; "
+            "echo '-- softirqs totals'; "
+            'awk \'NR>1 {n=$1; sub(":", "", n); s=0; '
+            "for(i=2;i<=NF;i++) s+=$i; print n, s}' /proc/softirqs 2>/dev/null "
+            "|| true; "
+            "else echo 'nic=unavailable'; fi; "
+            "true"
+        )
+
+        self.node.execute(cmd, shell=True, sudo=True)
+
+    def _settle_system(self) -> None:
+        """Best-effort system settle to reduce run-to-run variance.
+
+        This is intentionally time-bounded and safe (no failures if commands
+        aren't present). It targets common first-run jitter sources on Azure:
+        cloud-init stages, systemd background units, and transient CPU load.
+        """
+
+        timeout_s = int(self.perf_system_settle_timeout_s)
+        stable_s = int(self.perf_system_settle_stable_seconds)
+        if timeout_s <= 0 or stable_s <= 0:
+            return
+
+        load_thr = float(self.perf_system_settle_load_threshold)
+        # Interpret the threshold as per-core load (default 1.0), and scale by
+        # CPU count to avoid being overly strict on large vCPU SKUs.
+        if load_thr <= 0:
+            load_thr = 1.0
+
+        cpu_count_raw = self.node.execute(
+            "nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1",
+            shell=True,
+        ).stdout
+        try:
+            cpu_count = max(1, int((cpu_count_raw or "1").strip().splitlines()[0]))
+        except Exception as exc:
+            self._log.debug(
+                "Failed to parse CPU count from %r, defaulting to 1: %s",
+                cpu_count_raw,
+                exc,
+            )
+            cpu_count = 1
+
+        # Treat the configured value as a per-core threshold, but cap the
+        # absolute threshold to avoid waiting forever on busy systems.
+        abs_load_thr = min(8.0, load_thr * cpu_count)
+
+        self._log.info(
+            "[perf-stable] system settle: waiting for cloud-init/systemd/load "
+            f"(timeout={timeout_s}s, load<{abs_load_thr:.2f} for {stable_s}s)"
+        )
+
+        cmd = (
+            "set -u\n"
+            f"deadline=$((SECONDS+{timeout_s}))\n\n"
+            'echo "[settle] cloud-init / systemd"\n'
+            "if command -v cloud-init >/dev/null 2>&1; then\n"
+            "  timeout 300 cloud-init status --wait || true\n"
+            "else\n"
+            '  echo "[settle] cloud-init not installed"\n'
+            "fi\n\n"
+            "if command -v systemctl >/dev/null 2>&1; then\n"
+            "  timeout 300 systemctl is-system-running --wait || true\n"
+            "else\n"
+            '  echo "[settle] systemctl not available"\n'
+            "fi\n\n"
+            'echo "[settle] loadavg gate"\n'
+            "stable=0\n"
+            "while [ $SECONDS -lt $deadline ]; do\n"
+            "  la=$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo 999)\n"
+            f'  awk_thr="{abs_load_thr}"\n'
+            '  ok=$(awk -v la="$la" -v thr="$awk_thr" '
+            "'BEGIN{ if (la < thr) print 1; else print 0 }')\n"
+            '  if [ "$ok" -eq 1 ]; then\n'
+            "    stable=$((stable+1))\n"
+            "  else\n"
+            "    stable=0\n"
+            "  fi\n"
+            f"  if [ $stable -ge {stable_s} ]; then\n"
+            '    echo "[settle] load stable"\n'
+            "    break\n"
+            "  fi\n"
+            "  sleep 1\n"
+            "done\n"
+            'echo "[settle] done"\n'
+            "true"
+        )
+
+        self.node.execute(cmd, shell=True, sudo=True, timeout=timeout_s + 60)
 
     def _setup_storage_hygiene(self) -> None:
         """
@@ -1820,15 +2072,42 @@ exit $ec
 
         numa_prefix = self._get_numa_prefix()
 
-        # 1. Storage warmup: O_DIRECT reads to wake NVMe queues
-        device = os.environ.get("DATADISK_NAME", "/dev/nvme0n1")
-        self.node.execute(
-            f"timeout {warmup_seconds} {numa_prefix} dd if={device} "
-            f"of=/dev/null bs=1M iflag=direct count=20480 status=none || true",
-            shell=True,
-            sudo=True,
-            timeout=warmup_seconds + 10,
+        # 1. Storage warmup: O_DIRECT reads to wake queues on the actual
+        # metrics disk device (pmem vs nvme). If missing, skip warmup.
+        device = (
+            self._metrics_disk_device
+            or os.environ.get("DATADISK_NAME", "")
+            or "/dev/nvme0n1"
         )
+        dev_str = str(device)
+        if "pmem" in dev_str:
+            # pmem devices can be character devices on some distros (e.g. Mariner).
+            # Skip dd warmup for pmem, but still verify device is present.
+            check_cmd = (
+                f'if [ -b "{device}" ] || [ -c "{device}" ]; then '
+                f'echo "storage warmup skipped for pmem {device}"; '
+                f"else echo 'pmem warmup skipped (missing device) {device}'; fi"
+            )
+            self.node.execute(
+                check_cmd,
+                shell=True,
+                sudo=True,
+                timeout=warmup_seconds + 10,
+            )
+        else:
+            warmup_cmd = (
+                f'if [ -b "{device}" ]; then '
+                f'echo "storage warmup on {device}"; '
+                f'timeout {warmup_seconds} {numa_prefix} dd if="{device}" '
+                f"of=/dev/null bs=1M iflag=direct count=20480 status=none || true; "
+                f"else echo 'storage warmup skipped (missing device) {device}'; fi"
+            )
+            self.node.execute(
+                warmup_cmd,
+                shell=True,
+                sudo=True,
+                timeout=warmup_seconds + 10,
+            )
 
         # 2. Network warmup: nc localhost transfer to warm network stack
         has_nc = self.node.execute("command -v nc", shell=True).exit_code == 0
@@ -1884,128 +2163,6 @@ exit $ec
 
         # Strict NUMA binding: pin both CPU and memory to selected node
         return f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
-
-    def _apply_cache_policy(self, testcase: str) -> None:
-        """
-        Apply cache drop policy based on perf_read_cache_policy and test type.
-
-        Explicit block read/write policy:
-        - IOPS tests (random) → direct I/O (no cache drop)
-        - MiBps tests (sequential) → buffered I/O (cache drop for writes)
-
-        perf_read_cache_policy:
-        - hot (default): Warm cache for all read tests
-        - cold: Cold cache for all read tests
-        - auto: Follows explicit block policy
-
-        perf_block_policy overrides for fine-grained control.
-        """
-        cache_policy = self.perf_read_cache_policy.lower()
-        block_policy = self.perf_block_policy
-
-        # Determine cache drop decision
-        should_drop, reason = self._determine_cache_drop(testcase, cache_policy)
-
-        # Apply block policy override if specified
-        if block_policy:
-            should_drop, reason = self._apply_block_policy_override(
-                testcase, block_policy, should_drop, reason
-            )
-
-        # Execute cache drop if needed
-        if should_drop:
-            self.node.execute(
-                "sync; echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null",
-                shell=True,
-                sudo=True,
-            )
-            self._log.debug(f"Cache dropped: {reason}")
-        else:
-            self._log.debug(f"Cache retained: {reason}")
-
-    def _determine_cache_drop(
-        self, testcase: str, cache_policy: str
-    ) -> tuple[bool, str]:
-        """
-        Determine if cache should be dropped based on test type and cache policy.
-
-        Returns:
-            Tuple of (should_drop, reason)
-        """
-        tc_lower = testcase.lower()
-        is_read_test = "read" in tc_lower and "block" in tc_lower
-        is_write_test = "write" in tc_lower and "block" in tc_lower
-        is_iops_test = "iops" in tc_lower or "random" in tc_lower
-        is_mibps_test = (
-            "mibps" in tc_lower or "bandwidth" in tc_lower or "seq" in tc_lower
-        )
-        is_buffered = "buffered" in tc_lower or "cached" in tc_lower
-
-        # IOPS tests always use direct I/O
-        if is_iops_test:
-            return False, "IOPS test → direct I/O"
-
-        # MiBps tests use buffered I/O
-        if is_mibps_test:
-            if is_write_test:
-                return True, "MiBps write test → buffered I/O"
-            if is_read_test:
-                return self._get_mibps_read_policy(cache_policy)
-
-        # Fallback for tests without explicit IOPS/MiBps markers
-        if cache_policy == "cold" and is_read_test:
-            return True, "read test + cold policy"
-        if cache_policy == "hot" and is_read_test:
-            return False, "read test + hot policy"
-        if is_write_test and is_buffered:
-            return True, "buffered write test"
-
-        return False, "default (no drop)"
-
-    def _get_mibps_read_policy(self, cache_policy: str) -> tuple[bool, str]:
-        """Get cache policy for MiBps read tests."""
-        if cache_policy == "cold":
-            return True, "MiBps read test → buffered I/O + cold policy"
-        if cache_policy == "hot":
-            return False, "MiBps read test → buffered I/O + hot policy"
-        # Auto: default to hot for sequential reads
-        return False, "MiBps read test → buffered I/O + auto (hot)"
-
-    def _apply_block_policy_override(
-        self, testcase: str, block_policy: str, should_drop: bool, reason: str
-    ) -> tuple[bool, str]:
-        """
-        Apply perf_block_policy override if pattern matches.
-
-        Args:
-            testcase: Test case name
-            block_policy: perf_block_policy value
-            should_drop: Current drop decision
-            reason: Current reason
-
-        Returns:
-            Tuple of (should_drop, reason) with override applied
-        """
-        tc_lower = testcase.lower()
-        policies = block_policy.split(",")
-
-        for policy in policies:
-            if "=" not in policy:
-                continue
-
-            pattern, io_type = policy.split("=", 1)
-            pattern = pattern.strip().lower()
-            io_type = io_type.strip().lower()
-
-            # Match pattern against testcase (wildcard support)
-            pattern_regex = pattern.replace("*", ".*")
-            if re.match(pattern_regex, tc_lower):
-                if io_type == "direct":
-                    return False, f"perf_block_policy: {pattern}=direct"
-                if io_type == "buffered":
-                    return True, f"perf_block_policy: {pattern}=buffered"
-
-        return should_drop, reason
 
 
 def extract_jsons(input_string: str) -> List[Any]:
