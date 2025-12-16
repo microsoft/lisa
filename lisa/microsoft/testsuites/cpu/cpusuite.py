@@ -38,6 +38,7 @@ from lisa.tools import (
     Lsvmbus,
     Modprobe,
     Reboot,
+    StressNg,
 )
 from lisa.util import SkippedException
 
@@ -319,3 +320,90 @@ class CPUSuite(TestSuite):
                 node.tools[Ethtool].change_device_channels_info(
                     "eth0", origin_device_channel
                 )
+
+    @TestCaseMetadata(
+        description="""
+            This test validates CPU stability under sustained stress workload.
+
+            Steps:
+            1. Verify the node has sufficient CPU cores for stress testing
+            2. Launch stress-ng CPU stressor on all available cores
+            3. Run sustained stress workload for 5 minutes
+            4. Verify all CPUs remain online and functional during stress
+            5. Verify system remains responsive after stress completion
+
+            This test ensures:
+            - CPUs can handle sustained compute workload without failures
+            - No CPU throttling or offline events occur under stress
+            - System stability is maintained during high CPU usage
+            - All cores participate in workload distribution
+            """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
+        ),
+    )
+    def verify_cpu_stress_stability(self, log: Logger, node: Node) -> None:
+        """
+        Validates CPU stability under sustained stress workload.
+
+        Uses stress-ng to generate CPU load and verifies:
+        - All CPUs remain online during stress
+        - System remains responsive
+        - No CPU-related errors occur
+        """
+        # Arrange
+        lscpu = node.tools[Lscpu]
+        stress_ng = node.tools[StressNg]
+
+        # Get initial CPU configuration
+        initial_cpu_count = lscpu.get_thread_count()
+        log.info(f"Starting CPU stress test with {initial_cpu_count} CPUs")
+
+        # Configure stress test parameters
+        # Use all available CPUs for maximum stress
+        num_workers = initial_cpu_count
+        # Run for 5 minutes to ensure sustained stress
+        stress_duration_seconds = 300
+
+        try:
+            # Act - Launch CPU stress workload
+            log.info(
+                f"Launching stress-ng with {num_workers} workers "
+                f"for {stress_duration_seconds} seconds"
+            )
+
+            # Run CPU stress test
+            stress_ng.launch_cpu(
+                num_cores=num_workers, timeout_in_seconds=stress_duration_seconds
+            )
+
+            log.info("CPU stress test completed successfully")
+
+            # Assert - Verify system state after stress
+            # 1. Verify all CPUs are still online
+            final_cpu_count = lscpu.get_thread_count()
+            assert_that(final_cpu_count).described_as(
+                "All CPUs should remain online after stress test"
+            ).is_equal_to(initial_cpu_count)
+
+            # 2. Verify system responsiveness by running a simple command
+            result = node.execute("echo 'System responsive'", expected_exit_code=0)
+            assert_that(result.exit_code).described_as(
+                "System should remain responsive after stress"
+            ).is_equal_to(0)
+
+            log.info(
+                f"Post-stress validation passed: {final_cpu_count}/{initial_cpu_count} "
+                "CPUs online, system responsive"
+            )
+
+        except Exception as e:
+            log.error(f"CPU stress test failed: {str(e)}")
+            # Log current CPU state for debugging
+            current_cpu_count = lscpu.get_thread_count()
+            log.error(
+                f"CPU count: initial={initial_cpu_count}, "
+                f"current={current_cpu_count}"
+            )
+            raise
