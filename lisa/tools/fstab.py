@@ -51,8 +51,7 @@ class Fstab(Tool):
 
     @property
     def command(self) -> str:
-        # fstab is a file, not a command
-        return "cat"
+        return ""
 
     def _check_exists(self) -> bool:
         # Check if /etc/fstab exists
