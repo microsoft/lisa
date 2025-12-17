@@ -49,8 +49,6 @@ class XfrmSuite(TestSuite):
     )
     def verify_xfrm_interface(self, node: Node) -> None:
         kernel_config = node.tools[KernelConfig]
-        modprobe = node.tools[Modprobe]
-        lsmod = node.tools[Lsmod]
 
         # Check kernel configuration
         if not kernel_config.is_enabled("CONFIG_XFRM_INTERFACE"):
@@ -58,6 +56,9 @@ class XfrmSuite(TestSuite):
 
         # Check if xfrm_interface is built-in or needs to be loaded as module
         is_builtin = kernel_config.is_built_in("CONFIG_XFRM_INTERFACE")
+
+        modprobe = node.tools[Modprobe]
+        lsmod = node.tools[Lsmod]
 
         if not is_builtin:
             # Load the module if not already loaded
