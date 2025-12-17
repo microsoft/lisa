@@ -87,8 +87,6 @@ class XfrmSuite(TestSuite):
             result = node.execute(cmd, sudo=True)
 
             # Check if interface creation succeeded
-            # This might fail if IPsec is not fully configured
-            # The key test is that the module loads and command is recognized
             if result.exit_code == 0:
                 # Verify interface exists
                 show_cmd = f"ip link show {interface_name}"
@@ -100,18 +98,11 @@ class XfrmSuite(TestSuite):
                     f"output should contain {interface_name}"
                 ).contains(interface_name)
             else:
-                # Check if it's because xfrm type is recognized
-                # but other requirements (like IPsec SA) are missing
-                if "Unknown device type" in result.stderr:
-                    raise AssertionError(
-                        "xfrm interface type not recognized. "
-                        f"stderr: {result.stderr}"
-                    )
-                # Other failures may be due to missing IPsec config
-                node.log.info(
-                    f"xfrm interface creation returned exit code: "
-                    f"{result.exit_code}, stderr: {result.stderr}. "
-                    "This may be expected without full IPsec config."
+                # Interface creation failed - this indicates XFRM support issue
+                raise AssertionError(
+                    f"Failed to create xfrm interface. "
+                    f"Exit code: {result.exit_code}, "
+                    f"stderr: {result.stderr}"
                 )
 
         finally:
