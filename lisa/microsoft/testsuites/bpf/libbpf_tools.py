@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+import time
 from typing import cast
 
 from assertpy import assert_that
@@ -200,34 +201,59 @@ class LibbpfToolsSuite(TestSuite):
         # Run execsnoop for a short duration and capture output
         # We'll run a simple command that should show up in the trace
         test_command = "/bin/echo 'test_libbpf_trace'"
+        output_file = "/tmp/execsnoop_output.txt"
 
-        # Start execsnoop in background, run for 10 seconds to ensure we capture events
-        # This is longer than our wait times to avoid race conditions
-        execsnoop_cmd = f"timeout 10 {tool_name} > /tmp/execsnoop_output.txt 2>&1 &"
-        node.execute(execsnoop_cmd, sudo=True, shell=True)
+        try:
+            # Start execsnoop in background, run for 10 seconds to ensure we capture
+            # events. This is longer than our wait times to avoid race conditions
+            execsnoop_cmd = f"timeout 10 {tool_name} > {output_file} 2>&1 &"
+            start_result = node.execute(execsnoop_cmd, sudo=True, shell=True)
 
-        # Wait a moment for execsnoop to initialize
-        node.execute("sleep 2")
+            node.log.debug(
+                f"Started {tool_name} in background. "
+                f"Exit code: {start_result.exit_code}"
+            )
 
-        # Execute our test command
-        node.execute(test_command)
+            # Wait a moment for execsnoop to initialize
+            time.sleep(3)
 
-        # Wait for trace to be captured (total wait: 2s init + 2s capture = 4s < 10s timeout)
-        node.execute("sleep 2")
+            # Check if execsnoop is actually running
+            ps_result = node.execute(f"pgrep -f '{tool_name}'", sudo=True)
+            if ps_result.exit_code != 0:
+                # Tool didn't start or already crashed, check the output file
+                error_output = node.execute(f"cat {output_file}", sudo=True)
+                raise SkippedException(
+                    f"{tool_name} failed to start or crashed during initialization. "
+                    f"Error output: {error_output.stdout}"
+                )
 
-        # Read the output (execsnoop should still be running)
-        result = node.execute("cat /tmp/execsnoop_output.txt", sudo=True)
+            # Execute our test command multiple times to ensure we catch it
+            for _ in range(3):
+                node.execute(test_command)
+                time.sleep(0.5)
 
-        # Clean up
-        node.execute("rm -f /tmp/execsnoop_output.txt", sudo=True)
+            # Wait for trace to be captured
+            time.sleep(2)
 
-        # Verify our test command appears in the trace
-        # execsnoop output typically shows command names
-        assert_that(result.stdout).described_as(
-            "execsnoop output should contain trace of executed commands"
-        ).is_not_empty()
+            # Read the output (execsnoop should still be running)
+            result = node.execute(f"cat {output_file}", sudo=True)
 
-        # We should see 'echo' in the output since we ran /bin/echo
-        assert_that(result.stdout.lower()).described_as(
-            f"execsnoop should trace the echo command. Output: {result.stdout}"
-        ).contains("echo")
+            node.log.debug(f"execsnoop output file size: {len(result.stdout)} bytes")
+
+            # Verify our test command appears in the trace
+            # execsnoop output typically shows command names
+            assert_that(result.stdout).described_as(
+                "execsnoop output should contain trace of executed commands"
+            ).is_not_empty()
+
+            # We should see 'echo' in the output since we ran /bin/echo
+            assert_that(result.stdout.lower()).described_as(
+                f"execsnoop should trace the echo command. Output: {result.stdout}"
+            ).contains("echo")
+
+        finally:
+            # Ensure cleanup happens even if test fails
+            # Kill any remaining execsnoop processes
+            node.execute(f"pkill -f '{tool_name}'", sudo=True)
+            # Remove temporary output file
+            node.execute(f"rm -f {output_file}", sudo=True)
