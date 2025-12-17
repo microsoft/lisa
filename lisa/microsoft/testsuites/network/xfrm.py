@@ -60,9 +60,15 @@ class XfrmSuite(TestSuite):
         modprobe = node.tools[Modprobe]
         lsmod = node.tools[Lsmod]
 
+        # Capture original module state (only relevant if not built-in)
+        original_state_loaded = None
         if not is_builtin:
+            original_state_loaded = lsmod.module_exists(
+                "xfrm_interface", force_run=True
+            )
+
             # Load the module if not already loaded
-            if not lsmod.module_exists("xfrm_interface", force_run=True):
+            if not original_state_loaded:
                 modprobe.load("xfrm_interface")
 
             # Verify module is loaded
@@ -110,6 +116,15 @@ class XfrmSuite(TestSuite):
             # Clean up - delete the test interface if it was created
             node.execute(f"ip link del {interface_name}", sudo=True)
 
+            # Restore original module state if we modified it
+            if not is_builtin and original_state_loaded is not None:
+                current_state_loaded = lsmod.module_exists(
+                    "xfrm_interface", force_run=True
+                )
+                if not original_state_loaded and current_state_loaded:
+                    # Was not loaded originally, need to unload
+                    modprobe.remove(["xfrm_interface"])
+
     @TestCaseMetadata(
         description="""
         This test case verifies that the xfrm_interface kernel module
@@ -128,8 +143,6 @@ class XfrmSuite(TestSuite):
     )
     def verify_xfrm_interface_load_unload(self, node: Node) -> None:
         kernel_config = node.tools[KernelConfig]
-        modprobe = node.tools[Modprobe]
-        lsmod = node.tools[Lsmod]
 
         # Check kernel configuration
         if not kernel_config.is_enabled("CONFIG_XFRM_INTERFACE"):
@@ -138,36 +151,50 @@ class XfrmSuite(TestSuite):
         # Skip if built-in (can't unload built-in modules)
         if kernel_config.is_built_in("CONFIG_XFRM_INTERFACE"):
             raise SkippedException(
-                "CONFIG_XFRM_INTERFACE is built-in, " "cannot test module load/unload"
+                "CONFIG_XFRM_INTERFACE is built-in, cannot test module load/unload"
             )
 
-        # Ensure module is unloaded first
-        if lsmod.module_exists("xfrm_interface", force_run=True):
+        modprobe = node.tools[Modprobe]
+        lsmod = node.tools[Lsmod]
+
+        # Capture original state
+        original_state_loaded = lsmod.module_exists("xfrm_interface", force_run=True)
+
+        try:
+            # Ensure module is unloaded first
+            if lsmod.module_exists("xfrm_interface", force_run=True):
+                modprobe.remove(["xfrm_interface"])
+
+            # Verify module is unloaded
+            module_exists = lsmod.module_exists("xfrm_interface", force_run=True)
+            assert_that(module_exists).described_as(
+                "xfrm_interface module should be unloaded before test"
+            ).is_false()
+
+            # Load the module
+            modprobe.load("xfrm_interface")
+
+            # Verify module is loaded
+            module_exists = lsmod.module_exists("xfrm_interface", force_run=True)
+            assert_that(module_exists).described_as(
+                "xfrm_interface module should be loaded after modprobe"
+            ).is_true()
+
+            # Unload the module
             modprobe.remove(["xfrm_interface"])
 
-        # Verify module is unloaded
-        module_exists = lsmod.module_exists("xfrm_interface", force_run=True)
-        assert_that(module_exists).described_as(
-            "xfrm_interface module should be unloaded before test"
-        ).is_false()
+            # Verify module is unloaded
+            module_exists = lsmod.module_exists("xfrm_interface", force_run=True)
+            assert_that(module_exists).described_as(
+                "xfrm_interface module should be unloaded after removal"
+            ).is_false()
 
-        # Load the module
-        modprobe.load("xfrm_interface")
-
-        # Verify module is loaded
-        module_exists = lsmod.module_exists("xfrm_interface", force_run=True)
-        assert_that(module_exists).described_as(
-            "xfrm_interface module should be loaded after modprobe"
-        ).is_true()
-
-        # Unload the module
-        modprobe.remove(["xfrm_interface"])
-
-        # Verify module is unloaded
-        module_exists = lsmod.module_exists("xfrm_interface", force_run=True)
-        assert_that(module_exists).described_as(
-            "xfrm_interface module should be unloaded after removal"
-        ).is_false()
-
-        # Reload the module to leave system in working state
-        modprobe.load("xfrm_interface")
+        finally:
+            # Restore original state
+            current_state_loaded = lsmod.module_exists("xfrm_interface", force_run=True)
+            if original_state_loaded and not current_state_loaded:
+                # Was loaded originally, need to reload
+                modprobe.load("xfrm_interface")
+            elif not original_state_loaded and current_state_loaded:
+                # Was not loaded originally, need to unload
+                modprobe.remove(["xfrm_interface"])
