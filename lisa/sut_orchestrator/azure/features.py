@@ -187,9 +187,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -2765,9 +2765,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile[
-                "disk_encryption_set_id"
-            ] = settings.disk_encryption_set_id
+            node_parameters.security_profile["disk_encryption_set_id"] = (
+                settings.disk_encryption_set_id
+            )
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
@@ -3199,8 +3199,8 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             subnet_id = subnet_ids[0]
             break
 
-        # create private endpoints
-        ipv4_address = create_update_private_endpoints(
+        # create private endpoints - returns (ip, was_created)
+        ipv4_address, _ = create_update_private_endpoints(
             platform,
             resource_group_name,
             location,
@@ -3706,15 +3706,27 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         storage_accounts = storage_client.storage_accounts.list_by_resource_group(
             self._resource_group_name
         )
+        # Track whether we're reusing an existing storage account
+        self._storage_account_reused = False
         for account in storage_accounts:
             if account.name.startswith("lisasc"):
                 self._storage_account_name = account.name
+                self._storage_account_reused = True
+                self._log.debug(
+                    f"Reusing existing storage account: {self._storage_account_name}"
+                )
                 break
         else:
             random_str = generate_random_chars(
                 string.ascii_lowercase + string.digits, 10
             )
             self._storage_account_name = f"lisasc{random_str}"
+            self._log.debug(
+                f"Will create new storage account: {self._storage_account_name}"
+            )
+
+        # Track private endpoint creation state
+        self._private_endpoint_created_by_lisa = False
 
         self._fstab_info = (
             f"nofail,vers={self.get_smb_version()},"
@@ -3791,15 +3803,17 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 subnet_id = subnet_ids[0]
                 break
 
-            # Create Private endpoint
-            ipv4_address = create_update_private_endpoints(
-                platform,
-                resource_group_name,
-                location,
-                subnet_id,
-                storage_account_resource_id,
-                ["file"],
-                self._log,
+            # Create Private endpoint - returns (ip, was_created)
+            ipv4_address, self._private_endpoint_created_by_lisa = (
+                create_update_private_endpoints(
+                    platform,
+                    resource_group_name,
+                    location,
+                    subnet_id,
+                    storage_account_resource_id,
+                    ["file"],
+                    self._log,
+                )
             )
             # Create private zone
             private_dns_zone_id = create_update_private_zones(
@@ -3847,9 +3861,24 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         )
 
     def delete_azure_fileshare(self, file_share_names: List[str]) -> None:
+        """
+        Delete Azure file shares and optionally the storage account.
+
+        Cleanup behavior:
+        - Always deletes the specified file shares (created by LISA for this test)
+        - Only deletes private endpoint resources if LISA created them
+        - Storage account deletion rules:
+          a) If LISA created it: Always delete (lifecycle tied to test case)
+          b) If reused/pre-existing: Never delete (user-managed resource)
+
+        Note: Pre-existing storage accounts are never deleted because they could
+        be set up by end users for monitoring, audit, or debugging purposes.
+        """
         resource_group_name = self._resource_group_name
         storage_account_name = self._storage_account_name
         platform: AzurePlatform = self._platform  # type: ignore
+
+        # Delete the specified file shares
         for share_name in file_share_names:
             delete_file_share(
                 credential=platform.credential,
@@ -3860,14 +3889,49 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 resource_group_name=resource_group_name,
                 log=self._log,
             )
-        delete_storage_account(
-            credential=platform.credential,
-            subscription_id=platform.subscription_id,
-            cloud=platform.cloud,
-            account_name=storage_account_name,
-            resource_group_name=resource_group_name,
-            log=self._log,
-        )
+
+        # Determine if we should delete the storage account
+        # Only delete if LISA created it - pre-existing accounts are user-managed
+        should_delete_storage_account = False
+        if not self._storage_account_reused:
+            # LISA created this storage account, delete it (lifecycle tied to test)
+            should_delete_storage_account = True
+            self._log.debug(
+                f"Storage account {storage_account_name} was created by LISA, "
+                "will delete."
+            )
+        else:
+            # Storage account was reused/pre-existing - never delete
+            # These could be user-managed for monitoring, audit, or debugging
+            self._log.debug(
+                f"Storage account {storage_account_name} was pre-existing/reused. "
+                "Skipping deletion (user-managed resource)."
+            )
+
+        # Clean up private endpoint resources only if LISA created them
+        if self._private_endpoint_created_by_lisa:
+            self._log.debug("Cleaning up private endpoint resources created by LISA")
+            delete_private_dns_zone_groups(platform, resource_group_name, self._log)
+            delete_virtual_network_links(platform, resource_group_name, self._log)
+            delete_record_sets(platform, resource_group_name, self._log)
+            delete_private_zones(platform, resource_group_name, self._log)
+            delete_private_endpoints(platform, resource_group_name, self._log)
+        else:
+            self._log.debug(
+                "Private endpoint was not created by LISA, skipping cleanup"
+            )
+
+        # Delete storage account if appropriate
+        if should_delete_storage_account:
+            delete_storage_account(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                cloud=platform.cloud,
+                account_name=storage_account_name,
+                resource_group_name=resource_group_name,
+                log=self._log,
+            )
+
         # revert file into original status after testing.
         self._node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
 

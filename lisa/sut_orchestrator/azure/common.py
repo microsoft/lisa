@@ -1280,7 +1280,12 @@ def create_update_private_endpoints(
     private_link_service_id: str,
     group_ids: List[str],
     log: Logger,
-) -> Any:
+) -> Tuple[Any, bool]:
+    """
+    Create or update private endpoints.
+    Returns a tuple of (ip_address, was_created) where was_created is True if
+    the endpoint was created by this call, False if it already existed.
+    """
     network = get_network_client(platform)
     private_endpoint_name = "pe_test"
     status = "Approved"
@@ -1298,7 +1303,7 @@ def create_update_private_endpoints(
             network, resource_group_name, existing_pe, log
         )
         if ip_address:
-            return ip_address
+            return (ip_address, False)  # Endpoint existed, not created by us
         log.debug("Could not get IP from existing endpoint, will recreate...")
     except Exception:
         log.debug(f"private endpoint {private_endpoint_name} not found, creating...")
@@ -1329,7 +1334,7 @@ def create_update_private_endpoints(
     # Try to get IP from the creation result
     ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
     if ip_address:
-        return ip_address
+        return (ip_address, True)  # Endpoint was created by us
 
     # DNS configs may not be immediately available, fetch endpoint again
     log.debug("IP not in result, fetching endpoint again...")
@@ -1340,7 +1345,7 @@ def create_update_private_endpoints(
 
     ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
     if ip_address:
-        return ip_address
+        return (ip_address, True)  # Endpoint was created by us
 
     raise LisaException(
         f"Failed to get IP address from private endpoint {private_endpoint_name}"
@@ -2122,6 +2127,33 @@ def get_share_service_client(
 
 # Update: Added quota to allow creation of variable sized file share volumes.
 # Default is 100 GiB. All units are in GiB.
+def list_file_shares(
+    credential: Any,
+    subscription_id: str,
+    cloud: Cloud,
+    account_name: str,
+    resource_group_name: str,
+    log: Logger,
+) -> List[str]:
+    """
+    List all file shares in an Azure Storage account.
+    Returns a list of file share names.
+    """
+    try:
+        share_service_client = get_share_service_client(
+            credential,
+            subscription_id,
+            cloud,
+            account_name,
+            resource_group_name,
+        )
+        all_shares = list(share_service_client.list_shares())
+        return [share.name for share in all_shares]
+    except Exception as e:
+        log.debug(f"Failed to list file shares in {account_name}: {e}")
+        return []
+
+
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,

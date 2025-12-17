@@ -45,6 +45,7 @@ from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
     SkippedException,
+    constants,
     generate_random_chars,
     get_matched_str,
 )
@@ -621,6 +622,25 @@ class Storage(TestSuite):
         azure_file_share = node.features[AzureFileShare]
         self._install_cifs_dependencies(node)
 
+        # Clean up any leftover state from previous runs (important for deploy:false)
+        # This handles cases where the VM is reused but has stale mounts/folders
+        mount = node.tools[Mount]
+        # Try to unmount if already mounted
+        try:
+            mount.umount(point=test_folder, disk_name="", erase=False)
+        except Exception:
+            pass  # Ignore if not mounted
+        # Remove test folder if it exists
+        node.execute(f"rm -rf {test_folder}", sudo=True)
+        # Restore original fstab if backup exists (from previous failed run)
+        node.execute(
+            "test -f /etc/fstab_cifs && cp -f /etc/fstab_cifs /etc/fstab || true",
+            sudo=True,
+            shell=True,
+        )
+
+        # Track test failure for keep_environment handling
+        test_failed = False
         try:
             fs_url_dict = azure_file_share.create_file_share(
                 file_share_names=[fileshare_name],
@@ -636,7 +656,6 @@ class Storage(TestSuite):
             self._reload_fstab_config(node)
 
             # Verify that the file share is mounted
-            mount = node.tools[Mount]
             mount_point_exists = mount.check_mount_point_exist(test_folder)
             if not mount_point_exists:
                 raise LisaException(f"Mount point {test_folder} does not exist.")
@@ -661,8 +680,25 @@ class Storage(TestSuite):
             )
             assert file_content_after_mount == initial_file_content
 
+        except Exception:
+            test_failed = True
+            raise
         finally:
-            azure_file_share.delete_azure_fileshare([fileshare_name])
+            # Respect keep_environment setting for cleanup
+            # - "always": Never cleanup (user wants to inspect)
+            # - "failed": Cleanup only if test passed
+            # - "no" (default): Always cleanup
+            keep_environment = environment.platform.runbook.keep_environment
+            should_cleanup = True
+
+            if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
+                should_cleanup = False
+            elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
+                # Only cleanup if test passed (not failed)
+                should_cleanup = not test_failed
+
+            if should_cleanup:
+                azure_file_share.delete_azure_fileshare([fileshare_name])
 
     def _install_cifs_dependencies(self, node: Node) -> None:
         posix_os: Posix = cast(Posix, node.os)
