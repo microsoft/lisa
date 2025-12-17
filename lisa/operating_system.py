@@ -1699,10 +1699,10 @@ class RPMDistro(Linux):
                 if "installed packages" in row_lower:
                     in_installed_section = True
                     continue
-                elif "available packages" in row_lower:
+                if "available packages" in row_lower:
                     in_installed_section = False
                     continue
-                
+
                 # Only check for package in the installed section
                 if in_installed_section and package in row:
                     return True
