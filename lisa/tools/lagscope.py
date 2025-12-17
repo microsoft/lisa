@@ -417,7 +417,7 @@ class Lagscope(Tool, KillableMixin):
         else:
             # Fallback to a safe minimum version if detection fails
             cmake_version = "3.5"
-            self._log.warning(
+            self._log.debug(
                 f"Could not detect CMake version, using fallback: {cmake_version}"
             )
 
