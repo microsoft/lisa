@@ -83,11 +83,11 @@ class LibbpfToolsSuite(TestSuite):
             # Package is available, install it
             posix_os.install_packages("libbpf-tools")
 
-        # Verify package is now installed
-        package_installed = posix_os.package_exists("libbpf-tools")
-        assert_that(package_installed).described_as(
-            "libbpf-tools package should be installed"
-        ).is_true()
+            # Verify package is now installed
+            package_installed = posix_os.package_exists("libbpf-tools")
+            assert_that(package_installed).described_as(
+                "libbpf-tools package should be installed"
+            ).is_true()
 
     @TestCaseMetadata(
         description="""
