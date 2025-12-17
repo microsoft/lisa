@@ -1535,8 +1535,16 @@ class AzurePlatform(Platform):
         )
         arm_parameters.hyperv_generation = hyperv_generation.gen
 
-        # Set disk type
+        # Set disk properties from merged capability
         assert capability.disk, "node space must have disk defined."
+
+        if capability.disk.os_disk_size and isinstance(
+            capability.disk.os_disk_size, int
+        ):
+            arm_parameters.osdisk_size_in_gb = max(
+                arm_parameters.osdisk_size_in_gb, capability.disk.os_disk_size
+            )
+
         assert isinstance(capability.disk.os_disk_type, schema.DiskType)
         arm_parameters.os_disk_type = features.get_azure_disk_type(
             capability.disk.os_disk_type
@@ -1976,13 +1984,17 @@ class AzurePlatform(Platform):
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
             nvme_disk_bytes = azure_raw_capabilities.get("NvmeDiskSizeInMiB", 0)
             if nvme_disk_bytes:
-                node_space.disk.os_disk_size = int(int(nvme_disk_bytes) / 1024)
+                node_space.disk.os_disk_size = search_space.IntRange(
+                    max=int(int(nvme_disk_bytes) / 1024)
+                )
             elif cached_disk_bytes:
-                node_space.disk.os_disk_size = int(
-                    int(cached_disk_bytes) / 1024 / 1024 / 1024
+                node_space.disk.os_disk_size = search_space.IntRange(
+                    max=int(int(cached_disk_bytes) / 1024 / 1024 / 1024)
                 )
             else:
-                node_space.disk.os_disk_size = int(int(resource_disk_bytes) / 1024)
+                node_space.disk.os_disk_size = search_space.IntRange(
+                    max=int(int(resource_disk_bytes) / 1024)
+                )
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
