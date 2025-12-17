@@ -688,14 +688,15 @@ class Storage(TestSuite):
             # - "always": Never cleanup (user wants to inspect)
             # - "failed": Cleanup only if test passed
             # - "no" (default): Always cleanup
-            keep_environment = environment.platform.runbook.keep_environment
             should_cleanup = True
 
-            if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
-                should_cleanup = False
-            elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
-                # Only cleanup if test passed (not failed)
-                should_cleanup = not test_failed
+            if environment.platform:
+                keep_environment = environment.platform.runbook.keep_environment
+                if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
+                    should_cleanup = False
+                elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
+                    # Only cleanup if test passed (not failed)
+                    should_cleanup = not test_failed
 
             if should_cleanup:
                 azure_file_share.delete_azure_fileshare([fileshare_name])
