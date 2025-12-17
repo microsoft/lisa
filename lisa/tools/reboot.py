@@ -48,6 +48,16 @@ class Reboot(Tool):
     def _check_exists(self) -> bool:
         return True
 
+    # who -b doesn't return correct content in Ubuntu 14.04 and 25.10,
+    # but uptime works.
+    # uptime has no -s parameter in some distros, so not use is as default.
+    def _get_last_boot_time(self) -> datetime:
+        try:
+            last_boot_time = cast(datetime, _who_last(self.node.tools[Who]))
+        except Exception:
+            last_boot_time = self.node.tools[Uptime].since_time()
+        return last_boot_time
+
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
             self.reboot()
@@ -65,16 +75,9 @@ class Reboot(Tool):
             raise e
 
     def reboot(self, time_out: int = 300) -> None:
-        who = self.node.tools[Who]
         timer = create_timer()
 
-        # who -b doesn't return correct content in Ubuntu 14.04, but uptime works.
-        # uptime has no -s parameter in some distros, so not use is as default.
-        try:
-            last_boot_time = who.last_boot()
-        except Exception:
-            uptime = self.node.tools[Uptime]
-            last_boot_time = uptime.since_time()
+        last_boot_time = self._get_last_boot_time()
         current_boot_time = last_boot_time
 
         # who -b returns time without seconds.
@@ -118,7 +121,7 @@ class Reboot(Tool):
             tried_times += 1
             try:
                 self.node.close()
-                current_boot_time = _who_last(who)
+                current_boot_time = self._get_last_boot_time()
                 connected = True
             except FunctionTimedOut as e:
                 # The FunctionTimedOut must be caught separated, or the process
