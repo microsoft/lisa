@@ -32,6 +32,28 @@ from lisa.sut_orchestrator import AZURE, HYPERV, READY
     ),
 )
 class LibbpfToolsSuite(TestSuite):
+    def _find_tool(self, node: Node, base_tool_name: str) -> tuple[bool, str | None]:
+        """
+        Find a libbpf tool by checking for both prefixed and unprefixed variants.
+
+        Different distributions use different naming conventions:
+        - Fedora/RHEL: bpf-{toolname} (e.g., bpf-execsnoop)
+        - Ubuntu/Debian: {toolname} (e.g., execsnoop)
+
+        Args:
+            node: The node to search on
+            base_tool_name: Base name of the tool (without prefix)
+
+        Returns:
+            Tuple of (found: bool, tool_name: str | None)
+        """
+        for prefix in ["bpf-", ""]:
+            candidate = f"{prefix}{base_tool_name}"
+            which_result = node.execute(f"which {candidate}", sudo=True)
+            if which_result.exit_code == 0:
+                return (True, candidate)
+        return (False, None)
+
     @TestCaseMetadata(
         description="""
         This test case verifies that the libbpf-tools package is available
@@ -102,19 +124,7 @@ class LibbpfToolsSuite(TestSuite):
 
         for base_tool_name in tools_to_test:
             # Try both with and without bpf- prefix
-            tool_found = False
-            tool_name = None
-            tool_path = None
-
-            for prefix in ["bpf-", ""]:
-                candidate = f"{prefix}{base_tool_name}"
-                which_result = node.execute(f"which {candidate}", sudo=True)
-
-                if which_result.exit_code == 0:
-                    tool_name = candidate
-                    tool_path = which_result.stdout.strip()
-                    tool_found = True
-                    break
+            tool_found, tool_name = self._find_tool(node, base_tool_name)
 
             if not tool_found:
                 node.log.debug(
@@ -125,7 +135,7 @@ class LibbpfToolsSuite(TestSuite):
                 continue
 
             # Try running with help flag
-            cmd = f"{tool_path} -h"
+            cmd = f"{tool_name} -h"
             result = node.execute(cmd, sudo=True)
 
             # Most BPF tools return 0 for --help or -h
@@ -182,9 +192,9 @@ class LibbpfToolsSuite(TestSuite):
         # Ensure package is installed by calling the availability test
         self.verify_libbpf_tools_package_available(node)
 
-        # Check if execsnoop exists
-        which_result = node.execute("which execsnoop", sudo=True)
-        if which_result.exit_code != 0:
+        # Check if execsnoop exists (try both bpf-execsnoop and execsnoop)
+        tool_found, tool_name = self._find_tool(node, "execsnoop")
+        if not tool_found:
             raise SkippedException("execsnoop tool not found")
 
         # Run execsnoop for a short duration and capture output
@@ -192,7 +202,7 @@ class LibbpfToolsSuite(TestSuite):
         test_command = "/bin/echo 'test_libbpf_trace'"
 
         # Start execsnoop in background, run for 5 seconds
-        execsnoop_cmd = "timeout 5 execsnoop > /tmp/execsnoop_output.txt 2>&1 &"
+        execsnoop_cmd = f"timeout 5 {tool_name} > /tmp/execsnoop_output.txt 2>&1 &"
         node.execute(execsnoop_cmd, sudo=True, shell=True)
 
         # Wait a moment for execsnoop to initialize
