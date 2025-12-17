@@ -227,8 +227,7 @@ class OperatingSystem:
     def name(self) -> str:
         return self.__class__.__name__
 
-    def capture_system_information(self, saved_path: Path) -> None:
-        ...
+    def capture_system_information(self, saved_path: Path) -> None: ...
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -738,8 +737,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         return package_name
 
 
-class BSD(Posix):
-    ...
+class BSD(Posix): ...
 
 
 class BMC(Posix):
@@ -760,8 +758,7 @@ class MacOS(Posix):
         return re.compile("^Darwin$")
 
 
-class Linux(Posix):
-    ...
+class Linux(Posix): ...
 
 
 class CoreOs(Linux):
@@ -1553,8 +1550,7 @@ class FreeBSD(BSD):
         )
 
 
-class OpenBSD(BSD):
-    ...
+class OpenBSD(BSD): ...
 
 
 @dataclass
@@ -1699,10 +1695,10 @@ class RPMDistro(Linux):
                 if "installed packages" in row_lower:
                     in_installed_section = True
                     continue
-                elif "available packages" in row_lower:
+                if "available packages" in row_lower:
                     in_installed_section = False
                     continue
-                
+
                 # Only check for package in the installed section
                 if in_installed_section and package in row:
                     return True
