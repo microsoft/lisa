@@ -147,7 +147,7 @@ class LibbpfToolsSuite(TestSuite):
                 node.log.info(f"✓ {tool_name} executed successfully")
             else:
                 failed_tools.append(tool_name)
-                node.log.warning(
+                node.log.debug(
                     f"✗ {tool_name} failed to execute. "
                     f"Exit code: {result.exit_code}, "
                     f"stdout: {result.stdout}, stderr: {result.stderr}"
