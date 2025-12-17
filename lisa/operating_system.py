@@ -1688,8 +1688,23 @@ class RPMDistro(Linux):
         command = f"{self._dnf_tool()} list installed {package}"
         result = self._node.execute(command, sudo=True)
         if result.exit_code == 0:
+            # 'dnf5 (which is also triggered by the 'dnf' command) list installed' shows
+            # an "Available packages" section for packages that exist in repos but
+            # aren't installed. We need to ensure we're only checking the installed
+            # section.
+            in_installed_section = False
             for row in result.stdout.splitlines():
-                if package in row:
+                row_lower = row.lower().strip()
+                # Detect section headers
+                if "installed packages" in row_lower:
+                    in_installed_section = True
+                    continue
+                elif "available packages" in row_lower:
+                    in_installed_section = False
+                    continue
+                
+                # Only check for package in the installed section
+                if in_installed_section and package in row:
                     return True
 
         return False
