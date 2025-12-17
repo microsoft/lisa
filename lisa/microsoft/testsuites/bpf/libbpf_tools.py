@@ -44,28 +44,14 @@ class LibbpfToolsSuite(TestSuite):
         priority=2,
     )
     def verify_libbpf_tools_package_available(self, node: Node) -> None:
-        # Check if package exists in repositories
+        # Check if package is already installed
         package_exists = node.os.package_exists("libbpf-tools")
         
         if not package_exists:
-            # Try checking if it's available in repos but not installed
-            from lisa.operating_system import Fedora, Debian
-            
-            if isinstance(node.os, Fedora):
-                result = node.execute("dnf list available libbpf-tools", sudo=True)
-                if result.exit_code != 0:
-                    raise SkippedException(
-                        "libbpf-tools package not found in repositories"
-                    )
-            elif isinstance(node.os, Debian):
-                result = node.execute("apt-cache show libbpf-tools", sudo=True)
-                if result.exit_code != 0:
-                    raise SkippedException(
-                        "libbpf-tools package not found in repositories"
-                    )
-            else:
+            # Check if package is available in repositories
+            if not node.os.is_package_in_repo("libbpf-tools"):
                 raise SkippedException(
-                    f"libbpf-tools availability check not implemented for {node.os}"
+                    "libbpf-tools package not found in repositories"
                 )
             
             # Package is available, install it
