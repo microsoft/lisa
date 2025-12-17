@@ -340,10 +340,16 @@ def perf_ntttcp(  # noqa: C901
             else:
                 connections = NTTTCP_TCP_CONCURRENCY
 
-    client_ntttcp, server_ntttcp = run_in_parallel(
-        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
-    )
+    # Initialize variables before try block
+    client_lagscope = None
+    server_lagscope = None
+    client_ntttcp = None
+    server_ntttcp = None
+
     try:
+        client_ntttcp, server_ntttcp = run_in_parallel(
+            [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
+        )
         client_lagscope, server_lagscope = run_in_parallel(
             [
                 lambda: client.tools[Lagscope],  # type: ignore
@@ -609,6 +615,9 @@ def perf_ntttcp(  # noqa: C901
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+    except Exception as ex:
+        client.log.info(f"Exception during ntttcp performance test: {ex}")
+        raise
     finally:
         error_msg = ""
         throw_error = False
@@ -619,11 +628,13 @@ def perf_ntttcp(  # noqa: C901
         if throw_error:
             error_msg += "probably due to VM stuck on reboot stage."
             raise LisaException(error_msg)
-        for ntttcp in [client_ntttcp, server_ntttcp]:
-            ntttcp.restore_system(udp_mode)
-        for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.kill()
-            lagscope.restore_busy_poll()
+        if client_ntttcp and server_ntttcp:
+            for ntttcp in [client_ntttcp, server_ntttcp]:
+                ntttcp.restore_system(udp_mode)
+        if client_lagscope and server_lagscope:
+            for lagscope in [client_lagscope, server_lagscope]:
+                lagscope.kill()
+                lagscope.restore_busy_poll()
     return perf_ntttcp_message_list
 
 
@@ -778,6 +789,6 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info.reload()
 
     assert_that(len(node_nic_info.get_lower_nics())).described_as(
-        f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+        f"VF count inside VM is {len(node_nic_info.get_lower_nics())}, "
         f"actual sriov nic count is {sriov_count}"
     ).is_equal_to(sriov_count)

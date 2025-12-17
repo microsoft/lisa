@@ -1904,7 +1904,7 @@ class Redhat(Fedora):
         return False
 
     def _is_package_in_repo(self, package: str) -> bool:
-        command = f"yum --showduplicates list {package}"
+        command = f"yum --showduplicates -y list {package}"
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
 
