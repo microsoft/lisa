@@ -201,20 +201,21 @@ class LibbpfToolsSuite(TestSuite):
         # We'll run a simple command that should show up in the trace
         test_command = "/bin/echo 'test_libbpf_trace'"
 
-        # Start execsnoop in background, run for 5 seconds
-        execsnoop_cmd = f"timeout 5 {tool_name} > /tmp/execsnoop_output.txt 2>&1 &"
+        # Start execsnoop in background, run for 10 seconds to ensure we capture events
+        # This is longer than our wait times to avoid race conditions
+        execsnoop_cmd = f"timeout 10 {tool_name} > /tmp/execsnoop_output.txt 2>&1 &"
         node.execute(execsnoop_cmd, sudo=True, shell=True)
 
         # Wait a moment for execsnoop to initialize
-        node.execute("sleep 1")
+        node.execute("sleep 2")
 
         # Execute our test command
         node.execute(test_command)
 
-        # Wait for execsnoop to finish
-        node.execute("sleep 5")
+        # Wait for trace to be captured (total wait: 2s init + 2s capture = 4s < 10s timeout)
+        node.execute("sleep 2")
 
-        # Read the output
+        # Read the output (execsnoop should still be running)
         result = node.execute("cat /tmp/execsnoop_output.txt", sudo=True)
 
         # Clean up
