@@ -103,13 +103,37 @@ class Waagent(Tool):
         for package in list(["python-setuptools", "python3-setuptools"]):
             if self.node.os.is_package_in_repo(package):  # type: ignore
                 self.node.os.install_packages(package)  # type: ignore
-        self.node.execute(
-            f"{python_cmd} setup.py install --force",
+
+        # Downgrading setuptools is required because:
+        # 1. Old WALinuxAgent versions have compatibility issues with pip's build
+        #    isolation (missing 'distro' module, deprecated platform APIs)
+        # 2. The legacy 'setup.py install' works but requires compatible setuptools
+        downgrade_result = self.node.execute(
+            f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall",
             sudo=True,
-            cwd=self.node.working_path.joinpath("WALinuxAgent"),
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to install waagent",
         )
+
+        if downgrade_result.exit_code != 0:
+            self._log.debug(
+                "Failed to downgrade setuptools, trying pip install instead"
+            )
+            # Fallback: try pip install with --no-build-isolation to avoid
+            # downloading latest setuptools in isolated environment
+            self.node.execute(
+                f"{python_cmd} -m pip install --no-build-isolation .",
+                sudo=True,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to install waagent",
+            )
+        else:
+            self.node.execute(
+                f"{python_cmd} setup.py install --force",
+                sudo=True,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to install waagent",
+            )
 
     def restart(self) -> None:
         service = self.node.tools[Service]
@@ -220,7 +244,7 @@ class Waagent(Tool):
 
         # Try to use waagent code to detect
         result = self.node.execute(
-            f'{python_cmd} -c "from azurelinuxagent.common.osutil import get_osutil;'
+            f'{python_cmd} -c "from azurelinuxagent.common.osutil import get_osutil; '
             'print(get_osutil().agent_conf_file_path)"',
             sudo=use_sudo,
         )
@@ -250,7 +274,7 @@ class Waagent(Tool):
 
         # Try to use waagent code to detect
         result = self.node.execute(
-            f'{python_cmd} -c "from azurelinuxagent.common.version import get_distro;'
+            f'{python_cmd} -c "from azurelinuxagent.common.version import get_distro; '
             "print('-'.join(get_distro()[0:3]))\"",
             sudo=use_sudo,
         )
@@ -259,7 +283,7 @@ class Waagent(Tool):
         else:
             # try to compat with old waagent versions
             result = self.node.execute(
-                f'{python_cmd} -c "import platform;'
+                f'{python_cmd} -c "import platform; '
                 "print('-'.join(platform.linux_distribution(0)))\"",
                 sudo=use_sudo,
             )

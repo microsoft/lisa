@@ -16,8 +16,10 @@ from lisa import (
     SkippedException,
     notifier,
     run_in_parallel,
+    schema,
 )
 from lisa.features import Nvme
+from lisa.features.disks import Disk
 from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
@@ -340,10 +342,16 @@ def perf_ntttcp(  # noqa: C901
             else:
                 connections = NTTTCP_TCP_CONCURRENCY
 
-    client_ntttcp, server_ntttcp = run_in_parallel(
-        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
-    )
+    # Initialize variables before try block
+    client_lagscope = None
+    server_lagscope = None
+    client_ntttcp = None
+    server_ntttcp = None
+
     try:
+        client_ntttcp, server_ntttcp = run_in_parallel(
+            [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
+        )
         client_lagscope, server_lagscope = run_in_parallel(
             [
                 lambda: client.tools[Lagscope],  # type: ignore
@@ -609,6 +617,9 @@ def perf_ntttcp(  # noqa: C901
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+    except Exception as ex:
+        client.log.info(f"Exception during ntttcp performance test: {ex}")
+        raise
     finally:
         error_msg = ""
         throw_error = False
@@ -619,11 +630,13 @@ def perf_ntttcp(  # noqa: C901
         if throw_error:
             error_msg += "probably due to VM stuck on reboot stage."
             raise LisaException(error_msg)
-        for ntttcp in [client_ntttcp, server_ntttcp]:
-            ntttcp.restore_system(udp_mode)
-        for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.kill()
-            lagscope.restore_busy_poll()
+        if client_ntttcp and server_ntttcp:
+            for ntttcp in [client_ntttcp, server_ntttcp]:
+                ntttcp.restore_system(udp_mode)
+        if client_lagscope and server_lagscope:
+            for lagscope in [client_lagscope, server_lagscope]:
+                lagscope.kill()
+                lagscope.restore_busy_poll()
     return perf_ntttcp_message_list
 
 
@@ -762,6 +775,103 @@ def perf_sockperf(
             sysctl.reset()
 
 
+def perf_premium_datadisks(
+    node: Node,
+    test_result: TestResult,
+    disk_setup_type: DiskSetupType = DiskSetupType.raw,
+    disk_type: DiskType = DiskType.premiumssd,
+    block_size: int = 4,
+    start_iodepth: int = 1,
+    max_iodepth: int = 256,
+) -> None:
+    disk = node.features[Disk]
+    data_disks = disk.get_raw_data_disks()
+    disk_count = len(data_disks)
+    assert_that(disk_count).described_as(
+        "At least 1 data disk for fio testing."
+    ).is_greater_than(0)
+    partition_disks = reset_partitions(node, data_disks)
+    filename = ":".join(partition_disks)
+    cpu = node.tools[Lscpu]
+    thread_count = cpu.get_thread_count()
+    perf_disk(
+        node,
+        start_iodepth,
+        max_iodepth,
+        filename,
+        test_name=inspect.stack()[1][3],
+        core_count=thread_count,
+        disk_count=disk_count,
+        disk_setup_type=disk_setup_type,
+        disk_type=disk_type,
+        numjob=thread_count,
+        block_size=block_size,
+        size_mb=8192,
+        overwrite=True,
+        test_result=test_result,
+    )
+
+
+def perf_resource_disks(
+    node: Node,
+    test_result: TestResult,
+    disk_setup_type: DiskSetupType = DiskSetupType.raw,
+    block_size: int = 4,
+    start_iodepth: int = 1,
+    max_iodepth: int = 256,
+) -> None:
+    disk = node.features[Disk]
+    resource_disks = disk.get_resource_disks()
+    disk_count = len(resource_disks)
+    if disk_count == 0:
+        raise SkippedException(
+            "No resource disk found, skipping resource disk performance test."
+        )
+    resource_disk_type = disk.get_resource_disk_type()
+    if schema.ResourceDiskType.NVME == resource_disk_type:
+        perf_nvme(
+            node,
+            test_result,
+            disk_type=DiskType.localnvme,
+        )
+        return
+    elif schema.ResourceDiskType.SCSI == resource_disk_type:
+        # If there is only one resource disk and its SCSI type,
+        # it will be mounted at /mnt.
+        # Create a file under and use it as fio filename.
+        # If there are multiple resource disks, reset partitions and
+        # use the partition disks as fio filename.
+        if disk_count == 1:
+            filename = f"{disk.get_resource_disk_mount_point()}/fiodata"
+        else:
+            partition_disks = reset_partitions(node, resource_disks)
+            filename = ":".join(partition_disks)
+        core_count = node.tools[Lscpu].get_core_count()
+
+        perf_disk(
+            node,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=disk_count,
+            disk_setup_type=disk_setup_type,
+            disk_type=DiskType.localssd,
+            numjob=core_count,
+            block_size=block_size,
+            size_mb=8192,
+            overwrite=True,
+            test_result=test_result,
+        )
+
+    else:
+        raise SkippedException(
+            f"Resource disk type {resource_disk_type} not supported for "
+            f"performance test."
+        )
+
+
 def calculate_middle_average(values: List[Union[float, int]]) -> float:
     """
     This method is used to calculate an average indicator. It discard the max
@@ -778,6 +888,6 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info.reload()
 
     assert_that(len(node_nic_info.get_lower_nics())).described_as(
-        f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+        f"VF count inside VM is {len(node_nic_info.get_lower_nics())}, "
         f"actual sriov nic count is {sriov_count}"
     ).is_equal_to(sriov_count)

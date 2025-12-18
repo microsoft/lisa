@@ -14,13 +14,19 @@ from semver import VersionInfo
 from lisa.base_tools import Cat, Sed, Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
-from lisa.tools import Find, Gcc
 from lisa.tools.df import Df
 from lisa.tools.echo import Echo
+from lisa.tools.find import Find
 from lisa.tools.free import Free
+from lisa.tools.fstab import Fstab
+from lisa.tools.gcc import Gcc
+from lisa.tools.ls import Ls
 from lisa.tools.lsblk import Lsblk
 from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
+from lisa.tools.mkdir import Mkdir
+from lisa.tools.mkfs import FileSystem, Mkfs
+from lisa.tools.mount import Mount
 from lisa.tools.stat import Stat
 from lisa.tools.sysctl import Sysctl
 from lisa.tools.tar import Tar
@@ -326,12 +332,9 @@ class KdumpBase(Tool):
         cfg_file = self._get_crashkernel_cfg_file()
         cmdline = self._get_crashkernel_cfg_cmdline()
         if cfg_file:
-            self.node.execute(
-                f"ls -lt {cfg_file}",
-                expected_exit_code=0,
-                expected_exit_code_failure_message=f"{cfg_file} doesn't exist",
-                sudo=True,
-            )
+            ls = self.node.tools[Ls]
+            if not ls.path_exists(cfg_file, sudo=True):
+                raise LisaException(f"{cfg_file} doesn't exist")
             cat = self.node.tools[Cat]
             sed = self.node.tools[Sed]
             result = cat.run(cfg_file, sudo=True, force_run=True)
@@ -408,15 +411,33 @@ class KdumpBase(Tool):
             sysctl = self.node.tools[Sysctl]
             sysctl.write("kernel.unknown_nmi_panic", "1")
 
+    def _ensure_dump_path_mounted(self) -> None:
+        """
+        Ensures the dump path mount point exists and filesystem is mounted.
+        This is necessary because mount points in /mnt don't persist across reboots,
+        and kdump service requires the dump path to be accessible before starting.
+        """
+        if self.dump_path == "/var/crash":
+            # Default path doesn't need special handling
+            return
+
+        # Extract mount point from dump path (e.g., /mnt/kdump/crash -> /mnt/kdump)
+        dump_mount_point = str(PurePosixPath(self.dump_path).parent)
+
+        # Ensure mount point directory exists
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(dump_mount_point, sudo=True)
+
+        # Try to mount unmounted fstab entries
+        mount = self.node.tools[Mount]
+        mount.reload_fstab_config()
+
+        self.restart_kdump_service()
+
     def _check_kexec_crash_loaded(self) -> None:
         """
         Sometimes it costs a while to load the value, so retry to check many times
         """
-        # If the dump_path is not "/var/crash", for example it is "/mnt/crash",
-        # the kdump service may start before the /mnt is mounted. That will cause
-        # "Dump path /mnt/crash does not exist" error. We need to restart it.
-        if self.dump_path != "/var/crash":
-            self.restart_kdump_service()
         cat = self.node.tools[Cat]
         max_tries = 60
         for tries in range(max_tries):
@@ -457,6 +478,10 @@ class KdumpBase(Tool):
             raise LisaException(
                 f"{self.kexec_crash} file doesn't exist. Kexec crash is not loaded."
             )
+
+        # Ensure dump path is mounted before checking kdump service
+        self._ensure_dump_path_mounted()
+
         self._check_kexec_crash_loaded()
 
         # Check if memory is reserved for crash kernel
@@ -500,8 +525,12 @@ class KdumpRedhat(KdumpBase):
             isinstance(self.node.os, Oracle)
             and self.node.os.information.version >= "9.0.0-0"
         ):
+            # First remove any existing crashkernel parameter to avoid conflicts,
+            # then add the new one
             return (
                 "grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
+                ' --remove-args="crashkernel";'
+                " grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
                 f' --args="crashkernel={crashkernel}"'
             )
         else:
@@ -525,13 +554,8 @@ class KdumpRedhat(KdumpBase):
         may not be enough to store the dump file, need to change the dump path
         """
         kdump_conf = "/etc/kdump.conf"
-        self.node.execute(
-            f"mkdir -p {dump_path}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
-            shell=True,
-            sudo=True,
-        )
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(dump_path, sudo=True)
         self.dump_path = dump_path
         # Change dump path in kdump conf
         sed = self.node.tools[Sed]
@@ -692,13 +716,8 @@ class KdumpCBLMariner(KdumpBase):
             sudo=True,
         )
 
-        self.node.execute(
-            f"mkdir -p {dump_path}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
-            shell=True,
-            sudo=True,
-        )
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(dump_path, sudo=True)
         self.dump_path = dump_path
         # Change dump path in kdump conf
         kdump_conf = "/etc/kdump.conf"
@@ -787,11 +806,10 @@ class KdumpCheck(Tool):
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
         # Cleaning up any previous crash dump files
-        self.node.execute(
-            f"mkdir -p {kdump.dump_path} && rm -rf {kdump.dump_path}/*",
-            shell=True,
-            sudo=True,
-        )
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(kdump.dump_path, sudo=True)
+        # Remove contents but keep directory
+        self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
         # Reboot system to make kdump take effect
         self.node.reboot(time_out=600)
@@ -874,19 +892,149 @@ class KdumpCheck(Tool):
             ):
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
 
-    def _get_disk_dump_path(self) -> str:
-        # Try to access Disk feature (available on Azure platform)
-        try:
-            mount_point = self.node.find_partition_with_freespace(25, raise_error=False)
-            dump_path = mount_point + "/crash"
-        except LisaException as e:
-            # Fallback for environments without finding enough space
-            # Use /var/crash as it's the standard kdump path.
-            dump_path = "/var/crash"
-            self._log.debug(
-                f"Resource disk not available on this platform. "
-                f"Using fallback dump path: {dump_path}. Exception: {e}"
+    def _try_add_data_disk_for_dump(self, required_space_gb: int) -> str:
+        """
+        Attempts to add a data disk for kdump storage and returns the mount point.
+        Adds fstab entry for mount persistence across reboots.
+        """
+        from lisa.features import Disk
+
+        # Check if Disk feature is supported on this platform
+        if not self.node.features.is_supported(Disk):
+            raise LisaException("Disk feature is not supported on this platform")
+
+        # Get current disks before adding new one
+        lsblk = self.node.tools[Lsblk]
+        disks_before = {disk.name for disk in lsblk.get_disks(force_run=True)}
+
+        disk_feature = self.node.features[Disk]
+        disk_size_gb = int(required_space_gb * 1.5)
+        disk_feature.add_data_disk(
+            count=1,
+            size_in_gb=disk_size_gb,
+        )
+
+        # Find the newly added device by comparing disk lists
+        disks_after = lsblk.get_disks(force_run=True)
+        new_disks = [
+            disk
+            for disk in disks_after
+            if disk.name not in disks_before and disk.size_in_gb >= disk_size_gb - 5
+        ]
+
+        if not new_disks:
+            raise LisaException("Could not identify newly added disk device")
+        new_disk = new_disks[0]
+
+        # Format and mount to absolute path /mnt/kdump
+        # This avoids filling small /home partitions
+        mount_point = "/mnt/kdump"
+        mkfs = self.node.tools[Mkfs]
+        mount = self.node.tools[Mount]
+
+        self._log.info(
+            f"Formatting {new_disk.device_name} and mounting to {mount_point}"
+        )
+
+        mkdir_tool = self.node.tools[Mkdir]
+        mkdir_tool.create_directory(mount_point, sudo=True)
+        mkfs.format_disk(new_disk.device_name, FileSystem.ext4)
+        mount.mount(new_disk.device_name, mount_point, format_=False)
+
+        # Ensure mount persists across reboots by adding fstab entry
+        self._ensure_mount_in_fstab(mount_point)
+
+        dump_path = mount_point + "/crash"
+        self._log.info(f"Successfully added data disk and mounted at {mount_point}")
+        return dump_path
+
+    def _ensure_mount_in_fstab(self, mount_point: str) -> None:
+        """
+        Ensures the given mount point has a persistent fstab entry.
+        Checks if already in fstab, adds entry if missing.
+        """
+        fstab = self.node.tools[Fstab]
+        # ensure_entry returns True if added, False if already exists
+        was_added = fstab.ensure_entry(
+            mount_point=mount_point,
+            fs_type="ext4",
+            options="defaults",
+            dump=0,
+            pass_num=2,
+            use_uuid=True,
+        )
+        if was_added:
+            self._log.info(
+                f"Successfully added fstab entry for persistent mount at {mount_point}"
             )
+        else:
+            self._log.debug(f"Mount point {mount_point} already in /etc/fstab")
+
+    def _get_disk_dump_path(self) -> str:
+        # Calculate required space based on system memory (with 50% safety margin)
+        # vmcore file can be 30-60% of total memory depending on compression
+        free = self.node.tools[Free]
+        total_memory_gb = free.get_total_memory_gb()
+        # Formula: total_memory * 0.6 (compression) * 1.2 (safety margin)
+        # Example: 128GB RAM → 128 * 0.6 * 1.2 = 92GB required
+        required_space_gb = int(total_memory_gb * 0.6 * 1.2)
+
+        self._log.debug(
+            f"System has {total_memory_gb}GB memory, "
+            f"requiring ~{required_space_gb}GB for vmcore dump"
+        )
+
+        # Try to find existing partition with enough space
+        try:
+            mount_point = self.node.find_partition_with_freespace(
+                required_space_gb, raise_error=False
+            )
+
+            df = self.node.tools[Df]
+            partition_info = df.get_partition_by_path(mount_point, force_run=True)
+
+            if partition_info:
+                # total_blocks is in 1K-blocks, convert to GB
+                fs_total_gb = partition_info.total_blocks / (1024 * 1024)
+
+                if fs_total_gb < required_space_gb:
+                    self._log.debug(
+                        f"Found mount point {mount_point} with {required_space_gb}GB "
+                        f"free but filesystem total size is only {fs_total_gb:.1f}GB. "
+                        "This may be a subdirectory on a small partition. Skipping."
+                    )
+                    raise LisaException(
+                        f"Mount point {mount_point} filesystem too small"
+                    )
+
+            # Ensure mount persists across reboots by adding fstab entry
+            self._ensure_mount_in_fstab(mount_point)
+
+            dump_path = mount_point + "/crash"
+            self._log.info(
+                f"Found partition {mount_point} with sufficient space "
+                f"for kdump ({required_space_gb}GB required)"
+            )
+            return dump_path
+        except LisaException as e:
+            self._log.debug(f"No existing partition with {required_space_gb}GB: {e}")
+
+        # Try to add a data disk if platform supports it
+        try:
+            return self._try_add_data_disk_for_dump(required_space_gb)
+        except Exception as e:
+            self._log.debug(
+                f"Could not add data disk for kdump storage: {e}. "
+                "Falling back to default path"
+            )
+
+        # Fallback to /var/crash as last resort
+        dump_path = "/var/crash"
+        self._log.info(
+            f"Using default dump path {dump_path}. "
+            f"May not have sufficient space ({required_space_gb}GB required) "
+            "for vmcore file. Kdump may fail during crash dump."
+        )
         return dump_path
 
     def _is_system_with_more_memory(self) -> bool:
