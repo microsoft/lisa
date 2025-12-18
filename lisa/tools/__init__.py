@@ -38,6 +38,7 @@ from .dnsmasq import Dnsmasq
 from .docker import Docker
 from .docker_compose import DockerCompose
 from .echo import Echo
+from .efibootmgr import EfiBootMgr
 from .ethtool import Ethtool
 from .fallocate import Fallocate
 from .fdisk import Fdisk
@@ -175,6 +176,7 @@ __all__ = [
     "Docker",
     "DockerCompose",
     "Echo",
+    "EfiBootMgr",
     "Ethtool",
     "Fallocate",
     "Fdisk",
