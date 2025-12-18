@@ -46,6 +46,7 @@ from .fio import FIOMODES, Fio, FIOResult, IoEngine
 from .fips import Fips
 from .firewall import Firewall, Iptables
 from .free import Free
+from .fstab import Fstab, FstabEntry
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
@@ -185,6 +186,8 @@ __all__ = [
     "Fips",
     "Firewall",
     "Free",
+    "Fstab",
+    "FstabEntry",
     "Gcc",
     "Gdb",
     "Git",
