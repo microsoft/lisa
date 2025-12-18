@@ -5,6 +5,7 @@ from pathlib import Path, PurePath
 from typing import Any, Dict, List, Tuple, cast
 
 import yaml
+from exceptiongroup import ExceptionGroup
 
 from lisa import (
     Environment,
@@ -19,7 +20,7 @@ from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
-from lisa.util import SkippedException
+from lisa.util import KernelPanicException, SkippedException
 from lisa.util.logger import Logger
 from lisa.util.process import Process
 
@@ -78,8 +79,9 @@ class StressNgTestSuite(TestSuite):
     def stress_ng_cpu_stressors(
         self,
         environment: Environment,
+        log: Logger,
     ) -> None:
-        self._run_stressor_class(environment, "cpu")
+        self._run_stressor_class(environment, "cpu", log)
 
     @TestCaseMetadata(
         description="Runs stress-ng's 'memory' class stressors for 60s each.",
@@ -88,8 +90,9 @@ class StressNgTestSuite(TestSuite):
     def stress_ng_memory_stressors(
         self,
         environment: Environment,
+        log: Logger,
     ) -> None:
-        self._run_stressor_class(environment, "memory")
+        self._run_stressor_class(environment, "memory", log)
 
     @TestCaseMetadata(
         description="Runs stress-ng's 'vm' class stressors for 60s each.",
@@ -98,8 +101,9 @@ class StressNgTestSuite(TestSuite):
     def stress_ng_vm_stressors(
         self,
         environment: Environment,
+        log: Logger,
     ) -> None:
-        self._run_stressor_class(environment, "vm")
+        self._run_stressor_class(environment, "vm", log)
 
     @TestCaseMetadata(
         description="Runs stress-ng's 'io' class stressors for 60s each.",
@@ -108,8 +112,9 @@ class StressNgTestSuite(TestSuite):
     def stress_ng_io_stressors(
         self,
         environment: Environment,
+        log: Logger,
     ) -> None:
-        self._run_stressor_class(environment, "io")
+        self._run_stressor_class(environment, "io", log)
 
     @TestCaseMetadata(
         description="Runs stress-ng's 'network' class stressors for 60s each.",
@@ -118,8 +123,9 @@ class StressNgTestSuite(TestSuite):
     def stress_ng_network_stressors(
         self,
         environment: Environment,
+        log: Logger,
     ) -> None:
-        self._run_stressor_class(environment, "network")
+        self._run_stressor_class(environment, "network", log)
 
     @TestCaseMetadata(
         description="""
@@ -175,21 +181,56 @@ class StressNgTestSuite(TestSuite):
         for job_file in jobs:
             self._run_stress_ng_job(job_file, environment, result, log)
 
-    def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
+    def _run_stressor_class(
+        self, environment: Environment, class_name: str, log: Logger
+    ) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
-        procs: List[Process] = []
-        try:
-            for node in nodes:
-                procs.append(node.tools[StressNg].launch_class_async(class_name))
-            for proc in procs:
+        procs: List[Tuple[RemoteNode, Process]] = []
+
+        # Launch Processes
+        start_failures: List[Tuple[RemoteNode, Exception]] = []
+        for node in nodes:
+            try:
+                procs.append(
+                    (node, node.tools[StressNg].launch_class_async(class_name))
+                )
+            except Exception as e:
+                start_failures.append((node, e))
+
+        # Validate Results
+        result_failures: List[Tuple[RemoteNode, Exception]] = []
+        for node, proc in procs:
+            try:
                 proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
-        except Exception as e:
-            for node in nodes:
-                # check_panic will automatically log and raise if panic detected
+            except Exception as e:
+                result_failures.append((node, e))
+
+        # Check for kernel panics on all failed nodes
+        kernel_panics: List[Tuple[RemoteNode, Exception]] = []
+        for node, _e in start_failures + result_failures:
+            try:
                 node.features[SerialConsole].check_panic(
                     saved_path=None, force_run=True
                 )
-            raise e
+            except KernelPanicException as e:
+                kernel_panics.append((node, e))
+
+        # Raise exceptions if there were any failures
+        if start_failures or result_failures or kernel_panics:
+            total = len(start_failures) + len(result_failures) + len(kernel_panics)
+            log.error(
+                f"{total} node(s) encountered errors during "
+                f"stress_ng_{class_name}_stressors."
+            )
+
+            raise ExceptionGroup(
+                f"{len(start_failures)} start failures, "
+                f"{len(result_failures)} exit code failures, "
+                f"{len(kernel_panics)} kernel panics.",
+                [exc for _node, exc in start_failures]
+                + [exc for _node, exc in result_failures]
+                + [exc for _node, exc in kernel_panics],
+            )
 
     def _run_stress_ng_job(
         self,
