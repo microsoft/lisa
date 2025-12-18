@@ -140,7 +140,8 @@ class Synthetic(TestSuite):
         use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Synthetic
+                data_path=schema.NetworkDataPath.Synthetic,
+                max_nic_count=IntRange(min=8),
             ),
         ),
     )
@@ -172,7 +173,8 @@ class Synthetic(TestSuite):
         use_new_environment=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Synthetic
+                data_path=schema.NetworkDataPath.Synthetic,
+                max_nic_count=IntRange(min=8),
             ),
         ),
     )
