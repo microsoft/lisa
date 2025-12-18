@@ -28,7 +28,7 @@ class Wsl(Tool):
     CONFIG_FILE_PATH = r"%USERPROFILE%\.wslconfig"
 
     ENCODING = "utf-16-le"
-    INSTALL_TIMEOUT = 120
+    INSTALL_TIMEOUT = 1200
 
     def __init__(self, node: "Node", guest: "Node") -> None:
         assert guest, "guest node is required for Wsl tool."
@@ -77,13 +77,16 @@ class Wsl(Tool):
             is_installed = True
 
         # set debug console and replace kernel
+        self._log.info(f"-- paxue debug: _config()")
         self._config(enable_debug_console=enable_debug_console, kernel=kernel)
 
         # shutdown to make new kernel effective after configured. If the kernel
         # is not configured, the original kernel will be loaded.
+        self._log.info(f"-- paxue debug: shutdown_wsl .")
         self.shutdown_wsl()
 
         if not is_installed:
+            self._log.info(f"-- paxue debug: is_installed is false .")
             install_process = self._wsl_execute_async(
                 f"--install -d {name}", encoding="utf-8"
             )
@@ -91,6 +94,7 @@ class Wsl(Tool):
             elapsed = create_timer()
             done = False
             while elapsed.elapsed(False) < self.INSTALL_TIMEOUT:
+                self._log.info(f"-- paxue debug: in loop check install done")
                 if self._check_install_done(distro=name):
                     done = True
                     break
@@ -98,14 +102,17 @@ class Wsl(Tool):
 
             # raise error if not done
             if not done:
+                self._log.info(f"-- paxue debug -- not done.")
                 self._check_install_done(distro=name, raise_error=True)
 
+            self._log.info(f"-- paxue debug -- shut down distro.")
             self.shutdown_distro(name)
 
             # kill may not be success in Windows. But it prevents more output
             # from this commands.
             install_process.kill()
 
+        self._log.info(f"-- paxue debug -- reload guest OS.")
         self.reload_guest_os()
 
         if not is_installed:
