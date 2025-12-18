@@ -35,7 +35,7 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.features.security_profile import CvmDisabled
-from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci
+from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci, EfiBootMgr
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -393,6 +393,12 @@ class Provisioning(TestSuite):
         wait: bool = True,
         is_restart: bool = True,
     ) -> float:
+        efibootmgr = node.tools[EfiBootMgr]
+        efibootentries = efibootmgr.get_boot_entries_by_kernel()
+        log.debug(f"EFI boot entries with kernel versions: {efibootentries}")
+        efibootmgr.set_boot_entry('0002')
+        efibootentries = efibootmgr.get_boot_entries_by_kernel()
+
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
