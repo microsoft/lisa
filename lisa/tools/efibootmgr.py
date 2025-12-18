@@ -64,7 +64,7 @@ class EfiBootMgr(Tool):
             match = self._boot_entry_pattern.match(line.strip())
             if match:
                 kernel_version = match.group("kernel_version")
-                boot_num = match.group('boot_num')
+                boot_num = match.group("boot_num")
                 boot_entries[kernel_version] = boot_num
 
         return boot_entries
