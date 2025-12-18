@@ -43,6 +43,7 @@ class ExecutableResult:
     _stderr: str
     exit_code: Optional[int]
     cmd: Union[str, List[str]]
+    _id_: str
     elapsed: float
     is_timeout: bool = False
 
@@ -71,7 +72,9 @@ class ExecutableResult:
         message: str = "",
         include_output: bool = False,
     ) -> AssertionBuilder:
-        message = "\n".join([message, f"Get unexpected exit code on cmd {self.cmd}"])
+        message = "\n".join(
+            [message, f"Get unexpected exit code on cmd {self._id_} {self.cmd}"]
+        )
         if include_output:
             message = "\n".join(
                 [message, "stdout:", self.stdout, "stderr:", self.stderr]
@@ -322,7 +325,7 @@ class Process:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Posix
             self._result = ExecutableResult(
-                "", e.strerror, 1, split_command, self._timer.elapsed()
+                "", e.strerror, 1, split_command, self._id_, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {e}")
         except SshSpawnTimeoutException:
@@ -431,6 +434,7 @@ class Process:
             process_result.stderr_output.strip(),
             process_result.return_code,
             self._cmd,
+            self._id_,
             self._timer.elapsed(),
             is_timeout,
         )
