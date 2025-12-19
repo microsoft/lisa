@@ -27,7 +27,12 @@ from lisa.sut_orchestrator.azure.features import AzureFileShare, Nfs
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
-from lisa.util import BadEnvironmentStateException, LisaException, generate_random_chars
+from lisa.util import (
+    BadEnvironmentStateException,
+    LisaException,
+    constants,
+    generate_random_chars,
+)
 
 # Global variables
 # Section : NFS options. <TODO>
@@ -195,10 +200,32 @@ class Xfstesting(TestSuite):
         + " generic/680"
     )
 
+    # def before_case(self, log: Logger, **kwargs: Any) -> None:
+    #     node = kwargs["node"]
+    #     if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
+    #         self.excluded_tests = self.excluded_tests + " btrfs/299"
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        global _default_smb_mount, _default_smb_excluded_tests
+        global _default_smb_testcases, _scratch_folder, _test_folder
+
         node = kwargs["node"]
         if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
             self.excluded_tests = self.excluded_tests + " btrfs/299"
+        # check for user provided SMB mount options, excluded and included test cases
+        # for azure file share
+        variables: Dict[str, Any] = kwargs["variables"]
+        # check for overrides. pass variables with property case_visible: True
+        # in runbook
+        _default_smb_mount = variables.get("smb_mount_opts", _default_smb_mount)
+        _default_smb_excluded_tests = variables.get(
+            "smb_excluded_tests", _default_smb_excluded_tests
+        )
+        _default_smb_testcases = variables.get(
+            "smb_testcases", _default_smb_testcases
+        )
+        _scratch_folder = variables.get("scratch_folder", _scratch_folder)
+        _test_folder = variables.get("test_folder", _test_folder)
 
     @TestCaseMetadata(
         description="""
@@ -579,43 +606,83 @@ class Xfstesting(TestSuite):
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         file_share_name = f"lisa{random_str}fs"
         scratch_name = f"lisa{random_str}scratch"
-        mount_opts = (
-            f"-o {_default_smb_mount},"  # noqa: E231
-            f"credentials=/etc/smbcredentials/lisa.cred"  # noqa: E231
-        )
-        fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
-            node=node,
-            environment=environment,
-            names={
-                _test_folder: file_share_name,
-                _scratch_folder: scratch_name,
-            },
-            azure_file_share=azure_file_share,
-        )
-        # Create Xfstest config
-        xfstests.set_local_config(
-            scratch_dev=fs_url_dict[scratch_name],
-            scratch_mnt=_scratch_folder,
-            test_dev=fs_url_dict[file_share_name],
-            test_folder=_test_folder,
-            file_system="cifs",
-            test_section="cifs",
-            mount_opts=mount_opts,
-            testfs_mount_opts=mount_opts,
-            overwrite_config=True,
-        )
-        # Create excluded test file
-        xfstests.set_excluded_tests(_default_smb_excluded_tests)
-        # run the test
-        log.info("Running xfstests against azure file share")
-        xfstests.run_test(
-            test_section="cifs",
-            test_group="cifs/quick",
-            log_path=log_path,
-            result=result,
-            test_cases=_default_smb_testcases,
-            timeout=self.TIME_OUT - 30,
-        )
+        # Track test failure for keep_environment handling
+        test_failed = False
+        try:
+            fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
+                node=node,
+                environment=environment,
+                names={
+                    _test_folder: file_share_name,
+                    _scratch_folder: scratch_name,
+                },
+                azure_file_share=azure_file_share,
+            )
+            # Get credential file path from the feature (uses storage account name)
+            mount_opts = (
+                f"-o {_default_smb_mount},"  # noqa: E231
+                f"credentials={azure_file_share.credential_file}"  # noqa: E231
+            )
+            # Create Xfstest config
+            xfstests.set_local_config(
+                scratch_dev=fs_url_dict[scratch_name],
+                scratch_mnt=_scratch_folder,
+                test_dev=fs_url_dict[file_share_name],
+                test_folder=_test_folder,
+                file_system="cifs",
+                test_section="cifs",
+                mount_opts=mount_opts,
+                testfs_mount_opts=mount_opts,
+                overwrite_config=True,
+            )
+            # Create excluded test file
+            xfstests.set_excluded_tests(_default_smb_excluded_tests)
+            # run the test
+            log.info("Running xfstests against azure file share")
+            xfstests.run_test(
+                test_section="cifs",
+                test_group="cifs/quick",
+                log_path=log_path,
+                result=result,
+                test_cases=_default_smb_testcases,
+                timeout=self.TIME_OUT - 30,
+            )
+        except Exception:
+            test_failed = True
+            raise
+        finally:
+            # Respect keep_environment setting for cleanup
+            # - "always": Never cleanup (user wants to inspect)
+            # - "failed": Cleanup only if test passed
+            # - "no" (default): Always cleanup
+            should_cleanup = True
+
+            if environment.platform:
+                keep_environment = environment.platform.runbook.keep_environment
+                if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
+                    should_cleanup = False
+                    log.info(
+                        f"Skipping Azure file share cleanup as "
+                        f"keep_environment={keep_environment}"
+                    )
+                elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
+                    if test_failed:
+                        should_cleanup = False
+                        log.info(
+                            f"Skipping Azure file share cleanup as "
+                            f"keep_environment={keep_environment} and test failed"
+                        )
+
+            if should_cleanup:
+                log.info("Cleaning up Azure file shares")
+                try:
+                    azure_file_share.delete_azure_fileshare(
+                        [file_share_name, scratch_name]
+                    )
+                except Exception as cleanup_error:
+                    log.warning(
+                        f"Failed to clean up Azure file shares: {cleanup_error}"
+                    )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         try:
@@ -629,6 +696,19 @@ class Xfstesting(TestSuite):
                     node.execute(f"dmsetup remove {path}", sudo=True)
             for mount_point in [_scratch_folder, _test_folder]:
                 node.tools[Mount].umount("", mount_point, erase=False)
+            # Clean up fstab entries for mount points used by xfstests
+            # Use sed to remove specific entries rather than restoring backup
+            # This is more reliable and doesn't risk losing other fstab changes
+            node.execute(
+                f"sed -i '\\#{_test_folder}#d' /etc/fstab",
+                sudo=True,
+                shell=True,
+            )
+            node.execute(
+                f"sed -i '\\#{_scratch_folder}#d' /etc/fstab",
+                sudo=True,
+                shell=True,
+            )
         except Exception as e:
             raise BadEnvironmentStateException(f"after case, {e}")
 

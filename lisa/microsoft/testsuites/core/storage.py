@@ -625,19 +625,8 @@ class Storage(TestSuite):
         # Clean up any leftover state from previous runs (important for deploy:false)
         # This handles cases where the VM is reused but has stale mounts/folders
         mount = node.tools[Mount]
-        # Try to unmount if already mounted
-        try:
-            mount.umount(point=test_folder, disk_name="", erase=False)
-        except Exception:
-            pass  # Ignore if not mounted
-        # Remove test folder if it exists
+        # Remove any existing test folder (handles both mounted and unmounted cases)
         node.execute(f"rm -rf {test_folder}", sudo=True)
-        # Restore original fstab if backup exists (from previous failed run)
-        node.execute(
-            "test -f /etc/fstab_cifs && cp -f /etc/fstab_cifs /etc/fstab || true",
-            sudo=True,
-            shell=True,
-        )
 
         # Track test failure for keep_environment handling
         test_failed = False
