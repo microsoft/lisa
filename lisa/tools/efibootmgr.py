@@ -11,7 +11,9 @@ from lisa.util import LisaException
 
 class EfiBootMgr(Tool):
     # Regular expression to parse boot entries with kernel versions
+    # The regex captures boot number and kernel version
     # Matches entries like: Boot0002* Ubuntu with kernel 6.8.0-1044-azure-fde
+    # The regex tested on Ubuntu CVMs and may need adjustments for other distros
     _boot_entry_pattern = re.compile(
         r"Boot(?P<boot_num>\d+)\*?\s+(?P<boot_name>.*?)\s+with\s+kernel\s+"
         r"(?P<kernel_version>[\d\.\-\w]+)"
