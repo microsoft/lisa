@@ -28,7 +28,7 @@ class Wsl(Tool):
     CONFIG_FILE_PATH = r"%USERPROFILE%\.wslconfig"
 
     ENCODING = "utf-16-le"
-    INSTALL_TIMEOUT = 1200
+    INSTALL_TIMEOUT = 360
 
     def __init__(self, node: "Node", guest: "Node") -> None:
         assert guest, "guest node is required for Wsl tool."
@@ -95,7 +95,18 @@ class Wsl(Tool):
             done = False
             while elapsed.elapsed(False) < self.INSTALL_TIMEOUT:
                 self._log.info(f"-- paxue debug: in loop check install done")
-                if self._check_install_done(distro=name):
+
+                # Calculate remaining time and set check timeout
+                remaining_time = self.INSTALL_TIMEOUT - elapsed.elapsed(False)
+                check_timeout = min(remaining_time, 120)  # Max 120s per check
+
+                if check_timeout <= 0:
+                    self._log.warning(
+                        f"Timeout reached: {elapsed.elapsed(False):.1f}s >= {self.INSTALL_TIMEOUT}s"
+                    )
+                    break
+
+                if self._check_install_done(distro=name, timeout=check_timeout):
                     done = True
                     break
                 time.sleep(1)
@@ -191,6 +202,7 @@ class Wsl(Tool):
         in_wsl: bool = False,
         no_info_log: bool = False,
         encoding: str = "",
+        timeout: float = 600,
     ) -> ExecutableResult:
         process = self._wsl_execute_async(
             cmd,
@@ -200,7 +212,7 @@ class Wsl(Tool):
             no_info_log=no_info_log,
             encoding=encoding,
         )
-        result = process.wait_result()
+        result = process.wait_result(timeout=timeout)
         result = self.normalize_result(result)
 
         return result
@@ -255,9 +267,15 @@ class Wsl(Tool):
 
         self._wsl_execute("--update --pre-release")
 
-    def _check_install_done(self, distro: str, raise_error: bool = False) -> bool:
+    def _check_install_done(
+        self, distro: str, raise_error: bool = False, timeout: float = 600
+    ) -> bool:
         result = self._wsl_execute(
-            "echo installed", distro=distro, in_wsl=True, no_info_log=True
+            "echo installed",
+            distro=distro,
+            in_wsl=True,
+            no_info_log=True,
+            timeout=timeout,
         )
 
         if raise_error:
