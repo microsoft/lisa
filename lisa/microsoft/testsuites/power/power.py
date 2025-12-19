@@ -7,6 +7,7 @@ from typing import Any, cast
 from assertpy import assert_that
 from func_timeout import func_timeout
 from microsoft.testsuites.power.common import (
+    _prepare_hibernation_environment,
     check_hibernation_disk_requirements,
     cleanup_env,
     is_distro_supported,
@@ -49,6 +50,9 @@ class Power(TestSuite):
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
 
+        # Expand OS partition first (needed for RHEL/LVM before checking disk space)
+        _prepare_hibernation_environment(node)
+        
         check_hibernation_disk_requirements(node)
 
     @TestCaseMetadata(

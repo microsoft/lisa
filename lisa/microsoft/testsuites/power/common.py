@@ -389,8 +389,6 @@ def verify_hibernation(
     verify_using_logs: bool = True,
     use_hibernation_setup_tool: bool = True,
 ) -> None:
-    _prepare_hibernation_environment(node)
-
     # Delegate to the appropriate hibernation method
     if use_hibernation_setup_tool:
         verify_hibernation_by_tool(node, log, throw_error, verify_using_logs)
