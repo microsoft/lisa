@@ -43,6 +43,10 @@ class EfiBootMgr(Tool):
             shell=True,
             sudo=True,
             force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to retrieve EFI boot entries using efibootmgr"
+            ),
         ).stdout
         boot_entries: Dict[str, str] = {}
 
