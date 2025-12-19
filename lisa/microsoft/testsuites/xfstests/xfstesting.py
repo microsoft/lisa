@@ -221,9 +221,7 @@ class Xfstesting(TestSuite):
         _default_smb_excluded_tests = variables.get(
             "smb_excluded_tests", _default_smb_excluded_tests
         )
-        _default_smb_testcases = variables.get(
-            "smb_testcases", _default_smb_testcases
-        )
+        _default_smb_testcases = variables.get("smb_testcases", _default_smb_testcases)
         _scratch_folder = variables.get("scratch_folder", _scratch_folder)
         _test_folder = variables.get("test_folder", _test_folder)
 
