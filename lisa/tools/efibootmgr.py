@@ -108,7 +108,11 @@ class EfiBootMgr(Tool):
         }
 
         if not new_kernel_entries:
-            raise LisaException("No new kernel boot entries found after kernel update.")
+            available_kernels = ", ".join(boot_entries_now.keys())
+            raise LisaException(
+                "No new kernel boot entries found after kernel update. "
+                f"Available kernels: {available_kernels}"
+            )
 
         # Raise exception if multiple new kernels found
         if len(new_kernel_entries) > 1:
