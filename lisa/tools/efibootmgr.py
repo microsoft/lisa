@@ -80,14 +80,6 @@ class EfiBootMgr(Tool):
                 f"failed to set boot default entry to {boot_entry}"
             ),
         )
-        # Log the efibootmgr output for debugging purposes
-        output = self.run(
-            "",
-            shell=True,
-            sudo=True,
-            force_run=True,
-        ).stdout
-        self.node.log.debug(f"Set boot entry output: {output}")
 
     def set_boot_entry_to_new_kernel(
         self, boot_entries_before_kernel_update: Dict[str, str]
