@@ -68,6 +68,8 @@ class EfiBootMgr(Tool):
     def set_boot_entry(self, boot_entry: str) -> None:
         """
         Set the specified boot entry as default.
+        Args:
+            boot_entry: The boot entry number to set as default (e.g., '0002')
         """
         self.run(
             f"-o {boot_entry}",
@@ -92,6 +94,9 @@ class EfiBootMgr(Tool):
     ) -> None:
         """
         Update the boot entry to the new kernel version installed.
+        Args:
+            boot_entries_before_kernel_update:
+                A dictionary of kernel versions to boot numbers before the kernel update.
         """
         boot_entries_now = self.get_boot_entries_by_kernel()
 
