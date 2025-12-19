@@ -96,7 +96,7 @@ class EfiBootMgr(Tool):
         Update the boot entry to the new kernel version installed.
         Args:
             boot_entries_before_kernel_update:
-                A dictionary of kernel versions to boot numbers before the kernel update.
+                A dictionary of kernel versions to boot numbers before the kernel update
         """
         boot_entries_now = self.get_boot_entries_by_kernel()
 
