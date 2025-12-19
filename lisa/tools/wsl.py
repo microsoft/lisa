@@ -28,7 +28,7 @@ class Wsl(Tool):
     CONFIG_FILE_PATH = r"%USERPROFILE%\.wslconfig"
 
     ENCODING = "utf-16-le"
-    INSTALL_TIMEOUT = 120
+    INSTALL_TIMEOUT = 1200
 
     def __init__(self, node: "Node", guest: "Node") -> None:
         assert guest, "guest node is required for Wsl tool."
