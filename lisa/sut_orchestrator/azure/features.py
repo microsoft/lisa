@@ -3995,9 +3995,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             self._log,
             private_endpoint_name=self._private_endpoint_name,
         )
-        delete_virtual_network_links(
-            platform, self._resource_group_name, self._log
-        )
+        delete_virtual_network_links(platform, self._resource_group_name, self._log)
         delete_record_sets(platform, self._resource_group_name, self._log)
         delete_private_zones(platform, self._resource_group_name, self._log)
         delete_private_endpoints(
