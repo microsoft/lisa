@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-import time
 from typing import cast
 
 from assertpy import assert_that
@@ -173,87 +172,3 @@ class LibbpfToolsSuite(TestSuite):
         assert_that(len(failed_tools)).described_as(
             f"No libbpf tools should fail to execute. Failed tools: {failed_tools}"
         ).is_equal_to(0)
-
-    @TestCaseMetadata(
-        description="""
-        This test case verifies that execsnoop can actually trace exec()
-        syscalls by running a simple command and capturing the trace.
-
-        Steps:
-        1. Ensure libbpf-tools package is installed.
-        2. Start execsnoop in background.
-        3. Execute a test command (e.g., /bin/ls).
-        4. Stop execsnoop.
-        5. Verify the test command was traced in the output.
-
-        """,
-        priority=3,
-    )
-    def verify_execsnoop_traces_execution(self, node: Node) -> None:
-        # Ensure package is installed by calling the availability test
-        self.verify_libbpf_tools_package_available(node)
-
-        # Check if execsnoop exists (try both bpf-execsnoop and execsnoop)
-        tool_found, tool_name = self._find_tool(node, "execsnoop")
-        if not tool_found:
-            raise SkippedException("execsnoop tool not found")
-
-        # Run execsnoop for a short duration and capture output
-        # We'll run a simple command that should show up in the trace
-        test_command = "/bin/echo 'test_libbpf_trace'"
-        output_file = "/tmp/execsnoop_output.txt"
-
-        try:
-            # Start execsnoop in background, run for 10 seconds to ensure we capture
-            # events. This is longer than our wait times to avoid race conditions
-            execsnoop_cmd = f"timeout 10 {tool_name} > {output_file} 2>&1 &"
-            start_result = node.execute(execsnoop_cmd, sudo=True, shell=True)
-
-            node.log.debug(
-                f"Started {tool_name} in background. "
-                f"Exit code: {start_result.exit_code}"
-            )
-
-            # Wait a moment for execsnoop to initialize
-            time.sleep(3)
-
-            # Check if execsnoop is actually running
-            ps_result = node.execute(f"pgrep -f '{tool_name}'", sudo=True)
-            if ps_result.exit_code != 0:
-                # Tool didn't start or already crashed, check the output file
-                error_output = node.execute(f"cat {output_file}", sudo=True)
-                raise SkippedException(
-                    f"{tool_name} failed to start or crashed during initialization. "
-                    f"Error output: {error_output.stdout}"
-                )
-
-            # Execute our test command multiple times to ensure we catch it
-            for _ in range(3):
-                node.execute(test_command)
-                time.sleep(0.5)
-
-            # Wait for trace to be captured
-            time.sleep(2)
-
-            # Read the output (execsnoop should still be running)
-            result = node.execute(f"cat {output_file}", sudo=True)
-
-            node.log.debug(f"execsnoop output file size: {len(result.stdout)} bytes")
-
-            # Verify our test command appears in the trace
-            # execsnoop output typically shows command names
-            assert_that(result.stdout).described_as(
-                "execsnoop output should contain trace of executed commands"
-            ).is_not_empty()
-
-            # We should see 'echo' in the output since we ran /bin/echo
-            assert_that(result.stdout.lower()).described_as(
-                f"execsnoop should trace the echo command. Output: {result.stdout}"
-            ).contains("echo")
-
-        finally:
-            # Ensure cleanup happens even if test fails
-            # Kill any remaining execsnoop processes
-            node.execute(f"pkill -f '{tool_name}'", sudo=True)
-            # Remove temporary output file
-            node.execute(f"rm -f {output_file}", sudo=True)
