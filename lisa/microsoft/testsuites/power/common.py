@@ -83,22 +83,18 @@ def check_hibernation_disk_requirements(node: Node) -> None:
         required_space_gb = total_memory_gb
         formula = "RAM"
 
-    # Add 20% buffer for filesystem overhead, defragmentation, and safety margin
-    required_space_with_buffer = required_space_gb * 1.2
-
     root_partition = df_tool.get_partition_by_mountpoint("/", force_run=True)
     assert root_partition is not None, "Unable to determine root partition disk space"
 
     # available_blocks is in 1K blocks, convert to GB
     available_space_gb = root_partition.available_blocks / 1024 / 1024
 
-    if available_space_gb < required_space_with_buffer:
+    if available_space_gb < required_space_gb:
         raise LisaException(
             "Insufficient disk space for hibernation. "
             f"Memory size: {total_memory_gb:.2f} GB, "
             f"Available space: {available_space_gb:.2f} GB, "
-            f"Required space: {required_space_gb:.2f} GB ({formula}), "
-            f"Recommended (20% buffer): {required_space_with_buffer:.2f} GB. "
+            f"Required space: {required_space_gb:.2f} GB ({formula}). "
             "Please increase 'osdisk_size_in_gb'."
         )
 
