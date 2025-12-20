@@ -47,6 +47,7 @@ class PowerStress(TestSuite):
         priority=3,
         timeout=720000,
         requirement=simple_requirement(
+            min_os_disk_size=500,
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
