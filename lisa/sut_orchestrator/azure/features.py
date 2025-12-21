@@ -3119,6 +3119,7 @@ class Nvme(AzureFeatureMixin, features.Nvme):
             "standardlsv2family",
             "standardlsv3family",
             "standardlasv3family",
+            "standardhbrsv5family",
         ]:
             # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
             # NVMe disk count = vCPU / 8
