@@ -69,9 +69,6 @@ class NvmeTestSuite(TestSuite):
           actual vCPU count / 8.
         """,
         priority=1,
-        requirement=simple_requirement(
-            supported_features=[Nvme],
-        ),
     )
     def verify_nvme_basic(self, environment: Environment, node: Node) -> None:
         self._verify_nvme_disk(environment, node)
