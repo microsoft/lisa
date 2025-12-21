@@ -79,11 +79,6 @@ class NvmeTestSuite(TestSuite):
         The test steps are same as `nvme_basic_validation`.
         """,
         priority=2,
-        requirement=simple_requirement(
-            supported_features=[
-                NvmeSettings(disk_count=IntRange(min=8, choose_max_value=True))
-            ],
-        ),
     )
     def verify_nvme_max_disk(self, environment: Environment, node: Node) -> None:
         self._verify_nvme_disk(environment, node)
@@ -100,9 +95,6 @@ class NvmeTestSuite(TestSuite):
         7. Compare the number of errors from nvme-cli after operations.
         """,
         priority=2,
-        requirement=simple_requirement(
-            supported_features=[Nvme],
-        ),
     )
     def verify_nvme_function(self, node: Node) -> None:
         self._verify_nvme_function(node)
@@ -121,9 +113,6 @@ class NvmeTestSuite(TestSuite):
         7. Compare the number of errors from nvme-cli after operations.
         """,
         priority=2,
-        requirement=simple_requirement(
-            supported_features=[Nvme],
-        ),
     )
     def verify_nvme_function_unpartitioned(self, node: Node) -> None:
         self._verify_nvme_function(node, use_partitions=False)
@@ -140,9 +129,6 @@ class NvmeTestSuite(TestSuite):
          and compare the final fstrim status with initial fstrim status.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[Nvme],
-        ),
     )
     def verify_nvme_fstrim(self, node: Node) -> None:
         nvme = node.features[Nvme]
@@ -219,9 +205,6 @@ class NvmeTestSuite(TestSuite):
         4. Remount command should fail after run blkdiscard command.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[Nvme],
-        ),
     )
     def verify_nvme_blkdiscard(self, node: Node) -> None:
         os_information = node.os.information
@@ -280,9 +263,6 @@ class NvmeTestSuite(TestSuite):
         5. `nvme detach-ns -n 1 namespace` - detach a namespace.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[Nvme],
-        ),
     )
     def verify_nvme_manage_ns(self, node: Node) -> None:
         nvme = node.features[Nvme]
@@ -331,9 +311,6 @@ class NvmeTestSuite(TestSuite):
         4. Check NVMe devices are back after rescan.
         """,
         priority=2,
-        requirement=simple_requirement(
-            supported_features=[Nvme],
-        ),
     )
     def verify_nvme_rescind(self, node: Node) -> None:
         lspci = node.tools[Lspci]
@@ -361,7 +338,6 @@ class NvmeTestSuite(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=Sriov(),
-            supported_features=[Nvme],
         ),
     )
     def verify_nvme_sriov_rescind(self, node: Node) -> None:

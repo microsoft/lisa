@@ -295,7 +295,6 @@ class Storage(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
-            disk=AzureDiskOptionSettings(disk_controller_type=DiskControllerType.NVME),
         ),
     )
     def verify_nvme_disk_controller_type(self, node: RemoteNode) -> None:
