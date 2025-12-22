@@ -306,10 +306,29 @@ class HypervPlatform(Platform):
                 com1_pipe_name, node_context.console_log_path, log
             )
 
+            # Determine which switch to use: node > platform > default
+            switch_to_use = (
+                node_runbook.switch_name
+                or self._hyperv_runbook.switch_name
+                or default_switch.name
+            )
+
+            # Validate that the specified switch exists if not using default
+            if switch_to_use != default_switch.name:
+                if not hv.exists_switch(switch_to_use):
+                    raise LisaException(
+                        f"Specified switch '{switch_to_use}' does not exist. "
+                        "Please create the switch first or use an existing "
+                        "switch name."
+                    )
+                log.info(f"Using specified switch: {switch_to_use}")
+            else:
+                log.debug(f"Using default switch: {switch_to_use}")
+
             hv.create_vm(
                 name=vm_name,
                 guest_image_path=str(vhd_path),
-                switch_name=default_switch.name,
+                switch_name=switch_to_use,
                 generation=node_runbook.hyperv_generation,
                 cores=node.capability.core_count,
                 memory=node.capability.memory_mb,
