@@ -407,12 +407,13 @@ class Lagscope(Tool, KillableMixin):
 
         # Get the installed CMake version dynamically
         cmake_version_result = self.node.execute(
-            "cmake --version | head -n1 | grep -oP '\\d+\\.\\d+'",
+            "cmake --version | head -n1 | grep -oE '[0-9]+\\.[0-9]+' | head -n1",
             shell=True,
         )
 
         if cmake_version_result.exit_code == 0 and cmake_version_result.stdout.strip():
-            cmake_version = cmake_version_result.stdout.strip()
+            # Remove any carriage returns and take only the version number
+            cmake_version = cmake_version_result.stdout.strip().replace('\r', '').split('\n')[0]
             self._log.debug(f"Detected CMake version: {cmake_version}")
         else:
             # Fallback to a safe minimum version if detection fails
