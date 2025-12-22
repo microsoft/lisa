@@ -6,7 +6,7 @@ from typing import Dict
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import LisaException
+from lisa.util import LisaException, find_groups_in_lines
 
 
 class EfiBootMgr(Tool):
@@ -59,12 +59,8 @@ class EfiBootMgr(Tool):
         # Boot0000* MsTemp
         # Boot0002* Ubuntu with kernel 6.8.0-1044-azure-fde
         # Boot0003* Ubuntu with kernel 5.15.0-1102-azure
-        for line in output.splitlines():
-            match = self._boot_entry_pattern.match(line.strip())
-            if match:
-                kernel_version = match.group("kernel_version")
-                boot_num = match.group("boot_num")
-                boot_entries[kernel_version] = boot_num
+        for boot_entry in find_groups_in_lines(output, self._boot_entry_pattern):
+            boot_entries[boot_entry["kernel_version"]] = boot_entry["boot_num"]
 
         if not boot_entries:
             raise LisaException("No boot entries with kernel versions found.")
