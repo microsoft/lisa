@@ -387,7 +387,8 @@ class InfinibandSuite(TestSuite):
         server_ssh.add_known_host(client_ip)
         client_ssh.add_known_host(server_ip)
 
-        # Ping Pong test
+        # Find IMB-MPI1 binary path - use full absolute path to ensure
+        # remote nodes can locate the binary
         find = server_node.tools[Find]
         find_results = find.find_files(
             server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
@@ -399,9 +400,17 @@ class InfinibandSuite(TestSuite):
         assert_that(test_path).described_as(
             "Could not find location of IMB-MPI1 for Open MPI"
         ).is_not_empty()
+
+        # UCX environment variables to pin to a single HCA device.
+        # This is required for VMs with multiple RDMA VFs (e.g., HBv5 with 4 VFs)
+        # to avoid multi-HCA wireup mismatches where UCX reports "invalid bandwidth 0.00"
+        ucx_env = "-x UCX_NET_DEVICES=mlx5_ib0:1 -x UCX_TLS=rc -x OMPI_MCA_pml=ucx"
+
+        # Ping Pong test (intra-node)
         server_node.execute(
             f"/usr/local/bin/mpirun --host {server_ip},{server_ip} "
-            "-n 2 --mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
+            f"-n 2 {ucx_env} "
+            "--mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
             "--mca btl_openib_allow_ib 1 --mca "
             f"btl_openib_warn_no_device_params_found 0 {test_path} pingpong",
             expected_exit_code=0,
@@ -409,24 +418,15 @@ class InfinibandSuite(TestSuite):
             "with Open MPI",
         )
 
-        # IMB-MPI Tests
-        find_results = find.find_files(
-            server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
-        )
-        assert_that(len(find_results)).described_as(
-            "Could not find location of Open MPI test: IMB-MPI1"
-        ).is_greater_than(0)
-        test_path = find_results[0]
-        assert_that(test_path).described_as(
-            "Could not find location of Open MPI test: IMB-MPI1"
-        ).is_not_empty()
+        # IMB-MPI1 Tests (inter-node)
         server_node.execute(
             f"/usr/local/bin/mpirun --host {server_ip},{client_ip} "
-            "-n 2 --mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
+            f"-n 2 {ucx_env} "
+            "--mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
             "--mca btl_openib_allow_ib 1 --mca "
             f"btl_openib_warn_no_device_params_found 0 {test_path}",
             expected_exit_code=0,
-            expected_exit_code_failure_message="Failed " "IMB-MPI1 test with Open MPI",
+            expected_exit_code_failure_message="Failed IMB-MPI1 test with Open MPI",
         )
 
     @TestCaseMetadata(
@@ -595,7 +595,9 @@ class InfinibandSuite(TestSuite):
         server_ssh.add_known_host(client_ip)
         client_ssh.add_known_host(server_ip)
 
-        # Run MPI tests
+        # Run MPI tests with UCX environment variables to pin to a single HCA device.
+        # This is required for VMs with multiple RDMA VFs (e.g., HBv5 with 4 VFs)
+        # to avoid multi-HCA wireup mismatches where UCX reports "invalid bandwidth 0.00"
         find = server_node.tools[Find]
         test_names = ["IMB-MPI1", "IMB-RMA", "IMB-NBC"]
         for test in test_names:
@@ -609,12 +611,16 @@ class InfinibandSuite(TestSuite):
             assert_that(test_path).described_as(
                 f"Could not find location of MVAPICH MPI test: {test}"
             ).is_not_empty()
+            # Use environment variables before mpirun to set UCX configuration
+            # Full path to test binary ensures remote node can locate it
             server_node.execute(
+                f"UCX_NET_DEVICES=mlx5_ib0:1 UCX_TLS=rc "
                 f"/usr/local/bin/mpirun --hosts {server_ip},{client_ip} "
                 f"-n 2 -ppn 1 {test_path}",
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Failed {test} test "
                 "with MVAPICH MPI",
+                shell=True,
             )
 
     def _check_nd_enabled(self, node: Node) -> None:
