@@ -59,6 +59,9 @@ class HypervPlatformSchema:
     extra_args: List[ExtraArgs] = field(default_factory=list)
     wait_delete: bool = False
     device_pools: Optional[List[HostDevicePoolSchema]] = None
+    # Optional default switch name for all VMs.
+    # Can be overridden per-node in HypervNodeSchema.
+    switch_name: Optional[str] = None
 
 
 @dataclass_json
@@ -75,6 +78,9 @@ class HypervNodeSchema:
     osdisk_size_in_gb: int = 30
     # Configuration options for device-passthrough.
     device_passthrough: Optional[List[DevicePassthroughSchema]] = None
+    # Optional switch name to use for VM network connection.
+    # If not specified, the default switch will be used.
+    switch_name: Optional[str] = None
 
 
 @dataclass_json()
