@@ -43,7 +43,9 @@ class Xfstests(Tool):
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
     branch = "master"
     # This hash table contains recommended tags for different OS versions
-    # based on our findings that are known to build without issues.
+    # that require specific xfstests versions due to build or compatibility issues.
+    # NOTE: Most distros should work with master branch after the autoreconf fix.
+    # Only add entries here for distros that have confirmed issues with master.
     # The format for key is either "<vendor>_<release>" or "<vendor>_<major>
     # NOTE: The vendor field is case sensitive.
     # This information is derived from node.os.information
@@ -60,22 +62,16 @@ class Xfstests(Tool):
     # If the OS Version is not detected, the method "get_os_id_version" will return
     # "unknown" and a corresponding value will be used from the hash table.
     # If the OS Version is not found in the hash table,
-    # the default branch will be used from line 45.
-    # NOTE: This table should be updated on a regular basis when the distros
-    # are updated to support newer versions of xfstests.
+    # the default branch will be used from line 45 (master).
+    # NOTE: This table is retained for fallback purposes. Add distros here only
+    # if they fail to build with master branch even after running autoreconf.
     os_recommended_tags: Dict[str, str] = {
-        "SLES_15.5": "v2025.04.27",
-        "SLES_12.5": "v2024.12.22",
-        "Debian GNU/Linux_11": "v2024.12.22",
-        "Debian GNU/Linux_12": "v2024.12.22",
-        "Debian GNU/Linux_13": "v2024.12.22",
-        "Ubuntu_18": "v2024.12.22",
-        "Ubuntu_20": "v2024.12.22",
-        "Ubuntu_22": "v2024.12.22",
-        "Ubuntu_24": "v2024.12.22",
-        "Ubuntu_25": "v2024.12.22",
+        # Older RHEL/CentOS 7.x may have toolchain issues with master
         "Red Hat_7": "v2024.02.09",
         "CentOS_7": "v2024.02.09",
+        # SLES versions with kernel header incompatibilities (rw_hint.c issue)
+        "SLES_15.5": "v2025.04.27",
+        "SLES_12.5": "v2024.12.22",
         "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
     }
     # for all other distros not part of the above hash table,
@@ -107,6 +103,7 @@ class Xfstests(Tool):
         "fio",
         "dbench",
         "autoconf",
+        "pkg-config",  # Required for autoreconf to expand PKG_CHECK_MODULES macros
     ]
     debian_dep = [
         "exfatprogs",
@@ -147,6 +144,7 @@ class Xfstests(Tool):
         "liburing-devel",
         "libuuid-devel",
         "ocfs2-tools",
+        "pkgconfig",  # pkg-config for RHEL/Fedora (alternative: pkgconf-pkg-config)
         "psmisc",
         "python3",
         "sqlite",
@@ -466,11 +464,66 @@ class Xfstests(Tool):
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")
 
-        self.node.tools[Rm].remove_file(str(code_path / "src" / "splice2pipe.c"))
-        self.node.tools[Sed].substitute(
-            regexp="splice2pipe",
-            replacement="",
-            file=str(code_path / "src" / "Makefile"),
+        # Remove source files that have kernel header compatibility issues.
+        # splice2pipe.c and rw_hint.c use kernel macros that may not exist
+        # in older kernel headers (e.g., RWH_WRITE_LIFE_NOT_SET on SLES 15 SP5).
+        files_to_remove = ["splice2pipe", "rw_hint"]
+        for file_name in files_to_remove:
+            self.node.tools[Rm].remove_file(str(code_path / "src" / f"{file_name}.c"))
+            self.node.tools[Sed].substitute(
+                regexp=file_name,
+                replacement="",
+                file=str(code_path / "src" / "Makefile"),
+            )
+
+        # Regenerate configure script to fix PKG_CHECK_MODULES macro expansion issue.
+        # The pre-generated configure script in xfstests-dev git repo may have
+        # unexpanded PKG_CHECK_MODULES macros if it was generated without pkg-config.
+        # Running autoreconf ensures the macros are properly expanded.
+        self.node.execute(
+            "autoreconf -fi",
+            cwd=code_path,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "autoreconf failed. Ensure autoconf, automake, libtool, "
+                "and pkg-config are installed."
+            ),
+        )
+
+        # Copy xfstests' custom install-sh script to the root directory.
+        # The xfstests project uses its own install-sh (different from autotools)
+        # located in include/install-sh. This script is referenced by Makefiles
+        # in subdirectories and must be in the root for 'make install' to work.
+        # See xfstests Makefile 'configure' target:
+        # https://github.com/kdave/xfstests/blob/main/Makefile#L72
+        self.node.execute(
+            "cp include/install-sh .",
+            cwd=code_path,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to copy include/install-sh to root directory."
+            ),
+        )
+
+        # Copy config.sub and config.guess from automake to the xfstests root.
+        # Some distros (like SLES) don't have autoreconf copy these files
+        # automatically. The configure script needs these files to determine
+        # the build system type. We find and copy them from automake's share dir.
+        # Note: Using shell=True for glob expansion to handle different automake
+        # version directories (e.g., automake-1.15.1, automake-1.16.5).
+        self.node.execute(
+            "cp /usr/share/automake-*/config.sub "
+            "/usr/share/automake-*/config.guess .",
+            cwd=code_path,
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to copy config.sub/config.guess from automake. "
+                "Ensure automake is installed."
+            ),
         )
 
         make.make_install(code_path)
