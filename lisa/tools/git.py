@@ -176,9 +176,12 @@ class Git(Tool):
         )
         result.assert_exit_code(message=f"failed to pull code. {result.stdout}")
 
-    def fetch(self, cwd: pathlib.PurePath) -> None:
+    def fetch(self, cwd: pathlib.PurePath, remote: str = "") -> None:
+        cmd = "fetch -p"
+        if remote:
+            cmd += f" {remote}"
         result = self.run(
-            "fetch -p",
+            cmd,
             force_run=True,
             cwd=cwd,
             no_info_log=True,
