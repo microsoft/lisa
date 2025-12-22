@@ -416,8 +416,6 @@ class Lagscope(Tool, KillableMixin):
             # Clean the output: remove all whitespace and control characters
             raw_version = cmake_version_result.stdout
             # Extract only the first valid version pattern (digits.digits)
-            import re
-
             version_match = re.search(r"^(\d+\.\d+)", raw_version.strip())
             if version_match:
                 cmake_version = version_match.group(1)
