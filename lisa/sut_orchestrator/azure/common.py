@@ -1265,6 +1265,38 @@ def get_compute_client(
     )
 
 
+def _get_private_endpoint_ip(
+    network: Any,
+    resource_group_name: str,
+    private_endpoint: Any,
+    log: Logger,
+) -> Optional[str]:
+    """
+    Helper function to extract IP address from a private endpoint.
+    Tries multiple methods: custom_dns_configs, then network interface.
+    """
+    # Method 1: Try custom_dns_configs
+    if (
+        private_endpoint.custom_dns_configs
+        and private_endpoint.custom_dns_configs[0].ip_addresses
+    ):
+        return str(private_endpoint.custom_dns_configs[0].ip_addresses[0])
+
+    # Method 2: Get IP from network interface
+    if private_endpoint.network_interfaces:
+        try:
+            nic_id = private_endpoint.network_interfaces[0].id
+            # Extract NIC name from resource ID
+            nic_name = nic_id.split("/")[-1]
+            nic = network.network_interfaces.get(resource_group_name, nic_name)
+            if nic.ip_configurations and nic.ip_configurations[0].private_ip_address:
+                return str(nic.ip_configurations[0].private_ip_address)
+        except Exception as e:
+            log.debug(f"Failed to get IP from network interface: {e}")
+
+    return None
+
+
 def create_update_private_endpoints(
     platform: "AzurePlatform",
     resource_group_name: str,
@@ -1273,11 +1305,59 @@ def create_update_private_endpoints(
     private_link_service_id: str,
     group_ids: List[str],
     log: Logger,
-) -> Any:
+    private_endpoint_name: str = "pe_test",
+) -> Tuple[str, bool]:
+    """
+    Create or update private endpoints for Azure Private Link services.
+
+    This function checks if a private endpoint already exists and reuses it,
+    or creates a new one if not found. This enables resource reuse across
+    test runs when VMs are kept (keep_environment scenarios).
+
+    Args:
+        platform: Azure platform instance with credentials and subscription info
+        resource_group_name: Name of the resource group
+        location: Azure region for the endpoint
+        subnet_id: ID of the subnet to place the endpoint in
+        private_link_service_id: Resource ID of the service to connect to
+        group_ids: List of group IDs for the private link connection
+        log: Logger instance for debug output
+        private_endpoint_name: Name for the private endpoint. Should be unique
+            per resource to avoid conflicts. Recommended format:
+            <storageaccountname>-<resourcetype>-pe (e.g., mystorageacct-file-pe)
+
+    Returns:
+        Tuple[str, bool]: A tuple containing:
+            - ip_address (str): The private IP address of the endpoint
+            - was_created (bool): True if endpoint was created by this call,
+              False if it already existed and was reused. This flag allows
+              callers to track resource ownership for proper cleanup decisions
+              (only delete resources that LISA created).
+
+    Raises:
+        LisaException: If unable to retrieve IP address from the endpoint
+    """
     network = get_network_client(platform)
-    private_endpoint_name = "pe_test"
     status = "Approved"
     description = "Auto-Approved"
+
+    # Check if private endpoint already exists
+    try:
+        existing_pe = network.private_endpoints.get(
+            resource_group_name=resource_group_name,
+            private_endpoint_name=private_endpoint_name,
+        )
+        log.debug(f"found existing private endpoint: {private_endpoint_name}")
+        # Return IP from existing endpoint if available
+        ip_address = _get_private_endpoint_ip(
+            network, resource_group_name, existing_pe, log
+        )
+        if ip_address:
+            return (ip_address, False)  # Endpoint existed, not created by us
+        log.debug("Could not get IP from existing endpoint, will recreate...")
+    except Exception:
+        log.debug(f"private endpoint {private_endpoint_name} not found, creating...")
+
     private_endpoint = network.private_endpoints.begin_create_or_update(
         resource_group_name=resource_group_name,
         private_endpoint_name=private_endpoint_name,
@@ -1300,16 +1380,41 @@ def create_update_private_endpoints(
     )
     log.debug(f"create private endpoints: {private_endpoint_name}")
     result = private_endpoint.result()
-    return result.custom_dns_configs[0].ip_addresses[0]
+
+    # Try to get IP from the creation result
+    ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
+    if ip_address:
+        return (ip_address, True)  # Endpoint was created by us
+
+    # DNS configs may not be immediately available, fetch endpoint again
+    log.debug("IP not in result, fetching endpoint again...")
+    result = network.private_endpoints.get(
+        resource_group_name=resource_group_name,
+        private_endpoint_name=private_endpoint_name,
+    )
+
+    ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
+    if ip_address:
+        return (ip_address, True)  # Endpoint was created by us
+
+    raise LisaException(
+        f"Failed to get IP address from private endpoint {private_endpoint_name}"
+    )
 
 
 def delete_private_endpoints(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
+    private_endpoint_name: str = "pe_test",
 ) -> None:
+    """
+    Delete a private endpoint.
+
+    Args:
+        private_endpoint_name: Name of the private endpoint to delete.
+    """
     network = get_network_client(platform)
-    private_endpoint_name = "pe_test"
     try:
         network.private_endpoints.get(
             resource_group_name=resource_group_name,
@@ -1507,10 +1612,16 @@ def create_update_private_dns_zone_groups(
     resource_group_name: str,
     private_dns_zone_id: str,
     log: Logger,
+    private_endpoint_name: str = "pe_test",
 ) -> None:
+    """
+    Create or update private DNS zone groups.
+
+    Args:
+        private_endpoint_name: Name of the private endpoint to associate with.
+    """
     network_client = get_network_client(platform)
     private_dns_zone_group_name = "default"
-    private_endpoint_name = "pe_test"
     private_dns_zone_name = "privatelink"
     private_dns_zone_name = ".".join(
         [private_dns_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
@@ -1537,10 +1648,16 @@ def delete_private_dns_zone_groups(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
+    private_endpoint_name: str = "pe_test",
 ) -> None:
+    """
+    Delete private DNS zone groups.
+
+    Args:
+        private_endpoint_name: Name of the private endpoint associated with the group.
+    """
     network_client = get_network_client(platform)
     private_dns_zone_group_name = "default"
-    private_endpoint_name = "pe_test"
     try:
         network_client.private_dns_zone_groups.get(
             resource_group_name=resource_group_name,
@@ -2078,6 +2195,48 @@ def get_share_service_client(
 
 # Update: Added quota to allow creation of variable sized file share volumes.
 # Default is 100 GiB. All units are in GiB.
+def list_file_shares(
+    credential: Any,
+    subscription_id: str,
+    cloud: Cloud,
+    account_name: str,
+    resource_group_name: str,
+    log: Logger,
+) -> List[str]:
+    """
+    List all file shares in an Azure Storage account.
+
+    This utility function is available for future enhancements such as:
+    - Discovering existing file shares before creating new ones
+    - Validating file share existence during reuse scenarios
+    - Cleanup operations that need to enumerate shares
+
+    Args:
+        credential: Azure credential object
+        subscription_id: Azure subscription ID
+        cloud: Azure cloud configuration
+        account_name: Storage account name
+        resource_group_name: Resource group name
+        log: Logger instance
+
+    Returns:
+        List of file share names, or empty list if enumeration fails
+    """
+    try:
+        share_service_client = get_share_service_client(
+            credential,
+            subscription_id,
+            cloud,
+            account_name,
+            resource_group_name,
+        )
+        all_shares = list(share_service_client.list_shares())
+        return [share.name for share in all_shares]
+    except Exception as e:
+        log.debug(f"Failed to list file shares in {account_name}: {e}")
+        return []
+
+
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,
@@ -2364,29 +2523,56 @@ def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
     }
 
 
-@lru_cache(maxsize=256)  # noqa: B019
+# Module-level cache for storage account lists to prevent throttling.
+# Key: subscription_id, Value: list of storage accounts
+_storage_account_cache: Dict[str, List[Any]] = {}
+
+
 def find_storage_account(
     platform: "AzurePlatform", sc_name: str, subscription_id: str
 ) -> Any:
-    storage_client = get_storage_client(
-        platform.credential, subscription_id, platform.cloud
-    )
-    # sometimes it will fail for below reason if list storage accounts like this way
-    # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
-    # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
+    """
+    Find a storage account by name within a subscription.
 
-    # storage_client.storage_accounts.list() returns a paged iterator, which triggers
-    # additional API calls during iteration. Frequent or concurrent iterations can
-    # exceed Azure's request limits, resulting in throttling errors. To mitigate this,
-    # we cache the full list of storage accounts using list(), prevent
-    # 'ResourceCollectionRequestsThrottled' errors.
-    sc_list = list(storage_client.storage_accounts.list())
-    found_sc = None
-    for sc in sc_list:
+    Uses a module-level cache to prevent Azure API throttling errors.
+    The cache stores the full list of storage accounts per subscription.
+
+    Args:
+        platform: Azure platform instance with credentials
+        sc_name: Storage account name to find (case-insensitive)
+        subscription_id: Azure subscription ID to search in
+
+    Returns:
+        Storage account object if found, None otherwise
+
+    Note:
+        The @lru_cache decorator was removed because the platform parameter
+        (an object) is not reliably hashable. Instead, we use a module-level
+        dict cache keyed by subscription_id.
+    """
+    # Check cache first
+    if subscription_id not in _storage_account_cache:
+        storage_client = get_storage_client(
+            platform.credential, subscription_id, platform.cloud
+        )
+        # sometimes it will fail for below reason if list storage accounts like this way
+        # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
+        # failure - Message: Resource provider 'Microsoft.Storage' failed to return
+        # collection response for type 'storageAccounts'.
+
+        # storage_client.storage_accounts.list() returns a paged iterator, which
+        # triggers additional API calls during iteration. Frequent or concurrent
+        # iterations can exceed Azure's request limits, resulting in throttling
+        # errors. To mitigate this, we cache the full list of storage accounts.
+        _storage_account_cache[subscription_id] = list(
+            storage_client.storage_accounts.list()
+        )
+
+    # Search in cached list
+    for sc in _storage_account_cache[subscription_id]:
         if sc.name.lower() == sc_name.lower():
-            found_sc = sc
-            break
-    return found_sc
+            return sc
+    return None
 
 
 def get_token(platform: "AzurePlatform") -> str:
