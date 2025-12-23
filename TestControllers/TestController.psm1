@@ -902,7 +902,7 @@ Class TestController {
 		}
 
 		Write-LogInfo "Cleanup test environment if required ..."
-		$this.TestProvider.RunTestCleanup()
+		#$this.TestProvider.RunTestCleanup()
 	}
 
 	[void] RunLoadedTestCases([string]$TestReportXmlPath, [int]$TestIterations, [bool]$RunInParallel) {
