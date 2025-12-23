@@ -78,13 +78,13 @@ class NetInterface(TestSuite):
                     node.close()
                 elif "cannot connect to TCP port" in str(e):
                     raise LisaException(
-                        f"After reloading netvsc module {test_count - 1} times, "
+                        f"After reloading netvsc module {test_count} times, "
                         f"encounter exception '{e}'. It is not clear if"
                         " the image has an issue. Please rerun this case."
                     )
                 else:
                     raise LisaException(
-                        f"After reloading netvsc module {test_count - 1} times, "
+                        f"After reloading netvsc module {test_count} times, "
                         f"encounter exception '{e}'."
                     )
 
