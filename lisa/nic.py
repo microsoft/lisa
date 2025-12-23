@@ -190,7 +190,7 @@ class Nics(InitializableMixin):
         for nic in self.nics.values():
             if nic.is_pci_only_nic:
                 pci_nics.append(nic.name)
-            else:
+            elif nic.lower:
                 pci_nics.append(nic.lower)
         return pci_nics
 
