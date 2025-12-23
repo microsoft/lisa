@@ -25,11 +25,8 @@ from lisa.sut_orchestrator.azure.features import AzureFileShare, Nfs
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
-from lisa.util import (
-    BadEnvironmentStateException,
-    LisaException,
-    generate_random_chars,
-)
+from lisa.util import BadEnvironmentStateException, LisaException, generate_random_chars
+
 from microsoft.testsuites.xfstests.xfstests import Xfstests
 
 # Global variables

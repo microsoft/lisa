@@ -86,9 +86,7 @@ class NicInfo:
         Check if this is an Accelerated Networking (AN) NIC without
         synthetic NIC pairing.
         """
-        return (
-            not self.lower and self.is_pci_device and self.module_name != "hv_netvsc"
-        )
+        return not self.lower and self.is_pci_device and self.module_name != "hv_netvsc"
 
     @property
     def pci_device_name(self) -> str:
