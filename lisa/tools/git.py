@@ -396,6 +396,103 @@ class Git(Tool):
 
         return result
 
+    def remote_list(self, cwd: pathlib.PurePath) -> List[str]:
+        result = self.run(
+            "remote",
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to list remotes.",
+        )
+        remotes = filter_ansi_escape(result.stdout).strip()
+        return remotes.splitlines()
+
+    def remote_exists(self, cwd: pathlib.PurePath, name: str) -> bool:
+        remotes = self.remote_list(cwd=cwd)
+        return name in remotes
+
+    def remote_add(
+        self,
+        cwd: pathlib.PurePath,
+        name: str,
+        url: str,
+        fetch: bool = False,
+    ) -> None:
+        result = self.run(
+            f"remote add {name} {url}",
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(
+            message=f"failed to add remote '{name}' with url '{url}'.",
+            include_output=True,
+        )
+        self._log.debug(f"added remote '{name}' -> {url}")
+
+        if fetch:
+            self.fetch(cwd=cwd, remote=name)
+
+    def remote_remove(self, cwd: pathlib.PurePath, name: str) -> None:
+        result = self.run(
+            f"remote remove {name}",
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(
+            message=f"failed to remove remote '{name}'.", include_output=True
+        )
+        self._log.debug(f"removed remote '{name}'")
+
+    def remote_set_url(
+        self,
+        cwd: pathlib.PurePath,
+        name: str,
+        url: str,
+        push: bool = False,
+    ) -> None:
+        cmd = "remote set-url"
+        if push:
+            cmd += " --push"
+
+        cmd += f" {name} {url}"
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=False,
+        )
+        result.assert_exit_code(
+            message=f"failed to set url for remote '{name}'.", include_output=True
+        )
+        self._log.debug(f"set url for remote '{name}' -> {url}")
+
+    def remote_get_url(
+        self,
+        cwd: pathlib.PurePath,
+        name: str = "origin",
+        push: bool = False,
+    ) -> str:
+        cmd = "remote get-url"
+        if push:
+            cmd += " --push"
+        cmd += f" {name}"
+
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(
+            message=f"failed to get url for remote {name}", include_output=True
+        )
+        return filter_ansi_escape(result.stdout).strip()
+
 
 class GitBisect(Git):
     _STOP_PATTERNS = ["first bad commit", "This means the bug has been fixed between"]
