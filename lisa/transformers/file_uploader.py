@@ -47,6 +47,14 @@ class FileUploaderTransformer(DeploymentTransformer):
     def _output_names(self) -> List[str]:
         return [UPLOADED_FILES]
 
+    def _check_dest_dir(self, dest_path: str) -> None:
+        self._log.debug(f"checking destination {dest_path}")
+        ls = self._node.tools[Ls]
+        if not ls.path_exists(dest_path):
+            self._log.debug(f"creating directory {dest_path}")
+            mkdir = self._node.tools[Mkdir]
+            mkdir.create_directory(dest_path)
+
     def _validate(self) -> None:
         runbook: FileUploaderTransformerSchema = self.runbook
         source: PurePath = PurePath(runbook.source)
@@ -87,17 +95,13 @@ class FileUploaderTransformer(DeploymentTransformer):
         result: Dict[str, Any] = dict()
         copy = self._node.tools[RemoteCopy]
         uploaded_files: List[str] = []
+        destination_path = runbook.destination
 
-        self._log.debug(f"checking destination {runbook.destination}")
-        ls = self._node.tools[Ls]
-        if not ls.path_exists(runbook.destination):
-            self._log.debug(f"creating directory {runbook.destination}")
-            mkdir = self._node.tools[Mkdir]
-            mkdir.create_directory(runbook.destination)
+        self._check_dest_dir(destination_path)
 
-        for name in runbook.files:
+        for name in self._runbook_files:
             local_path = PurePath(runbook.source) / name
-            remote_path = PurePath(runbook.destination)
+            remote_path = PurePath(destination_path)
             self._log.debug(f"uploading file from '{local_path}' to '{remote_path}'")
 
             copy.copy_to_remote(local_path, remote_path)
