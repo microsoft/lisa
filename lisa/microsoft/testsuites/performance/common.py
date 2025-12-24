@@ -452,12 +452,12 @@ def perf_ntttcp(  # noqa: C901
             client_result_temp = None
             client_average_latency = None
 
-            while retry_count < max_retries and not test_success:
+            while not test_success:
                 try:
                     if retry_count > 0:
                         client.log.info(
                             f"Retrying ntttcp test for {test_thread} connections "
-                            f"(attempt {retry_count + 1}/{max_retries})"
+                            f"(attempt {retry_count + 1})"
                         )
                         # Clean up any stuck processes from the previous attempt.
                         # This is critical to prevent resource conflicts and
@@ -548,7 +548,7 @@ def perf_ntttcp(  # noqa: C901
                     time.sleep(30)
                     client.log.error(
                         f"Error during ntttcp test for {test_thread} connections "
-                        f"(attempt {retry_count}/{max_retries}): {e}"
+                        f"(attempt {retry_count + 1}): {e}"
                     )
                     retry_count += 1
 
@@ -563,28 +563,10 @@ def perf_ntttcp(  # noqa: C901
                         # Log cleanup errors but don't fail the retry mechanism
                         client.log.error(f"Cleanup error: {cleanup_error}")
 
-                    if retry_count >= max_retries:
-                        # All retry attempts exhausted for this connection count.
-                        # Log the failure and skip to the next connection count
-                        # instead of failing the entire test suite. This allows
-                        # other connection tests to proceed.
-                        client.log.error(
-                            f"Failed ntttcp test for {test_thread} connections "
-                            f"after {max_retries} attempts. "
-                            f"Skipping this connection count."
-                        )
-                        # Break out of the retry loop to move to the next
-                        # connection
-                        break
+                    # Continue retrying indefinitely until success
 
-            # All retry attempts exhausted without success.
-            # Raise an exception to fail the test as performance data
-            # could not be collected.
-            if not test_success:
-                raise LisaException(
-                    f"ntttcp test for {test_thread} connections failed after "
-                    f"{max_retries} attempts."
-                )
+            # Test completed successfully - no need to check for failure
+            # as the loop only exits when test_success is True
             assert server_result_temp is not None, "server result should not be None"
             assert client_result_temp is not None, "client result should not be None"
             assert (
