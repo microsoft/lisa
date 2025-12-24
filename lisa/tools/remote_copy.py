@@ -3,16 +3,19 @@
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Any, List, Optional, Type
 
+from lisa import LisaException
 from lisa.executable import Tool
 from lisa.tools.chown import Chown
 from lisa.tools.cp import Cp
+from lisa.tools.chmod import Chmod
 from lisa.tools.ls import Ls
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.rm import Rm
 from lisa.tools.whoami import Whoami
+from lisa.util import constants
 
 if TYPE_CHECKING:
-    from lisa.node import Node
+    from lisa.node import Node, RemoteNode
 
 
 class RemoteCopy(Tool):
@@ -232,6 +235,79 @@ class RemoteCopy(Tool):
             dest_files.extend(self._copy(dir_, destination_dir, recurse=recurse))
 
         return dest_files
+
+    def copy_between_remotes(
+        self,
+        src_node: "RemoteNode | Node",
+        src_path: PurePath,
+        dest_node: "RemoteNode | Node",
+        dest_path: PurePath,
+        recurse: bool = False,
+    ) -> Optional[int]:
+        """
+        Copy a file or directory from src_node to dest_node using scp.
+        The scp command is executed on the src_node, pushing to dest_node.
+        Only key-based authentication is supported.
+        """
+        # Ensure src_path and dest_path are strings
+        src_path_str = str(src_path)
+        dest_path_str = str(dest_path)
+
+        # get the node connection details for scp command
+        dest_connection = dest_node.connection_info
+        if not dest_connection:
+            raise LisaException("destination node connection info not setup.")
+
+        dest_user = dest_connection[constants.ENVIRONMENTS_NODES_REMOTE_USERNAME]
+        dest_addr = dest_connection[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+        dest_key = dest_connection[constants.ENVIRONMENTS_NODES_REMOTE_PRIVATE_KEY_FILE]
+        if not dest_user or not dest_addr or not dest_key:
+            raise ValueError("destination node connection info inaccessible")
+
+        # Use a temporary file for the key on src_node
+        tmp_key_name = "/tmp/.lisa_dest_key"
+        # Copy the dest_key to src_node (if not already present)
+        if not src_node.tools[Ls].path_exists(path=tmp_key_name, sudo=False):
+            self._log.debug("copying ssh key to src node")
+            src_node.shell.copy(
+                local_path=PurePath(dest_key),
+                node_path=PurePath(tmp_key_name),
+            )
+            assert src_node.tools[Ls].path_exists(tmp_key_name), "copy failed"
+            src_node.tools[Chmod].chmod(
+                path=tmp_key_name,
+                permission="0600",
+                sudo=False,
+            )
+
+        self._log.debug(
+            f"scp command attributes:\n"
+            f"destination user: {dest_user}\n"
+            f"destination IP adress: {dest_addr}\n"
+            f"destination admin_key: {dest_key}\n"
+            f"location of key on src: {tmp_key_name}\n"
+        )
+        # Prepare scp command to run on src_node, pushing to dest_node
+        scp_opts = "-r" if recurse else ""
+        scp_cmd = (
+            f"scp {scp_opts} -i {tmp_key_name} -o StrictHostKeyChecking=no "
+            f"{src_path_str} {dest_user}@{dest_addr}:{dest_path_str}"
+        )
+        self._log.debug(f"scp command: {scp_cmd}")
+        scp_process = src_node.execute_async(
+            scp_cmd,
+            shell=True,
+            sudo=False,
+            no_info_log=False,
+        )
+
+        # Ensure to delete the ssh-key file for security
+        src_node.tools[Rm].remove_file(path=tmp_key_name, sudo=False)
+
+        scp_result = scp_process.wait_result()
+        assert scp_result, "result of scp can't be 'None'."
+
+        return scp_result.exit_code
 
 
 class WindowsRemoteCopy(RemoteCopy):
