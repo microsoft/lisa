@@ -47,6 +47,29 @@ class FileUploaderTransformer(DeploymentTransformer):
     def _output_names(self) -> List[str]:
         return [UPLOADED_FILES]
 
+    def _validate(self) -> None:
+        runbook: FileUploaderTransformerSchema = self.runbook
+        source: PurePath = PurePath(runbook.source)
+
+        if not os.path.exists(runbook.source):
+            raise ValueError(f"source {runbook.source} doesn't exist.")
+
+        self._runbook_files: List[str] = runbook.files
+        if self._runbook_files == ["*"]:
+            self._runbook_files = []
+            files = os.listdir(runbook.source)
+            if len(files) == 0:
+                self._log.info("No files to upload")
+            for file in files:
+                self._runbook_files.append(file)
+
+        for file in self._runbook_files:
+            assert os.path.exists(source / file), f"Node does not contain file: {file}"
+
+        self._log.debug(
+            f"files to upload: {self._runbook_files} from:" f"{runbook.source}"
+        )
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         runbook: FileUploaderTransformerSchema = self.runbook
@@ -57,8 +80,7 @@ class FileUploaderTransformer(DeploymentTransformer):
         if not runbook.files:
             raise ValueError("'files' must be provided.")
 
-        if not os.path.exists(runbook.source):
-            raise ValueError(f"source {runbook.source} doesn't exist.")
+        self._validate()
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: FileUploaderTransformerSchema = self.runbook
