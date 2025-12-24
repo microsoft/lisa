@@ -452,15 +452,60 @@ class CustomScript(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return self._dependencies
 
+    def _move_files_into_executable_dir(
+        self, path: pathlib.PurePath, file: pathlib.PurePath
+    ) -> pathlib.PurePath:
+        """
+        On remote POSIX nodes, move the given file into the first existing
+        directory among ['/usr/local/bin', '/usr/bin', '/opt'] and return that
+        target directory path.
+        If any error occurs, do not move and return the original parent
+        directory of the file.
+        """
+        if not self.node.is_remote or not self.node.is_posix:
+            return path
+
+        preferred_dirs = ["/usr/local/bin", "/usr/bin", "/opt"]
+        src = path.joinpath(file)
+
+        for d in preferred_dirs:
+            target_dir = pathlib.PurePosixPath(d)
+            if not self.node.shell.exists(target_dir):
+                continue
+
+            dest = target_dir.joinpath(file)
+            result = self.node.execute(f"mv -f '{src}' '{dest}'", shell=True, sudo=True)
+            if result.exit_code != 0:
+                self._log.debug(
+                    f"failed moving script to {dest}: {result.stdout}{result.stderr}"
+                )
+                continue
+
+            return target_dir
+        return path
+
     def install(self) -> bool:
         if self.node.is_remote:
             # copy to remote
             node_script_path = self.get_tool_path()
+            has_path_noexec = self.node.is_posix and self.node.is_path_mounted_noexec(
+                str(node_script_path)
+            )
             for file in self._files:
                 remote_path = node_script_path.joinpath(file)
                 source_path = self._local_path.joinpath(file)
                 self.node.shell.copy(source_path, remote_path)
                 self.node.shell.chmod(remote_path, 0o755)
+                if has_path_noexec:
+                    self._log.debug(
+                        f"file {remote_path} is on a 'noexec' filesystem. It cannot be"
+                        " executed directly, will move to an alternate location"
+                    )
+                    # After copying the file from the local node, then move the file
+                    # to avoid permission issues.
+                    node_script_path = self._move_files_into_executable_dir(
+                        node_script_path, file
+                    )
             self._cwd = node_script_path
         else:
             self._cwd = self._local_path
