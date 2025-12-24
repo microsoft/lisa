@@ -460,6 +460,40 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self.tools[Chmod].chmod(work_path, "777", sudo=True)
         return work_path
 
+    def is_path_mounted_noexec(self, path: str) -> bool:
+        """
+        Check if the filesystem that contains the given path is mounted with
+        the 'noexec' option.
+
+        Returns True if 'noexec' is present for the mountpoint of the path,
+        otherwise False. If the path cannot be resolved to a mountpoint,
+        returns False.
+        """
+        try:
+            df = self.tools[Df]
+            part = df.get_partition_by_path(path, force_run=True)
+            if not part or not part.mountpoint:
+                self.log.debug(
+                    f"cannot resolve mountpoint for path: {path}, assume exec"
+                )
+                return False
+
+            mountpoint = part.mountpoint
+            mount = self.tools[Mount]
+            parts = mount.get_partition_info(mountpoint=mountpoint)
+            if not parts:
+                self.log.debug(f"no mount info for {mountpoint}, assume exec")
+                return False
+
+            # Some distros may have duplicate entries; treat 'noexec' on any as True.
+            has_noexec = any("noexec" in p.options for p in parts)
+            self.log.debug(f"path={path} mountpoint={mountpoint} noexec={has_noexec}")
+            return has_noexec
+        except Exception as e:
+            # Be conservative: if detection fails, do not block execution
+            self.log.debug(f"failed to detect noexec for {path}: {e}")
+            return False
+
     def get_working_path(self) -> PurePath:
         """
         It returns the path with expanded environment variables, but not create
