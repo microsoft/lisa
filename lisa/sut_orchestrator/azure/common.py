@@ -2247,9 +2247,22 @@ def get_or_create_file_share(
     log: Logger,
     protocols: str = "SMB",
     quota_in_gb: int = 100,
+    provisioned_iops: Optional[int] = None,
+    provisioned_bandwidth_mibps: Optional[int] = None,
 ) -> str:
     """
     Create an Azure Storage file share if it does not exist.
+
+    For Provisioned v2 (PV2) billing model, you can optionally specify:
+    - provisioned_iops: The provisioned IOPS for the share (PV2 only)
+    - provisioned_bandwidth_mibps: The provisioned throughput in MiB/s (PV2 only)
+
+    If these are not specified, Azure will use default recommendations based
+    on the provisioned storage size.
+
+    PV2 requires storage account SKU: PremiumV2_LRS, PremiumV2_ZRS,
+    StandardV2_LRS, StandardV2_ZRS, StandardV2_GRS, or StandardV2_GZRS.
+    PV2 minimum quota is 32 GiB (vs 100 GiB for PV1).
     """
     share_service_client = get_share_service_client(
         credential,
@@ -2261,11 +2274,20 @@ def get_or_create_file_share(
     all_shares = list(share_service_client.list_shares())
     if file_share_name not in (x.name for x in all_shares):
         log.debug(f"creating file share {file_share_name} with protocols {protocols}")
-        share_service_client.create_share(
-            file_share_name,
-            protocols=protocols,
-            quota=quota_in_gb,
-        )
+        # Build kwargs for create_share - only include PV2 params if specified
+        create_kwargs: Dict[str, Any] = {
+            "protocols": protocols,
+            "quota": quota_in_gb,
+        }
+        # PV2-specific parameters (requires API version 2025-01-05+)
+        # These are only valid for PV2 storage accounts (PremiumV2_*, StandardV2_*)
+        if provisioned_iops is not None:
+            create_kwargs["provisioned_iops"] = provisioned_iops
+            log.debug(f"  provisioned_iops: {provisioned_iops}")
+        if provisioned_bandwidth_mibps is not None:
+            create_kwargs["provisioned_bandwidth_mibps"] = provisioned_bandwidth_mibps
+            log.debug(f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}")
+        share_service_client.create_share(file_share_name, **create_kwargs)
     return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 
 
