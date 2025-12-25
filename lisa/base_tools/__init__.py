@@ -7,6 +7,7 @@ from .service import Service, ServiceInternal, Systemctl
 from .uname import Uname
 from .wget import Wget
 from .yum_config_manager import YumConfigManager
+from .dpkg import Dpkg
 
 __all__ = [
     "Uname",
@@ -14,6 +15,7 @@ __all__ = [
     "Wget",
     "Cat",
     "Rpm",
+    "Dpkg",
     "YumConfigManager",
     "Service",
     "ServiceInternal",
