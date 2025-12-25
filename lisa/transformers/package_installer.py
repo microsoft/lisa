@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Type
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.operating_system import RPMDistro
-from lisa.tools import Rpm
+from lisa.operating_system import RPMDistro, Debian
+from lisa.tools import Dpkg, Rpm, Uname
 from lisa.tools.ls import Ls
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
@@ -122,3 +122,33 @@ class RPMPackageInstallerTransformer(PackageInstaller):
 
     def _install_package(self, file: str) -> None:
         self._node.tools[Rpm].install_local_package(file, force=True, nodeps=True)
+
+
+class DEBPackageInstallerTransformer(PackageInstaller):
+    @classmethod
+    def type_name(cls) -> str:
+        return "deb_package_installer"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return PackageInstallerSchema
+
+    @property
+    def _output_names(self) -> List[str]:
+        return []
+
+    def _validate(self) -> None:
+        if not isinstance(self._node.os, Debian):
+            raise UnsupportedDistroException(
+                self._node.os,
+                f"'{self.type_name()}' transformer only supports Debian-based Distros.",
+            )
+        super()._validate()
+
+    def _validate_package(self, file: str) -> None:
+        assert self._node.tools[Dpkg].is_valid_package(
+            file
+        ), f"Provided file {file} is not a deb"
+
+    def _install_package(self, file: str) -> None:
+        self._node.tools[Dpkg].install_local_package(file, force=True)
