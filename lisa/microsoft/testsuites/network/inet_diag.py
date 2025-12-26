@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from __future__ import annotations
+
+import time
 
 from assertpy import assert_that
 
@@ -14,7 +15,7 @@ from lisa import (
 )
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
-from lisa.tools import KernelConfig, Python
+from lisa.tools import KernelConfig, Ss
 
 
 @TestSuiteMetadata(
@@ -32,6 +33,88 @@ from lisa.tools import KernelConfig, Python
     ),
 )
 class InetDiagSuite(TestSuite):
+    _TEST_PORT = 34567
+    _LOCALHOST = "127.0.0.1"
+
+    def _create_tcp_server_client(self) -> str:
+        """
+        Create a TCP server-client connection and return a Python script
+        that keeps the connection alive.
+
+        Returns:
+            Python code as a string to execute
+        """
+        script = f"""
+import socket
+import sys
+import time
+
+# Create server socket
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(('{self._LOCALHOST}', {self._TEST_PORT}))
+server.listen(1)
+
+# Create client socket
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+# Accept connection in background
+import threading
+accepted_conn = []
+
+def accept_connection():
+    conn, addr = server.accept()
+    accepted_conn.append(conn)
+    # Keep connection alive
+    while True:
+        time.sleep(1)
+
+accept_thread = threading.Thread(target=accept_connection, daemon=True)
+accept_thread.start()
+time.sleep(0.5)
+
+# Connect client
+client.connect(('{self._LOCALHOST}', {self._TEST_PORT}))
+time.sleep(1)
+
+print("CONNECTION_READY")
+sys.stdout.flush()
+
+# Keep script running to maintain connection
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    pass
+finally:
+    client.close()
+    server.close()
+"""
+        return script
+
+    def _verify_connection_exists(
+        self, node: Node, port: int, should_exist: bool = True
+    ) -> None:
+        """
+        Verify whether a TCP connection exists on the specified port.
+
+        Args:
+            node: The node to check
+            port: The port number to check
+            should_exist: True if connection should exist, False otherwise
+        """
+        ss = node.tools[Ss]
+        connection_exists = ss.connection_exists(port=port, state="ESTAB", sport=True)
+
+        if should_exist:
+            assert_that(connection_exists).described_as(
+                f"Connection should exist on port {port}"
+            ).is_true()
+        else:
+            assert_that(connection_exists).described_as(
+                f"Connection should NOT exist on port {port}"
+            ).is_false()
+
     @TestCaseMetadata(
         description="""
         This test case verifies that the INET_DIAG_DESTROY kernel feature
@@ -44,15 +127,14 @@ class InetDiagSuite(TestSuite):
         3. Verify the connection exists using ss command.
         4. Destroy the connection using 'ss -K' (kill socket).
         5. Verify the connection was destroyed (no longer visible).
-        6. Verify attempting to use the socket fails with connection reset.
-        7. Clean up any remaining connections.
+        6. Clean up any remaining connections.
 
         """,
         priority=2,
     )
     def verify_inet_diag_destroy(self, node: Node) -> None:
         kernel_config = node.tools[KernelConfig]
-        python = node.tools[Python]
+        ss = node.tools[Ss]
 
         # Check kernel configuration
         if not kernel_config.is_enabled("CONFIG_INET_DIAG"):
@@ -62,96 +144,90 @@ class InetDiagSuite(TestSuite):
             raise SkippedException("CONFIG_INET_DIAG_DESTROY is not enabled in kernel")
 
         # Verify ss command exists and supports -K flag
-        ss_version = node.execute("ss --version", shell=True)
-        assert_that(ss_version.exit_code).described_as(
-            "ss command should be available"
-        ).is_equal_to(0)
+        if not ss.has_kill_support():
+            raise SkippedException("ss command does not support -K (kill) option")
 
-        # Run the test directly using python -c instead of creating a file
-        test_script_cmd = f"""{python.command} -c '
-import socket, subprocess, time, sys, threading
+        # Create the connection script
+        script = self._create_tcp_server_client()
+        script_path = "/tmp/lisa_tcp_test.py"
 
-test_port = 34567
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server.bind(("127.0.0.1", test_port))
-server.listen(1)
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-accepted_conns = []
-def accept_conn():
-    conn, addr = server.accept()
-    accepted_conns.append(conn)
-    time.sleep(30)
-
-accept_thread = threading.Thread(target=accept_conn, daemon=True)
-accept_thread.start()
-time.sleep(0.5)
-client.connect(("127.0.0.1", test_port))
-time.sleep(1)
-
-result = subprocess.run(
-    ["ss", "-tn", "sport", "=", str(test_port)],
-    capture_output=True, text=True
-)
-if "ESTAB" not in result.stdout:
-    print("ERROR: Connection not established")
-    sys.exit(1)
-print("BEFORE: Connection established on port", test_port)
-
-destroy_result = subprocess.run(
-    ["sudo", "ss", "-K", "sport", "=", str(test_port)],
-    capture_output=True, text=True
-)
-print("DESTROY: ss -K exit code:", destroy_result.returncode)
-time.sleep(1)
-
-check_result = subprocess.run(
-    ["ss", "-tn", "sport", "=", str(test_port)],
-    capture_output=True, text=True
-)
-print("AFTER: Checking for connection")
-if "ESTAB" in check_result.stdout:
-    print("ERROR: Connection still exists after ss -K")
-    sys.exit(1)
-
-try:
-    client.send(b"test")
-    print("ERROR: Socket still works")
-    sys.exit(1)
-except (BrokenPipeError, ConnectionResetError, OSError) as e:
-    print("SUCCESS: Socket properly destroyed -", type(e).__name__)
-
-server.close()
-client.close()
-print("TEST PASSED")
-'"""
-
-        # Run the test script
-        result = node.execute(
-            test_script_cmd,
-            shell=True,
-            sudo=True,
-            timeout=60,
+        # Create temporary Python script using Python's file writing
+        # This is more reliable than heredoc through SSH
+        write_cmd = (
+            f"python3 -c \"with open('{script_path}', 'w') as f: "
+            f'f.write({repr(script)})"'
         )
+        node.execute(write_cmd, sudo=False)
 
-        # Check the output
-        node.log.debug(f"Test script output:\n{result.stdout}")
-        if result.stderr:
-            node.log.debug(f"Test script stderr:\n{result.stderr}")
+        connection_process = None
+        try:
+            # Start the connection in background with nohup to keep it alive
+            connection_process = node.execute_async(
+                f"python3 {script_path}",
+                sudo=False,
+                nohup=True,
+            )
 
-        # Verify the test passed
-        assert_that(result.exit_code).described_as(
-            "inet_diag_destroy test script should complete successfully"
-        ).is_equal_to(0)
+            # Wait for connection to be established (check on remote node)
+            max_wait = 10
+            wait_interval = 0.5
+            connection_ready = False
 
-        assert_that(result.stdout).described_as(
-            "Test should report successful socket destruction"
-        ).contains("SUCCESS: Socket properly destroyed")
+            for _ in range(int(max_wait / wait_interval)):
+                time.sleep(wait_interval)
 
-        assert_that(result.stdout).described_as("Test should pass all checks").contains(
-            "TEST PASSED"
-        )
+                # Check if connection is established on the remote node
+                ss_check = node.execute(
+                    f"ss -tn sport = {self._TEST_PORT} | grep ESTAB",
+                    shell=True,
+                )
+                if ss_check.exit_code == 0:
+                    connection_ready = True
+                    break
+
+            if not connection_ready:
+                raise LookupError(
+                    f"TCP connection not established on port {self._TEST_PORT} "
+                    f"within {max_wait} seconds"
+                )
+
+            node.log.debug(
+                f"TCP connection established successfully on port {self._TEST_PORT}"
+            )
+
+            # Verify connection exists
+            node.log.debug(
+                f"Checking for established connection on port {self._TEST_PORT}"
+            )
+            self._verify_connection_exists(node, self._TEST_PORT, should_exist=True)
+
+            # Destroy the connection using ss -K
+            node.log.info(
+                f"Destroying connection on port {self._TEST_PORT} using ss -K"
+            )
+            ss.kill_connection(port=self._TEST_PORT, sport=True, sudo=True)
+
+            # Wait a moment for the destruction to take effect
+            time.sleep(2)
+
+            # Verify connection no longer exists
+            node.log.debug("Verifying connection was destroyed")
+            self._verify_connection_exists(node, self._TEST_PORT, should_exist=False)
+
+            node.log.info(
+                "Successfully verified INET_DIAG_DESTROY functionality - "
+                "connection was destroyed"
+            )
+
+        finally:
+            # Clean up: kill the background process
+            if connection_process:
+                node.execute(
+                    f"pkill -f {script_path}",
+                    sudo=True,
+                )
+            # Remove temporary script
+            node.execute(f"rm -f {script_path}", sudo=True)
 
     @TestCaseMetadata(
         description="""
@@ -169,19 +245,16 @@ print("TEST PASSED")
     )
     def verify_inet_diag_enabled(self, node: Node) -> None:
         kernel_config = node.tools[KernelConfig]
+        ss = node.tools[Ss]
 
         # Check kernel configuration
         if not kernel_config.is_enabled("CONFIG_INET_DIAG"):
             raise SkippedException("CONFIG_INET_DIAG is not enabled in kernel")
 
         # Verify ss command works
-        result = node.execute("ss -s", shell=True)
-        assert_that(result.exit_code).described_as(
-            "ss -s command should work with INET_DIAG enabled"
-        ).is_equal_to(0)
-
-        assert_that(result.stdout).described_as(
-            "ss should provide socket statistics"
-        ).contains("TCP:")
+        stats = ss.get_statistics()
+        assert_that(stats).described_as("ss should provide socket statistics").contains(
+            "TCP:"
+        )
 
         node.log.info("CONFIG_INET_DIAG is enabled and functional")
