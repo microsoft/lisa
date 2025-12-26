@@ -192,7 +192,20 @@ class Modprobe(Tool):
         )
         self._log.debug(f"running with parameters: {parameters}")
         modprobe_reloader_script: CustomScript = self.node.tools[modprobe_reloader_tool]
-        modprobe_reloader_script.run(parameters, sudo=True, shell=True, nohup=True)
+        result = modprobe_reloader_script.run(
+            parameters,
+            sudo=True,
+            shell=True,
+            nohup=True,
+            force_run=True,
+        )
+        result.assert_exit_code(
+            expected_exit_code=0,
+            message=(
+                f"Failed to start modprobe reloader script. Parameters: {parameters}"
+            ),
+            include_output=True,
+        )
 
         cat = self.node.tools[Cat]
         tried_times: int = 0
