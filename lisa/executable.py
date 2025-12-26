@@ -491,6 +491,7 @@ class CustomScript(Tool):
             has_path_noexec = self.node.is_posix and self.node.is_path_mounted_noexec(
                 str(node_script_path)
             )
+            cwd_path = node_script_path
             for file in self._files:
                 remote_path = node_script_path.joinpath(file)
                 source_path = self._local_path.joinpath(file)
@@ -503,10 +504,10 @@ class CustomScript(Tool):
                     )
                     # After copying the file from the local node, then move the file
                     # to avoid permission issues.
-                    node_script_path = self._move_files_into_executable_dir(
+                    cwd_path = self._move_files_into_executable_dir(
                         node_script_path, file
                     )
-            self._cwd = node_script_path
+            self._cwd = cwd_path
         else:
             self._cwd = self._local_path
 
