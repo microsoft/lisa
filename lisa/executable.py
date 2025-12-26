@@ -474,6 +474,8 @@ class CustomScript(Tool):
                 continue
 
             dest = target_dir.joinpath(file)
+            if self.node.shell.exists(dest):
+                self._log.warning(f"overwriting existing file at '{dest}' with '{src}'")
             result = self.node.execute(f"mv -f '{src}' '{dest}'", shell=True, sudo=True)
             if result.exit_code != 0:
                 self._log.debug(
