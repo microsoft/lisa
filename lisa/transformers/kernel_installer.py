@@ -15,6 +15,7 @@ from lisa.node import Node
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.tools import Uname
+from lisa.tools.efibootmgr import EfiBootMgr
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -146,6 +147,13 @@ class KernelInstallerTransformer(DeploymentTransformer):
         installer.validate()
 
         try:
+            # for fde kernel installation, get the boot entries before installation
+            if (
+                isinstance(installer, RepoInstaller)
+                and "fde" in installer.runbook.source
+            ):
+                efi_boot_mgr = node.tools[EfiBootMgr]
+                boot_entries_before = efi_boot_mgr.get_boot_entries_by_kernel()
             message.old_kernel_version = uname.get_linux_information(
                 force_run=True
             ).kernel_version_raw
@@ -180,26 +188,8 @@ class KernelInstallerTransformer(DeploymentTransformer):
                 isinstance(installer, RepoInstaller)
                 and "fde" in installer.runbook.source
             ):
-                # For fde/cvm kernels, it needs to remove the old
-                # kernel.efi files after installing the new kernel
-                # Ex: /boot/efi/EFI/ubuntu/kernel.efi-6.2.0-1019-azure
-                efi_files = node.execute(
-                    "ls -t /boot/efi/EFI/ubuntu/kernel.efi-*",
-                    sudo=True,
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "fail to find kernel.efi file for kernel type "
-                        " linux-image-azure-fde"
-                    ),
-                )
-                for old_efi_file in efi_files.stdout.splitlines()[1:]:
-                    self._log.info(f"Removing old kernel efi file: {old_efi_file}")
-                    node.execute(
-                        f"rm -f {old_efi_file}",
-                        sudo=True,
-                        shell=True,
-                    )
+                # set the boot entry to the installed kernel
+                efi_boot_mgr.set_boot_entry_to_new_kernel(boot_entries_before)
 
             self._log.info("rebooting")
             node.reboot(time_out=900)
