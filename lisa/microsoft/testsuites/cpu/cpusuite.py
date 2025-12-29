@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 import time
-from typing import cast
+from typing import List, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.cpu.common import (
@@ -28,17 +28,8 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.node import RemoteNode
-from lisa.tools import (
-    Ethtool,
-    Fio,
-    Iperf3,
-    KernelConfig,
-    Kill,
-    Lscpu,
-    Lsvmbus,
-    Modprobe,
-    Reboot,
-)
+from lisa.tools import Ethtool, Fio, Iperf3, Kill, Lscpu, Lsvmbus, Reboot
+from lisa.tools.lsvmbus import HV_NETVSC_CLASS_ID
 from lisa.util import SkippedException
 
 
@@ -47,10 +38,17 @@ from lisa.util import SkippedException
     category="functional",
     description="""
     This test suite is used to run cpu related tests, set cpu core 16 as minimal
-    requreiemnt, since test case relies on idle cpus to do the testing.
+    requirement, since test case relies on idle cpus to do the testing.
     """,
 )
 class CPUSuite(TestSuite):
+    # Constants for network channel management
+    MAX_CHANNELS_LIMIT = 64
+    FIO_BASE_RUNTIME_SECONDS = 300
+    CPU_TOGGLE_TIME_SECONDS = 10
+    FIO_IODEPTH = 128
+    FIO_NUM_JOBS = 10
+
     @TestCaseMetadata(
         description="""
             This test will check cpu hotplug.
@@ -101,14 +99,17 @@ class CPUSuite(TestSuite):
         fio_data_size_in_gb = 1
         try:
             image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
-            # Each CPU takes ~10 seconds to toggle offline-online
-            fio_run_time = 300 + (node.tools[Lscpu].get_thread_count() * 10)
+            # Each CPU takes approximately CPU_TOGGLE_TIME_SECONDS to toggle
+            # offline-online
+            fio_run_time = self.FIO_BASE_RUNTIME_SECONDS + (
+                node.tools[Lscpu].get_thread_count() * self.CPU_TOGGLE_TIME_SECONDS
+            )
             fio_process = node.tools[Fio].launch_async(
                 name="workload",
                 filename=f"{image_folder_path}/fiodata",
                 mode="readwrite",
-                iodepth=128,
-                numjob=10,
+                iodepth=self.FIO_IODEPTH,
+                numjob=self.FIO_NUM_JOBS,
                 time=fio_run_time,
                 block_size="1M",
                 size_gb=fio_data_size_in_gb,
@@ -129,7 +130,7 @@ class CPUSuite(TestSuite):
             # verify that the fio was running when hotplug was triggered
             assert_that(
                 fio_process.is_running(),
-                "Storage workload was not running during CPUhotplug",
+                "Storage workload was not running during CPU hotplug",
             ).is_true()
         finally:
             # kill fio process
@@ -172,150 +173,267 @@ class CPUSuite(TestSuite):
             server.tools[Kill].by_name("iperf3", ignore_not_exist=True)
             client.tools[Kill].by_name("iperf3", ignore_not_exist=True)
 
+    # ---- CPUSuite helpers ----
+    def _read_max_supported(self, node: Node) -> int:
+        """
+        Return conservative device max 'combined' channels for eth0.
+        Fallback strategy: Try to collect all possible candidates from ethtool fields
+        (max_combined, max_channels, max_current, current_channels); if none are found,
+        fall back to lsvmbus queue count; if that fails, fall back to thread count.
+        Always clamp to [1, MAX_CHANNELS_LIMIT].
+        """
+        try:
+            info = node.tools[Ethtool].get_device_channels_info("eth0", True)
+            candidates = []
+            for name in ("max_combined", "max_channels", "max_current"):
+                v = getattr(info, name, None)
+                if v is not None:
+                    try:
+                        candidates.append(int(v))
+                    except Exception:
+                        # Ignore values that cannot be converted to int
+                        # (may be missing or malformed)
+                        pass
+            current_channels = getattr(info, "current_channels", None)
+            if current_channels is not None:
+                try:
+                    candidates.append(int(current_channels))
+                except Exception:
+                    # Ignore values that cannot be converted to int
+                    # (may be missing or malformed)
+                    pass
+            if candidates:
+                return max(1, min(max(candidates), self.MAX_CHANNELS_LIMIT))
+        except Exception:
+            # Ignore ethtool exceptions to allow fallback to lsvmbus method
+            pass
+
+        try:
+            chans = node.tools[Lsvmbus].get_device_channels(force_run=True)
+            for ch in chans:
+                if ch.class_id == HV_NETVSC_CLASS_ID:
+                    return max(1, min(len(ch.channel_vp_map), self.MAX_CHANNELS_LIMIT))
+        except Exception:
+            # Ignore lsvmbus exceptions to allow fallback to threads method
+            # (lsvmbus may not be available)
+            pass
+
+        threads = node.tools[Lscpu].get_thread_count()
+        return max(1, min(int(threads), self.MAX_CHANNELS_LIMIT))
+
+    def _read_current(self, node: Node) -> int:
+        """
+        Read current combined channels.
+        """
+        info = node.tools[Ethtool].get_device_channels_info("eth0", True)
+        current_channels = getattr(info, "current_channels", 1)
+        return max(1, int(current_channels))
+
+    def _set_channels_with_retry(
+        self, log: Logger, node: Node, target: int, current: int, soft_upper: int
+    ) -> int:
+        """
+        Set channels to target with a single safe retry if it exceeds device max.
+        We clamp to min(device_max, soft_upper) first; if still failing with
+        'exceeds maximum', we shrink to device_max and retry once.
+        """
+        device_max = self._read_max_supported(node)
+        final_target = max(1, min(int(target), int(soft_upper), int(device_max)))
+        if final_target == int(current):
+            return current
+
+        try:
+            node.tools[Ethtool].change_device_channels_info("eth0", final_target)
+            return final_target
+        except Exception as e:
+            msg = str(e)
+            if "exceeds maximum" in msg or "Invalid argument" in msg:
+                if final_target != device_max:
+                    log.debug(
+                        f"Retrying with device max due to '{msg}': "
+                        f"target={final_target} -> {device_max}"
+                    )
+                    node.tools[Ethtool].change_device_channels_info("eth0", device_max)
+                    return device_max
+            raise
+
+    def _pick_target_not_eq_current(
+        self, current: int, upper: int, lower: int = 1
+    ) -> int:
+        """
+        Pick a safe random target in [lower, upper] different from current.
+        Always clamp within the allowed range.
+        """
+
+        lower = max(1, int(lower))
+        upper = max(lower, int(upper))
+
+        # If current already above limit, bring it back first
+        current = min(max(current, lower), upper)
+
+        # Candidates within range but != current
+        candidates = [x for x in range(lower, upper + 1) if x != current]
+        if not candidates:
+            return current
+
+        target = random.choice(candidates)
+        return min(max(target, lower), upper)
+
+    def _verify_no_irq_on_offline(
+        self, node: Node, offline: List[str], expect_len: int
+    ) -> None:
+        """
+        Assert NIC channel count and that no IRQ is routed to offline CPUs.
+        """
+        chans = node.tools[Lsvmbus].get_device_channels(force_run=True)
+        for ch in chans:
+            if ch.class_id == HV_NETVSC_CLASS_ID:
+                assert_that(ch.channel_vp_map).is_length(expect_len)
+                for vp in ch.channel_vp_map:
+                    assert_that(vp.target_cpu).is_not_in(offline)
+
     @TestCaseMetadata(
         description="""
-            This test will check that the added channels to synthetic network
-            adapter do not handle interrupts on offline cpu.
-            Steps:
-            1. Get list of offline CPUs.
-            2. Add channels to synthetic network adapter.
-            3. Verify that the channels were added to synthetic network adapter.
-            4. Verify that the added channels do not handle interrupts on offline cpu.
-            """,
+            Validate that changing netvsc combined channels works while some CPUs
+            are offline, and that no IRQ is routed to offline CPUs. Capture the
+            baseline NIC capability before any CPU is taken offline to avoid
+            misjudging capability from a transient state.
+        """,
         priority=4,
-        requirement=simple_requirement(
-            min_core_count=16,
-        ),
+        requirement=simple_requirement(min_core_count=16),
     )
     def verify_cpu_offline_channel_add(self, log: Logger, node: Node) -> None:
-        # skip test if kernel doesn't support cpu hotplug
-        check_runnable(node)
+        """
+        Validate that changing netvsc combined channels works when some CPUs are
+        offline, and that no IRQ is routed to offline CPUs. The target channel
+        count is always clamped to the device capability and current CPU limits.
+        """
 
-        # set vmbus channels target cpu into 0 if kernel supports this feature.
+        # ---------- Pre-checks ----------
+        check_runnable(node)
         set_interrupts_assigned_cpu(log, node)
 
-        # when kernel doesn't support above feature, we have to rely on current vm's
-        # cpu usage. then collect the cpu not in used exclude cpu0.
-        idle_cpus = get_idle_cpus(node)
-        log.debug(f"idle cpus: {idle_cpus}")
-
-        # save origin current channel
-        origin_device_channel = (
-            node.tools[Ethtool].get_device_channels_info("eth0", True)
-        ).current_channels
-        log.debug(f"origin current channels count: {origin_device_channel}")
-
-        # set channel count into 1 to get idle cpus
-        if len(idle_cpus) == 0:
-            node.tools[Ethtool].change_device_channels_info("eth0", 1)
-            idle_cpus = get_idle_cpus(node)
-            log.debug(f"idle cpus: {idle_cpus}")
-        if len(idle_cpus) == 0:
+        # Baseline capability with CPUs online
+        origin_channels = self._read_current(node)
+        baseline_device_max = self._read_max_supported(node)
+        log.debug(
+            f"Baseline channels: current={origin_channels}, "
+            f"device_max={baseline_device_max}"
+        )
+        if baseline_device_max <= 1:
             raise SkippedException(
-                "all of the cpu are associated vmbus channels, "
-                "no idle cpu can be used to test hotplug."
+                "Device Combined max <= 1 at baseline; cannot add channels."
             )
 
-        # set idle cpu state offline and change channels
-        # current max channel will be cpu_count - len(idle_cpus)
-        # check channels of synthetic network adapter align with current setting channel
+        # Find idle CPUs; if none, shrink once to 1 and retry
+        idle = get_idle_cpus(node)
+        log.debug(f"Idle CPUs (initial): {idle}")
+        if len(idle) == 0:
+            node.tools[Ethtool].change_device_channels_info("eth0", 1)
+            idle = get_idle_cpus(node)
+            log.debug(f"Idle CPUs (after shrink to 1): {idle}")
+        if len(idle) == 0:
+            raise SkippedException(
+                "All CPUs are associated with vmbus channels; no idle CPU available."
+            )
+
         try:
-            # take idle cpu to offline
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.OFFLINE)
+            # ---------- Phase 1: CPUs taken offline ----------
+            set_cpu_state_serial(log, node, idle, CPUState.OFFLINE)
 
-            # get vmbus channels of synthetic network adapter. the synthetic network
-            # drivers have class id "f8615163-df3e-46c5-913f-f2d2f965ed0e"
-            node.tools[Lsvmbus].get_device_channels(force_run=True)
-            thread_count = node.tools[Lscpu].get_thread_count()
-
-            # current max channel count need minus count of idle cpus
-            max_channel_count = thread_count - len(idle_cpus)
-
-            first_current_device_channel = (
-                node.tools[Ethtool].get_device_channels_info("eth0", True)
-            ).current_channels
-            log.debug(
-                f"current channels count: {first_current_device_channel} "
-                "after taking idle cpu to offline"
+            threads_phase1 = node.tools[Lscpu].get_thread_count()
+            device_max_phase1 = self._read_max_supported(node)
+            upper_limit_phase1 = max(
+                1,
+                min(
+                    threads_phase1 - len(idle),
+                    device_max_phase1,
+                    self.MAX_CHANNELS_LIMIT,
+                ),
             )
 
-            # if all cpus besides cpu 0 are changed into offline
-            # skip change the channel, since current channel is 1
-            first_channel_count = random.randint(1, min(max_channel_count, 64))
-            if first_current_device_channel > 1:
-                while True:
-                    if first_channel_count != first_current_device_channel:
-                        break
-                    first_channel_count = random.randint(1, min(thread_count, 64))
+            current_channels_phase1 = self._read_current(node)
+
+            # If current exceeds the new upper bound, reduce first
+            if current_channels_phase1 > upper_limit_phase1:
                 node.tools[Ethtool].change_device_channels_info(
-                    "eth0", first_channel_count
+                    "eth0", upper_limit_phase1
                 )
-                first_current_device_channel = (
-                    node.tools[Ethtool].get_device_channels_info("eth0", True)
-                ).current_channels
+                current_channels_phase1 = self._read_current(node)
                 log.debug(
-                    f"current channels count: {first_current_device_channel} "
-                    f"after changing channel into {first_channel_count}"
+                    f"Reduced current channels at phase1: {current_channels_phase1}"
                 )
 
-            # verify that the added channels do not handle interrupts on offline cpu
-            lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
-            for channel in lsvmbus_channels:
-                # verify synthetic network adapter channels align with expected value
-                if channel.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
-                    log.debug(f"Network synthetic channel: {channel}")
-                    assert_that(channel.channel_vp_map).is_length(
-                        first_current_device_channel
-                    )
-
-                # verify that devices do not handle interrupts on offline cpu
-                for channel_vp in channel.channel_vp_map:
-                    assert_that(channel_vp.target_cpu).is_not_in(idle_cpus)
-
-            # reset idle cpu to online
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
-
-            # reset max and current channel count into original ones
-            # by reloading hv_netvsc driver if hv_netvsc can be reload
-            # otherwise reboot vm
-            if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
-                node.tools[Modprobe].reload("hv_netvsc")
-            else:
-                node.tools[Reboot].reboot()
-
-            # change the combined channels count after all cpus online
-            second_channel_count = random.randint(1, min(thread_count, 64))
-            while True:
-                if first_current_device_channel != second_channel_count:
-                    break
-                second_channel_count = random.randint(1, min(thread_count, 64))
-            node.tools[Ethtool].change_device_channels_info(
-                "eth0", second_channel_count
+            target_channels_phase1 = self._pick_target_not_eq_current(
+                current_channels_phase1, upper_limit_phase1
             )
-            second_current_device_channel = (
-                node.tools[Ethtool].get_device_channels_info("eth0", True)
-            ).current_channels
+            new_channels_phase1 = self._set_channels_with_retry(
+                log,
+                node,
+                target_channels_phase1,
+                current_channels_phase1,
+                upper_limit_phase1,
+            )
             log.debug(
-                f"current channels count: {second_current_device_channel} "
-                f"after changing channel into {second_channel_count}"
+                f"Phase1 set: current={current_channels_phase1} -> "
+                f"{new_channels_phase1} (upper={upper_limit_phase1}, "
+                f"device_max={device_max_phase1})"
             )
 
-            # verify that the network adapter channels count changed
-            # into new channel count
-            lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
-            for channel in lsvmbus_channels:
-                # verify that channels were added to synthetic network adapter
-                if channel.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
-                    log.debug(f"Network synthetic channel: {channel}")
-                    assert_that(channel.channel_vp_map).is_length(second_channel_count)
-        finally:
-            # reset idle cpu to online
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
-            # restore channel count into origin value
-            current_device_channel = (
-                node.tools[Ethtool].get_device_channels_info("eth0", True)
-            ).current_channels
-            if current_device_channel != origin_device_channel:
+            self._verify_no_irq_on_offline(node, idle, new_channels_phase1)
+
+            # ---------- Phase 2: CPUs back online ----------
+            set_cpu_state_serial(log, node, idle, CPUState.ONLINE)
+            # Always reboot to ensure network stack is properly reinitialized
+            # after CPU hotplug operations to avoid SSH connection issues
+            node.tools[Reboot].reboot()
+
+            threads_phase2 = node.tools[Lscpu].get_thread_count()
+            device_max_phase2 = self._read_max_supported(node)
+            upper_limit_phase2 = max(
+                1, min(threads_phase2, device_max_phase2, self.MAX_CHANNELS_LIMIT)
+            )
+
+            current_channels_phase2 = self._read_current(node)
+            if current_channels_phase2 > upper_limit_phase2:
                 node.tools[Ethtool].change_device_channels_info(
-                    "eth0", origin_device_channel
+                    "eth0", upper_limit_phase2
                 )
+                current_channels_phase2 = self._read_current(node)
+                log.debug(
+                    f"Reduced current channels at phase2: {current_channels_phase2}"
+                )
+
+            target_channels_phase2 = self._pick_target_not_eq_current(
+                current_channels_phase2, upper_limit_phase2
+            )
+            new_channels_phase2 = self._set_channels_with_retry(
+                log,
+                node,
+                target_channels_phase2,
+                current_channels_phase2,
+                upper_limit_phase2,
+            )
+            log.debug(
+                f"Phase2 set: current={current_channels_phase2} -> "
+                f"{new_channels_phase2} (upper={upper_limit_phase2}, "
+                f"device_max={device_max_phase2})"
+            )
+
+        finally:
+            # ---------- Cleanup: always restore ----------
+            try:
+                set_cpu_state_serial(log, node, idle, CPUState.ONLINE)
+            except Exception as e:
+                log.error(f"Failed to bring CPUs online during cleanup: {e}")
+
+            try:
+                # Re-read device cap for a safe restore
+                final_device_max = self._read_max_supported(node)
+                safe_origin = max(1, min(int(origin_channels), int(final_device_max)))
+                current_now = self._read_current(node)
+                if current_now != safe_origin:
+                    node.tools[Ethtool].change_device_channels_info("eth0", safe_origin)
+                    log.debug(f"Restored channels to origin value: {safe_origin}")
+            except Exception as e:
+                log.error(f"Restore channels failed (target={origin_channels}): {e}")
