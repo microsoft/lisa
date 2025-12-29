@@ -205,14 +205,14 @@ def _setup_nic_monitoring(
     dest_synthetic_nic = dest_nic_info.name
 
     # Determine which NIC to monitor for packet counts
-    if source_nic_info.lower and source_nic_info.pci_device_name:
+    if source_nic_info.is_pci_module_enabled and source_nic_info.pci_device_name:
         source_pci_nic = source_nic_info.pci_device_name
         source_nic = source_pci_nic
     else:
         source_pci_nic = source_nic_info.name
         source_nic = source_synthetic_nic
 
-    if dest_nic_info.lower and dest_nic_info.pci_device_name:
+    if dest_nic_info.is_pci_module_enabled and dest_nic_info.pci_device_name:
         dest_pci_nic = dest_nic_info.pci_device_name
         dest_nic = dest_pci_nic
     else:
@@ -291,9 +291,9 @@ def sriov_vf_connection_test(
 
         # turn off lower device
         if turn_off_lower:
-            if source_nic_info.lower:
+            if source_nic_info.is_pci_module_enabled:
                 source_node.tools[Ip].down(source_pci_nic)
-            if dest_nic_info.lower:
+            if dest_nic_info.is_pci_module_enabled:
                 dest_node.tools[Ip].down(dest_pci_nic)
 
         # Perform file transfer to test connectivity
@@ -309,9 +309,9 @@ def sriov_vf_connection_test(
 
         # turn on lower device, if turned off before
         if turn_off_lower:
-            if source_nic_info.lower:
+            if source_nic_info.is_pci_module_enabled:
                 source_node.tools[Ip].up(source_pci_nic)
-            if dest_nic_info.lower:
+            if dest_nic_info.is_pci_module_enabled:
                 dest_node.tools[Ip].up(dest_pci_nic)
 
     # After testing all NICs, ensure at least one valid pair was tested
