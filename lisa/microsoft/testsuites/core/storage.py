@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Windows
+from lisa.operating_system import BSD, Posix, Ubuntu, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
@@ -589,6 +589,271 @@ class Storage(TestSuite):
             disk.remove_data_disk()
         except Exception:
             raise BadEnvironmentStateException
+
+    @TestCaseMetadata(
+        description="""
+        A comprehensive test to verify SMB share functionality between two Linux VMs.
+        This test case will
+            1. Check if CONFIG_CIFS is enabled in KCONFIG
+            2. Create an 2 VMs in azure
+            3. Configure one VM as SMB server and create a share
+            4. Mount the other VM to the SMB share
+            5. Verify mount is successful
+            6. Write a test file to the SMB share and read it back to verify IO
+            7. Clean up the SMB share and unmount
+            8. repeat steps 3-7 for SMB versions ["2.0", "2.1", "3.0", "3.1.1"]
+        """,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            min_count=2, supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
+        ),
+        use_new_environment=True,
+        priority=1,
+    )
+    def verify_smb_linux(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        # Step 1: Check if CONFIG_CIFS is enabled in KCONFIG
+        if not node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
+            raise LisaException("CIFS module must be present for SMB testing")
+
+        # Ensure we have exactly 2 VMs as required
+        assert_that(environment.nodes).described_as(
+            "SMB test requires exactly 2 VMs"
+        ).is_length(2)
+
+        # Step 2: Assign server and client roles to the 2 VMs
+        server_node = cast(RemoteNode, environment.nodes[0])
+        client_node = cast(RemoteNode, environment.nodes[1])
+
+        # Install required packages on both nodes
+        self._install_smb_dependencies(server_node, client_node)
+
+        # Test configuration
+        share_name = "testshare"
+        share_path = f"/tmp/{share_name}"
+        mount_point = f"/mnt/{share_name}"
+
+        # SMB versions to test
+        smb_versions = ["2.0", "2.1", "3.0", "3.1.1"]
+
+        try:
+            # Step 3: Configure SMB server and create a share
+            self._setup_smb_server(server_node, share_name, share_path)
+
+            # Step 6: Repeat for different SMB versions
+            for smb_version in smb_versions:
+                log.info(f"Testing SMB version {smb_version}")
+
+                # Step 4: Mount the SMB share on client
+                self._mount_smb_share(
+                    client_node, server_node, share_name, mount_point, smb_version
+                )
+
+                # Step 5: Verify mount is successful
+                self._verify_smb_mount(
+                    client_node,
+                    mount_point,
+                    server_node,
+                    share_path,
+                    log,
+                )
+
+                # Cleanup between version tests
+                self._unmount_smb_share(client_node, mount_point, log)
+
+        except Exception:
+            raise
+        finally:
+            # Cleanup
+            self._cleanup_smb_test(
+                server_node, client_node, share_path, mount_point, log
+            )
+
+    def _install_smb_dependencies(
+        self, server_node: RemoteNode, client_node: RemoteNode
+    ) -> None:
+        """Install required SMB packages on both server and client nodes."""
+        for node in [server_node, client_node]:
+            posix_os: Posix = cast(Posix, node.os)
+            if isinstance(node.os, Ubuntu):
+                # Install samba server and client utilities
+                posix_os.install_packages(["samba", "samba-common-bin", "cifs-utils"])
+            else:
+                # For other distributions, try common package names
+                posix_os.install_packages(["samba", "cifs-utils"])
+
+    def _setup_smb_server(
+        self, server_node: RemoteNode, share_name: str, share_path: str
+    ) -> None:
+        """Configure SMB server and create a share."""
+        # Create share directory
+        server_node.execute(f"mkdir -p {share_path}", sudo=True)
+        server_node.execute(f"chmod 777 {share_path}", sudo=True)
+
+        # Create SMB configuration
+        smb_config = f"""
+[global]
+    workgroup = WORKGROUP
+    server string = LISA SMB Test Server
+    security = user
+    map to guest = bad user
+    dns proxy = no
+
+[{share_name}]
+    path = {share_path}
+    browsable = yes
+    writable = yes
+    guest ok = yes
+    read only = no
+    create mask = 0755
+"""
+
+        # Write SMB configuration
+        echo = server_node.tools[Echo]
+        echo.write_to_file(
+            smb_config, server_node.get_pure_path("/etc/samba/smb.conf"), sudo=True
+        )
+
+        # Start SMB services
+        systemctl = server_node.tools[Systemctl]
+        systemctl.restart_service("smbd")
+        systemctl.restart_service("nmbd")
+
+        # Ensure services are running
+        if not systemctl.is_service_running("smbd"):
+            raise LisaException("Failed to start SMB server (smbd)")
+        if not systemctl.is_service_running("nmbd"):
+            raise LisaException("Failed to start SMB server (nmbd)")
+
+    def _mount_smb_share(
+        self,
+        client_node: RemoteNode,
+        server_node: RemoteNode,
+        share_name: str,
+        mount_point: str,
+        smb_version: str,
+    ) -> None:
+        """Mount SMB share on client node with specified SMB version."""
+        # Create mount point
+        client_node.execute(f"mkdir -p {mount_point}", sudo=True)
+
+        # Mount SMB share with specific version
+        mount_cmd = (
+            f"mount -t cifs //{server_node.internal_address}/{share_name} {mount_point} "
+            f"-o guest,vers={smb_version},file_mode=0777,dir_mode=0777"
+        )
+
+        result = client_node.execute(mount_cmd, sudo=True)
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to mount SMB share with version {smb_version}: {result.stderr}"
+            )
+
+    def _verify_smb_mount(
+        self,
+        client_node: RemoteNode,
+        mount_point: str,
+        server_node: RemoteNode,
+        share_path: str,
+        log: Logger,
+    ) -> None:
+        """
+        Verify SMB mount is working by creating and reading a file from
+        both client and server.
+        """
+        test_file = "smb_test.txt"
+        test_content = "SMB test content"
+        mount = client_node.tools[Mount]
+
+        # Verify mount point exists and is mounted
+        mount_point_exists = mount.check_mount_point_exist(mount_point)
+        if not mount_point_exists:
+            raise LisaException(
+                f"Mount point {mount_point} does not exist or is not mounted"
+            )
+
+        # Create test file on mounted share from client
+        test_file_path = f"{mount_point}/{test_file}"
+        echo = client_node.tools[Echo]
+        echo.write_to_file(
+            test_content, client_node.get_pure_path(test_file_path), sudo=True
+        )
+
+        # Read and verify file content from client side
+        cat = client_node.tools[Cat]
+        file_content_client = cat.read(test_file_path, sudo=True, force_run=True)
+
+        assert_that(file_content_client).described_as(
+            "SMB file content should match written content on client"
+        ).is_equal_to(test_content)
+
+        # Verify content from server VM if server_node and share_path are provided
+        if server_node and share_path:
+            server_file_path = f"{share_path}/{test_file}"
+
+            # Check if file exists on server
+            server_file_check = server_node.execute(
+                f"test -f {server_file_path}", sudo=True
+            )
+            if server_file_check.exit_code != 0:
+                raise LisaException(
+                    f"Test file {server_file_path} not found on server VM"
+                )
+
+            # Read file content directly from server VM
+            server_cat = server_node.tools[Cat]
+            file_content_server = server_cat.read(
+                server_file_path, sudo=True, force_run=True
+            )
+
+            assert_that(file_content_server).described_as(
+                "SMB file content should match on server VM"
+            ).is_equal_to(test_content)
+
+            if log:
+                log.info(
+                    f"Successfully verified file content on both client and server: "
+                    f"'{test_content}'"
+                )
+
+        # Clean up test file from client (will also remove from server via SMB)
+        client_node.execute(f"rm -f {test_file_path}", sudo=True)
+
+    def _unmount_smb_share(
+        self, client_node: RemoteNode, mount_point: str, log: Logger
+    ) -> None:
+        """Unmount SMB share."""
+        mount = client_node.tools[Mount]
+        try:
+            mount.umount(point=mount_point, disk_name="", erase=False)
+        except Exception as e:
+            log.warning(f"Failed to unmount {mount_point}: {e}")
+
+    def _cleanup_smb_test(
+        self,
+        server_node: RemoteNode,
+        client_node: RemoteNode,
+        share_path: str,
+        mount_point: str,
+        log: Logger,
+    ) -> None:
+        """Clean up SMB test resources."""
+        # Cleanup on client
+        try:
+            self._unmount_smb_share(client_node, mount_point, log)
+            client_node.execute(f"rm -rf {mount_point}", sudo=True)
+        except Exception as e:
+            log.warning(f"Client cleanup failed: {e}")
+
+        # Cleanup on server
+        try:
+            systemctl = server_node.tools[Systemctl]
+            systemctl.stop_service("smbd")
+            systemctl.stop_service("nmbd")
+            server_node.execute(f"rm -rf {share_path}", sudo=True)
+        except Exception as e:
+            log.warning(f"Server cleanup failed: {e}")
 
     @TestCaseMetadata(
         description="""
