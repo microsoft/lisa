@@ -28,7 +28,7 @@ class Wsl(Tool):
     CONFIG_FILE_PATH = r"%USERPROFILE%\.wslconfig"
 
     ENCODING = "utf-16-le"
-    INSTALL_TIMEOUT = 120
+    INSTALL_TIMEOUT = 1200
 
     def __init__(self, node: "Node", guest: "Node") -> None:
         assert guest, "guest node is required for Wsl tool."
@@ -91,7 +91,18 @@ class Wsl(Tool):
             elapsed = create_timer()
             done = False
             while elapsed.elapsed(False) < self.INSTALL_TIMEOUT:
-                if self._check_install_done(distro=name):
+                # Calculate remaining time and set check timeout
+                # Allow enough time for Ubuntu provisioning (typically ~65s, set max to 180s)
+                remaining_time = self.INSTALL_TIMEOUT - elapsed.elapsed(False)
+                check_timeout = min(remaining_time, 180)
+
+                if check_timeout <= 0:
+                    self._log.warning(
+                        f"Timeout reached: {elapsed.elapsed(False):.1f}s >= {self.INSTALL_TIMEOUT}s"
+                    )
+                    break
+
+                if self._check_install_done(distro=name, timeout=check_timeout):
                     done = True
                     break
                 time.sleep(1)
@@ -135,7 +146,8 @@ class Wsl(Tool):
 
     def shutdown_wsl(self) -> None:
         self._log.debug("shutting down WSL.")
-        self._wsl_execute("--shutdown")
+        # Use shorter timeout for shutdown (180s is enough for normal cases)
+        self._wsl_execute("--shutdown", timeout=180)
 
     def reload_guest_os(self) -> None:
         from lisa.operating_system import OperatingSystem
@@ -144,7 +156,7 @@ class Wsl(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
-        if not self.node.os.is_windows:
+        if not hasattr(self.node, "os") or not self.node.os.is_windows:
             raise LisaException("wsl is only available on Windows")
 
     def _check_exists(self) -> bool:
@@ -184,6 +196,7 @@ class Wsl(Tool):
         in_wsl: bool = False,
         no_info_log: bool = False,
         encoding: str = "",
+        timeout: float = 600,
     ) -> ExecutableResult:
         process = self._wsl_execute_async(
             cmd,
@@ -193,7 +206,7 @@ class Wsl(Tool):
             no_info_log=no_info_log,
             encoding=encoding,
         )
-        result = process.wait_result()
+        result = process.wait_result(timeout=timeout)
         result = self.normalize_result(result)
 
         return result
@@ -237,8 +250,14 @@ class Wsl(Tool):
         return process
 
     def _install_on_remote(self) -> None:
+        # "wsl --install" will install the default Ubuntu.
         self._wsl_execute("--install", encoding="utf-8")
+        # self._wsl_execute("--install --no-distribution", encoding="utf-8")
+
         self.node.reboot()
+
+        # need to add wait after reboot, to wait Ubuntu install completed, WSL may not be ready yet.
+        time.sleep(180)
 
         # trigger a wsl command to make sure wsl is ready.
         self._wsl_execute("--version")
@@ -248,9 +267,15 @@ class Wsl(Tool):
 
         self._wsl_execute("--update --pre-release")
 
-    def _check_install_done(self, distro: str, raise_error: bool = False) -> bool:
+    def _check_install_done(
+        self, distro: str, raise_error: bool = False, timeout: float = 600
+    ) -> bool:
         result = self._wsl_execute(
-            "echo installed", distro=distro, in_wsl=True, no_info_log=True
+            "echo installed",
+            distro=distro,
+            in_wsl=True,
+            no_info_log=True,
+            timeout=timeout,
         )
 
         if raise_error:

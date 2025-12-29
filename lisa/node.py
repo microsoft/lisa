@@ -122,6 +122,15 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     @property
     def is_posix(self) -> bool:
+        # check if OS is initialized before forcing initialization
+        if hasattr(self, "os"):
+            return self.os.is_posix
+
+        # For WSL nodes, they are always POSIX.
+        if self.__class__.__name__ == "WslContainerNode":
+            return True
+
+        # For other nodes, initialize if needed
         self.initialize()
         return self.os.is_posix
 
@@ -919,8 +928,7 @@ class GuestNode(Node):
 
         self.capture_system_information("started")
 
-    def _provision(self) -> None:
-        ...
+    def _provision(self) -> None: ...
 
     def get_working_path(self) -> PurePath:
         return self._get_remote_working_path()
@@ -955,6 +963,7 @@ class WslContainerNode(GuestNode):
         self._shell = WslShell(
             parent=self._parent._shell, distro_name=wsl_runbook.distro
         )
+        self._provisioned: bool = False
 
     @classmethod
     def type_name(cls) -> str:
@@ -968,6 +977,9 @@ class WslContainerNode(GuestNode):
         self._wsl.shutdown_distro(self._distro)
 
     def _provision(self) -> None:
+        if self._provisioned:
+            return
+
         assert self.parent, self.__PARENT_ASSERT_MESSAGE
 
         runbook = cast(schema.WslNode, self.runbook)
@@ -984,6 +996,7 @@ class WslContainerNode(GuestNode):
         wsl.install_distro(
             name=self.runbook.distro, reinstall=runbook.reinstall, kernel=runbook.kernel
         )
+        self._provisioned = True
 
     def _execute(
         self,
@@ -1204,8 +1217,7 @@ def quick_connect(
 
 class NodeHookSpec:
     @hookspec
-    def get_node_information(self, node: Node) -> Dict[str, str]:
-        ...
+    def get_node_information(self, node: Node) -> Dict[str, str]: ...
 
 
 class NodeHookImpl:
@@ -1215,7 +1227,7 @@ class NodeHookImpl:
 
         if node:
             try:
-                if node.is_connected and node.is_posix:
+                if node.is_connected and node.is_posix and hasattr(node, "os"):
                     linux_information = node.tools[Uname].get_linux_information()
                     information_dict = fields_to_dict(
                         linux_information, fields=["hardware_platform"]
