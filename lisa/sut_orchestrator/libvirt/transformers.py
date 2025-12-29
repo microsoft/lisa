@@ -27,6 +27,7 @@ from lisa.util.process import ExecutableResult
 @dataclass
 class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     force_install: bool = False
+    ref: str = ""
 
 
 @dataclass_json()
@@ -34,7 +35,6 @@ class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 class SourceInstallerSchema(BaseInstallerSchema):
     # source code repo
     repo: str = ""
-    ref: str = ""
     auth_token: str = ""
     igvm_repo: str = ""
 
@@ -497,16 +497,24 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(packages_list)
-        command = (
-            "curl -s https://api.github.com/repos/cloud-hypervisor/"
-            "cloud-hypervisor/releases/latest | jq -r '.tag_name'"
-        )
-        latest_release_tag = self._node.execute(command, shell=True)
-        self._log.debug(f"latest tag: {latest_release_tag}")
+
+        # Use specified ref if provided, otherwise fetch latest release
+        installer_schema = cast(BaseInstallerSchema, self._runbook.installer)
+        if installer_schema.ref:
+            release_tag = installer_schema.ref
+            self._log.info(f"Using specified ref: {release_tag}")
+        else:
+            command = (
+                "curl -s https://api.github.com/repos/cloud-hypervisor/"
+                "cloud-hypervisor/releases/latest | jq -r '.tag_name'"
+            )
+            release_tag = self._node.execute(command, shell=True).stdout.strip()
+            self._log.info(f"Using latest release: {release_tag}")
+
         wget = self._node.tools[Wget]
         file_url = (
             "https://github.com/cloud-hypervisor/cloud-hypervisor/"
-            f"releases/download/{latest_release_tag}/cloud-hypervisor"
+            f"releases/download/{release_tag}/cloud-hypervisor"
         )
         file_path = wget.get(
             url=file_url,
