@@ -647,8 +647,8 @@ class Xfstesting(TestSuite):
                     _scratch_folder: scratch_name,
                 },
                 azure_file_share=azure_file_share,
-                provisioned_bandwidth_mibps=550,
-                provisioned_iops=15550,
+                provisioned_bandwidth_mibps=110,
+                provisioned_iops=3110,
             )
             # Get credential file path from the feature (uses storage account name)
             mount_opts = (
