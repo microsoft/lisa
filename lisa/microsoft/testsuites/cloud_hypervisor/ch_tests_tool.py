@@ -5,7 +5,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
 
 from assertpy.assertpy import assert_that, fail
 
@@ -13,7 +13,7 @@ from lisa import Node
 from lisa.executable import ExecutableResult, Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
     Cat,
@@ -1629,6 +1629,7 @@ exit $ec
         One-time host setup for performance stability.
 
         Policies:
+        - Install numactl (required for NUMA binding)
         - CPU governor → performance
         - Turbo → off (Intel + AMD)
         - C-states → ≤ C1E (Intel, best-effort AMD)
@@ -1636,6 +1637,11 @@ exit $ec
         - irqbalance → ON
         - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
         """
+        # Install numactl - required for perf-stable NUMA binding
+        self._log.info("Installing numactl for NUMA binding support")
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages(["numactl"])
+
         # CPU governor → performance
         self.node.execute(
             "for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do "
@@ -2154,12 +2160,21 @@ exit $ec
 
         Returns:
             numactl command prefix with cpunodebind + membind (strict policy)
+
+        Raises:
+            LisaException: If numactl is not available
         """
+        if not self.perf_stable_enabled:
+            return ""
+
         # Check if numactl is available
         result = self.node.execute("command -v numactl", shell=True)
         if result.exit_code != 0:
-            self._log.debug("numactl not available, skipping NUMA binding")
-            return ""
+            raise LisaException(
+                "numactl is not available but perf_stable_enabled=True. "
+                "This should have been installed during _setup_host_perf_policies(). "
+                "Check if package installation failed."
+            )
 
         # Strict NUMA binding: pin both CPU and memory to selected node
         return f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
