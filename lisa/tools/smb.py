@@ -5,8 +5,19 @@ from pathlib import PurePosixPath
 from typing import List, Optional
 
 from lisa.executable import Tool
-from lisa.operating_system import Alpine, CBLMariner, CoreOs, Debian, Fedora, Oracle, Redhat, Suse, Ubuntu
+from lisa.operating_system import (
+    Alpine,
+    CBLMariner,
+    CoreOs,
+    Debian,
+    Fedora,
+    Oracle,
+    Redhat,
+    Suse,
+    Ubuntu,
+)
 from lisa.tools import Echo, Mkdir, Mount, Rm, Service
+from lisa.tools.mkfs import FileSystem
 from lisa.util import LisaException, UnsupportedDistroException
 
 
@@ -25,20 +36,26 @@ class SmbServer(Tool):
             self.node.os.install_packages(["samba", "samba-common-bin", "cifs-utils"])
         elif isinstance(self.node.os, Alpine):
             self.node.os.install_packages(["samba", "samba-client"])
-        else:
+        elif isinstance(
+            self.node.os, (Debian, CBLMariner, CoreOs, Fedora, Oracle, Redhat, Suse)
+        ):
             self.node.os.install_packages(["samba", "cifs-utils"])
+        else:
+            raise UnsupportedDistroException(self.node.os)
 
         return self._check_exists()
 
     def _check_exists(self) -> bool:
         # Check if samba services exist
         service = self.node.tools[Service]
-        return service.check_service_exists("smbd") and service.check_service_exists("nmbd")
+        return service.check_service_exists("smbd") and service.check_service_exists(
+            "nmbd"
+        )
 
     def create_share(
-        self, 
-        share_name: str, 
-        share_path: str, 
+        self,
+        share_name: str,
+        share_path: str,
         workgroup: str = "WORKGROUP",
         server_string: str = "LISA SMB Test Server"
     ) -> None:
@@ -96,7 +113,7 @@ class SmbServer(Tool):
         """Check if SMB services are running."""
         service = self.node.tools[Service]
         return (
-            service.is_service_running("smbd") and 
+            service.is_service_running("smbd") and
             service.is_service_running("nmbd")
         )
 
@@ -116,40 +133,11 @@ class SmbClient(Tool):
         return True
 
     def _install(self) -> bool:
-        if isinstance(self.node.os, Ubuntu):
-            # Install client utilities
+        # Install client utilities
+        if isinstance(self.node.os, (Ubuntu, Alpine, Debian, CBLMariner, CoreOs, Fedora, Oracle, Redhat, Suse)):
             self.node.os.install_packages(["cifs-utils"])
-        elif isinstance(self.node.os, Debian):
-            # Debian-based distributions
-            self.node.os.install_packages(["cifs-utils"])
-        elif isinstance(self.node.os, (Fedora, Oracle)):
-            # RedHat family (Fedora, RHEL, CentOS, Oracle, AlmaLinux, etc.)
-            self.node.os.install_packages(["cifs-utils"])
-        elif isinstance(self.node.os, CBLMariner):
-            # Azure Linux/CBL-Mariner
-            self.node.os.install_packages(["cifs-utils"])
-        elif isinstance(self.node.os, Suse):
-            # SUSE/openSUSE distributions
-            self.node.os.install_packages(["cifs-utils"])
-        elif isinstance(self.node.os, Alpine):
-            # Alpine Linux
-            self.node.os.install_packages(["cifs-utils"])
-        elif isinstance(self.node.os, CoreOs):
-            # CoreOS (limited package management)
-            raise UnsupportedDistroException(
-                self.node.os, "CoreOS does not support traditional package installation"
-            )
         else:
-            # Fallback for other distributions - try common package names
-            try:
-                self.node.os.install_packages(["cifs-utils"])
-            except Exception as e:
-                raise UnsupportedDistroException(
-                    self.node.os, 
-                    f"CIFS client packages installation failed: {e}. "
-                    "Please install cifs-utils manually."
-                )
-        
+            raise UnsupportedDistroException(self.node.os)
         return self._check_exists()
 
     def _check_exists(self) -> bool:
@@ -174,26 +162,24 @@ class SmbClient(Tool):
 
         # Build mount options
         mount_options = [f"vers={smb_version}", "file_mode=0777", "dir_mode=0777"]
-        
+
         if username and password:
             mount_options.extend([f"username={username}", f"password={password}"])
         else:
             mount_options.append("guest")
-        
+
         if options:
             mount_options.extend(options)
 
         # Mount SMB share
-        mount_cmd = (
-            f"mount -t cifs //{server_address}/{share_name} {mount_point} "
-            f"-o {','.join(mount_options)}"
+        mount = self.node.tools[Mount]
+        mount.mount(
+            point=mount_point,
+            name=f"//{server_address}/{share_name}",
+            fs_type=FileSystem.cifs,
+            options=",".join(mount_options),
+            format_=False,
         )
-
-        result = self.node.execute(mount_cmd, sudo=True)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"Failed to mount SMB share with version {smb_version}: {result.stderr}"
-            )
 
     def unmount_share(self, mount_point: str) -> None:
         """Unmount SMB share."""
