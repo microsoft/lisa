@@ -17,7 +17,6 @@ from lisa import (
     schema,
     simple_requirement,
 )
-from lisa.base_tools.service import Systemctl
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.features import Disk, Nfs
@@ -37,7 +36,7 @@ from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, SmbClient, SmbServer, Swap, Sysctl
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
@@ -626,8 +625,9 @@ class Storage(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
-        # Install required packages on both nodes
-        self._install_smb_dependencies(server_node, client_node)
+        # Install and setup SMB tools on both nodes
+        smb_server = server_node.tools[SmbServer]
+        smb_client = client_node.tools[SmbClient]
 
         # Test configuration
         share_name = "testshare"
@@ -639,15 +639,15 @@ class Storage(TestSuite):
 
         try:
             # Step 3: Configure SMB server and create a share
-            self._setup_smb_server(server_node, share_name, share_path)
+            smb_server.create_share(share_name, share_path)
 
             # Step 6: Repeat for different SMB versions
             for smb_version in smb_versions:
                 log.info(f"Testing SMB version {smb_version}")
 
                 # Step 4: Mount the SMB share on client
-                self._mount_smb_share(
-                    client_node, server_node, share_name, mount_point, smb_version
+                smb_client.mount_share(
+                    server_node.internal_address, share_name, mount_point, smb_version
                 )
 
                 # Step 5: Verify mount is successful
@@ -660,7 +660,7 @@ class Storage(TestSuite):
                 )
 
                 # Cleanup between version tests
-                self._unmount_smb_share(client_node, mount_point, log)
+                smb_client.unmount_share(mount_point)
 
         except Exception:
             raise
@@ -668,86 +668,6 @@ class Storage(TestSuite):
             # Cleanup
             self._cleanup_smb_test(
                 server_node, client_node, share_path, mount_point, log
-            )
-
-    def _install_smb_dependencies(
-        self, server_node: RemoteNode, client_node: RemoteNode
-    ) -> None:
-        """Install required SMB packages on both server and client nodes."""
-        for node in [server_node, client_node]:
-            posix_os: Posix = cast(Posix, node.os)
-            if isinstance(node.os, Ubuntu):
-                # Install samba server and client utilities
-                posix_os.install_packages(["samba", "samba-common-bin", "cifs-utils"])
-            else:
-                # For other distributions, try common package names
-                posix_os.install_packages(["samba", "cifs-utils"])
-
-    def _setup_smb_server(
-        self, server_node: RemoteNode, share_name: str, share_path: str
-    ) -> None:
-        """Configure SMB server and create a share."""
-        # Create share directory
-        server_node.execute(f"mkdir -p {share_path}", sudo=True)
-        server_node.execute(f"chmod 777 {share_path}", sudo=True)
-
-        # Create SMB configuration
-        smb_config = f"""
-[global]
-    workgroup = WORKGROUP
-    server string = LISA SMB Test Server
-    security = user
-    map to guest = bad user
-    dns proxy = no
-
-[{share_name}]
-    path = {share_path}
-    browsable = yes
-    writable = yes
-    guest ok = yes
-    read only = no
-    create mask = 0755
-"""
-
-        # Write SMB configuration
-        echo = server_node.tools[Echo]
-        echo.write_to_file(
-            smb_config, server_node.get_pure_path("/etc/samba/smb.conf"), sudo=True
-        )
-
-        # Start SMB services
-        systemctl = server_node.tools[Systemctl]
-        systemctl.restart_service("smbd")
-        systemctl.restart_service("nmbd")
-
-        # Ensure services are running
-        if not systemctl.is_service_running("smbd"):
-            raise LisaException("Failed to start SMB server (smbd)")
-        if not systemctl.is_service_running("nmbd"):
-            raise LisaException("Failed to start SMB server (nmbd)")
-
-    def _mount_smb_share(
-        self,
-        client_node: RemoteNode,
-        server_node: RemoteNode,
-        share_name: str,
-        mount_point: str,
-        smb_version: str,
-    ) -> None:
-        """Mount SMB share on client node with specified SMB version."""
-        # Create mount point
-        client_node.execute(f"mkdir -p {mount_point}", sudo=True)
-
-        # Mount SMB share with specific version
-        mount_cmd = (
-            f"mount -t cifs //{server_node.internal_address}/{share_name} {mount_point} "
-            f"-o guest,vers={smb_version},file_mode=0777,dir_mode=0777"
-        )
-
-        result = client_node.execute(mount_cmd, sudo=True)
-        if result.exit_code != 0:
-            raise LisaException(
-                f"Failed to mount SMB share with version {smb_version}: {result.stderr}"
             )
 
     def _verify_smb_mount(
@@ -820,16 +740,6 @@ class Storage(TestSuite):
         # Clean up test file from client (will also remove from server via SMB)
         client_node.execute(f"rm -f {test_file_path}", sudo=True)
 
-    def _unmount_smb_share(
-        self, client_node: RemoteNode, mount_point: str, log: Logger
-    ) -> None:
-        """Unmount SMB share."""
-        mount = client_node.tools[Mount]
-        try:
-            mount.umount(point=mount_point, disk_name="", erase=False)
-        except Exception as e:
-            log.warning(f"Failed to unmount {mount_point}: {e}")
-
     def _cleanup_smb_test(
         self,
         server_node: RemoteNode,
@@ -841,17 +751,18 @@ class Storage(TestSuite):
         """Clean up SMB test resources."""
         # Cleanup on client
         try:
-            self._unmount_smb_share(client_node, mount_point, log)
-            client_node.execute(f"rm -rf {mount_point}", sudo=True)
+            smb_client = client_node.tools[SmbClient]
+            if smb_client.is_mounted(mount_point):
+                smb_client.unmount_share(mount_point)
+            smb_client.cleanup_mount_point(mount_point)
         except Exception as e:
             log.warning(f"Client cleanup failed: {e}")
 
         # Cleanup on server
         try:
-            systemctl = server_node.tools[Systemctl]
-            systemctl.stop_service("smbd")
-            systemctl.stop_service("nmbd")
-            server_node.execute(f"rm -rf {share_path}", sudo=True)
+            smb_server = server_node.tools[SmbServer]
+            smb_server.stop()
+            smb_server.remove_share(share_path)
         except Exception as e:
             log.warning(f"Server cleanup failed: {e}")
 
