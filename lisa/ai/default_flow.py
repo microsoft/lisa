@@ -457,7 +457,7 @@ class FileSearchAgentBase(ChatAgent):  # type: ignore
             tools=tools,
             temperature=chat_options.temperature,
             top_p=chat_options.top_p,
-            max_tokens=chat_options.max_tokens,
+            additional_properties={"max_completion_tokens": chat_options.max_tokens},
         )
 
     def _create_chat_client(
@@ -635,7 +635,7 @@ async def async_analyze_default(
         tools=[],
         temperature=chat_options.temperature,
         top_p=chat_options.top_p,
-        max_tokens=chat_options.max_tokens,
+        additional_properties={"max_completion_tokens": chat_options.max_tokens},
     )
 
     logger.info("Building Sequential workflow...")
