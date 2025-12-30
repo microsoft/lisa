@@ -49,9 +49,13 @@ class SmbServer(Tool):
             self.node.os.install_packages(["samba", "samba-common-bin", "cifs-utils"])
         elif isinstance(self.node.os, Alpine):
             self.node.os.install_packages(["samba", "samba-client"])
-        elif isinstance(
-            self.node.os, (Debian, CBLMariner, CoreOs, Fedora, Oracle, Redhat, Suse)
-        ):
+        elif isinstance(self.node.os, (Debian, CoreOs, Fedora, Oracle, Redhat, Suse)):
+            self.node.os.install_packages(["samba", "cifs-utils"])
+        elif isinstance(self.node.os, CBLMariner):
+            # Extended repos needed for samba package
+            # Enable extended repo
+            self.node.os.install_packages(["azurelinux-repos-extended"])
+            # then install samba
             self.node.os.install_packages(["samba", "cifs-utils"])
         else:
             raise UnsupportedDistroException(self.node.os)
