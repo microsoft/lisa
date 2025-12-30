@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePosixPath
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from lisa.executable import Tool
 from lisa.operating_system import (
@@ -22,6 +22,19 @@ from lisa.util import LisaException, UnsupportedDistroException
 
 
 class SmbServer(Tool):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        # Set service names based on distribution
+        if isinstance(self.node.os, (Redhat, Fedora, Oracle, Suse)):
+            self._smb_service = "smb"
+            self._nmb_service = "nmb"
+        elif isinstance(self.node.os, Alpine):
+            self._smb_service = "samba"
+            self._nmb_service = "nmbd"
+        else:
+            # Default fallback
+            self._smb_service = "smbd"
+            self._nmb_service = "nmbd"
+
     @property
     def command(self) -> str:
         return ""
@@ -48,16 +61,16 @@ class SmbServer(Tool):
     def _check_exists(self) -> bool:
         # Check if samba services exist
         service = self.node.tools[Service]
-        return service.check_service_exists("smbd") and service.check_service_exists(
-            "nmbd"
-        )
+        return service.check_service_exists(
+            self._smb_service
+        ) and service.check_service_exists(self._nmb_service)
 
     def create_share(
         self,
         share_name: str,
         share_path: str,
         workgroup: str = "WORKGROUP",
-        server_string: str = "LISA SMB Test Server"
+        server_string: str = "LISA SMB Test Server",
     ) -> None:
         """Configure SMB server and create a share."""
         # Create share directory
@@ -84,38 +97,35 @@ class SmbServer(Tool):
 
         # Write SMB configuration
         echo = self.node.tools[Echo]
-        echo.write_to_file(
-            smb_config, PurePosixPath("/etc/samba/smb.conf"), sudo=True
-        )
+        echo.write_to_file(smb_config, PurePosixPath("/etc/samba/smb.conf"), sudo=True)
 
         # Start SMB services
         self.start()
 
     def start(self) -> None:
-        """Start SMB services (smbd and nmbd)."""
+        """Start SMB services."""
         service = self.node.tools[Service]
-        service.restart_service("smbd")
-        service.restart_service("nmbd")
+        service.restart_service(self._smb_service)
+        service.restart_service(self._nmb_service)
 
         # Ensure services are running
-        if not service.is_service_running("smbd"):
-            raise LisaException("Failed to start SMB server (smbd)")
-        if not service.is_service_running("nmbd"):
-            raise LisaException("Failed to start SMB server (nmbd)")
+        if not service.is_service_running(self._smb_service):
+            raise LisaException(f"Failed to start SMB server ({self._smb_service})")
+        if not service.is_service_running(self._nmb_service):
+            raise LisaException(f"Failed to start NMB server ({self._nmb_service})")
 
     def stop(self) -> None:
-        """Stop SMB services (smbd and nmbd)."""
+        """Stop SMB services."""
         service = self.node.tools[Service]
-        service.stop_service("smbd")
-        service.stop_service("nmbd")
+        service.stop_service(self._smb_service)
+        service.stop_service(self._nmb_service)
 
     def is_running(self) -> bool:
         """Check if SMB services are running."""
         service = self.node.tools[Service]
-        return (
-            service.is_service_running("smbd") and
-            service.is_service_running("nmbd")
-        )
+        return service.is_service_running(
+            self._smb_service
+        ) and service.is_service_running(self._nmb_service)
 
     def remove_share(self, share_path: str) -> None:
         """Remove a SMB share and its directory."""
@@ -134,7 +144,10 @@ class SmbClient(Tool):
 
     def _install(self) -> bool:
         # Install client utilities
-        if isinstance(self.node.os, (Ubuntu, Alpine, Debian, CBLMariner, CoreOs, Fedora, Oracle, Redhat, Suse)):
+        if isinstance(
+            self.node.os,
+            (Ubuntu, Debian, CBLMariner, CoreOs, Fedora, Oracle, Redhat, Suse, Alpine),
+        ):
             self.node.os.install_packages(["cifs-utils"])
         else:
             raise UnsupportedDistroException(self.node.os)
