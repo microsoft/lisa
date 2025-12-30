@@ -24,7 +24,7 @@ from lisa.util import LisaException, UnsupportedDistroException
 class SmbServer(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # Set service names based on distribution
-        if isinstance(self.node.os, (Redhat, Fedora, Oracle, Suse)):
+        if isinstance(self.node.os, (CBLMariner, Redhat, Fedora, Oracle, Suse)):
             self._smb_service = "smb"
             self._nmb_service = "nmb"
         elif isinstance(self.node.os, Alpine):
