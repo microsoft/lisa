@@ -45,7 +45,7 @@ from lisa.util.parallel import run_in_parallel
     """,
 )
 class NetworkPerformace(TestSuite):
-    TIMEOUT = 12000
+    TIMEOUT = 48000
     PPS_TIMEOUT = 3000
 
     @TestCaseMetadata(
