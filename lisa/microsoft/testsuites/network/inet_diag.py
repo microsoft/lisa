@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import os
 import time
+from pathlib import Path
 
 from assertpy import assert_that
 
@@ -36,61 +38,17 @@ class InetDiagSuite(TestSuite):
     _TEST_PORT = 34567
     _LOCALHOST = "127.0.0.1"
 
-    def _create_tcp_server_client(self) -> str:
+    def _copy_to_node(self, node: Node, filename: str) -> None:
         """
-        Create a TCP server-client connection and return a Python script
-        that keeps the connection alive.
+        Copy a file from the TestScripts directory to the node's working path.
 
-        Returns:
-            Python code as a string to execute
+        Args:
+            node: The node to copy the file to
+            filename: The name of the file in the TestScripts directory
         """
-        script = f"""
-import socket
-import sys
-import time
-
-# Create server socket
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server.bind(('{self._LOCALHOST}', {self._TEST_PORT}))
-server.listen(1)
-
-# Create client socket
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-# Accept connection in background
-import threading
-accepted_conn = []
-
-def accept_connection():
-    conn, addr = server.accept()
-    accepted_conn.append(conn)
-    # Keep connection alive
-    while True:
-        time.sleep(1)
-
-accept_thread = threading.Thread(target=accept_connection, daemon=True)
-accept_thread.start()
-time.sleep(0.5)
-
-# Connect client
-client.connect(('{self._LOCALHOST}', {self._TEST_PORT}))
-time.sleep(1)
-
-print("CONNECTION_READY")
-sys.stdout.flush()
-
-# Keep script running to maintain connection
-try:
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    pass
-finally:
-    client.close()
-    server.close()
-"""
-        return script
+        file_path = Path(os.path.dirname(__file__)) / "TestScripts" / filename
+        if not node.shell.exists(node.working_path / filename):
+            node.shell.copy(file_path, node.working_path / filename)
 
     def _verify_connection_exists(
         self, node: Node, port: int, should_exist: bool = True
@@ -147,17 +105,10 @@ finally:
         if not ss.has_kill_support():
             raise SkippedException("ss command does not support -K (kill) option")
 
-        # Create the connection script
-        script = self._create_tcp_server_client()
-        script_path = "/tmp/lisa_tcp_test.py"
-
-        # Create temporary Python script using Python's file writing
-        # This is more reliable than heredoc through SSH
-        write_cmd = (
-            f"python3 -c \"with open('{script_path}', 'w') as f: "
-            f'f.write({repr(script)})"'
-        )
-        node.execute(write_cmd, sudo=False)
+        # Copy the TCP connection test script to the node
+        script_filename = "lisa_tcp_test.py"
+        self._copy_to_node(node, script_filename)
+        script_path = node.working_path / script_filename
 
         connection_process = None
         try:
