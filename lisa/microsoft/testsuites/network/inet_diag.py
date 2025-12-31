@@ -36,8 +36,35 @@ from lisa.util import LisaException, create_timer
     ),
 )
 class InetDiagSuite(TestSuite):
-    _TEST_PORT = 34567
     _LOCALHOST = "127.0.0.1"
+    _PORT_RANGE_START = 34567
+    _PORT_RANGE_END = 34667
+
+    def _find_available_port(self, node: Node) -> int:
+        """
+        Find an available port on the node to avoid conflicts.
+
+        Args:
+            node: The node to check for available ports
+
+        Returns:
+            An available port number
+
+        Raises:
+            LisaException: If no available port is found in the range
+        """
+        ss = node.tools[Ss]
+
+        for port in range(self._PORT_RANGE_START, self._PORT_RANGE_END):
+            # Check if port is already in use
+            if not ss.connection_exists(port=port, sport=True):
+                node.log.debug(f"Found available port: {port}")
+                return port
+
+        raise LisaException(
+            f"No available ports found in range "
+            f"{self._PORT_RANGE_START}-{self._PORT_RANGE_END}"
+        )
 
     def _copy_to_node(self, node: Node, filename: str) -> None:
         """
@@ -175,6 +202,10 @@ class InetDiagSuite(TestSuite):
         if not ss.has_kill_support():
             raise SkippedException("ss command does not support -K (kill) option")
 
+        # Find an available port to avoid conflicts
+        test_port = self._find_available_port(node)
+        node.log.info(f"Using port {test_port} for TCP connection test")
+
         # Copy the TCP connection test script to the node
         script_filename = "lisa_tcp_test.py"
         self._copy_to_node(node, script_filename)
@@ -184,10 +215,10 @@ class InetDiagSuite(TestSuite):
         try:
             # Start the connection in background with nohup to keep it alive
             node.log.debug(
-                f"Starting TCP connection test script on port {self._TEST_PORT}"
+                f"Starting TCP connection test script on port {test_port}"
             )
             connection_process = node.execute_async(
-                f"python3 {script_path}",
+                f"python3 {script_path} {test_port}",
                 sudo=False,
                 nohup=True,
             )
@@ -196,7 +227,7 @@ class InetDiagSuite(TestSuite):
             node.log.debug("Waiting for TCP connection to be established")
             connection_ready = self._wait_for_connection_state(
                 node=node,
-                port=self._TEST_PORT,
+                port=test_port,
                 expected_state="ESTAB",
                 timeout=15,
                 poll_interval=0.5,
@@ -204,28 +235,28 @@ class InetDiagSuite(TestSuite):
 
             if not connection_ready:
                 raise LisaException(
-                    f"TCP connection not established on port {self._TEST_PORT} "
+                    f"TCP connection not established on port {test_port} "
                     f"within timeout period"
                 )
 
             node.log.info(
-                f"TCP connection established successfully on port {self._TEST_PORT}"
+                f"TCP connection established successfully on port {test_port}"
             )
 
             # Verify connection exists using assertion
-            self._verify_connection_exists(node, self._TEST_PORT, should_exist=True)
+            self._verify_connection_exists(node, test_port, should_exist=True)
 
             # Destroy the connection using ss -K
             node.log.info(
-                f"Destroying connection on port {self._TEST_PORT} using ss -K"
+                f"Destroying connection on port {test_port} using ss -K"
             )
-            ss.kill_connection(port=self._TEST_PORT, sport=True, sudo=True)
+            ss.kill_connection(port=test_port, sport=True, sudo=True)
 
             # Wait for the connection to be destroyed using robust polling
             node.log.debug("Waiting for connection to be destroyed")
             connection_destroyed = self._wait_for_connection_state(
                 node=node,
-                port=self._TEST_PORT,
+                port=test_port,
                 expected_state="NONE",
                 timeout=10,
                 poll_interval=0.3,
@@ -233,12 +264,12 @@ class InetDiagSuite(TestSuite):
 
             if not connection_destroyed:
                 raise LisaException(
-                    f"Connection on port {self._TEST_PORT} was not destroyed "
+                    f"Connection on port {test_port} was not destroyed "
                     f"within timeout period"
                 )
 
             # Verify connection no longer exists using assertion
-            self._verify_connection_exists(node, self._TEST_PORT, should_exist=False)
+            self._verify_connection_exists(node, test_port, should_exist=False)
 
             node.log.info(
                 "Successfully verified INET_DIAG_DESTROY functionality - "

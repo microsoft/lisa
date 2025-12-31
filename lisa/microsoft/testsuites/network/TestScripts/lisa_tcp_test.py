@@ -14,17 +14,20 @@ import time
 
 # Configuration
 LOCALHOST = "127.0.0.1"
-TEST_PORT = 34567
+DEFAULT_PORT = 34567
 
 
-def create_tcp_server_client():
+def create_tcp_server_client(port):
     """
     Create a TCP server-client connection and keep it alive.
+
+    Args:
+        port: The port number to use for the connection
     """
     # Create server socket
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((LOCALHOST, TEST_PORT))
+    server.bind((LOCALHOST, port))
     server.listen(1)
 
     # Create client socket
@@ -44,7 +47,7 @@ def create_tcp_server_client():
     accept_thread.start()
 
     # Connect client
-    client.connect((LOCALHOST, TEST_PORT))
+    client.connect((LOCALHOST, port))
 
     print("CONNECTION_READY")
     sys.stdout.flush()
@@ -61,4 +64,6 @@ def create_tcp_server_client():
 
 
 if __name__ == "__main__":
-    create_tcp_server_client()
+    # Get port from command line argument, or use default
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
+    create_tcp_server_client(port)
