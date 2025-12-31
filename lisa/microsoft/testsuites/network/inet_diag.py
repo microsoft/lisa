@@ -18,6 +18,7 @@ from lisa import (
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import KernelConfig, Ss
+from lisa.util import LisaException, create_timer
 
 
 @TestSuiteMetadata(
@@ -49,6 +50,75 @@ class InetDiagSuite(TestSuite):
         file_path = Path(os.path.dirname(__file__)) / "TestScripts" / filename
         if not node.shell.exists(node.working_path / filename):
             node.shell.copy(file_path, node.working_path / filename)
+
+    def _wait_for_connection_state(
+        self,
+        node: Node,
+        port: int,
+        expected_state: str,
+        timeout: int = 10,
+        poll_interval: float = 0.5,
+    ) -> bool:
+        """
+        Wait for a TCP connection to reach the expected state.
+
+        Args:
+            node: The node to check
+            port: The port number to check
+            expected_state: Expected connection state (e.g., "ESTAB", "NONE")
+            timeout: Maximum time to wait in seconds
+            poll_interval: Time between checks in seconds
+
+        Returns:
+            True if the expected state was reached, False otherwise
+        """
+        timer = create_timer()
+        check_count = 0
+
+        while timer.elapsed(stop=False) < timeout:
+            check_count += 1
+            ss = node.tools[Ss]
+            
+            if expected_state == "NONE":
+                # Checking that connection does NOT exist
+                connection_exists = ss.connection_exists(
+                    port=port, state="ESTAB", sport=True
+                )
+                if not connection_exists:
+                    node.log.debug(
+                        f"Connection on port {port} no longer exists "
+                        f"after {timer.elapsed_text(stop=False)} "
+                        f"({check_count} checks)"
+                    )
+                    return True
+            else:
+                # Checking that connection exists in expected state
+                connection_exists = ss.connection_exists(
+                    port=port, state=expected_state, sport=True
+                )
+                if connection_exists:
+                    node.log.debug(
+                        f"Connection on port {port} reached state {expected_state} "
+                        f"after {timer.elapsed_text(stop=False)} "
+                        f"({check_count} checks)"
+                    )
+                    return True
+
+            if check_count % 5 == 0:
+                node.log.debug(
+                    f"Waiting for connection on port {port} to reach state "
+                    f"{expected_state}. Elapsed: {timer.elapsed_text(stop=False)}, "
+                    f"checks: {check_count}"
+                )
+
+            time.sleep(poll_interval)
+
+        node.log.warning(
+            f"Timeout waiting for connection on port {port} to reach state "
+            f"{expected_state}. Elapsed: {timer.elapsed_text()}, "
+            f"total checks: {check_count}"
+        )
+        return False
 
     def _verify_connection_exists(
         self, node: Node, port: int, should_exist: bool = True
@@ -113,43 +183,36 @@ class InetDiagSuite(TestSuite):
         connection_process = None
         try:
             # Start the connection in background with nohup to keep it alive
+            node.log.debug(
+                f"Starting TCP connection test script on port {self._TEST_PORT}"
+            )
             connection_process = node.execute_async(
                 f"python3 {script_path}",
                 sudo=False,
                 nohup=True,
             )
 
-            # Wait for connection to be established (check on remote node)
-            max_wait = 10
-            wait_interval = 0.5
-            connection_ready = False
-
-            for _ in range(int(max_wait / wait_interval)):
-                time.sleep(wait_interval)
-
-                # Check if connection is established on the remote node
-                ss_check = node.execute(
-                    f"ss -tn sport = {self._TEST_PORT} | grep ESTAB",
-                    shell=True,
-                )
-                if ss_check.exit_code == 0:
-                    connection_ready = True
-                    break
+            # Wait for connection to be established using robust polling
+            node.log.debug("Waiting for TCP connection to be established")
+            connection_ready = self._wait_for_connection_state(
+                node=node,
+                port=self._TEST_PORT,
+                expected_state="ESTAB",
+                timeout=15,
+                poll_interval=0.5,
+            )
 
             if not connection_ready:
-                raise LookupError(
+                raise LisaException(
                     f"TCP connection not established on port {self._TEST_PORT} "
-                    f"within {max_wait} seconds"
+                    f"within timeout period"
                 )
 
-            node.log.debug(
+            node.log.info(
                 f"TCP connection established successfully on port {self._TEST_PORT}"
             )
 
-            # Verify connection exists
-            node.log.debug(
-                f"Checking for established connection on port {self._TEST_PORT}"
-            )
+            # Verify connection exists using assertion
             self._verify_connection_exists(node, self._TEST_PORT, should_exist=True)
 
             # Destroy the connection using ss -K
@@ -158,11 +221,23 @@ class InetDiagSuite(TestSuite):
             )
             ss.kill_connection(port=self._TEST_PORT, sport=True, sudo=True)
 
-            # Wait a moment for the destruction to take effect
-            time.sleep(2)
+            # Wait for the connection to be destroyed using robust polling
+            node.log.debug("Waiting for connection to be destroyed")
+            connection_destroyed = self._wait_for_connection_state(
+                node=node,
+                port=self._TEST_PORT,
+                expected_state="NONE",
+                timeout=10,
+                poll_interval=0.3,
+            )
 
-            # Verify connection no longer exists
-            node.log.debug("Verifying connection was destroyed")
+            if not connection_destroyed:
+                raise LisaException(
+                    f"Connection on port {self._TEST_PORT} was not destroyed "
+                    f"within timeout period"
+                )
+
+            # Verify connection no longer exists using assertion
             self._verify_connection_exists(node, self._TEST_PORT, should_exist=False)
 
             node.log.info(

@@ -42,11 +42,9 @@ def create_tcp_server_client():
 
     accept_thread = threading.Thread(target=accept_connection, daemon=True)
     accept_thread.start()
-    time.sleep(0.5)
 
     # Connect client
     client.connect((LOCALHOST, TEST_PORT))
-    time.sleep(1)
 
     print("CONNECTION_READY")
     sys.stdout.flush()
