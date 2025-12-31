@@ -51,6 +51,16 @@ class VMDisk:
     controller_location: int = 0
 
 
+@dataclass
+class DynamicMemoryConfig:
+    dynamic_memory_enabled: bool = False
+    minimum_mb: int = 0
+    startup_mb: int = 0
+    maximum_mb: int = 0
+    buffer: Optional[int] = None
+    priority: Optional[int] = None
+
+
 class HyperV(Tool):
     # Internal NAT network configuration
     INTERNAL_NAT_ROUTER = "192.168.5.1"
@@ -525,6 +535,37 @@ class HyperV(Tool):
         )
         return bool(output.strip() != "")
 
+    def get_dynamic_memory_config(self, vm_name: str) -> DynamicMemoryConfig:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VMMemory -VMName {vm_name} | Select-Object DynamicMemoryEnabled,"
+            " Minimum, Startup, Maximum, Buffer, Priority",
+            force_run=True,
+            output_json=True,
+        )
+
+        minimum_bytes = output.get("Minimum", 0)
+        startup_bytes = output.get("Startup", 0)
+        maximum_bytes = output.get("Maximum", 0)
+
+        return DynamicMemoryConfig(
+            dynamic_memory_enabled=bool(output.get("DynamicMemoryEnabled", False)),
+            minimum_mb=self._bytes_to_mb(minimum_bytes),
+            startup_mb=self._bytes_to_mb(startup_bytes),
+            maximum_mb=self._bytes_to_mb(maximum_bytes),
+            buffer=output.get("Buffer"),
+            priority=output.get("Priority"),
+        )
+
+    def get_memory_assigned_from_host(self, vm_name: str) -> int:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VM -Name {vm_name} | Select-Object MemoryAssigned",
+            force_run=True,
+            output_json=True,
+        )
+        assigned = output.get("MemoryAssigned", 0)
+        self._log.info(f"Aditya Garg, Memory assigned: {self._bytes_to_mb(assigned)}")
+        return self._bytes_to_mb(assigned)
+
     def delete_virtual_disk(self, name: str) -> None:
         if self.exists_virtual_disk(name):
             self.node.tools[PowerShell].run_cmdlet(
@@ -644,3 +685,10 @@ class HyperV(Tool):
             self._assigned_nat_ports.remove(port)
         else:
             self._log.debug(f"Port {port} was not assigned.")
+
+    @staticmethod
+    def _bytes_to_mb(value: Any) -> int:
+        try:
+            return int(int(value) / (1024 * 1024))
+        except Exception:
+            return 0
