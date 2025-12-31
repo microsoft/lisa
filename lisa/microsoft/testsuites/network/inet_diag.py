@@ -243,9 +243,6 @@ class InetDiagSuite(TestSuite):
                 f"TCP connection established successfully on port {test_port}"
             )
 
-            # Verify connection exists using assertion
-            self._verify_connection_exists(node, test_port, should_exist=True)
-
             # Destroy the connection using ss -K
             node.log.info(
                 f"Destroying connection on port {test_port} using ss -K"
@@ -267,9 +264,6 @@ class InetDiagSuite(TestSuite):
                     f"Connection on port {test_port} was not destroyed "
                     f"within timeout period"
                 )
-
-            # Verify connection no longer exists using assertion
-            self._verify_connection_exists(node, test_port, should_exist=False)
 
             node.log.info(
                 "Successfully verified INET_DIAG_DESTROY functionality - "
