@@ -2923,7 +2923,7 @@ class Availability(AzureFeatureMixin, features.Availability):
         arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
         settings = cast(AvailabilitySettings, kwargs.get("settings"))
         params = arm_parameters.availability_options
-
+        print("on_before_deployment called for Availability feature.")
         try:
             assert environment.runbook.nodes_requirement
             assert environment.runbook.nodes_requirement[0].extended_schemas
@@ -2954,6 +2954,7 @@ class Availability(AzureFeatureMixin, features.Availability):
             if "platformUpdateDomainCount" not in params.availability_set_properties:
                 params.availability_set_properties["platformUpdateDomainCount"] = 1
         elif params.availability_type == AvailabilityType.AvailabilityZone:
+            print(f"params before zone check: {params.availability_zones}")
             if not params.availability_zones:
                 raise SkippedException(
                     "Availability Zone is selected, but no zone was provided. "
@@ -2963,6 +2964,8 @@ class Availability(AzureFeatureMixin, features.Availability):
                     "3. Setting maximize_capability to false "
                     "so the zone can be selected automatically."
                 )
+            for v in params.availability_zones:
+                print(f"v:value={v}, type={type(v)}")
             params.availability_zones = [params.availability_zones[0]]
             params.availability_set_tags.clear()
             params.availability_set_properties.clear()
