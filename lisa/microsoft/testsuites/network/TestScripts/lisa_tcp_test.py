@@ -11,13 +11,14 @@ import socket
 import sys
 import threading
 import time
+from typing import List
 
 # Configuration
 LOCALHOST = "127.0.0.1"
 DEFAULT_PORT = 34567
 
 
-def create_tcp_server_client(port):
+def create_tcp_server_client(port: int) -> None:
     """
     Create a TCP server-client connection and keep it alive.
 
@@ -34,9 +35,9 @@ def create_tcp_server_client(port):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     # Accept connection in background
-    accepted_conn = []
+    accepted_conn: List[socket.socket] = []
 
-    def accept_connection():
+    def accept_connection() -> None:
         conn, addr = server.accept()
         accepted_conn.append(conn)
         # Keep connection alive
