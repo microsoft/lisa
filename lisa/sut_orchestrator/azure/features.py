@@ -3812,6 +3812,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         enable_https_traffic_only: bool = True,
         enable_private_endpoint: bool = False,
         quota_in_gb: int = 100,
+        provisioned_iops: Optional[int] = None,
+        provisioned_bandwidth_mibps: Optional[int] = None,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3850,6 +3852,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 resource_group_name=resource_group_name,
                 log=self._log,
                 quota_in_gb=quota_in_gb,
+                provisioned_iops=provisioned_iops,
+                provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
             )
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane

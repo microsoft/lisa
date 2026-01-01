@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import string
 from pathlib import Path
-from typing import Any, Dict, Union, cast
+from typing import Any, Dict, Optional, Union, cast
 
 from microsoft.testsuites.xfstests.xfstests import Xfstests
 
@@ -112,9 +112,12 @@ def _prepare_data_disk(
         node.execute(f"mkdir {mount_point}", sudo=True)
 
 
-# Updates as of march 2025.
-# Default premium SKU will be used for file share creation.
-# This will ensure SMB multi channel is enabled by default
+# Updates as of December 2025.
+# Default to Provisioned v2 (PV2) billing model for file share creation.
+# PV2 allows independent provisioning of storage, IOPS, and throughput.
+# PV2 supports smaller minimum quota (32 GiB vs 100 GiB for PV1).
+# PV1 fallback is available via use_pv1_model=True for regions without PV2.
+# SMB multi channel is enabled by default with premium SKUs.
 def _deploy_azure_file_share(
     node: Node,
     environment: Environment,
@@ -122,16 +125,43 @@ def _deploy_azure_file_share(
     azure_file_share: Union[AzureFileShare, Nfs],
     allow_shared_key_access: bool = True,
     enable_private_endpoint: bool = True,
-    storage_account_sku: str = "Premium_LRS",
+    storage_account_sku: str = "PremiumV2_LRS",
     storage_account_kind: str = "FileStorage",
-    file_share_quota_in_gb: int = 100,
+    file_share_quota_in_gb: int = 32,
+    provisioned_iops: Optional[int] = None,
+    provisioned_bandwidth_mibps: Optional[int] = None,
+    use_pv1_model: bool = False,
 ) -> Dict[str, str]:
     """
-    About: This method will provision azure file shares on a new // existing
-    storage account.
+    About: This method will provision azure file shares on a new or existing
+    storage account using the Provisioned v2 (PV2) billing model by default.
+
+    PV2 Billing Model (default):
+        - SKU: PremiumV2_LRS (SSD) or StandardV2_LRS (HDD)
+        - Minimum quota: 32 GiB
+        - Independent IOPS/throughput provisioning
+        - More cost-effective for testing workloads
+
+    PV1 Billing Model (legacy, use_pv1_model=True):
+        - SKU: Premium_LRS (SSD)
+        - Minimum quota: 100 GiB
+        - IOPS/throughput computed from storage size
+        - Use for regions where PV2 is not available
+
+    Args:
+        provisioned_iops: Optional IOPS for PV2 (None = use Azure defaults)
+        provisioned_bandwidth_mibps: Optional throughput for PV2 (None = defaults)
+        use_pv1_model: Set True to use legacy PV1 billing model
+
     Returns: Dict[str, str] - A dictionary containing the file share names
     and their respective URLs.
     """
+    # Handle PV1 fallback - override SKU and quota for compatibility
+    if use_pv1_model:
+        storage_account_sku = "Premium_LRS"
+        file_share_quota_in_gb = max(file_share_quota_in_gb, 100)  # PV1 minimum
+        provisioned_iops = None  # PV1 doesn't support explicit IOPS
+        provisioned_bandwidth_mibps = None  # PV1 doesn't support explicit throughput
     if isinstance(azure_file_share, AzureFileShare):
         fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
             file_share_names=list(names.values()),
@@ -141,6 +171,8 @@ def _deploy_azure_file_share(
             allow_shared_key_access=allow_shared_key_access,
             enable_private_endpoint=enable_private_endpoint,
             quota_in_gb=file_share_quota_in_gb,
+            provisioned_iops=provisioned_iops,
+            provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
         )
         test_folders_share_dict: Dict[str, str] = {}
         for key, value in names.items():
@@ -200,30 +232,10 @@ class Xfstesting(TestSuite):
         + " generic/680"
     )
 
-    # def before_case(self, log: Logger, **kwargs: Any) -> None:
-    #     node = kwargs["node"]
-    #     if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
-    #         self.excluded_tests = self.excluded_tests + " btrfs/299"
-
     def before_case(self, log: Logger, **kwargs: Any) -> None:
-        global _default_smb_mount, _default_smb_excluded_tests
-        global _default_smb_testcases, _scratch_folder, _test_folder
-
         node = kwargs["node"]
         if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
             self.excluded_tests = self.excluded_tests + " btrfs/299"
-        # check for user provided SMB mount options, excluded and included test cases
-        # for azure file share
-        variables: Dict[str, Any] = kwargs["variables"]
-        # check for overrides. pass variables with property case_visible: True
-        # in runbook
-        _default_smb_mount = variables.get("smb_mount_opts", _default_smb_mount)
-        _default_smb_excluded_tests = variables.get(
-            "smb_excluded_tests", _default_smb_excluded_tests
-        )
-        _default_smb_testcases = variables.get("smb_testcases", _default_smb_testcases)
-        _scratch_folder = variables.get("scratch_folder", _scratch_folder)
-        _test_folder = variables.get("test_folder", _test_folder)
 
     @TestCaseMetadata(
         description="""
@@ -615,6 +627,8 @@ class Xfstesting(TestSuite):
                     _scratch_folder: scratch_name,
                 },
                 azure_file_share=azure_file_share,
+                provisioned_bandwidth_mibps=110,
+                provisioned_iops=3110,
             )
             # Get credential file path from the feature (uses storage account name)
             mount_opts = (
