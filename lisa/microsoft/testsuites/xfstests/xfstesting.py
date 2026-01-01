@@ -232,30 +232,10 @@ class Xfstesting(TestSuite):
         + " generic/680"
     )
 
-    # def before_case(self, log: Logger, **kwargs: Any) -> None:
-    #     node = kwargs["node"]
-    #     if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
-    #         self.excluded_tests = self.excluded_tests + " btrfs/299"
-
     def before_case(self, log: Logger, **kwargs: Any) -> None:
-        global _default_smb_mount, _default_smb_excluded_tests
-        global _default_smb_testcases, _scratch_folder, _test_folder
-
         node = kwargs["node"]
         if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
             self.excluded_tests = self.excluded_tests + " btrfs/299"
-        # check for user provided SMB mount options, excluded and included test cases
-        # for azure file share
-        variables: Dict[str, Any] = kwargs["variables"]
-        # check for overrides. pass variables with property case_visible: True
-        # in runbook
-        _default_smb_mount = variables.get("smb_mount_opts", _default_smb_mount)
-        _default_smb_excluded_tests = variables.get(
-            "smb_excluded_tests", _default_smb_excluded_tests
-        )
-        _default_smb_testcases = variables.get("smb_testcases", _default_smb_testcases)
-        _scratch_folder = variables.get("scratch_folder", _scratch_folder)
-        _test_folder = variables.get("test_folder", _test_folder)
 
     @TestCaseMetadata(
         description="""
