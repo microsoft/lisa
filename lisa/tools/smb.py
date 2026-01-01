@@ -164,8 +164,6 @@ class SmbClient(Tool):
         share_name: str,
         mount_point: str,
         smb_version: str = "3.0",
-        username: Optional[str] = None,
-        password: Optional[str] = None,
         options: Optional[List[str]] = None,
     ) -> None:
         """Mount SMB share on client node with specified SMB version."""
@@ -174,12 +172,7 @@ class SmbClient(Tool):
         mkdir.create_directory(mount_point, sudo=True)
 
         # Build mount options
-        mount_options = [f"vers={smb_version}", "file_mode=0777", "dir_mode=0777"]
-
-        if username and password:
-            mount_options.extend([f"username={username}", f"password={password}"])
-        else:
-            mount_options.append("guest")
+        mount_options = [f"vers={smb_version}", "file_mode=0777", "dir_mode=0777", "guest"]
 
         if options:
             mount_options.extend(options)
