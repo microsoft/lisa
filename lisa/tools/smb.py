@@ -72,14 +72,11 @@ class SmbServer(Tool):
         server_string: str = "LISA SMB Test Server",
     ) -> None:
         """Configure SMB server and create a share."""
-        # Create share directory using Mkdir tool
-        mkdir = self.node.tools[Mkdir]
-        mkdir.create_directory(share_path, sudo=True)
+        # Create share directory
+        self.node.tools[Mkdir].create_directory(share_path, sudo=True)
 
-        # Set permissions for the share directory using Chmod tool
-        chmod = self.node.tools[Chmod]
-        chmod.chmod(share_path, "777", sudo=True)
-
+        # Set permissions for the share directory
+        self.node.tools[Chmod].chmod(share_path, "777", sudo=True)
         # Create SMB configuration
         smb_config = f"""
 [global]
@@ -167,9 +164,8 @@ class SmbClient(Tool):
         options: Optional[List[str]] = None,
     ) -> None:
         """Mount SMB share on client node with specified SMB version."""
-        # Create mount point using Mkdir tool
-        mkdir = self.node.tools[Mkdir]
-        mkdir.create_directory(mount_point, sudo=True)
+        # Create mount point
+        self.node.tools[Mkdir].create_directory(mount_point, sudo=True)
 
         # Build mount options
         mount_options = [
