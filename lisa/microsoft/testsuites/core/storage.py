@@ -31,12 +31,24 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Ubuntu, Windows
+from lisa.operating_system import BSD, Posix, Ubuntu, Windows, Suse, Debian
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, SmbClient, SmbServer, Swap, Sysctl
+from lisa.tools import (
+    Blkid,
+    Cat,
+    Dmesg,
+    Echo,
+    Lsblk,
+    Mount,
+    NFSClient,
+    SmbClient,
+    SmbServer,
+    Swap,
+    Sysctl,
+)
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
@@ -604,7 +616,9 @@ class Storage(TestSuite):
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(
-            min_count=2, supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
+            min_count=2,
+            supported_platform_type=[AZURE],
+            supported_os=[Debian, Ubuntu, Suse],
         ),
         use_new_environment=True,
         priority=1,
@@ -661,9 +675,6 @@ class Storage(TestSuite):
 
                 # Cleanup between version tests
                 smb_client.unmount_share(mount_point)
-
-        except Exception:
-            raise
         finally:
             # Cleanup
             self._cleanup_smb_test(
