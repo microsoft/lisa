@@ -635,7 +635,7 @@ class Storage(TestSuite):
         mount_point = f"/mnt/{share_name}"
 
         # SMB versions to test
-        smb_versions = ["2.0", "2.1", "3.0", "3.1.1"]
+        smb_versions = ["3.0", "3.1.1", "2.1", "2.0"]
 
         try:
             # Step 3: Configure SMB server and create a share
