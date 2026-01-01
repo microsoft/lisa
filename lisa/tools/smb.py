@@ -38,7 +38,7 @@ class SmbServer(Tool):
 
     @property
     def command(self) -> str:
-        return "smbd"
+        return ""
 
     @property
     def can_install(self) -> bool:
