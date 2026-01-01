@@ -105,7 +105,7 @@ class InetDiagSuite(TestSuite):
         while timer.elapsed(stop=False) < timeout:
             check_count += 1
             ss = node.tools[Ss]
-            
+
             if expected_state == "NONE":
                 # Checking that connection does NOT exist
                 connection_exists = ss.connection_exists(
@@ -214,9 +214,7 @@ class InetDiagSuite(TestSuite):
         connection_process = None
         try:
             # Start the connection in background with nohup to keep it alive
-            node.log.debug(
-                f"Starting TCP connection test script on port {test_port}"
-            )
+            node.log.debug(f"Starting TCP connection test script on port {test_port}")
             connection_process = node.execute_async(
                 f"python3 {script_path} {test_port}",
                 sudo=False,
@@ -244,9 +242,7 @@ class InetDiagSuite(TestSuite):
             )
 
             # Destroy the connection using ss -K
-            node.log.info(
-                f"Destroying connection on port {test_port} using ss -K"
-            )
+            node.log.info(f"Destroying connection on port {test_port} using ss -K")
             ss.kill_connection(port=test_port, sport=True, sudo=True)
 
             # Wait for the connection to be destroyed using robust polling
