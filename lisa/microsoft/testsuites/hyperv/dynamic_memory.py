@@ -17,11 +17,8 @@ from lisa.sut_orchestrator import HYPERV
 from lisa.sut_orchestrator.hyperv.context import get_node_context
 from lisa.testsuite import simple_requirement
 from lisa.tools import HvBalloon, StressNg
-from lisa.tools.hv_balloon import HvBalloonStats
 from lisa.tools.hyperv import DynamicMemoryConfig, HyperV
 from lisa.util import SkippedException
-
-# from lisa.util.perf_timer import create_timer
 
 
 @dataclass
@@ -37,6 +34,7 @@ class DynamicMemoryTestContext:
     hot_add_ready: bool
     min_net_pages_transaction: int
     max_net_pages_transaction: int
+    page_size_kb: int
 
 
 @TestSuiteMetadata(
@@ -67,197 +65,102 @@ class HyperVDynamicMemory(TestSuite):
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         ctx = self._get_context(node, variables)
-        log.info("Aditya Garg: Checking hot add capability")
         self._require_hot_add(ctx)
-        log.info(f"Aditya Garg: {ctx}")
-
-        log.info("Aditya Garg: Recording initial net pages transaction")
-        self._update_initial_net_pages_transaction(ctx)
-        log.info(f"Aditya Garg: {ctx}")
-        log.info("Aditya Garg: Applying VM stress")
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
         self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
-        log.info("Aditya Garg: Evaluating net pages transaction after stress")
-        log.info(f"Aditya Garg: {ctx}")
-        stressed_metrics = ctx.balloon.get_metrics()
-        log.info(f"Aditya Garg: Stressed metrics: {stressed_metrics}")
-        net_pages_transaction = (
-            stressed_metrics.pages_added - stressed_metrics.pages_ballooned
-        )
-        log.info(f"Aditya Garg: Net pages after stress: {net_pages_transaction}")
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction).described_as(
             "Hot add did not increase net pages transaction under VM stress"
-        ).is_greater_than(max(0, ctx.max_net_pages_transaction))
-        log.info("Aditya Garg: Updating net pages transaction values")
+        ).is_greater_than(ctx.max_net_pages_transaction)
         self._update_net_pages_transaction(ctx, net_pages_transaction)
-        log.info("Aditya Garg: Validating host-guest memory alignment")
         x, y, z = self._validate_host_guest_alignment(ctx)
-        log.info(f"Aditya Garg: Host: {x} MB, Guest: {y} MB, Difference: {z} MB")
-        log.info("Aditya Garg: Hot add dynamic memory test completed successfully")
 
-    # @TestCaseMetadata(
-    #     description="""Trigger hot add path using anonymous memory stress""",
-    #     priority=1,
-    # )
-    # def verify_dynamic_memory_hot_add(
-    #     self, log: Logger, node: Node, variables: Dict[str, Any]
-    # ) -> None:
-    #     ctx = self._get_context(node, variables)
-    #     self._require_hot_add(ctx)
+    @TestCaseMetadata(
+        description="""Validate Upper limit of dynamic memory""",
+        priority=1,
+    )
+    def verify_dynamic_memory_upper_limit(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        ctx = self._get_context(node, variables)
+        self._require_hot_add(ctx)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
+        expected_delta_mb = (
+            ctx.dynamic_memory_config.maximum_mb - ctx.dynamic_memory_config.startup_mb
+        )
+        assert_that(net_mb_transaction).described_as(
+            "net_mb_transaction must equal maximum_memory_mb - startup_memory_mb"
+        ).is_equal_to(expected_delta_mb)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        x, y, z = self._validate_host_guest_alignment(ctx)
 
-    #     initial_metrics = ctx.balloon.get_metrics()
-    #     self._update_net_extents(ctx, initial_metrics)
+    @TestCaseMetadata(
+        description="""Validate Balloon Up under Host Memory Pressure""",
+        priority=1,
+    )
+    def verify_dynamic_memory_balloon_up(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        ctx = self._get_context(node, variables)
+        self._require_hv_balloon(ctx)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=30)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        assert_that(net_pages_transaction).described_as(
+            "Balloon up did not decrease net pages transaction under host pressure"
+        ).is_less_than(ctx.max_net_pages_transaction)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        x, y, z = self._validate_host_guest_alignment(ctx)
 
-    #     self._apply_vm_stress(ctx, num_workers=64, vm_bytes="85%", duration=240)
+    @TestCaseMetadata(
+        description="""Validate Lower limit of dynamic memory""",
+        priority=1,
+    )
+    def verify_dynamic_memory_lower_limit(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        ctx = self._get_context(node, variables)
+        self._require_hv_balloon(ctx)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=30)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
+        expected_delta_mb = (
+            ctx.dynamic_memory_config.minimum_mb - ctx.dynamic_memory_config.startup_mb
+        )
+        assert_that(net_mb_transaction).described_as(
+            "net_mb_transaction must equal minimum_memory_mb - startup_memory_mb"
+        ).is_equal_to(expected_delta_mb)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        x, y, z = self._validate_host_guest_alignment(ctx)
 
-    #     stressed_metrics = self._wait_for_net_pages(
-    #         ctx,
-    #         predicate=lambda pages: pages > max(0, ctx.max_net_pages_transaction),
-    #         timeout=300,
-    #     )
-    #     self._update_net_extents(ctx, stressed_metrics)
-
-    #     self._validate_host_guest_alignment(
-    #         ctx.node,
-    #         ctx.hyperv.get_dynamic_memory_status(ctx.vm_name),
-    #         ctx.host_guest_tolerance_mb,
-    #     )
-
-    # @TestCaseMetadata(
-    #     description="""Drive memory demand toward configured maximum""",
-    #     priority=1,
-    # )
-    # def verify_dynamic_memory_upper_limit(
-    #     self, log: Logger, node: Node, variables: Dict[str, Any]
-    # ) -> None:
-    #     ctx = self._get_context(node, variables)
-    #     self._require_hot_add(ctx)
-
-    #     baseline_metrics = ctx.balloon.get_metrics()
-    #     baseline_net_pages_transaction = baseline_metrics.pages_added - \
-    #         baseline_metrics.pages_ballooned
-    #     self._update_net_extents(ctx, baseline_net_pages_transaction)
-
-    #     self._apply_vm_stress(ctx, num_workers=64, vm_bytes="95%", duration=240)
-    #     stressed_metrics = ctx.balloon.get_metrics()
-    #     stressed_net_pages_transaction = stressed_metrics.pages_added - \
-    #         stressed_metrics.pages_ballooned
-    #     assert_that(stressed_metrics.net_pages_transaction).described_as(
-    #     assert_that(stressed_metrics.net_pages_transaction).described_as(
-    #         "Net pages did not increase under VM stress"
-    #     ).is_greater_than(baseline_net_pages_transaction)
-    #     self._update_net_extents(ctx, stressed_net_pages_transaction)
-
-    #     self._validate_host_guest_alignment(
-    #         ctx.node,
-    #         ctx.hyperv.get_dynamic_memory_status(ctx.vm_name),
-    #         ctx.host_guest_tolerance_mb,
-    #     )
-
-    # @TestCaseMetadata(
-    #     description="""Induce host memory pressure to balloon up guest""",
-    #     priority=1,
-    # )
-    # def verify_dynamic_memory_balloon_up(
-    #     self, log: Logger, node: Node, variables: Dict[str, Any]
-    # ) -> None:
-    #     ctx = self._get_context(node, variables)
-    #     self._require_hv_balloon(ctx)
-
-    #     baseline_metrics = ctx.balloon.get_metrics()
-    #     self._update_net_extents(ctx, baseline_metrics)
-
-    #     self._apply_host_memory_pressure(ctx, memory_mb=2048, duration=120)
-
-    #     after_host_metrics = ctx.balloon.get_metrics()
-    #     self._update_net_extents(ctx, after_host_metrics)
-
-    #     assert_that(after_host_metrics.net_pages_transaction).described_as(
-    #         "Net pages did not decrease under host pressure (balloon up)"
-    #     ).is_less_than(ctx.max_net_pages_transaction)
-
-    #     self._validate_host_guest_alignment(
-    #         ctx.node,
-    #         ctx.hyperv.get_dynamic_memory_status(ctx.vm_name),
-    #         ctx.host_guest_tolerance_mb,
-    #     )
-
-    # @TestCaseMetadata(
-    #     description="""Ensure assigned memory respects configured minimum""",
-    #     priority=1,
-    # )
-    # def verify_dynamic_memory_lower_limit(
-    #     self, log: Logger, node: Node, variables: Dict[str, Any]
-    # ) -> None:
-    #     ctx = self._get_context(node, variables)
-    #     self._require_hv_balloon(ctx)
-
-    #     baseline_metrics = ctx.balloon.get_metrics()
-    #     baseline_net_pages = baseline_metrics.net_pages_transaction
-    #     self._update_net_extents(ctx, baseline_metrics)
-
-    #     self._apply_host_memory_pressure(ctx, memory_mb=2048, duration=120)
-
-    #     after_host_metrics = ctx.balloon.get_metrics()
-    #     assert_that(after_host_metrics.net_pages_transaction).described_as(
-    #         "Net pages did not decrease under host pressure"
-    #     ).is_less_than(baseline_net_pages)
-    #     self._update_net_extents(ctx, after_host_metrics)
-
-    #     self._validate_host_guest_alignment(
-    #         ctx.node,
-    #         ctx.hyperv.get_dynamic_memory_status(ctx.vm_name),
-    #         ctx.host_guest_tolerance_mb,
-    #     )
-
-    # @TestCaseMetadata(
-    #     description="""VM stress then release to validate balloon down""",
-    #     priority=1,
-    # )
-    # def verify_dynamic_memory_balloon_down(
-    #     self, log: Logger, node: Node, variables: Dict[str, Any]
-    # ) -> None:
-    #     ctx = self._get_context(node, variables)
-    #     self._require_hv_balloon(ctx)
-
-    #     baseline_metrics = ctx.balloon.get_metrics()
-    #     self._update_net_extents(ctx, baseline_metrics)
-
-    #     self._apply_host_memory_pressure(ctx, memory_mb=2048, duration=120)
-    #     after_host_metrics = ctx.balloon.get_metrics()
-    #     self._update_net_extents(ctx, after_host_metrics)
-
-    #     self._apply_vm_stress(ctx, num_workers=64, vm_bytes="85%", duration=240)
-    #     after_vm_metrics = ctx.balloon.get_metrics()
-    #     self._update_net_extents(ctx, after_vm_metrics)
-
-    #     assert_that(after_vm_metrics.net_pages_transaction).described_as(
-    #         "Net pages did not rebound after host pressure"
-    #     ).is_greater_than(ctx.min_net_pages_transaction)
-
-    #     self._validate_host_guest_alignment(
-    #         ctx.node,
-    #         ctx.hyperv.get_dynamic_memory_status(ctx.vm_name),
-    #         ctx.host_guest_tolerance_mb,
-    #     )
-
-    # def _wait_for_net_pages(
-    #     self,
-    #     ctx: DynamicMemoryTestContext,
-    #     predicate: Callable[[int], bool],
-    #     timeout: int,
-    #     poll_seconds: int = 15,
-    # ) -> HvBalloonStats:
-    #     timer = create_timer()
-    #     last_metrics: Optional["HvBalloonStats"] = None
-    #     while timer.elapsed(False) < timeout:
-    #         metrics = ctx.balloon.get_metrics()
-    #         last_metrics = metrics
-    #         if predicate(metrics.net_pages_transaction):
-    #             return metrics
-    #         time.sleep(poll_seconds)
-    #     if last_metrics:
-    #         return last_metrics
-    #     raise LisaException("Timed out waiting for hv_balloon net page change")
+    @TestCaseMetadata(
+        description="""Validate Balloon Down under VM Stress""",
+        priority=1,
+    )
+    def verify_dynamic_memory_balloon_down(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        ctx = self._get_context(node, variables)
+        self._require_hv_balloon(ctx)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=30)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=45)
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        assert_that(net_pages_transaction).described_as(
+            "Net pages did not rebound after host pressure"
+        ).is_greater_than(ctx.min_net_pages_transaction)
+        x, y, z = self._validate_host_guest_alignment(ctx)
 
     def _get_context(
         self, node: Node, variables: Dict[str, Any]
@@ -272,8 +175,6 @@ class HyperVDynamicMemory(TestSuite):
         self, node: Node, variables: Dict[str, Any]
     ) -> DynamicMemoryTestContext:
         node_context = get_node_context(node)
-        # if node_context is not None:
-        #     self.__log.info(f"Node context: {node_context}")
 
         if not node_context.host:
             raise SkippedException("Hyper-V host context is required for these tests")
@@ -300,6 +201,7 @@ class HyperVDynamicMemory(TestSuite):
             balloon_ready and kernel_config_hotplug and "hot_add" in capabilities
         )
         initial_net_pages = initial_metrics.net_pages_transaction
+        page_size_kb = initial_metrics.page_size // 1024
         return DynamicMemoryTestContext(
             node=node,
             host=node_context.host,
@@ -312,6 +214,7 @@ class HyperVDynamicMemory(TestSuite):
             hot_add_ready=hot_add_ready,
             min_net_pages_transaction=initial_net_pages,
             max_net_pages_transaction=initial_net_pages,
+            page_size_kb=page_size_kb,
         )
 
     def _read_kernel_config(self, node: Node) -> Tuple[bool, bool]:
@@ -347,18 +250,6 @@ class HyperVDynamicMemory(TestSuite):
             timeout_in_seconds=duration,
         )
 
-    def _apply_host_memory_pressure(
-        self, ctx: DynamicMemoryTestContext, memory_mb: int, duration: int
-    ) -> None:
-        ps_command = (
-            "$p = Start-Process -FilePath './TestLimit64.exe' "
-            f"-ArgumentList '-d {memory_mb}' -PassThru; "
-            f"Start-Sleep -Seconds {duration}; "
-            "if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force }"
-        )
-        command = f'pwsh -NoLogo -NoProfile -Command "{ps_command}"'
-        ctx.host.execute(command, shell=True, sudo=False)
-
     def _validate_host_guest_alignment(
         self,
         ctx: DynamicMemoryTestContext,
@@ -380,6 +271,13 @@ class HyperVDynamicMemory(TestSuite):
                 return int(value)
         return 0
 
+    def _get_net_pages_transaction(self, ctx: DynamicMemoryTestContext) -> int:
+        balloon_metrics = ctx.balloon.get_metrics()
+        net_pages_transaction = (
+            balloon_metrics.pages_added - balloon_metrics.pages_ballooned
+        )
+        return net_pages_transaction
+
     def _update_net_pages_transaction(
         self, ctx: DynamicMemoryTestContext, net_pages_transaction: int
     ) -> None:
@@ -390,33 +288,10 @@ class HyperVDynamicMemory(TestSuite):
             ctx.max_net_pages_transaction, net_pages_transaction
         )
 
-    def _update_initial_net_pages_transaction(
-        self, ctx: DynamicMemoryTestContext
-    ) -> None:
-        balloon_metrics = ctx.balloon.get_metrics()
-        net_pages_transaction = (
-            balloon_metrics.pages_added - balloon_metrics.pages_ballooned
-        )
-        ctx.min_net_pages_transaction = min(
-            ctx.min_net_pages_transaction,
-            net_pages_transaction,
-        )
-        ctx.max_net_pages_transaction = max(
-            ctx.max_net_pages_transaction,
-            net_pages_transaction,
-        )
-
-    def _pages_to_mb(self, metrics: HvBalloonStats) -> int:
-        if metrics.page_size <= 0:
-            return 0
-        net_pages_transaction = metrics.pages_added - metrics.pages_ballooned
-        return (net_pages_transaction * metrics.page_size) // (1024 * 1024)
-
-    def _pages_to_kb(self, metrics: HvBalloonStats) -> int:
-        if metrics.page_size <= 0:
-            return 0
-        net_pages_transaction = metrics.pages_added - metrics.pages_ballooned
-        return (net_pages_transaction * metrics.page_size) // 1024
+    def _pages_to_mb(
+        self, ctx: DynamicMemoryTestContext, net_pages_transaction: int
+    ) -> int:
+        return (net_pages_transaction * ctx.page_size_kb) // 1024
 
     def _require_hv_balloon(self, ctx: DynamicMemoryTestContext) -> None:
         if not ctx.balloon_ready:

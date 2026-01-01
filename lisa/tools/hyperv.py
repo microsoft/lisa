@@ -556,6 +556,21 @@ class HyperV(Tool):
             priority=output.get("Priority"),
         )
 
+    def apply_memory_pressure(self, memory_mb: int, duration: int) -> None:
+        hv_pressure_exe = r"C:\\Users\\gargaditya\\TestLimit\\TestLimit64.exe"
+        ps_command = (
+            f"Start-Process -FilePath '{hv_pressure_exe}' "
+            f"-ArgumentList '-d {memory_mb}' -PassThru "
+            "| ForEach-Object { "
+            f"Start-Sleep -Seconds {duration}; "
+            "if (-not $_.HasExited) { Stop-Process -Id $_.Id -Force } }"
+        )
+        self.node.tools[PowerShell].run_cmdlet(
+            ps_command,
+            force_run=True,
+            no_debug_log=True,
+        )
+
     def get_memory_assigned_from_host(self, vm_name: str) -> int:
         output = self.node.tools[PowerShell].run_cmdlet(
             f"Get-VM -Name {vm_name} | Select-Object MemoryAssigned",
