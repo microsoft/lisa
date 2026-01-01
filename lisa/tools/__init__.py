@@ -149,6 +149,7 @@ from .vgs import Vgs
 from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
 from .who import Who
 from .whoami import Whoami
+from .which import Which
 from .windows_feature import WindowsFeatureManagement
 from .wsl import Wsl
 
@@ -316,6 +317,7 @@ __all__ = [
     "Wget",
     "Who",
     "Whoami",
+    "Which",
     "WindowsFeatureManagement",
     "Wsl",
     "YumConfigManager",
