@@ -172,7 +172,12 @@ class SmbClient(Tool):
         mkdir.create_directory(mount_point, sudo=True)
 
         # Build mount options
-        mount_options = [f"vers={smb_version}", "file_mode=0777", "dir_mode=0777", "guest"]
+        mount_options = [
+            f"vers={smb_version}",
+            "file_mode=0777",
+            "dir_mode=0777",
+            "guest",
+        ]
 
         if options:
             mount_options.extend(options)

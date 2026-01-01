@@ -618,8 +618,7 @@ class Storage(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             supported_platform_type=[AZURE],
-            supported_os=[Ubuntu, Debian, Suse],
-            # unsupported_os=[BSD, Windows, Redhat, CentOs, Oracle, AlmaLinux, CBLMariner],
+            supported_os=[Ubuntu],
         ),
         use_new_environment=True,
         priority=1,
