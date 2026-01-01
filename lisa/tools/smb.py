@@ -16,7 +16,7 @@ from lisa.operating_system import (
     Suse,
     Ubuntu,
 )
-from lisa.tools import Echo, Mkdir, Mount, Rm, Service
+from lisa.tools import Chmod, Echo, Mkdir, Mount, Rm, Service
 from lisa.tools.firewall import Firewall
 from lisa.tools.mkfs import FileSystem
 from lisa.util import LisaException, UnsupportedDistroException
@@ -38,7 +38,7 @@ class SmbServer(Tool):
 
     @property
     def command(self) -> str:
-        return ""
+        return "smbd"
 
     @property
     def can_install(self) -> bool:
@@ -72,9 +72,13 @@ class SmbServer(Tool):
         server_string: str = "LISA SMB Test Server",
     ) -> None:
         """Configure SMB server and create a share."""
-        # Create share directory
-        self.node.execute(f"mkdir -p {share_path}", sudo=True)
-        self.node.execute(f"chmod 777 {share_path}", sudo=True)
+        # Create share directory using Mkdir tool
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(share_path, sudo=True)
+
+        # Set permissions for the share directory using Chmod tool
+        chmod = self.node.tools[Chmod]
+        chmod.chmod(share_path, "777", sudo=True)
 
         # Create SMB configuration
         smb_config = f"""
@@ -137,7 +141,7 @@ class SmbServer(Tool):
 class SmbClient(Tool):
     @property
     def command(self) -> str:
-        return ""
+        return "mount.cifs"
 
     @property
     def can_install(self) -> bool:
@@ -153,11 +157,6 @@ class SmbClient(Tool):
         else:
             raise UnsupportedDistroException(self.node.os)
         return self._check_exists()
-
-    def _check_exists(self) -> bool:
-        # Check if mount.cifs exists
-        result = self.node.execute("which mount.cifs", sudo=True)
-        return result.exit_code == 0
 
     def mount_share(
         self,
