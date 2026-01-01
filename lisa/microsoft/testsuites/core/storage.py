@@ -617,8 +617,12 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[AZURE],
-            supported_os=[Ubuntu],
+            # supported_os=[Ubuntu]
+            supported_os=[
+                Ubuntu,
+                Suse,
+                Debian,
+            ],
         ),
         use_new_environment=True,
         priority=1,
