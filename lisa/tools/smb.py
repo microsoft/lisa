@@ -17,6 +17,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.tools import Echo, Mkdir, Mount, Rm, Service
+from lisa.tools.firewall import Firewall
 from lisa.tools.mkfs import FileSystem
 from lisa.util import LisaException, UnsupportedDistroException
 
@@ -111,7 +112,9 @@ class SmbServer(Tool):
         service = self.node.tools[Service]
         service.restart_service(self._smb_service)
         service.restart_service(self._nmb_service)
-
+        # stop firewall to allow SMB traffic
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
         # Ensure services are running
         if not service.is_service_running(self._smb_service):
             raise LisaException(f"Failed to start SMB server ({self._smb_service})")
