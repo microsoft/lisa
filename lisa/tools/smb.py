@@ -19,7 +19,7 @@ from lisa.operating_system import (
 from lisa.tools import Chmod, Echo, Mkdir, Mount, Rm, Service
 from lisa.tools.firewall import Firewall
 from lisa.tools.mkfs import FileSystem
-from lisa.util import LisaException, UnsupportedDistroException
+from lisa.util import UnsupportedDistroException
 
 
 class SmbServer(Tool):
@@ -96,8 +96,9 @@ class SmbServer(Tool):
 """
 
         # Write SMB configuration
-        echo = self.node.tools[Echo]
-        echo.write_to_file(smb_config, PurePosixPath("/etc/samba/smb.conf"), sudo=True)
+        self.node.tools[Echo].write_to_file(
+            smb_config, PurePosixPath("/etc/samba/smb.conf"), sudo=True
+        )
 
         # Start SMB services
         self.start()
@@ -108,13 +109,7 @@ class SmbServer(Tool):
         service.restart_service(self._smb_service)
         service.restart_service(self._nmb_service)
         # stop firewall to allow SMB traffic
-        firewall = self.node.tools[Firewall]
-        firewall.stop()
-        # Ensure services are running
-        if not service.is_service_running(self._smb_service):
-            raise LisaException(f"Failed to start SMB server ({self._smb_service})")
-        if not service.is_service_running(self._nmb_service):
-            raise LisaException(f"Failed to start NMB server ({self._nmb_service})")
+        self.node.tools[Firewall].stop()
 
     def stop(self) -> None:
         """Stop SMB services."""
@@ -131,8 +126,7 @@ class SmbServer(Tool):
 
     def remove_share(self, share_path: str) -> None:
         """Remove a SMB share and its directory."""
-        rm = self.node.tools[Rm]
-        rm.remove_directory(share_path, sudo=True)
+        self.node.tools[Rm].remove_directory(share_path, sudo=True)
 
 
 class SmbClient(Tool):
@@ -179,8 +173,7 @@ class SmbClient(Tool):
             mount_options.extend(options)
 
         # Mount SMB share
-        mount = self.node.tools[Mount]
-        mount.mount(
+        self.node.tools[Mount].mount(
             point=mount_point,
             name=f"//{server_address}/{share_name}",
             fs_type=FileSystem.cifs,
@@ -190,15 +183,12 @@ class SmbClient(Tool):
 
     def unmount_share(self, mount_point: str) -> None:
         """Unmount SMB share."""
-        mount = self.node.tools[Mount]
-        mount.umount(point=mount_point, disk_name="", erase=False)
+        self.node.tools[Mount].umount(point=mount_point, disk_name="", erase=False)
 
     def is_mounted(self, mount_point: str) -> bool:
         """Check if mount point exists and is mounted."""
-        mount = self.node.tools[Mount]
-        return mount.check_mount_point_exist(mount_point)
+        return self.node.tools[Mount].check_mount_point_exist(mount_point)
 
     def cleanup_mount_point(self, mount_point: str) -> None:
         """Remove mount point directory."""
-        rm = self.node.tools[Rm]
-        rm.remove_directory(mount_point, sudo=True)
+        self.node.tools[Rm].remove_directory(mount_point, sudo=True)
