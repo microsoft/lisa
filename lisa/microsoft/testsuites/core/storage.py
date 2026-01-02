@@ -17,6 +17,7 @@ from lisa import (
     schema,
     simple_requirement,
 )
+from lisa.base_tools.service import Systemctl
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.features import Disk, Nfs
@@ -31,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Redhat, CBLMariner, AlmaLinux, Windows
+from lisa.operating_system import BSD, AlmaLinux, CBLMariner, Posix, Redhat, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
