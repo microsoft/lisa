@@ -605,7 +605,8 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        A comprehensive test to verify SMB share functionality between two Linux VMs.
+        A comprehensive test to verify CIFS module and SMB share functionality between
+        two Linux VMs.
         This test case will
             1. Create an 2 VMs in azure
             2. Check if CONFIG_CIFS is enabled in KCONFIG
