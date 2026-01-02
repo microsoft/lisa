@@ -615,15 +615,7 @@ class Storage(TestSuite):
             8. repeat steps 3-7 for SMB versions ["2.0", "2.1", "3.0", "3.1.1"]
         """,
         timeout=TIME_OUT,
-        requirement=simple_requirement(
-            min_count=2,
-            # supported_os=[Ubuntu]
-            supported_os=[
-                Ubuntu,
-                Suse,
-                Debian,
-            ],
-        ),
+        requirement=simple_requirement(min_count=2, supported_os=[Ubuntu]),
         use_new_environment=True,
         priority=1,
     )
@@ -771,7 +763,10 @@ class Storage(TestSuite):
                 smb_client.unmount_share(mount_point)
             smb_client.cleanup_mount_point(mount_point)
         except Exception as e:
-            log.warning(f"Client cleanup failed: {e}")
+            raise LisaException(
+                f"fail to cleanup SMB client mount point {mount_point}: "
+                f"{e.__class__.__name__}: {e}."
+            )
 
         # Cleanup on server
         try:
@@ -779,7 +774,10 @@ class Storage(TestSuite):
             smb_server.stop()
             smb_server.remove_share(share_path)
         except Exception as e:
-            log.warning(f"Server cleanup failed: {e}")
+            raise LisaException(
+                f"fail to remove share {share_path} from SMB server: "
+                f"{e.__class__.__name__}: {e}."
+            )
 
     @TestCaseMetadata(
         description="""
