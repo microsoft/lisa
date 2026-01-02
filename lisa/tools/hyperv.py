@@ -560,7 +560,7 @@ class HyperV(Tool):
         hv_pressure_exe = r"C:\\Users\\gargaditya\\TestLimit\\TestLimit64.exe"
         ps_command = (
             f"Start-Process -FilePath '{hv_pressure_exe}' "
-            f"-ArgumentList '-d {memory_mb}' -PassThru "
+            f"-ArgumentList '-accepteula -d {memory_mb}' -PassThru "
             "| ForEach-Object { "
             f"Start-Sleep -Seconds {duration}; "
             "if (-not $_.HasExited) { Stop-Process -Id $_.Id -Force } }"

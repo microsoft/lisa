@@ -51,12 +51,6 @@ class HyperVDynamicMemory(TestSuite):
         super().__init__(*args, **kwargs)
         self._suite_context: Optional[DynamicMemoryTestContext] = None
 
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
-        if self._suite_context is None:
-            node: Node = kwargs["node"]
-            variables: Dict[str, Any] = kwargs["variables"]
-            self._suite_context = self._build_context(node, variables)
-
     @TestCaseMetadata(
         description="""Validate hot add of dynamic memory""",
         priority=1,
@@ -110,7 +104,7 @@ class HyperVDynamicMemory(TestSuite):
         self._require_hv_balloon(ctx)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         self._update_net_pages_transaction(ctx, net_pages_transaction)
-        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=30)
+        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction).described_as(
             "Balloon up did not decrease net pages transaction under host pressure"
@@ -129,7 +123,7 @@ class HyperVDynamicMemory(TestSuite):
         self._require_hv_balloon(ctx)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         self._update_net_pages_transaction(ctx, net_pages_transaction)
-        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=30)
+        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
         expected_delta_mb = (
@@ -152,14 +146,15 @@ class HyperVDynamicMemory(TestSuite):
         self._require_hv_balloon(ctx)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         self._update_net_pages_transaction(ctx, net_pages_transaction)
-        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=30)
+        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         self._update_net_pages_transaction(ctx, net_pages_transaction)
-        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=45)
+        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction).described_as(
             "Net pages did not rebound after host pressure"
         ).is_greater_than(ctx.min_net_pages_transaction)
+        self._update_net_pages_transaction(ctx, net_pages_transaction)
         x, y, z = self._validate_host_guest_alignment(ctx)
 
     def _get_context(
