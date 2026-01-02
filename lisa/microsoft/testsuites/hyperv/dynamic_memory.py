@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-# import time
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
@@ -11,7 +10,6 @@ from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.base_tools import Uname
-from lisa.node import RemoteNode
 from lisa.operating_system import Linux
 from lisa.sut_orchestrator import HYPERV
 from lisa.sut_orchestrator.hyperv.context import get_node_context
@@ -24,7 +22,6 @@ from lisa.util import SkippedException
 @dataclass
 class DynamicMemoryTestContext:
     node: Node
-    host: RemoteNode
     vm_name: str
     hyperv: HyperV
     dynamic_memory_config: DynamicMemoryConfig
@@ -32,8 +29,6 @@ class DynamicMemoryTestContext:
     host_guest_tolerance_mb: int
     balloon_ready: bool
     hot_add_ready: bool
-    min_net_pages_transaction: int
-    max_net_pages_transaction: int
     page_size_kb: int
 
 
@@ -133,7 +128,6 @@ class HyperVDynamicMemory(TestSuite):
         net_pages_transaction_before = self._get_net_pages_transaction(ctx)
         self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=45)
         net_pages_transaction_after = self._get_net_pages_transaction(ctx)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction_after).described_as(
             "Net pages did not rebound after host pressure"
         ).is_greater_than(net_pages_transaction_before)
@@ -168,11 +162,9 @@ class HyperVDynamicMemory(TestSuite):
         hot_add_ready = (
             balloon_ready and kernel_config_hotplug and "hot_add" in capabilities
         )
-        initial_net_pages = initial_metrics.net_pages_transaction
         page_size_kb = initial_metrics.page_size // 1024
         return DynamicMemoryTestContext(
             node=node,
-            host=node_context.host,
             vm_name=node_context.vm_name,
             hyperv=hyperv,
             dynamic_memory_config=dynamic_memory_config,
@@ -180,8 +172,6 @@ class HyperVDynamicMemory(TestSuite):
             host_guest_tolerance_mb=host_guest_tolerance_mb,
             balloon_ready=balloon_ready,
             hot_add_ready=hot_add_ready,
-            min_net_pages_transaction=initial_net_pages,
-            max_net_pages_transaction=initial_net_pages,
             page_size_kb=page_size_kb,
         )
 
