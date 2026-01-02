@@ -613,8 +613,6 @@ class Storage(TestSuite):
             6. Write a test file to the SMB share and read it back to verify IO
             7. Clean up the SMB share and unmount
             8. repeat steps 3-7 for SMB versions ["2.0", "2.1", "3.0", "3.1.1"]
-        Note: This test doesn't support few linux distros like Redhat, CBLMariner, AlmaLinux
-        as they don't have cifs-utils package in their default repos.
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(
