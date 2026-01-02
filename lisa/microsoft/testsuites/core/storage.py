@@ -31,7 +31,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Ubuntu, Windows, Suse, Debian
+from lisa.operating_system import BSD, Posix, Redhat, CBLMariner, AlmaLinux, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
@@ -613,9 +613,14 @@ class Storage(TestSuite):
             6. Write a test file to the SMB share and read it back to verify IO
             7. Clean up the SMB share and unmount
             8. repeat steps 3-7 for SMB versions ["2.0", "2.1", "3.0", "3.1.1"]
+        Note: This test doesn't support few linux distros like Redhat, CBLMariner, AlmaLinux
+        as they don't have cifs-utils package in their default repos.
         """,
         timeout=TIME_OUT,
-        requirement=simple_requirement(min_count=2, supported_os=[Ubuntu]),
+        requirement=simple_requirement(
+            min_count=2,
+            unsupported_os=[Redhat, CBLMariner, AlmaLinux, BSD, Windows],
+        ),
         use_new_environment=True,
         priority=1,
     )
@@ -704,7 +709,10 @@ class Storage(TestSuite):
         test_file_path = f"{mount_point}/{test_file}"
         echo = client_node.tools[Echo]
         echo.write_to_file(
-            test_content, client_node.get_pure_path(test_file_path), sudo=True
+            test_content,
+            client_node.get_pure_path(test_file_path),
+            sudo=True,
+            ignore_error=False,
         )
 
         # Read and verify file content from client side
