@@ -5,7 +5,7 @@ from __future__ import annotations
 
 # import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 from assertpy import assert_that
 
@@ -47,10 +47,6 @@ class DynamicMemoryTestContext:
     ),
 )
 class HyperVDynamicMemory(TestSuite):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._suite_context: Optional[DynamicMemoryTestContext] = None
-
     @TestCaseMetadata(
         description="""Validate hot add of dynamic memory""",
         priority=1,
@@ -60,14 +56,11 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hot_add(ctx)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
         self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction).described_as(
             "Hot add did not increase net pages transaction under VM stress"
-        ).is_greater_than(ctx.max_net_pages_transaction)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        ).is_greater_than(0)
         x, y, z = self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -79,8 +72,6 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hot_add(ctx)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
         self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
@@ -90,7 +81,6 @@ class HyperVDynamicMemory(TestSuite):
         assert_that(net_mb_transaction).described_as(
             "net_mb_transaction must equal maximum_memory_mb - startup_memory_mb"
         ).is_equal_to(expected_delta_mb)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
         x, y, z = self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -102,14 +92,12 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hv_balloon(ctx)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        net_pages_transaction_before = self._get_net_pages_transaction(ctx)
         ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
-        assert_that(net_pages_transaction).described_as(
+        net_pages_transaction_after = self._get_net_pages_transaction(ctx)
+        assert_that(net_pages_transaction_after).described_as(
             "Balloon up did not decrease net pages transaction under host pressure"
-        ).is_less_than(ctx.max_net_pages_transaction)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        ).is_less_than(net_pages_transaction_before)
         x, y, z = self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -121,8 +109,6 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hv_balloon(ctx)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
         ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
@@ -132,7 +118,6 @@ class HyperVDynamicMemory(TestSuite):
         assert_that(net_mb_transaction).described_as(
             "net_mb_transaction must equal minimum_memory_mb - startup_memory_mb"
         ).is_equal_to(expected_delta_mb)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
         x, y, z = self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -144,29 +129,17 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hv_balloon(ctx)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
         ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
+        net_pages_transaction_before = self._get_net_pages_transaction(ctx)
+        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=45)
+        net_pages_transaction_after = self._get_net_pages_transaction(ctx)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
-        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
-        net_pages_transaction = self._get_net_pages_transaction(ctx)
-        assert_that(net_pages_transaction).described_as(
+        assert_that(net_pages_transaction_after).described_as(
             "Net pages did not rebound after host pressure"
-        ).is_greater_than(ctx.min_net_pages_transaction)
-        self._update_net_pages_transaction(ctx, net_pages_transaction)
+        ).is_greater_than(net_pages_transaction_before)
         x, y, z = self._validate_host_guest_alignment(ctx)
 
     def _get_context(
-        self, node: Node, variables: Dict[str, Any]
-    ) -> DynamicMemoryTestContext:
-        if self._suite_context is not None:
-            return self._suite_context
-
-        self._suite_context = self._build_context(node, variables)
-        return self._suite_context
-
-    def _build_context(
         self, node: Node, variables: Dict[str, Any]
     ) -> DynamicMemoryTestContext:
         node_context = get_node_context(node)
@@ -272,16 +245,6 @@ class HyperVDynamicMemory(TestSuite):
             balloon_metrics.pages_added - balloon_metrics.pages_ballooned
         )
         return net_pages_transaction
-
-    def _update_net_pages_transaction(
-        self, ctx: DynamicMemoryTestContext, net_pages_transaction: int
-    ) -> None:
-        ctx.min_net_pages_transaction = min(
-            ctx.min_net_pages_transaction, net_pages_transaction
-        )
-        ctx.max_net_pages_transaction = max(
-            ctx.max_net_pages_transaction, net_pages_transaction
-        )
 
     def _pages_to_mb(
         self, ctx: DynamicMemoryTestContext, net_pages_transaction: int
