@@ -355,15 +355,14 @@ class Xfstests(Tool):
                 f"Current distro {self.node.os.name} doesn't support xfstests."
             )
 
-        # if install the packages in one command, the remain available packages can't
-        # be installed if one of packages is not available in that distro,
-        # so here install it one by one
-        for package in list(package_list):
-            # to make code simple, put all packages needed by one distro in one list.
-            # the package name may be different for the different sku of the
-            #  same distro. so, install it when the package exists in the repo.
-            if posix_os.is_package_in_repo(package):
-                posix_os.install_packages(package)
+        # Filter packages to only those available in the repo, then batch install.
+        # This is significantly faster than installing one-by-one as it reduces
+        # SSH command overhead from ~100 commands to ~52 for 50 packages.
+        available_packages = [
+            pkg for pkg in package_list if posix_os.is_package_in_repo(pkg)
+        ]
+        if available_packages:
+            posix_os.install_packages(available_packages)
         # fix compile issue on RHEL/CentOS 7.x
         if (
             isinstance(self.node.os, Redhat)

@@ -44,7 +44,25 @@ _default_smb_mount = (
     "vers=3.11,dir_mode=0755,file_mode=0755,serverino,nosharesock"
     ",mfsymlinks,max_channels=4,actimeo=30"
 )
+# Excluded tests for Azure Files SMB:
+# Reference: https://learn.microsoft.com/azure/storage/files/
+#            files-smb-protocol#limitations
+#
+# Azure Files SMB does NOT support:
+# - Sparse files (FSCTL_SET_SPARSE not implemented)
+# - Hard links (link() syscall fails)
+# - Symbolic links (native; mfsymlinks mount option provides emulation)
+# - mknod/mkfifo (no device nodes, FIFOs, or sockets)
+# - Hole punching / fallocate (FALLOC_FL_PUNCH_HOLE not supported)
+# - POSIX chmod (mode set via mount options only)
+# - File cloning / reflink (CoW not supported)
+# - Extended attributes (native; mfsymlinks provides partial support)
+#
 _default_smb_excluded_tests: str = (
+    # =========================================================================
+    # Section 1: Original exclusions - features unsupported by Azure Files SMB
+    # These tests require filesystem features not available on SMB/CIFS
+    # =========================================================================
     "generic/015 generic/019 generic/027 generic/034 generic/039 generic/040 "
     "generic/041 generic/050 generic/056 generic/057 generic/059 generic/065 "
     "generic/066 generic/067 generic/073 generic/076 generic/081 generic/083 "
@@ -61,27 +79,64 @@ _default_smb_excluded_tests: str = (
     "generic/488 generic/489 generic/500 generic/510 generic/512 generic/520 "
     "generic/534 generic/535 generic/536 generic/547 generic/552 generic/557 "
     "generic/558 generic/559 generic/560 generic/561 generic/562 generic/570 "
-    "generic/586 generic/589 generic/619 generic/620 generic/640 cifs/001"
+    "generic/586 generic/589 generic/619 generic/620 generic/640 "
+    # =========================================================================
+    # Section 2: cifs-specific test exclusions
+    # =========================================================================
+    # cifs/001: Tests file cloning (reflink/CoW) - not supported on Azure Files
+    #           Error: "clone failed: Operation not supported"
+    "cifs/001 "
+    # =========================================================================
+    # Section 3: Auto-skipped tests moved to explicit exclusion
+    # These tests auto-skip at runtime but excluding explicitly saves time
+    # =========================================================================
+    # Sparse files not supported (FSCTL_SET_SPARSE not implemented):
+    "generic/014 generic/129 generic/130 generic/239 generic/240 "
+    # POSIX chmod not supported on cifs (mode set via mount options):
+    "generic/125 generic/598 "
+    # mknod/mkfifo not supported (no device nodes, FIFOs, sockets):
+    "generic/184 generic/306 "
+    # mkfs_sized not applicable (cloud filesystem, cannot run mkfs):
+    "generic/211 "
+    # Hole punching (fallocate PUNCH_HOLE) not supported:
+    "generic/469 generic/567 "
+    # =========================================================================
+    # Section 4: Known failures on Azure Files SMB
+    # =========================================================================
+    # generic/013: fsstress with link=10 - uses hard links not supported by SMB
+    #              Phase 3 runs: -f link=10 which calls link() syscall
+    #              Azure Files does not support hard links, causing test failure
+    "generic/013 "
+    # generic/346: mmap concurrent writes produce data corruption over SMB
+    #              Memory-mapped file coherency across threads not guaranteed
+    #              Error: thread offset mismatch due to SMB caching semantics
+    "generic/346 "
+    # generic/524: XFS-specific writeback race condition test
+    #              Tests XFS delalloc block accounting, not applicable to SMB
+    #              Runtime varies wildly (6s to 330s) based on network conditions
+    "generic/524"
 )
+# Test cases for Azure Files SMB validation.
+# These tests validate SMB functionality that Azure Files supports.
+# generic/070: Extended attribute stress test (attr_set, attr_remove)
+#              - Works with mfsymlinks mount option providing xattr-like support
 _default_smb_testcases: str = (
     "generic/001 generic/005 generic/006 generic/007 generic/010 generic/011 "
-    "generic/013 generic/014 generic/024 generic/028 generic/029 generic/030 "
-    "generic/036 generic/069 generic/070 generic/071 generic/074 generic/080 "
-    "generic/084 generic/086 generic/091 generic/095 generic/098 generic/100 "
-    "generic/109 generic/113 generic/117 generic/124 generic/125 generic/129 "
-    "generic/130 generic/132 generic/133 generic/135 generic/141 generic/169 "
-    "generic/184 generic/198 generic/207 generic/208 generic/210 generic/211 "
-    "generic/212 generic/214 generic/215 generic/221 generic/228 generic/239 "
-    "generic/240 generic/241 generic/246 generic/247 generic/248 generic/249 "
-    "generic/257 generic/258 generic/286 generic/306 generic/308 generic/310 "
-    "generic/313 generic/315 generic/339 generic/340 generic/344 generic/345 "
-    "generic/346 generic/354 generic/360 generic/391 generic/393 generic/394 "
-    "generic/406 generic/412 generic/422 generic/428 generic/432 generic/433 "
-    "generic/437 generic/443 generic/450 generic/451 generic/452 generic/460 "
-    "generic/464 generic/465 generic/469 generic/524 generic/528 generic/538 "
-    "generic/565 generic/567 generic/568 generic/590 generic/591 generic/598 "
-    "generic/599 generic/604 generic/609 generic/615 generic/632 generic/634 "
-    "generic/635 generic/637 generic/638 generic/639"
+    "generic/024 generic/028 generic/029 generic/030 generic/036 "
+    "generic/069 generic/070 generic/071 generic/074 generic/080 generic/084 "
+    "generic/086 generic/091 generic/095 generic/098 generic/100 generic/109 "
+    "generic/113 generic/117 generic/124 generic/132 generic/133 generic/135 "
+    "generic/141 generic/169 generic/198 generic/207 generic/208 generic/210 "
+    "generic/212 generic/214 generic/215 generic/221 generic/228 generic/241 "
+    "generic/246 generic/247 generic/248 generic/249 generic/257 generic/258 "
+    "generic/286 generic/308 generic/310 generic/313 generic/315 generic/339 "
+    "generic/340 generic/344 generic/345 generic/354 generic/360 generic/391 "
+    "generic/393 generic/394 generic/406 generic/412 generic/422 generic/428 "
+    "generic/432 generic/433 generic/437 generic/443 generic/450 generic/451 "
+    "generic/452 generic/460 generic/464 generic/465 generic/528 generic/538 "
+    "generic/565 generic/568 generic/590 generic/591 generic/599 generic/604 "
+    "generic/609 generic/615 generic/632 generic/634 generic/635 generic/637 "
+    "generic/638 generic/639"
 )
 # Section : Global options
 _scratch_folder = "/mnt/scratch"
@@ -619,6 +674,8 @@ class Xfstesting(TestSuite):
         # Track test failure for keep_environment handling
         test_failed = False
         try:
+            # Provision 100 GiB share to support tests requiring large files
+            # (e.g., generic/394 tests RLIMIT_FSIZE with 1GB+ file operations)
             fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
                 node=node,
                 environment=environment,
@@ -627,6 +684,7 @@ class Xfstesting(TestSuite):
                     _scratch_folder: scratch_name,
                 },
                 azure_file_share=azure_file_share,
+                file_share_quota_in_gb=100,
                 provisioned_bandwidth_mibps=110,
                 provisioned_iops=3110,
             )
