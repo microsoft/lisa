@@ -320,6 +320,7 @@ class KernelSourcePackager(DeploymentTransformer):
             code_path=self._code_path,
             kconfig_file=runbook.kernel_config_file,
             kernel_version=parse_version(kernel_version),
+            use_ccache=True,
         )
 
         start_time = time.time()
