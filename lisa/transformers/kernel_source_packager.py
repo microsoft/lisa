@@ -8,6 +8,7 @@ from pathlib import PurePath
 from typing import Dict, Any, Optional, List, Type, cast
 
 from lisa import schema
+from lisa.tools import Echo, Git
 from lisa.util import subclasses, parse_version
 
 # from lisa.transformer import Transformer
@@ -20,15 +21,25 @@ from .kernel_source_installer import (
     BaseLocationSchema,
     SourceInstaller,
     SourceInstallerSchema,
+    RepoLocation,
+    RepoLocationSchema,
     _get_code_path,
 )
 
 
 @dataclass_json()
 @dataclass
+class RepoWorktreeSchema(RepoLocationSchema):
+    worktree_name: str = ""
+    worktree_repo: str = ""
+    worktree_ref: str = ""
+    worktree_local_branch: str = ""
+
+
+@dataclass_json()
+@dataclass
 class KernelSourcePackagerSchema(DeploymentTransformerSchema, SourceInstallerSchema):
     use_cache: bool = field(default=False)
-
     cache_destination: str = field(default="/default", metadata={"required": False})
 
 
@@ -373,3 +384,101 @@ class KernelSourcePackager(DeploymentTransformer):
 
         # 8. Update the cache and return the first package path
         return self._update_cache(metadata=metadata)
+
+
+class RepoWorktree(BaseLocation):
+    @classmethod
+    def type_name(cls) -> str:
+        return "worktree"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return RepoWorktreeSchema
+
+    def get_source_code(self) -> PurePath:
+        runbook: RepoWorktreeSchema = cast(RepoWorktreeSchema, self.runbook)
+
+        code_path = _get_code_path(runbook.path, self._node, "repo_code")
+
+        # expand env variables
+        echo = self._node.tools[Echo]
+        git = self._node.tools[Git]
+
+        echo_result = echo.run(str(code_path), shell=True)
+        code_path = self._node.get_pure_path(echo_result.stdout)
+
+        if not self._node.shell.exists(code_path):
+            self._log.debug(f"creating dir: {code_path}")
+            self._node.execute(f"mkdir -p {code_path}", sudo=True)
+            self._node.execute(f"chmod 0777 {code_path}", sudo=True)
+
+        repo_name = os.path.basename(runbook.repo.rstrip("/")).removesuffix(".git")
+        if not self._node.shell.exists(code_path / repo_name):
+            self._log.info(f"cloning code from {runbook.repo} to {code_path}...")
+            code_path = git.clone(
+                url=runbook.repo,
+                cwd=code_path,
+                fail_on_exists=runbook.fail_on_code_exists,
+                auth_token=runbook.auth_token,
+                timeout=1800,
+            )
+        else:
+            code_path = code_path / repo_name
+
+        # check if the 'repo' is already a remote url
+        remote_exists = False
+        remote = ""
+        remotes = git.remote_list(code_path)
+        self._log.debug(f"existing remotes: {remotes}")
+        for remote in remotes:
+            if runbook.worktree_repo == git.remote_get_url(code_path, remote):
+                remote_exists = True
+                break
+
+        if not remote_exists:
+            remote = runbook.worktree_name
+            self._log.info(f"adding remote {remote} for {runbook.worktree_repo}")
+            git.remote_add(cwd=code_path, name=remote, url=runbook.worktree_repo)
+        git.fetch(
+            cwd=code_path,
+            remote=remote,
+        )
+
+        target_path = code_path
+        target_ref = runbook.ref
+        if runbook.worktree_name:
+            worktree_path = code_path.parent / runbook.worktree_name
+            git.worktree_prune(cwd=code_path)
+            if not git.worktree_exists(cwd=code_path, path=str(worktree_path)):
+                self._log.info(
+                    f"creating a new worktree at {worktree_path} "
+                    f"pointing at {remote}/{runbook.worktree_ref}"
+                )
+                git.worktree_add(
+                    cwd=code_path,
+                    path=worktree_path,
+                    remote=remote,
+                    remote_ref=runbook.worktree_ref,
+                    new_branch=runbook.worktree_local_branch,
+                    track=True,
+                )
+
+                latest_commit_id = git.get_latest_commit_id(cwd=worktree_path)
+                self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
+                return worktree_path
+
+            # worktree exists
+            target_ref = runbook.worktree_ref
+            target_path = worktree_path
+
+        if target_ref:
+            if git.get_current_branch(cwd=target_path) == target_ref:
+                git.pull(cwd=target_path)
+
+            git.checkout(ref=target_ref, cwd=target_path)
+            self._log.info(f"checkout code from: '{target_ref}'")
+
+        latest_commit_id = git.get_latest_commit_id(cwd=target_path)
+        self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
+
+        return target_path
