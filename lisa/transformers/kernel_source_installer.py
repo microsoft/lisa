@@ -425,6 +425,7 @@ class SourceInstaller(BaseInstaller):
                     "cpio",
                     "flex",
                     "libelf-dev",
+                    "libdw-dev",
                     "libncurses5-dev",
                     "xz-utils",
                     "libssl-dev",
@@ -432,6 +433,9 @@ class SourceInstaller(BaseInstaller):
                     "ccache",
                     "zstd",
                     "libxxhash-dev",
+                    "fakeroot",
+                    "dpkg-dev",
+                    "debhelper-compat",
                 ]
             )
         elif isinstance(os, CBLMariner):
