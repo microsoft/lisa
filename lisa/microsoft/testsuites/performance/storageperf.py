@@ -35,6 +35,8 @@ from lisa.operating_system import Debian, Redhat, Suse
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.testsuite import TestResult, node_requirement
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
+from lisa.tools.fio import IoEngine
+from lisa.tools.kernel_config import KernelConfig
 from lisa.util import SkippedException
 
 
@@ -144,7 +146,8 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance with 4K block size.
+        This test case uses fio to test premium data disk performance with 4K block size
+        using libaio as ioengine.
         """,
         priority=3,
         timeout=TIME_OUT,
@@ -162,7 +165,8 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance using 1024K block size.
+        This test case uses fio to test data disk performance using 1024K block size
+        using libaio as ioengine.
         """,
         priority=3,
         timeout=TIME_OUT,
@@ -177,6 +181,64 @@ class StoragePerformance(TestSuite):
     )
     def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
         perf_premium_datadisks(node, result, block_size=1024)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test premium data disk performance with 4K block size
+        using io_uring as io engine.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=16),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_4k_io_uring(
+        self, node: Node, result: TestResult
+    ) -> None:
+        # Check if io_uring is available in kernel configuration
+        kernel_config = node.tools[KernelConfig]
+        if not kernel_config.is_enabled("CONFIG_IO_URING"):
+            raise SkippedException("io_uring is not available in kernel configuration")
+        perf_premium_datadisks(
+            node, ioengine=IoEngine.IO_URING, test_result=result, max_iodepth=1024
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test premium data disk performance with 4K block size
+        using io_uring as io engine.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=16),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_1024k_io_uring(
+        self, node: Node, result: TestResult
+    ) -> None:
+        # Check if io_uring is available in kernel configuration
+        kernel_config = node.tools[KernelConfig]
+        if not kernel_config.is_enabled("CONFIG_IO_URING"):
+            raise SkippedException("io_uring is not available in kernel configuration")
+        perf_premium_datadisks(
+            node,
+            ioengine=IoEngine.IO_URING,
+            test_result=result,
+            max_iodepth=1024,
+            block_size=1024,
+        )
 
     @TestCaseMetadata(
         description="""
