@@ -292,6 +292,7 @@ class SourceInstaller(BaseInstaller):
         code_path: PurePath,
         kconfig_file: str,
         kernel_version: VersionInfo,
+        use_ccache: bool = False,
     ) -> None:
         self._log.info("building code...")
 
@@ -373,8 +374,15 @@ class SourceInstaller(BaseInstaller):
         make = node.tools[Make]
         make.make(arguments="olddefconfig", cwd=code_path)
 
+        make_args = ""
+        if use_ccache:
+            make_args = "CC='ccache gcc'"
+            node.execute(f"export CCACHE_DIR="
+                         f"{str(code_path.parent)}/.ccache"
+            )
+
         # set timeout to 2 hours
-        make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
+        make.make(arguments=make_args, cwd=code_path, timeout=60 * 60 * 2)
 
     def _fix_mirrorlist_to_vault(self, node: Node) -> None:
         node.execute(
