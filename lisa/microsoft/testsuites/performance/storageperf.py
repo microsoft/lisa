@@ -30,14 +30,6 @@ from lisa import (
 from lisa.features import AvailabilityZoneEnabled, Disk
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
-from lisa.microsoft.testsuites.performance.common import (
-    perf_disk,
-    perf_premium_datadisks,
-    perf_resource_disks,
-    reset_partitions,
-    reset_raid,
-    stop_raid,
-)
 from lisa.node import RemoteNode
 from lisa.operating_system import Debian, Redhat, Suse
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
