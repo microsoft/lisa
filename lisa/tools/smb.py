@@ -19,6 +19,7 @@ from lisa.operating_system import (
 from lisa.tools import Chmod, Echo, Mkdir, Mount, Rm, Service
 from lisa.tools.firewall import Firewall
 from lisa.tools.mkfs import FileSystem
+from lisa.tools.which import Which
 from lisa.util import UnsupportedDistroException
 
 
@@ -60,11 +61,11 @@ class SmbServer(Tool):
         return self._check_exists()
 
     def _check_exists(self) -> bool:
-        # Check if samba services exist
-        service = self.node.tools[Service]
-        return service.check_service_exists(
+        # Check if samba daemon binaries exist using which command
+        which = self.node.tools[Which]
+        return which.check_command_exists(
             self._smb_service
-        ) and service.check_service_exists(self._nmb_service)
+        ) and which.check_command_exists(self._nmb_service)
 
     def create_share(
         self,
