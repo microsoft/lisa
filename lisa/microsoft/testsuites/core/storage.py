@@ -609,7 +609,7 @@ class Storage(TestSuite):
         A comprehensive test to verify CIFS module and SMB share functionality between
         two Linux VMs.
         This test case will
-            1. Create an 2 VMs in azure
+            1. Create 2 VMs in Azure
             2. Check if CONFIG_CIFS is enabled in KCONFIG
             3. Configure one VM as SMB server and create a share
             4. Mount the other VM to the SMB share
