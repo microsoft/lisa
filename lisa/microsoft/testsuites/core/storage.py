@@ -662,7 +662,7 @@ class Storage(TestSuite):
                     server_node.internal_address, share_name, mount_point, smb_version
                 )
 
-                # Step 5& 6: Verify mount is successful
+                # Step 5 & 6: Verify mount is successful
                 self._verify_smb_mount(
                     client_node,
                     mount_point,
