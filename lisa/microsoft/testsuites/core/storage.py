@@ -94,6 +94,12 @@ class Storage(TestSuite):
         self,
         node: RemoteNode,
     ) -> None:
+        if node.features[Disk].get_os_disk_controller_type() == DiskControllerType.NVME:
+            raise SkippedException(
+                "Disk controller type is NVMe. Device timeout verification is not",
+                " applicable for NVMe disks",
+            )
+
         disks = node.features[Disk].get_all_disks()
         root_device_timeout_from_waagent = node.tools[
             Waagent
