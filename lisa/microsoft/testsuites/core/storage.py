@@ -629,14 +629,16 @@ class Storage(TestSuite):
     def verify_smb_linux(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        # Check if CONFIG_CIFS is enabled in KCONFIG
-        if not node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
-            raise LisaException("CIFS module must be present for SMB testing")
-
         # Assign server and client roles to the 2 VMs
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
+        # Check if CONFIG_CIFS is enabled in KCONFIG on both nodes
+        for role_name, role_node in (("server", server_node), ("client", client_node)):
+            if not role_node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
+                raise LisaException(
+                    f"CIFS module must be present for SMB testing on {role_name} node"
+                )
         # Install and setup SMB tools on both nodes
         smb_server = server_node.tools[SmbServer]
         smb_client = client_node.tools[SmbClient]
