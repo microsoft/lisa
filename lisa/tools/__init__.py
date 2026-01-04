@@ -147,6 +147,7 @@ from .vgcreate import Vgcreate
 from .vgremove import Vgremove
 from .vgs import Vgs
 from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
+from .which import Which
 from .who import Who
 from .whoami import Whoami
 from .windows_feature import WindowsFeatureManagement
@@ -314,6 +315,7 @@ __all__ = [
     "Vgs",
     "VirtualClientTool",
     "Wget",
+    "Which",
     "Who",
     "Whoami",
     "WindowsFeatureManagement",
