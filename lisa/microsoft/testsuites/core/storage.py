@@ -764,9 +764,9 @@ class Storage(TestSuite):
                 smb_client.unmount_share(mount_point)
             smb_client.cleanup_mount_point(mount_point)
         except Exception as e:
-            raise LisaException(
-                f"fail to cleanup SMB client mount point {mount_point}: "
-                f"{e.__class__.__name__}: {e}."
+            log.warning(
+                f"Failed to cleanup SMB client mount point {mount_point}: "
+                f"{e.__class__.__name__}: {e}. Continuing cleanup..."
             )
 
         # Cleanup on server
