@@ -777,9 +777,9 @@ class Storage(TestSuite):
             smb_server.stop()
             smb_server.remove_share(share_path)
         except Exception as e:
-            raise LisaException(
-                f"fail to remove share {share_path} from SMB server: "
-                f"{e.__class__.__name__}: {e}."
+            log.warning(
+                f"Failed to remove share {share_path} from SMB server: "
+                f"{e.__class__.__name__}: {e}. Finishing cleanup..."
             )
 
     @TestCaseMetadata(
