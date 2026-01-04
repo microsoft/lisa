@@ -725,7 +725,7 @@ class AzureImageStandard(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_platform_type=[AZURE, READY, HYPERV],
-            supported_features=[HyperVHostType(), CvmDisabled()],
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
