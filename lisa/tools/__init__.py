@@ -57,7 +57,6 @@ from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
 from .hugepages import Hugepages
-from .hv_balloon import HvBalloon
 from .hwclock import Hwclock
 from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
@@ -204,7 +203,6 @@ __all__ = [
     "HibernationSetup",
     "Hostname",
     "Hugepages",
-    "HvBalloon",
     "Hwclock",
     "HyperV",
     "InterruptInspector",
