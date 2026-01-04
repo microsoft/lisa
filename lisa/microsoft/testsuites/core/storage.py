@@ -720,30 +720,30 @@ class Storage(TestSuite):
         assert_that(file_content_client).described_as(
             "SMB file content should match written content on client"
         ).is_equal_to(test_content)
+        log.info(f"Successfully verified file content on client: '{test_content}'")
 
-        # Verify content from server VM if server_node and share_path are provided
-        if server_node and share_path:
-            server_file_path = f"{share_path}/{test_file}"
+        # Read and verify file content from server side
+        server_file_path = f"{share_path}/{test_file}"
 
-            # Check if file exists on server
-            if not server_node.tools[Ls].path_exists(server_file_path, sudo=True):
-                raise LisaException(
-                    f"Test file {server_file_path} not found on server VM"
-                )
-
-            # Read file content directly from server VM
-            file_content_server = server_node.tools[Cat].read(
-                server_file_path, sudo=True, force_run=True
+        # Check if file exists on server
+        if not server_node.tools[Ls].path_exists(server_file_path, sudo=True):
+            raise LisaException(
+                f"Test file {server_file_path} not found on server VM"
             )
 
-            assert_that(file_content_server).described_as(
-                "SMB file content should match on server VM"
-            ).is_equal_to(test_content)
+        # Read file content directly from server VM
+        file_content_server = server_node.tools[Cat].read(
+            server_file_path, sudo=True, force_run=True
+        )
 
-            log.info(
-                f"Successfully verified file content on both client and server: "
-                f"'{test_content}'"
-            )
+        assert_that(file_content_server).described_as(
+            "SMB file content should match on server VM"
+        ).is_equal_to(test_content)
+
+        log.info(
+            f"Successfully verified file content on both client and server: "
+            f"'{test_content}'"
+        )
 
         # Clean up test file from client (will also remove from server via SMB)
         client_node.tools[Rm].remove_file(test_file_path, sudo=True)
