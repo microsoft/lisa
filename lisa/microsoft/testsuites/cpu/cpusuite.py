@@ -230,7 +230,7 @@ class CPUSuite(TestSuite):
 
             # current max channel count need minus count of idle cpus
             max_channel_count = thread_count - len(idle_cpus)
-
+            log.debug(f"max channel count: {max_channel_count}")
             first_current_device_channel = (
                 node.tools[Ethtool].get_device_channels_info("eth0", True)
             ).current_channels
@@ -242,11 +242,13 @@ class CPUSuite(TestSuite):
             # if all cpus besides cpu 0 are changed into offline
             # skip change the channel, since current channel is 1
             first_channel_count = random.randint(1, min(max_channel_count, 64))
+            log.debug(f"first channel count to change: {first_channel_count}")
             if first_current_device_channel > 1:
                 while True:
                     if first_channel_count != first_current_device_channel:
                         break
                     first_channel_count = random.randint(1, min(thread_count, 64))
+                log.debug(f"first channel count outside loop: {first_channel_count}")
                 node.tools[Ethtool].change_device_channels_info(
                     "eth0", first_channel_count
                 )
@@ -257,7 +259,7 @@ class CPUSuite(TestSuite):
                     f"current channels count: {first_current_device_channel} "
                     f"after changing channel into {first_channel_count}"
                 )
-
+            log.debug("Verifying that the added channels do not handle interrupts on offline cpu")
             # verify that the added channels do not handle interrupts on offline cpu
             lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
             for channel in lsvmbus_channels:
@@ -285,10 +287,12 @@ class CPUSuite(TestSuite):
 
             # change the combined channels count after all cpus online
             second_channel_count = random.randint(1, min(thread_count, 64))
+            log.debug(f"second channel count to change: {second_channel_count}")
             while True:
                 if first_current_device_channel != second_channel_count:
                     break
                 second_channel_count = random.randint(1, min(thread_count, 64))
+            log.debug(f"second channel count outside loop: {second_channel_count}")
             node.tools[Ethtool].change_device_channels_info(
                 "eth0", second_channel_count
             )
