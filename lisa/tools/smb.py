@@ -25,7 +25,7 @@ from lisa.util import UnsupportedDistroException
 
 class SmbServer(Tool):
     SMB_CONF_FILE = "/etc/samba/smb.conf"
-    
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # Set service names based on distribution
         if isinstance(self.node.os, (CBLMariner, Redhat, Fedora, Oracle, Suse)):
