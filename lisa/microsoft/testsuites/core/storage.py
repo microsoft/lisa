@@ -792,6 +792,7 @@ class Storage(TestSuite):
         log.info(f"Successfully verified file content on client: '{test_content}'")
 
         # Read and verify file content from server side
+        # Verify content from server VM
         server_file_path = f"{share_path}/{test_file}"
 
         # Check if file exists on server
@@ -813,7 +814,6 @@ class Storage(TestSuite):
             f"Successfully verified file content on both client and server: "
             f"'{test_content}'"
         )
-
         # Clean up test file from client (will also remove from server via SMB)
         client_node.tools[Rm].remove_file(test_file_path, sudo=True)
 
