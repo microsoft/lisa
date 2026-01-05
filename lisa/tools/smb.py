@@ -61,10 +61,7 @@ class SmbServer(Tool):
 
     def _check_exists(self) -> bool:
         # Check if samba services exist
-        service = self.node.tools[Service]
-        return service.check_service_exists(
-            self._smb_service
-        ) and service.check_service_exists(self._nmb_service)
+        return self.command_exists("smbd")[0] and self.command_exists("nmbd")[0]
 
     def create_share(
         self,
