@@ -798,9 +798,7 @@ class Storage(TestSuite):
 
         # Check if file exists on server
         if not server_node.tools[Ls].path_exists(server_file_path, sudo=True):
-            raise LisaException(
-                f"Test file {server_file_path} not found on server VM"
-            )
+            raise LisaException(f"Test file {server_file_path} not found on server VM")
 
         # Read file content directly from server VM
         file_content_server = server_node.tools[Cat].read(
@@ -840,7 +838,6 @@ class Storage(TestSuite):
                 f"{e}. Continuing cleanup..."
             )
             bad_cleanup = True
-
 
         # Cleanup on server
         try:
