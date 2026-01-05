@@ -623,7 +623,6 @@ class Storage(TestSuite):
             min_count=2,
             unsupported_os=[Redhat, CBLMariner, AlmaLinux, BSD, Windows],
         ),
-        use_new_environment=True,
         priority=1,
     )
     def verify_smb_linux(
