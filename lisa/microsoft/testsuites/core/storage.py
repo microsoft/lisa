@@ -759,6 +759,7 @@ class Storage(TestSuite):
         log: Logger,
     ) -> None:
         """Clean up SMB test resources."""
+        bad_cleanup = False
         # Cleanup on client
         try:
             smb_client = client_node.tools[SmbClient]
@@ -766,10 +767,12 @@ class Storage(TestSuite):
                 smb_client.unmount_share(mount_point)
             smb_client.cleanup_mount_point(mount_point)
         except Exception as e:
-            log.warning(
+            log.error(
                 f"Failed to cleanup SMB client mount point {mount_point}: "
                 f"{e.__class__.__name__}: {e}. Continuing cleanup..."
             )
+            bad_cleanup = True
+
 
         # Cleanup on server
         try:
@@ -777,10 +780,13 @@ class Storage(TestSuite):
             smb_server.stop()
             smb_server.remove_share(share_path)
         except Exception as e:
-            log.warning(
+            log.error(
                 f"Failed to remove share {share_path} from SMB server: "
                 f"{e.__class__.__name__}: {e}. Finishing cleanup..."
             )
+            bad_cleanup = True
+        if bad_cleanup:
+            raise BadEnvironmentStateException("SMB test cleanup encountered errors.")
 
     @TestCaseMetadata(
         description="""
