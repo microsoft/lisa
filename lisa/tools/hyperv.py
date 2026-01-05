@@ -15,6 +15,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
 from lisa.tools.rm import Rm
+from lisa.tools.testlimit import TestLimit
 from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
@@ -557,13 +558,13 @@ class HyperV(Tool):
         )
 
     def apply_memory_pressure(self, memory_mb: int, duration: int) -> None:
-        hv_pressure_exe = r"C:\\Users\\gargaditya\\TestLimit\\TestLimit64.exe"
+        testlimit = self.node.tools[TestLimit]
+        hv_pressure_exe = testlimit.command
         ps_command = (
-            f"Start-Process -FilePath '{hv_pressure_exe}' "
-            f"-ArgumentList '-accepteula -d {memory_mb}' -PassThru "
-            "| ForEach-Object { "
+            f"$p = Start-Process -FilePath '{hv_pressure_exe}' "
+            f"-ArgumentList '-accepteula -d {memory_mb}' -PassThru; "
             f"Start-Sleep -Seconds {duration}; "
-            "if (-not $_.HasExited) { Stop-Process -Id $_.Id -Force } }"
+            "if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force }"
         )
         self.node.tools[PowerShell].run_cmdlet(
             ps_command,
@@ -578,7 +579,6 @@ class HyperV(Tool):
             output_json=True,
         )
         assigned = output.get("MemoryAssigned", 0)
-        self._log.info(f"Aditya Garg, Memory assigned: {self._bytes_to_mb(assigned)}")
         return self._bytes_to_mb(assigned)
 
     def delete_virtual_disk(self, name: str) -> None:
