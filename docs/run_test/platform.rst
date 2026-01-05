@@ -42,6 +42,9 @@ To run using vhd, add the following to runbook :
             ...
             vhd:
                vhd_path: "<VHD URL>"
+               data_vhd_paths:
+                  - vhd_uri: "<DATA VHD URL 0>"
+                  - vhd_uri: "<DATA VHD URL 1>"
                hyperv_generation: <1 or 2>
 
 The ``<VHD URL>`` can either be a SAS url or a blob url. If it is a SAS url, the image is copied to the resource group: ``lisa_shared_resource``, storage
@@ -52,6 +55,9 @@ increase the runtime. The copied VHD has to be manually deleted by the user.
 If the selected VM Size's Hypervisor Generation is '2', the ``hyperv_generation``
 parameter is necessary, and should be specified as 2. If ``hyperv_generation`` is
 not needed, you can specify the VHD path directly as a string: ``vhd: "<VHD URL>"``.
+
+You can attach data disks by specifying ``data_vhd_paths``. Each ``vhd_uri`` is handled
+the same way as the OS VHD path (including SAS/cross-region copy behavior).
 
 Use marketplace image
 ^^^^^^^^^^^^^^^^^^^^^

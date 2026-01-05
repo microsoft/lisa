@@ -117,6 +117,7 @@ from .common import (
     DataDiskSchema,
     DiskPlacementType,
     SharedImageGallerySchema,
+    VhdDetails,
     check_or_create_resource_group,
     check_or_create_storage_account,
     convert_to_azure_node_space,
@@ -1250,9 +1251,18 @@ class AzurePlatform(Platform):
                     == features.get_azure_disk_type(schema.DiskType.UltraSSDLRS)
                 ]
             )
+
             # Set data disk array
             arm_parameters.data_disks = self._generate_data_disks(
                 node, node_arm_parameters
+            )
+
+            arm_parameters.is_data_disk_with_vhd = any(
+                [
+                    x
+                    for x in arm_parameters.data_disks
+                    if x.vhd_details is not None and x.vhd_details.vhd_uri != ""
+                ]
             )
 
             if not arm_parameters.location:
@@ -1414,6 +1424,15 @@ class AzurePlatform(Platform):
             vhd.cvm_metadata_path = get_deployable_storage_path(
                 self, vhd.cvm_metadata_path, azure_node_runbook.location, log
             )
+
+            # Process data VHD paths if provided
+            if vhd.data_vhd_paths:
+                for data_vhd in vhd.data_vhd_paths:
+                    if data_vhd.vhd_uri:
+                        data_vhd.vhd_uri = get_deployable_storage_path(
+                            self, data_vhd.vhd_uri, azure_node_runbook.location, log
+                        )
+
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
@@ -1481,6 +1500,16 @@ class AzurePlatform(Platform):
             vhd.cvm_metadata_path = get_deployable_storage_path(
                 self, vhd.cvm_metadata_path, arm_parameters.location, log
             )
+
+            # Process data VHD paths if provided
+            if vhd.data_vhd_paths:
+                for data_vhd in vhd.data_vhd_paths:
+                    if data_vhd.vhd_uri:
+                        # Validate and process each data VHD URI
+                        data_vhd.vhd_uri = get_deployable_storage_path(
+                            self, data_vhd.vhd_uri, arm_parameters.location, log
+                        )
+
             arm_parameters.vhd = vhd
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
@@ -2315,7 +2344,40 @@ class AzurePlatform(Platform):
     ) -> List[DataDiskSchema]:
         data_disks: List[DataDiskSchema] = []
         assert node.capability.disk
-        if azure_node_runbook.marketplace:
+
+        # Handle data VHD paths if provided
+        if (
+            azure_node_runbook.vhd
+            and azure_node_runbook.vhd.vhd_path
+            and azure_node_runbook.vhd.data_vhd_paths
+        ):
+            for data_vhd in azure_node_runbook.vhd.data_vhd_paths:
+                if data_vhd.vhd_uri:
+                    if azure_node_runbook.data_disk_type == "UltraSSD_LRS":
+                        raise SkippedException(
+                            "Currently, LISA doesn't support 'UltraSSD_LRS' disk type "
+                            "for data disk with 'import' creation option."
+                        )
+                    result_dict = get_vhd_details(self, data_vhd.vhd_uri)
+                    data_disks.append(
+                        DataDiskSchema(
+                            node.capability.disk.data_disk_caching_type,
+                            0,  # size is not needed for imported disk
+                            0,
+                            0,
+                            azure_node_runbook.data_disk_type,
+                            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_IMPORT,
+                            VhdDetails(
+                                vhd_uri=data_vhd.vhd_uri,
+                                storage_account_name=result_dict.get("account_name"),
+                                storage_resource_group_name=result_dict.get(
+                                    "resource_group_name"
+                                ),
+                            ),
+                        )
+                    )
+
+        elif azure_node_runbook.marketplace:
             marketplace = self.get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
@@ -2338,6 +2400,7 @@ class AzurePlatform(Platform):
                             0,
                             azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
+                            None,
                         )
                     )
         assert isinstance(
@@ -2361,6 +2424,7 @@ class AzurePlatform(Platform):
                     node.capability.disk.data_disk_throughput,
                     azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
+                    None,
                 )
             )
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
