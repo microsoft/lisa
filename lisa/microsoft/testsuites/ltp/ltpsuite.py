@@ -16,7 +16,6 @@ from lisa import (
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Lsblk, Swap
-
 from microsoft.testsuites.ltp.ltp import Ltp
 
 

@@ -3,7 +3,6 @@ from typing import Any, Dict
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.util import SkippedException, UnsupportedDistroException
-
 from microsoft.testsuites.kselftest.kselftest import Kselftest
 
 

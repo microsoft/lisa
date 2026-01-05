@@ -170,14 +170,16 @@ class Nics(InitializableMixin):
         synthetic_devices = []
         self._node.log.debug("Evaluating NICs for synthetic devices:")
         for nic in self.nics.values():
-            is_synthetic = not nic.lower and not nic.is_pci_device
+            # Return all synthetic NICs (with or without paired AN/VF devices).
+            # Exclude standalone PCI NICs.
             self._node.log.debug(
                 f"  NIC {nic.name}: lower='{nic.lower}', "
                 f"is_pci_device={nic.is_pci_device}, "
                 f"pci_slot='{nic.pci_slot}', module_name='{nic.module_name}', "
-                f"is_synthetic={is_synthetic}"
+                f"is_pci_only_nic={nic.is_pci_only_nic}, "
+                f"is_synthetic={not nic.is_pci_only_nic}"
             )
-            if is_synthetic:
+            if not nic.is_pci_only_nic:
                 synthetic_devices.append(nic.name)
 
         self._node.log.debug(f"Found synthetic devices: {synthetic_devices}")
