@@ -165,6 +165,12 @@ VM_SIZE_FALLBACK_PATTERNS = [
     re.compile(r".*"),
 ]
 
+# Constants for data disk VHD creation
+VHD_DETERMINED_SIZE = 0  # Size will be determined from VHD
+VHD_DETERMINED_IOPS = 0  # IOPS will be determined from VHD disk properties
+VHD_DETERMINED_THROUGHPUT = 0  # Throughput will be determined from VHD disk properties
+NO_VHD_URI = ""  # Indicates no VHD URI for this data disk
+
 LOCATIONS = [
     "westus3",
     "southeastasia",
@@ -2346,9 +2352,9 @@ class AzurePlatform(Platform):
                     data_disks.append(
                         DataDiskSchema(
                             caching_type=node.capability.disk.data_disk_caching_type,
-                            size=0,  # Size will be determined from VHD
-                            iops=0,
-                            throughput=0,
+                            size=VHD_DETERMINED_SIZE,
+                            iops=VHD_DETERMINED_IOPS,
+                            throughput=VHD_DETERMINED_THROUGHPUT,
                             type=azure_node_runbook.data_disk_type,
                             create_option=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
                             vhd_uri=data_vhd.vhd_uri,
@@ -2381,7 +2387,7 @@ class AzurePlatform(Platform):
                             0,
                             azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
-                            "",  # No VHD URI for marketplace images
+                            NO_VHD_URI,
                         )
                     )
         assert isinstance(
@@ -2405,7 +2411,7 @@ class AzurePlatform(Platform):
                     node.capability.disk.data_disk_throughput,
                     azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
-                    "",  # No VHD URI for empty disks
+                    NO_VHD_URI,
                 )
             )
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
