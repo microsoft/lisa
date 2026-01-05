@@ -83,6 +83,8 @@ func isCvmVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.c
 
 func isVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vhd_path)))
 
+func hasDataVhdPaths(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.data_vhd_paths)))
+
 func getOSDisk(diskName string) object => {
   createOption: 'Attach'
   osType: 'Linux'
@@ -428,6 +430,27 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   }
 ]
 
+// Create managed disks from data VHD URIs
+resource nodes_data_vhd_disks 'Microsoft.Compute/disks@2022-03-02' = [
+  for i in range(0, (length(data_disks) * node_count)): if (!empty(data_disks[(i % length(data_disks))].vhd_uri)) {
+    name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
+    location: location
+    tags: tags
+    properties: {
+      creationData: {
+        createOption: 'Import'
+        storageAccountId: resourceId(shared_resource_group_name, 'Microsoft.Storage/storageAccounts', vhd_storage_name)
+        sourceUri: data_disks[(i % length(data_disks))].vhd_uri
+      }
+      hyperVGeneration: 'V${nodes[(i / length(data_disks))].hyperv_generation}'
+    }
+    sku: {
+      name: data_disks[(i % length(data_disks))].type
+    }
+    zones: (use_availability_zones ? availability_zones : null)
+  }
+]
+
 resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in range(0, node_count): {
   name: nodes[i].name
   location: nodes[i].location
@@ -470,5 +493,6 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
+    nodes_data_vhd_disks
   ]
 }]

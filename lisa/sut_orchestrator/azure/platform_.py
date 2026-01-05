@@ -1404,6 +1404,16 @@ class AzurePlatform(Platform):
             vhd.cvm_metadata_path = get_deployable_storage_path(
                 self, vhd.cvm_metadata_path, azure_node_runbook.location, log
             )
+            
+            # Process data VHD paths if provided
+            if vhd.data_vhd_paths:
+                for data_vhd in vhd.data_vhd_paths:
+                    if data_vhd.vhd_uri:
+                        # Validate and process each data VHD URI
+                        data_vhd.vhd_uri = get_deployable_storage_path(
+                            self, data_vhd.vhd_uri, azure_node_runbook.location, log
+                        )
+            
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
@@ -1411,6 +1421,12 @@ class AzurePlatform(Platform):
             log.debug(
                 "current vhd generation is "
                 f"{azure_node_runbook.vhd.hyperv_generation}."
+            )
+        elif azure_node_runbook.vhd and azure_node_runbook.vhd.data_vhd_paths:
+            # If data_vhd_paths is provided without vhd_path, raise an exception
+            raise SkippedException(
+                "data_vhd_paths is provided but vhd_path is not set. "
+                "Both vhd_path and data_vhd_paths must be provided together."
             )
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
@@ -1471,6 +1487,16 @@ class AzurePlatform(Platform):
             vhd.cvm_metadata_path = get_deployable_storage_path(
                 self, vhd.cvm_metadata_path, arm_parameters.location, log
             )
+            
+            # Process data VHD paths if provided
+            if vhd.data_vhd_paths:
+                for data_vhd in vhd.data_vhd_paths:
+                    if data_vhd.vhd_uri:
+                        # Validate and process each data VHD URI
+                        data_vhd.vhd_uri = get_deployable_storage_path(
+                            self, data_vhd.vhd_uri, arm_parameters.location, log
+                        )
+            
             arm_parameters.vhd = vhd
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
@@ -1480,6 +1506,12 @@ class AzurePlatform(Platform):
             # purchase plans.
             if runbook.purchase_plan:
                 arm_parameters.purchase_plan = runbook.purchase_plan
+        elif arm_parameters.vhd and arm_parameters.vhd.data_vhd_paths:
+            # If data_vhd_paths is provided without vhd_path, raise an exception
+            raise SkippedException(
+                "data_vhd_paths is provided but vhd_path is not set. "
+                "Both vhd_path and data_vhd_paths must be provided together."
+            )
         elif arm_parameters.shared_gallery:
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
@@ -2305,6 +2337,27 @@ class AzurePlatform(Platform):
     ) -> List[DataDiskSchema]:
         data_disks: List[DataDiskSchema] = []
         assert node.capability.disk
+        
+        # Handle data VHD paths if provided
+        if azure_node_runbook.vhd and azure_node_runbook.vhd.data_vhd_paths:
+            for data_vhd in azure_node_runbook.vhd.data_vhd_paths:
+                if data_vhd.vhd_uri:
+                    # Create data disk from VHD URI
+                    data_disks.append(
+                        DataDiskSchema(
+                            caching_type=node.capability.disk.data_disk_caching_type,
+                            size=0,  # Size will be determined from VHD
+                            iops=0,
+                            throughput=0,
+                            type=azure_node_runbook.data_disk_type,
+                            create_option=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
+                            vhd_uri=data_vhd.vhd_uri,
+                        )
+                    )
+            # If data VHD paths are provided, return early
+            # Do not mix with other data disk creation methods
+            return data_disks
+        
         if azure_node_runbook.marketplace:
             marketplace = self.get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
@@ -2328,6 +2381,7 @@ class AzurePlatform(Platform):
                             0,
                             azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
+                            "",  # No VHD URI for marketplace images
                         )
                     )
         assert isinstance(
@@ -2351,6 +2405,7 @@ class AzurePlatform(Platform):
                     node.capability.disk.data_disk_throughput,
                     azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
+                    "",  # No VHD URI for empty disks
                 )
             )
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)

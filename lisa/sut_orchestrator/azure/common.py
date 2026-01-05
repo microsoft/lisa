@@ -545,10 +545,18 @@ class SharedImageGallerySchema(AzureImageSchema):
 
 @dataclass_json()
 @dataclass
+class DataVhdPath:
+    lun: int = 0
+    vhd_uri: str = ""
+
+
+@dataclass_json()
+@dataclass
 class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
     cvm_gueststate_path: Optional[str] = None
     cvm_metadata_path: Optional[str] = None
+    data_vhd_paths: Optional[List[DataVhdPath]] = None
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
         # There are no platform tags to parse, but we can assume the
@@ -1204,6 +1212,7 @@ class DataDiskSchema:
             validate=validate.OneOf(DataDiskCreateOption.get_create_option())
         ),
     )
+    vhd_uri: str = ""  # VHD URI for data disks created from VHD
 
 
 @dataclass_json()
