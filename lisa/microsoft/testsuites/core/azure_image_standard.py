@@ -725,7 +725,6 @@ class AzureImageStandard(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_platform_type=[AZURE, READY, HYPERV],
-            supported_features=[HyperVHostType()],
             unsupported_features=[CvmEnabled()],
         ),
     )
