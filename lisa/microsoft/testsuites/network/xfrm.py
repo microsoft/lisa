@@ -82,11 +82,67 @@ class XfrmSuite(TestSuite):
         interface_name = "xfrm0"
         if_id = "100"
 
+        # Ensure `ip link ... type xfrm` is supported on this kernel/platform.
+        # Relying on `ip link help` output is unreliable across iproute2 versions
+        # (it may not list link types and may return non-zero even when printing
+        # usage). A direct probe is more dependable and yields actionable errors.
+        #
+        # Skip vs true failure guidance:
+        # - SKIP: userspace doesn't recognize the xfrm link type (old iproute2),
+        #   userspace syntax doesn't support required parameters, missing
+        #   privileges, or the kernel/platform refuses to create the device
+        #   (environment limitation).
+        # - FAIL: we successfully created the test xfrm interface (exit_code==0)
+        #   but verification/cleanup fails (e.g. interface not present after a
+        #   successful create). That indicates a functional regression.
+        # Probe with the actual parameters we'll use in the test.
+        # Some older iproute2 builds can recognize "type xfrm" but *cannot*
+        # parse the required "dev ... if_id ..." arguments; in that case, skip.
+        probe_name = "lisa-xfrm-probe"
+        probe_if_id = "999"
+        default_nic = node.nics.default_nic
+        probe_cmd = (
+            f"ip link add {probe_name} type xfrm "
+            f"dev {default_nic} if_id {probe_if_id}"
+        )
+        probe = node.execute(probe_cmd, sudo=True)
+        if probe.exit_code != 0:
+            probe_output = f"{probe.stdout}\n{probe.stderr}".lower()
+
+            # Environmental SKIPs (capability/compat issues)
+            if "garbage instead of arguments" in probe_output:
+                version_result = node.execute("ip -V", sudo=False)
+                raise SkippedException(
+                    "iproute2 doesn't support xfrm dev/if_id syntax. "
+                    f"Version: {version_result.stdout.strip()}"
+                )
+            if "unknown" in probe_output and "type" in probe_output:
+                raise SkippedException("iproute2 doesn't recognize xfrm type")
+            if "not supported" in probe_output:
+                raise SkippedException("This system doesn't support xfrm link type.")
+            if "no such device" in probe_output:
+                raise SkippedException(
+                    "Kernel/platform rejected xfrm link creation (No such device). "
+                    f"details: {probe.stdout}{probe.stderr}"
+                )
+            if (
+                "operation not permitted" in probe_output
+                or "permission denied" in probe_output
+            ):
+                raise SkippedException(
+                    "Insufficient permissions for xfrm operations (CAP_NET_ADMIN)."
+                )
+
+            # Anything else is unexpected: let the actual create below provide the
+            # definitive error path by failing with full context.
+        else:
+            # Probe succeeded, clean up.
+            node.execute(f"ip link del {probe_name}", sudo=True)
+
         try:
             # Create xfrm interface
             # ip link add <name> type xfrm dev <physical_dev> if_id <id>
             # We need to find an existing physical interface first
-            default_nic = node.nics.default_nic
             cmd = (
                 f"ip link add {interface_name} type xfrm "
                 f"dev {default_nic} if_id {if_id}"
