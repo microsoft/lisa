@@ -22,7 +22,7 @@ azure:
 
 ## Requirements
 
-1. **Both `vhd_path` and `data_vhd_paths` must be provided together**: If you specify `data_vhd_paths`, you must also provide a valid `vhd_path` for the OS disk.
+1. **`vhd_path` is required for `data_vhd_paths`**: If you specify `data_vhd_paths`, you must also provide a valid `vhd_path` for the OS disk. If `data_vhd_paths` is provided without `vhd_path`, it will be ignored.
 
 2. **VHD URIs must be valid**: Each VHD URI specified in `data_vhd_paths` will be validated and processed similar to the OS VHD path.
 
@@ -65,18 +65,13 @@ When data VHD paths are provided:
 
 The ARM template now includes:
 
-1. `hasDataVhdPaths()` function to check if a node has data VHD paths
-2. `nodes_data_vhd_disks` resource that creates managed disks from VHD URIs
-3. Updated data disk attachment logic to handle VHD-based disks
+1. `nodes_data_vhd_disks` resource that creates managed disks from VHD URIs using the "Import" create option
+2. Updated `getDataDisk` function to handle Import create option by attaching disks created from VHD URIs
+3. Data disks with VHD URIs use the same disk naming convention as other data disks
 
-## Validation
+## Processing Behavior
 
-If `data_vhd_paths` is provided without `vhd_path`, the system will raise:
-
-```
-SkippedException: data_vhd_paths is provided but vhd_path is not set. 
-Both vhd_path and data_vhd_paths must be provided together.
-```
+If `data_vhd_paths` is provided without `vhd_path`, the `data_vhd_paths` will be ignored and the system will proceed with standard data disk creation.
 
 ## Example Runbook
 
@@ -87,9 +82,6 @@ name: vhd_with_data_disks_example
 environment:
   nodes:
     - type: remote
-      capability:
-        core_count: 4
-        memory_mb: 8192
       azure:
         vm_size: Standard_DS2_v2
         location: westus3

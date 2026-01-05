@@ -1428,12 +1428,6 @@ class AzurePlatform(Platform):
                 "current vhd generation is "
                 f"{azure_node_runbook.vhd.hyperv_generation}."
             )
-        elif azure_node_runbook.vhd and azure_node_runbook.vhd.data_vhd_paths:
-            # If data_vhd_paths is provided without vhd_path, raise an exception
-            raise SkippedException(
-                "data_vhd_paths is provided but vhd_path is not set. "
-                "Both vhd_path and data_vhd_paths must be provided together."
-            )
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
             azure_node_runbook.community_gallery_image = None
@@ -1512,12 +1506,6 @@ class AzurePlatform(Platform):
             # purchase plans.
             if runbook.purchase_plan:
                 arm_parameters.purchase_plan = runbook.purchase_plan
-        elif arm_parameters.vhd and arm_parameters.vhd.data_vhd_paths:
-            # If data_vhd_paths is provided without vhd_path, raise an exception
-            raise SkippedException(
-                "data_vhd_paths is provided but vhd_path is not set. "
-                "Both vhd_path and data_vhd_paths must be provided together."
-            )
         elif arm_parameters.shared_gallery:
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
@@ -2356,7 +2344,7 @@ class AzurePlatform(Platform):
                             iops=VHD_DETERMINED_IOPS,
                             throughput=VHD_DETERMINED_THROUGHPUT,
                             type=azure_node_runbook.data_disk_type,
-                            create_option=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
+                            create_option=DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_IMPORT,
                             vhd_uri=data_vhd.vhd_uri,
                         )
                     )

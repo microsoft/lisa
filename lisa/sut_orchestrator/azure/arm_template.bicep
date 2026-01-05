@@ -83,8 +83,6 @@ func isCvmVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.c
 
 func isVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vhd_path)))
 
-func hasDataVhdPaths(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.data_vhd_paths)))
-
 func getOSDisk(diskName string) object => {
   createOption: 'Attach'
   osType: 'Linux'
@@ -139,7 +137,7 @@ func getAttachDisk(disk object, diskName string, index int) object => {
   }
 }
 
-func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS')
+func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS' || dataDisk.create_option == 'Import')
 ? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 : getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
@@ -442,7 +440,6 @@ resource nodes_data_vhd_disks 'Microsoft.Compute/disks@2022-03-02' = [
         storageAccountId: resourceId(shared_resource_group_name, 'Microsoft.Storage/storageAccounts', vhd_storage_name)
         sourceUri: data_disks[(i % length(data_disks))].vhd_uri
       }
-      hyperVGeneration: 'V${nodes[(i / length(data_disks))].hyperv_generation}'
     }
     sku: {
       name: data_disks[(i % length(data_disks))].type

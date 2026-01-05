@@ -1139,6 +1139,7 @@ class DataDiskCreateOption:
     DATADISK_CREATE_OPTION_TYPE_EMPTY: str = "Empty"
     DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE: str = "FromImage"
     DATADISK_CREATE_OPTION_TYPE_ATTACH: str = "Attach"
+    DATADISK_CREATE_OPTION_TYPE_IMPORT: str = "Import"
 
     @staticmethod
     def get_create_option() -> List[str]:
@@ -1146,6 +1147,7 @@ class DataDiskCreateOption:
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_IMPORT,
         ]
 
 

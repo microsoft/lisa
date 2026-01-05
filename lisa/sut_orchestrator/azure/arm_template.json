@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "13808933019870077412"
+      "templateHash": "8188295800275254842"
     }
   },
   "functions": [
@@ -35,18 +35,6 @@
           "output": {
             "type": "bool",
             "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.vhd_path))))]"
-          }
-        },
-        "hasDataVhdPaths": {
-          "parameters": [
-            {
-              "type": "object",
-              "name": "node"
-            }
-          ],
-          "output": {
-            "type": "bool",
-            "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.data_vhd_paths))))]"
           }
         },
         "getOSDisk": {
@@ -206,7 +194,7 @@
           ],
           "output": {
             "type": "object",
-            "value": "[if(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
+            "value": "[if(or(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), equals(parameters('dataDisk').create_option, 'Import')), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
           }
         },
         "getOsDiskSharedGallery": {
@@ -812,8 +800,7 @@
           "createOption": "Import",
           "storageAccountId": "[resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('vhd_storage_name'))]",
           "sourceUri": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].vhd_uri]"
-        },
-        "hyperVGeneration": "[format('V{0}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].hyperv_generation)]"
+        }
       },
       "sku": {
         "name": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].type]"
