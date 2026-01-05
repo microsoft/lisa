@@ -72,6 +72,16 @@ class VhdSchema(schema.ImageSchema):
 
 @dataclass_json
 @dataclass
+class DynamicMemorySchema:
+    min_memory_mb: int
+    max_memory_mb: int
+    startup_memory_mb: int
+    buffer: Optional[int] = None  # percentage
+    priority: Optional[int] = None  # relative priority
+
+
+@dataclass_json
+@dataclass
 class HypervNodeSchema:
     hyperv_generation: int = 2
     vhd: Optional[VhdSchema] = None
@@ -81,6 +91,7 @@ class HypervNodeSchema:
     # Optional switch name to use for VM network connection.
     # If not specified, the default switch will be used.
     switch_name: Optional[str] = None
+    dynamic_memory: Optional[DynamicMemorySchema] = None
 
 
 @dataclass_json()

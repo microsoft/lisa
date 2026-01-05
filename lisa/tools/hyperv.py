@@ -178,6 +178,12 @@ class HyperV(Tool):
         generation: int = 1,
         cores: int = 2,
         memory: int = 2048,
+        dynamic_memory_enabled: bool = False,
+        minimum_memory_mb: Optional[int] = None,
+        startup_memory_mb: Optional[int] = None,
+        maximum_memory_mb: Optional[int] = None,
+        buffer: Optional[int] = None,
+        priority: Optional[int] = None,
         attach_offline_disks: bool = True,
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
@@ -200,10 +206,32 @@ class HyperV(Tool):
         )
 
         # set cores and memory type
+        set_vm_args = f"-Name {name} -ProcessorCount {cores} -CheckpointType Disabled"
+        if not dynamic_memory_enabled:
+            set_vm_args += " -StaticMemory"
+
         self._run_hyperv_cmdlet(
             "Set-VM",
-            f"-Name {name} -ProcessorCount {cores} -StaticMemory "
-            "-CheckpointType Disabled",
+            set_vm_args,
+            extra_args=extra_args,
+            force_run=True,
+        )
+
+        # configure memory
+        if dynamic_memory_enabled:
+            memory_args = [f"-VMName {name}"]
+            memory_args.append("-DynamicMemoryEnabled $true")
+            memory_args.append(f"-MinimumBytes {minimum_memory_mb}MB")
+            memory_args.append(f"-StartupBytes {startup_memory_mb}MB")
+            memory_args.append(f"-MaximumBytes {maximum_memory_mb}MB")
+            if buffer is not None:
+                memory_args.append(f"-Buffer {buffer}")
+            if priority is not None:
+                memory_args.append(f"-Priority {priority}")
+
+        self._run_hyperv_cmdlet(
+            "Set-VMMemory",
+            " ".join(memory_args),
             extra_args=extra_args,
             force_run=True,
         )
