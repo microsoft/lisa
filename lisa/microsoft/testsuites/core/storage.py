@@ -769,7 +769,7 @@ class Storage(TestSuite):
         except Exception as e:
             log.error(
                 f"Failed to cleanup SMB client mount point {mount_point}: "
-                f"{e.__class__.__name__}: {e}. Continuing cleanup..."
+                f"{e}. Continuing cleanup..."
             )
             bad_cleanup = True
 
@@ -782,7 +782,7 @@ class Storage(TestSuite):
         except Exception as e:
             log.error(
                 f"Failed to remove share {share_path} from SMB server: "
-                f"{e.__class__.__name__}: {e}. Finishing cleanup..."
+                f"{e}. Finishing cleanup..."
             )
             bad_cleanup = True
         if bad_cleanup:
