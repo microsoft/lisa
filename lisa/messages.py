@@ -87,6 +87,8 @@ class TestResultMessage(TestResultMessageBase):
     suite_full_name: str = ""
     log_file: str = ""
     analysis: Dict[str, Any] = field(default_factory=dict)
+    perf_runs: List[Dict[str, Any]] = field(default_factory=list)
+    perf_evaluation_summary: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
