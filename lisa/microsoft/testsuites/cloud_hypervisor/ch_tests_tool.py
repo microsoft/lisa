@@ -364,6 +364,7 @@ class CloudHypervisorTests(Tool):
                 timeout=self.CMD_TIME_OUT,
                 log_path=log_path,
                 test_name=test_name,
+                numa_cmd="",
             )
         except Exception:
             # Check for kernel panic before re-raising
@@ -515,12 +516,18 @@ class CloudHypervisorTests(Tool):
             safe_tc = self._sanitize_name(testcase)
             test_name = f"ch_metrics_{safe_tc}_{hypervisor}"
 
+            # Build NUMA prefix for perf-stable profile (metrics tests only)
+            numa_cmd = ""
+            if self.perf_stable_enabled:
+                numa_cmd = self._get_numa_prefix()
+
             try:
                 result = self._run_with_enhanced_diagnostics(
                     cmd_args=cmd_args,
                     timeout=cmd_timeout,
                     log_path=log_path,
                     test_name=test_name,
+                    numa_cmd=numa_cmd,
                 )
             finally:
                 self._copy_back_artifacts(log_path, test_name)
@@ -876,7 +883,12 @@ class CloudHypervisorTests(Tool):
         return ""
 
     def _run_with_enhanced_diagnostics(
-        self, cmd_args: str, timeout: int, log_path: Path, test_name: str = "ch_test"
+        self,
+        cmd_args: str,
+        timeout: int,
+        log_path: Path,
+        test_name: str = "ch_test",
+        numa_cmd: str = "",
     ) -> Any:
         """
         Run Cloud Hypervisor tests with enhanced Rust diagnostics, core dumps,
@@ -906,13 +918,6 @@ class CloudHypervisorTests(Tool):
         #   - ch_test.log                   (full stdout/stderr)
         #   - ch_test_live_bt.txt           (stacks on inactivity)
         #   - ch_test_core_bt.txt           (stacks from core on nonzero exit)
-
-        # Build NUMA prefix for perf-stable profile
-        numa_cmd = ""
-        if self.perf_stable_enabled and hasattr(self, "_numa_node"):
-            numa_cmd = (
-                f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
-            )
 
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
@@ -1629,18 +1634,20 @@ exit $ec
         One-time host setup for performance stability.
 
         Policies:
-        - Install numactl (required for NUMA binding)
         - CPU governor → performance
         - Turbo → off (Intel + AMD)
         - C-states → ≤ C1E (Intel, best-effort AMD)
         - THP → never (host), madvise (guest)
         - irqbalance → ON
         - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
+
+        Note: numactl is installed by this method when perf_stable_enabled=True
         """
-        # Install numactl - required for perf-stable NUMA binding
-        self._log.info("Installing numactl for NUMA binding support")
-        posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages(["numactl"])
+        # Install numactl for NUMA binding (required by perf-stable profile)
+        if self.perf_stable_enabled:
+            posix_os: Posix = cast(Posix, self.node.os)
+            self._log.info("Installing numactl for NUMA binding support")
+            posix_os.install_packages(["numactl"])
 
         # CPU governor → performance
         self.node.execute(
