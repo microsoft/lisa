@@ -819,9 +819,58 @@ class KdumpCheck(Tool):
 
     # When with large system memory, the dump file can achieve more than 7G. It will
     # cost about 10min to copy dump file to disk for some distros, such as Ubuntu.
-    # So we set the timeout time 800s to make sure the dump file is completed.
+    # Base timeout is 800s, but we calculate proportional timeout based on VM size.
     timeout_of_dump_crash = 800
     trigger_kdump_cmd = "echo c > /proc/sysrq-trigger"
+
+    def _calculate_proportional_timeout(
+        self, total_memory_gb: float, cpu_count: int
+    ) -> int:
+        """
+        Calculate proportional timeout for kdump based on VM size.
+
+        Larger VMs take more time because:
+        1. More memory to dump (dump size grows with RAM)
+        2. More CPUs means more state to capture
+        3. I/O operations scale with data volume
+
+        Formula:
+        - Base timeout: 800s (for ~32GB memory, 8 CPUs)
+        - Memory factor: +12s per GB above 32GB
+        - CPU factor: +8s per CPU above 8
+        - Minimum: 600s
+        - Maximum: 3600s (1 hour)
+        """
+        # Base values for reference VM (32GB, 8 CPUs)
+        base_timeout = 800
+        base_memory_gb = 32
+        base_cpu_count = 8
+
+        # Scaling factors
+        memory_factor = 12  # seconds per GB above base
+        cpu_factor = 8  # seconds per CPU above base
+
+        # Calculate additional time based on memory
+        memory_delta = max(0, total_memory_gb - base_memory_gb)
+        memory_time = memory_delta * memory_factor
+
+        # Calculate additional time based on CPUs
+        cpu_delta = max(0, cpu_count - base_cpu_count)
+        cpu_time = cpu_delta * cpu_factor
+
+        # Total timeout with bounds
+        calculated_timeout = int(base_timeout + memory_time + cpu_time)
+
+        # Apply min/max bounds
+        timeout = max(600, min(3600, calculated_timeout))
+
+        self._log.debug(
+            f"Calculated kdump timeout: {timeout}s for "
+            f"{total_memory_gb:.1f}GB memory and {cpu_count} CPUs "
+            f"(memory_time={memory_time:.0f}s, cpu_time={cpu_time:.0f}s)"
+        )
+
+        return timeout
 
     @property
     def command(self) -> str:
@@ -845,17 +894,29 @@ class KdumpCheck(Tool):
         kdump = self.node.tools[KdumpBase]
         free = self.node.tools[Free]
         total_memory = free.get_total_memory()
+        total_memory_gb = free.get_total_memory_gb()
         self.crash_kernel = kdump.calculate_crashkernel_size(total_memory)
         if is_auto:
             self.crash_kernel = "auto"
 
+        # Get CPU count for proportional timeout calculation
+        lscpu = self.node.tools[Lscpu]
+        cpu_count = lscpu.get_thread_count()
+
+        # Calculate proportional timeout based on VM size
+        self.timeout_of_dump_crash = self._calculate_proportional_timeout(
+            total_memory_gb, cpu_count
+        )
+
+        self._log.info(
+            f"Using kdump timeout of {self.timeout_of_dump_crash}s for VM "
+            f"with {total_memory_gb}GB memory and {cpu_count} CPUs"
+        )
+
         if self._is_system_with_more_memory():
             # As system memory is more than free os disk size, need to
-            # change the dump path and increase the timeout duration
+            # change the dump path
             kdump.config_resource_disk_dump_path(self._get_disk_dump_path())
-            self.timeout_of_dump_crash = 1200
-            if "T" in total_memory and float(total_memory.strip("T")) > 6:
-                self.timeout_of_dump_crash = 2000
 
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
