@@ -609,6 +609,19 @@ class HyperV(Tool):
         assigned = output.get("MemoryAssigned", 0)
         return self._bytes_to_mb(assigned)
 
+    def get_host_total_memory_mb(self) -> int:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            "(Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory",
+            force_run=True,
+        )
+        try:
+            total_bytes = int(str(output).strip())
+        except Exception:
+            raise LisaException(
+                "Failed to read host total memory from PowerShell output"
+            )
+        return self._bytes_to_mb(total_bytes)
+
     def delete_virtual_disk(self, name: str) -> None:
         if self.exists_virtual_disk(name):
             self.node.tools[PowerShell].run_cmdlet(

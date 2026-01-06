@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import math
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
@@ -51,11 +53,39 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hot_add(ctx)
-        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
+        vm_gbytes = self._get_vm_stress_gbytes(ctx)
+        self._apply_vm_stress(ctx, num_workers=64, vm_bytes=vm_gbytes, duration=30)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction).described_as(
             "Hot add did not increase net pages transaction under VM stress"
         ).is_greater_than(0)
+        self._validate_host_guest_alignment(ctx)
+
+    @TestCaseMetadata(
+        description="""Validate hot add of dynamic memory for huge pages""",
+        priority=1,
+    )
+    def verify_dynamic_memory_hot_add_hugepages(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        ctx = self._get_context(node, variables)
+        self._require_hot_add(ctx)
+
+        anon_huge_pages_before = self._read_meminfo_value(ctx.node, "AnonHugePages")
+        mmap_gbytes = self._get_vm_stress_gbytes(ctx)
+        anon_huge_pages_mid = self._apply_mmap_huge_stress(
+            ctx,
+            num_workers=64,
+            mmap_bytes=mmap_gbytes,
+            duration=30,
+        )
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        assert_that(net_pages_transaction).described_as(
+            "Hot add did not increase net pages transaction for stress with huge pages"
+        ).is_greater_than(0)
+        assert_that(anon_huge_pages_mid).described_as(
+            "AnonHugePages did not increase during huge page stress"
+        ).is_greater_than(anon_huge_pages_before)
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -67,7 +97,8 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hot_add(ctx)
-        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=30)
+        vm_gbytes = self._get_vm_stress_gbytes(ctx)
+        self._apply_vm_stress(ctx, num_workers=64, vm_bytes=vm_gbytes, duration=30)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
         expected_delta_mb = (
@@ -76,6 +107,36 @@ class HyperVDynamicMemory(TestSuite):
         assert_that(net_mb_transaction).described_as(
             "net_mb_transaction must equal maximum_memory_mb - startup_memory_mb"
         ).is_equal_to(expected_delta_mb)
+        self._validate_host_guest_alignment(ctx)
+
+    @TestCaseMetadata(
+        description="""Validate Upper limit of dynamic memory for huge pages""",
+        priority=1,
+    )
+    def verify_dynamic_memory_upper_limit_hugepages(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        ctx = self._get_context(node, variables)
+        self._require_hot_add(ctx)
+        anon_huge_pages_before = self._read_meminfo_value(ctx.node, "AnonHugePages")
+        mmap_gbytes = self._get_vm_stress_gbytes(ctx)
+        anon_huge_pages_mid = self._apply_mmap_huge_stress(
+            ctx,
+            num_workers=64,
+            mmap_bytes=mmap_gbytes,
+            duration=30,
+        )
+        net_pages_transaction = self._get_net_pages_transaction(ctx)
+        net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
+        expected_delta_mb = (
+            ctx.dynamic_memory_config.maximum_mb - ctx.dynamic_memory_config.startup_mb
+        )
+        assert_that(net_mb_transaction).described_as(
+            "net_mb_transaction must equal maximum_memory_mb - startup_memory_mb"
+        ).is_equal_to(expected_delta_mb)
+        assert_that(anon_huge_pages_mid).described_as(
+            "AnonHugePages did not increase during huge page stress"
+        ).is_greater_than(anon_huge_pages_before)
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -88,7 +149,8 @@ class HyperVDynamicMemory(TestSuite):
         ctx = self._get_context(node, variables)
         self._require_hv_balloon(ctx)
         net_pages_transaction_before = self._get_net_pages_transaction(ctx)
-        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
+        host_pressure_mb = self._get_host_pressure_mb(ctx)
+        ctx.hyperv.apply_memory_pressure(memory_mb=host_pressure_mb, duration=45)
         net_pages_transaction_after = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction_after).described_as(
             "Balloon up did not decrease net pages transaction under host pressure"
@@ -104,7 +166,8 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hv_balloon(ctx)
-        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
+        host_pressure_mb = self._get_host_pressure_mb(ctx)
+        ctx.hyperv.apply_memory_pressure(memory_mb=host_pressure_mb, duration=45)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         net_mb_transaction = self._pages_to_mb(ctx, net_pages_transaction)
         expected_delta_mb = (
@@ -124,13 +187,44 @@ class HyperVDynamicMemory(TestSuite):
     ) -> None:
         ctx = self._get_context(node, variables)
         self._require_hv_balloon(ctx)
-        ctx.hyperv.apply_memory_pressure(memory_mb=2048, duration=45)
+        host_pressure_mb = self._get_host_pressure_mb(ctx)
+        ctx.hyperv.apply_memory_pressure(memory_mb=host_pressure_mb, duration=45)
         net_pages_transaction_before = self._get_net_pages_transaction(ctx)
-        self._apply_vm_stress(ctx, num_workers=64, vm_bytes="25G", duration=45)
+        vm_gbytes = self._get_vm_stress_gbytes(ctx)
+        self._apply_vm_stress(ctx, num_workers=64, vm_bytes=vm_gbytes, duration=45)
         net_pages_transaction_after = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction_after).described_as(
             "Net pages did not rebound after host pressure"
         ).is_greater_than(net_pages_transaction_before)
+        self._validate_host_guest_alignment(ctx)
+
+    @TestCaseMetadata(
+        description="""Validate Balloon Down under VM Stress with Huge Pages""",
+        priority=1,
+    )
+    def verify_dynamic_memory_balloon_down_hugepages(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        ctx = self._get_context(node, variables)
+        self._require_hv_balloon(ctx)
+        host_pressure_mb = self._get_host_pressure_mb(ctx)
+        ctx.hyperv.apply_memory_pressure(memory_mb=host_pressure_mb, duration=45)
+        net_pages_transaction_before = self._get_net_pages_transaction(ctx)
+        anon_huge_pages_before = self._read_meminfo_value(ctx.node, "AnonHugePages")
+        mmap_gbytes = self._get_vm_stress_gbytes(ctx)
+        anon_huge_pages_mid = self._apply_mmap_huge_stress(
+            ctx,
+            num_workers=64,
+            mmap_bytes=mmap_gbytes,
+            duration=45,
+        )
+        net_pages_transaction_after = self._get_net_pages_transaction(ctx)
+        assert_that(net_pages_transaction_after).described_as(
+            "Net pages did not rebound after host pressure with huge pages"
+        ).is_greater_than(net_pages_transaction_before)
+        assert_that(anon_huge_pages_mid).described_as(
+            "AnonHugePages did not increase during huge page stress"
+        ).is_greater_than(anon_huge_pages_before)
         self._validate_host_guest_alignment(ctx)
 
     def _get_context(
@@ -147,10 +241,7 @@ class HyperVDynamicMemory(TestSuite):
                 "Dynamic memory is disabled on the Hyper-V host for this VM"
             )
 
-        if not self.check_debugfs_mounted(node):
-            raise SkippedException(
-                "Debugfs is not mounted; cannot access hv_balloon metrics"
-            )
+        self._ensure_debugfs_mounted(node)
 
         uname = node.tools[Uname]
         kernel_info = uname.get_linux_information()
@@ -197,6 +288,15 @@ class HyperVDynamicMemory(TestSuite):
         )
         return result.exit_code == 0
 
+    def _get_vm_stress_gbytes(self, ctx: DynamicMemoryTestContext) -> str:
+        max_mb = ctx.dynamic_memory_config.maximum_mb
+        gbytes = math.ceil(math.ceil(max_mb * 1.5) / 1024)
+        return f"{gbytes}G"
+
+    def _get_host_pressure_mb(self, ctx: DynamicMemoryTestContext) -> int:
+        host_total_memory_mb = ctx.hyperv.get_host_total_memory_mb()
+        return math.ceil(host_total_memory_mb / 45)
+
     def _apply_vm_stress(
         self,
         ctx: DynamicMemoryTestContext,
@@ -211,6 +311,31 @@ class HyperVDynamicMemory(TestSuite):
             vm_bytes=vm_bytes,
             timeout_in_seconds=duration,
         )
+
+    def _apply_mmap_huge_stress(
+        self,
+        ctx: DynamicMemoryTestContext,
+        num_workers: int,
+        mmap_bytes: str,
+        duration: int,
+    ) -> int:
+        """Run mmaphuge stress and optionally sample AnonHugePages mid-run."""
+        stress_ng = ctx.node.tools[StressNg]
+        stress_ng.install()
+        process = stress_ng.launch_mmaphuge_stressor_async(
+            num_workers=num_workers,
+            mmap_bytes=mmap_bytes,
+            timeout_in_seconds=duration,
+        )
+
+        # Wait a bit to let allocations occur, but do not exceed duration.
+        wait_seconds = math.ceil(duration / 2)
+        time.sleep(wait_seconds)
+        mid_sample = self._read_meminfo_value(ctx.node, "AnonHugePages")
+
+        # Ensure the stress completes (allow small grace margin)
+        process.wait_result(timeout=duration + 10)
+        return mid_sample
 
     def _validate_host_guest_alignment(
         self,
@@ -295,7 +420,22 @@ class HyperVDynamicMemory(TestSuite):
             )
         return result.stdout
 
-    def check_debugfs_mounted(self, node: Node) -> bool:
+    def _ensure_debugfs_mounted(self, node: Node) -> None:
+        if not self._check_debugfs_mounted(node):
+            node.execute(
+                "mount -t debugfs debugfs /sys/kernel/debug",
+                sudo=True,
+                shell=True,
+            )
+            if not self._check_debugfs_mounted(node):
+                raise SkippedException(
+                    (
+                        "Debugfs is not mounted and could not be mounted; "
+                        "cannot access hv_balloon metrics"
+                    )
+                )
+
+    def _check_debugfs_mounted(self, node: Node) -> bool:
         result = node.execute(
             "mount | grep -i debugfs",
             sudo=True,
