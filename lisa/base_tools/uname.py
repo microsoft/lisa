@@ -50,7 +50,7 @@ class Uname(Tool):
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         # This file is a base tool, which is used by os. To avoid circular
         # import, the class name string is used here.
-        if "FreeBSD" in node.os.name:
+        if hasattr(node, "os") and "FreeBSD" in node.os.name:
             return FreeBSDUname(node)
         else:
             return Uname(node)
