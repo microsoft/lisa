@@ -14,7 +14,7 @@ from lisa import (
 )
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
-from lisa.tools import KernelConfig, Lsmod, Modprobe
+from lisa.tools import Ip, KernelConfig, Lsmod, Modprobe
 
 
 @TestSuiteMetadata(
@@ -49,6 +49,7 @@ class XfrmSuite(TestSuite):
     )
     def verify_xfrm_interface(self, node: Node) -> None:
         kernel_config = node.tools[KernelConfig]
+        ip = node.tools[Ip]
 
         # Check kernel configuration
         if not kernel_config.is_enabled("CONFIG_XFRM_INTERFACE"):
@@ -98,66 +99,34 @@ class XfrmSuite(TestSuite):
         # Probe with the actual parameters we'll use in the test.
         # Some older iproute2 builds can recognize "type xfrm" but *cannot*
         # parse the required "dev ... if_id ..." arguments; in that case, skip.
-        probe_name = "lisa-xfrm-probe"
-        probe_if_id = "999"
         default_nic = node.nics.default_nic
-        probe_cmd = (
-            f"ip link add {probe_name} type xfrm "
-            f"dev {default_nic} if_id {probe_if_id}"
-        )
-        probe = node.execute(probe_cmd, sudo=True)
-        if probe.exit_code != 0:
-            probe_output = f"{probe.stdout}\n{probe.stderr}".lower()
-
-            # Environmental SKIPs (capability/compat issues)
-            if "garbage instead of arguments" in probe_output:
-                version_result = node.execute("ip -V", sudo=False)
-                raise SkippedException(
-                    "iproute2 doesn't support xfrm dev/if_id syntax. "
-                    f"Version: {version_result.stdout.strip()}"
-                )
-            if "unknown" in probe_output and "type" in probe_output:
-                raise SkippedException("iproute2 doesn't recognize xfrm type")
-            if "not supported" in probe_output:
-                raise SkippedException("This system doesn't support xfrm link type.")
-            if "no such device" in probe_output:
-                raise SkippedException(
-                    "Kernel/platform rejected xfrm link creation (No such device). "
-                    f"details: {probe.stdout}{probe.stderr}"
-                )
-            if (
-                "operation not permitted" in probe_output
-                or "permission denied" in probe_output
-            ):
-                raise SkippedException(
-                    "Insufficient permissions for xfrm operations (CAP_NET_ADMIN)."
-                )
-
-            # Anything else is unexpected: let the actual create below provide the
-            # definitive error path by failing with full context.
-        else:
-            # Probe succeeded, clean up.
-            node.execute(f"ip link del {probe_name}", sudo=True)
+        supported, reason = ip.supports_xfrm(dev=default_nic, if_id=if_id)
+        if not supported:
+            raise SkippedException(reason)
 
         try:
             # Create xfrm interface
             # ip link add <name> type xfrm dev <physical_dev> if_id <id>
             # We need to find an existing physical interface first
             cmd = (
-                f"ip link add {interface_name} type xfrm "
+                f"link add {interface_name} type xfrm "
                 f"dev {default_nic} if_id {if_id}"
             )
-            result = node.execute(cmd, sudo=True)
+            result = ip.run(cmd, sudo=True, force_run=True)
 
             # Check if interface creation succeeded
             if result.exit_code == 0:
                 # Verify interface exists
-                show_cmd = f"ip link show {interface_name}"
-                result = node.execute(show_cmd, sudo=True)
-                assert_that(result.exit_code).described_as(
-                    f"xfrm interface {interface_name} should exist"
-                ).is_equal_to(0)
-                assert_that(result.stdout).described_as(
+                if not ip.nic_exists(interface_name):
+                    raise AssertionError(
+                        f"Interface {interface_name} creation succeeded but "
+                        "interface not found."
+                    )
+                # Also verify it appears in link show output
+                show_result = ip.run(
+                    f"link show {interface_name}", sudo=True, force_run=True
+                )
+                assert_that(show_result.stdout).described_as(
                     f"output should contain {interface_name}"
                 ).contains(interface_name)
             else:
@@ -170,7 +139,7 @@ class XfrmSuite(TestSuite):
 
         finally:
             # Clean up - delete the test interface if it was created
-            node.execute(f"ip link del {interface_name}", sudo=True)
+            ip.run(f"link del {interface_name}", sudo=True, force_run=True)
 
             # Restore original module state if we modified it
             if not is_builtin and original_state_loaded is not None:
