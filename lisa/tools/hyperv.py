@@ -228,13 +228,12 @@ class HyperV(Tool):
                 dynamic_memory_args.append(f"-Buffer {buffer}")
             if priority is not None:
                 dynamic_memory_args.append(f"-Priority {priority}")
-
-        self._run_hyperv_cmdlet(
-            "Set-VMMemory",
-            " ".join(dynamic_memory_args),
-            extra_args=extra_args,
-            force_run=True,
-        )
+            self._run_hyperv_cmdlet(
+                "Set-VMMemory",
+                " ".join(dynamic_memory_args),
+                extra_args=extra_args,
+                force_run=True,
+            )
 
         if extra_args is not None and "set-vmprocessor" in extra_args:
             self._run_hyperv_cmdlet(
