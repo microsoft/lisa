@@ -219,19 +219,19 @@ class HyperV(Tool):
 
         # configure memory
         if dynamic_memory_enabled:
-            memory_args = [f"-VMName {name}"]
-            memory_args.append("-DynamicMemoryEnabled $true")
-            memory_args.append(f"-MinimumBytes {minimum_memory_mb}MB")
-            memory_args.append(f"-StartupBytes {startup_memory_mb}MB")
-            memory_args.append(f"-MaximumBytes {maximum_memory_mb}MB")
+            dynamic_memory_args = [f"-VMName {name}"]
+            dynamic_memory_args.append("-DynamicMemoryEnabled $true")
+            dynamic_memory_args.append(f"-MinimumBytes {minimum_memory_mb}MB")
+            dynamic_memory_args.append(f"-StartupBytes {startup_memory_mb}MB")
+            dynamic_memory_args.append(f"-MaximumBytes {maximum_memory_mb}MB")
             if buffer is not None:
-                memory_args.append(f"-Buffer {buffer}")
+                dynamic_memory_args.append(f"-Buffer {buffer}")
             if priority is not None:
-                memory_args.append(f"-Priority {priority}")
+                dynamic_memory_args.append(f"-Priority {priority}")
 
         self._run_hyperv_cmdlet(
             "Set-VMMemory",
-            " ".join(memory_args),
+            " ".join(dynamic_memory_args),
             extra_args=extra_args,
             force_run=True,
         )
