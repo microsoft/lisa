@@ -361,7 +361,7 @@ class Process:
 
     def wait_result(
         self,
-        timeout: float = 600,
+        timeout: float = 120,  # 600 default, 120 for a try
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
         raise_on_timeout: bool = True,

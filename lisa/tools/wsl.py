@@ -53,6 +53,21 @@ class Wsl(Tool):
 
         return self._check_exists()
 
+    def _add_lisatest_user(self, distro: str) -> None:
+        self.shutdown_wsl()
+        self._wsl_execute_async(" -u root -- true", distro=distro)
+        add_lisatest_cmd = (
+            """ -u root -- bash -c "useradd -m -s /bin/bash lisatest  && """
+            """echo 'lisatest ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/lisatest; """
+            """printf '[user]\\ndefault=lisatest\\n' > /etc/wsl.conf" """
+        )
+        user_add_process = self._wsl_execute(add_lisatest_cmd, distro=distro)
+        user_add_process.assert_exit_code(
+            expected_exit_code=0,
+            message="wsl add lisatest account failed",
+            include_output=True,
+        )
+
     def install_distro(
         self,
         name: str,
@@ -75,6 +90,7 @@ class Wsl(Tool):
         if matched:
             self._log.info(f"{name} is already installed, skip to install.")
             is_installed = True
+            self._add_lisatest_user(name)
 
         # set debug console and replace kernel
         self._config(enable_debug_console=enable_debug_console, kernel=kernel)
@@ -87,6 +103,9 @@ class Wsl(Tool):
             install_process = self._wsl_execute_async(
                 f"--install -d {name}", encoding="utf-8"
             )
+
+            time.sleep(30)
+            self._add_lisatest_user(name)
 
             elapsed = create_timer()
             done = False
@@ -225,6 +244,7 @@ class Wsl(Tool):
         if not encoding:
             encoding = "" if in_wsl else self.ENCODING
 
+        self._log.debug(f"---paxue debug--- execute wsl cmd: {command}")
         process = self.node.execute_async(
             command,
             nohup=nohup,
@@ -239,6 +259,9 @@ class Wsl(Tool):
     def _install_on_remote(self) -> None:
         self._wsl_execute("--install", encoding="utf-8")
         self.node.reboot()
+
+        self._log.debug("---paxue debug: increase timeout to 180")
+        time.sleep(180)
 
         # trigger a wsl command to make sure wsl is ready.
         self._wsl_execute("--version")
