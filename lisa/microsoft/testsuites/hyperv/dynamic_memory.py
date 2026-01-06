@@ -290,7 +290,7 @@ class HyperVDynamicMemory(TestSuite):
 
     def _get_vm_stress_gbytes(self, ctx: DynamicMemoryTestContext) -> str:
         max_mb = ctx.dynamic_memory_config.maximum_mb
-        gbytes = math.ceil(math.ceil(max_mb * 1.5) / 1024)
+        gbytes = math.ceil(math.ceil(max_mb * 1.75) / 1024)
         return f"{gbytes}G"
 
     def _get_host_pressure_mb(self, ctx: DynamicMemoryTestContext) -> int:
