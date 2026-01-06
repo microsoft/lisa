@@ -597,7 +597,7 @@ class HyperV(Tool):
             no_debug_log=True,
         )
 
-    def get_memory_assigned_from_host(self, vm_name: str) -> int:
+    def get_vm_memory_assigned_from_host(self, vm_name: str) -> int:
         output = self.node.tools[PowerShell].run_cmdlet(
             f"Get-VM -Name {vm_name} | Select-Object MemoryAssigned",
             force_run=True,

@@ -341,7 +341,9 @@ class HyperVDynamicMemory(TestSuite):
         self,
         ctx: DynamicMemoryTestContext,
     ) -> None:
-        mem_total_from_host_mb = ctx.hyperv.get_memory_assigned_from_host(ctx.vm_name)
+        mem_total_from_host_mb = ctx.hyperv.get_vm_memory_assigned_from_host(
+            ctx.vm_name
+        )
         mem_total_from_vm_mb = self._read_meminfo_value(ctx.node, "MemTotal") // 1024
         difference = abs(mem_total_from_host_mb - mem_total_from_vm_mb)
         assert_that(difference).described_as(
