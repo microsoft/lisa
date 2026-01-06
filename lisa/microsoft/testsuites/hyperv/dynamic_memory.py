@@ -57,7 +57,7 @@ class HyperVDynamicMemory(TestSuite):
         self._apply_vm_stress(ctx, num_workers=64, vm_bytes=vm_gbytes, duration=30)
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction).described_as(
-            "Hot add did not increase net pages transaction under VM stress"
+            "Hot add did not increase assigned memory under VM stress"
         ).is_greater_than(0)
         self._validate_host_guest_alignment(ctx)
 
@@ -81,10 +81,10 @@ class HyperVDynamicMemory(TestSuite):
         )
         net_pages_transaction = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction).described_as(
-            "Hot add did not increase net pages transaction for stress with huge pages"
+            "Hot add did not increase assigned memory under stress with huge pages"
         ).is_greater_than(0)
         assert_that(anon_huge_pages_mid).described_as(
-            "AnonHugePages did not increase during huge page stress"
+            "AnonHugePages did not increase under huge page stress"
         ).is_greater_than(anon_huge_pages_before)
         self._validate_host_guest_alignment(ctx)
 
@@ -105,7 +105,7 @@ class HyperVDynamicMemory(TestSuite):
             ctx.dynamic_memory_config.maximum_mb - ctx.dynamic_memory_config.startup_mb
         )
         assert_that(net_mb_transaction).described_as(
-            "net_mb_transaction must equal maximum_memory_mb - startup_memory_mb"
+            "assigned memory should be equal to maximum memory for VM under stress"
         ).is_equal_to(expected_delta_mb)
         self._validate_host_guest_alignment(ctx)
 
@@ -132,10 +132,11 @@ class HyperVDynamicMemory(TestSuite):
             ctx.dynamic_memory_config.maximum_mb - ctx.dynamic_memory_config.startup_mb
         )
         assert_that(net_mb_transaction).described_as(
-            "net_mb_transaction must equal maximum_memory_mb - startup_memory_mb"
+            "assigned memory should be equal to maximum memory for VM under stress "
+            "with huge pages"
         ).is_equal_to(expected_delta_mb)
         assert_that(anon_huge_pages_mid).described_as(
-            "AnonHugePages did not increase during huge page stress"
+            "AnonHugePages did not increase under huge page stress"
         ).is_greater_than(anon_huge_pages_before)
         self._validate_host_guest_alignment(ctx)
 
@@ -153,7 +154,7 @@ class HyperVDynamicMemory(TestSuite):
         ctx.hyperv.apply_memory_pressure(memory_mb=host_pressure_mb, duration=45)
         net_pages_transaction_after = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction_after).described_as(
-            "Balloon up did not decrease net pages transaction under host pressure"
+            "Balloon up did not decrease assigned memory under host pressure"
         ).is_less_than(net_pages_transaction_before)
         self._validate_host_guest_alignment(ctx)
 
@@ -174,7 +175,8 @@ class HyperVDynamicMemory(TestSuite):
             ctx.dynamic_memory_config.minimum_mb - ctx.dynamic_memory_config.startup_mb
         )
         assert_that(net_mb_transaction).described_as(
-            "net_mb_transaction must equal minimum_memory_mb - startup_memory_mb"
+            "Assigned memory should be equal to minimum memory for VM "
+            "under host pressure"
         ).is_equal_to(expected_delta_mb)
         self._validate_host_guest_alignment(ctx)
 
@@ -194,7 +196,7 @@ class HyperVDynamicMemory(TestSuite):
         self._apply_vm_stress(ctx, num_workers=64, vm_bytes=vm_gbytes, duration=45)
         net_pages_transaction_after = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction_after).described_as(
-            "Net pages did not rebound after host pressure"
+            "Assigned memory did not increase on VM under stress"
         ).is_greater_than(net_pages_transaction_before)
         self._validate_host_guest_alignment(ctx)
 
@@ -220,7 +222,7 @@ class HyperVDynamicMemory(TestSuite):
         )
         net_pages_transaction_after = self._get_net_pages_transaction(ctx)
         assert_that(net_pages_transaction_after).described_as(
-            "Net pages did not rebound after host pressure with huge pages"
+            "Assigned memory did not increase on VM under stress with huge pages"
         ).is_greater_than(net_pages_transaction_before)
         assert_that(anon_huge_pages_mid).described_as(
             "AnonHugePages did not increase during huge page stress"
@@ -233,7 +235,9 @@ class HyperVDynamicMemory(TestSuite):
         node_context = get_node_context(node)
 
         if not node_context.host:
-            raise SkippedException("Hyper-V host context is required for these tests")
+            raise SkippedException(
+                "Hyper-V host context is required for Dynamic Memory Testsuite"
+            )
         hyperv = node_context.host.tools[HyperV]
         dynamic_memory_config = hyperv.get_dynamic_memory_config(node_context.vm_name)
         if not dynamic_memory_config.dynamic_memory_enabled:
@@ -328,14 +332,12 @@ class HyperVDynamicMemory(TestSuite):
             timeout_in_seconds=duration,
         )
 
-        # Wait a bit to let allocations occur, but do not exceed duration.
         wait_seconds = math.ceil(duration / 2)
         time.sleep(wait_seconds)
-        mid_sample = self._read_meminfo_value(ctx.node, "AnonHugePages")
+        mid_anon_huge_pages = self._read_meminfo_value(ctx.node, "AnonHugePages")
 
-        # Ensure the stress completes (allow small grace margin)
         process.wait_result(timeout=duration + 10)
-        return mid_sample
+        return mid_anon_huge_pages
 
     def _validate_host_guest_alignment(
         self,
@@ -373,16 +375,7 @@ class HyperVDynamicMemory(TestSuite):
 
     def _get_net_pages_transaction(self, ctx: DynamicMemoryTestContext) -> int:
         raw = self._read_hv_balloon_debugfs(ctx.node)
-        data: Dict[str, str] = {}
-        for line in raw.splitlines():
-            stripped = line.strip()
-            if not stripped or ":" not in stripped:
-                continue
-            key, value = stripped.split(":", maxsplit=1)
-            normalized_key = re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
-            if not normalized_key:
-                continue
-            data[normalized_key] = value.strip()
+        data = self._parse_hv_balloon_debugfs(raw)
 
         pages_added = int(data.get("pages_added", "0") or 0)
         pages_ballooned = int(data.get("pages_ballooned", "0") or 0)
@@ -390,6 +383,15 @@ class HyperVDynamicMemory(TestSuite):
 
     def _get_hv_balloon_info(self, node: Node) -> Tuple[List[str], int]:
         raw = self._read_hv_balloon_debugfs(node)
+        data = self._parse_hv_balloon_debugfs(raw)
+
+        capabilities_raw = data.get("capabilities", "")
+        capabilities = capabilities_raw.split() if capabilities_raw else []
+        page_size = int(data.get("page_size", "0") or 0)
+        page_size_kb = page_size // 1024 if page_size else 0
+        return capabilities, page_size_kb
+
+    def _parse_hv_balloon_debugfs(self, raw: str) -> Dict[str, str]:
         data: Dict[str, str] = {}
         for line in raw.splitlines():
             stripped = line.strip()
@@ -400,12 +402,7 @@ class HyperVDynamicMemory(TestSuite):
             if not normalized_key:
                 continue
             data[normalized_key] = value.strip()
-
-        capabilities_raw = data.get("capabilities", "")
-        capabilities = capabilities_raw.split() if capabilities_raw else []
-        page_size = int(data.get("page_size", "0") or 0)
-        page_size_kb = page_size // 1024 if page_size else 0
-        return capabilities, page_size_kb
+        return data
 
     def _read_hv_balloon_debugfs(self, node: Node) -> str:
         result = node.execute(
