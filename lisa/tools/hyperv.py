@@ -54,12 +54,10 @@ class VMDisk:
 
 @dataclass
 class DynamicMemoryConfig:
+    minimum_mb: int
+    startup_mb: int
+    maximum_mb: int
     dynamic_memory_enabled: bool = False
-    minimum_mb: int = 0
-    startup_mb: int = 0
-    maximum_mb: int = 0
-    buffer: Optional[int] = None
-    priority: Optional[int] = None
 
 
 class HyperV(Tool):
@@ -566,22 +564,22 @@ class HyperV(Tool):
     def get_dynamic_memory_config(self, vm_name: str) -> DynamicMemoryConfig:
         output = self.node.tools[PowerShell].run_cmdlet(
             f"Get-VMMemory -VMName {vm_name} | Select-Object DynamicMemoryEnabled,"
-            " Minimum, Startup, Maximum, Buffer, Priority",
+            " Minimum, Startup, Maximum",
             force_run=True,
             output_json=True,
         )
 
-        minimum_bytes = output.get("Minimum", 0)
-        startup_bytes = output.get("Startup", 0)
-        maximum_bytes = output.get("Maximum", 0)
+        if not output:
+            raise LisaException(f"Get-VMMemory returned no data for VM {vm_name}")
+        minimum_bytes = output.get("Minimum")
+        startup_bytes = output.get("Startup")
+        maximum_bytes = output.get("Maximum")
 
         return DynamicMemoryConfig(
             dynamic_memory_enabled=bool(output.get("DynamicMemoryEnabled", False)),
             minimum_mb=self._bytes_to_mb(minimum_bytes),
             startup_mb=self._bytes_to_mb(startup_bytes),
             maximum_mb=self._bytes_to_mb(maximum_bytes),
-            buffer=output.get("Buffer"),
-            priority=output.get("Priority"),
         )
 
     def apply_memory_pressure(self, memory_mb: int, duration: int) -> None:
@@ -605,7 +603,7 @@ class HyperV(Tool):
             force_run=True,
             output_json=True,
         )
-        assigned = output.get("MemoryAssigned", 0)
+        assigned = output.get("MemoryAssigned")
         return self._bytes_to_mb(assigned)
 
     def get_host_total_memory_mb(self) -> int:
@@ -741,9 +739,5 @@ class HyperV(Tool):
         else:
             self._log.debug(f"Port {port} was not assigned.")
 
-    @staticmethod
-    def _bytes_to_mb(value: Any) -> int:
-        try:
-            return int(int(value) / (1024 * 1024))
-        except Exception:
-            return 0
+    def _bytes_to_mb(self, value: Any) -> int:
+        return int(int(value) / (1024 * 1024))

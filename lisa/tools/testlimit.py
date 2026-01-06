@@ -4,6 +4,7 @@ from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.unzip import Unzip
+from lisa.util import LisaException
 
 
 class TestLimit(Tool):
@@ -17,9 +18,13 @@ class TestLimit(Tool):
 
     @property
     def command(self) -> str:
+        if not self._binary_path and not self._check_exists():
+            if not self.install() or not self._check_exists():
+                raise LisaException("TestLimit binary is not available after install")
+
         if self._binary_path:
             return self._binary_path
-        return self._BINARY_NAMES[0]
+        raise LisaException("TestLimit binary path could not be resolved")
 
     @property
     def can_install(self) -> bool:
