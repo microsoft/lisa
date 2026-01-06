@@ -2120,17 +2120,17 @@ exit $ec
         if has_nc:
             nc_sleep = self.NC_BIND_SLEEP_SECONDS
 
+            # Use 'nc -l' (without -k) so listener exits after first connection closes.
+            # This avoids the hang where 'nc -lk' stays alive even after kill -9.
             self.node.execute(
-                f"{numa_prefix} bash -c 'nc -lk 9999 > /dev/null & NC_PID=$!; "
+                f"{numa_prefix} bash -c 'nc -l 9999 > /dev/null & NC_PID=$!; "
                 f"sleep {nc_sleep}; "
                 f"timeout 20 dd if=/dev/zero bs=1M count=100 | "
                 f"nc 127.0.0.1 9999 || true; "
-                f"kill $NC_PID || true; "
-                f"wait $NC_PID || true; "
-                f'pkill -f "nc -lk 9999" || true\'',
+                f"wait $NC_PID || true\'",
                 shell=True,
                 sudo=True,
-                timeout=30,
+                timeout=10,
             )
         else:
             # Fallback: ping loopback
