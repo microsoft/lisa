@@ -3,7 +3,7 @@
 from typing import List
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Fedora, Redhat, Suse
 from lisa.util import LisaException
 
 from .gcc import Gcc
@@ -59,6 +59,8 @@ class Vdsotest(Tool):
                     "perl-CPAN",
                 ]
             )
+        elif isinstance(self.node.os, Fedora):
+            package_list.extend(["autoconf", "automake", "libtool"])
         else:
             raise LisaException(
                 f"Current distro {self.node.os.name} doesn't support vdsotest."
@@ -71,6 +73,14 @@ class Vdsotest(Tool):
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("vdsotest")
         self.node.execute("./autogen.sh", cwd=code_path).assert_exit_code()
-        self.node.execute("./configure", cwd=code_path).assert_exit_code()
+        # Fedora requires explicit C11 standard flag to avoid compilation errors.
+        # Using -std=gnu11 ensures compatibility with the vdsotest source code while
+        # avoiding issues with stricter compiler enforcement on newer GCC versions.
+        if isinstance(self.node.os, Fedora):
+            self.node.execute(
+                "./configure CFLAGS='-std=gnu11'", cwd=code_path
+            ).assert_exit_code()
+        else:
+            self.node.execute("./configure", cwd=code_path).assert_exit_code()
         make.make_install(cwd=code_path)
         return self._check_exists()

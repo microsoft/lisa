@@ -72,8 +72,8 @@ class Dhclient(Tool):
                 value = int(group["number"])
                 is_default_value = False
         elif isinstance(self.node.os, Fedora):
-            # the default value in fedora is 45
-            value = 45
+            # the default value in fedora is 300
+            value = 300
             result = self.node.execute("NetworkManager --print-config", sudo=True)
             group = find_group_in_lines(result.stdout, self._fedora_pattern)
             if group and value != int(group["number"]):

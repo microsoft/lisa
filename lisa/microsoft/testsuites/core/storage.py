@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Windows
+from lisa.operating_system import BSD, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
@@ -219,8 +219,9 @@ class Storage(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
-            unsupported_os=[BSD, Windows],
+            unsupported_os=[BSD, Windows, Fedora],
             # This test is skipped as waagent does not support freebsd fully
+            # Fedora manages swap independently of waagent
         ),
     )
     def verify_swap(self, node: RemoteNode) -> None:

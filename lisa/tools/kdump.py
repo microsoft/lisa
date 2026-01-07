@@ -13,7 +13,15 @@ from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Service, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
+from lisa.operating_system import (
+    CBLMariner,
+    Debian,
+    Fedora,
+    Oracle,
+    Posix,
+    Redhat,
+    Suse,
+)
 from lisa.tools.df import Df
 from lisa.tools.echo import Echo
 from lisa.tools.find import Find
@@ -219,6 +227,8 @@ class KdumpBase(Tool):
             return KdumpSuse(node)
         elif isinstance(node.os, CBLMariner):
             return KdumpCBLMariner(node)
+        elif isinstance(node.os, Fedora):
+            return KdumpFedora(node)
         else:
             raise UnsupportedDistroException(os=node.os)
 
@@ -558,6 +568,50 @@ class KdumpRedhat(KdumpBase):
         mkdir.create_directory(dump_path, sudo=True)
         self.dump_path = dump_path
         # Change dump path in kdump conf
+        sed = self.node.tools[Sed]
+        sed.substitute(
+            match_lines="^path",
+            regexp="path",
+            replacement="#path",
+            file=kdump_conf,
+            sudo=True,
+        )
+        sed.append(f"path {self.dump_path}", kdump_conf, sudo=True)
+
+
+class KdumpFedora(KdumpBase):
+    @property
+    def command(self) -> str:
+        return "kdumpctl"
+
+    def _install(self) -> bool:
+        assert isinstance(self.node.os, Fedora)
+        self.node.os.install_packages("kdump-utils")
+        return self._check_exists()
+
+    def _get_crashkernel_cfg_file(self) -> str:
+        # Return empty string to skip grub file editing
+        # grubby will handle kernel parameters directly
+        return ""
+
+    def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
+        # Use grubby to update all kernels, similar to RHEL 8+
+        return f"grubby --update-kernel=ALL --args='crashkernel={crashkernel}'"
+
+    def config_resource_disk_dump_path(self, dump_path: str) -> None:
+        kdump_conf = "/etc/kdump.conf"
+
+        # Create dump path directory
+        self.node.execute(
+            f"mkdir -p {dump_path}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to create dump directory {dump_path}"
+            ),
+            shell=True,
+            sudo=True,
+        )
+        self.dump_path = dump_path
         sed = self.node.tools[Sed]
         sed.substitute(
             match_lines="^path",
