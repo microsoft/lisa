@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from lisa.executable import Tool
 
@@ -32,10 +31,6 @@ class Ss(Tool):
     @property
     def can_install(self) -> bool:
         return False
-
-    @classmethod
-    def _freebsd_tool(cls) -> Optional[type[Tool]]:
-        return SsBsd
 
     def has_kill_support(self) -> bool:
         """
@@ -121,18 +116,3 @@ class Ss(Tool):
         """
         result = self.run("-s", force_run=True, expected_exit_code=0)
         return result.stdout
-
-
-class SsBsd(Ss):
-    """
-    BSD/FreeBSD variant - may have different flags or behavior
-    """
-
-    @property
-    def command(self) -> str:
-        # BSD might use sockstat or netstat instead
-        return "sockstat"
-
-    def has_kill_support(self) -> bool:
-        # BSD typically doesn't support ss -K
-        return False
