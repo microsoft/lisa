@@ -49,7 +49,6 @@ class XfrmSuite(TestSuite):
     )
     def verify_xfrm_interface(self, node: Node) -> None:
         kernel_config = node.tools[KernelConfig]
-        ip = node.tools[Ip]
 
         # Check kernel configuration
         if not kernel_config.is_enabled("CONFIG_XFRM_INTERFACE"):
@@ -100,6 +99,8 @@ class XfrmSuite(TestSuite):
         # Some older iproute2 builds can recognize "type xfrm" but *cannot*
         # parse the required "dev ... if_id ..." arguments; in that case, skip.
         default_nic = node.nics.default_nic
+
+        ip = node.tools[Ip]
         supported, reason = ip.supports_xfrm(dev=default_nic, if_id=if_id)
         if not supported:
             raise SkippedException(reason)
