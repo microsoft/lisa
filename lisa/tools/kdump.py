@@ -272,7 +272,14 @@ class KdumpBase(Tool):
         #         linux/7/html/kernel_administration_guide/kernel_crash_dump_guide
         # SUSE: https://www.suse.com/support/kb/doc/?id=000016171
         # We combine their configuration to set an empirical value
+
+        # Get CPU count to adjust crashkernel size for large-core VMs
+        lscpu = self.node.tools[Lscpu]
+        cpu_count = lscpu.get_thread_count()
+
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
+
+        # Calculate crashkernel based on memory size
         if (
             "G" in total_memory
             and float(total_memory.strip("G")) < 1
@@ -280,24 +287,51 @@ class KdumpBase(Tool):
             and float(total_memory.strip("M")) < 1024
         ):
             if arch == "x86_64":
-                crash_kernel = "64M"
+                memory_based_size = "64M"
             else:
                 # For arm64 with page size == 4k, the memory "section size" is 128MB,
                 # that's the granularity of memory hotplug and also the minimal size of
                 # manageable memory if SPARSEMEM is selected. More memory is needed for
                 # kdump kernel
-                crash_kernel = "256M"
+                memory_based_size = "256M"
         elif (
             "G" in total_memory
             and float(total_memory.strip("G")) < 2
             or "M" in total_memory
             and float(total_memory.strip("M")) < 2048
         ):
-            crash_kernel = "256M"
+            memory_based_size = "256M"
         elif "T" in total_memory and float(total_memory.strip("T")) > 1:
-            crash_kernel = "1G"
+            memory_based_size = "1G"
         else:
-            crash_kernel = "512M"
+            memory_based_size = "512M"
+
+        # Calculate crashkernel based on CPU count
+        # More CPUs = more CPU state to capture and process
+        if cpu_count > 415:
+            cpu_based_size = "2G"
+        elif cpu_count > 192:
+            cpu_based_size = "1G"
+        elif cpu_count > 32:
+            cpu_based_size = "512M"
+        else:
+            cpu_based_size = "256M"
+
+        # Take the maximum of memory-based and CPU-based calculations
+        # Convert to MB for comparison
+        def size_to_mb(size_str: str) -> int:
+            if "G" in size_str:
+                return int(size_str.strip("G")) * 1024
+            else:
+                return int(size_str.strip("M"))
+
+        memory_mb = size_to_mb(memory_based_size)
+        cpu_mb = size_to_mb(cpu_based_size)
+
+        crash_kernel = memory_based_size if memory_mb >= cpu_mb else cpu_based_size
+
+        self._log.info(f"Calculated crashkernel size: {crash_kernel}")
+
         return crash_kernel
 
     def _get_crashkernel_cfg_file(self) -> str:
@@ -824,7 +858,7 @@ class KdumpCheck(Tool):
     trigger_kdump_cmd = "echo c > /proc/sysrq-trigger"
 
     def _calculate_proportional_timeout(
-        self, total_memory_gb: float, cpu_count: int
+        self, total_memory_gb: float, cpu_count: int, timeout_upper_bound: int = 3600
     ) -> int:
         """
         Calculate proportional timeout for kdump based on VM size.
@@ -839,7 +873,7 @@ class KdumpCheck(Tool):
         - Memory factor: +12s per GB above 32GB
         - CPU factor: +8s per CPU above 8
         - Minimum: 600s
-        - Maximum: 3600s (1 hour)
+        - Maximum: timeout_upper_bound (default 3600s/1 hour)
         """
         # Base values for reference VM (32GB, 8 CPUs)
         base_timeout = 800
@@ -862,7 +896,7 @@ class KdumpCheck(Tool):
         calculated_timeout = int(base_timeout + memory_time + cpu_time)
 
         # Apply min/max bounds
-        timeout = max(600, min(3600, calculated_timeout))
+        timeout = max(600, min(timeout_upper_bound, calculated_timeout))
 
         self._log.debug(
             f"Calculated kdump timeout: {timeout}s for "
@@ -885,6 +919,7 @@ class KdumpCheck(Tool):
         log_path: Path,
         is_auto: bool = False,
         trigger_kdump_cmd: str = "echo c > /proc/sysrq-trigger",
+        timeout_upper_bound: int = 3600,
     ) -> None:
         try:
             self._check_supported(is_auto=is_auto)
@@ -904,9 +939,12 @@ class KdumpCheck(Tool):
         cpu_count = lscpu.get_thread_count()
 
         # Calculate proportional timeout based on VM size
-        self.timeout_of_dump_crash = self._calculate_proportional_timeout(
-            total_memory_gb, cpu_count
+        # timeout_upper_bound sets the maximum allowed timeout in the calculation
+        calculated_timeout = self._calculate_proportional_timeout(
+            total_memory_gb, cpu_count, timeout_upper_bound
         )
+
+        self.timeout_of_dump_crash = calculated_timeout
 
         self._log.info(
             f"Using kdump timeout of {self.timeout_of_dump_crash}s for VM "
@@ -959,7 +997,9 @@ class KdumpCheck(Tool):
         # We should clean up the vmcore file since the test is passed
         self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
-    def trigger_kdump_on_specified_cpu(self, cpu_num: int, log_path: Path) -> None:
+    def trigger_kdump_on_specified_cpu(
+        self, cpu_num: int, log_path: Path, timeout_upper_bound: int = 3600
+    ) -> None:
         lscpu = self.node.tools[Lscpu]
         thread_count = lscpu.get_thread_count()
         if thread_count > cpu_num:
@@ -967,6 +1007,7 @@ class KdumpCheck(Tool):
             self.kdump_test(
                 log_path=log_path,
                 trigger_kdump_cmd=trigger_kdump_cmd,
+                timeout_upper_bound=timeout_upper_bound,
             )
         else:
             raise SkippedException(

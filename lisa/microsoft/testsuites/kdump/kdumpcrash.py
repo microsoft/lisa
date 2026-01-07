@@ -168,8 +168,7 @@ class KdumpCrash(TestSuite):
         self, node: Node, log_path: Path, log: Logger
     ) -> None:
         self.kdump_util.trigger_kdump_on_specified_cpu(
-            cpu_num=192,
-            log_path=log_path,
+            cpu_num=192, log_path=log_path, timeout_upper_bound=4500
         )
 
     @TestCaseMetadata(
@@ -190,6 +189,7 @@ class KdumpCrash(TestSuite):
         self.kdump_util.trigger_kdump_on_specified_cpu(
             cpu_num=415,
             log_path=log_path,
+            timeout_upper_bound=7500,
         )
 
     @TestCaseMetadata(
