@@ -309,7 +309,6 @@ class HyperVDynamicMemory(TestSuite):
         duration: int,
     ) -> None:
         stress_ng = ctx.node.tools[StressNg]
-        stress_ng.install()
         stress_ng.launch_vm_stressor(
             num_workers=num_workers,
             vm_bytes=vm_bytes,
@@ -325,7 +324,6 @@ class HyperVDynamicMemory(TestSuite):
     ) -> int:
         """Run mmaphuge stress and optionally sample AnonHugePages mid-run."""
         stress_ng = ctx.node.tools[StressNg]
-        stress_ng.install()
         process = stress_ng.launch_mmaphuge_stressor_async(
             num_workers=num_workers,
             mmap_bytes=mmap_bytes,

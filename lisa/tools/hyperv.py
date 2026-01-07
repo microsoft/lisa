@@ -583,18 +583,8 @@ class HyperV(Tool):
         )
 
     def apply_memory_pressure(self, memory_mb: int, duration: int) -> None:
-        testlimit = self.node.tools[TestLimit]
-        hv_pressure_exe = testlimit.command
-        ps_command = (
-            f"$p = Start-Process -FilePath '{hv_pressure_exe}' "
-            f"-ArgumentList '-accepteula -d {memory_mb}' -PassThru; "
-            f"Start-Sleep -Seconds {duration}; "
-            "if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force }"
-        )
-        self.node.tools[PowerShell].run_cmdlet(
-            ps_command,
-            force_run=True,
-            no_debug_log=True,
+        self.node.tools[TestLimit].apply_memory_pressure(
+            memory_mb=memory_mb, duration=duration
         )
 
     def get_vm_memory_assigned_from_host(self, vm_name: str) -> int:
