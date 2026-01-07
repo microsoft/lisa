@@ -574,7 +574,7 @@ class CloudHypervisorTests(Tool):
                 "timeout 5 dd if=/dev/zero bs=1M count=64 | "
                 'nc 127.0.0.1 "$port" || true; '
                 "kill $NC_PID || true; "
-                "wait $NC_PID || true'"
+                'test -n "$NC_PID" && wait "$NC_PID" || true\''
             )
             self.node.execute(
                 warmup_cmd,
@@ -1638,9 +1638,21 @@ exit $ec
         - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
         """
         # Install numactl - required for perf-stable NUMA binding
-        self._log.info("Installing numactl for NUMA binding support")
-        posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages(["numactl"])
+        # Check if numactl is already available first
+        numactl_check = self.node.execute("command -v numactl", shell=True)
+        if numactl_check.exit_code != 0:
+            self._log.info("Installing numactl for NUMA binding support")
+            posix_os: Posix = cast(Posix, self.node.os)
+            try:
+                posix_os.install_packages(["numactl"])
+            except Exception as e:
+                self._log.warning(
+                    f"Failed to install numactl: {e}. "
+                    "Continuing without package installation - "
+                    "numactl may already be present or baked into the image."
+                )
+        else:
+            self._log.debug("numactl already installed, skipping package installation")
 
         # CPU governor → performance
         self.node.execute(
@@ -2120,14 +2132,15 @@ exit $ec
         if has_nc:
             nc_sleep = self.NC_BIND_SLEEP_SECONDS
 
-            # Use 'nc -l' (without -k) so listener exits after first connection closes.
-            # This avoids the hang where 'nc -lk' stays alive even after kill -9.
+            # Start listener in background without -k flag so it exits after one connection.
+            # Transfer data from client, kill listener if still running, then wait safely.
             self.node.execute(
-                f"{numa_prefix} bash -c 'nc -l 9999 > /dev/null & NC_PID=$!; "
+                f"{numa_prefix} bash -c '"
+                f"nc -l 9999 > /dev/null & NC_PID=$!; "
                 f"sleep {nc_sleep}; "
-                f"timeout 20 dd if=/dev/zero bs=1M count=100 | "
-                f"nc 127.0.0.1 9999 || true; "
-                f"wait $NC_PID || true\'",
+                f"dd if=/dev/zero bs=1M count=100 2>/dev/null | nc 127.0.0.1 9999; "
+                f"kill $NC_PID 2>/dev/null || true; "
+                f'test -n "$NC_PID" && wait "$NC_PID" || true\'',
                 shell=True,
                 sudo=True,
                 timeout=10,

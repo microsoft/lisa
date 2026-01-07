@@ -974,6 +974,15 @@ class Debian(Linux):
         )
 
     def wait_running_package_process(self) -> None:
+        # Check if dpkg exists first (minimal images may not have it)
+        dpkg_check = self._node.execute("command -v dpkg", shell=True)
+        if dpkg_check.exit_code != 0:
+            self._log.debug(
+                "dpkg not found on system (minimal image?), "
+                "skipping package process wait"
+            )
+            return
+
         is_first_time: bool = True
         # wait for 10 minutes
         timeout = 60 * 10
