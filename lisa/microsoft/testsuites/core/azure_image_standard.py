@@ -223,7 +223,7 @@ class AzureImageStandard(TestSuite):
         re.compile(r"^(.*Dhcp client is not running.*)$", re.M),
         re.compile(r"^(.*Write warning to Azure ephemeral disk.*)$", re.M),
         re.compile(r"^(.*Added ephemeral disk warning to.*)$", re.M),
-        re.compile(r'.*unit=ephemeral-disk-warning.*', re.M),
+        re.compile(r".*unit=ephemeral-disk-warning.*", re.M),
         re.compile(r"^(.*Proceeding WITHOUT firewalling in effect!.*)$", re.M),
         re.compile(r"^(.*urandom warning.* missed due to ratelimiting.*)$", re.M),
         re.compile(
@@ -292,11 +292,9 @@ class AzureImageStandard(TestSuite):
             re.M,
         ),
         # DSA keys are deprecated
-        # OpenSSL disables DSA by default, older cloud-init versions are using this still used in cbl-mariner-2.0
-        re.compile(
-            r"^.*DSA\s+sshkey[_\s]?generate\s+failed.*libcrypto.*$",
-            re.M
-        ),
+        # OpenSSL disables DSA by default, older cloud-init versions are using this
+        # which is being used in cbl-mariner-2.0
+        re.compile(r"^.*DSA\s+sshkey[_\s]?generate\s+failed.*libcrypto.*$", re.M),
         # 2025-01-16T08:51:16.449922+00:00 azurelinux kernel: audit: type=1103
         # audit(1737017476.442:257): pid=1296 uid=0 auid=4294967295 ses=4294967295
         # subj=unconfined msg=\'op=PAM:setcred grantors=? acct="l****t"
