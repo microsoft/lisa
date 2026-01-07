@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from dataclasses import dataclass
-from pathlib import Path, PurePath
+from dataclasses import dataclass, field
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Type, cast
 
 from assertpy import assert_that
@@ -19,8 +19,13 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Pgrep, Rm, Sed
-from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
+from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Rm, Sed
+from lisa.util import (
+    LisaException,
+    UnsupportedDistroException,
+    find_patterns_in_lines,
+    generate_random_chars,
+)
 
 
 @dataclass
@@ -28,6 +33,33 @@ class XfstestsResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
+
+
+@dataclass
+class XfstestsRunResult:
+    """
+    Result object returned by run_test() to support parallel execution.
+    Instead of raising immediately on failure, this allows callers to
+    aggregate results from multiple parallel runs before deciding how to fail.
+    """
+
+    success: bool = True
+    fail_count: int = 0
+    total_count: int = 0
+    fail_cases: List[str] = field(default_factory=list)
+    fail_info: str = ""
+    run_id: str = ""
+    test_section: str = ""
+
+    def get_failure_message(self) -> str:
+        """Generate a formatted failure message for this run."""
+        if self.success:
+            return ""
+        return (
+            f"[{self.run_id}] Fail {self.fail_count} of {self.total_count} cases, "
+            f"\n\nfail cases: {self.fail_cases}, "
+            f"\n\ndetails: \n\n{self.fail_info}"
+        )
 
 
 class Xfstests(Tool):
@@ -239,7 +271,10 @@ class Xfstests(Tool):
         data_disk: str = "",
         test_cases: str = "",
         timeout: int = 14400,
-    ) -> None:
+        run_id: str = "",
+        raise_on_failure: bool = True,
+        xfstests_path: Optional[PurePath] = None,
+    ) -> XfstestsRunResult:
         """About: This method runs XFSTest on a given node with the specified
         test group and test cases
         Parameters:
@@ -266,7 +301,22 @@ class Xfstests(Tool):
             test cases from different file systems, example xfs tests and generic tests.
         timeout(int): The time in seconds after which the test run will be timed out.
             Defaults to 4 hours.
+        run_id(str): (Optional)Unique identifier for this test run. Used to create
+            unique log filenames to support multiple concurrent xfstests instances.
+            If not provided, defaults to test_section or generates a random ID.
+        raise_on_failure(bool): (Optional)If True (default), raises LisaException when
+            tests fail. If False, returns XfstestsRunResult without raising, allowing
+            callers to aggregate results from multiple parallel runs before failing.
+        xfstests_path(PurePath): (Optional)Custom xfstests directory path. Used for
+            parallel worker execution where each worker needs its own directory copy
+            to avoid shared state conflicts. If not provided, uses the default
+            installation path from get_xfstests_path().
+        Returns:
+            XfstestsRunResult: Object containing success status, failure counts, and
+            failure details. When raise_on_failure=True and tests fail, raises
+            LisaException instead of returning.
         Example:
+        # Traditional usage (raises on failure):
         xfstest.run_test(
             log_path=Path("/tmp/xfstests"),
             result=test_result,
@@ -275,15 +325,40 @@ class Xfstests(Tool):
             data_disk="/dev/sdd",
             test_cases="generic/001 generic/002",
             timeout=14400,
+            run_id="ext4_run1",
         )
+
+        # Parallel execution usage (collect results, fail later):
+        result1 = xfstest.run_test(..., raise_on_failure=False)
+        result2 = xfstest.run_test(..., raise_on_failure=False)
+        if not result1.success or not result2.success:
+            combined = result1.get_failure_message() + result2.get_failure_message()
+            raise LisaException(combined)
+
+        # Parallel execution with worker copies:
+        worker_path = xfstest.create_worker_copy(worker_id=1)
+        result = xfstest.run_test(..., xfstests_path=worker_path)
         """
         # Note : the sequence is important here.
         # Do not rearrange !!!!!
         # Refer to xfstests-dev guide on https://github.com/kdave/xfstests
 
-        # Test if exclude.txt exists
-        xfstests_path = self.get_xfstests_path()
-        exclude_file_path = xfstests_path.joinpath("exclude.txt")
+        # Use custom path if provided, otherwise use default installation path
+        working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
+
+        # Generate unique run_id if not provided to support multiple concurrent runs.
+        # This creates unique log filenames preventing conflicts when multiple
+        # xfstests instances run on the same machine.
+        if not run_id:
+            run_id = test_section if test_section else generate_random_chars()
+
+        # Use unique log filenames based on run_id to prevent conflicts
+        # when multiple xfstests instances run concurrently
+        console_log_name = f"xfstest_{run_id}.log"
+        check_log_name = f"check_{run_id}.log"
+
+        # Test if exclude.txt exists in the working directory
+        exclude_file_path = working_path / "exclude.txt"
         if self.node.shell.exists(exclude_file_path):
             exclude_file = True
         else:
@@ -297,30 +372,47 @@ class Xfstests(Tool):
             cmd += " -E exclude.txt"
         if test_cases:
             cmd += f" {test_cases}"
-        # Finally
-        cmd += " > xfstest.log 2>&1"
+        # Redirect output to unique log file based on run_id
+        cmd += f" > {console_log_name} 2>&1"
 
-        # run ./check command
-        self.run_async(
-            cmd,
-            sudo=True,
-            shell=True,
-            force_run=True,
-            cwd=self.get_xfstests_path(),
-        )
-
-        pgrep = self.node.tools[Pgrep]
-        # this is the actual process name, when xfstests runs.
-        # monitor till process completes or timesout
+        # Run ./check command synchronously using self.run() instead of run_async().
+        # This properly tracks the specific process and waits for completion,
+        # unlike the previous approach using pgrep.wait_processes("check") which
+        # would match ANY process named "check" - problematic when running
+        # multiple xfstests instances concurrently on the same machine.
+        run_result = XfstestsRunResult(run_id=run_id, test_section=test_section)
         try:
-            pgrep.wait_processes("check", timeout=timeout)
+            self.run(
+                cmd,
+                sudo=True,
+                shell=True,
+                force_run=True,
+                cwd=working_path,
+                timeout=timeout,
+            )
         finally:
-            self.check_test_results(
+            run_result = self.check_test_results(
                 log_path=log_path,
                 test_section=test_section if test_section else "generic",
                 result=result,
                 data_disk=data_disk,
+                console_log_name=console_log_name,
+                check_log_name=check_log_name,
+                run_id=run_id,
+                xfstests_path=working_path,
             )
+
+        # Raise exception if tests failed and raise_on_failure is True
+        # This maintains backward compatibility with existing callers
+        if not run_result.success and raise_on_failure:
+            raise LisaException(
+                f"Fail {run_result.fail_count} cases of total "
+                f"{run_result.total_count}, "
+                f"\n\nfail cases: {run_result.fail_cases}, "
+                f"\n\ndetails: \n\n{run_result.fail_info}, \n\nplease investigate."
+            )
+
+        return run_result
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -531,6 +623,76 @@ class Xfstests(Tool):
     def get_xfstests_path(self) -> PurePath:
         return self._code_path
 
+    def create_worker_copy(
+        self,
+        worker_id: int,
+        base_dir: str = "/tmp",
+    ) -> PurePath:
+        """
+        Create an isolated copy of the xfstests directory for a worker.
+
+        When running multiple xfstests instances in parallel, each instance needs
+        its own directory copy to avoid shared state conflicts. The xfstests tool
+        uses several files in its working directory that cause race conditions:
+        - results/check.log: Test results log
+        - check.time: Timing information
+        - results/{section}/: Test output files
+
+        This method creates a full copy of the xfstests installation at
+        {base_dir}/xfs_worker_{worker_id} for isolated parallel execution.
+
+        Args:
+            worker_id: Unique identifier for this worker (1-based)
+            base_dir: Base directory for worker copies (default: /tmp)
+
+        Returns:
+            PurePath: Path to the worker's xfstests directory copy
+        """
+        # Use PurePosixPath since the remote machine is Linux
+        # PurePath would use backslashes on Windows host, breaking Linux paths
+        worker_path = PurePosixPath(f"{base_dir}/xfs_worker_{worker_id}")
+        source_path = self.get_xfstests_path()
+
+        self._log.debug(f"Creating worker {worker_id} xfstests copy at {worker_path}")
+
+        # Remove existing directory if present
+        self.node.execute(f"rm -rf {worker_path}", sudo=True)
+
+        # Create directory and copy xfstests
+        # Using cp -a to preserve permissions and symlinks
+        self.node.execute(f"mkdir -p {base_dir}", sudo=True)
+        result = self.node.execute(
+            f"cp -a {source_path} {worker_path}",
+            sudo=True,
+            timeout=300,  # Copy can take time for large directories
+        )
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to create worker {worker_id} copy: {result.stderr}"
+            )
+
+        # Ensure proper permissions for the worker directory
+        self.node.execute(f"chmod -R a+rwx {worker_path}", sudo=True)
+
+        self._log.debug(f"Worker {worker_id} xfstests copy created at {worker_path}")
+        return worker_path
+
+    def cleanup_worker_copy(
+        self,
+        worker_id: int,
+        base_dir: str = "/tmp",
+    ) -> None:
+        """
+        Remove a worker's xfstests directory copy.
+
+        Args:
+            worker_id: Unique identifier for the worker
+            base_dir: Base directory containing worker copies (default: /tmp)
+        """
+        worker_path = f"{base_dir}/xfs_worker_{worker_id}"
+        self._log.debug(f"Cleaning up worker {worker_id} directory: {worker_path}")
+        self.node.execute(f"rm -rf {worker_path}", sudo=True)
+
     def set_local_config(
         self,
         file_system: str,
@@ -543,6 +705,7 @@ class Xfstests(Tool):
         testfs_mount_opts: str = "",
         additional_parameters: Optional[Dict[str, str]] = None,
         overwrite_config: bool = False,
+        xfstests_path: Optional[PurePath] = None,
     ) -> None:
         """
         About: This method will create // append a local.config file in the install dir
@@ -591,9 +754,13 @@ class Xfstests(Tool):
             _prepare_data_disk() method in xfstesting.py is a good example of this.
             Note3: The test folder should be created before running the tests.
             All tests will have a corresponding dmesg log file in output folder.
+            xfstests_path (PurePath): (O)Custom xfstests directory path for worker
+                execution. If not provided, uses the default path from
+                get_xfstests_path().
         """
-        xfstests_path = self.get_xfstests_path()
-        config_path = xfstests_path.joinpath("local.config")
+        # Use custom path if provided, otherwise use default installation path
+        working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
+        config_path = working_path / "local.config"
         # If overwrite is specified, remove the existing config file and start afresh
         if overwrite_config and self.node.shell.exists(config_path):
             self.node.shell.remove(config_path)
@@ -629,7 +796,11 @@ class Xfstests(Tool):
         # Append to the file if exists, else create a new file if none
         echo.write_to_file(content, config_path, append=True)
 
-    def set_excluded_tests(self, exclude_tests: str) -> None:
+    def set_excluded_tests(
+        self,
+        exclude_tests: str,
+        xfstests_path: Optional[PurePath] = None,
+    ) -> None:
         """
         About:This method will create an exclude.txt file with the provided test cases.
         The exclude.txt file is used by XFStest to exclude specific test cases from
@@ -638,12 +809,15 @@ class Xfstests(Tool):
         exclude_tests: The test cases to be excluded from testing
         Parameters:
         exclude_tests (str): The test cases to be excluded from testing
+        xfstests_path (PurePath): (O)Custom xfstests directory path for worker
+            execution. If not provided, uses the default path from get_xfstests_path().
         Example Usage:
         xfstest.set_excluded_tests(exclude_tests="generic/001 generic/002")
         """
         if exclude_tests:
-            xfstests_path = self.get_xfstests_path()
-            exclude_file_path = xfstests_path.joinpath("exclude.txt")
+            # Use custom path if provided, otherwise use default installation path
+            working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
+            exclude_file_path = working_path / "exclude.txt"
             if self.node.shell.exists(exclude_file_path):
                 self.node.shell.remove(exclude_file_path)
             echo = self.node.tools[Echo]
@@ -732,7 +906,11 @@ class Xfstests(Tool):
         test_section: str,
         result: "TestResult",
         data_disk: str = "",
-    ) -> None:
+        console_log_name: str = "xfstest.log",
+        check_log_name: str = "check.log",
+        run_id: str = "",
+        xfstests_path: Optional[PurePath] = None,
+    ) -> XfstestsRunResult:
         """
         About: This method is intended to be called by run_test method only.
         This method will check the xfstests output and send subtest results
@@ -744,11 +922,27 @@ class Xfstests(Tool):
         test_section: The test group name used for testing
         result: The test result object to which the subtest results will be sent
         data_disk: The data disk used for testing ( Method partially implemented )
+        console_log_name: The name of the console log file (default: xfstest.log)
+            Used to support multiple concurrent xfstests instances with unique
+            log files.
+        check_log_name: The name of the check log file (default: check.log)
+            Used to support multiple concurrent xfstests instances with unique
+            check log files.
+        run_id: Unique identifier for this test run (used in result object)
+        xfstests_path: Optional custom xfstests directory path for worker execution.
+            If not provided, uses the default path from get_xfstests_path().
+        Returns:
+            XfstestsRunResult: Object containing success status and failure details.
         """
-        xfstests_path = self.get_xfstests_path()
-        console_log_results_path = xfstests_path / "xfstest.log"
-        results_path = xfstests_path / "results/check.log"
+        # Use custom path if provided, otherwise use default installation path
+        working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
+        console_log_results_path = working_path / console_log_name
+        results_path = working_path / "results/check.log"
         fail_cases_list: List[str] = []
+        run_result = XfstestsRunResult(
+            run_id=run_id or test_section,
+            test_section=test_section,
+        )
         try:
             if not self.node.shell.exists(console_log_results_path):
                 raise LisaException(
@@ -785,6 +979,8 @@ class Xfstests(Tool):
                     self._log.debug(
                         f"All pass in xfstests, total pass case count is {pass_count}."
                     )
+                    run_result.success = True
+                    run_result.total_count = int(pass_count)
                 fail_match = self.__fail_pattern.match(results.stdout)
                 if fail_match:
                     fail_count = fail_match.group("fail_count")
@@ -798,59 +994,89 @@ class Xfstests(Tool):
                             raw_message, [re.compile(f".*{fail_case}.*$", re.MULTILINE)]
                         )[0][0]
                     fail_cases_list = fail_cases.split()
-                    raise LisaException(
-                        f"Fail {fail_count} cases of total {total_count}, "
-                        f"\n\nfail cases: {fail_cases}, "
-                        f"\n\ndetails: \n\n{fail_info}, \n\nplease investigate."
-                    )
+                    # Populate the result object instead of raising
+                    run_result.success = False
+                    run_result.fail_count = int(fail_count)
+                    run_result.total_count = int(total_count)
+                    run_result.fail_cases = fail_cases_list
+                    run_result.fail_info = fail_info
                 else:
                     # Mark the fail count as zero, else code will fail since we never
                     # fetch fail_count from regex.This variable is used in Finally block
                     fail_count = 0
+                    run_result.success = True
                     self._log.debug("No failed cases found in xfstests.")
         finally:
-            self.save_xfstests_log(fail_cases_list, log_path, test_section)
-            results_folder = xfstests_path / "results/"
+            self.save_xfstests_log(
+                fail_cases_list,
+                log_path,
+                test_section,
+                console_log_name,
+                check_log_name,
+                xfstests_path=working_path,
+            )
+            results_folder = working_path / "results/"
             self.node.execute(f"rm -rf {results_folder}", sudo=True)
             self.node.execute(f"rm -f {console_log_results_path}", sudo=True)
+        return run_result
 
     def save_xfstests_log(
-        self, fail_cases_list: List[str], log_path: Path, test_section: str
+        self,
+        fail_cases_list: List[str],
+        log_path: Path,
+        test_section: str,
+        console_log_name: str = "xfstest.log",
+        check_log_name: str = "check.log",
+        xfstests_path: Optional[PurePath] = None,
     ) -> None:
         """
         About:This method is intended to be called by check_test_results method only.
         This method will copy the output of XFSTest results to the Log folder of host
         calling LISA. Files copied are xfsresult.log, check.log and all failed cases
         files if they exist.
+        Parameters:
+        fail_cases_list: List of failed test case names
+        log_path: The path where the xfstests logs will be saved on the host
+        test_section: The test section name used for testing
+        console_log_name: The name of the console log file (default: xfstest.log)
+            Used to support multiple concurrent xfstests instances with unique
+            log files.
+        check_log_name: The name of the check log file (default: check.log)
+            Used to support multiple concurrent xfstests instances with unique
+            check log files.
+        xfstests_path: Optional custom xfstests directory path for worker execution.
+            If not provided, uses the default path from get_xfstests_path().
         """
-        xfstests_path = self.get_xfstests_path()
-        self.node.tools[Chmod].update_folder(str(xfstests_path), "a+rwx", sudo=True)
-        if self.node.shell.exists(xfstests_path / "results/check.log"):
+        # Use custom path if provided, otherwise use default installation path
+        working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
+        self.node.tools[Chmod].update_folder(str(working_path), "a+rwx", sudo=True)
+        if self.node.shell.exists(working_path / "results/check.log"):
             self.node.shell.copy_back(
-                xfstests_path / "results/check.log",
-                log_path / "xfstests/check.log",
+                working_path / "results/check.log",
+                log_path / f"xfstests/{check_log_name}",
             )
-        if self.node.shell.exists(xfstests_path / "xfstest.log"):
+        console_log_path = working_path / console_log_name
+        if self.node.shell.exists(console_log_path):
             self.node.shell.copy_back(
-                xfstests_path / "xfstest.log",
-                log_path / "xfstests/xfstest.log",
+                console_log_path,
+                log_path / f"xfstests/{console_log_name}",
             )
 
         for fail_case in fail_cases_list:
             file_name = f"results/{test_section}/{fail_case}.out.bad"
-            result_path = xfstests_path / file_name
+            result_path = working_path / file_name
             if self.node.shell.exists(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
                 self._log.debug(f"{file_name} doesn't exist.")
             file_name = f"results/{test_section}/{fail_case}.full"
-            result_path = xfstests_path / file_name
+            result_path = working_path / file_name
             if self.node.shell.exists(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
                 self._log.debug(f"{file_name} doesn't exist.")
             file_name = f"results/{test_section}/{fail_case}.dmesg"
-            result_path = xfstests_path / file_name
+            result_path = working_path / file_name
             if self.node.shell.exists(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
