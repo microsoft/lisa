@@ -162,6 +162,7 @@ class KdumpCrash(TestSuite):
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=193, max=415)),
         ),
+        timeout=5000,
     )
     def verify_kdumpcrash_on_cpu192(
         self, node: Node, log_path: Path, log: Logger
@@ -181,6 +182,7 @@ class KdumpCrash(TestSuite):
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=416)),
         ),
+        timeout=8000,
     )
     def verify_kdumpcrash_on_cpu415(
         self, node: Node, log_path: Path, log: Logger
