@@ -28,45 +28,59 @@ Write-Host "OutFile: $OutFile"
 $oStream = New-Object System.IO.FileStream $OutFile, 'OpenOrCreate', 'Write', 'Read'
 $pClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", $PipeName)
 $reconnect = $false
+$maxConnectionAttempts = 10
+$connectionAttempts = 0
 
 try {
-    while (1) {
+    while ($connectionAttempts -lt $maxConnectionAttempts) {
         $timeout = $PipeConnectTimeoutMillis
         if ($reconnect) {
-            # If we are reconnecting, we'll use a shorter timeout.
-            #
-            # If we got disconnected because the VM was shut down, then there
-            # is no point in waiting for a long time.
-            #
-            # If we got disconnected because the VM was rebooted, then the pipe
-            # will be opened again soon and doesn't need to wait for a long time.
             $timeout = $PipeReconnectTimeoutMillis
         }
 
-        $pClient.Connect($timeout)
-        if (!$pClient.IsConnected) {
-            Write-Host "Failed to connect to pipe. Exiting..."
-            exit
+        try {
+            $connectionAttempts++
+            Write-Host "Attempting to connect to pipe (attempt $connectionAttempts/$maxConnectionAttempts, timeout: $timeout ms)..."
+            
+            $pClient.Connect($timeout)
+            
+            if (!$pClient.IsConnected) {
+                Write-Host "Failed to connect to pipe (not connected after timeout)"
+                if ($connectionAttempts -ge $maxConnectionAttempts) {
+                    Write-Host "Max connection attempts ($maxConnectionAttempts) reached. Exiting..."
+                    exit 1
+                }
+                Write-Host "Waiting 5 seconds before retry..."
+                $pClient.Dispose()
+                $pClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", $PipeName)
+                Start-Sleep -Seconds 5
+                continue
+            }
+
+            Write-Host "Connected to pipe"
+            $connectionAttempts = 0  # Reset counter on successful connection
+            
+            $pClient.CopyTo($oStream)
+
+            Write-Host "Disconnected from pipe. Reconnecting..."
+            $reconnect = $true
+            $pClient.Dispose()
+            $pClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", $PipeName)
         }
-
-        Write-Host "Connected to pipe"
-        $pClient.CopyTo($oStream)
-
-        # If we get here, the pipe was closed. We'll try to reconnect.
-        # The pipe can be closed because:
-        # 1. The VM was shut down
-        # 2. The VM was rebooted
-        #
-        # If the VM was rebooted the pipe will be opened again, so we'll
-        # reconnect and continue logging.
-        #
-        # It is fine to take the same path for shutdown case as well. The
-        # pipe reconnection will fail and the script will exit gracefully.
-        Write-Host "Disconnected from pipe. Reconnecting..."
-        $reconnect = $true
+        catch {
+            Write-Host "Error during connection or copy: $_"
+            if ($connectionAttempts -ge $maxConnectionAttempts) {
+                Write-Host "Max connection attempts ($maxConnectionAttempts) reached after error. Exiting..."
+                exit 1
+            }
+            Write-Host "Waiting 5 seconds before retry..."
+            Start-Sleep -Seconds 5
+            $pClient.Dispose()
+            $pClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", $PipeName)
+        }
     }
 } finally {
     Write-Host "Cleaning up: closing pipe and file stream"
-    $oStream.Close()
-    $pClient.Dispose()
+    if ($oStream) { $oStream.Close() }
+    if ($pClient) { $pClient.Dispose() }
 }
