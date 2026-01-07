@@ -63,10 +63,15 @@ Known Limitations:
 - This can cause worker imbalance; future work: runtime-aware distribution
 """
 import string
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
-from microsoft.testsuites.xfstests.xfstests import Xfstests, XfstestsParallelRunner
+from microsoft.testsuites.xfstests.xfstests import (
+    DEFAULT_WORKER_BASE_DIR,
+    Xfstests,
+    XfstestsParallelRunner,
+)
 
 from lisa import (
     Logger,
@@ -238,7 +243,44 @@ _test_folder = "/mnt/test"
 #   Tests are distributed round-robin by count, not by runtime.
 #   Some tests vary significantly in duration (0s to 285s), causing
 #   potential worker imbalance. Future enhancement: runtime-aware distribution.
-_default_worker_count = 4
+_default_worker_count = 1
+
+
+# =============================================================================
+# Azure File Share Parallel Execution Context
+# =============================================================================
+@dataclass
+class AzureFileShareParallelContext:
+    """
+    Holds state for Azure File Share parallel test execution.
+
+    This dataclass encapsulates all the resources created during parallel
+    test setup, making cleanup deterministic and self-documenting. It's
+    populated by _setup_azure_file_share_workers() and consumed by
+    _cleanup_azure_file_share_workers().
+
+    Usage:
+        context = AzureFileShareParallelContext(runner=runner)
+        # ... setup populates context fields ...
+        # ... tests run ...
+        # ... cleanup uses context to know what to clean ...
+
+    Attributes:
+        runner: XfstestsParallelRunner managing worker lifecycle
+        share_names: Mapping of worker share keys to Azure share names
+                     e.g., {"test_1": "lisaXXXw1fs", "scratch_1": "lisaXXXw1sc"}
+        all_share_names: Flat list of all created share names for bulk deletion
+        fs_url_dict: Mapping of share names to //server/share URLs
+        mount_opts: CIFS mount options string used for all mounts
+        test_failed: Whether the test failed (affects cleanup behavior)
+    """
+
+    runner: XfstestsParallelRunner
+    share_names: Dict[str, str] = field(default_factory=dict)
+    all_share_names: List[str] = field(default_factory=list)
+    fs_url_dict: Dict[str, str] = field(default_factory=dict)
+    mount_opts: str = ""
+    test_failed: bool = False
 
 
 def _prepare_data_disk(
@@ -746,43 +788,55 @@ class Xfstesting(TestSuite):
         azure_file_share: AzureFileShare,
         runner: XfstestsParallelRunner,
         random_str: str,
-    ) -> tuple[Dict[str, str], List[str], Dict[str, str], str]:
+    ) -> AzureFileShareParallelContext:
         """
         Set up Azure File Shares for parallel xfstests workers.
 
         Creates separate file shares per worker and configures each worker's
-        local.config. Worker directories are created by the runner.
+        local.config and exclude.txt. Worker directories must be created
+        by runner.create_workers() before calling this method.
+
+        Azure File Share Requirements:
+        - Each worker needs its own test + scratch share (CIFS doesn't support
+          subdirectory mounts for xfstests)
+        - Share names follow pattern: lisa{random}w{id}fs / lisa{random}w{id}sc
 
         Args:
+            log: Logger for status messages
+            node: Remote VM node to configure
+            xfstests: Xfstests tool instance
+            environment: LISA environment for Azure provisioning
+            azure_file_share: AzureFileShare feature for share creation
             runner: XfstestsParallelRunner with workers already created
+            random_str: Random string for unique share naming
 
         Returns:
-            tuple: (share_names, all_share_names, fs_url_dict, mount_opts)
+            AzureFileShareParallelContext: Context object with all setup state
         """
-        worker_count = runner.worker_count
+        # Initialize context with runner
+        ctx = AzureFileShareParallelContext(runner=runner)
         worker_paths = runner.worker_paths
 
         # Create separate file shares per worker for isolation
-        share_names: Dict[str, str] = {}
-        all_share_names: List[str] = []
-        for worker_id in range(1, worker_count + 1):
+        # Each worker gets: test share (w{id}fs) + scratch share (w{id}sc)
+        for worker_id in runner.worker_ids():
             test_share = f"lisa{random_str}w{worker_id}fs"
             scratch_share = f"lisa{random_str}w{worker_id}sc"
-            share_names[f"test_{worker_id}"] = test_share
-            share_names[f"scratch_{worker_id}"] = scratch_share
-            all_share_names.extend([test_share, scratch_share])
+            ctx.share_names[f"test_{worker_id}"] = test_share
+            ctx.share_names[f"scratch_{worker_id}"] = scratch_share
+            ctx.all_share_names.extend([test_share, scratch_share])
 
-        # Provision file shares for each worker
-        per_share_quota = max(100 // worker_count, 50)
+        # Build mount point to share name mapping for Azure provisioning
+        per_share_quota = max(100 // runner.worker_count, 50)
         names_dict: Dict[str, str] = {}
-        for worker_id in range(1, worker_count + 1):
+        for worker_id in runner.worker_ids():
             test_mount = f"{_test_folder}_worker_{worker_id}"
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
-            names_dict[test_mount] = share_names[f"test_{worker_id}"]
-            names_dict[scratch_mount] = share_names[f"scratch_{worker_id}"]
+            names_dict[test_mount] = ctx.share_names[f"test_{worker_id}"]
+            names_dict[scratch_mount] = ctx.share_names[f"scratch_{worker_id}"]
 
-        log.info(f"Creating {len(all_share_names)} Azure file shares for workers")
-        fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
+        log.info(f"Creating {len(ctx.all_share_names)} Azure file shares for workers")
+        ctx.fs_url_dict = _deploy_azure_file_share(
             node=node,
             environment=environment,
             names=names_dict,
@@ -792,25 +846,26 @@ class Xfstesting(TestSuite):
             provisioned_iops=3110,
         )
 
-        mount_opts = (
+        ctx.mount_opts = (
             f"-o {_default_smb_mount},"
             f"credentials={azure_file_share.credential_file}"
         )
 
-        # Create worker mount points
-        for worker_id in range(1, worker_count + 1):
+        # Create worker mount points on the VM
+        for worker_id in runner.worker_ids():
             test_mount = f"{_test_folder}_worker_{worker_id}"
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
             node.execute(f"mkdir -p {test_mount} {scratch_mount}", sudo=True)
 
-        # Configure each worker's local.config
-        for worker_id in range(1, worker_count + 1):
+        # Configure each worker's local.config with worker-specific paths
+        for worker_id in runner.worker_ids():
             test_mount = f"{_test_folder}_worker_{worker_id}"
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
-            test_share = share_names[f"test_{worker_id}"]
-            scratch_share = share_names[f"scratch_{worker_id}"]
-            test_dev = fs_url_dict[test_share]
-            scratch_dev = fs_url_dict[scratch_share]
+            test_share_name = ctx.share_names[f"test_{worker_id}"]
+            scratch_share_name = ctx.share_names[f"scratch_{worker_id}"]
+            test_dev = ctx.fs_url_dict[test_share_name]
+            scratch_dev = ctx.fs_url_dict[scratch_share_name]
+            # worker_paths is 0-indexed, worker_ids are 1-indexed
             worker_path = worker_paths[worker_id - 1]
 
             log.debug(
@@ -825,8 +880,8 @@ class Xfstesting(TestSuite):
                 test_folder=test_mount,
                 file_system="cifs",
                 test_section="cifs",
-                mount_opts=mount_opts,
-                testfs_mount_opts=mount_opts,
+                mount_opts=ctx.mount_opts,
+                testfs_mount_opts=ctx.mount_opts,
                 overwrite_config=True,
                 xfstests_path=worker_path,
             )
@@ -836,36 +891,48 @@ class Xfstesting(TestSuite):
                 xfstests_path=worker_path,
             )
 
-        return share_names, all_share_names, fs_url_dict, mount_opts
+        return ctx
 
     def _cleanup_azure_file_share_workers(
         self,
         log: Logger,
         node: RemoteNode,
-        runner: XfstestsParallelRunner,
+        ctx: AzureFileShareParallelContext,
         azure_file_share: AzureFileShare,
-        all_share_names: List[str],
-        test_failed: bool,
         environment: Environment,
     ) -> None:
-        """Clean up worker mount points, directories, and Azure file shares."""
-        worker_count = runner.worker_count
+        """
+        Clean up all resources created for parallel Azure File Share workers.
 
-        # Cleanup worker mount points
+        Cleanup sequence (in order):
+        1. Unmount worker-specific test/scratch directories
+        2. Remove worker xfstests directory copies (via runner.cleanup_workers)
+        3. Delete Azure file shares (respects keep_environment setting)
+
+        Args:
+            log: Logger for status messages
+            node: Remote VM node to clean up
+            ctx: AzureFileShareParallelContext with all setup state
+            azure_file_share: AzureFileShare feature for share deletion
+            environment: LISA environment for platform settings
+        """
+        runner = ctx.runner
+
+        # Step 1: Unmount worker mount points
         log.debug("Cleaning up worker mount points...")
-        for worker_id in range(1, worker_count + 1):
+        for worker_id in runner.worker_ids():
             test_mount = f"{_test_folder}_worker_{worker_id}"
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
             try:
                 node.tools[Mount].umount("", test_mount, erase=False)
                 node.tools[Mount].umount("", scratch_mount, erase=False)
             except Exception:
-                pass
+                pass  # Ignore unmount failures (may already be unmounted)
 
-        # Cleanup worker xfstests directory copies using the runner
+        # Step 2: Remove worker xfstests directory copies
         runner.cleanup_workers()
 
-        # Respect keep_environment setting for cleanup
+        # Step 3: Delete Azure file shares (respects keep_environment setting)
         should_cleanup = True
         if environment.platform:
             keep_environment = environment.platform.runbook.keep_environment
@@ -876,7 +943,7 @@ class Xfstesting(TestSuite):
                     f"keep_environment={keep_environment}"
                 )
             elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
-                if test_failed:
+                if ctx.test_failed:
                     should_cleanup = False
                     log.info(
                         f"Skipping Azure file share cleanup as "
@@ -886,7 +953,7 @@ class Xfstesting(TestSuite):
         if should_cleanup:
             log.info("Cleaning up Azure file shares")
             try:
-                azure_file_share.delete_azure_fileshare(all_share_names)
+                azure_file_share.delete_azure_fileshare(ctx.all_share_names)
             except Exception as cleanup_error:
                 log.warning(f"Failed to clean up Azure file shares: {cleanup_error}")
 
@@ -936,21 +1003,16 @@ class Xfstesting(TestSuite):
         )
         log.info(f"Using {runner.worker_count} parallel workers for xfstests")
 
-        # Track test failure for keep_environment handling
-        test_failed = False
-        all_share_names: List[str] = []
+        # Initialize context - will be populated by setup, used by cleanup
+        ctx = AzureFileShareParallelContext(runner=runner)
 
         try:
             # Create worker xfstests directory copies first
             runner.create_workers()
 
             # Set up Azure file shares and configure workers
-            (
-                _share_names,
-                all_share_names,
-                _fs_url_dict,
-                _mount_opts,
-            ) = self._setup_azure_file_share_workers(
+            # Returns populated context with all setup state
+            ctx = self._setup_azure_file_share_workers(
                 log=log,
                 node=node,
                 xfstests=xfstests,
@@ -981,19 +1043,17 @@ class Xfstesting(TestSuite):
             )
 
             # Aggregate results (raises on failure)
-            _, _, test_failed = runner.aggregate_results(worker_results)
+            _, _, ctx.test_failed = runner.aggregate_results(worker_results)
 
         except Exception:
-            test_failed = True
+            ctx.test_failed = True
             raise
         finally:
             self._cleanup_azure_file_share_workers(
                 log=log,
                 node=node,
-                runner=runner,
+                ctx=ctx,
                 azure_file_share=azure_file_share,
-                all_share_names=all_share_names,
-                test_failed=test_failed,
                 environment=environment,
             )
 
@@ -1057,21 +1117,25 @@ class Xfstesting(TestSuite):
             # -------------------------------------------------------------------------
 
             # Unmount worker-specific mount points (for parallel execution)
+            # Uses _default_worker_count to match the number of workers created
             for worker_id in range(1, _default_worker_count + 1):
                 for base_mount in [_test_folder, _scratch_folder]:
                     worker_mount = f"{base_mount}_worker_{worker_id}"
                     try:
                         node.tools[Mount].umount("", worker_mount, erase=False)
                     except Exception:
-                        pass  # Best effort - may not exist if not parallel test
+                        pass  # Best effort - resource may not exist
 
             # Clean up worker xfstests directory copies (for parallel execution)
+            # Uses DEFAULT_WORKER_BASE_DIR constant for consistent path generation
             xfstests: Xfstests = node.tools[Xfstests]
             for worker_id in range(1, _default_worker_count + 1):
                 try:
-                    xfstests.cleanup_worker_copy(worker_id)
+                    xfstests.cleanup_worker_copy(
+                        worker_id, base_dir=DEFAULT_WORKER_BASE_DIR
+                    )
                 except Exception:
-                    pass  # Best effort - may not exist if not parallel test
+                    pass  # Best effort - resource may not exist
 
             # Clean up fstab entries for mount points used by xfstests
             # Use sed to remove specific entries rather than restoring backup

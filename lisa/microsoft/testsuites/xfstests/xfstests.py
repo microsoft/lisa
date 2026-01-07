@@ -111,9 +111,32 @@ from lisa.util import (
 )
 from lisa.util.parallel import run_in_parallel
 
+# =============================================================================
+# Constants for Parallel Execution
+# =============================================================================
+
+# Default base directory for worker xfstests copies
+DEFAULT_WORKER_BASE_DIR = "/tmp"
+
+# Worker directory naming pattern: {base_dir}/xfs_worker_{id}
+WORKER_DIR_PREFIX = "xfs_worker_"
+
+# Timeout buffer (seconds) subtracted from total before dividing among workers
+PARALLEL_TIMEOUT_BUFFER = 60
+
+# Extra timeout (seconds) added to each worker's share
+PARALLEL_TIMEOUT_PADDING = 30
+
+
+# =============================================================================
+# Data Classes
+# =============================================================================
+
 
 @dataclass
 class XfstestsResult:
+    """Individual test case result from xfstests output parsing."""
+
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
@@ -146,37 +169,49 @@ class XfstestsRunResult:
         )
 
 
+# =============================================================================
+# Parallel Execution Runner
+# =============================================================================
+
+
 @dataclass
 class XfstestsParallelRunner:
     """
     Manages parallel execution of xfstests across multiple workers.
 
-    Encapsulates all parallel execution logic including:
-    - Worker directory lifecycle (create/cleanup)
-    - Test batch distribution
-    - Parallel execution coordination
-    - Result aggregation
+    This class encapsulates all parallel execution logic for running xfstests
+    across multiple isolated worker directories. It is primarily designed for
+    Azure File Share (CIFS) testing where parallelization significantly reduces
+    test runtime.
 
-    This class simplifies parallel xfstests execution by providing a clean
-    interface for running tests across multiple isolated worker directories.
+    Architecture Overview:
+    ----------------------
+    Each worker gets:
+    - Its own xfstests directory copy at {base_dir}/xfs_worker_{id}
+    - Separate configuration (local.config, exclude.txt)
+    - Independent test/scratch mount points (configured externally)
 
-    Example usage:
-        runner = XfstestsParallelRunner(
-            xfstests=xfstests,
-            log=log,
-            worker_count=3,
-        )
+    This isolation prevents race conditions on shared files like:
+    - results/check.log (test output)
+    - check.time (timing data)
+    - results/{section}/ (per-test outputs)
+
+    Workflow:
+    ---------
+    1. create_workers() - Copy xfstests to worker directories
+    2. (External) Configure each worker's local.config and mounts
+    3. split_tests() - Distribute tests across workers
+    4. run_parallel() - Execute all workers simultaneously
+    5. aggregate_results() - Combine results, optionally raise on failure
+    6. cleanup_workers() - Remove worker directories
+
+    Example:
+        runner = XfstestsParallelRunner(xfstests=xfstests, log=log, worker_count=3)
         runner.create_workers()
         try:
             batches = runner.split_tests(test_list)
-            results = runner.run_parallel(
-                test_batches=batches,
-                log_path=log_path,
-                result=result,
-                test_section="cifs",
-                timeout=3600,
-            )
-            runner.aggregate_results(results)  # Raises if any failures
+            results = runner.run_parallel(batches, log_path, result, "cifs", 3600)
+            runner.aggregate_results(results)
         finally:
             runner.cleanup_workers()
     """
@@ -184,20 +219,34 @@ class XfstestsParallelRunner:
     xfstests: "Xfstests"
     log: Logger
     worker_count: int = 1
-    base_dir: str = "/tmp"
+    base_dir: str = DEFAULT_WORKER_BASE_DIR
 
     # State tracking - populated by create_workers()
     worker_paths: List[PurePath] = field(default_factory=list)
+
+    def worker_ids(self) -> range:
+        """
+        Return range of worker IDs (1-based).
+
+        Use this helper to iterate over workers consistently:
+            for worker_id in runner.worker_ids():
+                # worker_id is 1, 2, 3, ... worker_count
+        """
+        return range(1, self.worker_count + 1)
 
     def split_tests(self, test_list: List[str]) -> List[List[str]]:
         """
         Split tests into batches using simple round-robin distribution.
 
+        Note: This distributes by count, not by estimated runtime. Tests with
+        varying durations (0s to 285s) may cause worker imbalance. Future
+        enhancement: implement runtime-aware distribution.
+
         Args:
             test_list: List of test case names (e.g., ["generic/001", "generic/007"])
 
         Returns:
-            List of test lists, one per worker
+            List of test lists, one per worker (indexed 0 to worker_count-1)
         """
         batches: List[List[str]] = [[] for _ in range(self.worker_count)]
 
@@ -214,15 +263,18 @@ class XfstestsParallelRunner:
         """
         Create isolated xfstests directory copies for all workers.
 
+        Each worker directory is a full copy of the xfstests installation,
+        allowing independent configuration and execution without conflicts.
+
         Returns:
-            List of paths to worker xfstests directories
+            List of paths to worker xfstests directories (indexed 0 to worker_count-1)
         """
         self.log.info(
             f"Creating {self.worker_count} worker xfstests directory copies..."
         )
         self.worker_paths = []
 
-        for worker_id in range(1, self.worker_count + 1):
+        for worker_id in self.worker_ids():
             self.log.debug(f"Worker {worker_id}: Creating xfstests directory copy")
             worker_path = self.xfstests.create_worker_copy(
                 worker_id=worker_id,
@@ -240,10 +292,11 @@ class XfstestsParallelRunner:
         """
         Remove all worker xfstests directory copies.
 
-        Safe to call even if workers were not created.
+        Safe to call even if workers were not created - cleanup failures
+        are logged at DEBUG level and do not raise exceptions.
         """
         self.log.debug("Cleaning up worker xfstests directories...")
-        for worker_id in range(1, self.worker_count + 1):
+        for worker_id in self.worker_ids():
             try:
                 self.xfstests.cleanup_worker_copy(
                     worker_id=worker_id,
@@ -291,8 +344,13 @@ class XfstestsParallelRunner:
                 f"worker count ({self.worker_count})"
             )
 
-        # Calculate per-worker timeout with some buffer
-        worker_timeout = (timeout - 60) // self.worker_count + 30
+        # Calculate per-worker timeout:
+        # (total - buffer) / workers + padding per worker
+        # Example: (14400 - 60) / 4 + 30 = 3615 seconds per worker
+        worker_timeout = (
+            (timeout - PARALLEL_TIMEOUT_BUFFER) // self.worker_count
+            + PARALLEL_TIMEOUT_PADDING
+        )
 
         def run_worker(
             worker_id: int,
