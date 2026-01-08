@@ -12,12 +12,11 @@ from typing import Any, Dict, List, Tuple
 from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.base_tools import Uname
 from lisa.operating_system import Linux
 from lisa.sut_orchestrator import HYPERV
 from lisa.sut_orchestrator.hyperv.context import get_node_context
 from lisa.testsuite import simple_requirement
-from lisa.tools import StressNg
+from lisa.tools import KernelConfig, StressNg
 from lisa.tools.hyperv import DynamicMemoryConfig, HyperV
 from lisa.util import SkippedException
 
@@ -45,7 +44,11 @@ class DynamicMemoryTestContext:
 )
 class HyperVDynamicMemory(TestSuite):
     @TestCaseMetadata(
-        description="""Validate hot add of dynamic memory""",
+        description=(
+            "Validates that with dynamic memory enabled, VM memory stress "
+            "triggers hot add and increases assigned memory above the Startup "
+            "Memory, while keeping host and guest memory aligned."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_hot_add(
@@ -62,7 +65,11 @@ class HyperVDynamicMemory(TestSuite):
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
-        description="""Validate hot add of dynamic memory for huge pages""",
+        description=(
+            "Validates under huge page (mmaphuge) stress, dynamic memory "
+            "increases assigned memory and AnonHugePages rises accordingly, "
+            "keeping host and guest memory usage aligned."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_hot_add_hugepages(
@@ -89,7 +96,11 @@ class HyperVDynamicMemory(TestSuite):
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
-        description="""Validate Upper limit of dynamic memory""",
+        description=(
+            "Validates that dynamic memory increases assigned memory up to the "
+            "configured maximum limit when the VM is under memory stress, while "
+            "keeping host and guest memory usage aligned."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_upper_limit(
@@ -110,7 +121,11 @@ class HyperVDynamicMemory(TestSuite):
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
-        description="""Validate Upper limit of dynamic memory for huge pages""",
+        description=(
+            "Validates that under huge page (mmaphuge) stress, dynamic memory "
+            "increases the VM's assigned memory up to the configured Maximum "
+            "limit, while keeping host and guest memory usage aligned."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_upper_limit_hugepages(
@@ -141,7 +156,11 @@ class HyperVDynamicMemory(TestSuite):
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
-        description="""Validate Balloon Up under Host Memory Pressure""",
+        description=(
+            "Validates that when the host is under memory pressure, the Hyper-V "
+            "balloon driver inflates and reduces the VM's assigned memory while "
+            "keeping host and guest memory usage aligned."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_balloon_up(
@@ -159,7 +178,11 @@ class HyperVDynamicMemory(TestSuite):
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
-        description="""Validate Lower limit of dynamic memory""",
+        description=(
+            "Validates that, under host memory pressure, dynamic memory reduces the "
+            "VM's assigned memory down to the configured minimum limit when "
+            "ballooning is enabled."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_lower_limit(
@@ -181,7 +204,11 @@ class HyperVDynamicMemory(TestSuite):
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
-        description="""Validate Balloon Down under VM Stress""",
+        description=(
+            "Validates balloon down behavior: applying VM memory stress deflates the "
+            "balloon and increases the VM's assigned memory from the level before "
+            "stress, while keeping host and guest memory usage aligned."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_balloon_down(
@@ -201,7 +228,11 @@ class HyperVDynamicMemory(TestSuite):
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
-        description="""Validate Balloon Down under VM Stress with Huge Pages""",
+        description=(
+            "Validates balloon down with huge pages: mmaphuge stress deflates the "
+            "balloon and raises assigned memory, with AnonHugePages increasing "
+            "and keeping host and guest memory usage aligned."
+        ),
         priority=1,
     )
     def verify_dynamic_memory_balloon_down_hugepages(
@@ -247,17 +278,11 @@ class HyperVDynamicMemory(TestSuite):
 
         self._ensure_debugfs_mounted(node)
 
-        uname = node.tools[Uname]
-        kernel_info = uname.get_linux_information()
-        kernel_config_balloon = self._read_kernel_config(
-            node,
-            kernel_info.kernel_version_raw,
-            "CONFIG_HYPERV_BALLOON",
+        kernel_config_balloon = node.tools[KernelConfig].is_enabled(
+            "CONFIG_HYPERV_BALLOON"
         )
-        kernel_config_hotplug = self._read_kernel_config(
-            node,
-            kernel_info.kernel_version_raw,
-            "CONFIG_MEMORY_HOTPLUG",
+        kernel_config_hotplug = node.tools[KernelConfig].is_enabled(
+            "CONFIG_MEMORY_HOTPLUG"
         )
 
         capabilities, page_size_kb = self._get_hv_balloon_info(node)
@@ -280,18 +305,6 @@ class HyperVDynamicMemory(TestSuite):
             page_size_kb=page_size_kb,
         )
 
-    def _read_kernel_config(self, node: Node, kernel_version: str, config: str) -> bool:
-        config_path = f"/boot/config-{kernel_version}"
-        result = node.execute(
-            f"grep -E '^{config}=(y|m)$' {config_path}",
-            sudo=True,
-            shell=True,
-            no_debug_log=True,
-            no_info_log=True,
-            no_error_log=True,
-        )
-        return result.exit_code == 0
-
     def _get_vm_stress_gbytes(self, ctx: DynamicMemoryTestContext) -> str:
         max_mb = ctx.dynamic_memory_config.maximum_mb
         gbytes = math.ceil(math.ceil(max_mb * 1.75) / 1024)
@@ -299,6 +312,10 @@ class HyperVDynamicMemory(TestSuite):
 
     def _get_host_pressure_mb(self, ctx: DynamicMemoryTestContext) -> int:
         host_total_memory_mb = ctx.hyperv.get_host_total_memory_mb()
+        # We are running stress on host for 45 seconds; dividing total host memory by 45
+        # sets a per-second stress rate. Over the 45s run, this approximates
+        # consuming the host's total memory, reliably causing the host to ask
+        # memory back from the VM (balloon up) without overcommitting.
         return math.ceil(host_total_memory_mb / 45)
 
     def _apply_vm_stress(

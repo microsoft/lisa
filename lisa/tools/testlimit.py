@@ -8,6 +8,13 @@ from lisa.tools.unzip import Unzip
 
 
 class TestLimit(Tool):
+    """
+    Sysinternals TestLimit wrapper for Windows hosts.
+
+    Downloads and runs the TestLimit utility to create controlled memory
+    pressure for validating memory behavior under stress.
+    """
+
     _DOWNLOAD_URL = "https://download.sysinternals.com/files/Testlimit.zip"
     _ARCHIVE_NAME = "Testlimit.zip"
     _BINARY_NAME = "Testlimit64.exe"
@@ -46,6 +53,13 @@ class TestLimit(Tool):
         return self._check_exists()
 
     def apply_memory_pressure(self, memory_mb: int, duration: int) -> None:
+        """
+        Allocate and hold memory to induce host pressure.
+
+        Parameters:
+        - memory_mb: Leak and touch memory in specified MBs in a single allocation.
+        - duration: Seconds to keep allocation active before stopping TestLimit.
+        """
         hv_pressure_exe = self.command
         ps_command = (
             f"$p = Start-Process -FilePath '{hv_pressure_exe}' "

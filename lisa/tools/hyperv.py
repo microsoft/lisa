@@ -54,6 +54,15 @@ class VMDisk:
 
 @dataclass
 class DynamicMemoryConfig:
+    """
+    Represents the VM's dynamic memory configuration as reported by Hyper-V.
+
+    - minimum_mb: Minimum memory in MB that Hyper-V allows the VM to retain.
+    - startup_mb: Startup memory in MB assigned to the VM at boot.
+    - maximum_mb: Maximum memory in MB that Hyper-V can assign to the VM.
+    - dynamic_memory_enabled: Whether dynamic memory is enabled for the VM.
+    """
+
     minimum_mb: int
     startup_mb: int
     maximum_mb: int
@@ -181,7 +190,6 @@ class HyperV(Tool):
         startup_memory_mb: Optional[int] = None,
         maximum_memory_mb: Optional[int] = None,
         buffer: Optional[int] = None,
-        priority: Optional[int] = None,
         attach_offline_disks: bool = True,
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
@@ -224,8 +232,6 @@ class HyperV(Tool):
             dynamic_memory_args.append(f"-MaximumBytes {maximum_memory_mb}MB")
             if buffer is not None:
                 dynamic_memory_args.append(f"-Buffer {buffer}")
-            if priority is not None:
-                dynamic_memory_args.append(f"-Priority {priority}")
             self._run_hyperv_cmdlet(
                 "Set-VMMemory",
                 " ".join(dynamic_memory_args),
@@ -575,6 +581,22 @@ class HyperV(Tool):
         startup_bytes = output.get("Startup")
         maximum_bytes = output.get("Maximum")
 
+        # Validate fields to avoid TypeError in _bytes_to_mb when values are None
+        missing: List[str] = []
+        if minimum_bytes is None:
+            missing.append("Minimum")
+        if startup_bytes is None:
+            missing.append("Startup")
+        if maximum_bytes is None:
+            missing.append("Maximum")
+        if missing:
+            raise LisaException(
+                (
+                    "Get-VMMemory returned missing fields for VM "
+                    f"{vm_name}: {', '.join(missing)}"
+                )
+            )
+
         return DynamicMemoryConfig(
             dynamic_memory_enabled=bool(output.get("DynamicMemoryEnabled", False)),
             minimum_mb=self._bytes_to_mb(minimum_bytes),
@@ -593,7 +615,13 @@ class HyperV(Tool):
             force_run=True,
             output_json=True,
         )
+        if not output:
+            raise LisaException(f"Get-VM returned no data for VM {vm_name}")
         assigned = output.get("MemoryAssigned")
+        if assigned is None:
+            raise LisaException(
+                f"MemoryAssigned value is missing in Get-VM output for VM {vm_name}"
+            )
         return self._bytes_to_mb(assigned)
 
     def get_host_total_memory_mb(self) -> int:
@@ -603,10 +631,10 @@ class HyperV(Tool):
         )
         try:
             total_bytes = int(str(output).strip())
-        except Exception:
+        except (TypeError, ValueError) as ex:
             raise LisaException(
-                "Failed to read host total memory from PowerShell output"
-            )
+                f"Failed to read host total memory from PowerShell output: {output!r}"
+            ) from ex
         return self._bytes_to_mb(total_bytes)
 
     def delete_virtual_disk(self, name: str) -> None:

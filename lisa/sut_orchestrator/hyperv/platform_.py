@@ -326,7 +326,6 @@ class HypervPlatform(Platform):
                 log.debug(f"Using default switch: {switch_to_use}")
 
             dm = node_runbook.dynamic_memory
-
             hv.create_vm(
                 name=vm_name,
                 guest_image_path=str(vhd_path),
@@ -339,7 +338,6 @@ class HypervPlatform(Platform):
                 startup_memory_mb=dm.startup_memory_mb if dm else None,
                 maximum_memory_mb=dm.max_memory_mb if dm else None,
                 buffer=dm.buffer if dm else None,
-                priority=dm.priority if dm else None,
                 secure_boot=False,
                 com_ports={
                     1: com1_pipe_path,
