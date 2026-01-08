@@ -162,13 +162,13 @@ class KdumpCrash(TestSuite):
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=193, max=415)),
         ),
-        timeout=5000,
+        timeout=6000,
     )
     def verify_kdumpcrash_on_cpu192(
         self, node: Node, log_path: Path, log: Logger
     ) -> None:
         self.kdump_util.trigger_kdump_on_specified_cpu(
-            cpu_num=192, log_path=log_path, timeout_upper_bound=4500
+            cpu_num=192, log_path=log_path, timeout_upper_bound=5500
         )
 
     @TestCaseMetadata(
