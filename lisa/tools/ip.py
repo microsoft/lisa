@@ -322,6 +322,53 @@ class Ip(Tool):
         self.add_ipv4_address(name, ip)
         self.up(name)
 
+    def create_virtual_interface(
+        self,
+        name: str,
+        type_: str,
+        *,
+        dev: Optional[str] = None,
+        params: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """
+        Create a virtual interface using "ip link add" with a given link type.
+
+        Examples:
+        - XFRM: type_="xfrm", dev="eth0", params={"if_id": "100"}
+        - VRF:  type_="vrf", params={"table": "10"}
+
+        Args:
+            name: Interface name to create.
+            type_: Link type (e.g., "xfrm", "vrf", "bridge", "vlan").
+            dev: Optional underlying device to associate (e.g., physical NIC).
+            params: Optional key/value parameters specific to the link type.
+
+                Behavior:
+                        - If the interface already exists, this is a no-op
+                            (logs and returns).
+                        - Raises on failure with a descriptive message.
+        """
+        if self.nic_exists(name):
+            self._log.debug(f"Interface {name} already exists")
+            return
+
+        cmd = f"link add {name} type {type_}"
+        if dev:
+            cmd += f" dev {dev}"
+        if params:
+            for k, v in params.items():
+                cmd += f" {k} {v}"
+
+        self.run(
+            cmd,
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not create {type_} interface {name}"
+            ),
+        )
+
     def set_bridge_configuration(self, name: str, key: str, value: str) -> None:
         self.run(
             f"link set dev {name} type bridge {key} {value}",

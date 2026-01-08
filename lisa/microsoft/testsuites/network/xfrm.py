@@ -106,37 +106,28 @@ class XfrmSuite(TestSuite):
             raise SkippedException(reason)
 
         try:
-            # Create xfrm interface
-            # ip link add <name> type xfrm dev <physical_dev> if_id <id>
-            # We need to find an existing physical interface first
-            cmd = (
-                f"link add {interface_name} type xfrm "
-                f"dev {default_nic} if_id {if_id}"
+            # Create xfrm interface using helper
+            ip.create_virtual_interface(
+                name=interface_name,
+                type_="xfrm",
+                dev=default_nic,
+                params={"if_id": if_id},
             )
-            result = ip.run(cmd, sudo=True, force_run=True)
 
-            # Check if interface creation succeeded
-            if result.exit_code == 0:
-                # Verify interface exists
-                if not ip.nic_exists(interface_name):
-                    raise AssertionError(
-                        f"Interface {interface_name} creation succeeded but "
-                        "interface not found."
-                    )
-                # Also verify it appears in link show output
-                show_result = ip.run(
-                    f"link show {interface_name}", sudo=True, force_run=True
-                )
-                assert_that(show_result.stdout).described_as(
-                    f"output should contain {interface_name}"
-                ).contains(interface_name)
-            else:
-                # Interface creation failed - this indicates XFRM support issue
+            # Verify interface exists
+            if not ip.nic_exists(interface_name):
                 raise AssertionError(
-                    f"Failed to create xfrm interface. "
-                    f"Exit code: {result.exit_code}, "
-                    f"stderr: {result.stderr}"
+                    f"Interface {interface_name} creation succeeded but "
+                    "interface not found."
                 )
+
+            # Also verify it appears in link show output
+            show_result = ip.run(
+                f"link show {interface_name}", sudo=True, force_run=True
+            )
+            assert_that(show_result.stdout).described_as(
+                f"output should contain {interface_name}"
+            ).contains(interface_name)
 
         finally:
             # Clean up - delete the test interface if it was created
