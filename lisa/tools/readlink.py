@@ -25,7 +25,7 @@ class Readlink(Tool):
         """
         Read symbolic link or canonical file name.
         """
-        args = "-f " if canonicalize else ""
+        args = "-e " if canonicalize else ""
         args += path
 
         result = self.run(
