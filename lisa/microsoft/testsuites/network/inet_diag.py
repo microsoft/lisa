@@ -3,6 +3,7 @@
 
 import os
 import time
+from enum import Enum
 from pathlib import Path
 
 from assertpy import assert_that
@@ -78,11 +79,21 @@ class InetDiagSuite(TestSuite):
         if not node.shell.exists(node.working_path / filename):
             node.shell.copy(file_path, node.working_path / filename)
 
+    class ExpectedConnState(str, Enum):
+        """Expected connection states used by polling helpers.
+
+        NONE is a sentinel meaning "no connection should exist"; other values
+        should map to real ss TCP state strings like ESTAB.
+        """
+
+        ESTAB = "ESTAB"
+        NONE = "NONE"
+
     def _wait_for_connection_state(
         self,
         node: Node,
         port: int,
-        expected_state: str,
+        expected_state: ExpectedConnState,
         timeout: int = 10,
         poll_interval: float = 0.5,
     ) -> bool:
@@ -92,7 +103,8 @@ class InetDiagSuite(TestSuite):
         Args:
             node: The node to check
             port: The port number to check
-            expected_state: Expected connection state (e.g., "ESTAB", "NONE")
+            expected_state: Expected connection state
+                (ExpectedConnState.ESTAB or ExpectedConnState.NONE)
             timeout: Maximum time to wait in seconds
             poll_interval: Time between checks in seconds
 
@@ -106,7 +118,7 @@ class InetDiagSuite(TestSuite):
             check_count += 1
             ss = node.tools[Ss]
 
-            if expected_state == "NONE":
+            if expected_state == self.ExpectedConnState.NONE:
                 # Checking that connection does NOT exist
                 connection_exists = ss.connection_exists(
                     port=port, state="ESTAB", sport=True
@@ -121,28 +133,33 @@ class InetDiagSuite(TestSuite):
             else:
                 # Checking that connection exists in expected state
                 connection_exists = ss.connection_exists(
-                    port=port, state=expected_state, sport=True
+                    port=port, state=expected_state.value, sport=True
                 )
                 if connection_exists:
                     node.log.debug(
-                        f"Connection on port {port} reached state {expected_state} "
-                        f"after {timer.elapsed_text(stop=False)} "
-                        f"({check_count} checks)"
+                        "Connection on port %s reached state %s after %s (%d checks)",
+                        port,
+                        expected_state.value,
+                        timer.elapsed_text(stop=False),
+                        check_count,
                     )
                     return True
 
             if check_count % 5 == 0:
                 node.log.debug(
-                    f"Waiting for connection on port {port} to reach state "
-                    f"{expected_state}. Elapsed: {timer.elapsed_text(stop=False)}, "
-                    f"checks: {check_count}"
+                    "Waiting for connection on port %s to reach state %s. "
+                    "Elapsed: %s, checks: %d",
+                    port,
+                    expected_state.value,
+                    timer.elapsed_text(stop=False),
+                    check_count,
                 )
 
             time.sleep(poll_interval)
 
         node.log.debug(
             f"Timeout waiting for connection on port {port} to reach state "
-            f"{expected_state}. Elapsed: {timer.elapsed_text()}, "
+            f"{expected_state.value}. Elapsed: {timer.elapsed_text()}, "
             f"total checks: {check_count}"
         )
         return False
@@ -204,7 +221,7 @@ class InetDiagSuite(TestSuite):
             connection_ready = self._wait_for_connection_state(
                 node=node,
                 port=test_port,
-                expected_state="ESTAB",
+                expected_state=self.ExpectedConnState.ESTAB,
                 timeout=15,
                 poll_interval=0.5,
             )
@@ -255,7 +272,7 @@ class InetDiagSuite(TestSuite):
             connection_destroyed = self._wait_for_connection_state(
                 node=node,
                 port=test_port,
-                expected_state="NONE",
+                expected_state=self.ExpectedConnState.NONE,
                 timeout=10,
                 poll_interval=0.3,
             )
