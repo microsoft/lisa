@@ -81,7 +81,7 @@ Usage Example:
     finally:
         runner.cleanup_workers()
 """
-
+import os
 import re
 from dataclasses import dataclass, field
 from functools import partial
@@ -771,7 +771,10 @@ class Xfstests(Tool):
     def command(self) -> str:
         # The command is not used
         # _check_exists is overwritten to check tool existence
-        return str(self.get_tool_path(use_global=True) / "xfstests-dev" / "check")
+        return (
+            f"{str(self.get_tool_path(use_global=True))}/"
+            f"{self.get_xfstests_repo_name()}/check"
+        )
 
     @property
     def can_install(self) -> bool:
@@ -926,7 +929,9 @@ class Xfstests(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
-        self._code_path = self.get_tool_path(use_global=True) / "xfstests-dev"
+        self._code_path = (
+            self.get_tool_path(use_global=True) / self.get_xfstests_repo_name()
+        )
 
     def _install_dep(self) -> None:
         """
@@ -1077,7 +1082,7 @@ class Xfstests(Tool):
         git = self.node.tools[Git]
         git.clone(url=repo, cwd=tool_path, ref=branch)
         make = self.node.tools[Make]
-        code_path = tool_path.joinpath("xfstests-dev")
+        code_path = tool_path.joinpath(self.get_xfstests_repo_name())
 
         # Remove source files that have kernel header compatibility issues.
         # splice2pipe.c and rw_hint.c use kernel macros that may not exist
@@ -1224,6 +1229,10 @@ class Xfstests(Tool):
         worker_path = f"{base_dir}/xfs_worker_{worker_id}"
         self._log.debug(f"Cleaning up worker {worker_id} directory: {worker_path}")
         self.node.execute(f"rm -rf {worker_path}", sudo=True)
+
+    def get_xfstests_repo_name(self) -> str:
+        repo = self.repo
+        return os.path.basename(repo.rstrip("/")).removesuffix(".git")
 
     def set_local_config(
         self,

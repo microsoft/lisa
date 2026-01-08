@@ -267,6 +267,10 @@ _default_storage_account_name: str = ""
 # Tests are distributed across workers round-robin by count, not runtime.
 _default_worker_count = 4
 
+# Custom xfstests repo and branch (set via runbook variables)
+_custom_xfstests_repo: str = ""
+_custom_xfstests_branch: str = ""
+
 
 @dataclass
 class AzureFileShareContext:
@@ -460,6 +464,7 @@ class Xfstesting(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         global _default_smb_excluded_tests, _default_smb_mount, _default_smb_testcases
         global _default_storage_account_name
+        global _custom_xfstests_repo, _custom_xfstests_branch
         global _default_worker_count
 
         node = kwargs["node"]
@@ -487,6 +492,10 @@ class Xfstesting(TestSuite):
             "storage_account_name",
             "",
         )
+
+        # checking if user has specified a custom xfstests repo
+        _custom_xfstests_repo = variables.get("xfstests_repo", "")
+        _custom_xfstests_branch = variables.get("xfstests_branch", "")
 
         # allowing the user to set number of worker threads
         worker_count = variables.get("xfstests_workers", _default_worker_count)
@@ -1481,6 +1490,12 @@ class Xfstesting(TestSuite):
         )
 
     def _install_xfstests(self, node: Node) -> Xfstests:
+        if _custom_xfstests_repo:
+            Xfstests.repo = _custom_xfstests_repo
+
+        if _custom_xfstests_branch:
+            Xfstests.branch = _custom_xfstests_branch
+
         try:
             xfstests: Xfstests = node.tools[Xfstests]
             return xfstests
