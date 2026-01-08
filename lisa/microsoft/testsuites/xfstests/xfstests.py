@@ -348,9 +348,8 @@ class XfstestsParallelRunner:
         # (total - buffer) / workers + padding per worker
         # Example: (14400 - 60) / 4 + 30 = 3615 seconds per worker
         worker_timeout = (
-            (timeout - PARALLEL_TIMEOUT_BUFFER) // self.worker_count
-            + PARALLEL_TIMEOUT_PADDING
-        )
+            timeout - PARALLEL_TIMEOUT_BUFFER
+        ) // self.worker_count + PARALLEL_TIMEOUT_PADDING
 
         def run_worker(
             worker_id: int,
