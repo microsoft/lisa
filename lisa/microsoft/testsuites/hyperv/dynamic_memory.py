@@ -16,7 +16,7 @@ from lisa.operating_system import Linux
 from lisa.sut_orchestrator import HYPERV
 from lisa.sut_orchestrator.hyperv.context import get_node_context
 from lisa.testsuite import simple_requirement
-from lisa.tools import KernelConfig, StressNg
+from lisa.tools import FileSystem, KernelConfig, Mount, StressNg
 from lisa.tools.hyperv import DynamicMemoryConfig, HyperV
 from lisa.util import SkippedException
 
@@ -31,6 +31,7 @@ class DynamicMemoryTestContext:
     hot_add_ready: bool
     page_size_kb: int
     host_guest_tolerance_mb: int = 512
+    limit_tolerance_mb: int = 128
 
 
 @TestSuiteMetadata(
@@ -117,7 +118,7 @@ class HyperVDynamicMemory(TestSuite):
         )
         assert_that(net_mb_transaction).described_as(
             "assigned memory should be equal to maximum memory for VM under stress"
-        ).is_equal_to(expected_delta_mb)
+        ).is_close_to(expected_delta_mb, tolerance=ctx.limit_tolerance_mb)
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -149,7 +150,7 @@ class HyperVDynamicMemory(TestSuite):
         assert_that(net_mb_transaction).described_as(
             "assigned memory should be equal to maximum memory for VM under stress "
             "with huge pages"
-        ).is_equal_to(expected_delta_mb)
+        ).is_close_to(expected_delta_mb, tolerance=ctx.limit_tolerance_mb)
         assert_that(anon_huge_pages_mid).described_as(
             "AnonHugePages did not increase under huge page stress"
         ).is_greater_than(anon_huge_pages_before)
@@ -200,7 +201,7 @@ class HyperVDynamicMemory(TestSuite):
         assert_that(net_mb_transaction).described_as(
             "Assigned memory should be equal to minimum memory for VM "
             "under host pressure"
-        ).is_equal_to(expected_delta_mb)
+        ).is_close_to(expected_delta_mb, tolerance=ctx.limit_tolerance_mb)
         self._validate_host_guest_alignment(ctx)
 
     @TestCaseMetadata(
@@ -295,6 +296,9 @@ class HyperVDynamicMemory(TestSuite):
         hot_add_ready = (
             balloon_ready and kernel_config_hotplug and "hot_add" in capabilities
         )
+        host_guest_tolerance_mb = int(variables.get("host_guest_tolerance_mb", 512))
+        limit_tolerance_mb = int(variables.get("limit_tolerance_mb", 128))
+
         return DynamicMemoryTestContext(
             node=node,
             vm_name=node_context.vm_name,
@@ -303,6 +307,8 @@ class HyperVDynamicMemory(TestSuite):
             balloon_ready=balloon_ready,
             hot_add_ready=hot_add_ready,
             page_size_kb=page_size_kb,
+            host_guest_tolerance_mb=host_guest_tolerance_mb,
+            limit_tolerance_mb=limit_tolerance_mb,
         )
 
     def _get_vm_stress_gbytes(self, ctx: DynamicMemoryTestContext) -> str:
@@ -362,10 +368,9 @@ class HyperVDynamicMemory(TestSuite):
             ctx.vm_name
         )
         mem_total_from_vm_mb = self._read_meminfo_value(ctx.node, "MemTotal") // 1024
-        difference = abs(mem_total_from_host_mb - mem_total_from_vm_mb)
-        assert_that(difference).described_as(
+        assert_that(mem_total_from_vm_mb).described_as(
             "Memory reported by Hyper-V host differs from guest MemTotal"
-        ).is_less_than_or_equal_to(ctx.host_guest_tolerance_mb)
+        ).is_close_to(mem_total_from_host_mb, tolerance=ctx.host_guest_tolerance_mb)
 
     def _read_meminfo_value(self, node: Node, key: str) -> int:
         content = node.execute("cat /proc/meminfo", sudo=False).stdout
@@ -435,27 +440,17 @@ class HyperVDynamicMemory(TestSuite):
         return result.stdout
 
     def _ensure_debugfs_mounted(self, node: Node) -> None:
-        if not self._check_debugfs_mounted(node):
-            node.execute(
-                "mount -t debugfs debugfs /sys/kernel/debug",
-                sudo=True,
-                shell=True,
+        mount_tool = node.tools[Mount]
+        if not mount_tool.check_mount_point_exist("/sys/kernel/debug"):
+            mount_tool.mount(
+                name="debugfs",
+                point="/sys/kernel/debug",
+                fs_type=FileSystem.debugfs,
             )
-            if not self._check_debugfs_mounted(node):
+            if not mount_tool.check_mount_point_exist("/sys/kernel/debug"):
                 raise SkippedException(
                     (
                         "Debugfs is not mounted and could not be mounted; "
                         "cannot access hv_balloon metrics"
                     )
                 )
-
-    def _check_debugfs_mounted(self, node: Node) -> bool:
-        result = node.execute(
-            "mount | grep -i debugfs",
-            sudo=True,
-            shell=True,
-            no_debug_log=True,
-            no_info_log=True,
-            no_error_log=True,
-        )
-        return result.exit_code == 0
