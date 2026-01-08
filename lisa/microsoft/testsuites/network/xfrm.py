@@ -140,7 +140,7 @@ class XfrmSuite(TestSuite):
 
         finally:
             # Clean up - delete the test interface if it was created
-            ip.run(f"link del {interface_name}", sudo=True, force_run=True)
+            ip.delete_interface(interface_name)
 
             # Restore original module state if we modified it
             if not is_builtin and original_state_loaded is not None:
