@@ -134,6 +134,7 @@ from .tar import Tar
 from .taskset import TaskSet
 from .tcpdump import TcpDump
 from .tee import Tee
+from .testlimit import TestLimit
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
@@ -294,6 +295,7 @@ __all__ = [
     "Tar",
     "TaskSet",
     "Tee",
+    "TestLimit",
     "Texinfo",
     "TcpDump",
     "Timedatectl",

@@ -16,6 +16,7 @@ FileSystem = Enum(
         "ext3",
         "ext4",
         "btrfs",
+        "debugfs",
         "hugetlbfs",
         "nfs",
         "tracefs",
