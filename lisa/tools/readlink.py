@@ -17,7 +17,7 @@ class Readlink(Tool):
     def _read_link(
         self,
         path: str,
-        canonicalize: bool = False,
+        canonicalize_existing: bool = False,
         force_run: bool = True,
         sudo: bool = False,
         no_error_log: bool = False,
@@ -25,7 +25,7 @@ class Readlink(Tool):
         """
         Read symbolic link or canonical file name.
         """
-        args = "-e " if canonicalize else ""
+        args = "-e " if canonicalize_existing else ""
         args += path
 
         result = self.run(
@@ -53,7 +53,7 @@ class Readlink(Tool):
         """
         return self._read_link(
             path=path,
-            canonicalize=False,
+            canonicalize_existing=False,
             sudo=sudo,
             no_error_log=no_error_log,
         )
@@ -70,7 +70,7 @@ class Readlink(Tool):
         """
         return self._read_link(
             path=path,
-            canonicalize=True,
+            canonicalize_existing=True,
             sudo=sudo,
             no_error_log=no_error_log,
         )
