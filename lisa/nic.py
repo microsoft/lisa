@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 from retry import retry
 
-from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Tee
+from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Readlink, Tee
 from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
 
 if TYPE_CHECKING:
@@ -62,25 +62,31 @@ class NicInfo:
 
     @property
     def is_pci_module_enabled(self) -> bool:
-        # nic with paired pci device
-        if len(self.lower) > 0:
+        """
+        Check if this NIC has Accelerated Networking (AN) enabled.
+        This covers both paired NICs (with lower device)
+        and standalone PCI NICs (without lower device).
+        """
+        # Synthetic NIC paired with VF device
+        if self.lower and self.is_pci_device:
+            return True
+        # Primary interface is PCI device itself
+        elif not self.lower and self.is_pci_device and self.module_name != "hv_netvsc":
             return True
         else:
-            # pci device without paired nic
-            if self.is_pci_device:
-                # pci device without accelerated network module
-                if self.module_name == "hv_netvsc":
-                    return False
-                else:
-                    # pci device with accelerated network module
-                    return True
-            else:
-                # no pci devices
-                return False
+            return False
 
     @property
     def is_pci_device(self) -> bool:
         return len(self.pci_slot) > 0
+
+    @property
+    def is_pci_only_nic(self) -> bool:
+        """
+        Check if this is an Accelerated Networking (AN) NIC without
+        synthetic NIC pairing.
+        """
+        return not self.lower and self.is_pci_device and self.module_name != "hv_netvsc"
 
     @property
     def pci_device_name(self) -> str:
@@ -160,8 +166,33 @@ class Nics(InitializableMixin):
     def get_unpaired_devices(self) -> List[str]:
         return [x.name for x in self.nics.values() if not x.lower]
 
-    def get_lower_nics(self) -> List[str]:
-        return [x.lower for x in self.nics.values() if x.lower]
+    def get_synthetic_devices(self) -> List[str]:
+        synthetic_devices = []
+        self._node.log.debug("Evaluating NICs for synthetic devices:")
+        for nic in self.nics.values():
+            # Return all synthetic NICs (with or without paired AN/VF devices).
+            # Exclude standalone PCI NICs.
+            self._node.log.debug(
+                f"  NIC {nic.name}: lower='{nic.lower}', "
+                f"is_pci_device={nic.is_pci_device}, "
+                f"pci_slot='{nic.pci_slot}', module_name='{nic.module_name}', "
+                f"is_pci_only_nic={nic.is_pci_only_nic}, "
+                f"is_synthetic={not nic.is_pci_only_nic}"
+            )
+            if not nic.is_pci_only_nic:
+                synthetic_devices.append(nic.name)
+
+        self._node.log.debug(f"Found synthetic devices: {synthetic_devices}")
+        return synthetic_devices
+
+    def get_pci_nics(self) -> List[str]:
+        pci_nics = []
+        for nic in self.nics.values():
+            if nic.is_pci_only_nic:
+                pci_nics.append(nic.name)
+            elif nic.lower:
+                pci_nics.append(nic.lower)
+        return pci_nics
 
     def is_pci_module_enabled(self) -> bool:
         return any(
@@ -200,10 +231,12 @@ class Nics(InitializableMixin):
         # get the current driver for the nic from the node
         # sysfs provides a link to the driver entry at device/driver
         nic = self.get_nic(nic_name)
-        cmd = f"readlink -f /sys/class/net/{nic_name}/device/driver"
+        readlink = self._node.tools[Readlink]
         # ex return value:
         # /sys/bus/vmbus/drivers/hv_netvsc
-        found_link = self._node.execute(cmd, expected_exit_code=0).stdout
+        found_link = readlink.get_canonical_path(
+            f"/sys/class/net/{nic_name}/device/driver"
+        )
         assert_that(found_link).described_as(
             f"sysfs check for NIC device {nic_name} driver returned no output"
         ).is_not_equal_to("")
@@ -313,7 +346,8 @@ class Nics(InitializableMixin):
         if not nic_name:
             assert_that(sorted(found_nics)).described_as(
                 f"Could not locate nic info for all nics. "
-                f"Nic set was {self.nics.keys()} and only found info for {found_nics}"
+                f"Nic set was {self.nics.keys()} and only found info for "
+                f"{found_nics}"
             ).is_equal_to(sorted(self.nics.keys()))
 
     def reload(self) -> None:
@@ -330,7 +364,7 @@ class Nics(InitializableMixin):
             if self.is_pci_module_enabled():
                 assert_that(pci_enabled).described_as(
                     "AN enablement and pci device are inconsistent"
-                ).is_equal_to(any(self.get_lower_nics()))
+                ).is_equal_to(any(self.get_pci_nics()))
         else:
             assert_that(self.get_device_slots()).described_as(
                 "pci devices still on the test node."
@@ -368,8 +402,9 @@ class Nics(InitializableMixin):
         return non_virtual_nics
 
     def _get_nic_uuid(self, nic_name: str) -> str:
-        full_dev_path = self._node.execute(f"readlink /sys/class/net/{nic_name}/device")
-        uuid = os.path.basename(full_dev_path.stdout.strip())
+        readlink = self._node.tools[Readlink]
+        full_dev_path = readlink.get_target(f"/sys/class/net/{nic_name}/device")
+        uuid = os.path.basename(full_dev_path)
         self._node.log.debug(f"{nic_name} UUID:{uuid}")
         return uuid
 
@@ -436,7 +471,7 @@ class Nics(InitializableMixin):
         for nic_name in [
             x
             for x in self._nic_names
-            if x not in self.nics.keys() and x not in self.get_lower_nics()
+            if x not in self.nics.keys() and x not in self.get_pci_nics()
         ]:
             nic_info = NicInfo(name=nic_name)
             self.append(nic_info)
@@ -445,6 +480,10 @@ class Nics(InitializableMixin):
             "During Lisa nic info initialization, Nics class could not "
             f"find any nics attached to {self._node.name}."
         ).is_greater_than(0)
+
+        # Handle unpaired PCI NICs: try to discover NICs with their PCI devices
+        # This covers scenarios where NICs operate standalone without synthetic pairing
+        self._discover_standalone_pci_nics(lspci)
 
         # handle situation when there is no mana driver, but have mana pci devices
         if self.is_mana_device_present() and not self.is_mana_driver_enabled():
@@ -475,6 +514,59 @@ class Nics(InitializableMixin):
 
     def is_mana_driver_enabled(self) -> bool:
         return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
+
+    def _discover_standalone_pci_nics(self, lspci: Lspci) -> None:
+        """
+        Discover standalone PCI NICs by checking device paths for PCI
+        information. This handles scenarios where NICs operate as standalone
+        PCI devices without synthetic pairing.
+        """
+        # Get unpaired NICs that might have PCI devices
+        unpaired_nics = self.get_unpaired_devices()
+        readlink = self._node.tools[Readlink]
+
+        for nic_name in unpaired_nics:
+            nic = self.nics[nic_name]
+            # Skip if already has PCI slot assigned
+            if nic.pci_slot:
+                continue
+
+            # Try to find the PCI slot for this NIC by checking its device path
+            device_path = readlink.get_canonical_path(
+                f"/sys/class/net/{nic_name}/device",
+                no_error_log=True,
+            )
+            if device_path:
+                # Extract PCI slot from device path using lspci tool
+                # Path format: /sys/devices/.../XXXX:XX:XX.X/net/nicname
+                pci_slot = lspci.get_pci_slot_from_device_path(device_path)
+                if pci_slot:
+                    # Get the module name for this PCI device
+                    try:
+                        module_name = lspci.get_used_module(pci_slot)
+                        if module_name:
+                            nic.pci_slot = pci_slot
+                            # For standalone PCI NICs, set module_name directly
+                            # (no lower_module_name since there's no lower device)
+                            nic.module_name = module_name
+                            self._node.log.debug(
+                                f"Associated unpaired NIC {nic_name} "
+                                f"with PCI slot {pci_slot} (module: {module_name})"
+                            )
+                        else:
+                            self._node.log.debug(
+                                f"Found PCI slot {pci_slot} for NIC {nic_name} "
+                                f"but could not determine module name"
+                            )
+                    except Exception as e:
+                        self._node.log.debug(
+                            f"Could not get module for PCI slot {pci_slot}: {e}"
+                        )
+                else:
+                    self._node.log.debug(
+                        f"Could not extract PCI slot from device path for {nic_name}: "
+                        f"{device_path}"
+                    )
 
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
