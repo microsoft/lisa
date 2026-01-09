@@ -14,7 +14,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import Posix
+from lisa.operating_system import Linux
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 
 
@@ -28,7 +28,7 @@ from lisa.sut_orchestrator import AZURE, HYPERV, READY
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
-        supported_os=[Posix],
+        supported_os=[Linux],
     ),
 )
 class LibbpfToolsSuite(TestSuite):
@@ -68,22 +68,22 @@ class LibbpfToolsSuite(TestSuite):
         priority=2,
     )
     def verify_libbpf_tools_package_available(self, node: Node) -> None:
-        # Cast for mypy - supported_os filter ensures node.os is Posix
-        posix_os = cast(Posix, node.os)
+        # Cast for mypy - supported_os filter ensures node.os is linux
+        linux_os = cast(Linux, node.os)
 
         # Check if package is already installed
-        package_exists = posix_os.package_exists("libbpf-tools")
+        package_exists = linux_os.package_exists("libbpf-tools")
 
         if not package_exists:
             # Check if package is available in repositories
-            if not posix_os.is_package_in_repo("libbpf-tools"):
+            if not linux_os.is_package_in_repo("libbpf-tools"):
                 raise SkippedException("libbpf-tools package not found in repositories")
 
             # Package is available, install it
-            posix_os.install_packages("libbpf-tools")
+            linux_os.install_packages("libbpf-tools")
 
             # Verify package is now installed
-            package_installed = posix_os.package_exists("libbpf-tools")
+            package_installed = linux_os.package_exists("libbpf-tools")
             assert_that(package_installed).described_as(
                 "libbpf-tools package should be installed"
             ).is_true()
