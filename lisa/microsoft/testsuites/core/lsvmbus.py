@@ -13,12 +13,14 @@ from lisa import (
     simple_requirement,
 )
 from lisa.feature import Feature
+from lisa.features import Disk
 from lisa.features.security_profile import (
     SecurityProfile,
     SecurityProfileSettings,
     SecurityProfileType,
 )
 from lisa.operating_system import BSD, Windows
+from lisa.schema import DiskControllerType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.tools import Cat, Ls, Lscpu, Lsvmbus
@@ -183,6 +185,16 @@ class LsVmBus(TestSuite):
                     expected_network_channel_count
                 )
             if vmbus_device.name == "Synthetic SCSI Controller":
+                if (
+                    node.features.is_supported(Disk)
+                    and node.features[Disk].get_os_disk_controller_type()
+                    == DiskControllerType.NVME
+                ):
+                    log.info(
+                        "Skipping storvsc SCSI channel count verification "
+                        "in VM with NVMe disk controller."
+                    )
+                    continue
                 assert_that(vmbus_device.channel_vp_map).is_length(
                     expected_scsi_channel_count
                 )
