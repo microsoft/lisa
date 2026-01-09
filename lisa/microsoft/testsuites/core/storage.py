@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Windows
+from lisa.operating_system import BSD, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
@@ -224,6 +224,10 @@ class Storage(TestSuite):
         ),
     )
     def verify_swap(self, node: RemoteNode) -> None:
+        if type(node.os) is Fedora:
+            raise SkippedException(
+                "Swap is disabled by waagent on Fedora. Skipping the test."
+            )
         is_swap_enabled_wa_agent = node.tools[Waagent].is_swap_enabled()
         is_swap_enabled_distro = node.tools[Swap].is_swap_enabled()
         assert_that(
