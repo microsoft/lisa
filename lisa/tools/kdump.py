@@ -282,6 +282,20 @@ class KdumpBase(Tool):
         else:
             return int(size_str.strip("M"))
 
+    def _round_to_next_power_of_2(self, value_mb: int) -> int:
+        """
+        Round up to the next power of 2 in MB.
+        Powers of 2 are cleaner, more memory-aligned, and common for kernel params.
+        Examples: 100MB→128MB, 600MB→1024MB, 8192MB→8192MB
+        """
+        if value_mb <= 0:
+            return 0
+        # Find the next power of 2
+        import math
+
+        power = math.ceil(math.log2(value_mb))
+        return 2**power
+
     def calculate_crashkernel_size(self, total_memory: str) -> str:
         # Ubuntu, Redhat and Suse have different proposed crashkernel settings
         # Please see below refrences:
@@ -298,41 +312,51 @@ class KdumpBase(Tool):
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         total_memory_gb = self._parse_memory_to_gb(total_memory)
 
-        # Calculate crashkernel based on memory size with tiered approach
+        # Calculate crashkernel based on memory size using scalable formula
+        # Formula: Use percentage of total memory with floor and ceiling
+        # This automatically scales for future larger systems
         if total_memory_gb < 1:
-            memory_based_size = "256M" if arch != "x86_64" else "64M"
+            # Very small systems: use fixed minimum
+            memory_based_mb = 256 if arch != "x86_64" else 64
         elif total_memory_gb < 2:
-            memory_based_size = "256M"
-        elif total_memory_gb < 64:
-            memory_based_size = "512M"
-        elif total_memory_gb < 256:
-            memory_based_size = "1G"
-        elif total_memory_gb < 1024:
-            memory_based_size = "2G"
-        elif total_memory_gb < 4096:
-            memory_based_size = "4G"
+            # Small systems: 256MB minimum
+            memory_based_mb = 256
         else:
-            memory_based_size = "8G"
+            # Medium to ultra-large systems: use 0.14% of total memory
+            # with minimum 512MB and maximum 32GB
+            # Examples:
+            #   64GB → 0.14% = 92MB → capped to 512MB
+            #   256GB → 0.14% = 358MB → capped to 512MB
+            #   1TB → 0.14% = 1434MB = 1.4GB
+            #   4TB → 0.14% = 5734MB = 5.6GB
+            #   8TB → 0.14% = 11468MB = 11.2GB
+            #   16TB → 0.14% = 22937MB = 22.4GB
+            #   32TB → 0.14% = 45875MB = 44.8GB → capped to 32GB
+            percentage = 0.14  # 0.14% scales appropriately
+            calculated_mb = int(total_memory_gb * 1024 * percentage / 100)
+            memory_based_mb = max(512, min(calculated_mb, 32 * 1024))
 
         # Calculate crashkernel based on CPU count
         # More CPUs = more CPU state to capture and process
-        if cpu_count > 415:
-            cpu_based_size = "2G"
-        elif cpu_count > 192:
-            cpu_based_size = "1G"
-        elif cpu_count > 32:
-            cpu_based_size = "512M"
-        else:
-            cpu_based_size = "256M"
+        # Use linear scaling: 1MB per 2 CPUs, with min 256MB and max 4GB
+        cpu_based_mb = max(256, min(cpu_count // 2, 4 * 1024))
 
         # Take the maximum of memory-based and CPU-based calculations
-        memory_mb = self._size_to_mb(memory_based_size)
-        cpu_mb = self._size_to_mb(cpu_based_size)
-        crash_kernel = memory_based_size if memory_mb >= cpu_mb else cpu_based_size
+        crashkernel_mb = max(memory_based_mb, cpu_based_mb)
+
+        # Round up to next power of 2 for cleaner values and better alignment
+        crashkernel_mb = self._round_to_next_power_of_2(crashkernel_mb)
+
+        # Convert to appropriate unit (MB or GB)
+        if crashkernel_mb >= 1024:
+            crash_kernel = f"{crashkernel_mb // 1024}G"
+        else:
+            crash_kernel = f"{crashkernel_mb}M"
 
         self._log.info(
             f"Calculated crashkernel size: {crash_kernel} "
-            f"(total_memory={total_memory_gb:.1f}GB, cpu_count={cpu_count})"
+            f"(total_memory={total_memory_gb:.1f}GB, cpu_count={cpu_count}, "
+            f"memory_based={memory_based_mb}MB, cpu_based={cpu_based_mb}MB)"
         )
 
         return crash_kernel
@@ -962,6 +986,9 @@ class KdumpCheck(Tool):
 
         kdump.capture_info()
 
+        # Log memory usage statistics before triggering crash
+        self._log_memory_usage_before_crash()
+
         try:
             # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
             # We set a timeout time 10.
@@ -999,6 +1026,37 @@ class KdumpCheck(Tool):
 
     def _check_exists(self) -> bool:
         return True
+
+    def _log_memory_usage_before_crash(self) -> None:
+        """
+        Log detailed memory usage statistics before triggering crash.
+        This helps understand how much memory needs to be dumped.
+        Note: makedumpfile filters memory, so actual vmcore size will be smaller.
+        """
+        try:
+            free = self.node.tools[Free]
+
+            # Get memory statistics using Free tool methods
+            total_memory_gb = free.get_total_memory_gb()
+            free_memory_gb = free.get_free_memory_gb()
+
+            self._log.info("=" * 70)
+            self._log.info("MEMORY USAGE BEFORE CRASH DUMP")
+            self._log.info("=" * 70)
+
+            # Use Free tool's built-in method to log memory statistics
+            free.log_memory_stats_mb()
+
+            # Calculate used memory
+            used_gb = total_memory_gb - free_memory_gb
+            usage_pct = (used_gb / total_memory_gb * 100) if total_memory_gb > 0 else 0
+
+            self._log.info(f"Memory Total: {total_memory_gb} GB")
+            self._log.info(f"Memory Free:  {free_memory_gb} GB")
+            self._log.info(f"Memory Used:  ~{used_gb} GB ({usage_pct:.1f}%)")
+
+        except Exception as e:
+            self._log.warning(f"Failed to log memory usage: {e}")
 
     # This method might stuck after triggering crash,
     # so use timeout to recycle it faster.
