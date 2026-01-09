@@ -30,6 +30,9 @@ from .python import Python
 # \r\n\r\n
 PATTERN_VMBUS_DEVICE = re.compile(r"(VMBUS ID[\w\W]*?)(?=VMBUS ID|\Z)", re.MULTILINE)
 
+# VMBus device class IDs
+HV_NETVSC_CLASS_ID = "f8615163-df3e-46c5-913f-f2d2f965ed0e"
+
 
 class ChannelVPMap:
     def __init__(self, vmbus_id: str, rel_id: str, cpu: str) -> None:
