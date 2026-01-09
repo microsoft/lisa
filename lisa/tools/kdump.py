@@ -264,6 +264,24 @@ class KdumpBase(Tool):
                     "The kernel config {config} is not set. Kdump is not supported."
                 )
 
+    def _parse_memory_to_gb(self, memory_str: str) -> float:
+        """Convert memory string (e.g., '5.7T', '512G', '2048M') to GB."""
+        if "T" in memory_str:
+            return float(memory_str.strip("T")) * 1024
+        elif "G" in memory_str:
+            return float(memory_str.strip("G"))
+        elif "M" in memory_str:
+            return float(memory_str.strip("M")) / 1024
+        else:
+            return 0
+
+    def _size_to_mb(self, size_str: str) -> int:
+        """Convert size string (e.g., '2G', '512M') to MB."""
+        if "G" in size_str:
+            return int(size_str.strip("G")) * 1024
+        else:
+            return int(size_str.strip("M"))
+
     def calculate_crashkernel_size(self, total_memory: str) -> str:
         # Ubuntu, Redhat and Suse have different proposed crashkernel settings
         # Please see below refrences:
@@ -278,33 +296,23 @@ class KdumpBase(Tool):
         cpu_count = lscpu.get_thread_count()
 
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
+        total_memory_gb = self._parse_memory_to_gb(total_memory)
 
-        # Calculate crashkernel based on memory size
-        if (
-            "G" in total_memory
-            and float(total_memory.strip("G")) < 1
-            or "M" in total_memory
-            and float(total_memory.strip("M")) < 1024
-        ):
-            if arch == "x86_64":
-                memory_based_size = "64M"
-            else:
-                # For arm64 with page size == 4k, the memory "section size" is 128MB,
-                # that's the granularity of memory hotplug and also the minimal size of
-                # manageable memory if SPARSEMEM is selected. More memory is needed for
-                # kdump kernel
-                memory_based_size = "256M"
-        elif (
-            "G" in total_memory
-            and float(total_memory.strip("G")) < 2
-            or "M" in total_memory
-            and float(total_memory.strip("M")) < 2048
-        ):
+        # Calculate crashkernel based on memory size with tiered approach
+        if total_memory_gb < 1:
+            memory_based_size = "256M" if arch != "x86_64" else "64M"
+        elif total_memory_gb < 2:
             memory_based_size = "256M"
-        elif "T" in total_memory and float(total_memory.strip("T")) > 1:
-            memory_based_size = "1G"
-        else:
+        elif total_memory_gb < 64:
             memory_based_size = "512M"
+        elif total_memory_gb < 256:
+            memory_based_size = "1G"
+        elif total_memory_gb < 1024:
+            memory_based_size = "2G"
+        elif total_memory_gb < 4096:
+            memory_based_size = "4G"
+        else:
+            memory_based_size = "8G"
 
         # Calculate crashkernel based on CPU count
         # More CPUs = more CPU state to capture and process
@@ -318,19 +326,14 @@ class KdumpBase(Tool):
             cpu_based_size = "256M"
 
         # Take the maximum of memory-based and CPU-based calculations
-        # Convert to MB for comparison
-        def size_to_mb(size_str: str) -> int:
-            if "G" in size_str:
-                return int(size_str.strip("G")) * 1024
-            else:
-                return int(size_str.strip("M"))
-
-        memory_mb = size_to_mb(memory_based_size)
-        cpu_mb = size_to_mb(cpu_based_size)
-
+        memory_mb = self._size_to_mb(memory_based_size)
+        cpu_mb = self._size_to_mb(cpu_based_size)
         crash_kernel = memory_based_size if memory_mb >= cpu_mb else cpu_based_size
 
-        self._log.info(f"Calculated crashkernel size: {crash_kernel}")
+        self._log.info(
+            f"Calculated crashkernel size: {crash_kernel} "
+            f"(total_memory={total_memory_gb:.1f}GB, cpu_count={cpu_count})"
+        )
 
         return crash_kernel
 
@@ -668,30 +671,9 @@ class KdumpDebian(KdumpBase):
         return self._check_exists()
 
     def calculate_crashkernel_size(self, total_memory: str) -> str:
-        # If the function returns empty string, it means using the default crash kernel
-        # size. Currently, for x86 Ubuntu,Debian, the default setting is "512M-:192M",
-        # for arm64, "2G-4G:320M,4G-32G:512M,32G-64G:1024M,64G-128G:2048M,128G-:4096M"
-        arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
-        if (
-            "G" in total_memory
-            and float(total_memory.strip("G")) < 2
-            or "M" in total_memory
-            and float(total_memory.strip("M")) < 2048
-        ):
-            if arch == "x86_64":
-                return "192M"
-            else:
-                # For arm64 with page size == 4k, the memory "section size" is 128MB,
-                # that's the granularity of memory hotplug and also the minimal size of
-                # manageable memory if SPARSEMEM is selected. More memory is needed for
-                # kdump kernel
-                return "256M"
-        else:
-            if arch == "x86_64":
-                return "512M"
-            else:
-                # Use the default crash kernel size
-                return ""
+        # Debian/Ubuntu use the base class comprehensive calculation
+        # which already handles both x86_64 and arm64 appropriately
+        return super().calculate_crashkernel_size(total_memory)
 
     def _get_crashkernel_cfg_file(self) -> str:
         return "/etc/default/grub.d/kdump-tools.cfg"
