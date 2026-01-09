@@ -291,7 +291,9 @@ class SerialConsole(Feature):
             if test_result is not None:
                 self.log_panic_details(panic_info)
                 self.attach_panic_to_test_result(test_result, panic_info)
-                raise KernelPanicException("", panic_info.panic_phrases)
+                # Pass empty list to avoid duplicate
+                # "Detected Panic phrases:" in exception message
+                raise KernelPanicException("", [])
 
             # For backward compatibility: raise exception if stage is provided
             if stage:
@@ -326,30 +328,20 @@ class SerialConsole(Feature):
         self, test_result: "TestResult", panic_info: PanicInfo
     ) -> None:
         """
-        Attach panic information directly to test result.
+        Attach panic information directly to test result message.
 
-        Summary is added to the test message for easy visibility.
-        Full details are stored in the information dict for deeper analysis.
+        Summary including panic type, error codes, and stack traces
+        is appended to the test message for easy visibility.
         """
-        # Create concise summary for test message
         panic_summary = (
-            f"KERNEL PANIC on {self._node.name}: "
-            f"{panic_info.panic_type} ({panic_info.error_codes})"
+            f"KERNEL PANIC DETECTED on {self._node.name}\n"
+            f"Panic Type: {panic_info.panic_type}\n"
+            f"Error Codes: {panic_info.error_codes}\n"
         )
 
-        # Store detailed panic info in information dict
-        test_result.information["panic"] = {
-            "node": self._node.name,
-            "panic_type": panic_info.panic_type,
-            "error_codes": panic_info.error_codes,
-            "panic_phrases": panic_info.panic_phrases[:10],  # Limit to first 10
-            "console_log_path": panic_info.console_log_path,  # Already a string
-            "total_panic_phrases": len(panic_info.panic_phrases),
-        }
-
-        # Append summary to test message
+        # Append panic summary to test message
         if test_result.message:
-            test_result.message += f"\n{panic_summary}"
+            test_result.message += f"\n\n{panic_summary}"
         else:
             test_result.message = panic_summary
 
