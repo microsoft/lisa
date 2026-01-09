@@ -121,6 +121,7 @@ from .resize_partition import ResizePartition
 from .rm import Rm
 from .sar import Sar
 from .sockperf import Sockperf
+from .ss import Ss
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -282,6 +283,7 @@ __all__ = [
     "Service",
     "ServiceInternal",
     "Sockperf",
+    "Ss",
     "Ssh",
     "Sshpass",
     "StartConfiguration",
