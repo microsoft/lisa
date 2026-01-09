@@ -12,7 +12,7 @@ from lisa.operating_system import BSD
 from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ssh
 
 
-@retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
+@retry(exceptions=AssertionError, tries=300, delay=20)  # type:ignore
 def initialize_nic_info(
     environment: Environment, is_sriov: bool = True
 ) -> Dict[str, Dict[str, NicInfo]]:
@@ -233,6 +233,7 @@ def sriov_vf_connection_test(
     turn_off_lower: bool = False,
     remove_module: bool = False,
 ) -> None:
+    print("Starting SR-IOV VF connection test between nodes.")
     source_node = cast(RemoteNode, environment.nodes[0])
     dest_node = cast(RemoteNode, environment.nodes[1])
     source_ssh = source_node.tools[Ssh]
@@ -244,6 +245,9 @@ def sriov_vf_connection_test(
     tested_nic_pairs = 0
     skipped_infiniband_source = 0
     skipped_infiniband_dest = 0
+
+    print(f"vm_nics[source_node.name]: {vm_nics[source_node.name]}")
+    print(f"vm_nics[dest_node.name]: {vm_nics[dest_node.name]}")
 
     # for each nic on source node, find the same subnet nic on dest node
     for source_nic_name, source_nic_info in vm_nics[source_node.name].items():

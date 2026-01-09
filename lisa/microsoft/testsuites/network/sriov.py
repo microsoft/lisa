@@ -510,7 +510,7 @@ class Sriov(TestSuite):
                 remove_module = True
             else:
                 remove_module = False
-
+        print(f"module_in_used: {module_in_used}, remove_module: {remove_module}")
         sriov_vf_connection_test(environment, vm_nics, remove_module=remove_module)
 
         for node in environment.nodes.list():

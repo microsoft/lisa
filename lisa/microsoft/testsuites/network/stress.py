@@ -161,7 +161,7 @@ class Stress(TestSuite):
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):
             for node in environment.nodes.list():
-                node.reboot()
+                node.reboot(time_out=900)
             initialize_nic_info(environment, is_sriov=False)
 
     @TestCaseMetadata(

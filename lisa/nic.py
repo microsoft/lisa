@@ -173,6 +173,7 @@ class Nics(InitializableMixin):
         )
 
     def get_used_modules(self, exclude_module_name: List[str]) -> List[str]:
+        self._node.log.debug(f"exclude_module_name: {exclude_module_name}")
         used_module_list = list(
             set(
                 [
@@ -182,9 +183,11 @@ class Nics(InitializableMixin):
                 ]
             )
         )
+        self._node.log.debug(f"used_module_list: {used_module_list}")
         for item in list(set(exclude_module_name)):
             if item in used_module_list:
                 used_module_list.remove(item)
+        self._node.log.debug(f"final used_module_list: {used_module_list}")
         return used_module_list
 
     def get_device_slots(self) -> List[str]:
