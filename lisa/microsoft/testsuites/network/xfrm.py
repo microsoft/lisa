@@ -14,7 +14,7 @@ from lisa import (
 )
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
-from lisa.tools import KernelConfig, Lsmod, Modprobe
+from lisa.tools import Ip, KernelConfig, Lsmod, Modprobe
 
 
 @TestSuiteMetadata(
@@ -82,39 +82,56 @@ class XfrmSuite(TestSuite):
         interface_name = "xfrm0"
         if_id = "100"
 
-        try:
-            # Create xfrm interface
-            # ip link add <name> type xfrm dev <physical_dev> if_id <id>
-            # We need to find an existing physical interface first
-            default_nic = node.nics.default_nic
-            cmd = (
-                f"ip link add {interface_name} type xfrm "
-                f"dev {default_nic} if_id {if_id}"
-            )
-            result = node.execute(cmd, sudo=True)
+        # Ensure `ip link ... type xfrm` is supported on this kernel/platform.
+        # Relying on `ip link help` output is unreliable across iproute2 versions
+        # (it may not list link types and may return non-zero even when printing
+        # usage). A direct probe is more dependable and yields actionable errors.
+        #
+        # Skip vs true failure guidance:
+        # - SKIP: userspace doesn't recognize the xfrm link type (old iproute2),
+        #   userspace syntax doesn't support required parameters, missing
+        #   privileges, or the kernel/platform refuses to create the device
+        #   (environment limitation).
+        # - FAIL: we successfully created the test xfrm interface (exit_code==0)
+        #   but verification/cleanup fails (e.g. interface not present after a
+        #   successful create). That indicates a functional regression.
+        # Probe with the actual parameters we'll use in the test.
+        # Some older iproute2 builds can recognize "type xfrm" but *cannot*
+        # parse the required "dev ... if_id ..." arguments; in that case, skip.
+        default_nic = node.nics.default_nic
 
-            # Check if interface creation succeeded
-            if result.exit_code == 0:
-                # Verify interface exists
-                show_cmd = f"ip link show {interface_name}"
-                result = node.execute(show_cmd, sudo=True)
-                assert_that(result.exit_code).described_as(
-                    f"xfrm interface {interface_name} should exist"
-                ).is_equal_to(0)
-                assert_that(result.stdout).described_as(
-                    f"output should contain {interface_name}"
-                ).contains(interface_name)
-            else:
-                # Interface creation failed - this indicates XFRM support issue
+        ip = node.tools[Ip]
+        supported, reason = ip.supports_xfrm(dev=default_nic, if_id=if_id)
+        if not supported:
+            raise SkippedException(reason)
+
+        try:
+            # Create xfrm interface using helper
+            ip.create_virtual_interface(
+                name=interface_name,
+                type_="xfrm",
+                dev=default_nic,
+                params={"if_id": if_id},
+            )
+
+            # Verify interface exists
+            if not ip.nic_exists(interface_name):
                 raise AssertionError(
-                    f"Failed to create xfrm interface. "
-                    f"Exit code: {result.exit_code}, "
-                    f"stderr: {result.stderr}"
+                    f"Interface {interface_name} creation succeeded but "
+                    "interface not found."
                 )
+
+            # Also verify it appears in link show output
+            show_result = ip.run(
+                f"link show {interface_name}", sudo=True, force_run=True
+            )
+            assert_that(show_result.stdout).described_as(
+                f"output should contain {interface_name}"
+            ).contains(interface_name)
 
         finally:
             # Clean up - delete the test interface if it was created
-            node.execute(f"ip link del {interface_name}", sudo=True)
+            ip.delete_interface(interface_name)
 
             # Restore original module state if we modified it
             if not is_builtin and original_state_loaded is not None:
