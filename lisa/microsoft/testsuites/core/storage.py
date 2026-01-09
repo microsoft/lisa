@@ -219,12 +219,15 @@ class Storage(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
-            unsupported_os=[BSD, Windows, Fedora],
+            unsupported_os=[BSD, Windows],
             # This test is skipped as waagent does not support freebsd fully
-            # Fedora manages swap independently of waagent
         ),
     )
     def verify_swap(self, node: RemoteNode) -> None:
+        if type(node.os) is Fedora:
+            raise SkippedException(
+                "Swap is disabled by waagent on Fedora. Skipping the test."
+            )
         is_swap_enabled_wa_agent = node.tools[Waagent].is_swap_enabled()
         is_swap_enabled_distro = node.tools[Swap].is_swap_enabled()
         assert_that(

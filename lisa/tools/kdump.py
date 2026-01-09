@@ -227,7 +227,7 @@ class KdumpBase(Tool):
             return KdumpSuse(node)
         elif isinstance(node.os, CBLMariner):
             return KdumpCBLMariner(node)
-        elif isinstance(node.os, Fedora):
+        elif type(node.os) is Fedora:
             return KdumpFedora(node)
         else:
             raise UnsupportedDistroException(os=node.os)

@@ -59,7 +59,7 @@ class Vdsotest(Tool):
                     "perl-CPAN",
                 ]
             )
-        elif isinstance(self.node.os, Fedora):
+        elif type(self.node.os) is Fedora:
             package_list.extend(["autoconf", "automake", "libtool"])
         else:
             raise LisaException(
@@ -76,7 +76,7 @@ class Vdsotest(Tool):
         # Fedora requires explicit C11 standard flag to avoid compilation errors.
         # Using -std=gnu11 ensures compatibility with the vdsotest source code while
         # avoiding issues with stricter compiler enforcement on newer GCC versions.
-        if isinstance(self.node.os, Fedora):
+        if type(self.node.os) is Fedora:
             self.node.execute(
                 "./configure CFLAGS='-std=gnu11'", cwd=code_path
             ).assert_exit_code()
