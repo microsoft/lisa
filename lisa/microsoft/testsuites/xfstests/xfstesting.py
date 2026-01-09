@@ -243,7 +243,7 @@ _test_folder = "/mnt/test"
 #   Tests are distributed round-robin by count, not by runtime.
 #   Some tests vary significantly in duration (0s to 285s), causing
 #   potential worker imbalance. Future enhancement: runtime-aware distribution.
-_default_worker_count = 1
+_default_worker_count = 4
 
 
 # =============================================================================

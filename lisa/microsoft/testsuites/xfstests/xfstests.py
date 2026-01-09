@@ -261,42 +261,58 @@ class XfstestsParallelRunner:
 
     def create_workers(self) -> List[PurePath]:
         """
-        Create isolated xfstests directory copies for all workers.
+        Create isolated xfstests directory copies for all workers in parallel.
 
         Each worker directory is a full copy of the xfstests installation,
         allowing independent configuration and execution without conflicts.
+
+        The directory copies are created in parallel to reduce setup time.
+        With sequential creation, each copy takes ~5 seconds, so 4 workers
+        would take ~20 seconds. Parallel creation reduces this to ~5 seconds.
 
         Returns:
             List of paths to worker xfstests directories (indexed 0 to worker_count-1)
         """
         self.log.info(
-            f"Creating {self.worker_count} worker xfstests directory copies..."
+            f"Creating {self.worker_count} worker xfstests directory copies "
+            f"in parallel..."
         )
-        self.worker_paths = []
 
-        for worker_id in self.worker_ids():
+        def create_single_worker(worker_id: int) -> PurePath:
+            """Create a single worker directory copy."""
             self.log.debug(f"Worker {worker_id}: Creating xfstests directory copy")
             worker_path = self.xfstests.create_worker_copy(
                 worker_id=worker_id,
                 base_dir=self.base_dir,
             )
-            self.worker_paths.append(worker_path)
             self.log.debug(
                 f"Worker {worker_id}: xfstests copy created at {worker_path}"
             )
+            return worker_path
+
+        # Create all worker directories in parallel
+        # run_in_parallel returns results in the same order as input tasks
+        def make_create_task(wid: int) -> Callable[[], PurePath]:
+            """Create a task function for the given worker ID."""
+            return lambda: create_single_worker(wid)
+
+        tasks = [make_create_task(wid) for wid in self.worker_ids()]
+        self.worker_paths = list(run_in_parallel(tasks, log=self.log))
 
         self.log.info(f"Created {len(self.worker_paths)} worker directories")
         return self.worker_paths
 
     def cleanup_workers(self) -> None:
         """
-        Remove all worker xfstests directory copies.
+        Remove all worker xfstests directory copies in parallel.
 
         Safe to call even if workers were not created - cleanup failures
         are logged at DEBUG level and do not raise exceptions.
         """
-        self.log.debug("Cleaning up worker xfstests directories...")
-        for worker_id in self.worker_ids():
+        self.log.debug("Cleaning up worker xfstests directories in parallel...")
+
+        def cleanup_single_worker(worker_id: int) -> None:
+            """Clean up a single worker directory."""
             try:
                 self.xfstests.cleanup_worker_copy(
                     worker_id=worker_id,
@@ -306,6 +322,14 @@ class XfstestsParallelRunner:
                 self.log.debug(
                     f"Worker {worker_id} cleanup failed (may not exist): {e}"
                 )
+
+        # Clean up all worker directories in parallel
+        def make_cleanup_task(wid: int) -> Callable[[], None]:
+            """Create a cleanup task function for the given worker ID."""
+            return lambda: cleanup_single_worker(wid)
+
+        tasks = [make_cleanup_task(wid) for wid in self.worker_ids()]
+        run_in_parallel(tasks, log=self.log)
         self.worker_paths = []
 
     def run_parallel(
