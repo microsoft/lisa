@@ -74,6 +74,14 @@ class HypervPlatform(Platform):
             log=self._log,
         )
 
+        # Initialize SerialConsoleLogger once here to avoid parallel access to
+        # server.working_path which can cause mkdir race condition/hangs
+        self._console_logger = SerialConsoleLogger(self._server)
+
+        # Download sources once here before parallel deployment to avoid
+        # race condition when multiple threads try to mkdir the same sources dir
+        self._download_sources(self._log)
+
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
         assert hyperv_runbook, "platform runbook cannot be empty"
@@ -259,10 +267,6 @@ class HypervPlatform(Platform):
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
         }
 
-        self._download_sources(log)
-
-        self._console_logger = SerialConsoleLogger(self._server)
-
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
             node_runbook = node_space.get_extended_runbook(
                 HypervNodeSchema, type(self).type_name()
@@ -277,7 +281,6 @@ class HypervPlatform(Platform):
             assert self._source_vhd
 
             node.name = vm_name
-
             node_context = get_node_context(node)
             node_context.vm_name = vm_name
             node_context.host = self._server
@@ -400,17 +403,17 @@ class HypervPlatform(Platform):
         if len(node_ctx.passthrough_devices) > 0:
             self.device_pool.release_devices(node_ctx)
 
+        # CRITICAL: Terminate serial console logger BEFORE deleting VM
+        # Otherwise it keeps trying to reconnect to the VM's named pipe
+        # causing 20+ minute hangs during cleanup
+        if node_ctx.serial_log_process:
+            node_ctx.serial_log_process.kill()
+            node_ctx.serial_log_process.wait_result(timeout=30)
+
         if wait_delete:
             hv.delete_vm(vm_name)
         else:
             hv.delete_vm_async(vm_name)
-
-        assert node_ctx.serial_log_process
-        result = node_ctx.serial_log_process.wait_result()
-        log.debug(
-            f"{vm_name} serial log process exited with {result.exit_code}. "
-            f"stdout: {result.stdout}"
-        )
 
     def _delete_nodes(self, environment: Environment, log: Logger) -> None:
         run_in_parallel(
