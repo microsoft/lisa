@@ -10,6 +10,7 @@ import charset_normalizer
 from assertpy.assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.tools import PowerShell
 from lisa.util import LisaException, create_timer, find_groups_in_lines
 from lisa.util.process import ExecutableResult, Process
 
@@ -28,7 +29,7 @@ class Wsl(Tool):
     CONFIG_FILE_PATH = r"%USERPROFILE%\.wslconfig"
 
     ENCODING = "utf-16-le"
-    INSTALL_TIMEOUT = 120
+    INSTALL_TIMEOUT = 600
 
     def __init__(self, node: "Node", guest: "Node") -> None:
         assert guest, "guest node is required for Wsl tool."
@@ -54,15 +55,35 @@ class Wsl(Tool):
         return self._check_exists()
 
     def _add_lisatest_user(self, distro: str) -> None:
-        self.shutdown_wsl()
-        self._wsl_execute_async(" -u root -- true", distro=distro)
-        add_lisatest_cmd = (
-            """ -u root -- bash -c "useradd -m -s /bin/bash lisatest  && """
-            """echo 'lisatest ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/lisatest; """
-            """printf '[user]\\ndefault=lisatest\\n' > /etc/wsl.conf" """
-        )
-        user_add_process = self._wsl_execute(add_lisatest_cmd, distro=distro)
-        user_add_process.assert_exit_code(
+        # Check if lisatest user already exists (use simple command)
+        check_user_cmd = """ -u root -- id lisatest """
+        try:
+            check_result = self._wsl_execute(
+                check_user_cmd, distro=distro, no_info_log=True
+            )
+            user_exists = check_result.exit_code == 0
+        except Exception:
+            user_exists = False
+
+        if user_exists:
+            self._log.debug("lisatest user already exists, updating configuration...")
+            # User exists, just update sudoers and wsl.conf
+            update_config_cmd = (
+                """ -u root -- bash -c "echo 'lisatest ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/lisatest; """
+                """printf '[user]\\ndefault=lisatest\\n' > /etc/wsl.conf" """
+            )
+            result = self._wsl_execute(update_config_cmd, distro=distro)
+        else:
+            self._log.debug("Creating lisatest user...")
+            # User doesn't exist, create it
+            add_lisatest_cmd = (
+                """ -u root -- bash -c "useradd -m -s /bin/bash lisatest  && """
+                """echo 'lisatest ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/lisatest; """
+                """printf '[user]\\ndefault=lisatest\\n' > /etc/wsl.conf" """
+            )
+            result = self._wsl_execute(add_lisatest_cmd, distro=distro)
+
+        result.assert_exit_code(
             expected_exit_code=0,
             message="wsl add lisatest account failed",
             include_output=True,
@@ -82,14 +103,18 @@ class Wsl(Tool):
                 f"--unregister {name}",
             )
 
-        # Ubuntu
         # Ubuntu (Default)
         distro_name_pattern = re.compile(rf"^\s*(?P<name>{name})\s*?.*?$")
-        result = self._wsl_execute("--list --all")
+        result = self._wsl_execute("--list --all", timeout=30)
         matched = find_groups_in_lines(result.stdout, distro_name_pattern)
         if matched:
-            self._log.info(f"{name} is already installed, skip to install.")
+            self._log.info(f"{name} is already installed, verifying it's ready...")
             is_installed = True
+
+            # Even if distro is registered, it might still be provisioning
+            # Wait for it to be ready to accept commands (give it up to 5 minutes for Azure)
+            # self._wait_for_distro_ready(name, timeout=300)
+
             self._add_lisatest_user(name)
 
         # set debug console and replace kernel
@@ -101,14 +126,24 @@ class Wsl(Tool):
 
         if not is_installed:
             install_process = self._wsl_execute_async(
-                f"--install -d {name}", encoding="utf-8"
+                f"--install -d {name} --no-launch", encoding="utf-8"
             )
 
-            time.sleep(30)
+            # 1st, wait for Ubuntu to appear in wsl --list (basic installation complete)
+            self._wait_for_distro_registration(name)
+
+            # 2nd, Wait a bit more and verify distro is actually usable
+            # self._wait_for_distro_ready(name, timeout=300)
+            # use powershell to kill and restart wsl due to OOBE stuck
+            # self._kill_restart_wsl()
+
+            # 3rd Now add user (Ubuntu is ready and can execute commands)
             self._add_lisatest_user(name)
 
+            # 4th, wait for full provisioning to complete
             elapsed = create_timer()
             done = False
+            self._log.debug(f"Waiting for {name} provisioning to complete...")
             while elapsed.elapsed(False) < self.INSTALL_TIMEOUT:
                 if self._check_install_done(distro=name):
                     done = True
@@ -136,6 +171,24 @@ class Wsl(Tool):
                 append=True,
             )
 
+    def _kill_restart_wsl(self) -> None:
+        self._log.debug("Killing and restarting WSL to avoid OOBE stuck...")
+        kill_wsl_cmd = (
+            "taskkill /f /fi 'imagename eq wsl*';"
+            " taskkill /f /im wslhost.exe; taskkill /f /im vmmem"
+        )
+        self.node.tools[PowerShell].run_cmdlet(
+            kill_wsl_cmd,
+            force_run=True,
+        )
+        time.sleep(5)
+
+        self.node.tools[PowerShell].run_cmdlet(
+            "Restart-Service LxssManager",
+            force_run=True,
+        )
+        time.sleep(5)
+
     def normalize_result(self, result: ExecutableResult) -> ExecutableResult:
         # wsl output is utf-16-le, but Windows returns utf-8. The logic is to
         # try best to normalize, but still possible not to be normalized. So
@@ -156,6 +209,67 @@ class Wsl(Tool):
         self._log.debug("shutting down WSL.")
         self._wsl_execute("--shutdown")
 
+    def _wait_for_distro_registration(self, name: str, waittime: int = 300) -> None:
+        """Wait for distro to appear in wsl --list (basic installation complete)."""
+        elapsed = create_timer()
+        distro_registered = False
+        self._log.debug(f"Waiting for {name} distro registered in WSL...")
+        while elapsed.elapsed(False) < waittime:
+            result = self._wsl_execute("--list --all", no_info_log=True, timeout=30)
+            distro_name_pattern = re.compile(rf"^\s*(?P<name>{name})\s*?.*?$")
+            matched = find_groups_in_lines(result.stdout, distro_name_pattern)
+            if matched:
+                self._log.debug(
+                    f"{name} is now registered, took {elapsed.elapsed()} seconds"
+                )
+                distro_registered = True
+                break
+            time.sleep(5)
+
+        if not distro_registered:
+            raise LisaException(
+                f"Timeout waiting for {name} to be registered after {waittime} seconds"
+            )
+
+    def _wait_for_distro_ready(self, name: str, timeout: int = 300) -> None:
+        """Wait for distro to be ready to accept commands.
+
+        There's a race condition: distro appears in list but WSL service
+        hasn't fully registered it yet.
+        """
+        self._log.debug(f"Verifying {name} distro ready to accept commands...")
+        elapsed = create_timer()
+        distro_ready = False
+        while elapsed.elapsed(False) < timeout:
+            try:
+                # Use a longer timeout to avoid killing wsl process during distro startup
+                # The outer loop controls the overall timeout
+                result = self._wsl_execute(
+                    " -u root -- true", distro=name, no_info_log=True, timeout=240
+                )
+                if result.exit_code == 0:
+                    self._log.debug(
+                        f"{name} is ready after {elapsed.elapsed()} seconds"
+                    )
+                    distro_ready = True
+                    break
+                elif "WSL_E_DISTRO_NOT_FOUND" in result.stdout:
+                    self._log.debug(
+                        f"Distro {name} not found yet, waiting... (elapsed: {elapsed.elapsed()}s)"
+                    )
+                else:
+                    self._log.debug(
+                        f"Distro not ready, exit_code={result.exit_code}, stdout={result.stdout[:100]}"
+                    )
+            except Exception as e:
+                self._log.debug(f"Distro not ready yet: {e}")
+            time.sleep(5)
+
+        if not distro_ready:
+            raise LisaException(
+                f"Timeout waiting for {name} to be ready to accept commands"
+            )
+
     def reload_guest_os(self) -> None:
         from lisa.operating_system import OperatingSystem
 
@@ -163,7 +277,7 @@ class Wsl(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
-        if not self.node.os.is_windows:
+        if not hasattr(self.node, "os") or not self.node.os.is_windows:
             raise LisaException("wsl is only available on Windows")
 
     def _check_exists(self) -> bool:
@@ -203,6 +317,7 @@ class Wsl(Tool):
         in_wsl: bool = False,
         no_info_log: bool = False,
         encoding: str = "",
+        timeout: float = 300,
     ) -> ExecutableResult:
         process = self._wsl_execute_async(
             cmd,
@@ -212,7 +327,7 @@ class Wsl(Tool):
             no_info_log=no_info_log,
             encoding=encoding,
         )
-        result = process.wait_result()
+        result = process.wait_result(timeout=timeout)
         result = self.normalize_result(result)
 
         return result
@@ -257,11 +372,11 @@ class Wsl(Tool):
         return process
 
     def _install_on_remote(self) -> None:
-        self._wsl_execute("--install", encoding="utf-8")
+        # Use --no-distribution to explicitly install only WSL components
+        # install a default distribution may not work in remote SSH session.
+        self._wsl_execute("--install --no-distribution", encoding="utf-8")
         self.node.reboot()
-
-        self._log.debug("---paxue debug: increase timeout to 180")
-        time.sleep(180)
+        # time.sleep(120)
 
         # trigger a wsl command to make sure wsl is ready.
         self._wsl_execute("--version")

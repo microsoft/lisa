@@ -122,6 +122,16 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     @property
     def is_posix(self) -> bool:
+        # Check if OS is initialized before forcing initialization
+        # to avoid triggering provision during error handling
+        if hasattr(self, "os"):
+            return self.os.is_posix
+
+        # For WSL nodes, they are always POSIX (Linux)
+        if self.__class__.__name__ == "WslContainerNode":
+            return True
+
+        # For other nodes, initialize if needed
         self.initialize()
         return self.os.is_posix
 
@@ -378,7 +388,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self, size_in_gb: int, use_os_drive: bool = True, raise_error: bool = True
     ) -> str:
         self.initialize()
-        if self.os.is_windows:
+        if hasattr(self, "os") and self.os.is_windows:
             raise NotImplementedError(
                 (
                     "find_partition_with_freespace was called on a Windows "
@@ -919,8 +929,7 @@ class GuestNode(Node):
 
         self.capture_system_information("started")
 
-    def _provision(self) -> None:
-        ...
+    def _provision(self) -> None: ...
 
     def get_working_path(self) -> PurePath:
         return self._get_remote_working_path()
@@ -1204,8 +1213,7 @@ def quick_connect(
 
 class NodeHookSpec:
     @hookspec
-    def get_node_information(self, node: Node) -> Dict[str, str]:
-        ...
+    def get_node_information(self, node: Node) -> Dict[str, str]: ...
 
 
 class NodeHookImpl:
@@ -1221,7 +1229,8 @@ class NodeHookImpl:
                         linux_information, fields=["hardware_platform"]
                     )
                     information.update(information_dict)
-                    information["distro_version"] = node.os.information.full_version
+                    if hasattr(node, "os"):
+                        information["distro_version"] = node.os.information.full_version
                     information["kernel_version"] = linux_information.kernel_version_raw
             except Exception as e:
                 node.log.exception("failed to get node information", exc_info=e)

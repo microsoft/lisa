@@ -52,7 +52,7 @@ class Waagent(Tool):
         self._python_use_sudo: Optional[bool] = None
         self._distro_version: Optional[str] = None
         self._waagent_conf_path: Optional[str] = None
-        if isinstance(self.node.os, CoreOs):
+        if hasattr(self.node, "os") and isinstance(self.node.os, CoreOs):
             # Flatcar is the successor of CoreOs and current Flatcar
             # versions ship waagent/python in the standard PATH
             python_cmd, _ = self.get_python_cmd()
