@@ -76,10 +76,12 @@ class Wsl(Tool):
         else:
             self._log.debug("Creating lisatest user...")
             # User doesn't exist, create it
+            # Also disable cloud-init since it doesn't work properly in WSL
             add_lisatest_cmd = (
                 """ -u root -- bash -c "useradd -m -s /bin/bash lisatest  && """
                 """echo 'lisatest ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/lisatest; """
-                """printf '[user]\\ndefault=lisatest\\n' > /etc/wsl.conf" """
+                """printf '[user]\\ndefault=lisatest\\n' > /etc/wsl.conf; """
+                """touch /etc/cloud/cloud-init.disabled" """
             )
             result = self._wsl_execute(add_lisatest_cmd, distro=distro)
 
@@ -113,8 +115,8 @@ class Wsl(Tool):
 
             # Even if distro is registered, it might still be provisioning
             # Wait for it to be ready to accept commands (give it up to 5 minutes for Azure)
-            # self._wait_for_distro_ready(name, timeout=300)
-
+            self._wait_for_distro_ready(name, timeout=300)
+            time.sleep(10)
             self._add_lisatest_user(name)
 
         # set debug console and replace kernel
@@ -131,9 +133,10 @@ class Wsl(Tool):
 
             # 1st, wait for Ubuntu to appear in wsl --list (basic installation complete)
             self._wait_for_distro_registration(name)
+            time.sleep(10)
 
             # 2nd, Wait a bit more and verify distro is actually usable
-            # self._wait_for_distro_ready(name, timeout=300)
+            self._wait_for_distro_ready(name, timeout=300)
             # use powershell to kill and restart wsl due to OOBE stuck
             # self._kill_restart_wsl()
 
