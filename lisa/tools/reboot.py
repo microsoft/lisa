@@ -74,7 +74,7 @@ class Reboot(Tool):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
             raise e
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 3000) -> None:
         timer = create_timer()
 
         last_boot_time = self._get_last_boot_time()
@@ -152,7 +152,7 @@ class WindowsReboot(Reboot):
     def _check_exists(self) -> bool:
         return True
 
-    def reboot(self, time_out: int = 600) -> None:
+    def reboot(self, time_out: int = 6000) -> None:
         last_boot_time = self.node.tools[Uptime].since_time()
         self.node.tools[PowerShell].run_cmdlet(
             "Restart-Computer -Force", force_run=True

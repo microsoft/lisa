@@ -254,7 +254,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         )
         return node
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 3000) -> None:
         self.tools[Reboot].reboot(time_out)
 
     def execute(
@@ -998,7 +998,7 @@ class WslContainerNode(GuestNode):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.WslNode
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 3000) -> None:
         self._wsl.shutdown_distro(self._distro)
 
     def _provision(self) -> None:
