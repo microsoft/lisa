@@ -955,7 +955,7 @@ class Xfstesting(TestSuite):
             try:
                 azure_file_share.delete_azure_fileshare(ctx.all_share_names)
             except Exception as cleanup_error:
-                log.warning(f"Failed to clean up Azure file shares: {cleanup_error}")
+                log.error(f"Failed to clean up Azure file shares: {cleanup_error}")
 
     @TestCaseMetadata(
         description="""
