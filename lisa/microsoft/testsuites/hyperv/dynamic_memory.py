@@ -50,7 +50,7 @@ class HyperVDynamicMemory(TestSuite):
             "triggers hot add and increases assigned memory above the Startup "
             "Memory, while keeping host and guest memory aligned."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_hot_add(
         self, log: Logger, node: Node, variables: Dict[str, Any]
@@ -71,7 +71,7 @@ class HyperVDynamicMemory(TestSuite):
             "increases assigned memory and AnonHugePages rises accordingly, "
             "keeping host and guest memory usage aligned."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_hot_add_hugepages(
         self, log: Logger, node: Node, variables: Dict[str, Any]
@@ -102,7 +102,7 @@ class HyperVDynamicMemory(TestSuite):
             "configured maximum limit when the VM is under memory stress, while "
             "keeping host and guest memory usage aligned."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_upper_limit(
         self, log: Logger, node: Node, variables: Dict[str, Any]
@@ -127,7 +127,7 @@ class HyperVDynamicMemory(TestSuite):
             "increases the VM's assigned memory up to the configured Maximum "
             "limit, while keeping host and guest memory usage aligned."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_upper_limit_hugepages(
         self, log: Logger, node: Node, variables: Dict[str, Any]
@@ -162,7 +162,7 @@ class HyperVDynamicMemory(TestSuite):
             "balloon driver inflates and reduces the VM's assigned memory while "
             "keeping host and guest memory usage aligned."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_balloon_up(
         self, log: Logger, node: Node, variables: Dict[str, Any]
@@ -184,7 +184,7 @@ class HyperVDynamicMemory(TestSuite):
             "VM's assigned memory down to the configured minimum limit when "
             "ballooning is enabled."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_lower_limit(
         self, log: Logger, node: Node, variables: Dict[str, Any]
@@ -210,7 +210,7 @@ class HyperVDynamicMemory(TestSuite):
             "balloon and increases the VM's assigned memory from the level before "
             "stress, while keeping host and guest memory usage aligned."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_balloon_down(
         self, log: Logger, node: Node, variables: Dict[str, Any]
@@ -234,7 +234,7 @@ class HyperVDynamicMemory(TestSuite):
             "balloon and raises assigned memory, with AnonHugePages increasing "
             "and keeping host and guest memory usage aligned."
         ),
-        priority=1,
+        priority=3,
     )
     def verify_dynamic_memory_balloon_down_hugepages(
         self, log: Logger, node: Node, variables: Dict[str, Any]
