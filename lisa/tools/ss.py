@@ -2,8 +2,6 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-import re
-
 from lisa.executable import Tool
 
 
@@ -15,11 +13,6 @@ class Ss(Tool):
     # Example output from ss -tn:
     # State   Recv-Q  Send-Q   Local Address:Port    Peer Address:Port
     # ESTAB   0       0        127.0.0.1:34567       127.0.0.1:45678
-    _connection_pattern = re.compile(
-        r"(?P<state>\S+)\s+\d+\s+\d+\s+"
-        r"(?P<local_addr>[0-9a-f.:]+):(?P<local_port>\d+)\s+"
-        r"(?P<peer_addr>[0-9a-f.:]+):(?P<peer_port>\d+)"
-    )
 
     @property
     def command(self) -> str:
