@@ -322,7 +322,7 @@ class InetDiagSuite(TestSuite):
                 )
                 if pkill_result.exit_code == 0:
                     node.log.debug(
-                        f"Sent SIGTERM to process for {script_path} " f"(pkill exit 0)"
+                        f"Sent SIGTERM to process for {script_path} (pkill exit 0)"
                     )
                 else:
                     node.log.debug(
