@@ -236,9 +236,7 @@ class InetDiagSuite(TestSuite):
                     expected_exit_code=0,
                 ).stdout
                 node.log.debug(
-                    "Connection check on port %s:\n%s",
-                    test_port,
-                    ss_port_check,
+                    f"Connection check on port {test_port}:\n{ss_port_check}"
                 )
 
                 # Mark node as not safe to reuse by failing the test
