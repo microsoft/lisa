@@ -6,7 +6,8 @@ from typing import Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.tools import Mkdir, PowerShell
+from lisa.tools.mkdir import Mkdir
+from lisa.tools.powershell import PowerShell
 
 
 class Unzip(Tool):

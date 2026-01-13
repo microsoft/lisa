@@ -15,6 +15,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
 from lisa.tools.rm import Rm
+from lisa.tools.testlimit import TestLimit
 from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
@@ -49,6 +50,23 @@ class VMDisk:
     controller_number: int = 0
     # The location of the controller to which the virtual hard disk is attached.
     controller_location: int = 0
+
+
+@dataclass
+class DynamicMemoryConfig:
+    """
+    Represents the VM's dynamic memory configuration as reported by Hyper-V.
+
+    - minimum_mb: Minimum memory in MB that Hyper-V allows the VM to retain.
+    - startup_mb: Startup memory in MB assigned to the VM at boot.
+    - maximum_mb: Maximum memory in MB that Hyper-V can assign to the VM.
+    - dynamic_memory_enabled: Whether dynamic memory is enabled for the VM.
+    """
+
+    minimum_mb: int
+    startup_mb: int
+    maximum_mb: int
+    dynamic_memory_enabled: bool = False
 
 
 class HyperV(Tool):
@@ -167,6 +185,11 @@ class HyperV(Tool):
         generation: int = 1,
         cores: int = 2,
         memory: int = 2048,
+        dynamic_memory_enabled: bool = False,
+        minimum_memory_mb: Optional[int] = None,
+        startup_memory_mb: Optional[int] = None,
+        maximum_memory_mb: Optional[int] = None,
+        buffer: Optional[int] = None,
         attach_offline_disks: bool = True,
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
@@ -189,13 +212,63 @@ class HyperV(Tool):
         )
 
         # set cores and memory type
+        set_vm_args = f"-Name {name} -ProcessorCount {cores} -CheckpointType Disabled"
+        if not dynamic_memory_enabled:
+            set_vm_args += " -StaticMemory"
+
         self._run_hyperv_cmdlet(
             "Set-VM",
-            f"-Name {name} -ProcessorCount {cores} -StaticMemory "
-            "-CheckpointType Disabled",
+            set_vm_args,
             extra_args=extra_args,
             force_run=True,
         )
+
+        # configure memory
+        if dynamic_memory_enabled:
+            # Validate dynamic memory relationships just before applying
+            if (
+                minimum_memory_mb is None
+                or startup_memory_mb is None
+                or maximum_memory_mb is None
+            ):
+                raise LisaException(
+                    "Dynamic memory requires minimum/startup/maximum MB specified"
+                )
+            host_total_mb = self.get_host_total_memory_mb()
+
+            if minimum_memory_mb <= 0 or not (
+                minimum_memory_mb
+                < startup_memory_mb
+                < maximum_memory_mb
+                < host_total_mb
+            ):
+                raise LisaException(
+                    (
+                        "Invalid dynamic memory configuration: require "
+                        "0 < minimum < startup < maximum < host total. "
+                        f"(minimum={minimum_memory_mb}, startup={startup_memory_mb}, "
+                        f"maximum={maximum_memory_mb}, host_total={host_total_mb})"
+                    )
+                )
+
+            dynamic_memory_args = [f"-VMName {name}"]
+            dynamic_memory_args.append("-DynamicMemoryEnabled $true")
+            dynamic_memory_args.append(f"-MinimumBytes {minimum_memory_mb}MB")
+            dynamic_memory_args.append(f"-StartupBytes {startup_memory_mb}MB")
+            dynamic_memory_args.append(f"-MaximumBytes {maximum_memory_mb}MB")
+            if buffer is not None:
+                if buffer < 0 or buffer > 100:
+                    raise LisaException(
+                        f"Buffer percentage {buffer} is invalid, "
+                        "must be between 0 and 100"
+                    )
+                dynamic_memory_args.append(f"-Buffer {buffer}")
+            self._run_hyperv_cmdlet(
+                "Set-VMMemory",
+                " ".join(dynamic_memory_args),
+                extra_args=extra_args,
+                force_run=True,
+            )
 
         if extra_args is not None and "set-vmprocessor" in extra_args:
             self._run_hyperv_cmdlet(
@@ -525,6 +598,76 @@ class HyperV(Tool):
         )
         return bool(output.strip() != "")
 
+    def get_dynamic_memory_config(self, vm_name: str) -> DynamicMemoryConfig:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VMMemory -VMName {vm_name} | Select-Object DynamicMemoryEnabled,"
+            " Minimum, Startup, Maximum",
+            force_run=True,
+            output_json=True,
+        )
+
+        if not output:
+            raise LisaException(f"Get-VMMemory returned no data for VM {vm_name}")
+        minimum_bytes = output.get("Minimum")
+        startup_bytes = output.get("Startup")
+        maximum_bytes = output.get("Maximum")
+
+        # Validate fields to avoid TypeError in _bytes_to_mb when values are None
+        missing: List[str] = []
+        if minimum_bytes is None:
+            missing.append("Minimum")
+        if startup_bytes is None:
+            missing.append("Startup")
+        if maximum_bytes is None:
+            missing.append("Maximum")
+        if missing:
+            raise LisaException(
+                (
+                    "Get-VMMemory returned missing fields for VM "
+                    f"{vm_name}: {', '.join(missing)}"
+                )
+            )
+
+        return DynamicMemoryConfig(
+            dynamic_memory_enabled=bool(output.get("DynamicMemoryEnabled", False)),
+            minimum_mb=self._bytes_to_mb(minimum_bytes),
+            startup_mb=self._bytes_to_mb(startup_bytes),
+            maximum_mb=self._bytes_to_mb(maximum_bytes),
+        )
+
+    def apply_memory_pressure(self, memory_mb: int, duration: int) -> None:
+        self.node.tools[TestLimit].apply_memory_pressure(
+            memory_mb=memory_mb, duration=duration
+        )
+
+    def get_vm_memory_assigned_from_host(self, vm_name: str) -> int:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VM -Name {vm_name} | Select-Object MemoryAssigned",
+            force_run=True,
+            output_json=True,
+        )
+        if not output:
+            raise LisaException(f"Get-VM returned no data for VM {vm_name}")
+        assigned = output.get("MemoryAssigned")
+        if assigned is None:
+            raise LisaException(
+                f"MemoryAssigned value is missing in Get-VM output for VM {vm_name}"
+            )
+        return self._bytes_to_mb(assigned)
+
+    def get_host_total_memory_mb(self) -> int:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            "(Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory",
+            force_run=True,
+        )
+        try:
+            total_bytes = int(str(output).strip())
+        except (TypeError, ValueError) as ex:
+            raise LisaException(
+                f"Failed to read host total memory from PowerShell output: {output!r}"
+            ) from ex
+        return self._bytes_to_mb(total_bytes)
+
     def delete_virtual_disk(self, name: str) -> None:
         if self.exists_virtual_disk(name):
             self.node.tools[PowerShell].run_cmdlet(
@@ -644,3 +787,6 @@ class HyperV(Tool):
             self._assigned_nat_ports.remove(port)
         else:
             self._log.debug(f"Port {port} was not assigned.")
+
+    def _bytes_to_mb(self, value: Any) -> int:
+        return int(int(value) / (1024 * 1024))
