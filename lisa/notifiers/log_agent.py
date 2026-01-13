@@ -74,7 +74,7 @@ class LogAgentSchema(schema.Notifier):
     )
 
     skip_duplicate_errors: bool = field(
-        default=True,
+        default=False,
         metadata=field_metadata(
             description="Skip analysis for errors that have already been analyzed"
         ),
