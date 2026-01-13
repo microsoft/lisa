@@ -427,6 +427,12 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             shell=True,
             sudo=True,
         )
+        # Create symlink in /usr/bin for non-login shells
+        self._node.execute(
+            "ln -sf /usr/local/bin/cloud-hypervisor /usr/bin/cloud-hypervisor",
+            shell=True,
+            sudo=True,
+        )
 
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
@@ -559,6 +565,12 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
         )
         self._node.execute(
             "setcap cap_net_admin+ep /usr/local/bin/cloud-hypervisor",
+            sudo=True,
+        )
+        # Create symlink in /usr/bin for non-login shells
+        self._node.execute(
+            "ln -sf /usr/local/bin/cloud-hypervisor /usr/bin/cloud-hypervisor",
+            shell=True,
             sudo=True,
         )
         return self._get_version()
