@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+from enum import Enum
+
 from lisa.executable import Tool
 
 
@@ -13,6 +15,16 @@ class Ss(Tool):
     # Example output from ss -tn:
     # State   Recv-Q  Send-Q   Local Address:Port    Peer Address:Port
     # ESTAB   0       0        127.0.0.1:34567       127.0.0.1:45678
+
+    class ConnState(str, Enum):
+        """States consistent with inet_diag ExpectedConnState.
+
+        NONE is a sentinel used by tests to mean "no connection should exist";
+        it is not an actual ss output state.
+        """
+
+        ESTAB = "ESTAB"
+        NONE = "NONE"
 
     @property
     def command(self) -> str:
@@ -65,7 +77,8 @@ class Ss(Tool):
             return False
 
         # Check if the state exists in output
-        if state not in result.stdout:
+        state_str = getattr(state, "value", state)
+        if state_str not in result.stdout:
             return False
 
         # If local_addr specified, verify it matches
@@ -86,7 +99,8 @@ class Ss(Tool):
 
         Args:
             port: Port number of connection to kill
-            sport: If True, filter by source port; if False, by destination port
+            sport: If True, filter by source port; if False,
+                by destination port
             sudo: Whether to run with sudo (default: True, usually required)
         """
         port_filter = f"sport = {port}" if sport else f"dport = {port}"

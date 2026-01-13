@@ -3,7 +3,6 @@
 
 import os
 import time
-from enum import Enum
 from pathlib import Path
 
 from assertpy import assert_that
@@ -79,21 +78,11 @@ class InetDiagSuite(TestSuite):
         if not node.shell.exists(node.working_path / filename):
             node.shell.copy(file_path, node.working_path / filename)
 
-    class ExpectedConnState(str, Enum):
-        """Expected connection states used by polling helpers.
-
-        NONE is a sentinel meaning "no connection should exist"; other values
-        should map to real ss TCP state strings like ESTAB.
-        """
-
-        ESTAB = "ESTAB"
-        NONE = "NONE"
-
     def _wait_for_connection_state(
         self,
         node: Node,
         port: int,
-        expected_state: ExpectedConnState,
+        expected_state: Ss.ConnState,
         timeout: int = 10,
         poll_interval: float = 0.5,
     ) -> bool:
@@ -118,7 +107,7 @@ class InetDiagSuite(TestSuite):
             check_count += 1
             ss = node.tools[Ss]
 
-            if expected_state == self.ExpectedConnState.NONE:
+            if expected_state == Ss.ConnState.NONE:
                 # Checking that connection does NOT exist
                 connection_exists = ss.connection_exists(
                     port=port, state="ESTAB", sport=True
@@ -225,7 +214,7 @@ class InetDiagSuite(TestSuite):
             connection_ready = self._wait_for_connection_state(
                 node=node,
                 port=test_port,
-                expected_state=self.ExpectedConnState.ESTAB,
+                expected_state=Ss.ConnState.ESTAB,
                 timeout=15,
                 poll_interval=0.5,
             )
@@ -280,7 +269,7 @@ class InetDiagSuite(TestSuite):
             connection_destroyed = self._wait_for_connection_state(
                 node=node,
                 port=test_port,
-                expected_state=self.ExpectedConnState.NONE,
+                expected_state=Ss.ConnState.NONE,
                 timeout=10,
                 poll_interval=0.3,
             )
@@ -288,7 +277,7 @@ class InetDiagSuite(TestSuite):
             if not connection_destroyed:
                 # Collect debug information when connection is not destroyed
                 node.log.debug(
-                    "Collecting debug information for failed connection destruction"
+                    "Collecting debug info for failed connection destruction"
                 )
 
                 # Get current state of the connection using Ss tool
