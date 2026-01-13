@@ -12,6 +12,7 @@ from microsoft.testsuites.network.common import (
     reload_modules,
     remove_extra_nics,
     restore_extra_nics,
+    skip_if_pci_only_nics,
     sriov_basic_test,
     sriov_disable_enable,
     sriov_vf_connection_test,
@@ -271,14 +272,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:
-        # Skip test if any node has PCI-only NICs (AN without synthetic pairing)
-        for node in environment.nodes.list():
-            for nic in node.nics.nics.values():
-                if nic.is_pci_only_nic:
-                    raise SkippedException(
-                        f"SRIOV disable/enable test not applicable for "
-                        f"PCI-only NIC {nic.name} on node {node.name}."
-                    )
+        skip_if_pci_only_nics(environment)
 
         sriov_disable_enable(environment)
 
@@ -299,14 +293,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable_pci(self, environment: Environment) -> None:
-        # Skip test if any node has PCI-only NICs (AN without synthetic pairing)
-        for node in environment.nodes.list():
-            for nic in node.nics.nics.values():
-                if nic.is_pci_only_nic:
-                    raise SkippedException(
-                        f"SRIOV disable/enable PCI test not applicable for "
-                        f"PCI-only NIC {nic.name} on node {node.name}."
-                    )
+        skip_if_pci_only_nics(environment)
 
         disable_enable_devices(environment)
         vm_nics = initialize_nic_info(environment)
@@ -332,14 +319,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable_on_guest(self, environment: Environment) -> None:
-        # Skip test if any node has PCI-only NICs (AN without synthetic pairing)
-        for node in environment.nodes.list():
-            for nic in node.nics.nics.values():
-                if nic.is_pci_only_nic:
-                    raise SkippedException(
-                        f"SRIOV disable/enable on guest test not applicable "
-                        f"for PCI-only NIC {nic.name} on node {node.name}."
-                    )
+        skip_if_pci_only_nics(environment)
 
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)

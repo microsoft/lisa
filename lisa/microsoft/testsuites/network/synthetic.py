@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 from lisa import (
     Environment,
-    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -12,7 +11,12 @@ from lisa import (
 from lisa.features import NetworkInterface, StartStop
 from lisa.search_space import IntRange
 
-from .common import initialize_nic_info, remove_extra_nics, restore_extra_nics
+from .common import (
+    initialize_nic_info,
+    remove_extra_nics,
+    restore_extra_nics,
+    skip_if_no_synthetic_nics,
+)
 
 
 @TestSuiteMetadata(
@@ -46,8 +50,7 @@ class Synthetic(TestSuite):
     ) -> None:
         # Skip test if no synthetic NICs are available on any node
         for node in environment.nodes.list():
-            if not node.nics.get_synthetic_devices():
-                raise SkippedException("No synthetic NICs available for testing")
+            skip_if_no_synthetic_nics(node)
 
         initialize_nic_info(environment, is_sriov=False)
 
@@ -74,8 +77,7 @@ class Synthetic(TestSuite):
     ) -> None:
         # Skip test if no synthetic NICs are available on any node
         for node in environment.nodes.list():
-            if not node.nics.get_synthetic_devices():
-                raise SkippedException("No synthetic NICs available for testing")
+            skip_if_no_synthetic_nics(node)
 
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
@@ -105,8 +107,7 @@ class Synthetic(TestSuite):
     ) -> None:
         # Skip test if no synthetic NICs are available on any node
         for node in environment.nodes.list():
-            if not node.nics.get_synthetic_devices():
-                raise SkippedException("No synthetic NICs available for testing")
+            skip_if_no_synthetic_nics(node)
 
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
@@ -137,8 +138,7 @@ class Synthetic(TestSuite):
     ) -> None:
         # Skip test if no synthetic NICs are available on any node
         for node in environment.nodes.list():
-            if not node.nics.get_synthetic_devices():
-                raise SkippedException("No synthetic NICs available for testing")
+            skip_if_no_synthetic_nics(node)
 
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
@@ -171,8 +171,7 @@ class Synthetic(TestSuite):
     ) -> None:
         # Skip test if no synthetic NICs are available on any node
         for node in environment.nodes.list():
-            if not node.nics.get_synthetic_devices():
-                raise SkippedException("No synthetic NICs available for testing")
+            skip_if_no_synthetic_nics(node)
 
         remove_extra_nics(environment)
         try:
@@ -209,8 +208,7 @@ class Synthetic(TestSuite):
     ) -> None:
         # Skip test if no synthetic NICs are available on any node
         for node in environment.nodes.list():
-            if not node.nics.get_synthetic_devices():
-                raise SkippedException("No synthetic NICs available for testing")
+            skip_if_no_synthetic_nics(node)
 
         remove_extra_nics(environment)
         try:

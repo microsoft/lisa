@@ -5,7 +5,7 @@ from typing import Dict, List, cast
 from assertpy import assert_that
 from retry import retry
 
-from lisa import Environment, Node, RemoteNode, constants
+from lisa import Environment, Node, RemoteNode, SkippedException, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD
@@ -396,3 +396,20 @@ def reload_modules(environment: Environment) -> bool:
                 node.nics.load_module(module_name)
                 reload_modules = True
     return reload_modules
+
+
+def skip_if_no_synthetic_nics(node: Node) -> None:
+    """Skip test if node has no synthetic NICs available."""
+    if not node.nics.get_synthetic_devices():
+        raise SkippedException("No synthetic NICs available for testing")
+
+
+def skip_if_pci_only_nics(environment: Environment) -> None:
+    """Skip test if any node has PCI-only NICs (AN without synthetic pairing)."""
+    for node in environment.nodes.list():
+        for nic in node.nics.nics.values():
+            if nic.is_pci_only_nic:
+                raise SkippedException(
+                    f"SRIOV disable/enable test not applicable for "
+                    f"PCI-only NIC {nic.name} on node {node.name}."
+                )

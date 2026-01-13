@@ -6,7 +6,10 @@ import time
 from typing import Any, Dict, List, Tuple, Union, cast
 
 from assertpy import assert_that
-from microsoft.testsuites.network.common import cleanup_iperf3
+from microsoft.testsuites.network.common import (
+    cleanup_iperf3,
+    skip_if_no_synthetic_nics,
+)
 
 from lisa import (
     Environment,
@@ -100,9 +103,7 @@ class NetworkSettings(TestSuite):
         ),
     )
     def verify_ringbuffer_settings_change(self, node: Node) -> None:
-        # Skip test if no synthetic NICs are available
-        if not node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(node)
         ethtool = node.tools[Ethtool]
         try:
             devices_settings = ethtool.get_all_device_ring_buffer_settings()
@@ -191,9 +192,7 @@ class NetworkSettings(TestSuite):
         requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_channels_change(self, node: Node, log: Logger) -> None:
-        # Skip test if no synthetic NICs are available
-        if not node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(node)
 
         kernel_ver = node.tools[Uname].get_linux_information().kernel_version
         if (
@@ -265,9 +264,7 @@ class NetworkSettings(TestSuite):
         priority=1,
     )
     def verify_device_enabled_features(self, node: Node) -> None:
-        # Skip test if no synthetic NICs are available
-        if not node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(node)
 
         required_features = [
             "rx-checksumming",
@@ -309,9 +306,7 @@ class NetworkSettings(TestSuite):
         requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_gro_lro_settings_change(self, node: Node, log: Logger) -> None:
-        # Skip test if no synthetic NICs are available
-        if not node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(node)
 
         ethtool = node.tools[Ethtool]
 
@@ -385,9 +380,7 @@ class NetworkSettings(TestSuite):
         requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_rss_hash_key_change(self, node: Node, log: Logger) -> None:
-        # Skip test if no synthetic NICs are available
-        if not node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(node)
 
         uname = node.tools[Uname]
         linux_info = uname.get_linux_information()
@@ -454,9 +447,7 @@ class NetworkSettings(TestSuite):
         priority=2,
     )
     def verify_device_rx_hash_level_change(self, node: Node, log: Logger) -> None:
-        # Skip test if no synthetic NICs are available
-        if not node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(node)
 
         ethtool = node.tools[Ethtool]
 
@@ -517,9 +508,7 @@ class NetworkSettings(TestSuite):
         ),
     )
     def verify_device_msg_level_change(self, node: Node, log: Logger) -> None:
-        # Skip test if no synthetic NICs are available
-        if not node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(node)
 
         # Check if feature is supported by the kernel
         self._check_msg_level_change_supported(node)
@@ -633,9 +622,7 @@ class NetworkSettings(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
-        # Skip test if no synthetic NICs are available
-        if not client_node.nics.get_synthetic_devices():
-            raise SkippedException("No synthetic NICs available for testing")
+        skip_if_no_synthetic_nics(client_node)
 
         ethtool = client_node.tools[Ethtool]
 
