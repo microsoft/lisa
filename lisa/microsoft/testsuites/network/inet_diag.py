@@ -126,23 +126,23 @@ class InetDiagSuite(TestSuite):
                 )
                 if connection_exists:
                     node.log.debug(
-                        "Connection on port %s reached state %s after %s "
-                        "(%d checks)",
-                        port,
-                        expected_state.value,
-                        timer.elapsed_text(stop=False),
-                        check_count,
+                        (
+                            f"Connection on port {port} reached state "
+                            f"{expected_state.value} after "
+                            f"{timer.elapsed_text(stop=False)} "
+                            f"({check_count} checks)"
+                        )
                     )
                     return True
 
             if check_count % 5 == 0:
                 node.log.debug(
-                    "Waiting for connection on port %s to reach state %s. "
-                    "Elapsed: %s, checks: %d",
-                    port,
-                    expected_state.value,
-                    timer.elapsed_text(stop=False),
-                    check_count,
+                    (
+                        f"Waiting for connection on port {port} to reach "
+                        f"state {expected_state.value}. Elapsed: "
+                        f"{timer.elapsed_text(stop=False)}, checks: "
+                        f"{check_count}"
+                    )
                 )
 
             time.sleep(poll_interval)
@@ -199,10 +199,7 @@ class InetDiagSuite(TestSuite):
         connection_process = None
         try:
             # Start the connection in background with nohup to keep it alive
-            node.log.debug(
-                "Starting TCP connection test script on port %s",
-                test_port,
-            )
+            node.log.debug(f"Starting TCP connection test script on port {test_port}")
             connection_process = node.execute_async(
                 f"python3 {script_path} {test_port}",
                 sudo=False,
@@ -258,10 +255,7 @@ class InetDiagSuite(TestSuite):
             )
 
             # Destroy the connection using ss -K
-            node.log.info(
-                "Destroying connection on port %s using ss -K",
-                test_port,
-            )
+            node.log.info(f"Destroying connection on port {test_port} using ss -K")
             ss.kill_connection(port=test_port, sport=True, sudo=True)
 
             # Wait for the connection to be destroyed using robust polling
@@ -289,9 +283,10 @@ class InetDiagSuite(TestSuite):
                     expected_exit_code=0,
                 ).stdout
                 node.log.debug(
-                    "Connection still exists on port %s:\n%s",
-                    test_port,
-                    ss_port_check,
+                    (
+                        f"Connection still exists on port {test_port}:\n"
+                        f"{ss_port_check}"
+                    )
                 )
 
                 # Check kernel config again
@@ -329,14 +324,14 @@ class InetDiagSuite(TestSuite):
                 )
                 if pkill_result.exit_code == 0:
                     node.log.debug(
-                        "Sent SIGTERM to process for %s (pkill exit 0)",
-                        script_path,
+                        f"Sent SIGTERM to process for {script_path} " f"(pkill exit 0)"
                     )
                 else:
                     node.log.debug(
-                        "pkill (SIGTERM) for %s returned exit code %d",
-                        script_path,
-                        pkill_result.exit_code,
+                        (
+                            f"pkill (SIGTERM) for {script_path} returned "
+                            f"exit code {pkill_result.exit_code}"
+                        )
                     )
 
                 # If pkill failed unexpectedly (>1), treat as hard failure
