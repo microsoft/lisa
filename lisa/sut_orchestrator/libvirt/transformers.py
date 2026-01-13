@@ -109,6 +109,14 @@ class QemuInstaller(BaseInstaller):
 class CloudHypervisorInstaller(BaseInstaller):
     _command = "cloud-hypervisor"
 
+    def _create_symlink_to_usr_bin(self) -> None:
+        """Create symlink in /usr/bin for non-login shells."""
+        self._node.execute(
+            "ln -sf /usr/local/bin/cloud-hypervisor /usr/bin/cloud-hypervisor",
+            shell=True,
+            sudo=True,
+        )
+
 
 class LibvirtInstaller(BaseInstaller):
     _command = "libvirtd"
@@ -427,6 +435,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             shell=True,
             sudo=True,
         )
+        self._create_symlink_to_usr_bin()
 
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
@@ -561,6 +570,7 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
             "setcap cap_net_admin+ep /usr/local/bin/cloud-hypervisor",
             sudo=True,
         )
+        self._create_symlink_to_usr_bin()
         return self._get_version()
 
 
