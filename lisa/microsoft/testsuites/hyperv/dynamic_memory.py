@@ -312,6 +312,13 @@ class HyperVDynamicMemory(TestSuite):
         )
 
     def _get_vm_stress_gbytes(self, ctx: DynamicMemoryTestContext) -> str:
+        """
+        Choose a VM stress size relative to the Hyper-V maximum memory.
+
+        The 1.75 multiplier intentionally overshoots the configured maximum
+        to reliably trigger dynamic memory hot add during stress and reach the
+        upper assignment limit.
+        """
         max_mb = ctx.dynamic_memory_config.maximum_mb
         gbytes = math.ceil(math.ceil(max_mb * 1.75) / 1024)
         return f"{gbytes}G"

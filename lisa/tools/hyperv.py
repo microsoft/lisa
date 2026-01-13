@@ -225,12 +225,43 @@ class HyperV(Tool):
 
         # configure memory
         if dynamic_memory_enabled:
+            # Validate dynamic memory relationships just before applying
+            if (
+                minimum_memory_mb is None
+                or startup_memory_mb is None
+                or maximum_memory_mb is None
+            ):
+                raise LisaException(
+                    "Dynamic memory requires minimum/startup/maximum MB specified"
+                )
+            host_total_mb = self.get_host_total_memory_mb()
+
+            if minimum_memory_mb <= 0 or not (
+                minimum_memory_mb
+                < startup_memory_mb
+                < maximum_memory_mb
+                < host_total_mb
+            ):
+                raise LisaException(
+                    (
+                        "Invalid dynamic memory configuration: require "
+                        "0 < minimum < startup < maximum < host total. "
+                        f"(minimum={minimum_memory_mb}, startup={startup_memory_mb}, "
+                        f"maximum={maximum_memory_mb}, host_total={host_total_mb})"
+                    )
+                )
+
             dynamic_memory_args = [f"-VMName {name}"]
             dynamic_memory_args.append("-DynamicMemoryEnabled $true")
             dynamic_memory_args.append(f"-MinimumBytes {minimum_memory_mb}MB")
             dynamic_memory_args.append(f"-StartupBytes {startup_memory_mb}MB")
             dynamic_memory_args.append(f"-MaximumBytes {maximum_memory_mb}MB")
             if buffer is not None:
+                if buffer < 0 or buffer > 100:
+                    raise LisaException(
+                        f"Buffer percentage {buffer} is invalid, "
+                        "must be between 0 and 100"
+                    )
                 dynamic_memory_args.append(f"-Buffer {buffer}")
             self._run_hyperv_cmdlet(
                 "Set-VMMemory",
