@@ -120,6 +120,7 @@ from .remote_copy import RemoteCopy
 from .resize_partition import ResizePartition
 from .rm import Rm
 from .sar import Sar
+from .smb import SmbClient, SmbServer
 from .sockperf import Sockperf
 from .ss import Ss
 from .ssh import Ssh
@@ -283,6 +284,8 @@ __all__ = [
     "Sed",
     "Service",
     "ServiceInternal",
+    "SmbClient",
+    "SmbServer",
     "Sockperf",
     "Ss",
     "Ssh",
