@@ -137,7 +137,8 @@ class InetDiagSuite(TestSuite):
                 )
                 if connection_exists:
                     node.log.debug(
-                        "Connection on port %s reached state %s after %s (%d checks)",
+                        "Connection on port %s reached state %s after %s "
+                        "(%d checks)",
                         port,
                         expected_state.value,
                         timer.elapsed_text(stop=False),
@@ -209,7 +210,10 @@ class InetDiagSuite(TestSuite):
         connection_process = None
         try:
             # Start the connection in background with nohup to keep it alive
-            node.log.debug(f"Starting TCP connection test script on port {test_port}")
+            node.log.debug(
+                "Starting TCP connection test script on port %s",
+                test_port,
+            )
             connection_process = node.execute_async(
                 f"python3 {script_path} {test_port}",
                 sudo=False,
@@ -229,29 +233,30 @@ class InetDiagSuite(TestSuite):
             if not connection_ready:
                 # Collect debug information when connection is not established
                 node.log.debug(
-                    "Collecting debug information for failed connection establishment"
+                    "Collecting debug information for failed connection "
+                    "establishment"
                 )
 
                 # Get all socket statistics
                 ss_stats = ss.get_statistics()
                 node.log.debug(f"Socket statistics:\n{ss_stats}")
 
-                # Check for connections on the test port
-                ss_port_check = node.execute(
-                    f"ss -tnp sport = {test_port}",
+                # Check for connections on the test port using Ss tool
+                ss_port_check = ss.run(
+                    f"-tnp sport = {test_port}",
+                    shell=True,
                     sudo=True,
+                    force_run=True,
+                    expected_exit_code=0,
                 ).stdout
                 node.log.debug(
-                    f"Connection check on port {test_port}:\n{ss_port_check}"
+                    "Connection check on port %s:\n%s",
+                    test_port,
+                    ss_port_check,
                 )
 
-                # Check if the script process is still running
-                ps_check = node.execute(
-                    f"ps aux | grep {script_filename}",
-                    sudo=True,
-                ).stdout
-                node.log.debug(f"Process check for script:\n{ps_check}")
-
+                # Mark node as not safe to reuse by failing the test
+                node.mark_dirty()
                 raise LisaException(
                     f"TCP connection not established on port {test_port} "
                     f"within timeout period. This may indicate a kernel bug "
@@ -264,7 +269,10 @@ class InetDiagSuite(TestSuite):
             )
 
             # Destroy the connection using ss -K
-            node.log.info(f"Destroying connection on port {test_port} using ss -K")
+            node.log.info(
+                "Destroying connection on port %s using ss -K",
+                test_port,
+            )
             ss.kill_connection(port=test_port, sport=True, sudo=True)
 
             # Wait for the connection to be destroyed using robust polling
@@ -283,13 +291,18 @@ class InetDiagSuite(TestSuite):
                     "Collecting debug information for failed connection destruction"
                 )
 
-                # Get current state of the connection
-                ss_port_check = node.execute(
-                    f"ss -tnp sport = {test_port}",
+                # Get current state of the connection using Ss tool
+                ss_port_check = ss.run(
+                    f"-tnp sport = {test_port}",
+                    shell=True,
                     sudo=True,
+                    force_run=True,
+                    expected_exit_code=0,
                 ).stdout
                 node.log.debug(
-                    f"Connection still exists on port {test_port}:\n{ss_port_check}"
+                    "Connection still exists on port %s:\n%s",
+                    test_port,
+                    ss_port_check,
                 )
 
                 # Check kernel config again
@@ -298,13 +311,8 @@ class InetDiagSuite(TestSuite):
                     f"{kernel_config.is_enabled('CONFIG_INET_DIAG_DESTROY')}"
                 )
 
-                # Try to get more details about the socket state
-                netstat_check = node.execute(
-                    f"netstat -anp | grep {test_port}",
-                    sudo=True,
-                ).stdout
-                node.log.debug(f"Netstat output for port {test_port}:\n{netstat_check}")
-
+                # Mark node as not safe to reuse by failing the test
+                node.mark_dirty()
                 raise LisaException(
                     f"Connection on port {test_port} was not destroyed "
                     f"within timeout period. This indicates a kernel bug "
@@ -321,6 +329,7 @@ class InetDiagSuite(TestSuite):
         finally:
             # Clean up: kill the background process
             if connection_process is not None:
+                # Attempt graceful termination
                 pkill_result = node.execute(
                     f"pkill -f {script_path}",
                     sudo=True,
@@ -330,21 +339,35 @@ class InetDiagSuite(TestSuite):
                     ),
                 )
                 if pkill_result.exit_code == 0:
-                    node.log.debug(f"Successfully killed process for {script_path}")
+                    node.log.debug(
+                        "Sent SIGTERM to process for %s (pkill exit 0)",
+                        script_path,
+                    )
                 else:
                     node.log.debug(
-                        f"Process cleanup for {script_path} returned exit code "
-                        f"{pkill_result.exit_code} - process may have already exited"
+                        "pkill (SIGTERM) for %s returned exit code %d",
+                        script_path,
+                        pkill_result.exit_code,
                     )
 
-            # Remove temporary script using RM tool
-            rm = node.tools[Rm]
-            rm.remove_file(str(script_path), sudo=True)
+                # If pkill failed unexpectedly (>1), treat as hard failure
+                if pkill_result.exit_code not in (0, 1):
+                    # Ensure the node is not reused if cleanup failed
+                    node.mark_dirty()
+                    raise LisaException(
+                        "Cleanup failed: pkill returned error code "
+                        f"{pkill_result.exit_code}"
+                    )
+
+                # Remove temporary script using RM tool (best-effort)
+                rm = node.tools[Rm]
+                rm.remove_file(str(script_path), sudo=True)
 
     @TestCaseMetadata(
         description="""
         This test case verifies that CONFIG_INET_DIAG is enabled in the kernel,
-        which is required for socket diagnostic functionality. INET_DIAG provides
+        which is required for socket diagnostic functionality. INET_DIAG
+        provides
         the interface for tools like ss to query socket information.
 
         Steps:
