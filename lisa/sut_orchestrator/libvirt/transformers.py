@@ -115,6 +115,10 @@ class CloudHypervisorInstaller(BaseInstaller):
             "ln -sf /usr/local/bin/cloud-hypervisor /usr/bin/cloud-hypervisor",
             shell=True,
             sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to create symlink to cloud-hypervisor in /usr/bin"
+            ),
         )
 
 
