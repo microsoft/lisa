@@ -6,6 +6,8 @@ from assertpy import assert_that
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
     initialize_nic_info,
+    skip_if_no_synthetic_nics,
+    skip_if_pci_only_nics,
     sriov_basic_test,
     sriov_disable_enable,
     sriov_vf_connection_test,
@@ -134,6 +136,8 @@ class Stress(TestSuite):
         ),
     )
     def stress_sriov_disable_enable(self, environment: Environment) -> None:
+        skip_if_pci_only_nics(environment)
+
         sriov_disable_enable(environment, times=50)
 
     @TestCaseMetadata(
@@ -158,6 +162,10 @@ class Stress(TestSuite):
     def stress_synthetic_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):
             for node in environment.nodes.list():
@@ -186,6 +194,10 @@ class Stress(TestSuite):
     def stress_synthetic_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):
             for node in environment.nodes.list():
@@ -215,6 +227,10 @@ class Stress(TestSuite):
     def stress_synthetic_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):
             for node in environment.nodes.list():

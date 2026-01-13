@@ -138,6 +138,12 @@ CONTROLLER_ID_DICT: Dict[str, List[str]] = {
 # Kernel driver in use: mlx5_core\r
 PATTERN_MODULE_IN_USE = re.compile(r"Kernel driver in use: ([A-Za-z0-9_-]*)", re.M)
 
+# PCI slot pattern for extracting slot from device paths
+# Example: /sys/devices/pci0000:00/0000:00:02.0/net/eth0 -> 0000:00:02.0
+PATTERN_PCI_SLOT = re.compile(
+    r"([a-fA-F0-9]{4}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}\.[a-fA-F0-9])"
+)
+
 
 class PciDevice:
     def __init__(self, pci_device_raw: str) -> None:
@@ -401,6 +407,13 @@ class Lspci(Tool):
             if device.device_id == device_id and device.vendor_id == vendor_id:
                 devices_list.append(device)
         return devices_list
+
+    def get_pci_slot_from_device_path(self, device_path: str) -> Optional[str]:
+        """
+        Extract PCI slot information from a device path.
+        """
+        pci_slot = get_matched_str(device_path, PATTERN_PCI_SLOT)
+        return pci_slot if pci_slot else None
 
 
 class LspciBSD(Lspci):
