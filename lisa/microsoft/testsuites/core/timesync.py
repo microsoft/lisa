@@ -175,7 +175,9 @@ class TimeSync(TestSuite):
              (there's a new feature in the AH2021 host that allows Linux guests so use
               the plain "tsc" instead of the "hyperv_clocksource_tsc_page",
               which produces a modest performance benefit when reading the clock.)
-            2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            2. Validate Hyper-V PTP device is available for time synchronization.
+             (Linux kernel v6.15+ removed constant_tsc flag for many Intel CPUs;
+              Azure VMs rely on Hyper-V TSC page via PTP device, not constant_tsc.)
             3. Check clocksource name shown up in dmesg.
             4. Unbind current clock source if there are 2+ clock sources, check current
              clock source can be switched to a different one.
@@ -222,23 +224,54 @@ class TimeSync(TestSuite):
                 f"but actually it is {clock_source_result.stdout}."
             ).is_subset_of(clocksource)
 
-            # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            # 2. Validate Hyper-V PTP device is available for time synchronization.
+            # Note: Linux kernel v6.15+ removed the constant_tsc CPU flag for many
+            # Intel CPUs. Azure VMs use Hyper-V TSC page for time sync, which is
+            # exposed via the PTP device, not dependent on the constant_tsc flag.
+            # See: x86/cpu/intel: Limit the non-architectural constant_tsc model checks
             dmesg = node.tools[Dmesg]
             if CpuArchitecture.X64 == arch:
                 if not isinstance(node.os, BSD):
-                    cpu_info_result = cat.run("/proc/cpuinfo")
-                    if CpuType.Intel == lscpu.get_cpu_type():
-                        expected_tsc_str = " constant_tsc "
-                    elif CpuType.AMD == lscpu.get_cpu_type():
-                        expected_tsc_str = " tsc "
+                    # Validate Hyper-V PTP device exists (the authoritative signal
+                    # for TimeSync correctness in Azure VMs)
+                    ls = node.tools[Ls]
+                    ptp_hyperv_exists = node.shell.exists(
+                        PurePosixPath("/dev/ptp_hyperv")
+                    )
+                    
+                    # If /dev/ptp_hyperv symlink doesn't exist, check for any PTP
+                    # device with hyperv clock name
+                    if not ptp_hyperv_exists:
+                        ptp_devices = ls.list_dir("/sys/class/ptp", sudo=True)
+                        ptp_hyperv_found = False
+                        for ptp_device in ptp_devices:
+                            clock_name_result = cat.run(
+                                f"/sys/class/ptp/{ptp_device}/clock_name",
+                                sudo=True,
+                                force_run=True,
+                            )
+                            if clock_name_result.stdout.strip() == "hyperv":
+                                ptp_hyperv_found = True
+                                log.debug(
+                                    f"Found Hyper-V PTP device: {ptp_device}"
+                                )
+                                break
+                        assert_that(ptp_hyperv_found).described_as(
+                            "Expected Hyper-V PTP device to be available for time "
+                            "synchronization. No PTP device with 'hyperv' clock name "
+                            "was found. This is required for proper time sync in "
+                            "Azure VMs."
+                        ).is_true()
                     else:
-                        raise UnsupportedCpuArchitectureException(arch)
-                    shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
-                    assert_that(shown_up_times).described_as(
-                        f"Expected {expected_tsc_str} shown up times in cpu flags is"
-                        f" equal to cpu count."
-                    ).is_equal_to(lscpu.get_thread_count())
+                        log.debug("Found /dev/ptp_hyperv symlink for time sync")
+
+                    # Additionally verify PTP clock support is registered in dmesg
+                    assert_that(dmesg.get_output()).described_as(
+                        "Expected 'PTP clock support registered' message in dmesg, "
+                        "indicating Hyper-V time sync is properly initialized."
+                    ).contains(self.ptp_registered_msg)
                 else:
+                    # FreeBSD: Check for TSC in dmesg features
                     cpu_info_results = self.__freebsd_tsc_filter.findall(
                         dmesg.get_output()
                     )
