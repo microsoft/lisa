@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 
 from lisa import messages, notifier, schema, transformer
-from lisa.action import Action
+from lisa.action import Action, ActionStatus
 from lisa.combinator import Combinator
 from lisa.environment import Environment
 from lisa.messages import TestResultMessage, TestResultMessageBase, TestStatus
@@ -282,7 +282,11 @@ class RootRunner(Action):
 
     async def stop(self) -> None:
         await super().stop()
-        # TODO: to be implemented
+        # Set status to stopping and cancel ongoing tasks
+        self.status = ActionStatus.STOPPING
+        cancel()
+        self._cleanup()
+        self.status = ActionStatus.STOPPED
 
     async def close(self) -> None:
         await super().close()
