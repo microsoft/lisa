@@ -11,7 +11,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.tools import Git, Sed, Service, Usermod, Wget, Whoami
+from lisa.tools import Git, Ln, Sed, Service, Usermod, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
     LisaException,
@@ -111,14 +111,12 @@ class CloudHypervisorInstaller(BaseInstaller):
 
     def _create_symlink_to_usr_bin(self) -> None:
         """Create symlink in /usr/bin for non-login shells."""
-        self._node.execute(
-            "ln -sf /usr/local/bin/cloud-hypervisor /usr/bin/cloud-hypervisor",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to create symlink to cloud-hypervisor in /usr/bin"
-            ),
+        ln = self._node.tools[Ln]
+        ln.create_link(
+            target="/usr/local/bin/cloud-hypervisor",
+            link="/usr/bin/cloud-hypervisor",
+            is_symbolic=True,
+            force=True,
         )
 
 
