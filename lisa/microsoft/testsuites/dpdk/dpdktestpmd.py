@@ -700,6 +700,7 @@ class DpdkTestpmd(Tool):
         self,
         search_key_constant: str,
         testpmd_output: str,
+        discard_first_and_last : bool = True,
     ) -> List[int]:
         # Find all data in the output that matches
         # Apply a list of filters to the data
@@ -717,9 +718,17 @@ class DpdkTestpmd(Tool):
                 "in the test output."
             )
         )
-        cast_to_ints = list(map(int, matches))
-        cast_to_ints = _discard_first_zeroes(cast_to_ints)
-        return _discard_first_and_last_sample(cast_to_ints)
+        data_as_integers = list(map(int, matches))
+        assert_that(data_as_integers).described_as(
+            f"Could not find any data in testpmd output"
+            f" for key {search_key_constant}").is_not_empty()
+        data_as_integers = _discard_first_zeroes(data_as_integers)
+        if discard_first_and_last:
+            data_as_integers = _discard_first_and_last_sample(data_as_integers)
+        assert_that(data_as_integers).described_as(
+            f"Could not find any data in testpmd output"
+            f" for key {search_key_constant}.").is_not_empty()
+        return data_as_integers
 
     def populate_performance_data(self) -> None:
         self.rx_pps_data = self.get_data_from_testpmd_output(
@@ -772,7 +781,7 @@ class DpdkTestpmd(Tool):
             )
         self.packet_drop_rate = self.tx_packet_drops / self.tx_total_packets
         assert_that(self.packet_drop_rate).described_as(
-            "More than 33% of the tx packets were dropped!"
+            'More than 33% of the tx packets were dropped!'
         ).is_close_to(0, 0.33)
 
     def check_rx_packet_drops(self) -> None:
