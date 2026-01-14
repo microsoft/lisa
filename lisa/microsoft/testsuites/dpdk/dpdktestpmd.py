@@ -783,7 +783,7 @@ class DpdkTestpmd(Tool):
             )
         self.packet_drop_rate = self.tx_packet_drops / self.tx_total_packets
         assert_that(self.packet_drop_rate).described_as(
-            'More than 33% of the tx packets were dropped!'
+            "More than 33% of the tx packets were dropped!"
         ).is_close_to(0, 0.33)
 
     def check_rx_packet_drops(self) -> None:
