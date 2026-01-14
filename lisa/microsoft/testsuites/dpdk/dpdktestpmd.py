@@ -700,7 +700,7 @@ class DpdkTestpmd(Tool):
         self,
         search_key_constant: str,
         testpmd_output: str,
-        discard_first_and_last : bool = True,
+        discard_first_and_last: bool = True,
     ) -> List[int]:
         # Find all data in the output that matches
         # Apply a list of filters to the data
@@ -721,13 +721,15 @@ class DpdkTestpmd(Tool):
         data_as_integers = list(map(int, matches))
         assert_that(data_as_integers).described_as(
             f"Could not find any data in testpmd output"
-            f" for key {search_key_constant}").is_not_empty()
+            f" for key {search_key_constant}"
+        ).is_not_empty()
         data_as_integers = _discard_first_zeroes(data_as_integers)
         if discard_first_and_last:
             data_as_integers = _discard_first_and_last_sample(data_as_integers)
         assert_that(data_as_integers).described_as(
             f"Could not find any data in testpmd output"
-            f" for key {search_key_constant}.").is_not_empty()
+            f" for key {search_key_constant}."
+        ).is_not_empty()
         return data_as_integers
 
     def populate_performance_data(self) -> None:

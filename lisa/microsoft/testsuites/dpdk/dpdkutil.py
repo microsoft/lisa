@@ -689,7 +689,7 @@ def verify_dpdk_send_receive(
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
-    check_sender_packet_drops:bool=False,
+    check_sender_packet_drops: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
