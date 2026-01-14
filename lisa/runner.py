@@ -284,9 +284,15 @@ class RootRunner(Action):
         await super().stop()
         # Set status to stopping and cancel ongoing tasks
         self.status = ActionStatus.STOPPING
-        cancel()
-        self._cleanup()
-        self.status = ActionStatus.STOPPED
+        try:
+            # Ensure cleanup is attempted even if cancel() raises.
+            try:
+                cancel()
+            finally:
+                self._cleanup()
+        finally:
+            # Always mark the action as stopped, even if errors occurred.
+            self.status = ActionStatus.STOPPED
 
     async def close(self) -> None:
         await super().close()
