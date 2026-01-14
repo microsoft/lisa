@@ -5,7 +5,13 @@ from pathlib import Path, PurePath
 from typing import Any, Dict, List, Tuple, cast
 
 import yaml
-from exceptiongroup import ExceptionGroup
+
+# ExceptionGroup is built-in for Python 3.11+
+try:
+    from exceptiongroup import ExceptionGroup
+except ImportError:
+    # Python 3.11+ has ExceptionGroup as a built-in
+    pass
 
 from lisa import (
     Environment,
