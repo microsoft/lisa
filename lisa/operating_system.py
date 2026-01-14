@@ -906,7 +906,7 @@ class Debian(Linux):
                 key_basename = os.path.basename(key_file_path)
                 self._node.execute(
                     cmd=(
-                        f"gpg --yes --dearmor -o "
+                        "gpg --yes --dearmor -o "
                         f"/etc/apt/trusted.gpg.d/{key_basename}.gpg "
                         f"{key_file_path}"
                     ),
