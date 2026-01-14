@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Windows
+from lisa.operating_system import BSD, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
@@ -224,6 +224,19 @@ class Storage(TestSuite):
         ),
     )
     def verify_swap(self, node: RemoteNode) -> None:
+        # Skip Fedora: Since Fedora 33 (2020), Fedora uses zram-swap by default,
+        # which is compressed RAM-based swap managed independently by systemd's
+        # zram-generator, not by waagent. This creates a mismatch where:
+        # - waagent.conf has ResourceDisk.EnableSwap=n (no swap on /mnt/resource)
+        # - System has /dev/zram0 swap enabled (managed by systemd)
+        # Reference: https://fedoraproject.org/wiki/Changes/SwapOnZRAM
+        if type(node.os) is Fedora:
+            raise SkippedException(
+                "Fedora uses zram-swap managed independently of waagent. "
+                "Test assumption that waagent config matches system swap state "
+                "is invalid on Fedora."
+            )
+
         is_swap_enabled_wa_agent = node.tools[Waagent].is_swap_enabled()
         is_swap_enabled_distro = node.tools[Swap].is_swap_enabled()
         assert_that(
