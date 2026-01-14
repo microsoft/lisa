@@ -1037,6 +1037,23 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         sriov_enabled = primary_nic.enable_accelerated_networking
         return sriov_enabled
 
+    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
+    def _update_vm_nics(
+        self,
+        compute_client: Any,
+        resource_group_name: str,
+        vm_name: str,
+        network_interfaces_section: List[Dict[str, Any]],
+    ) -> None:
+        """Helper method to update VM network interfaces with retry logic."""
+        compute_client.virtual_machines.begin_update(
+            resource_group_name=resource_group_name,
+            vm_name=vm_name,
+            parameters={
+                "network_profile": {"network_interfaces": network_interfaces_section},
+            },
+        )
+
     def attach_nics(
         self, extra_nic_count: int, enable_accelerated_networking: bool = True
     ) -> None:
@@ -1105,12 +1122,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         network_interfaces_section.append({"id": primary_nic.id, "primary": True})
 
         self._log.debug(f"start to attach the nics into VM {self._node.name}.")
-        compute_client.virtual_machines.begin_update(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._node.name,
-            parameters={
-                "network_profile": {"network_interfaces": network_interfaces_section},
-            },
+        self._update_vm_nics(
+            compute_client,
+            self._resource_group_name,
+            self._node.name,
+            network_interfaces_section,
         )
         self._log.debug(f"attach the nics into VM {self._node.name} successfully.")
         startstop.start()
@@ -1142,12 +1158,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         network_interfaces_section.append({"id": primary_nic.id, "primary": True})
         startstop = self._node.features[StartStop]
         startstop.stop()
-        compute_client.virtual_machines.begin_update(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._node.name,
-            parameters={
-                "network_profile": {"network_interfaces": network_interfaces_section},
-            },
+        self._update_vm_nics(
+            compute_client,
+            self._resource_group_name,
+            self._node.name,
+            network_interfaces_section,
         )
         self._log.debug(
             f"Only associated nic {primary_nic.id} into VM {self._node.name}."
@@ -2258,6 +2273,21 @@ class Resize(AzureFeatureMixin, features.Resize):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
+    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
+    def _update_vm_size(
+        self,
+        compute_client: Any,
+        resource_group_name: str,
+        vm_name: str,
+        vm_update: VirtualMachineUpdate,
+    ) -> Any:
+        """Helper method to update VM size with retry logic."""
+        return compute_client.virtual_machines.begin_update(
+            resource_group_name=resource_group_name,
+            vm_name=vm_name,
+            parameters=vm_update,
+        )
+
     def resize(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[schema.NodeSpace, str, str]:
@@ -2271,10 +2301,11 @@ class Resize(AzureFeatureMixin, features.Resize):
         vm_update = VirtualMachineUpdate(hardware_profile=hardware_profile)
 
         # Resizing with new Vm Size
-        lro_poller = compute_client.virtual_machines.begin_update(
-            resource_group_name=node_context.resource_group_name,
-            vm_name=node_context.vm_name,
-            parameters=vm_update,
+        lro_poller = self._update_vm_size(
+            compute_client,
+            node_context.resource_group_name,
+            node_context.vm_name,
+            vm_update,
         )
 
         # Waiting for the Long Running Operation to finish
