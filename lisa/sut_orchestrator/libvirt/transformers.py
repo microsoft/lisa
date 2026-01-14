@@ -11,7 +11,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.tools import Git, Sed, Service, Usermod, Wget, Whoami
+from lisa.tools import Git, Ln, Sed, Service, Usermod, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
     LisaException,
@@ -108,6 +108,16 @@ class QemuInstaller(BaseInstaller):
 
 class CloudHypervisorInstaller(BaseInstaller):
     _command = "cloud-hypervisor"
+
+    def _create_symlink_to_usr_bin(self) -> None:
+        """Create symlink in /usr/bin for non-login shells."""
+        ln = self._node.tools[Ln]
+        ln.create_link(
+            target="/usr/local/bin/cloud-hypervisor",
+            link="/usr/bin/cloud-hypervisor",
+            is_symbolic=True,
+            force=True,
+        )
 
 
 class LibvirtInstaller(BaseInstaller):
@@ -427,6 +437,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             shell=True,
             sudo=True,
         )
+        self._create_symlink_to_usr_bin()
 
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
@@ -561,6 +572,7 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
             "setcap cap_net_admin+ep /usr/local/bin/cloud-hypervisor",
             sudo=True,
         )
+        self._create_symlink_to_usr_bin()
         return self._get_version()
 
 
