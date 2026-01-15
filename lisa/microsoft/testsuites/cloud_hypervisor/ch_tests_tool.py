@@ -575,19 +575,26 @@ class CloudHypervisorTests(Tool):
         if has_nc:
             nc_sleep = self.NC_BIND_SLEEP_SECONDS
             warmup_cmd = (
-                f"{numa_prefix} bash -lc 'port=$((20000 + RANDOM % 20000)); "
-                'nc -lk "$port" > /dev/null & NC_PID=$!; '
+                f"{numa_prefix} bash -lc '"
+                "port=$((20000 + RANDOM % 20000)); "
+                'NC_FLAGS=""; '
+                'if nc -h 2>&1 | grep -q -- " -N"; then NC_FLAGS="-N"; '
+                'elif nc -h 2>&1 | grep -q -- " -q"; then NC_FLAGS="-q 0"; fi; '
+                'nc -l "$port" $NC_FLAGS > /dev/null & NC_PID=$!; '
                 f"sleep {nc_sleep}; "
-                "timeout 5 dd if=/dev/zero bs=1M count=64 | "
-                'nc 127.0.0.1 "$port" || true; '
-                "kill $NC_PID || true; "
-                "wait $NC_PID || true'"
+                'timeout 10 bash -c "dd if=/dev/zero bs=1M count=64 | '
+                'nc 127.0.0.1 \\"$port\\" $NC_FLAGS" || true; '
+                "kill $NC_PID 2>/dev/null || true; "
+                "timeout 2 bash -c "
+                '"while kill -0 $NC_PID 2>/dev/null; do sleep 0.1; done" '
+                "2>/dev/null || true; "
+                'pkill -9 -f "nc -l.*$port" 2>/dev/null || true\''
             )
             self.node.execute(
                 warmup_cmd,
                 shell=True,
                 sudo=True,
-                timeout=15,
+                timeout=20,
             )
         else:
             self.node.execute(
@@ -2127,14 +2134,21 @@ exit $ec
         if has_nc:
             nc_sleep = self.NC_BIND_SLEEP_SECONDS
 
+            # Robust warmup: timeout-wrapped pipeline + nc flags for clean exit
             self.node.execute(
-                f"{numa_prefix} bash -c 'nc -lk 9999 > /dev/null & NC_PID=$!; "
+                f"{numa_prefix} bash -c '"
+                'NC_FLAGS=""; '
+                'if nc -h 2>&1 | grep -q -- " -N"; then NC_FLAGS="-N"; '
+                'elif nc -h 2>&1 | grep -q -- " -q"; then NC_FLAGS="-q 0"; fi; '
+                "nc -l 127.0.0.1 9999 $NC_FLAGS > /dev/null & NC_PID=$!; "
                 f"sleep {nc_sleep}; "
-                f"timeout 20 dd if=/dev/zero bs=1M count=100 | "
-                f"nc 127.0.0.1 9999 || true; "
-                f"kill $NC_PID || true; "
-                f"wait $NC_PID || true; "
-                f'pkill -f "nc -lk 9999" || true\'',
+                'timeout 20 bash -c "dd if=/dev/zero bs=1M count=100 | '
+                'nc 127.0.0.1 9999 $NC_FLAGS" || true; '
+                "kill $NC_PID 2>/dev/null || true; "
+                "timeout 2 bash -c "
+                '"while kill -0 $NC_PID 2>/dev/null; do sleep 0.1; done" '
+                "2>/dev/null || true; "
+                'pkill -9 -f "nc -l 127.0.0.1 9999" 2>/dev/null || true\'',
                 shell=True,
                 sudo=True,
                 timeout=30,
