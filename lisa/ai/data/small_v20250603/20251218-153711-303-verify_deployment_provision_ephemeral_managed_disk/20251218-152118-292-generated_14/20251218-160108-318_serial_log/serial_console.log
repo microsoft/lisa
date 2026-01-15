@@ -1,0 +1,562 @@
+[?25l[m[H[J[1;1H[20;7H[mUse the ^ and v keys to change the selection.                       
+      Press 'e' to edit the selected item, or 'c' for a command prompt.   [4;80H [7m[4;1H      Red Hat Enterprise Linux (4.18.0-553.16.1.el8_10.x86_64) 8.10 (Ootpa)    [m[4;79H[m[m[5;1H      Red Hat Enterprise Linux (0-rescue-3e41b7f4e6254e73a9a9ea851efebcbf) 8.8>[m[5;79H[m[m[6;1H      System setup                                                             [m[6;79H[m[m[7;1H                                                                               [m[7;79H[m[m[8;1H                                                                               [m[8;79H[m[m[9;1H                                                                               [m[9;79H[m[m[10;1H                                                                               [m[10;79H[m[m[11;1H                                                                               [m[11;79H[m[m[12;1H                                                                               [m[12;79H[m[m[13;1H                                                                               [m[13;79H[m[m[14;1H                                                                               [m[14;79H[m[m[15;1H                                                                               [m[15;79H[m[m[16;1H                                                                               [m[16;79H[m[m[17;1H                                                                               [m[17;79H[m[m[18;1H                                                                               [m[18;79H[m[18;80H [4;79H[0m[30m[40m[2J[01;01H[0m[37m[40m[21;07HUse the ▲ and ▼ keys to change the selection.                       
+      Press 'e' to edit the selected item, or 'c' for a command prompt.   [04;80H [0m[30m[47m[04;01H      Red Hat Enterprise Linux (4.18.0-553.16.1.el8_10.x86_64) 8.10 (Ootpa)    [0m[37m[40m[04;79H[05;01H      Red Hat Enterprise Linux (0-rescue-3e41b7f4e6254e73a9a9ea851efebcbf) 8.8►
+[06;01H[05;79H[06;01H      System setup                                                             [06;79H[07;01H                                                                               [07;79H[08;01H                                                                               [08;79H[09;01H                                                                               [09;79H[10;01H                                                                               [10;79H[11;01H                                                                               [11;79H[12;01H                                                                               [12;79H[13;01H                                                                               [13;79H[14;01H                                                                               [14;79H[15;01H                                                                               [15;79H[16;01H                                                                               [16;79H[17;01H                                                                               [17;79H[18;01H                                                                               [18;79H[19;01H                                                                               [19;79H[19;80H [04;79H[23;01H   The selected entry will be started automatically in 5s.                     [04;79H[22;1H   The selected entry will be started automatically in 5s.                     [4;79H[23;01H   The selected entry will be started automatically in 4s.                     [04;79H[22;1H   The selected entry will be started automatically in 4s.                     [4;79H[23;01H   The selected entry will be started automatically in 3s.                     [04;79H[22;1H   The selected entry will be started automatically in 3s.                     [4;79H[23;01H   The selected entry will be started automatically in 2s.                     [04;79H[22;1H   The selected entry will be started automatically in 2s.                     [4;79H[23;01H   The selected entry will be started automatically in 1s.                     [04;79H[22;1H   The selected entry will be started automatically in 1s.                     [4;79H[23;01H   The selected entry will be started automatically in 0s.                     [04;79H[22;1H   The selected entry will be started automatically in 0s.                     [4;79H[0m[30m[40m[2J[01;01H[0m[37m[40m[?25h[H[J[1;1H[H[J[1;1H[0m[30m[40m[2J[01;01H[0m[37m[40m[    0.000000] Linux version 4.18.0-553.16.1.el8_10.x86_64 (mockbuild@x86-64-01.build.eng.rdu2.redhat.com) (gcc version 8.5.0 20210514 (Red Hat 8.5.0-22) (GCC)) #1 SMP Thu Aug 1 04:16:12 EDT 2024
+[    0.000000] Command line: BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-553.16.1.el8_10.x86_64 root=/dev/mapper/rhel-root ro rd.lvm.lv=rhel/root console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 earlyprintk=ttyS0 net.ifnames=0
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x020: 'AVX-512 opmask'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x040: 'AVX-512 Hi256'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x080: 'AVX-512 ZMM_Hi256'
+[    0.000000] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.000000] x86/fpu: xstate_offset[5]:  832, xstate_sizes[5]:   64
+[    0.000000] x86/fpu: xstate_offset[6]:  896, xstate_sizes[6]:  512
+[    0.000000] x86/fpu: xstate_offset[7]: 1408, xstate_sizes[7]: 1024
+[    0.000000] x86/fpu: Enabled xstate features 0xe7, context size is 2432 bytes, using 'compacted' format.
+[    0.000000] signal: max sigframe size: 3376
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009ffff] usable
+[    0.000000] BIOS-e820: [mem 0x00000000000c0000-0x00000000000fffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000044fdfff] usable
+[    0.000000] BIOS-e820: [mem 0x00000000044fe000-0x00000000048fdfff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000048fe000-0x000000003ff1efff] usable
+[    0.000000] BIOS-e820: [mem 0x000000003ff1f000-0x000000003ffc8fff] reserved
+[    0.000000] BIOS-e820: [mem 0x000000003ffc9000-0x000000003fffafff] ACPI data
+[    0.000000] BIOS-e820: [mem 0x000000003fffb000-0x000000003fffefff] ACPI NVS
+[    0.000000] BIOS-e820: [mem 0x000000003ffff000-0x000000003fffffff] usable
+[    0.000000] BIOS-e820: [mem 0x0000000100000000-0x00000002bfffffff] usable
+[    0.000000] printk: bootconsole [earlyser0] enabled
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] efi: EFI v2.70 by Microsoft
+[    0.000000] efi:  ACPI=0x3fffa000  ACPI 2.0=0x3fffa014  SMBIOS=0x3ff88000  SMBIOS 3.0=0x3ff86000  MEMATTR=0x3ef26a98  MOKvar=0x3ff83000  RNG=0x3ff8aa18 
+[    0.000000] efi: seeding entropy pool
+[    0.000000] efi: memattr: Unexpected EFI Memory Attributes table version 2
+[    0.000000] secureboot: Secure boot disabled
+[    0.000000] SMBIOS 3.1.0 present.
+[    0.000000] DMI: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS Hyper-V UEFI Release v4.1 06/10/2025
+[    0.000000] Hypervisor detected: Microsoft Hyper-V
+[    0.000000] Hyper-V: privilege flags low 0xae7f, high 0x3b8030, hints 0x140c2c, misc 0xe0bed7b2
+[    0.000000] Hyper-V: Host Build 10.0.26102.1175-1-0
+[    0.000000] Hyper-V: Nested features: 0x4a0000
+[    0.000000] Hyper-V: LAPIC Timer Frequency: 0x30d40
+[    0.000000] Hyper-V: Using hypercall for remote TLB flush
+[    0.000000] clocksource: hyperv_clocksource_tsc_page: mask: 0xffffffffffffffff max_cycles: 0x24e6a1710, max_idle_ns: 440795202120 ns
+[    0.000000] tsc: Detected 2596.140 MHz processor
+[    0.000000] last_pfn = 0x2c0000 max_arch_pfn = 0x400000000
+[    0.000000] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+Memory KASLR using RDRAND RDTSC...
+[    0.000000] last_pfn = 0x40000 max_arch_pfn = 0x400000000
+[    0.000000] Using GB pages for direct mapping
+[    0.000000] RAMDISK: [mem 0x28e9f000-0x2ad03fff]
+[    0.000000] ACPI: Early table checksum verification disabled
+[    0.000000] ACPI: RSDP 0x000000003FFFA014 000024 (v02 VRTUAL)
+[    0.000000] ACPI: XSDT 0x000000003FFF90E8 00005C (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: FACP 0x000000003FFF8000 000114 (v06 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: DSDT 0x000000003FFD6000 01E22B (v02 MSFTVM DSDT01   00000001 INTL 20230628)
+[    0.000000] ACPI: FACS 0x000000003FFFE000 000040
+[    0.000000] ACPI: OEM0 0x000000003FFF7000 000064 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: SPCR 0x000000003FFF6000 000050 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: WAET 0x000000003FFF5000 000028 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: APIC 0x000000003FFD5000 000058 (v04 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: SRAT 0x000000003FFD4000 000230 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: BGRT 0x000000003FFD3000 000038 (v01 VRTUAL MICROSFT 00000001 MSFT 00000001)
+[    0.000000] ACPI: Reserving FACP table memory at [mem 0x3fff8000-0x3fff8113]
+[    0.000000] ACPI: Reserving DSDT table memory at [mem 0x3ffd6000-0x3fff422a]
+[    0.000000] ACPI: Reserving FACS table memory at [mem 0x3fffe000-0x3fffe03f]
+[    0.000000] ACPI: Reserving OEM0 table memory at [mem 0x3fff7000-0x3fff7063]
+[    0.000000] ACPI: Reserving SPCR table memory at [mem 0x3fff6000-0x3fff604f]
+[    0.000000] ACPI: Reserving WAET table memory at [mem 0x3fff5000-0x3fff5027]
+[    0.000000] ACPI: Reserving APIC table memory at [mem 0x3ffd5000-0x3ffd5057]
+[    0.000000] ACPI: Reserving SRAT table memory at [mem 0x3ffd4000-0x3ffd422f]
+[    0.000000] ACPI: Reserving BGRT table memory at [mem 0x3ffd3000-0x3ffd3037]
+[    0.000000] SRAT: PXM 0 -> APIC 0x00 -> Node 0
+[    0.000000] SRAT: PXM 0 -> APIC 0x01 -> Node 0
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x00000000-0x3fffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x100000000-0x2bfffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x2c0000000-0xfbfffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x1000000000-0xfcffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x10000000000-0x1ffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x20000000000-0x3ffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x40000000000-0x7ffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x80000000000-0xfffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x100000000000-0x1fffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x200000000000-0x3fffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x400000000000-0x7fffffffffff] hotplug
+[    0.000000] ACPI: SRAT: Node 0 PXM 0 [mem 0x800000000000-0xffffffffffff] hotplug
+[    0.000000] NUMA: Node 0 [mem 0x00000000-0x3fffffff] + [mem 0x100000000-0x2bfffffff] -> [mem 0x00000000-0x2bfffffff]
+[    0.000000] NODE_DATA(0) allocated [mem 0x2bffd5000-0x2bfffffff]
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+[    0.000000]   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+[    0.000000]   Normal   [mem 0x0000000100000000-0x00000002bfffffff]
+[    0.000000]   Device   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000000001000-0x000000000009ffff]
+[    0.000000]   node   0: [mem 0x0000000000100000-0x00000000044fdfff]
+[    0.000000]   node   0: [mem 0x00000000048fe000-0x000000003ff1efff]
+[    0.000000]   node   0: [mem 0x000000003ffff000-0x000000003fffffff]
+[    0.000000]   node   0: [mem 0x0000000100000000-0x00000002bfffffff]
+[    0.000000] Zeroed struct page in unavailable ranges: 1345 pages
+[    0.000000] Initmem setup node 0 [mem 0x0000000000001000-0x00000002bfffffff]
+[    0.000000] ACPI: PM-Timer IO Port: 0x408
+[    0.000000] ACPI: LAPIC_NMI (acpi_id[0x01] dfl dfl lint[0x1])
+[    0.000000] IOAPIC[0]: apic_id 2, version 17, address 0xfec00000, GSI 0-23
+[    0.000000] ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+[    0.000000] Using ACPI (MADT) for SMP configuration information
+[    0.000000] ACPI: SPCR: console: uart,io,0x3f8,115200
+[    0.000000] smpboot: Allowing 2 CPUs, 0 hotplug CPUs
+[    0.000000] PM: Registered nosave memory: [mem 0x00000000-0x00000fff]
+[    0.000000] PM: Registered nosave memory: [mem 0x000a0000-0x000bffff]
+[    0.000000] PM: Registered nosave memory: [mem 0x000c0000-0x000fffff]
+[    0.000000] PM: Registered nosave memory: [mem 0x044fe000-0x048fdfff]
+[    0.000000] PM: Registered nosave memory: [mem 0x3ef83000-0x3ef89fff]
+[    0.000000] PM: Registered nosave memory: [mem 0x3ff1f000-0x3ffc8fff]
+[    0.000000] PM: Registered nosave memory: [mem 0x3ffc9000-0x3fffafff]
+[    0.000000] PM: Registered nosave memory: [mem 0x3fffb000-0x3fffefff]
+[    0.000000] PM: Registered nosave memory: [mem 0x40000000-0xffffffff]
+[    0.000000] [mem 0x40000000-0xffffffff] available for PCI devices
+[    0.000000] Booting paravirtualized kernel on Hyper-V
+[    0.000000] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1910969940391419 ns
+[    0.000000] setup_percpu: NR_CPUS:8192 nr_cpumask_bits:2 nr_cpu_ids:2 nr_node_ids:1
+[    0.000000] percpu: Embedded 63 pages/cpu s221184 r8192 d28672 u1048576
+[    0.000000] Hyper-V: PV spinlocks enabled
+[    0.000000] PV qspinlock hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 2061321
+[    0.000000] Policy zone: Normal
+[    0.000000] Kernel command line: BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-553.16.1.el8_10.x86_64 root=/dev/mapper/rhel-root ro rd.lvm.lv=rhel/root console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 earlyprintk=ttyS0 net.ifnames=0
+[    0.000000] Specific versions of hardware are certified with Red Hat Enterprise Linux 8. Please see the list of hardware certified with Red Hat Enterprise Linux 8 at https://catalog.redhat.com.
+init_cea_offsets KASLR using RDRAND RDTSC...
+[    0.000000] software IO TLB: area num 2.
+[    0.000000] Memory: 1041676K/8383228K available (14339K kernel code, 5957K rwdata, 8576K rodata, 2820K init, 13792K bss, 318492K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+[    0.000000] ftrace: allocating 41079 entries in 161 pages
+[    0.000000] ftrace: allocated 161 pages with 3 groups
+[    0.000000] rcu: Hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=8192 to nr_cpu_ids=2.
+[    0.000000] 	Rude variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+[    0.000000] Using NULL legacy PIC
+[    0.000000] NR_IRQS: 524544, nr_irqs: 440, preallocated irqs: 0
+[    0.000000] random: crng done (trusting CPU's manufacturer)
+[    0.001000] Console: colour dummy device 80x25
+[    0.001000] printk: console [tty1] enabled
+[    0.001000] printk: console [ttyS0] enabled
+[    0.001000] printk: console [ttyS0] enabled
+[    0.001000] printk: bootconsole [earlyser0] disabled
+[    0.001000] printk: bootconsole [earlyser0] disabled
+[    0.001000] ACPI: Core revision 20220331
+[    0.001000] Failed to register legacy timer interrupt
+[    0.001000] APIC: Switch to symmetric I/O mode setup
+[    0.001000] Hyper-V: enabling crash_kexec_post_notifiers
+[    0.001000] Hyper-V: Using IPI hypercalls
+[    0.001000] Hyper-V: Using enlightened APIC (xapic mode)
+[    0.001000] clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x256bfd9ef1e, max_idle_ns: 440795298789 ns
+[    0.001000] Calibrating delay loop (skipped), value calculated using timer frequency.. 5192.28 BogoMIPS (lpj=2596140)
+[    0.001000] pid_max: default: 32768 minimum: 301
+[    0.001000] LSM: Security Framework initializing
+[    0.001000] Yama: becoming mindful.
+[    0.001000] SELinux:  Initializing.
+[    0.001000] LSM support for eBPF active
+[    0.001000] Dentry cache hash table entries: 1048576 (order: 11, 8388608 bytes, vmalloc)
+[    0.001000] Inode-cache hash table entries: 524288 (order: 10, 4194304 bytes, vmalloc)
+[    0.001000] Mount-cache hash table entries: 16384 (order: 5, 131072 bytes, vmalloc)
+[    0.001000] Mountpoint-cache hash table entries: 16384 (order: 5, 131072 bytes, vmalloc)
+Poking KASLR using RDRAND RDTSC...
+[    0.001000] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+[    0.001000] Last level iTLB entries: 4KB 512, 2MB 512, 4MB 256
+[    0.001000] Last level dTLB entries: 4KB 3072, 2MB 3072, 4MB 1536, 1GB 0
+[    0.001000] Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+[    0.001000] Spectre V2 : Mitigation: Retpolines
+[    0.001000] Spectre V2 : Spectre v2 / SpectreRSB mitigation: Filling RSB on context switch
+[    0.001000] Spectre V2 : Spectre v2 / SpectreRSB : Filling RSB on VMEXIT
+[    0.001000] Speculative Store Bypass: Vulnerable
+[    0.001000] Speculative Return Stack Overflow: IBPB-extending microcode not applied!
+[    0.001000] Speculative Return Stack Overflow: WARNING: See https://kernel.org/doc/html/latest/admin-guide/hw-vuln/srso.html for mitigation options.
+[    0.001000] Speculative Return Stack Overflow: Vulnerable: Safe RET, no microcode
+[    0.001000] Freeing SMP alternatives memory: 36K
+[    0.001000] smpboot: CPU0: AMD EPYC 9V74 80-Core Processor (family: 0x19, model: 0x11, stepping: 0x1)
+[    0.001155] Performance Events: PMU not available due to virtualization, using software events only.
+[    0.002027] rcu: Hierarchical SRCU implementation.
+[    0.003515] NMI watchdog: Perf NMI watchdog permanently disabled
+[    0.004052] smp: Bringing up secondary CPUs ...
+[    0.005104] x86: Booting SMP configuration:
+[    0.006004] .... node  #0, CPUs:      #1
+[    0.006403] smp: Brought up 1 node, 2 CPUs
+[    0.008002] smpboot: Max logical packages: 1
+[    0.009002] smpboot: Total of 2 processors activated (10384.56 BogoMIPS)
+[    0.030848] node 0 deferred pages initialised in 20ms
+[    0.031226] devtmpfs: initialized
+[    0.032077] x86/mm: Memory block size: 128MB
+[    0.034065] ACPI: PM: Registering ACPI NVS region [mem 0x3fffb000-0x3fffefff] (16384 bytes)
+[    0.037049] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+[    0.041007] futex hash table entries: 512 (order: 3, 32768 bytes, vmalloc)
+[    0.044060] pinctrl core: initialized pinctrl subsystem
+[    0.046166] NET: Registered protocol family 16
+[    0.048148] DMA: preallocated 1024 KiB GFP_KERNEL pool for atomic allocations
+[    0.051006] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.054006] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.058018] audit: initializing netlink subsys (disabled)
+[    0.060024] audit: type=2000 audit(1766073038.060:1): state=initialized audit_enabled=0 res=1
+[    0.063005] cpuidle: using governor menu
+[    0.064108] acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+[    0.069041] HugeTLB registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.070003] HugeTLB registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.071041] cryptd: max_cpu_qlen set to 1000
+[    0.072049] fbcon: Taking over console
+[    0.073017] ACPI: Added _OSI(Module Device)
+[    0.074004] ACPI: Added _OSI(Processor Device)
+[    0.075003] ACPI: Added _OSI(3.0 _SCP Extensions)
+[    0.077002] ACPI: Added _OSI(Processor Aggregator Device)
+[    0.089374] ACPI: 1 ACPI AML tables successfully acquired and loaded
+[    0.092784] ACPI: Interpreter enabled
+[    0.094011] ACPI: PM: (supports S0 S5)
+[    0.096003] ACPI: Using IOAPIC for interrupt routing
+[    0.098062] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+[    0.101089] ACPI: Enabled 1 GPEs in block 00 to 0F
+[    0.104026] iommu: Default domain type: Passthrough 
+[    0.105094] SCSI subsystem initialized
+[    0.106027] ACPI: bus type USB registered
+[    0.107020] usbcore: registered new interface driver usbfs
+[    0.108012] usbcore: registered new interface driver hub
+[    0.109009] usbcore: registered new device driver usb
+[    0.111034] pps_core: LinuxPPS API ver. 1 registered
+[    0.113002] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.116005] PTP clock support registered
+[    0.118026] EDAC MC: Ver: 3.0.0
+[    0.120028] Registered efivars operations
+[    0.124099] PCI: Using ACPI for IRQ routing
+[    0.125003] PCI: System does not support PCI
+[    0.127152] NetLabel: Initializing
+[    0.129002] NetLabel:  domain hash size = 128
+[    0.131002] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    0.133017] NetLabel:  unlabeled traffic allowed by default
+[    0.135022] vgaarb: loaded
+[    0.137087] clocksource: Switched to clocksource tsc-early
+[    0.154483] VFS: Disk quotas dquot_6.6.0
+[    0.156128] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.158988] pnp: PnP ACPI init
+[    0.160470] pnp: PnP ACPI: found 3 devices
+[    0.169128] clocksource: acpi_pm: mask: 0xffffff max_cycles: 0xffffff, max_idle_ns: 2085701024 ns
+[    0.172786] NET: Registered protocol family 2
+[    0.174651] IP idents hash table entries: 131072 (order: 8, 1048576 bytes, vmalloc)
+[    0.178462] tcp_listen_portaddr_hash hash table entries: 4096 (order: 4, 65536 bytes, vmalloc)
+[    0.181966] TCP established hash table entries: 65536 (order: 7, 524288 bytes, vmalloc)
+[    0.185368] TCP bind hash table entries: 65536 (order: 8, 1048576 bytes, vmalloc)
+[    0.188426] TCP: Hash tables configured (established 65536 bind 65536)
+[    0.191211] MPTCP token hash table entries: 8192 (order: 5, 196608 bytes, vmalloc)
+[    0.194299] UDP hash table entries: 4096 (order: 5, 131072 bytes, vmalloc)
+[    0.197131] UDP-Lite hash table entries: 4096 (order: 5, 131072 bytes, vmalloc)
+[    0.200153] NET: Registered protocol family 1
+[    0.201949] NET: Registered protocol family 44
+[    0.203781] PCI: CLS 0 bytes, default 64
+[    0.205501] Unpacking initramfs...
+[    0.482167] Freeing initrd memory: 31124K
+[    0.484343] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[    0.487632] software IO TLB: mapped [mem 0x000000003a259000-0x000000003e259000] (64MB)
+[    0.491245] ACPI: bus type thunderbolt registered
+[    0.493607] amd_uncore: 0 amd_df counters detected
+[    0.495944] amd_uncore: 0 amd_l3 counters detected
+[    0.500359] Initialise system trusted keyrings
+[    0.502454] Key type blacklist registered
+[    0.504425] workingset: timestamp_bits=36 max_order=21 bucket_order=0
+[    0.510105] zbud: loaded
+[    0.511827] pstore: using deflate compression
+[    0.514273] Platform Keyring initialized
+[    0.527810] NET: Registered protocol family 38
+[    0.530110] Key type asymmetric registered
+[    0.532153] Asymmetric key parser 'x509' registered
+[    0.534527] Running certificate verification selftests
+[    0.539335] Loaded X.509 cert 'Certificate verification self-testing key: f58703bb33ce1b73ee02eccdee5b8817518fe3db'
+[    0.544855] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 247)
+[    0.548500] io scheduler mq-deadline registered
+[    0.550781] io scheduler kyber registered
+[    0.552729] io scheduler bfq registered
+[    0.554634] atomic64_test: passed for x86-64 platform with CX8 and with SSE
+[    0.558407] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+[    0.561488] efifb: probing for efifb
+[    0.563037] efifb: framebuffer at 0x40000000, using 3072k, total 3072k
+[    0.565950] efifb: mode is 1024x768x32, linelength=4096, pages=1
+[    0.568644] efifb: scrolling: redraw
+[    0.570283] efifb: Truecolor: size=8:8:8:8, shift=24:16:8:0
+[    0.572834] Console: switching to colour frame buffer device 128x48
+[    0.577053] fb0: EFI VGA frame buffer device
+[    0.579330] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    0.608168] 00:00: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+[    0.637405] 00:01: ttyS1 at I/O 0x2f8 (irq = 3, base_baud = 115200) is a 16550A
+[    0.641432] Non-volatile memory driver v1.3
+[    0.643662] rdac: device handler registered
+[    0.645571] hp_sw: device handler registered
+[    0.647505] emc: device handler registered
+[    0.649666] alua: device handler registered
+[    0.651847] libphy: Fixed MDIO Bus: probed
+[    0.653836] usbcore: registered new interface driver usbserial_generic
+[    0.656749] usbserial: USB Serial support registered for generic
+[    0.659581] i8042: PNP: No PS/2 controller found.
+[    0.661879] mousedev: PS/2 mouse device common for all mice
+[    0.666218] rtc_cmos 00:02: registered as rtc0
+[    0.668426] rtc_cmos 00:02: alarms up to one month, 114 bytes nvram
+[    0.671414] amd_pstate: the _CPC object is not present in SBIOS or ACPI disabled
+[    0.675052] EFI Variables Facility v0.08 2004-May-17
+[    0.681410] hid: raw HID events driver (C) Jiri Kosina
+[    0.683971] usbcore: registered new interface driver usbhid
+[    0.686426] usbhid: USB HID core driver
+[    0.688200] drop_monitor: Initializing network drop monitor service
+[    0.691234] Initializing XFRM netlink socket
+[    0.694136] NET: Registered protocol family 10
+[    0.697389] Segment Routing with IPv6
+[    0.699271] NET: Registered protocol family 17
+[    0.701471] mpls_gso: MPLS GSO support
+[    0.703566] AVX2 version of gcm_enc/dec engaged.
+[    0.705815] AES CTR mode by8 optimization enabled
+[    0.720439] sched_clock: Marking stable (720435190, 0)->(1346767100, -626331910)
+[    0.723928] registered taskstats version 1
+[    0.726022] Loading compiled-in X.509 certificates
+[    0.728785] Loaded X.509 cert 'Red Hat Enterprise Linux kernel signing key: 4c47a251d710acc1f180c7a17df8bb972aaaaef4'
+[    0.733597] Loaded X.509 cert 'Red Hat Enterprise Linux Driver Update Program (key 3): bf57f3e87362bc7229d9f465321773dfd1f77a80'
+[    0.739108] Loaded X.509 cert 'Red Hat Enterprise Linux kpatch signing key: 4d38fd864ebe18c5f0b72e3852e2014c3a676fc8'
+[    0.744549] zswap: loaded using pool lzo/zbud
+[    0.746786] page_owner is disabled
+[    0.752538] Key type big_key registered
+[    0.756371] Key type encrypted registered
+[    0.758906] integrity: Loading X.509 certificate: UEFI:db
+[    0.761503] integrity: Loaded X.509 cert 'Microsoft Windows Production PCA 2011: a92902398e16c49778cd90f99e4f9ae17c55af53'
+[    0.766332] integrity: Loading X.509 certificate: UEFI:db
+[    0.770850] integrity: Loaded X.509 cert 'Microsoft Corporation: Windows UEFI CA 2023: aefc5fbbbe055d8f8daa585473499417ab5a5272'
+[    0.778162] integrity: Loading X.509 certificate: UEFI:MokListRT (MOKvar table)
+[    0.781674] integrity: Loaded X.509 cert 'Red Hat Secure Boot CA 5: cc6fa5e72868ba494e939bbd680b9144769a9f8f'
+[    0.786271] ima: No TPM chip found, activating TPM-bypass!
+[    0.789615] ima: Allocated hash algorithm: sha256
+[    0.791920] ima: No architecture policies found
+[    0.794507] evm: Initialising EVM extended attributes:
+[    0.796968] evm: security.selinux
+[    0.798706] evm: security.ima
+[    0.800320] evm: security.capability
+[    0.802154] evm: HMAC attrs: 0x1
+[    0.804765] rtc_cmos 00:02: setting system clock to 2025-12-18 15:50:39 UTC (1766073039)
+[    0.811227] Freeing unused decrypted memory: 2028K
+[    0.813818] Freeing unused kernel image (initmem) memory: 2820K
+[    0.818008] Write protecting the kernel read-only data: 26624k
+[    0.821541] Freeing unused kernel image (text/rodata gap) memory: 2016K
+[    0.824788] Freeing unused kernel image (rodata/data gap) memory: 1664K
+[    0.840693] systemd[1]: systemd 239 (239-74.el8_8) running in system mode. (+PAM +AUDIT +SELINUX +IMA -APPARMOR +SMACK +SYSVINIT +UTMP +LIBCRYPTSETUP +GCRYPT +GNUTLS +ACL +XZ +LZ4 +SECCOMP +BLKID +ELFUTILS +KMOD +IDN2 -IDN +PCRE2 default-hierarchy=legacy)
+[    0.851813] systemd[1]: Detected virtualization microsoft.
+[    0.854649] systemd[1]: Detected architecture x86-64.
+[    0.857273] systemd[1]: Running in initial RAM disk.
+
+Welcome to [0;31mRed Hat Enterprise Linux 8.8 (Ootpa) dracut-049-223.git20230119.el8 (Initramfs)[0m!
+
+[    0.871455] systemd[1]: Set hostname to <QRadarUP9>.
+[    0.908713] systemd[1]: Listening on udev Kernel Socket.
+[[0;32m  OK  [0m] Listening on udev Kernel Socket.
+[    0.915411] systemd[1]: Reached target Local File Systems.
+[[0;32m  OK  [0m] Reached target Local File Systems.
+[    0.921492] systemd[1]: Reached target Slices.
+[[0;32m  OK  [0m] Reached target Slices.
+[    0.926277] systemd[1]: Reached target Timers.
+[[0;32m  OK  [0m] Reached target Timers.
+[    0.931439] systemd[1]: Listening on Journal Socket.
+[[0;32m  OK  [0m] Listening on Journal Socket.
+         Starting Load Kernel Modules...
+         Starting Create Volatile Files and Directories...
+[[0;32m  OK  [0m] Started Memstrack Anylazing Service.
+         Starting Create list of required st…ce nodes for the current kernel...
+[[0;32m  OK  [0m] Listening on Journal Socket (/dev/log).
+         Starting Journal Service...
+[[0;32m  OK  [0m] Listening on udev Control Socket.
+[[0;32m  OK  [0m] Reached target Sockets.
+[[0;32m  OK  [0m] Reached target Swap.
+         Starting Setup Virtual Console...
+[[0;32m  OK  [0m] Started Load Kernel Modules.
+[[0;32m  OK  [0m] Started Create Volatile Files and Directories.
+[[0;32m  OK  [0m] Started Create list of required sta…vice nodes for the current kernel.
+         Starting Create Static Device Nodes in /dev...
+         Starting Apply Kernel Variables...
+[[0;32m  OK  [0m] Started Create Static Device Nodes in /dev.
+[[0;32m  OK  [0m] Started Apply Kernel Variables.
+[[0;32m  OK  [0m] Started Journal Service.
+[[0;32m  OK  [0m] Started Setup Virtual Console.
+         Starting dracut cmdline hook...
+[[0;32m  OK  [0m] Started dracut cmdline hook.
+         Starting dracut pre-udev hook...
+[    1.109788] device-mapper: uevent: version 1.0.3
+[    1.113255] device-mapper: ioctl: 4.46.0-ioctl (2022-02-22) initialised: dm-devel@redhat.com
+[[0;32m  OK  [0m] Started dracut pre-udev hook.
+         Starting udev Kernel Device Manager...
+[[0;32m  OK  [0m] Started udev Kernel Device Manager.
+         Starting udev Coldplug all Devices...
+         Mounting Kernel Configuration File System...
+[[0;32m  OK  [0m] Mounted Kernel Configuration File System.
+[[0;32m  OK  [0m] Started udev Coldplug all Devices.
+         Starting dracut initqueue hook...
+         Starting Show Plymouth Boot Screen...
+[[0;32m  OK  [0m] Reached target System Initialization.
+[    1.275945] hv_vmbus: Vmbus version:5.3
+[    1.281262] hv_vmbus: registering driver hyperv_keyboard
+[[0;32m  OK  [0m] Started Show Plymouth Boot Screen.
+[[0;32m  OK  [0m] Started Forward Password Requests to Plymouth Directory Watch.
+[[0;32m  OK  [0m] Reached target Paths.
+[[0;32m  OK  [0m] Reached target Basic System.
+[    1.295791] input: AT Translated Set 2 keyboard as /devices/LNXSYSTM:00/LNXSYBUS:00/ACPI0004:00/MSFT1000:00/d34b2567-b9b6-42b9-8778-0a4ec0b955bf/serio0/input/input0
+[    1.295943] hv_vmbus: registering driver hid_hyperv
+[    1.309100] input: Microsoft Vmbus HID-compliant Mouse as /devices/0006:045E:0621.0001/input/input1
+[    1.313876] hv_vmbus: registering driver hv_storvsc
+[    1.314799] hv_vmbus: registering driver hyperv_fb
+[    1.319994] hv_vmbus: registering driver hv_netvsc
+[    1.321754] hid-generic 0006:045E:0621.0001: input: VIRTUAL HID v0.01 Mouse [Microsoft Vmbus HID-compliant Mouse] on 
+[    1.330370] hyperv_fb: Synthvid Version major 3, minor 5
+[    1.333481] hyperv_fb: Screen resolution: 1024x768, Color depth: 32, Frame buffer size: 8388608
+[    1.338365] scsi host0: storvsc_host_t
+[    1.341419] scsi 0:0:0:2: CD-ROM            Msft     Virtual DVD-ROM  1.0  PQ: 0 ANSI: 5
+[    1.345983] fb0: switching to hyperv_fb from EFI VGA
+[    1.349329] Console: switching to colour dummy device 80x25
+[    1.354240] Console: switching to colour frame buffer device 128x48
+[    1.371656] scsi 0:0:0:2: Attached scsi generic sg0 type 5
+[    1.391015] sr 0:0:0:2: [sr0] scsi-1 drive
+[    1.392806] cdrom: Uniform CD-ROM driver Revision: 3.20
+[    1.403684] hv_storvsc f8b3781a-1e82-4818-a1c3-63d806ec15bb: tag#62 cmd 0x85 status: scsi 0x2 srb 0x6 hv 0xc0000001
+[    1.427632] hv_storvsc f8b3781a-1e82-4818-a1c3-63d806ec15bb: tag#151 cmd 0x85 status: scsi 0x2 srb 0x6 hv 0xc0000001
+[    1.503018] tsc: Refined TSC clocksource calibration: 2596.140 MHz
+[    1.506179] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x256bfd9ef1e, max_idle_ns: 440795298789 ns
+[    1.510663] clocksource: Switched to clocksource tsc
+[    2.610550] hv_netvsc 7c1e5225-6d7f-7c1e-5225-6d7f7c1e5225 eth0: VF slot 1 added
+[  129.161675] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  129.699355] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  130.230702] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  130.761374] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  131.290735] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  131.822331] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  132.353720] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  132.886345] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  133.420709] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  133.951358] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  134.485676] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  135.018386] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  135.547703] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  136.073351] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  136.604673] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  137.135361] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  137.661678] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  138.188375] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  138.719703] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  139.249367] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  139.780682] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  140.308339] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  140.838681] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  141.367329] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  141.898690] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  142.431352] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  142.962694] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  143.493359] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  144.024685] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  144.555343] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  145.086673] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  145.615358] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  146.146656] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  146.677387] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  147.208702] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  147.738361] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  148.270701] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  148.801381] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  149.329679] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  149.859381] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  150.388716] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  150.918352] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  151.450713] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  151.977372] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  152.507718] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  153.035328] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  153.569666] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  154.101339] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  154.634675] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  155.164355] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  155.697680] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  156.225323] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  156.753658] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  157.285408] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  157.816731] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  158.346358] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  158.875678] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  159.407421] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  159.940692] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  160.475370] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  161.004723] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  161.533338] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  162.062690] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  162.593361] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  163.125753] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  163.660372] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  164.192697] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  164.722349] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  165.250696] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  165.780476] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  166.309650] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  166.838361] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  167.371735] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  167.902379] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  168.428646] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  168.958454] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  169.484651] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  170.012376] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  170.543644] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  171.074360] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  171.607675] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  172.137328] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  172.672724] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  173.204383] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  173.730694] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  174.263357] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  174.794726] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  175.324338] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  175.858725] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  176.387349] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  176.917638] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  177.445381] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  177.972680] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  178.506379] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  179.033671] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  179.566377] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  180.097641] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  180.630386] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  181.165696] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  181.696340] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  182.227721] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  182.751372] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  183.282688] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  183.808336] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  184.339704] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  184.872331] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  185.402701] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  185.931347] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  186.466730] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  186.995358] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  187.521688] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  188.050330] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  188.580693] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  189.109379] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  189.639706] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  190.165366] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  190.696689] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  191.226416] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  191.753683] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  192.281371] dracut-initqueue[374]: Warning: dracut-initqueue timeout - starting timeout scripts
+[  192.281498] dracut-initqueue[374]: Warning: Could not boot.
+         Starting Setup Virtual Console...
+[[0;32m  OK  [0m] Started Setup Virtual Console.
+         Starting Dracut Emergency Shell...
+Warning: /dev/mapper/rhel-root does not exist
+Warning: /dev/rhel/root does not exist
+
+Generating "/run/initramfs/rdsosreport.txt"
+
+
+Entering emergency mode. Exit the shell to continue.
+Type "journalctl" to view system logs.
+You might want to save "/run/initramfs/rdsosreport.txt" to a USB stick or /boot
+after mounting them and attach it to a bug report.
+
+
+dracut:/#                                                                                                                                                 

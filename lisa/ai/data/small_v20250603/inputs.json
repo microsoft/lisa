@@ -130,5 +130,38 @@
       "problem_keywords": ["SCP failure", "routing configuration", "eth0", "eth1", "subnet conflict"],
       "code_recommendation": ""
     }
+  },
+  {
+    "id": 12,
+    "path": "20251218-173153-295-verify_openssl_version",
+    "error_message": "lisa.util.LisaException: OSProvisioningInternalError: OS Provisioning failed for VM 'lisa-AzCertify-Test-20251218-163401-090-e6-1-n0' due to an internal error.",
+    "ground_truth": {
+      "summary": "The VM provisioning failed because WALinuxAgent could not find the required network configuration file '/etc/sysconfig/network-scripts/ifcfg-eth1', causing an unhandled exception and aborting the provisioning process. This is evidenced by the serial log showing repeated 'IOError: [Errno 2] No such file or directory: /etc/sysconfig/network-scripts/ifcfg-eth1'. The underlying problem is the absence of a critical network configuration file required for provisioning. To resolve this, ensure that the network configuration file exists and is correctly configured before initiating the provisioning process.",
+      "problem": "The VM provision failure due to missing a critical network configuration file which caused WALinuxAgent to be aborted.",
+      "problem_keywords": ["WALinuxAgent", "No such file", "eth1", "missing a network configuration file"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 13,
+    "path": "20251218-213108-368-validate_netvsc_reload",
+    "error_message": "lisa.util.KernelPanicException: after_reload_netvsc found panic in serial log. You can check the panic details from the serial console log. Please download the test logs and retrieve the serial_log from 'environments' directory, or you can ask support. Detected Panic phrases: ['[    0.022001] NMI watchdog: Shutting down hard lockup detector on all cpus\r']",
+    "ground_truth": {
+      "summary": "Although the error message suggests a kernel panic, the Serial Console log does not show any evidence of such an event. The test log contains multiple entries: 'An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active'. The Serial Consloe log indicates after unregistering and registering hv_netvsc, eth0 link is not ready. The failure of eth0 to become ready is the primary reason for the test case failure. It might be an image issue.",
+      "problem": "The test case failed because the SSH session became inactive after reloading hv_netvsc, which resulted in the eth0 link not coming up.",
+      "problem_keywords": ["SSH session not active", "hv_netvsc", "eth0", "link is not ready"],
+      "code_recommendation": ""
+    }
+  },
+  {
+    "id": 14,
+    "path": "20251218-153711-303-verify_deployment_provision_ephemeral_managed_disk",
+    "error_message": "lisa.util.LisaException: OSProvisioningTimedOut: RootFsMountFailedException: found root filesystem mount failure in serial log. Possible causes include: missing or incorrect UUID, unsupported or corrupted filesystem, or missing storage drivers. Please verify disk presence, UUID accuracy, and initramfs contents.",
+    "ground_truth": {
+      "summary": "The error 'OSProvisioningTimedOut: RootFsMountFailedException' indicates a failure to mount the root filesystem during deployment. Logs show repeated dracut-initqueue timeouts and warnings like '/dev/mapper/rhel-root does not exist', suggesting the root device is either missing or incorrectly mapped. The most likely causes are a missing or incorrect UUID in the boot configuration or missing storage drivers in the initramfs. Immediate steps include verifying the disk presence, UUID accuracy in fstab and boot parameters, and ensuring all required storage drivers are included in the initramfs.",
+      "problem": "The OS provision timeout because the root filesystem failed to mount, likely due to missing or incorrect UUID, unsupported or corrupted filesystem, or missing storage drivers.",
+      "problem_keywords": ["dracut-initqueue timeout", "/dev/mapper/rhel-root", "/dev/rhel/root", "does not exist"],
+      "code_recommendation": ""
+    }
   }
 ]

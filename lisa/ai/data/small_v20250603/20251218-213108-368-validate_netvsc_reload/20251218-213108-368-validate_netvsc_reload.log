@@ -1,0 +1,1218 @@
+2025-12-18 21:31:08.384[4768][INFO] lisa.env[generated_19].deploy deploying environment: generated_19
+2025-12-18 21:31:08.384[4768][DEBUG] lisa.env[generated_19].deploy creating deployment
+2025-12-18 21:31:08.384[4768][DEBUG] lisa.env[generated_19].node[0] created, type: 'RemoteNode', default: False, is_test_target: True
+2025-12-18 21:31:08.384[4768][INFO] lisa.env[generated_19].deploy vm setting: AzureNodeSchema(name='lisa-AzCertify-Test-20251218-210339-640-e19-n0', short_name='lisa-640-e19-n0', vm_size='Standard_D2ads_v5', osdisk_size_in_gb=30, maximize_capability=False, location='westus3', subscription_id='0cc2a67a-58b9-4e4f-98a8-bfa46a28e896', purchase_plan_raw=None, marketplace_raw={'architecture': <ArchitectureType.x64: 'x64'>, 'disk_controller_type': None, 'hyperv_generation': 1, 'network_data_path': None, 'security_profile': {'is_allow_set': True, 'items': [<SecurityProfileType.Standard: 'none'>]}, 'encrypt_disk': {'is_allow_set': True, 'items': [False]}, 'publisher': 'upsolver1594188634150', 'offer': 'upsolver-vm', 'sku': 'upsolvervm01', 'version': '1.0.3'}, shared_gallery_raw=None, vhd_raw=None, community_gallery_image_raw=None, is_linux=True, _orignal_vhd_path='')
+2025-12-18 21:31:08.696[4768][DEBUG] lisa.env[generated_19].deploy parameters: {'vhd_storage_name': {'value': 'lisatwestus36a28e896'}, 'location': {'value': 'westus3'}, 'admin_username': {'value': 'l****t'}, 'admin_password': {'value': ''}, 'admin_key_data': {'value': 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDcxdU8Gs2kejzuW6W7e4AWScEzCKeT0P9xfCqc1ezquBYCCCMrxJGMhjYNgI2hNbNFYaXykOiTR12tKZmJ9b01IQR8YYqcreu6ziD35CVfCD5t4FNgHSZ6YtZ1DnV8mbenEoG8MdhyZWlkO5yrl+uw7u9PKbBhTTAV41PguiX92Pyt0kz6ewb/VXYnmiiSqqgmj3BKXqTyhfbvMtOariF4qESr9yY+FLg49tOlFQLU+3RtZgXj3dhP3y2u+YfyEancRgccKsIbreZlepE6xEMLteSf4vSL5fqKo2nUjcD+jSwWGwzuvpc/lwP4b50b+71VikCj7iSz3u1tPdSHWBDLQF1LpSvjlU1NXI99nsRJ67v+9K8YfOgF17Kt0OJUYT0sQsxUL1/sgr2uDRffJC36IasOYsGaS38EpiO4kRg/fh3q8zCVltlVytyX8l7MG10A0Bd8T2YKb1Qvp4wQzDaRIaSWQf+2Gm4elsJHxYYAr7GyLir7SW6OqanpHTtkaQE= lisa@lsgtest'}, 'subnet_count': {'value': 1}, 'availability_options': {'value': {'availability_type': 'availability_set', 'availability_set_tags': {'TipNode.SessionId': ''}, 'availability_set_properties': {'platformFaultDomainCount': 1, 'platformUpdateDomainCount': 1, 'internalData': {'pinnedFabricCluster': ''}}, 'availability_zones': []}}, 'shared_resource_group_name': {'value': 'lisa_shared_resource'}, 'nodes': {'value': [{'name': 'lisa-AzCertify-Test-20251218-210339-640-e19-n0', 'short_name': 'lisa-640-e19-n0', 'vm_size': 'Standard_D2ads_v5', 'osdisk_size_in_gb': 30, 'maximize_capability': False, 'location': 'westus3', 'subscription_id': '0cc2a67a-58b9-4e4f-98a8-bfa46a28e896', 'purchase_plan': {'name': 'upsolvervm01', 'product': 'upsolver-vm', 'publisher': 'upsolver1594188634150'}, 'marketplace': {'architecture': <ArchitectureType.x64: 'x64'>, 'disk_controller_type': None, 'hyperv_generation': 1, 'network_data_path': None, 'security_profile': {'is_allow_set': True, 'items': [<SecurityProfileType.Standard: 'none'>]}, 'encrypt_disk': {'is_allow_set': True, 'items': [False]}, 'publisher': 'upsolver1594188634150', 'offer': 'upsolver-vm', 'sku': 'upsolvervm01', 'version': '1.0.3'}, 'shared_gallery': None, 'vhd': None, 'community_gallery_image': None, 'is_linux': True, '_orignal_vhd_path': '', 'hyperv_generation': 1, 'nic_count': 1, 'enable_sriov': False, 'os_disk_type': 'Standard_LRS', 'data_disk_type': 'Standard_LRS', 'disk_controller_type': 'SCSI', 'ephemeral_disk_placement_type': '', 'security_profile': {}}]}, 'data_disks': {'value': []}, 'vm_tags': {'value': {'TipNode.SessionId': '', 'platformsettings.host_environment.nodefeatures.hierarchicalvirtualizationv1': False, 'RG': 'lisa-AzCertify-Test-20251218-210339-640-e19', 'lisa_username': 'f30be76dc000000\\cloudtest', 'lisa_hostname': 'f30be76dc000000'}}, 'tags': {'value': {}}, 'ip_service_tags': {'value': {'FirstPartyUsage': '/SyntheticLoad'}}, 'virtual_network_resource_group': {'value': ''}, 'virtual_network_name': {'value': 'lisa-virtualNetwork'}, 'subnet_prefix': {'value': 'lisa-subnet-'}, 'is_ultradisk': {'value': False}, 'use_ipv6': {'value': False}, 'enable_vm_nat': {'value': False}, 'create_public_address': {'value': True}, 'source_address_prefixes': {'value': ['20.83.220.172']}}
+2025-12-18 21:31:08.712[4768][INFO] lisa.env[generated_19].deploy creating or updating resource group: [lisa-AzCertify-Test-20251218-210339-640-e19]
+2025-12-18 21:31:09.087[4768][INFO] lisa.env[generated_19].deploy Creating Resource group: 'lisa-AzCertify-Test-20251218-210339-640-e19'
+2025-12-18 21:31:09.955[4768][DEBUG] lisa.env[generated_19].deploy validating deployment
+2025-12-18 21:31:13.137[4768][DEBUG] lisa.env[generated_19].deploy found storage account: lisaswestus36a28e896
+2025-12-18 21:31:13.137[4768][INFO] lisa.env[generated_19].deploy resource group 'lisa-AzCertify-Test-20251218-210339-640-e19' deployment is in progress...
+2025-12-18 21:32:46.886[4768][DEBUG] lisa.env[generated_19].deploy listing vm in resource group lisa-AzCertify-Test-20251218-210339-640-e19
+2025-12-18 21:32:47.277[4768][DEBUG] lisa.env[generated_19].deploy   found vm lisa-AzCertify-Test-20251218-210339-640-e19-n0
+2025-12-18 21:32:48.298[4768][INFO] lisa.env[generated_19].deploy deployed in 99.918 sec
+2025-12-18 21:32:51.855[4768][INFO] lisa.case[validate_netvsc_reload][lisa_0_19] test case 'NetInterface.validate_netvsc_reload' is running on environment 'generated_19'
+2025-12-18 21:32:51.855[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_disk_controller_type ...
+2025-12-18 21:32:52.199[4768][DEBUG] lisa.env[generated_19].node[0] detecting host_version ...
+2025-12-18 21:32:52.199[4768][DEBUG] lisa.env[generated_19].node[0] detecting host version from dmesg...
+2025-12-18 21:32:52.199[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] initializing tool [dmesg]
+2025-12-18 21:32:52.199[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] installed already
+2025-12-18 21:32:52.199[4768][DEBUG] lisa.env[generated_19].node[0].cmd[1626] cmd: ['dmesg'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:52.324[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Initializing cgroup subsys cpuset
+2025-12-18 21:32:52.324[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Initializing cgroup subsys cpu
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Initializing cgroup subsys cpuacct
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Linux version 3.10.0-1160.15.2.el7.x86_64 (mockbuild@kbuilder.bsys.centos.org) (gcc version 4.8.5 20150623 (Red Hat 4.8.5-44) (GCC) ) #1 SMP Wed Feb 3 15:06:38 UTC 2021
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Command line: BOOT_IMAGE=/vmlinuz-3.10.0-1160.15.2.el7.x86_64 root=UUID=4561562f-4e05-4f68-8253-70a8ecdd89b9 ro console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 rootdelay=300 net.ifnames=0 scsi_mod.use_blk_mq=y LANG=en_US.UTF-8
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] e820: BIOS-provided physical RAM map:
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BIOS-e820: [mem 0x000000000009fc00-0x000000000009ffff] reserved
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BIOS-e820: [mem 0x00000000000e0000-0x00000000000fffff] reserved
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BIOS-e820: [mem 0x0000000000100000-0x000000003ffeffff] usable
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BIOS-e820: [mem 0x000000003fff0000-0x000000003fffefff] ACPI data
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BIOS-e820: [mem 0x000000003ffff000-0x000000003fffffff] ACPI NVS
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BIOS-e820: [mem 0x0000000100000000-0x00000002bfffffff] usable
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] bootconsole [earlyser0] enabled
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] NX (Execute Disable) protection: active
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SMBIOS 2.3 present.
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] DMI: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS 090008  12/07/2018
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Hypervisor detected: Microsoft HyperV
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] HyperV: features 0xae7f, hints 0x140c2c
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Hyper-V Host Build:20348-10.0-3-0.3153
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] HyperV: LAPIC Timer Frequency: 0x30d40
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] tsc: Marking TSC unstable due to running on Hyper-V
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Hyper-V: Using ext hypercall for remote TLB flush
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] e820: update [mem 0x00000000-0x00000fff] usable ==> reserved
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] e820: remove [mem 0x000a0000-0x000fffff] usable
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] e820: last_pfn = 0x2c0000 max_arch_pfn = 0x400000000
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] MTRR default type: uncachable
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] MTRR fixed ranges enabled:
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   00000-FFFFF uncachable
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] MTRR variable ranges enabled:
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   0 base 000000000000 mask FFFFC0000000 write-back
+2025-12-18 21:32:52.340[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   1 base 000100000000 mask FFF000000000 write-back
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   2 disabled
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   3 disabled
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   4 disabled
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   5 disabled
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   6 disabled
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   7 disabled
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PAT configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- UC  
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] e820: update [mem 0x40000000-0xffffffff] usable ==> reserved
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] e820: last_pfn = 0x3fff0 max_arch_pfn = 0x400000000
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] found SMP MP-table at [mem 0x000ff780-0x000ff78f] mapped at [ffffffffff200780]
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Base memory trampoline at [ffff910b80099000] 99000 size 24576
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Using GB pages for direct mapping
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BRK [0x190e75000, 0x190e75fff] PGTABLE
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BRK [0x190e76000, 0x190e76fff] PGTABLE
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BRK [0x190e77000, 0x190e77fff] PGTABLE
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BRK [0x190e78000, 0x190e78fff] PGTABLE
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] BRK [0x190e79000, 0x190e79fff] PGTABLE
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] RAMDISK: [mem 0x35cdb000-0x36e64fff]
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Early table checksum verification disabled
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: RSDP 00000000000f5c00 00014 (v00 ACPIAM)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: RSDT 000000003fff0000 00040 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: FACP 000000003fff0200 00081 (v02 VRTUAL MICROSFT 12001807 MSFT 00000097)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: DSDT 000000003fff1d24 03CD5 (v01 MSFTVM MSFTVM02 00000002 INTL 02002026)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: FACS 000000003ffff000 00040
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: WAET 000000003fff1a80 00028 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: SLIC 000000003fff1ac0 00176 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: OEM0 000000003fff1cc0 00064 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: SRAT 000000003fff0800 00140 (v02 VRTUAL MICROSFT 00000001 MSFT 00000001)
+2025-12-18 21:32:52.349[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: APIC 000000003fff0300 00062 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: OEMB 000000003ffff040 00064 (v01 VRTUAL MICROSFT 12001807 MSFT 00000097)
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: Local APIC address 0xfee00000
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: PXM 0 -> APIC 0x00 -> Node 0
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: PXM 0 -> APIC 0x01 -> Node 0
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: Node 0 PXM 0 [mem 0x00000000-0x3fffffff] hotplug
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: Node 0 PXM 0 [mem 0x100000000-0x2bfffffff] hotplug
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: Node 0 PXM 0 [mem 0x2c0000000-0xfbfffffff] hotplug
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: Node 0 PXM 0 [mem 0x1000000000-0xfcffffffff] hotplug
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: Node 0 PXM 0 [mem 0x10000000000-0x1ffffffffff] hotplug
+2025-12-18 21:32:52.356[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SRAT: Node 0 PXM 0 [mem 0x20000000000-0x3ffffffffff] hotplug
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] NUMA: Node 0 [mem 0x00000000-0x3fffffff] + [mem 0x100000000-0x2bfffffff] -> [mem 0x00000000-0x2bfffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] NODE_DATA(0) allocated [mem 0x2bffd9000-0x2bfffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Zone ranges:
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   DMA      [mem 0x00001000-0x00ffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   DMA32    [mem 0x01000000-0xffffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   Normal   [mem 0x100000000-0x2bfffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Movable zone start for each node
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Early memory node ranges
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   node   0: [mem 0x00001000-0x0009efff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   node   0: [mem 0x00100000-0x3ffeffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   node   0: [mem 0x100000000-0x2bfffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Initmem setup node 0 [mem 0x00001000-0x2bfffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] On node 0 totalpages: 2097038
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   DMA zone: 64 pages used for memmap
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   DMA zone: 21 pages reserved
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   DMA zone: 3998 pages, LIFO batch:0
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   DMA32 zone: 4032 pages used for memmap
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   DMA32 zone: 258032 pages, LIFO batch:31
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   Normal zone: 28672 pages used for memmap
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000]   Normal zone: 1835008 pages, LIFO batch:31
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: PM-Timer IO Port: 0x408
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: Local APIC address 0xfee00000
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: LAPIC (acpi_id[0x01] lapic_id[0x00] enabled)
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: LAPIC (acpi_id[0x02] lapic_id[0x01] enabled)
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: LAPIC_NMI (acpi_id[0xff] dfl dfl lint[0x1])
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: IOAPIC (id[0x00] address[0xfec00000] gsi_base[0])
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: INT_SRC_OVR (bus 0 bus_irq 0 global_irq 2 dfl dfl)
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: IRQ0 used by override.
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] ACPI: IRQ9 used by override.
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Using ACPI (MADT) for SMP configuration information
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] smpboot: Allowing 2 CPUs, 0 hotplug CPUs
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PM: Registered nosave memory: [mem 0x0009f000-0x0009ffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PM: Registered nosave memory: [mem 0x000a0000-0x000dffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PM: Registered nosave memory: [mem 0x000e0000-0x000fffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PM: Registered nosave memory: [mem 0x3fff0000-0x3fffefff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PM: Registered nosave memory: [mem 0x3ffff000-0x3fffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PM: Registered nosave memory: [mem 0x40000000-0xffffffff]
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] e820: [mem 0x40000000-0xffffffff] available for PCI devices
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Booting paravirtualized kernel on bare hardware
+2025-12-18 21:32:52.359[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Detected CPU family 19h model 1
+2025-12-18 21:32:52.369[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Warning: AMD Processor - this hardware has not undergone upstream testing. Please consult http://wiki.centos.org/FAQ for more information
+2025-12-18 21:32:52.369[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] setup_percpu: NR_CPUS:5120 nr_cpumask_bits:2 nr_cpu_ids:2 nr_node_ids:1
+2025-12-18 21:32:52.369[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] percpu: Embedded 38 pages/cpu s118784 r8192 d28672 u1048576
+2025-12-18 21:32:52.369[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] pcpu-alloc: s118784 r8192 d28672 u1048576 alloc=1*2097152
+2025-12-18 21:32:52.369[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] pcpu-alloc: [0] 0 1 
+2025-12-18 21:32:52.369[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Built 1 zonelists in Zone order, mobility grouping on.  Total pages: 2064249
+2025-12-18 21:32:52.369[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Policy zone: Normal
+2025-12-18 21:32:52.371[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Kernel command line: BOOT_IMAGE=/vmlinuz-3.10.0-1160.15.2.el7.x86_64 root=UUID=4561562f-4e05-4f68-8253-70a8ecdd89b9 ro console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 rootdelay=300 net.ifnames=0 scsi_mod.use_blk_mq=y LANG=en_US.UTF-8
+2025-12-18 21:32:52.371[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] PID hash table entries: 4096 (order: 3, 32768 bytes)
+2025-12-18 21:32:52.371[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] x86/fpu: xstate_offset[2]: 0240, xstate_sizes[2]: 0100
+2025-12-18 21:32:52.371[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] xsave: enabled xstate_bv 0x7, cntxt size 0x340 using standard form
+2025-12-18 21:32:52.371[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Memory: 3061660k/11534336k available (7792k kernel code, 3146184k absent, 234832k reserved, 5950k data, 1984k init)
+2025-12-18 21:32:52.371[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Hierarchical RCU implementation.
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] 	RCU restricting CPUs from NR_CPUS=5120 to nr_cpu_ids=2.
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] NR_IRQS:327936 nr_irqs:440 0
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] Console: colour VGA+ 80x25
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] console [tty1] enabled
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] console [ttyS0] enabled, bootconsole disabled
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] allocated 218103808 bytes of page_cgroup
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] please try 'cgroup_disable=memory' option if you don't want memory cgroups
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000000] tsc: Detected 2445.429 MHz processor
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.000013] Calibrating delay loop (skipped), value calculated using timer frequency.. 4890.85 BogoMIPS (lpj=2445429)
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.001031] pid_max: default: 32768 minimum: 301
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.002000] Security Framework initialized
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.002000] SELinux:  Initializing.
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.002000] SELinux:  Starting in permissive mode
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.002000] Yama: becoming mindful.
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.002000] Dentry cache hash table entries: 1048576 (order: 11, 8388608 bytes)
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.002938] Inode-cache hash table entries: 524288 (order: 10, 4194304 bytes)
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.003000] Mount-cache hash table entries: 16384 (order: 5, 131072 bytes)
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.003000] Mountpoint-cache hash table entries: 16384 (order: 5, 131072 bytes)
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.003163] Initializing cgroup subsys memory
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.004000] Initializing cgroup subsys devices
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.004000] Initializing cgroup subsys freezer
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.004000] Initializing cgroup subsys net_cls
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.004000] Initializing cgroup subsys blkio
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.004000] Initializing cgroup subsys perf_event
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.004019] Initializing cgroup subsys hugetlb
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.005000] Initializing cgroup subsys pids
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.005000] Initializing cgroup subsys net_prio
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.005000] tseg: 0000000000
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.005000] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.005000] Last level iTLB entries: 4KB 512, 2MB 512, 4MB 256
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.005018] Last level dTLB entries: 4KB 2048, 2MB 2048, 4MB 1024
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.006000] tlb_flushall_shift: 6
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.006000] FEATURE SPEC_CTRL Not Present
+2025-12-18 21:32:52.379[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.006000] FEATURE IBPB_SUPPORT Not Present
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.006000] Spectre V1 : Mitigation: Load fences, usercopy/swapgs barriers and __user pointer sanitization
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.006207] Spectre V2 : Vulnerable: Retpoline without IBPB
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.007000] Speculative Store Bypass: Vulnerable
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.007000] Freeing SMP alternatives: 28k freed
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.008000] ACPI: Core revision 20130517
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.008000] ACPI: All ACPI Tables successfully acquired
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.008000] ftrace: allocating 29654 entries in 116 pages
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.014000] ..TIMER: vector=0x30 apic1=0 pin1=2 apic2=-1 pin2=-1
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.014001] smpboot: CPU0: AMD EPYC 7763 64-Core Processor (fam: 19, model: 01, stepping: 01)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.018181] Performance Events: PMU not available due to virtualization, using software events only.
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.021518] NMI watchdog: disabled (cpu0): hardware events not enabled
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.022001] NMI watchdog: Shutting down hard lockup detector on all cpus
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.023049] smpboot: Booting Node   0, Processors  #1 OK
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.086694] Brought up 2 CPUs
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.087004] smpboot: Max logical packages: 1
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.088001] smpboot: Total of 2 processors activated (9781.88 BogoMIPS)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.106713] node 0 initialised, 1272915 pages in 14ms
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.107102] devtmpfs: initialized
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.108072] x86/mm: Memory block size: 128MB
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.111303] EVM: security.selinux
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.112001] EVM: security.ima
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.113000] EVM: security.capability
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.114075] PM: Registering ACPI NVS region [mem 0x3ffff000-0x3fffffff] (4096 bytes)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.115729] atomic64 test passed for x86-64 platform with CX8 and with SSE
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.116005] pinctrl core: initialized pinctrl subsystem
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.117282] RTC time: 21:32:00, date: 12/18/25
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.118054] NET: Registered protocol family 16
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.122140] ACPI: bus type PCI registered
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.123001] acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.125069] PCI: Using configuration type 1 for base access
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.126000] PCI: Using configuration type 1 for extended access
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.131093] ACPI: Added _OSI(Module Device)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.135002] ACPI: Added _OSI(Processor Device)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.138001] ACPI: Added _OSI(3.0 _SCP Extensions)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.141001] ACPI: Added _OSI(Processor Aggregator Device)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.144001] ACPI: Added _OSI(Linux-Dell-Video)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.148074] ACPI: EC: Look up EC in DSDT
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.148350] ACPI: Executed 1 blocks of module-level executable AML code
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.154755] ACPI: Interpreter enabled
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.157007] ACPI: (supports S0 S5)
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.159001] ACPI: Using IOAPIC for interrupt routing
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.162016] PCI: Using host bridge windows from ACPI; if necessary, use "pci=nocrs" and report a bug
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.167099] ACPI: Enabled 1 GPEs in block 00 to 0F
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.183549] ACPI: PCI Root Bridge [PCI0] (domain 0000 [bus 00-ff])
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.187004] acpi PNP0A03:00: _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.191004] acpi PNP0A03:00: _OSC failed (AE_NOT_FOUND); disabling ASPM
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.195117] PCI host bridge to bus 0000:00
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.197002] pci_bus 0000:00: root bus resource [mem 0xfc0000000-0xfffffffff window]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.202002] pci_bus 0000:00: root bus resource [io  0x0000-0x0cf7 window]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.205001] pci_bus 0000:00: root bus resource [io  0x0d00-0xffff window]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.209001] pci_bus 0000:00: root bus resource [mem 0x000a0000-0x000bffff window]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.213001] pci_bus 0000:00: root bus resource [mem 0x40000000-0xfffbffff window]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.218002] pci_bus 0000:00: root bus resource [bus 00-ff]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.221141] pci 0000:00:00.0: [8086:7192] type 00 class 0x060000
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.223602] pci 0000:00:07.0: [8086:7110] type 00 class 0x060100
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.225848] pci 0000:00:07.1: [8086:7111] type 00 class 0x010180
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.227500] pci 0000:00:07.1: reg 0x20: [io  0xffa0-0xffaf]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.228255] pci 0000:00:07.1: legacy IDE quirk: reg 0x10: [io  0x01f0-0x01f7]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.232001] pci 0000:00:07.1: legacy IDE quirk: reg 0x14: [io  0x03f6]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.236001] pci 0000:00:07.1: legacy IDE quirk: reg 0x18: [io  0x0170-0x0177]
+2025-12-18 21:32:52.388[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.240001] pci 0000:00:07.1: legacy IDE quirk: reg 0x1c: [io  0x0376]
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.244259] pci 0000:00:07.3: [8086:7113] type 00 class 0x068000
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.244294] * Found PM-Timer Bug on the chipset. Due to workarounds for a bug,
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout * this clock source is slow. Consider trying other clock sources
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.256570] pci 0000:00:07.3: quirk: [io  0x0400-0x043f] claimed by PIIX4 ACPI
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.261389] pci 0000:00:08.0: [1414:5353] type 00 class 0x030000
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.261723] pci 0000:00:08.0: reg 0x10: [mem 0xf8000000-0xfbffffff]
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.273675] ACPI: PCI Interrupt Link [LNKA] (IRQs 3 4 5 7 9 10 *11 12 14 15)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.288094] ACPI: PCI Interrupt Link [LNKB] (IRQs 3 4 5 7 9 10 11 12 14 15) *0, disabled.
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.304132] ACPI: PCI Interrupt Link [LNKC] (IRQs 3 4 5 7 9 10 11 12 14 15) *0, disabled.
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.319170] ACPI: PCI Interrupt Link [LNKD] (IRQs 3 4 5 7 9 10 11 12 14 15) *0, disabled.
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.335167] vgaarb: device added: PCI:0000:00:08.0,decodes=io+mem,owns=io+mem,locks=none
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.340001] vgaarb: loaded
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.342001] vgaarb: bridge control possible 0000:00:08.0
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.345026] TECH PREVIEW: scsi-mq may not be fully supported.
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout Please review provided documentation for limitations.
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.351030] SCSI subsystem initialized
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.354019] ACPI: bus type USB registered
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.356012] usbcore: registered new interface driver usbfs
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.361006] usbcore: registered new interface driver hub
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.364023] usbcore: registered new device driver usb
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.367060] EDAC MC: Ver: 3.0.0
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.370217] PCI: Using ACPI for IRQ routing
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.372002] PCI: pci_cache_line_size set to 64 bytes
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.373184] e820: reserve RAM buffer [mem 0x0009fc00-0x0009ffff]
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.373185] e820: reserve RAM buffer [mem 0x3fff0000-0x3fffffff]
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.373276] NetLabel: Initializing
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.375001] NetLabel:  domain hash size = 128
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.378000] NetLabel:  protocols = UNLABELED CIPSOv4
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.381010] NetLabel:  unlabeled traffic allowed by default
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.384045] amd_nb: Cannot enumerate AMD northbridges
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.387025] Switched to clocksource hyperv_clocksource_tsc_page
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.393028] pnp: PnP ACPI init
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.395210] ACPI: bus type PNP registered
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.397970] pnp 00:00: Plug and Play ACPI device, IDs PNP0b00 (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.398158] pnp 00:01: Plug and Play ACPI device, IDs PNP0303 PNP030b (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.398325] pnp 00:02: Plug and Play ACPI device, IDs PNP0f03 PNP0f13 (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.398998] pnp 00:03: [dma 0 disabled]
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.399027] pnp 00:03: Plug and Play ACPI device, IDs PNP0501 (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.399651] pnp 00:04: [dma 0 disabled]
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.399669] pnp 00:04: Plug and Play ACPI device, IDs PNP0501 (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.400305] pnp 00:05: [dma 2]
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.400330] pnp 00:05: Plug and Play ACPI device, IDs PNP0700 (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.400356] system 00:06: [io  0x01e0-0x01ef] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.403919] system 00:06: [io  0x0160-0x016f] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.407491] system 00:06: [io  0x0278-0x027f] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.410875] system 00:06: [io  0x0378-0x037f] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.414225] system 00:06: [io  0x0678-0x067f] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.417537] system 00:06: [io  0x0778-0x077f] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.420961] system 00:06: [io  0x04d0-0x04d1] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.424579] system 00:06: Plug and Play ACPI device, IDs PNP0c02 (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.424675] system 00:07: [io  0x0400-0x043f] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.428082] system 00:07: [io  0x0370-0x0371] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.431566] system 00:07: [io  0x0440-0x044f] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.434933] system 00:07: [mem 0xfec00000-0xfec00fff] could not be reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.438882] system 00:07: [mem 0xfee00000-0xfee00fff] has been reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.442579] system 00:07: Plug and Play ACPI device, IDs PNP0c02 (active)
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.442659] system 00:08: [mem 0x00000000-0x0009ffff] could not be reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.446441] system 00:08: [mem 0x000c0000-0x000dffff] could not be reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.450250] system 00:08: [mem 0x000e0000-0x000fffff] could not be reserved
+2025-12-18 21:32:52.403[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.454257] system 00:08: [mem 0x00100000-0x3fffffff] could not be reserved
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.458021] system 00:08: [mem 0xfffc0000-0xffffffff] has been reserved
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.461693] system 00:08: Plug and Play ACPI device, IDs PNP0c01 (active)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.461872] pnp: PnP ACPI: found 9 devices
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.464388] ACPI: bus type PNP unregistered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.475034] pci_bus 0000:00: resource 4 [mem 0xfc0000000-0xfffffffff window]
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.475036] pci_bus 0000:00: resource 5 [io  0x0000-0x0cf7 window]
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.475037] pci_bus 0000:00: resource 6 [io  0x0d00-0xffff window]
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.475038] pci_bus 0000:00: resource 7 [mem 0x000a0000-0x000bffff window]
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.475039] pci_bus 0000:00: resource 8 [mem 0x40000000-0xfffbffff window]
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.475059] NET: Registered protocol family 2
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.478062] TCP established hash table entries: 65536 (order: 7, 524288 bytes)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.482123] TCP bind hash table entries: 65536 (order: 8, 1048576 bytes)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.486073] TCP: Hash tables configured (established 65536 bind 65536)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.489725] TCP: reno registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.491947] UDP hash table entries: 4096 (order: 5, 131072 bytes)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.495421] UDP-Lite hash table entries: 4096 (order: 5, 131072 bytes)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.499105] NET: Registered protocol family 1
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.501961] pci 0000:00:00.0: Limiting direct PCI/PCI transfers
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.505480] pci 0000:00:08.0: Boot video device
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.505515] PCI: CLS 0 bytes, default 64
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.505539] Unpacking initramfs...
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.668105] Freeing initrd memory: 17960k freed
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.672167] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.675829] software IO TLB [mem 0x3bff0000-0x3fff0000] (64MB) mapped at [ffff910bbbff0000-ffff910bbffeffff]
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.681939] sha1_ssse3: Using SHA-NI optimized SHA-1 implementation
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.685816] sha256_ssse3: Using SHA-256-NI optimized SHA-256 implementation
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.690261] futex hash table entries: 512 (order: 3, 32768 bytes)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.693752] Initialise system trusted keyring
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.699043] audit: initializing netlink socket (disabled)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.702231] type=2000 audit(1766093519.702:1): initialized
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.723716] HugeTLB registered 1 GB page size, pre-allocated 0 pages
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.727873] HugeTLB registered 2 MB page size, pre-allocated 0 pages
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.732371] zpool: loaded
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.734348] zbud: loaded
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.736375] VFS: Disk quotas dquot_6.5.2
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.738824] Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.742763] Key type big_key registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.745259] SELinux:  Registering netfilter hooks
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.746649] NET: Registered protocol family 38
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.749439] Key type asymmetric registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.751983] Asymmetric key parser 'x509' registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.754951] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 248)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.759239] io scheduler noop registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.761701] io scheduler deadline registered (default)
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.765140] io scheduler cfq registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.767540] io scheduler mq-deadline registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.770249] io scheduler kyber registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.772925] pci_hotplug: PCI Hot Plug PCI Core version: 0.5
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.778280] pciehp: PCI Express Hot Plug Controller Driver version: 0.4
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.782095] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.785898] input: Power Button as /devices/LNXSYSTM:00/LNXPWRBN:00/input/input0
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.789934] ACPI: Power Button [PWRF]
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.792750] GHES: HEST is not enabled!
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.795328] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.824992] 00:03: ttyS0 at I/O 0x3f8 (irq = 4) is a 16550A
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.854279] 00:04: ttyS1 at I/O 0x2f8 (irq = 3) is a 16550A
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.858096] Non-volatile memory driver v1.3
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.860759] Linux agpgart interface v0.103
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.863432] crash memory driver: version 1.1
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.866136] rdac: device handler registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.868764] hp_sw: device handler registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.871589] emc: device handler registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.874292] alua: device handler registered
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.876999] libphy: Fixed MDIO Bus: probed
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.879670] ehci_hcd: USB 2.0 'Enhanced' Host Controller (EHCI) Driver
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.883296] ehci-pci: EHCI PCI platform driver
+2025-12-18 21:32:52.419[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.886039] ohci_hcd: USB 1.1 'Open' Host Controller (OHCI) Driver
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.889902] ohci-pci: OHCI PCI platform driver
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.892763] uhci_hcd: USB Universal Host Controller Interface driver
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.896479] usbcore: registered new interface driver usbserial_generic
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.900196] usbserial: USB Serial support registered for generic
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.903928] i8042: PNP: PS/2 Controller [PNP0303:PS2K,PNP0f03:PS2M] at 0x60,0x64 irq 1,12
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.911432] serio: i8042 KBD port at 0x60,0x64 irq 1
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.914485] serio: i8042 AUX port at 0x60,0x64 irq 12
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.917766] mousedev: PS/2 mouse device common for all mice
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.925813] rtc_cmos 00:00: RTC can wake from S4
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.949758] rtc_cmos 00:00: rtc core: registered rtc_cmos as rtc0
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.954210] rtc_cmos 00:00: alarms up to one month, 114 bytes nvram
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.957831] cpuidle: using governor menu
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.961435] hidraw: raw HID events driver (C) Jiri Kosina
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.964722] usbcore: registered new interface driver usbhid
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.968466] usbhid: USB HID core driver
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.971129] drop_monitor: Initializing network drop monitor service
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.971212] input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input1
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.980041] TCP: cubic registered
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.982505] Initializing XFRM netlink socket
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.985654] NET: Registered protocol family 10
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.988858] NET: Registered protocol family 17
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.991719] mpls_gso: MPLS GSO support
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.994288] mce: Using 1 MCE banks
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.998097] PM: Hibernation image not present or could not be loaded.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    0.998099] Loading compiled-in X.509 certificates
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.001125] Loaded X.509 cert 'CentOS Linux kpatch signing key: ea0413152cde1d98ebdca3fe6f0230904c9ef717'
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.006158] Loaded X.509 cert 'CentOS Linux Driver update signing key: 7f421ee0ab69461574bb358861dbe77762a4201b'
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.011666] Loaded X.509 cert 'CentOS Linux kernel signing key: 02fb1b20b039e3cdc759938ba958538481778031'
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.016931] registered taskstats version 1
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.019459] page_owner is disabled
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.023275] Key type trusted registered
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.027036] Key type encrypted registered
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.029563] IMA: No TPM chip found, activating TPM-bypass! (rc=-19)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.034516] BERT: Boot Error Record Table support is disabled. Enable it by using bert_enable as kernel parameter.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.040040]   Magic number: 5:98:551
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.042414] acpi PNP0C0F:02: hash matches
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.045269] rtc_cmos 00:00: setting system clock to 2025-12-18 21:32:00 UTC (1766093520)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.051162] Freeing unused kernel memory: 1984k freed
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.054309] Write protecting the kernel read-only data: 12288k
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.058164] Freeing unused kernel memory: 388k freed
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.061677] Freeing unused kernel memory: 536k freed
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.067198] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.072532] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.076308] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.081193] systemd[1]: systemd 219 running in system mode. (+PAM +AUDIT +SELINUX +IMA -APPARMOR +SMACK +SYSVINIT +UTMP +LIBCRYPTSETUP +GCRYPT +GNUTLS +ACL +XZ +LZ4 -SECCOMP +BLKID +ELFUTILS +KMOD +IDN)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.090599] systemd[1]: Detected virtualization microsoft.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.094238] systemd[1]: Detected architecture x86-64.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.097387] systemd[1]: Running in initial RAM disk.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.102271] systemd[1]: Set hostname to <pkrvm55jvxa0cdf>.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.124571] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.128865] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.132713] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.136417] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.140476] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.144206] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.149557] random: systemd: uninitialized urandom read (16 bytes read)
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.155342] systemd[1]: Reached target Timers.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.161062] systemd[1]: Reached target Local File Systems.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.167303] systemd[1]: Reached target Swap.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.172872] systemd[1]: Created slice Root Slice.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.178961] systemd[1]: Listening on Journal Socket.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.185073] systemd[1]: Listening on udev Control Socket.
+2025-12-18 21:32:52.434[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.191545] systemd[1]: Listening on udev Kernel Socket.
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.197805] psmouse serio1: alps: Unknown ALPS touchpad: E7=12 00 64, EC=12 00 64
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.204231] systemd[1]: Reached target Sockets.
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.216453] systemd[1]: Created slice System Slice.
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.222571] systemd[1]: Starting Journal Service...
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.228623] systemd[1]: Starting Create list of required static device nodes for the current kernel...
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.237706] systemd[1]: Starting Apply Kernel Variables...
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.244445] systemd[1]: Starting Setup Virtual Console...
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.250759] systemd[1]: Starting dracut cmdline hook...
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.413021] psmouse serio1: trackpoint: failed to get extended button data, assuming 3 buttons
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.765719] systemd[1]: Reached target Slices.
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.774289] systemd[1]: Started Journal Service.
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.790524] random: fast init done
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.902965] hv_vmbus: Vmbus version:4.0
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.908416] hv_vmbus: registering driver hyperv_fb
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.929191] hv_vmbus: registering driver hid_hyperv
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.936659] hyperv_fb: Screen resolution: 1152x864, Color depth: 32
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.941498] hv_vmbus: registering driver hyperv_keyboard
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.944819] hv_vmbus: registering driver hv_netvsc
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.953429] hv_vmbus: registering driver hv_storvsc
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.960440] libata version 3.00 loaded.
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.963704] ata_piix 0000:00:07.1: version 2.13
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.964028] ata_piix 0000:00:07.1: Hyper-V Virtual Machine detected, ATA device ignore set
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.967037] scsi host0: ata_piix
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.967151] scsi host1: ata_piix
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.967190] ata1: PATA max UDMA/33 cmd 0x1f0 ctl 0x3f6 bmdma 0xffa0 irq 14
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    1.967191] ata2: PATA max UDMA/33 cmd 0x170 ctl 0x376 bmdma 0xffa8 irq 15
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.048500] Console: switching to colour frame buffer device 144x54
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.301880] ata1.01: host indicates ignore ATA devices, ignored
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.302666] ata2.01: NODEV after polling detection
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.392300] ata1.00: host indicates ignore ATA devices, ignored
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.393807] ata2.00: ATAPI: Virtual CD, , max MWDMA2
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.396496] ata2.00: configured for MWDMA2
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.398077] input: Microsoft Vmbus HID-compliant Mouse as /devices/virtual/input/input2
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.398332] hid-generic 0006:045E:0621.0001: input: <UNKNOWN> HID v0.01 Mouse [Microsoft Vmbus HID-compliant Mouse] on 
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.398774] scsi 1:0:0:0: CD-ROM            Msft     Virtual CD/ROM   1.0  PQ: 0 ANSI: 5
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.517766] sr 1:0:0:0: [sr0] scsi3-mmc drive: 0x/0x tray
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.521083] cdrom: Uniform CD-ROM driver Revision: 3.20
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.526248] sr 1:0:0:0: Attached scsi CD-ROM sr0
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.622372] scsi host2: storvsc_host_t
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.626203] scsi 2:0:0:0: Direct-Access     Msft     Virtual Disk     1.0  PQ: 0 ANSI: 5
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.636167] scsi host3: storvsc_host_t
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.640298] scsi 3:0:1:0: Direct-Access     Msft     Virtual Disk     1.0  PQ: 0 ANSI: 5
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.650089] scsi host4: storvsc_host_t
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    2.658186] scsi host5: storvsc_host_t
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.289160] sd 2:0:0:0: [sda] 62914560 512-byte logical blocks: (32.2 GB/30.0 GiB)
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.290023] sd 3:0:1:0: [sdb] 157286400 512-byte logical blocks: (80.5 GB/75.0 GiB)
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.290024] sd 3:0:1:0: [sdb] 4096-byte physical blocks
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.290400] sd 3:0:1:0: [sdb] Write Protect is off
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.290402] sd 3:0:1:0: [sdb] Mode Sense: 0f 00 10 00
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.290475] sd 3:0:1:0: [sdb] Write cache: disabled, read cache: enabled, supports DPO and FUA
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.291320]  sdb: sdb1
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.292125] sd 3:0:1:0: [sdb] Attached SCSI disk
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.380654] sd 2:0:0:0: [sda] 4096-byte physical blocks
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.418035] sd 2:0:0:0: [sda] Write Protect is off
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.453349] sd 2:0:0:0: [sda] Mode Sense: 0f 00 10 00
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.453457] sd 2:0:0:0: [sda] Write cache: enabled, read cache: enabled, supports DPO and FUA
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.495034]  sda: sda1 sda2 sda14 sda15
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.531105] sd 2:0:0:0: [sda] Attached SCSI disk
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.781417] SGI XFS with ACLs, security attributes, no debug enabled
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.825600] XFS (sda2): Mounting V5 Filesystem
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    3.896025] random: crng init done
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    4.005841] XFS (sda2): Ending clean mount
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    5.295029] psmouse serio1: trackpoint: IBM TrackPoint firmware: 0x01, buttons: 3/3
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    5.331940] input: TPPS/2 IBM TrackPoint as /devices/platform/i8042/serio1/input/input3
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    5.332922] input: AT Translated Set 2 keyboard as /devices/LNXSYSTM:00/device:00/PNP0A03:00/device:08/VMBUS:01/d34b2567-b9b6-42b9-8778-0a4ec0b955bf/serio2/input/input4
+2025-12-18 21:32:52.450[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    5.461546] systemd-journald[95]: Received SIGTERM from PID 1 (systemd).
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.273635] type=1404 audit(1766093525.727:2): enforcing=1 old_enforcing=0 auid=4294967295 ses=4294967295
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.527194] SELinux: 2048 avtab hash slots, 113338 rules.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.562323] SELinux: 2048 avtab hash slots, 113338 rules.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.584999] SELinux:  8 users, 14 roles, 5051 types, 318 bools, 1 sens, 1024 cats
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.585008] SELinux:  130 classes, 113338 rules
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.587793] SELinux:  Completing initialization.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.587794] SELinux:  Setting up existing superblocks.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.595304] type=1403 audit(1766093526.049:3): policy loaded auid=4294967295 ses=4294967295
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    6.652748] systemd[1]: Successfully loaded SELinux policy in 378.796ms.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    7.098343] ip_tables: (C) 2000-2006 Netfilter Core Team
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    7.131536] systemd[1]: Inserted module 'ip_tables'
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [    7.176686] systemd[1]: Relabelled /dev, /run and /sys/fs/cgroup in 10.663ms.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   10.703588] systemd-journald[405]: Received request to flush runtime journal from PID 1
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   11.495897] input: PC Speaker as /devices/platform/pcspkr/input/input5
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   11.552076] piix4_smbus 0000:00:07.3: SMBus base address uninitialized - upgrade BIOS or use force_addr=0xaddr
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.232816] hv_vmbus: registering driver hv_balloon
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.274301] hv_balloon: Using Dynamic Memory protocol version 2.0
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.275438] sr 1:0:0:0: Attached scsi generic sg0 type 5
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.275464] sd 2:0:0:0: Attached scsi generic sg1 type 0
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.275494] sd 3:0:1:0: Attached scsi generic sg2 type 0
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.434294] pps_core: LinuxPPS API ver. 1 registered
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.469889] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.519565] PTP clock support registered
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.559665] hv_utils: Registering HyperV Utility Driver
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.596012] hv_vmbus: registering driver hv_util
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.631919] hv_utils: Heartbeat IC version 3.0
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.667571] hv_utils: Shutdown IC version 3.0
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.703029] hv_utils: TimeSync IC version 4.0
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.759055] cryptd: max_cpu_qlen set to 1000
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.858782] AVX2 version of gcm_enc/dec engaged.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.858782] AES CTR mode by8 optimization enabled
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.909969] alg: No test for __gcm-aes-aesni (__driver-gcm-aes-aesni)
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   12.909997] alg: No test for __generic-gcm-aes-aesni (__driver-generic-gcm-aes-aesni)
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   13.048546] XFS (sda1): Mounting V5 Filesystem
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   13.200972] kvm: Nested Paging enabled
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   13.324321] XFS (sda1): Ending clean mount
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   13.757766] device-mapper: uevent: version 1.0.3
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   13.794404] device-mapper: ioctl: 4.37.1-ioctl (2018-04-03) initialised: dm-devel@redhat.com
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   14.539902] type=1305 audit(1766093534.826:4): audit_pid=565 old=0 auid=4294967295 ses=4294967295 subj=system_u:system_r:auditd_t:s0 res=1
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   18.965245] UDF-fs: INFO Mounting volume 'UDF Volume', timestamp 2025/12/19 00:00 (1000)
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   19.165710] IPv6: ADDRCONF(NETDEV_UP): eth0: link is not ready
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   19.204036] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   20.370925] IPv6: ADDRCONF(NETDEV_UP): eth0: link is not ready
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   21.196356] hv_utils: KVP IC version 4.0
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   22.576585]  sdb: sdb1
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   23.421166] EXT4-fs (sdb1): mounted filesystem with ordered data mode. Opts: (null)
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   24.696005] Adding 2097148k swap on /mnt/resource/swapfile.  Priority:-2 extents:6 across:2260988k FS
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   25.521607] TECH PREVIEW: Overlay filesystem may not be fully supported.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout Please review provided documentation for limitations.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   25.757442] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   25.900809] Bridge firewalling registered
+2025-12-18 21:32:52.466[1000][DEBUG] lisa.env[generated_19].node[0].cmd[1626].stdout [   26.070257] nf_conntrack version 0.5.0 (65536 buckets, 262144 max)
+2025-12-18 21:32:52.466[4768][DEBUG] lisa.env[generated_19].node[0].cmd[1626] execution time: 0.266 sec, exit code: 0
+2025-12-18 21:32:52.466[4768][DEBUG] lisa.env[generated_19].node[0] detecting kernel_version ...
+2025-12-18 21:32:52.466[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] initializing tool [uname]
+2025-12-18 21:32:52.466[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] installed already
+2025-12-18 21:32:52.466[4768][DEBUG] lisa.env[generated_19].node[0].cmd[6475] cmd: ['uname', '-vrmo'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:52.606[6012][DEBUG] lisa.env[generated_19].node[0].cmd[6475].stdout 3.10.0-1160.15.2.el7.x86_64 #1 SMP Wed Feb 3 15:06:38 UTC 2021 x86_64 GNU/Linux
+2025-12-18 21:32:52.606[4768][DEBUG] lisa.env[generated_19].node[0].cmd[6475] execution time: 0.138 sec, exit code: 0
+2025-12-18 21:32:52.606[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_version ...
+2025-12-18 21:32:52.606[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala version from waagent...
+2025-12-18 21:32:52.606[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] initializing tool [waagent]
+2025-12-18 21:32:52.606[4768][DEBUG] lisa.env[generated_19].node[0].cmd[8480] cmd: ['sh', '-c', 'command -v waagent'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:52.811[4768][DEBUG] lisa.env[generated_19].node[0].cmd[8480] execution time: 0.201 sec, exit code: 1
+2025-12-18 21:32:52.811[4768][DEBUG] lisa.env[generated_19].node[0].cmd[9026] cmd: ['sh', '-c', 'command -v sudo'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:53.022[6424][DEBUG] lisa.env[generated_19].node[0].cmd[9026].stdout /usr/bin/sudo
+2025-12-18 21:32:53.032[4768][DEBUG] lisa.env[generated_19].node[0].cmd[9026] execution time: 0.212 sec, exit code: 0
+2025-12-18 21:32:53.032[4768][DEBUG] lisa.env[generated_19].node[0].cmd[488] cmd: ['sudo', 'sh', '-c', 'ls'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:53.337[4768][DEBUG] lisa.env[generated_19].node[0].cmd[488] execution time: 0.304 sec, exit code: 0
+2025-12-18 21:32:53.337[4768][DEBUG] lisa.env[generated_19].node[0].cmd[1134] cmd: ['sudo', 'sh', '-c', 'echo lisa test for sudo'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:53.549[1908][DEBUG] lisa.env[generated_19].node[0].cmd[1134].stdout lisa test for sudo
+2025-12-18 21:32:53.559[4768][DEBUG] lisa.env[generated_19].node[0].cmd[1134] execution time: 0.221 sec, exit code: 0
+2025-12-18 21:32:53.559[4768][DEBUG] lisa.env[generated_19].node[0].cmd[7594] cmd: ['sudo', 'sh', '-c', 'command -v waagent'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:53.767[908][DEBUG] lisa.env[generated_19].node[0].cmd[7594].stdout /sbin/waagent
+2025-12-18 21:32:53.777[4768][DEBUG] lisa.env[generated_19].node[0].cmd[7594] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:32:53.777[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] executable exists in root paths, sudo always brings in following commands.
+2025-12-18 21:32:53.777[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] installed already
+2025-12-18 21:32:53.777[4768][DEBUG] lisa.env[generated_19].node[0].cmd[2037] cmd: ['sudo', 'waagent', '-version'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:54.057[2844][DEBUG] lisa.env[generated_19].node[0].cmd[2037].stdout WALinuxAgent-2.2.46 running on centos 7.9.2009
+2025-12-18 21:32:54.057[2844][DEBUG] lisa.env[generated_19].node[0].cmd[2037].stdout Python: 2.7.5
+2025-12-18 21:32:54.057[2844][DEBUG] lisa.env[generated_19].node[0].cmd[2037].stdout Goal state agent: 2.15.0.1
+2025-12-18 21:32:54.066[4768][DEBUG] lisa.env[generated_19].node[0].cmd[2037] execution time: 0.288 sec, exit code: 0
+2025-12-18 21:32:54.066[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_distro ...
+2025-12-18 21:32:54.066[4768][DEBUG] lisa.env[generated_19].node[0].cmd[4309] cmd: ['sh', '-c', 'command -v python3'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:54.277[4768][DEBUG] lisa.env[generated_19].node[0].cmd[4309] execution time: 0.210 sec, exit code: 1
+2025-12-18 21:32:54.277[4768][DEBUG] lisa.env[generated_19].node[0].cmd[9066] cmd: ['sudo', 'sh', '-c', 'command -v python3'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:54.489[4768][DEBUG] lisa.env[generated_19].node[0].cmd[9066] execution time: 0.211 sec, exit code: 1
+2025-12-18 21:32:54.489[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] python3 exists: False, use sudo: False
+2025-12-18 21:32:54.489[4768][DEBUG] lisa.env[generated_19].node[0].cmd[7596] cmd: ['sh', '-c', 'command -v python2'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:54.686[1624][DEBUG] lisa.env[generated_19].node[0].cmd[7596].stdout /usr/bin/python2
+2025-12-18 21:32:54.696[4768][DEBUG] lisa.env[generated_19].node[0].cmd[7596] execution time: 0.206 sec, exit code: 0
+2025-12-18 21:32:54.696[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] python2 exists: True, use sudo: False
+2025-12-18 21:32:54.696[4768][DEBUG] lisa.env[generated_19].node[0].cmd[9535] cmd: ['python2', '-c', "from azurelinuxagent.common.version import get_distro; print('-'.join(get_distro()[0:3]))"], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:54.935[3048][DEBUG] lisa.env[generated_19].node[0].cmd[9535].stdout centos-7.9.2009-Core
+2025-12-18 21:32:54.942[4768][DEBUG] lisa.env[generated_19].node[0].cmd[9535] execution time: 0.246 sec, exit code: 0
+2025-12-18 21:32:54.942[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_platform ...
+2025-12-18 21:32:54.942[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware platform from uname...
+2025-12-18 21:32:54.942[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:32:54.942[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm_version ...
+2025-12-18 21:32:54.942[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm version...
+2025-12-18 21:32:54.942[4768][DEBUG] lisa.env[generated_19].node[0].cmd[8147] cmd: ['sh', '-c', 'cloud-hypervisor --version'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:55.131[2324][DEBUG] lisa.env[generated_19].node[0].cmd[8147].stdout sh: cloud-hypervisor: command not found
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0].cmd[8147] execution time: 0.205 sec, exit code: 127
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv_version ...
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv version...
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0] detecting lis version...
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] initializing tool [modinfo]
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] installed already
+2025-12-18 21:32:55.148[4768][DEBUG] lisa.env[generated_19].node[0].cmd[5559] cmd: ['sudo', 'sh', '-c', 'modinfo hv_vmbus'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout filename:       /lib/modules/3.10.0-1160.15.2.el7.x86_64/kernel/drivers/hv/hv_vmbus.ko.xz
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout description:    Microsoft Hyper-V VMBus Driver
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout license:        GPL
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout retpoline:      Y
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout rhelversion:    7.9
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout srcversion:     4F322E1972FA4FD30E8B324
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout alias:          acpi*:VMBus:*
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout alias:          acpi*:VMBUS:*
+2025-12-18 21:32:55.350[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout depends:        
+2025-12-18 21:32:55.360[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout intree:         Y
+2025-12-18 21:32:55.360[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout vermagic:       3.10.0-1160.15.2.el7.x86_64 SMP mod_unload modversions 
+2025-12-18 21:32:55.360[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout signer:         CentOS Linux kernel signing key
+2025-12-18 21:32:55.360[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout sig_key:        02:FB:1B:20:B0:39:E3:CD:C7:59:93:8B:A9:58:53:84:81:77:80:31
+2025-12-18 21:32:55.360[3812][DEBUG] lisa.env[generated_19].node[0].cmd[5559].stdout sig_hashalgo:   sha256
+2025-12-18 21:32:55.360[4768][DEBUG] lisa.env[generated_19].node[0].cmd[5559] execution time: 0.212 sec, exit code: 0
+2025-12-18 21:32:55.360[4768][DEBUG] lisa.env[generated_19].node[0] detecting vm generation...
+2025-12-18 21:32:55.360[4768][DEBUG] lisa.env[generated_19].node[0].tool[vmgeneration] initializing tool [vmgeneration]
+2025-12-18 21:32:55.360[4768][DEBUG] lisa.env[generated_19].node[0].tool[vmgeneration] installed already
+2025-12-18 21:32:55.360[4768][DEBUG] lisa.env[generated_19].node[0].cmd[7020] cmd: ['ls', '-lt', '/sys/firmware/efi'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:55.556[3356][DEBUG] lisa.env[generated_19].node[0].cmd[7020].stdout ls: cannot access /sys/firmware/efi: No such file or directory
+2025-12-18 21:32:55.556[4768][DEBUG] lisa.env[generated_19].node[0].cmd[7020] execution time: 0.199 sec, exit code: 2
+2025-12-18 21:32:55.556[4768][DEBUG] lisa.env[generated_19].node[0] vm generation: 1
+2025-12-18 21:32:55.556[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_disk_controller_type ...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting host_version ...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting host version from dmesg...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting kernel_version ...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_version ...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala version from waagent...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_distro ...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_platform ...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware platform from uname...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm_version ...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm version...
+2025-12-18 21:32:55.918[4768][DEBUG] lisa.env[generated_19].node[0].cmd[508] cmd: ['sh', '-c', 'cloud-hypervisor --version'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:56.054[2728][DEBUG] lisa.env[generated_19].node[0].cmd[508].stdout sh: cloud-hypervisor: command not found
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0].cmd[508] execution time: 0.128 sec, exit code: 127
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv_version ...
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv version...
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0] detecting lis version...
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0] detecting vm generation...
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0] vm generation: 1
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:32:56.054[4768][DEBUG] lisa.env[generated_19].node[0].cmd[942] cmd: ['cat', '/etc/redhat-release'], cwd: None, shell: False, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:56.257[2136][DEBUG] lisa.env[generated_19].node[0].cmd[942].stdout CentOS Linux release 7.9.2009 (Core)
+2025-12-18 21:32:56.257[4768][DEBUG] lisa.env[generated_19].node[0].cmd[942] execution time: 0.202 sec, exit code: 0
+2025-12-18 21:32:56.257[4768][DEBUG] lisa.env[generated_19].node[0].os parsed os information: OsInformation(version=LisaVersionInfo(major=7, minor=9, patch=2009, prerelease=None, build=None), vendor='CentOS', release='7.9.2009', codename='Core', update='', full_version='CentOS Linux release 7.9.2009 (Core)')
+2025-12-18 21:32:56.257[4768][DEBUG] lisa.case[validate_netvsc_reload][lisa_0_19] before_case end in 0.001 sec
+2025-12-18 21:32:56.257[5992][DEBUG] lisa.env[generated_19].node[0].tool[kernelconfig] initializing tool [kernelconfig]
+2025-12-18 21:32:56.257[5992][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:32:56.257[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1658] cmd: ['sudo', 'ls', '-lt', '/boot/config-3.10.0-1160.15.2.el7.x86_64'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:56.476[2292][DEBUG] lisa.env[generated_19].node[0].cmd[1658].stdout -rw-r--r--. 1 root root 153596 Feb  3  2021 /boot/config-3.10.0-1160.15.2.el7.x86_64
+2025-12-18 21:32:56.482[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1658] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:32:56.482[5992][DEBUG] lisa.env[generated_19].node[0].tool[kernelconfig] installed already
+2025-12-18 21:32:56.482[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6575] cmd: ['sudo', 'sh', '-c', 'grep ^CONFIG_HYPERV_NET=y /boot/config-3.10.0-1160.15.2.el7.x86_64'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:56.720[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6575] execution time: 0.237 sec, exit code: 1
+2025-12-18 21:32:57.541[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] initializing tool [modprobe]
+2025-12-18 21:32:57.541[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] installed already
+2025-12-18 21:32:57.541[5992][DEBUG] lisa.env[generated_19].node[0].tool[lsmod] initializing tool [lsmod]
+2025-12-18 21:32:57.541[5992][DEBUG] lisa.env[generated_19].node[0].tool[lsmod] installed already
+2025-12-18 21:32:57.541[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7911] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:57.704[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7911] execution time: 0.159 sec, exit code: 0
+2025-12-18 21:32:57.704[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7780] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:57.916[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7780] execution time: 0.212 sec, exit code: 0
+2025-12-18 21:32:57.916[5992][DEBUG] lisa.env[generated_19].node[0].tool[dhclient] initializing tool [dhclient]
+2025-12-18 21:32:57.916[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9873] cmd: ['sh', '-c', 'command -v dhclient'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:58.124[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9873] execution time: 0.207 sec, exit code: 1
+2025-12-18 21:32:58.124[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1019] cmd: ['sudo', 'sh', '-c', 'command -v dhclient'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:58.329[2476][DEBUG] lisa.env[generated_19].node[0].cmd[1019].stdout /sbin/dhclient
+2025-12-18 21:32:58.339[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1019] execution time: 0.214 sec, exit code: 0
+2025-12-18 21:32:58.339[5992][DEBUG] lisa.env[generated_19].node[0].tool[dhclient] executable exists in root paths, sudo always brings in following commands.
+2025-12-18 21:32:58.339[5992][DEBUG] lisa.env[generated_19].node[0].tool[dhclient] installed already
+2025-12-18 21:32:58.339[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] initializing tool [whoami]
+2025-12-18 21:32:58.339[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] installed already
+2025-12-18 21:32:58.339[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4987] cmd: ['sh', '-c', 'whoami'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:58.550[4540][DEBUG] lisa.env[generated_19].node[0].cmd[4987].stdout l****t
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4987] execution time: 0.211 sec, exit code: 0
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.out /home/l****t/loop_process_pid_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].tool[custom-modprobe-reloader-sh-598ab01b] initializing tool [custom-modprobe-reloader-sh-598ab01b]
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].tool[custom-modprobe-reloader-sh-598ab01b] 'custom-modprobe-reloader-sh-598ab01b' not installed
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].tool[custom-modprobe-reloader-sh-598ab01b] custom-modprobe-reloader-sh-598ab01b is installing
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].tool[echo] initializing tool [echo]
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].tool[echo] installed already
+2025-12-18 21:32:58.550[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5710] cmd: ['sh', '-c', 'echo $HOME/lisa_working/20251218/20251218-210339-640'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:32:58.748[6748][DEBUG] lisa.env[generated_19].node[0].cmd[5710].stdout /home/l****t/lisa_working/20251218/20251218-210339-640
+2025-12-18 21:32:58.748[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5710] execution time: 0.201 sec, exit code: 0
+2025-12-18 21:32:59.156[5992][DEBUG] lisa.env[generated_19].node[0] working path is: '/home/l****t/lisa_working/20251218/20251218-210339-640'
+2025-12-18 21:32:59.890[5992][DEBUG] lisa.env[generated_19].node[0].tool[custom-modprobe-reloader-sh-598ab01b] installed in 1.339 sec
+2025-12-18 21:32:59.890[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7146] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.out /home/l****t/loop_process_pid_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:00.048[6164][DEBUG] lisa.env[generated_19].node[0].cmd[7146].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:00.058[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7146] execution time: 0.166 sec, exit code: 0
+2025-12-18 21:33:00.058[5992][DEBUG] lisa.env[generated_19].node[0].tool[cat] initializing tool [cat]
+2025-12-18 21:33:00.058[5992][DEBUG] lisa.env[generated_19].node[0].tool[cat] installed already
+2025-12-18 21:33:00.058[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9537] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:01.361[3940][DEBUG] lisa.env[generated_19].node[0].cmd[9537].stdout 2192
+2025-12-18 21:33:01.379[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9537] execution time: 1.320 sec, exit code: 0
+2025-12-18 21:33:01.379[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7307] cmd: ['sudo', 'sh', '-c', "ps -p 2192 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:01.635[6808][DEBUG] lisa.env[generated_19].node[0].cmd[7307].stdout running
+2025-12-18 21:33:01.645[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7307] execution time: 0.265 sec, exit code: 0
+2025-12-18 21:33:01.645[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 2192
+rechecking after 1 second...
+2025-12-18 21:33:02.645[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8376] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:02.778[5256][DEBUG] lisa.env[generated_19].node[0].cmd[8376].stdout 2192
+2025-12-18 21:33:02.788[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8376] execution time: 0.143 sec, exit code: 0
+2025-12-18 21:33:02.788[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6805] cmd: ['sudo', 'sh', '-c', "ps -p 2192 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:03.005[2772][DEBUG] lisa.env[generated_19].node[0].cmd[6805].stdout running
+2025-12-18 21:33:03.023[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6805] execution time: 0.234 sec, exit code: 0
+2025-12-18 21:33:03.023[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 2192
+rechecking after 1 second...
+2025-12-18 21:33:04.023[5992][DEBUG] lisa.env[generated_19].node[0].cmd[841] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:04.151[3208][DEBUG] lisa.env[generated_19].node[0].cmd[841].stdout 2192
+2025-12-18 21:33:04.151[5992][DEBUG] lisa.env[generated_19].node[0].cmd[841] execution time: 0.128 sec, exit code: 0
+2025-12-18 21:33:04.151[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7512] cmd: ['sudo', 'sh', '-c', "ps -p 2192 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:04.376[2312][DEBUG] lisa.env[generated_19].node[0].cmd[7512].stdout not_running
+2025-12-18 21:33:04.386[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7512] execution time: 0.234 sec, exit code: 0
+2025-12-18 21:33:04.386[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 2192
+2025-12-18 21:33:04.386[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 4.3275929000010365 seconds
+2025-12-18 21:33:04.386[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1301] cmd: ['sudo', 'sh', '-c', 'modinfo hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:04.597[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout filename:       /lib/modules/3.10.0-1160.15.2.el7.x86_64/kernel/drivers/net/hyperv/hv_netvsc.ko.xz
+2025-12-18 21:33:04.597[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout description:    Microsoft Hyper-V network driver
+2025-12-18 21:33:04.597[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout license:        GPL
+2025-12-18 21:33:04.605[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout retpoline:      Y
+2025-12-18 21:33:04.605[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout rhelversion:    7.9
+2025-12-18 21:33:04.605[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout srcversion:     9AB7202F27923F25A08481A
+2025-12-18 21:33:04.605[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout alias:          vmbus:635161f83edfc546913ff2d2f965ed0e
+2025-12-18 21:33:04.605[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout depends:        hv_vmbus
+2025-12-18 21:33:04.607[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout intree:         Y
+2025-12-18 21:33:04.607[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout vermagic:       3.10.0-1160.15.2.el7.x86_64 SMP mod_unload modversions 
+2025-12-18 21:33:04.607[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout signer:         CentOS Linux kernel signing key
+2025-12-18 21:33:04.607[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout sig_key:        02:FB:1B:20:B0:39:E3:CD:C7:59:93:8B:A9:58:53:84:81:77:80:31
+2025-12-18 21:33:04.607[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout sig_hashalgo:   sha256
+2025-12-18 21:33:04.607[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout parm:           ring_size:Ring buffer size (# of pages) (uint)
+2025-12-18 21:33:04.607[2144][DEBUG] lisa.env[generated_19].node[0].cmd[1301].stdout parm:           debug:Debug level (0=none,...,16=all) (int)
+2025-12-18 21:33:04.607[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1301] execution time: 0.221 sec, exit code: 0
+2025-12-18 21:33:04.607[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4546] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:04.849[5024][DEBUG] lisa.env[generated_19].node[0].cmd[4546].stdout 0
+2025-12-18 21:33:04.859[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4546] execution time: 0.250 sec, exit code: 0
+2025-12-18 21:33:04.859[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7992] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:05.064[3512][DEBUG] lisa.env[generated_19].node[0].cmd[7992].stdout 0
+2025-12-18 21:33:05.074[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7992] execution time: 0.214 sec, exit code: 0
+2025-12-18 21:33:05.074[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8553] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:05.287[4600][DEBUG] lisa.env[generated_19].node[0].cmd[8553].stdout 0
+2025-12-18 21:33:05.292[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8553] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:33:05.292[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7671] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:05.501[1464][DEBUG] lisa.env[generated_19].node[0].cmd[7671].stdout 0
+2025-12-18 21:33:05.511[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7671] execution time: 0.219 sec, exit code: 0
+2025-12-18 21:33:05.511[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1700] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.out /home/l****t/loop_process_pid_hv_netvsc_f067a85c-6d49-4ddb-a133-4523fa7e393f.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:05.741[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1700] execution time: 0.229 sec, exit code: 0
+2025-12-18 21:33:05.741[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3179] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:05.976[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3179] execution time: 0.235 sec, exit code: 0
+2025-12-18 21:33:05.976[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5574] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:06.189[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5574] execution time: 0.212 sec, exit code: 0
+2025-12-18 21:33:06.189[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:06.189[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.out /home/l****t/loop_process_pid_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:06.189[5992][DEBUG] lisa.env[generated_19].node[0].cmd[811] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.out /home/l****t/loop_process_pid_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:06.398[4492][DEBUG] lisa.env[generated_19].node[0].cmd[811].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:06.408[5992][DEBUG] lisa.env[generated_19].node[0].cmd[811] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:06.408[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8155] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:07.772[6008][DEBUG] lisa.env[generated_19].node[0].cmd[8155].stdout 2740
+2025-12-18 21:33:07.782[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8155] execution time: 1.373 sec, exit code: 0
+2025-12-18 21:33:07.782[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9864] cmd: ['sudo', 'sh', '-c', "ps -p 2740 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:08.012[5272][DEBUG] lisa.env[generated_19].node[0].cmd[9864].stdout running
+2025-12-18 21:33:08.022[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9864] execution time: 0.239 sec, exit code: 0
+2025-12-18 21:33:08.022[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 2740
+rechecking after 1 second...
+2025-12-18 21:33:09.023[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6392] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:10.636[6384][DEBUG] lisa.env[generated_19].node[0].cmd[6392].stdout 2740
+2025-12-18 21:33:10.646[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6392] execution time: 1.623 sec, exit code: 0
+2025-12-18 21:33:10.646[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8868] cmd: ['sudo', 'sh', '-c', "ps -p 2740 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:10.871[6424][DEBUG] lisa.env[generated_19].node[0].cmd[8868].stdout not_running
+2025-12-18 21:33:10.881[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8868] execution time: 0.234 sec, exit code: 0
+2025-12-18 21:33:10.881[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 2740
+2025-12-18 21:33:10.881[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 4.472914700003457 seconds
+2025-12-18 21:33:10.881[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:33:10.881[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8047] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:11.091[5944][DEBUG] lisa.env[generated_19].node[0].cmd[8047].stdout 0
+2025-12-18 21:33:11.098[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8047] execution time: 0.216 sec, exit code: 0
+2025-12-18 21:33:11.098[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4240] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:11.310[1908][DEBUG] lisa.env[generated_19].node[0].cmd[4240].stdout 0
+2025-12-18 21:33:11.317[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4240] execution time: 0.219 sec, exit code: 0
+2025-12-18 21:33:11.317[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3835] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:11.524[6488][DEBUG] lisa.env[generated_19].node[0].cmd[3835].stdout 0
+2025-12-18 21:33:11.534[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3835] execution time: 0.216 sec, exit code: 0
+2025-12-18 21:33:11.534[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6374] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:11.741[4856][DEBUG] lisa.env[generated_19].node[0].cmd[6374].stdout 0
+2025-12-18 21:33:11.751[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6374] execution time: 0.216 sec, exit code: 0
+2025-12-18 21:33:11.751[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7597] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.out /home/l****t/loop_process_pid_hv_netvsc_5515e250-5939-4ff8-b6cb-5f919f610b21.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:11.970[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7597] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:33:11.970[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9329] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:12.198[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9329] execution time: 0.228 sec, exit code: 0
+2025-12-18 21:33:12.198[5992][DEBUG] lisa.env[generated_19].node[0].cmd[898] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:12.413[5992][DEBUG] lisa.env[generated_19].node[0].cmd[898] execution time: 0.214 sec, exit code: 0
+2025-12-18 21:33:12.413[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:12.413[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.out /home/l****t/loop_process_pid_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:12.413[5992][DEBUG] lisa.env[generated_19].node[0].cmd[467] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.out /home/l****t/loop_process_pid_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:12.622[7060][DEBUG] lisa.env[generated_19].node[0].cmd[467].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:12.632[5992][DEBUG] lisa.env[generated_19].node[0].cmd[467] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:12.632[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4591] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:13.991[2460][DEBUG] lisa.env[generated_19].node[0].cmd[4591].stdout 3270
+2025-12-18 21:33:14.001[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4591] execution time: 1.369 sec, exit code: 0
+2025-12-18 21:33:14.001[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2549] cmd: ['sudo', 'sh', '-c', "ps -p 3270 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:14.223[3812][DEBUG] lisa.env[generated_19].node[0].cmd[2549].stdout running
+2025-12-18 21:33:14.230[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2549] execution time: 0.228 sec, exit code: 0
+2025-12-18 21:33:14.230[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 3270
+rechecking after 1 second...
+2025-12-18 21:33:15.231[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3048] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:16.754[3216][DEBUG] lisa.env[generated_19].node[0].cmd[3048].stdout 3270
+2025-12-18 21:33:16.754[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3048] execution time: 1.529 sec, exit code: 0
+2025-12-18 21:33:16.754[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2116] cmd: ['sudo', 'sh', '-c', "ps -p 3270 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:16.988[2136][DEBUG] lisa.env[generated_19].node[0].cmd[2116].stdout not_running
+2025-12-18 21:33:16.993[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2116] execution time: 0.232 sec, exit code: 0
+2025-12-18 21:33:16.993[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 3270
+2025-12-18 21:33:16.993[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 4.361451800003124 seconds
+2025-12-18 21:33:16.993[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:33:16.993[5992][DEBUG] lisa.env[generated_19].node[0].cmd[517] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:17.208[6600][DEBUG] lisa.env[generated_19].node[0].cmd[517].stdout 0
+2025-12-18 21:33:17.216[5992][DEBUG] lisa.env[generated_19].node[0].cmd[517] execution time: 0.222 sec, exit code: 0
+2025-12-18 21:33:17.216[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9071] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:17.427[5916][DEBUG] lisa.env[generated_19].node[0].cmd[9071].stdout 0
+2025-12-18 21:33:17.435[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9071] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:33:17.435[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6094] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:17.647[6348][DEBUG] lisa.env[generated_19].node[0].cmd[6094].stdout 0
+2025-12-18 21:33:17.653[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6094] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:17.653[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2382] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:17.861[2292][DEBUG] lisa.env[generated_19].node[0].cmd[2382].stdout 0
+2025-12-18 21:33:17.871[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2382] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:17.871[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8425] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.out /home/l****t/loop_process_pid_hv_netvsc_75c62960-4bec-46cf-b9f8-d9f5f3b9c7f4.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:18.091[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8425] execution time: 0.219 sec, exit code: 0
+2025-12-18 21:33:18.091[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1625] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:18.337[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1625] execution time: 0.245 sec, exit code: 0
+2025-12-18 21:33:18.337[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4723] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:18.552[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4723] execution time: 0.215 sec, exit code: 0
+2025-12-18 21:33:18.552[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:18.552[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.out /home/l****t/loop_process_pid_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:18.552[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9594] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.out /home/l****t/loop_process_pid_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:18.760[5740][DEBUG] lisa.env[generated_19].node[0].cmd[9594].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:18.770[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9594] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:18.770[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1709] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:20.124[2476][DEBUG] lisa.env[generated_19].node[0].cmd[1709].stdout 3796
+2025-12-18 21:33:20.134[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1709] execution time: 1.364 sec, exit code: 0
+2025-12-18 21:33:20.134[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9656] cmd: ['sudo', 'sh', '-c', "ps -p 3796 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:20.354[4540][DEBUG] lisa.env[generated_19].node[0].cmd[9656].stdout running
+2025-12-18 21:33:20.364[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9656] execution time: 0.229 sec, exit code: 0
+2025-12-18 21:33:20.364[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 3796
+rechecking after 1 second...
+2025-12-18 21:33:21.365[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9824] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:22.963[6088][DEBUG] lisa.env[generated_19].node[0].cmd[9824].stdout 3796
+2025-12-18 21:33:22.973[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9824] execution time: 1.607 sec, exit code: 0
+2025-12-18 21:33:22.973[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7322] cmd: ['sudo', 'sh', '-c', "ps -p 3796 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:23.194[3940][DEBUG] lisa.env[generated_19].node[0].cmd[7322].stdout not_running
+2025-12-18 21:33:23.209[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7322] execution time: 0.235 sec, exit code: 0
+2025-12-18 21:33:23.209[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 3796
+2025-12-18 21:33:23.209[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 4.438363299996126 seconds
+2025-12-18 21:33:23.209[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:33:23.209[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1389] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:23.413[6808][DEBUG] lisa.env[generated_19].node[0].cmd[1389].stdout 0
+2025-12-18 21:33:23.423[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1389] execution time: 0.213 sec, exit code: 0
+2025-12-18 21:33:23.423[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1196] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:23.632[5468][DEBUG] lisa.env[generated_19].node[0].cmd[1196].stdout 0
+2025-12-18 21:33:23.642[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1196] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:33:23.642[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6690] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:23.851[5256][DEBUG] lisa.env[generated_19].node[0].cmd[6690].stdout 0
+2025-12-18 21:33:23.860[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6690] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:33:23.860[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2442] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:24.071[2772][DEBUG] lisa.env[generated_19].node[0].cmd[2442].stdout 0
+2025-12-18 21:33:24.077[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2442] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:24.077[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4094] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.out /home/l****t/loop_process_pid_hv_netvsc_7568e80c-5836-4f41-a5ba-eb5b0684388f.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:24.296[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4094] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:33:24.296[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7365] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:24.547[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7365] execution time: 0.251 sec, exit code: 0
+2025-12-18 21:33:24.547[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1933] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:24.761[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1933] execution time: 0.213 sec, exit code: 0
+2025-12-18 21:33:24.761[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:24.761[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.out /home/l****t/loop_process_pid_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:24.761[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9996] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.out /home/l****t/loop_process_pid_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:24.969[3512][DEBUG] lisa.env[generated_19].node[0].cmd[9996].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:24.979[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9996] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:24.979[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8048] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:26.322[2504][DEBUG] lisa.env[generated_19].node[0].cmd[8048].stdout 4323
+2025-12-18 21:33:26.332[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8048] execution time: 1.352 sec, exit code: 0
+2025-12-18 21:33:26.332[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2384] cmd: ['sudo', 'sh', '-c', "ps -p 4323 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:26.554[3920][DEBUG] lisa.env[generated_19].node[0].cmd[2384].stdout running
+2025-12-18 21:33:26.573[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2384] execution time: 0.240 sec, exit code: 0
+2025-12-18 21:33:26.573[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 4323
+rechecking after 1 second...
+2025-12-18 21:33:27.574[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3228] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:30.107[3100][DEBUG] lisa.env[generated_19].node[0].cmd[3228].stdout 4323
+2025-12-18 21:33:30.133[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3228] execution time: 2.570 sec, exit code: 0
+2025-12-18 21:33:30.133[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6483] cmd: ['sudo', 'sh', '-c', "ps -p 4323 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:30.373[2924][DEBUG] lisa.env[generated_19].node[0].cmd[6483].stdout not_running
+2025-12-18 21:33:30.393[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6483] execution time: 0.248 sec, exit code: 0
+2025-12-18 21:33:30.393[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 4323
+2025-12-18 21:33:30.393[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 5.413818200002424 seconds
+2025-12-18 21:33:30.393[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:33:30.393[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6944] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:30.607[5272][DEBUG] lisa.env[generated_19].node[0].cmd[6944].stdout 0
+2025-12-18 21:33:30.638[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6944] execution time: 0.244 sec, exit code: 0
+2025-12-18 21:33:30.638[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1120] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:30.851[6728][DEBUG] lisa.env[generated_19].node[0].cmd[1120].stdout 0
+2025-12-18 21:33:30.881[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1120] execution time: 0.243 sec, exit code: 0
+2025-12-18 21:33:30.881[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6882] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:31.096[6012][DEBUG] lisa.env[generated_19].node[0].cmd[6882].stdout 0
+2025-12-18 21:33:31.126[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6882] execution time: 0.244 sec, exit code: 0
+2025-12-18 21:33:31.126[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6298] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:31.347[2132][DEBUG] lisa.env[generated_19].node[0].cmd[6298].stdout 0
+2025-12-18 21:33:31.374[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6298] execution time: 0.247 sec, exit code: 0
+2025-12-18 21:33:31.374[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4987] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.out /home/l****t/loop_process_pid_hv_netvsc_72c1640c-e2e4-48f8-8c75-4312360f0023.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:31.599[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4987] execution time: 0.224 sec, exit code: 0
+2025-12-18 21:33:31.599[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6891] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:31.840[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6891] execution time: 0.244 sec, exit code: 0
+2025-12-18 21:33:31.840[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9248] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:32.071[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9248] execution time: 0.227 sec, exit code: 0
+2025-12-18 21:33:32.071[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:32.071[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.out /home/l****t/loop_process_pid_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:32.071[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5861] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.out /home/l****t/loop_process_pid_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:32.282[908][DEBUG] lisa.env[generated_19].node[0].cmd[5861].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:32.292[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5861] execution time: 0.219 sec, exit code: 0
+2025-12-18 21:33:32.292[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5816] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:33.648[3388][DEBUG] lisa.env[generated_19].node[0].cmd[5816].stdout 4849
+2025-12-18 21:33:33.658[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5816] execution time: 1.366 sec, exit code: 0
+2025-12-18 21:33:33.658[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6965] cmd: ['sudo', 'sh', '-c', "ps -p 4849 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:33.889[6776][DEBUG] lisa.env[generated_19].node[0].cmd[6965].stdout running
+2025-12-18 21:33:33.899[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6965] execution time: 0.240 sec, exit code: 0
+2025-12-18 21:33:33.899[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 4849
+rechecking after 1 second...
+2025-12-18 21:33:34.900[5992][DEBUG] lisa.env[generated_19].node[0].cmd[704] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:36.518[5800][DEBUG] lisa.env[generated_19].node[0].cmd[704].stdout 4849
+2025-12-18 21:33:36.545[5992][DEBUG] lisa.env[generated_19].node[0].cmd[704] execution time: 1.655 sec, exit code: 0
+2025-12-18 21:33:36.545[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6866] cmd: ['sudo', 'sh', '-c', "ps -p 4849 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:36.794[6568][DEBUG] lisa.env[generated_19].node[0].cmd[6866].stdout not_running
+2025-12-18 21:33:36.804[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6866] execution time: 0.248 sec, exit code: 0
+2025-12-18 21:33:36.804[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 4849
+2025-12-18 21:33:36.804[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 4.5117657000009785 seconds
+2025-12-18 21:33:36.804[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:33:36.804[5992][DEBUG] lisa.env[generated_19].node[0].cmd[928] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:37.016[5916][DEBUG] lisa.env[generated_19].node[0].cmd[928].stdout 0
+2025-12-18 21:33:37.046[5992][DEBUG] lisa.env[generated_19].node[0].cmd[928] execution time: 0.242 sec, exit code: 0
+2025-12-18 21:33:37.046[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8008] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:37.260[6348][DEBUG] lisa.env[generated_19].node[0].cmd[8008].stdout 0
+2025-12-18 21:33:37.290[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8008] execution time: 0.243 sec, exit code: 0
+2025-12-18 21:33:37.290[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4304] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:37.506[2664][DEBUG] lisa.env[generated_19].node[0].cmd[4304].stdout 0
+2025-12-18 21:33:37.536[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4304] execution time: 0.245 sec, exit code: 0
+2025-12-18 21:33:37.536[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2255] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:37.751[848][DEBUG] lisa.env[generated_19].node[0].cmd[2255].stdout 0
+2025-12-18 21:33:37.781[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2255] execution time: 0.244 sec, exit code: 0
+2025-12-18 21:33:37.781[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5770] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.out /home/l****t/loop_process_pid_hv_netvsc_567c6005-add7-4456-b7dc-a85754e76230.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:38.006[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5770] execution time: 0.224 sec, exit code: 0
+2025-12-18 21:33:38.006[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8929] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:38.247[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8929] execution time: 0.247 sec, exit code: 0
+2025-12-18 21:33:38.247[5992][DEBUG] lisa.env[generated_19].node[0].cmd[666] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:38.479[5992][DEBUG] lisa.env[generated_19].node[0].cmd[666] execution time: 0.225 sec, exit code: 0
+2025-12-18 21:33:38.479[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:38.479[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.out /home/l****t/loop_process_pid_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:38.479[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2164] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.out /home/l****t/loop_process_pid_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:38.693[4608][DEBUG] lisa.env[generated_19].node[0].cmd[2164].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:38.702[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2164] execution time: 0.222 sec, exit code: 0
+2025-12-18 21:33:38.702[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9445] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:39.413[2476][DEBUG] lisa.env[generated_19].node[0].cmd[9445].stdout 5376
+2025-12-18 21:33:39.413[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9445] execution time: 0.718 sec, exit code: 0
+2025-12-18 21:33:39.413[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8505] cmd: ['sudo', 'sh', '-c', "ps -p 5376 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:39.647[4540][DEBUG] lisa.env[generated_19].node[0].cmd[8505].stdout running
+2025-12-18 21:33:39.664[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8505] execution time: 0.243 sec, exit code: 0
+2025-12-18 21:33:39.664[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 5376
+rechecking after 1 second...
+2025-12-18 21:33:40.664[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3321] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:43.210[4728][DEBUG] lisa.env[generated_19].node[0].cmd[3321].stdout 5376
+2025-12-18 21:33:43.220[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3321] execution time: 2.555 sec, exit code: 0
+2025-12-18 21:33:43.220[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8183] cmd: ['sudo', 'sh', '-c', "ps -p 5376 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:43.443[3964][DEBUG] lisa.env[generated_19].node[0].cmd[8183].stdout not_running
+2025-12-18 21:33:43.453[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8183] execution time: 0.233 sec, exit code: 0
+2025-12-18 21:33:43.453[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 5376
+2025-12-18 21:33:43.453[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 4.751351700004307 seconds
+2025-12-18 21:33:43.453[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:33:43.453[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5082] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:43.662[6904][DEBUG] lisa.env[generated_19].node[0].cmd[5082].stdout 0
+2025-12-18 21:33:43.670[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5082] execution time: 0.215 sec, exit code: 0
+2025-12-18 21:33:43.670[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2684] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:43.881[3256][DEBUG] lisa.env[generated_19].node[0].cmd[2684].stdout 0
+2025-12-18 21:33:43.888[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2684] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:43.888[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2876] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:44.095[6720][DEBUG] lisa.env[generated_19].node[0].cmd[2876].stdout 0
+2025-12-18 21:33:44.105[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2876] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:44.105[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9794] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:44.312[4776][DEBUG] lisa.env[generated_19].node[0].cmd[9794].stdout 0
+2025-12-18 21:33:44.322[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9794] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:44.322[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8253] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.out /home/l****t/loop_process_pid_hv_netvsc_8d119b32-c5ce-4bb9-add9-e38016400a0b.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:44.539[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8253] execution time: 0.216 sec, exit code: 0
+2025-12-18 21:33:44.539[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7459] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:44.776[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7459] execution time: 0.240 sec, exit code: 0
+2025-12-18 21:33:44.776[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6876] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:45.003[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6876] execution time: 0.222 sec, exit code: 0
+2025-12-18 21:33:45.003[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:45.003[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.out /home/l****t/loop_process_pid_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:45.003[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3132] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.out /home/l****t/loop_process_pid_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:45.213[5524][DEBUG] lisa.env[generated_19].node[0].cmd[3132].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:45.220[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3132] execution time: 0.216 sec, exit code: 0
+2025-12-18 21:33:45.220[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8232] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:45.939[3512][DEBUG] lisa.env[generated_19].node[0].cmd[8232].stdout 5902
+2025-12-18 21:33:45.949[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8232] execution time: 0.728 sec, exit code: 0
+2025-12-18 21:33:45.949[5992][DEBUG] lisa.env[generated_19].node[0].cmd[698] cmd: ['sudo', 'sh', '-c', "ps -p 5902 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:46.161[356][DEBUG] lisa.env[generated_19].node[0].cmd[698].stdout running
+2025-12-18 21:33:46.171[5992][DEBUG] lisa.env[generated_19].node[0].cmd[698] execution time: 0.222 sec, exit code: 0
+2025-12-18 21:33:46.171[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 5902
+rechecking after 1 second...
+2025-12-18 21:33:47.172[5992][DEBUG] lisa.env[generated_19].node[0].cmd[237] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:49.719[4488][DEBUG] lisa.env[generated_19].node[0].cmd[237].stdout 5902
+2025-12-18 21:33:49.729[5992][DEBUG] lisa.env[generated_19].node[0].cmd[237] execution time: 2.556 sec, exit code: 0
+2025-12-18 21:33:49.729[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1965] cmd: ['sudo', 'sh', '-c', "ps -p 5902 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:49.953[3728][DEBUG] lisa.env[generated_19].node[0].cmd[1965].stdout not_running
+2025-12-18 21:33:49.963[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1965] execution time: 0.234 sec, exit code: 0
+2025-12-18 21:33:49.963[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is not_running, pid: 5902
+2025-12-18 21:33:49.963[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 4.743101300002309 seconds
+2025-12-18 21:33:49.963[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:33:49.963[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6185] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:50.170[3100][DEBUG] lisa.env[generated_19].node[0].cmd[6185].stdout 0
+2025-12-18 21:33:50.180[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6185] execution time: 0.216 sec, exit code: 0
+2025-12-18 21:33:50.180[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7960] cmd: ['sudo', 'sh', '-c', "grep -E 'insmod .*hv_netvsc.ko.xz' /home/l****t/nohup_log_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:50.393[2924][DEBUG] lisa.env[generated_19].node[0].cmd[7960].stdout 0
+2025-12-18 21:33:50.403[5992][DEBUG] lisa.env[generated_19].node[0].cmd[7960] execution time: 0.222 sec, exit code: 0
+2025-12-18 21:33:50.403[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8797] cmd: ['sudo', 'sh', '-c', "grep -o 'is in use' /home/l****t/nohup_log_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:50.616[5272][DEBUG] lisa.env[generated_19].node[0].cmd[8797].stdout 0
+2025-12-18 21:33:50.626[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8797] execution time: 0.223 sec, exit code: 0
+2025-12-18 21:33:50.626[5992][DEBUG] lisa.env[generated_19].node[0].cmd[431] cmd: ['sudo', 'sh', '-c', "grep -o 'Device or resource busy' /home/l****t/nohup_log_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:50.835[5744][DEBUG] lisa.env[generated_19].node[0].cmd[431].stdout 0
+2025-12-18 21:33:50.845[5992][DEBUG] lisa.env[generated_19].node[0].cmd[431] execution time: 0.218 sec, exit code: 0
+2025-12-18 21:33:50.845[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1513] cmd: ['sudo', 'sh', '-c', 'rm -f /home/l****t/nohup_log_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.out /home/l****t/loop_process_pid_hv_netvsc_63ec44f3-cd70-4c1a-b7ad-c278e1a6eb2e.pid'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:51.064[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1513] execution time: 0.219 sec, exit code: 0
+2025-12-18 21:33:51.064[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8026] cmd: ['sudo', 'lsmod'], cwd: None, shell: False, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:51.315[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8026] execution time: 0.250 sec, exit code: 0
+2025-12-18 21:33:51.315[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6275] cmd: ['sudo', 'sh', '-c', 'modprobe -nv hv_netvsc'], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:51.528[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6275] execution time: 0.212 sec, exit code: 0
+2025-12-18 21:33:51.528[5992][DEBUG] lisa.env[generated_19].node[0].tool[whoami] loaded cached result for command: [whoami]
+2025-12-18 21:33:51.528[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] running with parameters: /home/l****t/nohup_log_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.out /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid hv_netvsc 1 false dhclient eth0
+2025-12-18 21:33:51.528[5992][DEBUG] lisa.env[generated_19].node[0].cmd[200] cmd: ['sudo', 'nohup', 'sh', '-c', './modprobe_reloader.sh /home/l****t/nohup_log_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.out /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid hv_netvsc 1 false dhclient eth0'], cwd: /home/l****t/lisa_working/20251218/20251218-210339-640/tool/custom-modprobe-reloader-sh-598ab01b, shell: True, sudo: True, nohup: True, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:51.737[5592][DEBUG] lisa.env[generated_19].node[0].cmd[200].stdout nohup: ignoring input and appending output to ‘nohup.out’
+2025-12-18 21:33:51.747[5992][DEBUG] lisa.env[generated_19].node[0].cmd[200] execution time: 0.217 sec, exit code: 0
+2025-12-18 21:33:51.747[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1234] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:52.456[1804][DEBUG] lisa.env[generated_19].node[0].cmd[1234].stdout 6428
+2025-12-18 21:33:52.473[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1234] execution time: 0.725 sec, exit code: 0
+2025-12-18 21:33:52.473[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2999] cmd: ['sudo', 'sh', '-c', "ps -p 6428 > /dev/null && echo 'running' || echo 'not_running'"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:33:52.738[4856][DEBUG] lisa.env[generated_19].node[0].cmd[2999].stdout running
+2025-12-18 21:33:52.741[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2999] execution time: 0.268 sec, exit code: 0
+2025-12-18 21:33:52.741[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Reload operation for hv_netvsc is running, pid: 6428
+rechecking after 1 second...
+2025-12-18 21:33:53.741[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5444] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:12.982[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, [WinError 10054] An existing connection was forcibly closed by the remote host
+Time elapsed so far: 21.23590189999959 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:14.983[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1261] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:14.983[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 23.237467099999776 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:16.985[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8606] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:16.985[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 25.23920669999643 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:18.987[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5806] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:18.987[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 27.240710899997794 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:20.988[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9642] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:20.988[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 29.24217789999966 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:22.990[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4188] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:22.991[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 31.243774999995367 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:24.992[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4023] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:24.992[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 33.245421100000385 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:26.993[5992][DEBUG] lisa.env[generated_19].node[0].cmd[201] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:26.993[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 35.246811599994544 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:28.994[5992][DEBUG] lisa.env[generated_19].node[0].cmd[1432] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:28.995[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 37.24841429999651 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:30.996[5992][DEBUG] lisa.env[generated_19].node[0].cmd[2550] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:30.996[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 39.250142699995195 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:32.998[5992][DEBUG] lisa.env[generated_19].node[0].cmd[5931] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:32.998[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 41.25160599999799 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:35.000[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6026] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:35.000[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 43.25364179999451 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:37.001[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6231] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:37.001[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 45.255062699994596 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:39.003[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6060] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:39.003[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 47.25689909999346 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:41.005[5992][DEBUG] lisa.env[generated_19].node[0].cmd[4640] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:41.005[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 49.25871509999706 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:43.007[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9390] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:43.007[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 51.26036000000022 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:45.008[5992][DEBUG] lisa.env[generated_19].node[0].cmd[3639] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:45.008[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 53.261797299994214 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:47.010[5992][DEBUG] lisa.env[generated_19].node[0].cmd[6372] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:47.010[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 55.26358629999595 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:49.011[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8410] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:49.011[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 57.265158399997745 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:51.013[5992][DEBUG] lisa.env[generated_19].node[0].cmd[8345] cmd: ['sh', '-c', 'cat /home/l****t/loop_process_pid_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.pid'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:51.013[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] An exception is caught, this could be due to the VM network going down during the module reload operation, SSH session not active
+Time elapsed so far: 59.26684739999473 seconds, 
+Trying to reconnect to the remote node in 2 sec...
+2025-12-18 21:34:53.015[5992][DEBUG] lisa.env[generated_19].node[0].tool[modprobe] Time taken to reload hv_netvsc: 61.26717659999849 seconds
+2025-12-18 21:34:53.015[5992][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_netvsc]
+2025-12-18 21:34:53.016[5992][DEBUG] lisa.env[generated_19].node[0].cmd[9461] cmd: ['sudo', 'sh', '-c', "grep -E 'rmmod hv_netvsc' /home/l****t/nohup_log_hv_netvsc_da63946e-9203-40da-a1b8-1ea5e559b082.out | wc -l"], cwd: None, shell: True, sudo: True, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:53.016[5992][DEBUG] lisa.env[generated_19].node[0] checking panic in serial log...
+2025-12-18 21:34:53.016[5992][DEBUG] lisa.env[generated_19].node[0] downloading serial log...
+2025-12-18 21:34:54.627[5992][DEBUG] lisa.env[generated_19].node[0] downloaded serial log size: 67584
+2025-12-18 21:34:54.643[4768][ERROR] lisa.case[validate_netvsc_reload][lisa_0_19] case failed
+Traceback (most recent call last):
+  File "C:\a\_work\1\s\lisa\lisa\testsuite.py", line 870, in __run_case
+    _call_with_timeout(
+  File "C:\a\_work\1\s\lisa\lisa\testsuite.py", line 60, in _call_with_timeout
+    func_timeout(
+  File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\func_timeout\dafunc.py", line 108, in func_timeout
+    raise_exception(exception)
+  File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\func_timeout\py3_raise.py", line 7, in raise_exception
+    raise exception[0] from None
+  File "C:\a\_work\1\s\lisa\lisa\testsuite.py", line 612, in wrapper
+    func(*args, **parameters)
+  File "C:\a\_work\1\s\lisa\lisa\microsoft\testsuites\network\netinterface.py", line 73, in validate_netvsc_reload
+    serial_console.check_panic(
+  File "C:\a\_work\1\s\lisa\lisa\features\serial_console.py", line 298, in check_panic
+    raise KernelPanicException(stage, panics)
+lisa.util.KernelPanicException: after_reload_netvsc found panic in serial log. You can check the panic details from the serial console log. Please download the test logs and retrieve the serial_log from 'environments' directory, or you can ask support. Detected Panic phrases: ['[    0.022001] NMI watchdog: Shutting down hard lockup detector on all cpus\r']
+2025-12-18 21:34:54.643[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_disk_controller_type ...
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0] detecting host_version ...
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0] detecting host version from dmesg...
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0] detecting kernel_version ...
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_version ...
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala version from waagent...
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_distro ...
+2025-12-18 21:34:55.005[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_platform ...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware platform from uname...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm_version ...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm version...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0].cmd[4516] cmd: ['sh', '-c', 'cloud-hypervisor --version'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] error on run vmm: SSH session not active
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv_version ...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv version...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting lis version...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting vm generation...
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] vm generation: 1
+2025-12-18 21:34:55.021[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_disk_controller_type ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting host_version ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting host version from dmesg...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting kernel_version ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_version ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala version from waagent...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[waagent] loaded cached result for command: [waagent -version]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting wala_distro ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware_platform ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting hardware platform from uname...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm_version ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting vmm version...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].cmd[7915] cmd: ['sh', '-c', 'cloud-hypervisor --version'], cwd: None, shell: True, sudo: False, nohup: False, posix: True, remote: True, encoding: utf-8
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] error on run vmm: SSH session not active
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv_version ...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting mshv version...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[dmesg] loaded cached result for command: [dmesg]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting lis version...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[modinfo] loaded cached result for command: [modinfo hv_vmbus]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] detecting vm generation...
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[vmgeneration] loaded cached result for command: [ls -lt /sys/firmware/efi]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] vm generation: 1
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0].tool[uname] loaded cached result for command: [uname -vrmo]
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.case[validate_netvsc_reload][lisa_0_19] case end in 119.137 sec
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.case[validate_netvsc_reload][lisa_0_19] after_case end in 0.000 sec
+2025-12-18 21:34:55.388[4768][DEBUG] lisa.env[generated_19].node[0] downloading serial log...
+2025-12-18 21:34:57.186[4768][DEBUG] lisa.env[generated_19].node[0] downloaded serial log size: 67584
+2025-12-18 21:34:57.186[4768][INFO] lisa.case[validate_netvsc_reload][lisa_0_19] result: FAILED, elapsed: 125.325 sec, environment: generated_19
