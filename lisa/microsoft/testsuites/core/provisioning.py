@@ -556,7 +556,7 @@ class Provisioning(TestSuite):
                 node.reboot()
             is_mana_driver_present = node.nics.is_mana_driver_enabled()
             is_mana_device_present = node.nics.is_mana_device_present()
-            lower_nics = node.nics.get_lower_nics()
+            lower_nics = node.nics.get_pci_nics()
 
             # Get marketplace image name for Azure platform
             image_name = "unknown"
