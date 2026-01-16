@@ -1332,12 +1332,21 @@ class Xfstests(Tool):
                     result.name, test_section, str(result.status.name)
                 )
             )
+            # Parse actual test duration from xfstests output (e.g., "46s", "302s")
+            # The message format starts with duration for PASSED tests.
+            # For FAILED/SKIPPED tests, xfstests doesn't report duration, set to 0.0
+            subtest_duration: float = 0.0
+            duration_match = re.match(r"^(\d+)s", result.message)
+            if duration_match:
+                subtest_duration = float(duration_match.group(1))
+
             send_sub_test_result_message(
                 test_result=test_result,
                 test_case_name=result.name,
                 test_status=result.status,
                 test_message=result.message,
                 other_fields=info,
+                subtest_duration=subtest_duration,
             )
 
     def check_test_results(
