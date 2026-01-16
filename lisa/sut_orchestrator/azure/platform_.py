@@ -752,7 +752,12 @@ class AzurePlatform(Platform):
             information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
 
-            security_profile = node.features[SecurityProfile].get_settings()
+            # Guest nodes (like WslContainerNode) don't have features attribute
+            # Skip security profile collection for guest nodes
+            if hasattr(node, "features"):
+                security_profile = node.features[SecurityProfile].get_settings()
+            else:
+                security_profile = None
             if (
                 security_profile
                 and isinstance(security_profile, SecurityProfileSettings)
@@ -789,18 +794,23 @@ class AzurePlatform(Platform):
                 information[KEY_NVME_ENABLED] = _has_nvme_core and _has_nvme
                 node.log.debug(f"nvme enabled: {information[KEY_NVME_ENABLED]}")
 
-        node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-        if node_runbook:
-            information["location"] = node_runbook.location
-            information["vmsize"] = node_runbook.vm_size
-            information["image"] = node_runbook.get_image_name()
+        # Guest nodes don't have Azure-specific runbook information
+        # Only get node information for RemoteNode (not for GuestNode/WslContainerNode)
+        if isinstance(node, RemoteNode):
+            node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+            if node_runbook:
+                information["location"] = node_runbook.location
+                information["vmsize"] = node_runbook.vm_size
+                information["image"] = node_runbook.get_image_name()
         information["platform"] = self.type_name()
         return information
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
         try:
-            result = node.features[Disk].get_hardware_disk_controller_type()
+            # Guest nodes (like WslContainerNode) don't have features attribute
+            if hasattr(node, "features"):
+                result = node.features[Disk].get_hardware_disk_controller_type()
         except Exception as e:
             # it happens on some error vms. Those error should be caught earlier in
             # test cases not here. So ignore any error here to collect information only.

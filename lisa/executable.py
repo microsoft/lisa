@@ -163,11 +163,11 @@ class Tool(InitializableMixin):
             windows_tool = cls._windows_tool()
             if windows_tool:
                 tool_cls = windows_tool
-        elif "FreeBSD" in node.os.name:
+        elif hasattr(node, "os") and "FreeBSD" in node.os.name:
             freebsd_tool = cls._freebsd_tool()
             if freebsd_tool:
                 tool_cls = freebsd_tool
-        elif "VMWareESXi" in node.os.name:
+        elif hasattr(node, "os") and "VMWareESXi" in node.os.name:
             vmware_esxi_tool = cls._vmware_esxi_tool()
             if vmware_esxi_tool:
                 tool_cls = vmware_esxi_tool
@@ -198,7 +198,7 @@ class Tool(InitializableMixin):
         exists = False
         use_sudo = False
         if self.node.is_posix:
-            if "VMWareESXi" in self.node.os.name:
+            if hasattr(self.node, "os") and "VMWareESXi" in self.node.os.name:
                 where_command = "which"
             else:
                 where_command = "command -v"
@@ -670,9 +670,14 @@ class Tools:
                         )
                     tool_log.debug(f"installed in {timer}")
                 else:
+                    os_name = (
+                        self._node.os.__class__.__name__
+                        if hasattr(self._node, "os")
+                        else "Unknown"
+                    )
                     raise LisaException(
                         f"cannot find [{tool.name}] on [{self._node.name}], "
-                        f"{self._node.os.__class__.__name__}, "
+                        f"{os_name}, "
                         f"Remote({self._node.is_remote}) "
                         f"and installation of [{tool.name}] isn't enabled in lisa."
                     )

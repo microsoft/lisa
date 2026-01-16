@@ -1357,6 +1357,16 @@ class Ubuntu(Debian):
         # /etc/apt/source.list file
         # not add expected_exit_code, since for other platforms
         # it may not have cloud-init
+
+        # Skip cloud-init wait for WSL guest nodes - cloud-init doesn't work in WSL
+        # Use class name check to avoid circular import
+        if self._node.__class__.__name__ == "WslContainerNode":
+            self._log.debug(
+                "Skipping cloud-init wait for WSL guest node "
+                "(cloud-init not applicable in WSL)"
+            )
+            return
+
         self._node.execute("cloud-init status --wait", sudo=True)
 
     def _get_information(self) -> OsInformation:

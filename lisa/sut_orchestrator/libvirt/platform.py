@@ -1363,7 +1363,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return node_runbook_type
 
     def _get_host_distro(self) -> str:
-        result = self.host_node.os.information.full_version if self.host_node else ""
+        result = ""
+        if self.host_node and hasattr(self.host_node, "os"):
+            result = self.host_node.os.information.full_version
         return result
 
     def _get_host_kernel_version(self) -> str:
@@ -1451,8 +1453,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         for node in environment.nodes.list():
             # In some cases, we observe that resize vhd resizes the entire disk
             # but fails to expand the partition size.
-            log.debug(
-                f"Expanding os parition for: node: {node.name}, os: {node.os.name}"
-            )
+            os_name = node.os.name if hasattr(node, "os") else "Unknown"
+            log.debug(f"Expanding os partition for: node: {node.name}, os: {os_name}")
             resize = node.tools[ResizePartition]
             resize.expand_os_partition()

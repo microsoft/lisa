@@ -1464,6 +1464,8 @@ class GuestNode(Node):
 @dataclass
 class WslNode(GuestNode):
     type: str = "wsl"
+    # wsl_version can be "prerelease" or "stable"
+    wsl_version: str = "prerelease"
     # force to reinstall
     distro: str = "Ubuntu"
     # set to new kernel path, if it needs to specify kernel.
