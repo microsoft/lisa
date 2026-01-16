@@ -255,21 +255,27 @@ class LisaRunner(BaseRunner):
             return (-1.0, -1.0, -1.0)
 
     def _get_windows_cpu_percent(self) -> float:
-        """Get CPU usage using wmic (Windows only)."""
+        """Get CPU usage using PowerShell (Windows only)."""
         try:
             import subprocess
 
+            # Use PowerShell Get-Counter for more reliable CPU usage
             result = subprocess.run(
-                ["wmic", "cpu", "get", "loadpercentage"],
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "(Get-Counter '\\Processor(_Total)\\% Processor Time')"
+                    ".CounterSamples.CookedValue",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=15,
             )
-            lines = result.stdout.strip().split("\n")
-            for line in lines:
-                line = line.strip()
-                if line and line.isdigit():
-                    return float(line)
+            if result.returncode == 0 and result.stdout.strip():
+                # Parse the float value
+                value = result.stdout.strip().replace(",", ".")
+                return float(value)
             return -1.0
         except Exception:
             return -1.0
