@@ -497,9 +497,7 @@ class Nics(InitializableMixin):
 
     def is_mana_device_present(self) -> bool:
         lspci = self._node.tools[Lspci]
-        pci_devices = lspci.get_devices_by_type(
-            constants.DEVICE_TYPE_SRIOV, force_run=True
-        )
+        pci_devices = lspci.get_devices_by_type(constants.DEVICE_TYPE_SRIOV)
         all_mana_devices = False
         for pci_device in pci_devices:
             if (
