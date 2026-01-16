@@ -254,30 +254,101 @@ class LisaRunner(BaseRunner):
         except Exception:
             return (-1.0, -1.0, -1.0)
 
+    def _get_windows_cpu_percent(self) -> float:
+        """Get CPU usage using wmic (Windows only)."""
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["wmic", "cpu", "get", "loadpercentage"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            lines = result.stdout.strip().split("\n")
+            for line in lines:
+                line = line.strip()
+                if line and line.isdigit():
+                    return float(line)
+            return -1.0
+        except Exception:
+            return -1.0
+
+    def _get_windows_memory_info(self) -> Tuple[float, float, float]:
+        """
+        Get memory info using wmic (Windows only).
+        Returns (used_gb, total_gb, percent).
+        """
+        try:
+            import subprocess
+
+            # Get total physical memory
+            result = subprocess.run(
+                ["wmic", "computersystem", "get", "totalphysicalmemory"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            total_bytes = 0
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if line and line.isdigit():
+                    total_bytes = int(line)
+                    break
+
+            # Get free physical memory
+            result = subprocess.run(
+                ["wmic", "os", "get", "freephysicalmemory"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            free_kb = 0
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if line and line.isdigit():
+                    free_kb = int(line)
+                    break
+
+            total_gb = total_bytes / (1024**3)
+            free_gb = free_kb / (1024**2)
+            used_gb = total_gb - free_gb
+            percent = (used_gb / total_gb * 100) if total_gb > 0 else 0
+
+            return (used_gb, total_gb, percent)
+        except Exception:
+            return (-1.0, -1.0, -1.0)
+
     def _start_resource_monitoring(
         self, interval_seconds: int = 300, log_on_start: bool = True
     ) -> None:
         """
         Start a background thread that monitors CPU and memory usage.
         Logs resource usage at specified intervals.
-        Uses psutil if available, otherwise falls back to Linux /proc filesystem.
+        Uses psutil if available, otherwise falls back to OS-native methods.
 
         Args:
             interval_seconds: How often to log resource usage (default: 300 seconds)
             log_on_start: Whether to log immediately when starting (default: True)
         """
         use_psutil = PSUTIL_AVAILABLE
+        use_linux = False
 
         if not use_psutil:
             # Check if we're on Linux and /proc is available
             if os.path.exists("/proc/stat") and os.path.exists("/proc/meminfo"):
+                use_linux = True
                 self._log.info(
                     "psutil not available, using /proc for resource monitoring"
+                )
+            elif os.name == "nt":
+                self._log.info(
+                    "psutil not available, using wmic for resource monitoring"
                 )
             else:
                 self._log.warning(
                     "Resource monitoring disabled: psutil not installed and "
-                    "/proc filesystem not available"
+                    "no OS-native fallback available"
                 )
                 return
 
@@ -298,7 +369,7 @@ class LisaRunner(BaseRunner):
                         memory_used_gb = memory.used / (1024**3)
                         memory_total_gb = memory.total / (1024**3)
                         memory_percent = memory.percent
-                    else:
+                    elif use_linux:
                         # Use Linux /proc filesystem
                         cpu_percent = self._get_linux_cpu_percent()
                         (
@@ -306,6 +377,14 @@ class LisaRunner(BaseRunner):
                             memory_total_gb,
                             memory_percent,
                         ) = self._get_linux_memory_info()
+                    else:
+                        # Use Windows wmic
+                        cpu_percent = self._get_windows_cpu_percent()
+                        (
+                            memory_used_gb,
+                            memory_total_gb,
+                            memory_percent,
+                        ) = self._get_windows_memory_info()
 
                     self._log.info(
                         f"[Resource Monitor] "
