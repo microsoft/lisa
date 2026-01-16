@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import Enum
 
 from lisa.executable import Tool
+from lisa.operating_system import Posix
 
 
 class Ss(Tool):
@@ -30,12 +31,14 @@ class Ss(Tool):
     def command(self) -> str:
         return "ss"
 
-    def _check_exists(self) -> bool:
-        return True
-
     @property
     def can_install(self) -> bool:
-        return False
+        return True
+
+    def _install(self) -> bool:
+        assert isinstance(self.node.os, Posix)
+        self.node.os.install_packages("iproute2")
+        return self._check_exists()
 
     def has_kill_support(self) -> bool:
         """
