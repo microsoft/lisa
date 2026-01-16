@@ -522,6 +522,12 @@ class Provisioning(TestSuite):
         try:
             timer = create_timer()
             log.info(f"SSH port 22 is opened, connecting and rebooting '{node.name}'")
+
+            # Collect MANA information BEFORE reboot (uses cached nics data)
+            is_mana_driver_present = node.nics.is_mana_driver_enabled()
+            is_mana_device_present = node.nics.is_mana_device_present()
+            lower_nics = node.nics.get_pci_nics()
+
             # In this step, the underlying shell will connect to SSH port.
             # If successful, the node will be reboot.
             # If failed, It distinguishes TCP and SSH errors by error messages.
@@ -554,9 +560,6 @@ class Provisioning(TestSuite):
                     )
             else:
                 node.reboot()
-            is_mana_driver_present = node.nics.is_mana_driver_enabled()
-            is_mana_device_present = node.nics.is_mana_device_present()
-            lower_nics = node.nics.get_pci_nics()
 
             # Get marketplace image name for Azure platform
             image_name = "unknown"
