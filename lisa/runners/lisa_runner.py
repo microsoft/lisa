@@ -6,7 +6,7 @@ import os
 import shutil
 import threading
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Set, cast
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, cast
 
 from lisa import (
     ResourceAwaitableException,
@@ -200,23 +200,86 @@ class LisaRunner(BaseRunner):
         self.platform.cleanup()
         super().close()
 
+    def _get_linux_cpu_percent(self) -> float:
+        """Get CPU usage using /proc/stat (Linux only)."""
+        try:
+            with open("/proc/stat", "r") as f:
+                line = f.readline()
+            fields = line.split()[1:8]  # cpu user nice system idle iowait irq softirq
+            fields = [int(x) for x in fields]
+            idle1, total1 = fields[3], sum(fields)
+
+            import time
+
+            time.sleep(1)
+
+            with open("/proc/stat", "r") as f:
+                line = f.readline()
+            fields = line.split()[1:8]
+            fields = [int(x) for x in fields]
+            idle2, total2 = fields[3], sum(fields)
+
+            idle_delta = idle2 - idle1
+            total_delta = total2 - total1
+            if total_delta == 0:
+                return 0.0
+            return ((total_delta - idle_delta) / total_delta) * 100
+        except Exception:
+            return -1.0
+
+    def _get_linux_memory_info(self) -> Tuple[float, float, float]:
+        """
+        Get memory info using /proc/meminfo (Linux only).
+        Returns (used_gb, total_gb, percent).
+        """
+        try:
+            mem_info = {}
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        key = parts[0].rstrip(":")
+                        value = int(parts[1])  # in kB
+                        mem_info[key] = value
+
+            total_kb = mem_info.get("MemTotal", 0)
+            available_kb = mem_info.get("MemAvailable", mem_info.get("MemFree", 0))
+            used_kb = total_kb - available_kb
+
+            total_gb = total_kb / (1024**2)
+            used_gb = used_kb / (1024**2)
+            percent = (used_kb / total_kb * 100) if total_kb > 0 else 0
+
+            return (used_gb, total_gb, percent)
+        except Exception:
+            return (-1.0, -1.0, -1.0)
+
     def _start_resource_monitoring(
         self, interval_seconds: int = 300, log_on_start: bool = True
     ) -> None:
         """
         Start a background thread that monitors CPU and memory usage.
         Logs resource usage at specified intervals.
+        Uses psutil if available, otherwise falls back to Linux /proc filesystem.
 
         Args:
-            interval_seconds: How often to log resource usage (default: 60 seconds)
+            interval_seconds: How often to log resource usage (default: 300 seconds)
             log_on_start: Whether to log immediately when starting (default: True)
         """
-        if not PSUTIL_AVAILABLE:
-            self._log.warning(
-                "psutil is not installed. Resource monitoring is disabled. "
-                "Install psutil to enable: pip install psutil"
-            )
-            return
+        use_psutil = PSUTIL_AVAILABLE
+
+        if not use_psutil:
+            # Check if we're on Linux and /proc is available
+            if os.path.exists("/proc/stat") and os.path.exists("/proc/meminfo"):
+                self._log.info(
+                    "psutil not available, using /proc for resource monitoring"
+                )
+            else:
+                self._log.warning(
+                    "Resource monitoring disabled: psutil not installed and "
+                    "/proc filesystem not available"
+                )
+                return
 
         def monitor_resources() -> None:
             first_run = log_on_start
@@ -229,11 +292,20 @@ class LisaRunner(BaseRunner):
                         break
 
                 try:
-                    cpu_percent = psutil.cpu_percent(interval=1)
-                    memory = psutil.virtual_memory()
-                    memory_used_gb = memory.used / (1024**3)
-                    memory_total_gb = memory.total / (1024**3)
-                    memory_percent = memory.percent
+                    if use_psutil:
+                        cpu_percent = psutil.cpu_percent(interval=1)
+                        memory = psutil.virtual_memory()
+                        memory_used_gb = memory.used / (1024**3)
+                        memory_total_gb = memory.total / (1024**3)
+                        memory_percent = memory.percent
+                    else:
+                        # Use Linux /proc filesystem
+                        cpu_percent = self._get_linux_cpu_percent()
+                        (
+                            memory_used_gb,
+                            memory_total_gb,
+                            memory_percent,
+                        ) = self._get_linux_memory_info()
 
                     self._log.info(
                         f"[Resource Monitor] "
