@@ -4,6 +4,7 @@
 import copy
 import os
 import shutil
+import threading
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Set, cast
 
@@ -39,6 +40,15 @@ from lisa.util import (
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
+# Optional dependency for resource monitoring
+try:
+    import psutil
+
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None  # type: ignore
+    PSUTIL_AVAILABLE = False
+
 
 class LisaRunner(BaseRunner):
     @classmethod
@@ -47,6 +57,11 @@ class LisaRunner(BaseRunner):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
+
+        # Initialize resource monitoring
+        self._monitor_stop_event = threading.Event()
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._start_resource_monitoring()
 
         # select test cases
         selected_test_cases = select_testcases(filters=self._runbook.testcase)
@@ -176,11 +191,72 @@ class LisaRunner(BaseRunner):
         return None
 
     def close(self) -> None:
+        # Stop resource monitoring
+        self._stop_resource_monitoring()
+
         if hasattr(self, "environments") and self.environments:
             for environment in self.environments:
                 self._delete_environment_task(environment, [])
         self.platform.cleanup()
         super().close()
+
+    def _start_resource_monitoring(
+        self, interval_seconds: int = 300, log_on_start: bool = True
+    ) -> None:
+        """
+        Start a background thread that monitors CPU and memory usage.
+        Logs resource usage at specified intervals.
+
+        Args:
+            interval_seconds: How often to log resource usage (default: 60 seconds)
+            log_on_start: Whether to log immediately when starting (default: True)
+        """
+        if not PSUTIL_AVAILABLE:
+            self._log.warning(
+                "psutil is not installed. Resource monitoring is disabled. "
+                "Install psutil to enable: pip install psutil"
+            )
+            return
+
+        def monitor_resources() -> None:
+            first_run = log_on_start
+            while not self._monitor_stop_event.is_set():
+                if first_run:
+                    first_run = False
+                else:
+                    # Wait for interval or until stop event is set
+                    if self._monitor_stop_event.wait(interval_seconds):
+                        break
+
+                try:
+                    cpu_percent = psutil.cpu_percent(interval=1)
+                    memory = psutil.virtual_memory()
+                    memory_used_gb = memory.used / (1024**3)
+                    memory_total_gb = memory.total / (1024**3)
+                    memory_percent = memory.percent
+
+                    self._log.info(
+                        f"[Resource Monitor] "
+                        f"CPU: {cpu_percent:.1f}% | "
+                        f"Memory: {memory_used_gb:.2f}GB / {memory_total_gb:.2f}GB "
+                        f"({memory_percent:.1f}%)"
+                    )
+                except Exception as e:
+                    self._log.debug(f"[Resource Monitor] Error getting stats: {e}")
+
+        self._monitor_thread = threading.Thread(
+            target=monitor_resources, daemon=True, name="ResourceMonitor"
+        )
+        self._monitor_thread.start()
+        self._log.debug("Resource monitoring started")
+
+    def _stop_resource_monitoring(self) -> None:
+        """Stop the resource monitoring thread."""
+        if hasattr(self, "_monitor_stop_event"):
+            self._monitor_stop_event.set()
+        if hasattr(self, "_monitor_thread") and self._monitor_thread:
+            self._monitor_thread.join(timeout=5)
+            self._log.debug("Resource monitoring stopped")
 
     def _dispatch_test_result(
         self, environment: Environment, test_results: List[TestResult]
