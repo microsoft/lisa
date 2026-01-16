@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -36,8 +37,8 @@ class Ss(Tool):
         return True
 
     def _install(self) -> bool:
-        assert isinstance(self.node.os, Posix)
-        self.node.os.install_packages("iproute2")
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages("iproute2")
         return self._check_exists()
 
     def has_kill_support(self) -> bool:
