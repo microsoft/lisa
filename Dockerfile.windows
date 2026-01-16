@@ -35,4 +35,5 @@ ENV LISA_azcopy_path="C:\\azcopy.exe"
 WORKDIR C:\\app\\lisa
 
 RUN python -m pip install --no-cache-dir --upgrade pip; \
-    python -m pip install --no-cache-dir --editable .[ado,azure,libvirt,baremetal] --config-settings editable_mode=compat
+    python -m pip install --no-cache-dir --editable .[ado,azure,libvirt,baremetal] --config-settings editable_mode=compat; \
+    python -m pip install --no-cache-dir psutil
