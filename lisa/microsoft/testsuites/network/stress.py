@@ -232,7 +232,8 @@ class Stress(TestSuite):
             skip_if_no_synthetic_nics(node)
 
         initialize_nic_info(environment, is_sriov=False)
-        for _ in range(10):
+        for i in range(10):
+            print(f"Stop and start iteration: {i+1}")
             for node in environment.nodes.list():
                 start_stop = node.features[StartStop]
                 start_stop.stop()
