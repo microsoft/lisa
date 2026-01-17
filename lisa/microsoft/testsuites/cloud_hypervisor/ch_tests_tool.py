@@ -1281,7 +1281,38 @@ exit $ec
 
         self.node.tools[Docker].start()
 
+        # Cache VMM version after installation completes
+        # This allows the platform hooks to pick it up automatically
+        self._cache_vmm_version()
+
         return self._check_exists()
+    
+    def _cache_vmm_version(self) -> None:
+        """
+        Detect and cache cloud-hypervisor version after installation.
+        This is called automatically after the tool is installed, ensuring
+        the version is available for platform information hooks.
+        """
+        from lisa.sut_orchestrator.platform_utils import get_vmm_version
+        
+        try:
+            vmm_version = get_vmm_version(self.node)
+            if vmm_version and vmm_version != "UNKNOWN":
+                self._log.info(f"Cloud-Hypervisor version detected: {vmm_version}")
+                # Cache it in node's capability for platform hooks to use
+                # Create extended_resources dict if it doesn't exist
+                if not hasattr(self.node.capability, "extended_resources"):  # type: ignore[attr-defined]
+                    self.node.capability.extended_resources = {}  # type: ignore[attr-defined]
+                self.node.capability.extended_resources["vmm_version"] = vmm_version  # type: ignore[attr-defined]
+                
+                # Invalidate environment information cache so it gets refreshed
+                # with the newly detected version
+                env = self.node._environment  # type: ignore[attr-defined]
+                if env and hasattr(env, '_information_cache'):  # type: ignore[attr-defined]
+                    env._information_cache = None  # type: ignore[attr-defined]
+                    self._log.debug("Invalidated environment information cache to refresh VMM version")
+        except Exception as e:
+            self._log.debug(f"Could not cache VMM version: {e}")
 
     def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
         cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- --list"
