@@ -1281,7 +1281,35 @@ exit $ec
 
         self.node.tools[Docker].start()
 
+        # Cache VMM version after installation completes
+        # This allows the platform hooks to pick it up automatically
+        self._cache_vmm_version()
+
         return self._check_exists()
+
+    def _cache_vmm_version(self) -> None:
+        """
+        Detect and cache cloud-hypervisor version after installation.
+        This is called automatically after the tool is installed, ensuring
+        the version is available for platform information hooks.
+        """
+        from lisa.sut_orchestrator.platform_utils import get_vmm_version
+
+        try:
+            vmm_version = get_vmm_version(self.node)
+            if vmm_version and vmm_version != "UNKNOWN":
+                self._log.info(f"Cloud-Hypervisor version detected: {vmm_version}")
+                # get_vmm_version() already caches the version in extended_resources
+
+                # Refresh environment information so it picks up the new VMM version
+                env = getattr(self.node, "environment", None)
+                if env is not None and hasattr(env, "get_information"):
+                    env.get_information(force_run=True)
+                    self._log.debug(
+                        "Refreshed environment information to include VMM version"
+                    )
+        except Exception as e:
+            self._log.debug(f"Could not cache VMM version: {e}")
 
     def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
         cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- --list"
