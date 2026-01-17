@@ -184,6 +184,7 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         public_ip, private_ip = get_primary_ip_addresses(
             platform, self._resource_group_name, get_vm(platform, self._node)
         )
+        self._log.debug(f"public_ip: {public_ip}, private_ip: {private_ip}")
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip

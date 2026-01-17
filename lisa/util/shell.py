@@ -280,7 +280,7 @@ class SshShell(InitializableMixin):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            self.connection_info.address, self.connection_info.port
+            self.connection_info.address, self.connection_info.port, timeout=2400
         )
         if not is_ready:
             raise TcpConnectionException(
