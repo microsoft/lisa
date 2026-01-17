@@ -6,6 +6,7 @@ from typing import Any, Dict
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -16,6 +17,7 @@ from lisa import (
     search_space,
 )
 from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.sut_orchestrator.platform_utils import get_vmm_version
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
 from lisa.util import SkippedException
@@ -32,6 +34,7 @@ from lisa.util import SkippedException
 class CloudHypervisorTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+
         if not isinstance(node.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"Cloud Hypervisor tests are not implemented in LISA for {node.os.name}"
@@ -46,6 +49,7 @@ class CloudHypervisorTestSuite(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+        
         node.tools[Modprobe].remove(["openvswitch"])
 
         journalctl = node.tools[Journalctl]
@@ -73,6 +77,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_integration_tests(
         self,
+        environment: Environment,
         node: Node,
         log_path: Path,
         result: TestResult,
@@ -94,6 +99,9 @@ class CloudHypervisorTestSuite(TestSuite):
             include_list,
             exclude_list,
         )
+        
+        # Detect CH version after tests complete (while SSH still active)
+        self._detect_and_cache_vmm_version(node, environment)
 
     @TestCaseMetadata(
         description="""
@@ -110,6 +118,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_live_migration_tests(
         self,
+        environment: Environment,
         node: Node,
         log_path: Path,
         result: TestResult,
@@ -133,6 +142,9 @@ class CloudHypervisorTestSuite(TestSuite):
             include_list,
             exclude_list,
         )
+        
+        # Detect CH version after tests complete (while SSH still active)
+        self._detect_and_cache_vmm_version(node, environment)
 
     @TestCaseMetadata(
         description="""
@@ -143,6 +155,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_performance_metrics_tests(
         self,
+        environment: Environment,
         node: Node,
         log_path: Path,
         result: TestResult,
@@ -167,6 +180,9 @@ class CloudHypervisorTestSuite(TestSuite):
             exclude_list,
             subtest_timeout,
         )
+        
+        # Detect CH version after tests complete (while SSH still active)
+        self._detect_and_cache_vmm_version(node, environment)
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
@@ -177,6 +193,32 @@ class CloudHypervisorTestSuite(TestSuite):
         # add user to mshv group for access to /dev/mshv
         if mshv_exists:
             node.tools[Usermod].add_user_to_group("mshv", sudo=True)
+
+    def _detect_and_cache_vmm_version(
+        self, node: Node, environment: Environment
+    ) -> None:
+        """
+        Detect Cloud-Hypervisor version and cache it in environment.
+        This should be called from test methods after the
+        CloudHypervisorInstallerTransformer has completed.
+        The version is needed for database tracking of test runs.
+        """
+        # Check if already detected to avoid redundant calls
+        env_info = environment.get_information(force_run=False)
+        if "vmm_version" in env_info and env_info["vmm_version"] != "UNKNOWN":
+            return
+
+        node.log.debug("Detecting Cloud-Hypervisor version after installation...")
+        vmm_version = get_vmm_version(node)
+
+        if vmm_version and vmm_version != "UNKNOWN":
+            node.log.info(f"Cloud-Hypervisor version detected: {vmm_version}")
+        else:
+            node.log.debug("Cloud-Hypervisor version could not be detected")
+
+        # Update environment information cache
+        env_info["vmm_version"] = vmm_version
+        node.log.debug(f"Updated environment vmm_version: {vmm_version}")
 
     def _get_hypervisor_param(self, node: Node) -> str:
         kvm_exists = node.tools[Ls].path_exists(path="/dev/kvm", sudo=True)
