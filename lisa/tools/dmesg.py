@@ -33,6 +33,12 @@ class Dmesg(Tool):
             r"in (user|kernel) mode"
         ),
     ]
+    
+    # Generic error patterns that may appear in ignorable traces
+    # These are filtered out when an ignorable context is detected
+    __generic_ignorable_patterns = [
+        re.compile(r"Call Trace"),
+    ]
 
     # [   3.191822] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3294; Vmbus version:3.0
     # [   3.191822] hv_vmbus: Vmbus version:3.0
@@ -117,10 +123,8 @@ class Dmesg(Tool):
             # If we're in an ignorable context and this is a generic error line,
             # also ignore it (e.g., "Call Trace" in a topology_sane trace)
             if not is_ignorable and has_ignorable_context:
-                # Generic error patterns that could be part of ignorable traces
-                generic_patterns = ["Call Trace"]
-                for generic in generic_patterns:
-                    if generic in line:
+                for generic_pattern in self.__generic_ignorable_patterns:
+                    if generic_pattern.search(line):
                         is_ignorable = True
                         self._log.debug(
                             f"Ignoring generic error line in ignorable context: {line}"
