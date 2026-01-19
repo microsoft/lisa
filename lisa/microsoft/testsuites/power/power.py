@@ -7,9 +7,8 @@ from typing import Any, cast
 from assertpy import assert_that
 from func_timeout import func_timeout
 from microsoft.testsuites.power.common import (
-    _prepare_hibernation_environment,
-    check_hibernation_disk_requirements,
     cleanup_env,
+    hibernation_before_case,
     is_distro_supported,
     run_network_workload,
     run_storage_workload,
@@ -28,12 +27,10 @@ from lisa import (
 from lisa.features import Disk, HibernationEnabled, Sriov, Synthetic
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
-from lisa.operating_system import BSD, Windows
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.testsuite import simple_requirement
 from lisa.tools import Date, Hwclock, StressNg
-from lisa.util import SkippedException
 from lisa.util.perf_timer import create_timer
 
 
@@ -47,13 +44,7 @@ from lisa.util.perf_timer import create_timer
 class Power(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
-        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
-            raise SkippedException(f"{node.os} is not supported.")
-
-        # Expand OS partition first (needed for RHEL/LVM before checking disk space)
-        _prepare_hibernation_environment(node)
-
-        check_hibernation_disk_requirements(node)
+        hibernation_before_case(node, log)
 
     @TestCaseMetadata(
         description="""
