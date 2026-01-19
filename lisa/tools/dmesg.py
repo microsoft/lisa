@@ -34,6 +34,12 @@ class Dmesg(Tool):
         ),
     ]
 
+    # lines matching these patterns should be ignored even if they match error patterns
+    __ignore_patterns = [
+        # Ignore CPU topology warning on Azure VMs - known benign issue
+        re.compile(r"llc-sibling CPU .* is not on the same node.*Ignoring dependency"),
+    ]
+
     # [   3.191822] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3294; Vmbus version:3.0
     # [   3.191822] hv_vmbus: Vmbus version:3.0
     # [    0.862842] [    T1] hv_vmbus: Vmbus version:5.3
@@ -79,7 +85,49 @@ class Dmesg(Tool):
         command_output = self._run(force_run=force_run)
         command_output.assert_exit_code()
         matched_lines: List[str] = []
-        for line in command_output.stdout.splitlines(keepends=False):
+        lines = command_output.stdout.splitlines(keepends=False)
+
+        # Track if we're inside an ignored warning block
+        in_ignored_warning = False
+
+        for i, line in enumerate(lines):
+            # Check if this line starts an ignored warning block
+            # Look ahead a few lines to see if it matches ignore patterns
+            if "WARNING:" in line:
+                # Check current and next few lines for ignore patterns
+                context_lines = lines[i : min(i + 5, len(lines))]
+                should_ignore_block = False
+                for context_line in context_lines:
+                    for ignore_pattern in self.__ignore_patterns:
+                        if ignore_pattern.search(context_line):
+                            should_ignore_block = True
+                            in_ignored_warning = True
+                            break
+                    if should_ignore_block:
+                        break
+
+                if should_ignore_block:
+                    continue
+
+            # Check if we're exiting an ignored warning block
+            if in_ignored_warning and "---[ end trace" in line:
+                in_ignored_warning = False
+                continue
+
+            # Skip all lines within an ignored warning block
+            if in_ignored_warning:
+                continue
+
+            # Skip lines that match ignore patterns
+            should_ignore = False
+            for ignore_pattern in self.__ignore_patterns:
+                if ignore_pattern.search(line):
+                    should_ignore = True
+                    break
+
+            if should_ignore:
+                continue
+
             for pattern in self.__errors_patterns:
                 if pattern.search(line):
                     matched_lines.append(line)
