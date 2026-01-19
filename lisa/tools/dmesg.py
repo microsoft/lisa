@@ -91,23 +91,12 @@ class Dmesg(Tool):
         in_ignored_warning = False
 
         for i, line in enumerate(lines):
-            # Check if this line starts an ignored warning block
-            # Look ahead a few lines to see if it matches ignore patterns
-            if "WARNING:" in line:
-                # Check current and next few lines for ignore patterns
-                context_lines = lines[i : min(i + 5, len(lines))]
-                should_ignore_block = False
-                for context_line in context_lines:
-                    for ignore_pattern in self.__ignore_patterns:
-                        if ignore_pattern.search(context_line):
-                            should_ignore_block = True
-                            in_ignored_warning = True
-                            break
-                    if should_ignore_block:
-                        break
-
-                if should_ignore_block:
-                    continue
+            # Check if current line matches any ignore pattern
+            # If so, we're entering an ignored warning block
+            for ignore_pattern in self.__ignore_patterns:
+                if ignore_pattern.search(line):
+                    in_ignored_warning = True
+                    break
 
             # Check if we're exiting an ignored warning block
             if in_ignored_warning and "---[ end trace" in line:
@@ -118,16 +107,7 @@ class Dmesg(Tool):
             if in_ignored_warning:
                 continue
 
-            # Skip lines that match ignore patterns
-            should_ignore = False
-            for ignore_pattern in self.__ignore_patterns:
-                if ignore_pattern.search(line):
-                    should_ignore = True
-                    break
-
-            if should_ignore:
-                continue
-
+            # Check for error patterns
             for pattern in self.__errors_patterns:
                 if pattern.search(line):
                     matched_lines.append(line)
