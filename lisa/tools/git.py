@@ -127,6 +127,30 @@ class Git(Tool):
             no_info_log=True,
             no_error_log=True,
         )
+
+        if result.exit_code != 0:
+            # Try fetching the ref and checking out FETCH_HEAD
+            # This is sometimes necessary when checking out pull requests refs such as
+            # refs/pull/1234/merge
+            self._log.debug(f"Direct checkout of {ref} failed, trying fetch")
+            self.run(
+                f"fetch origin {ref}",  # assuming the default 'origin' remote
+                force_run=True,
+                cwd=cwd,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+
+            result = self.run(
+                "checkout FETCH_HEAD",
+                force_run=True,
+                cwd=cwd,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+
         # delete old temp branch before checking out new one
         if delete_temp_branch:
             self.run(
