@@ -7,7 +7,7 @@ from typing import List, Optional
 from semver import VersionInfo
 
 from lisa.executable import Tool
-from lisa.util import LisaException, filter_ansi_escape
+from lisa.util import LisaException, PANIC_IGNORABLE_PATTERNS, filter_ansi_escape
 from lisa.util.process import ExecutableResult
 
 
@@ -78,6 +78,20 @@ class Dmesg(Tool):
     ) -> str:
         command_output = self._run(force_run=force_run)
         command_output.assert_exit_code()
+        
+        # Check if the full output contains any ignorable error patterns
+        # This helps identify context for generic errors like "Call Trace"
+        has_ignorable_context = False
+        full_output = command_output.stdout
+        for ignorable_pattern in PANIC_IGNORABLE_PATTERNS:
+            if ignorable_pattern.search(full_output):
+                has_ignorable_context = True
+                self._log.debug(
+                    "Detected ignorable error pattern in dmesg output, "
+                    "will filter generic error lines accordingly"
+                )
+                break
+        
         matched_lines: List[str] = []
         for line in command_output.stdout.splitlines(keepends=False):
             for pattern in self.__errors_patterns:
@@ -85,12 +99,43 @@ class Dmesg(Tool):
                     matched_lines.append(line)
                     # match one rule, so skip for other patterns
                     break
-        result = "\n".join(matched_lines)
+        
+        # Filter out errors based on ignorable patterns or context
+        filtered_lines: List[str] = []
+        for line in matched_lines:
+            is_ignorable = False
+            
+            # Check if line directly matches an ignorable pattern
+            for ignorable_pattern in PANIC_IGNORABLE_PATTERNS:
+                if ignorable_pattern.search(line):
+                    is_ignorable = True
+                    self._log.debug(
+                        f"Ignoring error line matching ignorable pattern: {line}"
+                    )
+                    break
+            
+            # If we're in an ignorable context and this is a generic error line,
+            # also ignore it (e.g., "Call Trace" in a topology_sane trace)
+            if not is_ignorable and has_ignorable_context:
+                # Generic error patterns that could be part of ignorable traces
+                generic_patterns = ["Call Trace"]
+                for generic in generic_patterns:
+                    if generic in line:
+                        is_ignorable = True
+                        self._log.debug(
+                            f"Ignoring generic error line in ignorable context: {line}"
+                        )
+                        break
+            
+            if not is_ignorable:
+                filtered_lines.append(line)
+        
+        result = "\n".join(filtered_lines)
         if result:
             # log first line only, in case it's too long
             error_message = (
-                f"dmesg error with {len(matched_lines)} lines, "
-                f"first line: '{matched_lines[0]}'"
+                f"dmesg error with {len(filtered_lines)} lines, "
+                f"first line: '{filtered_lines[0]}'"
             )
             if throw_error:
                 raise LisaException(error_message)
