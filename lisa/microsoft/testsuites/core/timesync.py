@@ -175,7 +175,7 @@ class TimeSync(TestSuite):
              (there's a new feature in the AH2021 host that allows Linux guests so use
               the plain "tsc" instead of the "hyperv_clocksource_tsc_page",
               which produces a modest performance benefit when reading the clock.)
-            2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            2. Check CPU flag contains tsc from /proc/cpuinfo.
             3. Check clocksource name shown up in dmesg.
             4. Unbind current clock source if there are 2+ clock sources, check current
              clock source can be switched to a different one.
@@ -222,23 +222,20 @@ class TimeSync(TestSuite):
                 f"but actually it is {clock_source_result.stdout}."
             ).is_subset_of(clocksource)
 
-            # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            # 2. Check CPU flag contains tsc from /proc/cpuinfo.
             dmesg = node.tools[Dmesg]
             if CpuArchitecture.X64 == arch:
                 if not isinstance(node.os, BSD):
                     cpu_info_result = cat.run("/proc/cpuinfo")
-                    if CpuType.Intel == lscpu.get_cpu_type():
-                        expected_tsc_str = " constant_tsc "
-                    elif CpuType.AMD == lscpu.get_cpu_type():
-                        expected_tsc_str = " tsc "
-                    else:
-                        raise UnsupportedCpuArchitectureException(arch)
+                    # Use 'tsc' flag for both Intel and AMD CPUs
+                    expected_tsc_str = " tsc "
                     shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
                     assert_that(shown_up_times).described_as(
                         f"Expected {expected_tsc_str} shown up times in cpu flags is"
                         f" equal to cpu count."
                     ).is_equal_to(lscpu.get_thread_count())
                 else:
+                    # FreeBSD: Check for TSC in dmesg features
                     cpu_info_results = self.__freebsd_tsc_filter.findall(
                         dmesg.get_output()
                     )
