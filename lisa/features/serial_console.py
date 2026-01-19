@@ -63,6 +63,9 @@ class SerialConsole(Feature):
         # more NUMA nodes on AMD processors.
         # The call trace is annoying but does not affect correct operation of the VM.
         re.compile(r"(.*RIP: 0010:topology_sane.isra.*)$", re.MULTILINE),
+        re.compile(
+            r"(.*WARNING:.*topology_sane.isra.*)$", re.MULTILINE
+        ),
     ]
 
     # Patterns for extracting error codes from panic messages
