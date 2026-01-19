@@ -8,7 +8,7 @@ from assertpy import assert_that
 from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
-from lisa.operating_system import SLES, AlmaLinux, Debian, Redhat, Ubuntu
+from lisa.operating_system import BSD, SLES, AlmaLinux, Debian, Redhat, Ubuntu, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import (
     Cat,
@@ -110,6 +110,20 @@ def _prepare_hibernation_environment(node: Node) -> None:
         # partition size.
         resize = node.tools[ResizePartition]
         resize.expand_os_partition()
+
+
+def hibernation_before_case(node: Node, log: Logger) -> None:
+    """
+    Common before_case logic for hibernation tests.
+    Validates OS support and prepares the environment.
+    """
+    if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+        raise SkippedException(f"{node.os} is not supported.")
+
+    # Expand OS partition first (needed for RHEL/LVM before checking disk space)
+    _prepare_hibernation_environment(node)
+
+    check_hibernation_disk_requirements(node)
 
 
 def _perform_hibernation_cycle(
