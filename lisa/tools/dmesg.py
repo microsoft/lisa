@@ -35,7 +35,11 @@ class Dmesg(Tool):
     ]
     
     # Generic error patterns that may appear in ignorable traces
-    # These are filtered out when an ignorable context is detected
+    # These are filtered out when an ignorable context is detected.
+    # Note: These patterns intentionally overlap with __errors_patterns
+    # to allow context-aware filtering. For example, "Call Trace" is
+    # detected as an error but ignored when it appears alongside
+    # ignorable patterns like topology_sane traces.
     __generic_ignorable_patterns = [
         re.compile(r"Call Trace"),
     ]
@@ -87,6 +91,11 @@ class Dmesg(Tool):
         
         # Check if the full output contains any ignorable error patterns
         # This helps identify context for generic errors like "Call Trace"
+        # Note: This approach filters generic errors globally when ignorable
+        # patterns are detected. In rare cases where both ignorable and real
+        # errors exist in the same dmesg output, this may filter out legitimate
+        # generic errors. This is an acceptable trade-off to prevent false
+        # positives from harmless traces like topology_sane.
         has_ignorable_context = False
         full_output = command_output.stdout
         for ignorable_pattern in PANIC_IGNORABLE_PATTERNS:
