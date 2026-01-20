@@ -95,6 +95,22 @@ Usage
         rename:
           azure_sig_url: shared_gallery
 
+Alternatively, if your SIG is created from a marketplace image, you can provide the source marketplace image instead of manually specifying architecture, Hyper-V generation, and security type:
+
+.. code:: yaml
+
+    transformer:
+      - type: azure_sig
+        vhd: "https://sc.blob.core.windows.net/vhds/pageblob.vhd"
+        gallery_resource_group_name: rg_name
+        gallery_name: galleryname
+        gallery_image_location:
+          - westus3
+          - westus2
+        gallery_image_name: image_name
+        gallery_image_fullname: Microsoft Linux arm64 0.0.1
+        marketplace_source: "canonical 0001-com-ubuntu-server-jammy 22_04-lts-arm64 latest"
+
 Process
 ````````
   - Create Resource group
@@ -221,6 +237,24 @@ type: string | Default: Standard_LRS | Allowed Values: Premium_LRS, Standard_ZRS
 host_caching_type
 ^^^^^^^^^^^^^^^^^
 type: string | Default: "None" | Allowed Values: "None", "ReadOnly", "ReadWrite"
+
+
+marketplace_source
+^^^^^^^^^^^^^^^^^^
+type: string | Default: ""
+
+Optional marketplace image identifier to automatically derive architecture, Hyper-V generation, and security type from the source marketplace image. This is useful when creating a SIG from a marketplace image-based VHD.
+
+When specified, this parameter will override:
+  - ``gallery_image_architecture``
+  - ``gallery_image_hyperv_generation``
+  - ``gallery_image_securitytype``
+
+Format: ``<publisher> <offer> <sku> <version>``
+
+Example: ``canonical 0001-com-ubuntu-server-jammy 22_04-lts-arm64 latest``
+
+Note: If marketplace_source is not provided, you must manually specify gallery_image_architecture, gallery_image_hyperv_generation, and gallery_image_securitytype as needed.
 
 
 rename
