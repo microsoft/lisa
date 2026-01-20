@@ -17,7 +17,12 @@ from agent_framework import (
 from agent_framework.azure import AzureOpenAIChatClient
 
 from . import logger
-from .common import create_agent_chat_options, get_current_directory
+from .common import (
+    AGENT_MAX_TOKENS,
+    AGENT_TEMPERATURE,
+    AGENT_TOP_P,
+    get_current_directory,
+)
 
 # Define agent name constants
 LOG_SEARCH_AGENT_NAME = "LogSearchAgent"
@@ -448,16 +453,15 @@ class FileSearchAgentBase(ChatAgent):  # type: ignore
             plugin.read_text_file,
             plugin.list_files,
         ]
-        chat_options = create_agent_chat_options()
         super().__init__(
             chat_client=chat_client,
             name=name,
             description=description,
             instructions=instructions,
             tools=tools,
-            temperature=chat_options.temperature,
-            top_p=chat_options.top_p,
-            additional_properties={"max_completion_tokens": chat_options.max_tokens},
+            temperature=AGENT_TEMPERATURE,
+            top_p=AGENT_TOP_P,
+            additional_properties={"max_completion_tokens": AGENT_MAX_TOKENS},
         )
 
     def _create_chat_client(
@@ -621,7 +625,6 @@ async def async_analyze_default(
 
     # Create summary agent for final answer synthesis
     final_answer_prompt = _load_prompt("final_answer.txt", flow="default")
-    chat_options = create_agent_chat_options()
     summary_chat_client = AzureOpenAIChatClient(
         api_key=azure_openai_api_key,
         endpoint=azure_openai_endpoint,
@@ -633,9 +636,9 @@ async def async_analyze_default(
         description="Summarizes and formats final answer.",
         instructions=final_answer_prompt,
         tools=[],
-        temperature=chat_options.temperature,
-        top_p=chat_options.top_p,
-        additional_properties={"max_completion_tokens": chat_options.max_tokens},
+        temperature=AGENT_TEMPERATURE,
+        top_p=AGENT_TOP_P,
+        additional_properties={"max_completion_tokens": AGENT_MAX_TOKENS},
     )
 
     logger.info("Building Sequential workflow...")
