@@ -353,6 +353,9 @@ class AzurePlatformSchema:
     # timeout for deployment operations in seconds (default: 60 minutes)
     provisioning_timeout: int = field(default=3600)
 
+    # Enable logging of MANA driver/device information in test results
+    log_mana_information: bool = field(default=False)
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
             self,
@@ -804,7 +807,29 @@ class AzurePlatform(Platform):
                 information["vmsize"] = node_runbook.vm_size
                 information["image"] = node_runbook.get_image_name()
         information["platform"] = self.type_name()
+
+        # Log MANA information if enabled in runbook
+        if self._azure_runbook.log_mana_information and node.is_connected:
+            self._collect_mana_information(node, information)
+
         return information
+
+    def _collect_mana_information(
+        self, node: Node, information: Dict[str, Any]
+    ) -> None:
+        """Collect MANA driver and device information if enabled in runbook."""
+        try:
+            node.log.debug("detecting mana device presence...")
+            information["mana_driver_present"] = node.nics.is_mana_driver_enabled()
+            information["mana_device_present"] = node.nics.is_mana_device_present()
+            information["pci_nics_count"] = len(node.nics.get_pci_nics())
+            node.log.debug(
+                f"mana_driver_present: {information['mana_driver_present']}, "
+                f"mana_device_present: {information['mana_device_present']}, "
+                f"pci_nics_count: {information['pci_nics_count']}"
+            )
+        except Exception as e:
+            node.log.debug(f"error detecting MANA information: {e}")
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
