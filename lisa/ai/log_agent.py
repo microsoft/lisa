@@ -7,7 +7,7 @@ import datetime
 import json
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Union
 
 from openai import AsyncAzureOpenAI
@@ -35,6 +35,27 @@ class Config:
     log_root_path: str
     code_path: str
     selected_flow: str
+
+
+@dataclass
+class OutputResults:
+    """Aggregated results container for batch evaluation runs."""
+
+    similarities: List[float] = field(default_factory=list)
+    generated_keywords_list: List[str] = field(default_factory=list)
+    ground_truth_keywords_list: List[str] = field(default_factory=list)
+    test_ids: List[Any] = field(default_factory=list)
+
+
+@dataclass
+class EvaluationResult:
+    """Result for a single evaluation test case."""
+
+    similarity: float
+    generated_keywords: str
+    ground_truth_keywords: str
+    generated_summary: str
+    ground_truth_summary: str
 
 
 def _load_test_data() -> List[Dict[str, str]]:
@@ -316,23 +337,6 @@ def _clean_json_markers(text: str) -> str:
     return text.strip()
 
 
-def _extract_generated_content(generated_text: Any) -> Any:
-    if isinstance(generated_text, list):
-        generated_text = " ".join(
-            msg if isinstance(msg, str) else str(getattr(msg, "content", msg))
-            for msg in generated_text
-        )
-    elif hasattr(generated_text, "content"):
-        generated_text = str(getattr(generated_text, "content", generated_text))
-    else:
-        generated_text = str(generated_text)
-
-    # Clean JSON markers
-    generated_text = _clean_json_markers(generated_text)
-
-    return json.loads(generated_text)
-
-
 def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
     """Extract keywords from ground truth data."""
     if isinstance(answer, dict):
@@ -351,7 +355,7 @@ def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
 
 
 @retry(tries=3, delay=2)  # type: ignore
-def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str, Any]:
+def _process_single_test_case(item: Dict[str, Any], config: Config) -> EvaluationResult:
     """
     Process a single test case and gather results.
 
@@ -373,27 +377,41 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Dict[str,
         error_message=error_message,
         selected_flow=config.selected_flow,
     )
+    generated_text = _clean_json_markers(generated_text)
+    try:
+        ai_analysis = json.loads(generated_text)
+    except Exception:
+        ai_analysis = generated_text
 
-    # Extract keywords
-    generated_keywords = _get_keywords(_extract_generated_content(generated_text))
+    if isinstance(ai_analysis, dict) and "summary" in ai_analysis:
+        generated_summary = ai_analysis.get("summary", "")
+    else:
+        generated_summary = str(ai_analysis)
+
+    ground_truth_summary = item["ground_truth"].get("summary", "")
+    logger.info(f"Generated summary: {generated_summary}")
+    logger.info(f"Ground truth summary: {ground_truth_summary}")
+
+    generated_keywords = _get_keywords(ai_analysis)
     ground_truth_keywords = _get_keywords(item["ground_truth"])
-
     logger.info(f"Generated keywords: {generated_keywords}")
     logger.info(f"Ground truth keywords: {ground_truth_keywords}")
 
     # Calculate similarity
     similarity = _calculate_similarity(
-        text1=generated_keywords,
-        text2=ground_truth_keywords,
+        text1=generated_summary,
+        text2=ground_truth_summary,
         endpoint=config.embedding_endpoint,
         api_key=config.azure_openai_api_key,
     )
 
-    return {
-        "similarity": similarity,
-        "generated_keywords": generated_keywords,
-        "ground_truth_keywords": ground_truth_keywords,
-    }
+    return EvaluationResult(
+        similarity=similarity,
+        generated_keywords=generated_keywords,
+        ground_truth_keywords=ground_truth_keywords,
+        generated_summary=generated_summary,
+        ground_truth_summary=ground_truth_summary,
+    )
 
 
 def _offline_analyze(args: argparse.Namespace, config: Config) -> None:
@@ -418,7 +436,7 @@ def _offline_analyze(args: argparse.Namespace, config: Config) -> None:
 
 def _process_test_cases(
     test_data: List[Dict[str, Any]], config: Config
-) -> Dict[str, Any]:
+) -> OutputResults:
     """
     Process all test cases and gather results.
 
@@ -426,43 +444,33 @@ def _process_test_cases(
         test_data: List of test case data
         config: Configuration object
     """
-    results: Dict[str, List[Any]] = {
-        "similarities": [],
-        "generated_keywords_list": [],
-        "ground_truth_keywords_list": [],
-        "test_ids": [],
-    }
+    results = OutputResults()
 
     for item in test_data:
         logger.info(f"Analyzing test case {item['id']}: {item['path']}")
-
-        # Process single test test case
         test_result = _process_single_test_case(item, config)
 
-        results["similarities"].append(test_result["similarity"])
-        results["generated_keywords_list"].append(test_result["generated_keywords"])
-        results["ground_truth_keywords_list"].append(
-            test_result["ground_truth_keywords"]
-        )
-        results["test_ids"].append(item["id"])
+        results.similarities.append(test_result.similarity)
+        results.generated_keywords_list.append(test_result.generated_keywords)
+        results.ground_truth_keywords_list.append(test_result.ground_truth_keywords)
+        results.test_ids.append(item["id"])
 
     return results
 
 
-def _output_detailed_results(results: Dict[str, Any]) -> None:
+def _output_detailed_results(results: OutputResults) -> None:
     """
     Output detailed results for each test case.
     """
     logger.info("=== DETAILED RESULTS ===")
 
-    test_ids: List[Any] = results["test_ids"]
-    similarities: List[Any] = results["similarities"]
-    gen_list: List[Any] = results["generated_keywords_list"]
-    gt_list: List[Any] = results["ground_truth_keywords_list"]
+    test_ids = results.test_ids
+    similarities = results.similarities
+    gen_list = results.generated_keywords_list
+    gt_list = results.ground_truth_keywords_list
 
-    for index in range(
-        min(len(test_ids), len(similarities), len(gen_list), len(gt_list))
-    ):
+    count = min(len(test_ids), len(similarities), len(gen_list), len(gt_list))
+    for index in range(count):
         test_id = test_ids[index]
         similarity = similarities[index]
         generated = gen_list[index]
@@ -474,11 +482,11 @@ def _output_detailed_results(results: Dict[str, Any]) -> None:
         logger.info("")
 
 
-def _output_summary_statistics(results: Dict[str, Any], config: Config) -> None:
+def _output_summary_statistics(results: OutputResults, config: Config) -> None:
     """
     Output summary statistics for all test cases.
     """
-    similarities = results["similarities"]
+    similarities = results.similarities
 
     logger.info("=== SUMMARY ===")
 
@@ -501,11 +509,11 @@ def _output_summary_statistics(results: Dict[str, Any], config: Config) -> None:
     )
 
 
-def _output_results(results: Dict[str, Any], config: Config) -> None:
+def _output_results(results: OutputResults, config: Config) -> None:
     """
     Output detailed results and summary statistics.
     """
-    if not results["similarities"]:
+    if not results.similarities:
         logger.info("No results to display.")
         return
 
