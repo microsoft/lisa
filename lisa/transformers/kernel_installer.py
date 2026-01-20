@@ -321,7 +321,7 @@ class RepoInstaller(BaseInstaller):
             r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*installed.*[\r\n]+",
             re.M,
         )
-        result = node.execute(f"apt search {source}", shell=True)
+        result = node.execute(f"apt search {source}|cat", shell=True)
         result_output = filter_ansi_escape(result.stdout)
         kernel_version = get_matched_str(result_output, kernel_version_package_pattern)
         assert kernel_version, (
