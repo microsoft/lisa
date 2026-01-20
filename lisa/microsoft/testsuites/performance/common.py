@@ -301,6 +301,8 @@ def perf_tcp_pps(
     for port in ports:
         server_netperf.run_as_server(port, interface_ip=server_interface_ip)
     for port in ports:
+        # Use server.internal_address as target since netperf client needs
+        # the server's IP (which may differ from the interface it binds to)
         client_netperf.run_as_client_async(
             server_ip=server.internal_address,
             core_count=thread_count,
