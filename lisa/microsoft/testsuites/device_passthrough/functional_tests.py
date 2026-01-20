@@ -1,22 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from pathlib import Path
-from typing import Any, Dict, cast
+from typing import TYPE_CHECKING, cast
 
-from lisa import (
-    Environment,
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-)
+from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR
-from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
-from lisa.sut_orchestrator.libvirt.schema import BaseLibvirtNodeSchema
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Lspci
 from lisa.util import LisaException, SkippedException
+
+if TYPE_CHECKING:
+    from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
 
 
 @TestSuiteMetadata(
@@ -25,6 +19,10 @@ from lisa.util import LisaException, SkippedException
     description="""
     This test suite is for testing device passthrough functional tests.
     """,
+    requirement=simple_requirement(
+        supported_platform_type=[CLOUD_HYPERVISOR],
+        unsupported_os=[Windows],
+    ),
 )
 class DevicePassthroughFunctionalTests(TestSuite):
     @TestCaseMetadata(
@@ -65,46 +63,52 @@ class DevicePassthroughFunctionalTests(TestSuite):
     )
     def verify_device_passthrough_on_guest(
         self,
-        log: Logger,
         node: Node,
         environment: Environment,
-        log_path: Path,
         result: TestResult,
-        variables: Dict[str, Any],
     ) -> None:
         lspci = node.tools[Lspci]
-        platform = cast(CloudHypervisorPlatform, environment.platform)
+        platform = cast("CloudHypervisorPlatform", environment.platform)
         pool_vendor_device_map = {}
-        assert platform.platform_runbook.device_pools, "Device pool cant be empty"
+        assert platform.platform_runbook.device_pools, "Device pool can't be empty"
         for pool in platform.platform_runbook.device_pools:
             pool_type = str(pool.type.value)
+            if not pool.devices:
+                raise LisaException(f"No devices defined for pool type: {pool_type}")
             vendor_device_id = {
                 "vendor_id": pool.devices[0].vendor_id,
                 "device_id": pool.devices[0].device_id,
             }
             pool_vendor_device_map[pool_type] = vendor_device_id
 
-        assert environment.runbook.nodes_requirement, "requirement cant be empty"
-        for node_space in environment.runbook.nodes_requirement:
-            node_runbook: BaseLibvirtNodeSchema = node_space.get_extended_runbook(
-                BaseLibvirtNodeSchema, CLOUD_HYPERVISOR
-            )
-            if not node_runbook.device_passthrough:
-                raise SkippedException("No device-passthrough is set for node")
-            for req in node_runbook.device_passthrough:
-                pool_type = str(req.pool_type.value)
-                ven_dev_id_of_pool = pool_vendor_device_map[pool_type]
-                ven_id = ven_dev_id_of_pool["vendor_id"]
-                dev_id = ven_dev_id_of_pool["device_id"]
-                devices = lspci.get_devices_by_vendor_device_id(
-                    vendor_id=ven_id,
-                    device_id=dev_id,
-                    force_run=True,
+        # Get the node's runbook to check its passthrough requirements
+        # Import at runtime to avoid libvirt dependency on non-libvirt platforms
+        from lisa.sut_orchestrator.libvirt.schema import BaseLibvirtNodeSchema
+
+        node_runbook: "BaseLibvirtNodeSchema" = node.capability.get_extended_runbook(
+            BaseLibvirtNodeSchema, CLOUD_HYPERVISOR
+        )
+        if not node_runbook.device_passthrough:
+            raise SkippedException("No device-passthrough is set for node")
+
+        for req in node_runbook.device_passthrough:
+            pool_type = str(req.pool_type.value)
+            if pool_type not in pool_vendor_device_map:
+                raise LisaException(
+                    f"Pool type '{pool_type}' not found in platform device pools"
                 )
-                if len(devices) < req.count:
-                    raise LisaException(
-                        f"Device count don't match, got total: {len(devices)} "
-                        f"As per runbook, Required device count: {req.count}, "
-                        f"for pool_type: {pool_type} having Vendor/Device ID as "
-                        f"vendor_id = {ven_id}, device_id={dev_id}"
-                    )
+            ven_dev_id_of_pool = pool_vendor_device_map[pool_type]
+            ven_id = ven_dev_id_of_pool["vendor_id"]
+            dev_id = ven_dev_id_of_pool["device_id"]
+            devices = lspci.get_devices_by_vendor_device_id(
+                vendor_id=ven_id,
+                device_id=dev_id,
+                force_run=True,
+            )
+            if len(devices) < req.count:
+                raise LisaException(
+                    f"Passthrough device validation failed for "
+                    f"pool_type '{pool_type}': Found {len(devices)} "
+                    f"device(s) but expected {req.count}. "
+                    f"Vendor/Device ID: {ven_id}:{dev_id}"
+                )

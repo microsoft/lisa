@@ -2,7 +2,13 @@
 # Licensed under the MIT license.
 import re
 from functools import partial
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Callable, Dict, List, Tuple, cast
+
+from microsoft.testsuites.performance.common import (
+    perf_iperf,
+    perf_ntttcp,
+    perf_tcp_pps,
+)
 
 from lisa import (
     Logger,
@@ -18,9 +24,8 @@ from lisa import (
 from lisa.environment import Environment, Node
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR
-from lisa.sut_orchestrator.libvirt.context import get_node_context
 from lisa.testsuite import TestResult
-from lisa.tools import Dhclient, Lspci, Sysctl
+from lisa.tools import Dhclient, Kill, Lspci, Sysctl
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
@@ -28,6 +33,7 @@ from lisa.tools.iperf3 import (
     IPERF_UDP_CONCURRENCY,
 )
 from lisa.util import (
+    LisaException,
     SkippedException,
     constants,
     find_group_in_lines,
@@ -35,12 +41,6 @@ from lisa.util import (
 )
 from lisa.util.logger import get_logger
 from lisa.util.parallel import run_in_parallel
-from microsoft.testsuites.performance.common import (
-    cleanup_process,
-    perf_iperf,
-    perf_ntttcp,
-    perf_tcp_pps,
-)
 
 
 @TestSuiteMetadata(
@@ -50,10 +50,20 @@ from microsoft.testsuites.performance.common import (
     This test suite is to validate linux network performance
     for various NIC passthrough scenarios.
     """,
+    requirement=simple_requirement(
+        supported_platform_type=[CLOUD_HYPERVISOR],
+        unsupported_os=[Windows],
+    ),
 )
-class NetworkPerformace(TestSuite):
+class NetworkPerformance(TestSuite):
+    # Timeout values:
+    # TIMEOUT: 12000s (3.3 hrs) - accounts for test execution + network setup overhead
+    # PPS_TIMEOUT: 3000s (50 min) - shorter for PPS tests which are less intensive
     TIMEOUT = 12000
     PPS_TIMEOUT = 3000
+
+    # Track baremetal host nodes for cleanup
+    _baremetal_hosts: list[RemoteNode] = []
 
     # Network device passthrough tests between host and guest
     @TestCaseMetadata(
@@ -239,7 +249,7 @@ class NetworkPerformace(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses ntttcp to test sriov tcp network throughput.
+        This test case uses ntttcp to test passthrough udp network throughput.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -423,7 +433,8 @@ class NetworkPerformace(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses ntttcp to test sriov tcp network throughput.
+        This test case uses ntttcp to test passthrough tcp network throughput
+        between two guest VMs.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -458,7 +469,8 @@ class NetworkPerformace(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses ntttcp to test sriov tcp network throughput.
+        This test case uses ntttcp to test passthrough udp network throughput
+        between two guest VMs.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -496,17 +508,11 @@ class NetworkPerformace(TestSuite):
         self,
         node: Node,
     ) -> Tuple[RemoteNode, str]:
+        from lisa.sut_orchestrator.libvirt.context import get_node_context
+
         ctx = get_node_context(node)
         if not ctx.passthrough_devices:
             raise SkippedException("No passthrough devices found for node")
-
-        # Configure the nw interface on guest
-        node.tools[Dhclient].run(
-            force_run=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="dhclient run failed",
-        )
 
         lspci = node.tools[Lspci]
         pci_devices = lspci.get_devices_by_type(
@@ -521,8 +527,14 @@ class NetworkPerformace(TestSuite):
                 device_addr = device.slot
                 break
 
+        if device_addr is None:
+            raise LisaException(
+                f"No non-virtio passthrough device found. "
+                f"Available devices: {[d.slot for d in pci_devices]}"
+            )
+
         # Get the interface name
-        err_msg: str = "Can't find interface from PCI address"
+        err_msg: str = f"Can't find interface from PCI address: {device_addr}"
         device_path = node.execute(
             cmd=(
                 "find /sys/class/net/*/device/subsystem/devices"
@@ -542,6 +554,38 @@ class NetworkPerformace(TestSuite):
         interface_name = interface_name_raw.get("INTERFACE_NAME", "")
         assert interface_name, "Can not find interface name"
 
+        # Bring the interface up before configuring it
+        node.execute(
+            cmd=f"ip link set {interface_name} up",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to bring up interface {interface_name}"
+            ),
+        )
+
+        # Wait for carrier (link up) - some NICs take time to negotiate
+        # Exit code 124 = timeout (no carrier), which is acceptable if DHCP works anyway
+        carrier_result = node.execute(
+            cmd=f"timeout 30 sh -c 'until cat /sys/class/net/{interface_name}/carrier"
+            f" 2>/dev/null | grep -q 1; do sleep 1; done'",
+            sudo=True,
+            shell=True,
+        )
+        if carrier_result.exit_code == 124:
+            node.log.warning(
+                f"Interface {interface_name} carrier not detected after 30s. "
+                f"Proceeding with DHCP anyway - may fail if no physical link."
+            )
+        elif carrier_result.exit_code != 0:
+            raise LisaException(
+                f"Failed to check carrier on {interface_name}: "
+                f"exit code {carrier_result.exit_code}"
+            )
+
+        # Configure the nw interface on guest with dhclient for the specific interface
+        node.tools[Dhclient].renew(interface_name)
+
         # Get the interface ip
         err_msg = f"Failed to get interface details for: {interface_name}"
         interface_details = node.execute(
@@ -557,7 +601,11 @@ class NetworkPerformace(TestSuite):
             single_line=False,
         )
         passthrough_nic_ip = interface_ip.get("INTERFACE_IP", "")
-        assert passthrough_nic_ip, "Can not find interface IP"
+        if not passthrough_nic_ip:
+            raise LisaException(
+                f"Failed to get IP for passthrough interface '{interface_name}'. "
+                f"Interface details: {interface_details[:200]}"
+            )
 
         test_node = cast(RemoteNode, node)
         test_node.internal_address = passthrough_nic_ip
@@ -568,9 +616,14 @@ class NetworkPerformace(TestSuite):
         ip = variables.get("baremetal_host_ip", "")
         username = variables.get("baremetal_host_username", "")
         passwd = variables.get("baremetal_host_password", "")
+        private_key = variables.get("baremetal_host_private_key_file", "")
 
-        if not (ip and username and passwd):
-            raise SkippedException("Server-Node details are not provided")
+        if not (ip and username and (passwd or private_key)):
+            raise SkippedException(
+                "Server-Node details are not provided. Required: "
+                "baremetal_host_ip, baremetal_host_username, and either "
+                "baremetal_host_password or baremetal_host_private_key_file"
+            )
 
         server = RemoteNode(
             runbook=schema.Node(name="baremetal-host"),
@@ -584,7 +637,11 @@ class NetworkPerformace(TestSuite):
             public_port=22,
             username=username,
             password=passwd,
+            private_key_file=private_key,
         )
+        # Track baremetal host for cleanup
+        if server not in self._baremetal_hosts:
+            self._baremetal_hosts.append(server)
         return server
 
     def _get_host_nic_name(self, node: RemoteNode) -> str:
@@ -620,26 +677,28 @@ class NetworkPerformace(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
 
+        # Combine environment nodes and baremetal host nodes for cleanup
+        all_nodes = list(environment.nodes.list())
+        if self._baremetal_hosts:
+            all_nodes.extend(self._baremetal_hosts)
+
         # use these cleanup functions
-        def do_process_cleanup(process: str) -> None:
-            cleanup_process(environment, process)
+        def do_process_cleanup(process: str, node: Node) -> None:
+            # Kill the process on the specific node
+            kill = node.tools[Kill]
+            kill.by_name(process, ignore_not_exist=True)
 
         def do_sysctl_cleanup(node: Node) -> None:
             node.tools[Sysctl].reset()
 
-        # to run parallel cleanup of processes and sysctl settings
-        run_in_parallel(
-            [
-                partial(do_process_cleanup, x)
-                for x in [
-                    "lagscope",
-                    "netperf",
-                    "netserver",
-                    "ntttcp",
-                    "iperf3",
-                ]
-            ]
-        )
-        run_in_parallel(
-            [partial(do_sysctl_cleanup, x) for x in environment.nodes.list()]
-        )
+        # to run parallel cleanup of processes on all nodes
+        cleanup_tasks: List[Callable[[], None]] = []
+        for process in ["lagscope", "netperf", "netserver", "ntttcp", "iperf3"]:
+            for node in all_nodes:
+                cleanup_tasks.append(partial(do_process_cleanup, process, node))
+
+        run_in_parallel(cleanup_tasks)
+        run_in_parallel([partial(do_sysctl_cleanup, x) for x in all_nodes])
+
+        # Clear the baremetal hosts list after cleanup
+        self._baremetal_hosts.clear()
