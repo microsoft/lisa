@@ -273,8 +273,12 @@ class JUnit(Notifier):
 
             testcase_info.active_subtest_name = None
 
-        # Calculate the amount of time spent in the sub-test case.
-        elapsed = message.elapsed - testcase_info.last_seen_timestamp
+        # Use subtest_duration if provided (actual timing from test tool),
+        # otherwise calculate from elapsed timestamps (legacy behavior).
+        if message.subtest_duration is not None:
+            elapsed = message.subtest_duration
+        else:
+            elapsed = message.elapsed - testcase_info.last_seen_timestamp
         testcase_info.subtest_total_elapsed += elapsed
 
         # Add sub-test case result.
