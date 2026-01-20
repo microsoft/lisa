@@ -433,20 +433,25 @@ class Provisioning(TestSuite):
                     log=log,
                     timeout=self.PLATFORM_TIME_OUT,
                 )
-                if not is_ready:
-                    if node.features.is_supported(SerialConsole):
-                        serial_console = node.features[SerialConsole]
+                if node.features.is_supported(SerialConsole):
+                    serial_console = node.features[SerialConsole]
+                    content = serial_console.get_console_log(
+                        saved_path=None, force_run=True
+                    )
+                    if "watchdog: BUG: soft lockup" in content:
+                        raise LisaException(
+                            "Soft lockup detected in serial console log"
+                        )
+                    if not is_ready:
                         serial_console.check_panic(
                             saved_path=log_path, stage="reboot", force_run=True
                         )
-                    raise TcpConnectionException(
-                        node.connection_info[
-                            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
-                        ],
-                        node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-                        tcp_error_code,
-                        "no panic found in serial log during reboot",
-                    )
+                raise TcpConnectionException(
+                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+                    tcp_error_code,
+                    "no panic found in serial log during reboot",
+                )
             else:
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
