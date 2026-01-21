@@ -655,7 +655,6 @@ def start_testpmd_concurrent(
         node = node_cmd_list[0]
         for cmd in node_cmd_list[1]:
             cmd_pairs_as_tuples+=[ (node,cmd) ]
-    # = [(node, cmds) for (node, cmds) in node_cmds]
 
     def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
         output[result[0]] = result[1]
