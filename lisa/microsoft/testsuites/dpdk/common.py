@@ -466,6 +466,8 @@ class Pmd(str, Enum):
 # set a threshold for an expected PPS minimum with DPDK.
 # this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps (for now)
 DPDK_PPS_THRESHOLD = 1_200_000
+
+
 class DpdkMpRole(str, Enum):
     # dpdk multiprocessing allows numerous secondary processes to
     # share a single primary context. Testpmd and other apps allow this
