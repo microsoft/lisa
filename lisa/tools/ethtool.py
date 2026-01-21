@@ -459,6 +459,48 @@ class DeviceStatistics:
         self.counters = statistics
 
 
+class DeviceCoalescing:
+    # ethtool coalescing info is in format -
+    # ~$ ethtool -c eth0
+    #   Coalesce parameters for eth0:
+    #   Adaptive RX: off  TX: off
+    #   stats-block-usecs: 0
+    #   sample-interval: 0
+    #   pkt-rate-low: 0
+    #   pkt-rate-high: 0
+    #   rx-frames: 4
+    #   rx-usecs: 0
+    #   tx-frames: 16
+    #   tx-usecs: 0
+    
+    _coalescing_pattern = re.compile(
+        r"(?P<param>.*):[ \t]*(?P<value>\d+).*$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, coalescing_raw: str) -> None:
+        self.interface = interface
+        self.rx_frames = 0
+        self.tx_frames = 0
+        self.rx_usecs = 0
+        self.tx_usecs = 0
+        self._parse_coalescing_info(interface, coalescing_raw)
+
+    def _parse_coalescing_info(self, interface: str, raw_str: str) -> None:
+        items = find_groups_in_lines(raw_str, self._coalescing_pattern)
+        for item in items:
+            param = item["param"].strip()
+            value = int(item["value"])
+            
+            if param == "rx-frames":
+                self.rx_frames = value
+            elif param == "tx-frames":
+                self.tx_frames = value
+            elif param == "rx-usecs":
+                self.rx_usecs = value
+            elif param == "tx-usecs":
+                self.tx_usecs = value
+
+
 @dataclass
 class DeviceSettings:
     interface: str
@@ -471,6 +513,7 @@ class DeviceSettings:
     device_rss_hash_key: Optional[DeviceRssHashKey] = None
     device_rx_hash_level: Optional[DeviceRxHashLevel] = None
     device_sg_settings: Optional[DeviceSgSettings] = None
+    device_coalescing: Optional[DeviceCoalescing] = None
     device_firmware_version: Optional[str] = None
     device_statistics: Optional[DeviceStatistics] = None
 
@@ -866,6 +909,21 @@ class Ethtool(Tool):
         )
 
         return self.get_device_rx_hash_level(interface, protocol, force_run=True)
+
+    def get_device_coalescing(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceCoalescing:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_coalescing:
+            return device.device_coalescing
+
+        result = self.run(f"-c {interface}", force_run=force_run, shell=True)
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} coalescing settings."
+        )
+
+        device.device_coalescing = DeviceCoalescing(interface, result.stdout)
+        return device.device_coalescing
 
     def get_device_sg_settings(
         self, interface: str, force_run: bool = False

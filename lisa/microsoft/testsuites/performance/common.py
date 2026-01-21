@@ -34,6 +34,7 @@ from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
     Echo,
+    Ethtool,
     Fdisk,
     Fio,
     FIOResult,
@@ -58,6 +59,60 @@ from lisa.tools.ntttcp import (
 )
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
+
+
+def check_rx_frames(node: Node, log_prefix: str = "") -> None:
+    """
+    Check rx-frames coalescing setting on MANA interfaces and verify it's 4.
+    Raises LisaException if any interface doesn't have rx-frames = 4.
+    
+    Args:
+        node: The node to check
+        log_prefix: Optional prefix for log messages
+        
+    Raises:
+        LisaException: If any MANA interface doesn't have rx-frames = 4
+    """
+    ethtool = node.tools[Ethtool]
+    failed_interfaces = []
+    
+    # Get all MANA SR-IOV interfaces (usually start with enP)
+    for nic_info in node.nics:
+        if hasattr(nic_info, 'pci_device_name') and nic_info.pci_device_name:
+            interface_name = nic_info.pci_device_name
+            
+            try:
+                # Get current coalescing settings
+                coalescing = ethtool.get_device_coalescing(interface_name)
+                current_rx_frames = coalescing.rx_frames
+                
+                node.log.info(
+                    f"{log_prefix}rx-frames on {interface_name}: {current_rx_frames}"
+                )
+                
+                # Verify rx-frames is set to 4
+                if current_rx_frames == 4:
+                    node.log.info(
+                        f"{log_prefix}✓ PASS: rx-frames is correctly set to 4 on {interface_name}"
+                    )
+                else:
+                    node.log.error(
+                        f"{log_prefix}✗ FAIL: rx-frames is {current_rx_frames} (expected 4) on {interface_name}"
+                    )
+                    failed_interfaces.append(f"{interface_name} (rx-frames={current_rx_frames})")
+                    
+            except Exception as e:
+                node.log.debug(
+                    f"{log_prefix}Could not check rx-frames on {interface_name}: {e}"
+                )
+    
+    # Fail the test if any interface doesn't have rx-frames = 4
+    if failed_interfaces:
+        raise LisaException(
+            f"Performance test cannot proceed: MANA interfaces with incorrect "
+            f"rx-frames settings detected: {', '.join(failed_interfaces)}. "
+            f"Expected rx-frames=4 for optimal performance."
+        )
 
 
 def perf_nvme(
@@ -393,6 +448,11 @@ def perf_ntttcp(  # noqa: C901
                 # check sriov count not change after reboot
                 check_sriov_count(client, client_sriov_count)
                 check_sriov_count(server, server_sriov_count)
+            
+            # Check rx-frames coalescing setting on MANA interfaces
+            check_rx_frames(client, "CLIENT: ")
+            check_rx_frames(server, "SERVER: ")
+            
             server_nic_name = (
                 server_nic_name
                 if server_nic_name
