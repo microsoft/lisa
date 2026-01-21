@@ -917,7 +917,7 @@ class Ethtool(Tool):
         if not force_run and device.device_coalescing:
             return device.device_coalescing
 
-        result = self.run(f"-c {interface}", force_run=force_run, shell=True)
+        result = self.run(f"-c {interface}", force_run=force_run, sudo=True, shell=True)
         result.assert_exit_code(
             message=f"Couldn't get device {interface} coalescing settings."
         )
