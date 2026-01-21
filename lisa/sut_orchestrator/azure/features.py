@@ -2220,6 +2220,14 @@ class Disk(AzureFeatureMixin, features.Disk):
             # same NVMe controller. The same controller is used by OS disk.
             if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
                 return True
+                
+            # Different controller: /dev/nvme1n1, /dev/nvme2n1, etc.
+            if (disk.startswith("/dev/nvme") and 
+                "n" in disk and 
+                disk != os_disk_namespace and 
+                not disk.startswith(os_disk_controller)):
+                return True
+                    
             return False
 
         # If disk_controller_type == SCSI
