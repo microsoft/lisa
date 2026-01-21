@@ -77,9 +77,13 @@ def check_rx_frames(node: Node, log_prefix: str = "") -> None:
     failed_interfaces = []
     checked_interfaces = 0
     
-    # Get all MANA SR-IOV interfaces (usually start with enP)
-    for nic_info in node.nics:
-        if hasattr(nic_info, 'pci_device_name') and nic_info.pci_device_name:
+    # Get all MANA SR-IOV interfaces
+    try:
+        pci_nics = node.nics.get_pci_nics()
+        if not pci_nics:
+            raise LisaException("No PCI/SR-IOV network interfaces found to check rx-frames settings")
+            
+        for nic_info in pci_nics:
             interface_name = nic_info.pci_device_name
             
             try:
@@ -110,6 +114,12 @@ def check_rx_frames(node: Node, log_prefix: str = "") -> None:
                 raise LisaException(
                     f"Could not retrieve rx-frames coalescing settings on {interface_name}: {e}"
                 )
+    
+    except Exception as e:
+        if "No PCI/SR-IOV" in str(e):
+            raise e
+        else:
+            raise LisaException(f"Failed to get network interface information: {e}")
     
     # Fail if no interfaces were checked
     if checked_interfaces == 0:
