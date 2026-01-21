@@ -289,6 +289,8 @@ def generate_5tswap_run_info(
         mp_role=DpdkMpRole.PRIMARY_PROCESS,
         num_procs=2,
         proc_id=0,
+        core_list="3,7,11,17,21",
+        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
     )
     snd_mp_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
@@ -301,6 +303,7 @@ def generate_5tswap_run_info(
         mp_role=DpdkMpRole.SECONDARY_PROCESS,
         num_procs=2,
         proc_id=1,
+        core_list="1,5,9,13,19,25,29,31",
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         [rcv_nic],
@@ -310,6 +313,7 @@ def generate_5tswap_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
+        core_list=",".join(map(str, (range(3, 31, 2)))),
     )
 
     dpdk_kit_cmds = {
@@ -835,6 +839,7 @@ def verify_dpdk_send_receive(
             kill_timeout=kill_timeout,
         )
         sender_processes += [proc]
+        proc.wait_output("start packet forwarding")
 
     results = dict()
     results[sender] = sender.testpmd.process_testpmd_output(
@@ -897,9 +902,9 @@ def verify_dpdk_send_receive(
     if len(sender_processes) > 1:
         rcv_tx_pps = receiver.testpmd.get_mean_tx_pps()
         forwarded_over_received = abs(rcv_tx_pps / snd_tx_pps)
-        assert_that(rcv_tx_pps).described_as(
+        assert_that(forwarded_over_received).described_as(
             "receiver re-send pps was unexpectedly low!"
-        ).is_close_to(forwarded_over_received, 0.8)
+        ).is_close_to(0.8, 0.2)
 
     return sender, receiver
 
