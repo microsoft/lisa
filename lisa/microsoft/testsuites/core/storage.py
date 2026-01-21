@@ -282,7 +282,7 @@ class Storage(TestSuite):
         )
 
         # read content from the file
-        read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True)
+        read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True).strip()
 
         assert_that(
             read_text,
