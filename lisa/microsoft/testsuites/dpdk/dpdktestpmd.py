@@ -553,6 +553,7 @@ class DpdkTestpmd(Tool):
         mp_role: Optional[DpdkMpRole] = None,
         num_procs: int = 0,
         proc_id: int = 0,
+        core_list: Optional[str] = None,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -577,7 +578,7 @@ class DpdkTestpmd(Tool):
         # our tests use equal amounts for rx and tx
 
         if multiple_queues:
-            if self.is_mana and mode == "txonly":
+            if self.is_mana and mode in ["rxonly", "5tswap"]:
                 queues = 8
             else:
                 queues = 4
@@ -617,14 +618,18 @@ class DpdkTestpmd(Tool):
         forwarding_cores = max_core_index - service_cores
 
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        if core_list:
+            core_list = f"-l {core_list}"
+        else:
+            core_list = f"-l 1-{max_core_index}"
+
         if extra_args:
             extra_args = extra_args.strip()
         else:
             extra_args = ""
         # mana pmd needs tx/rx descriptors declared.
         if self.is_mana:
-            extra_args += f" --txd={txd} --rxd={txd} --stats 2"
+            extra_args += f" --txd={txd} --rxd={txd} "
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 
@@ -677,7 +682,7 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_includes} {debug_logging} --proc-type=auto "
             f"-- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} "
+            f"-a --stats-period 4 --nb-cores={forwarding_cores} "
             f"{mp_args} {extra_args}"
         )
 
@@ -935,7 +940,7 @@ class DpdkTestpmd(Tool):
         ).is_greater_than(1)
 
         if mp_role == DpdkMpRole.PRIMARY_PROCESS:
-            mp_arguments = f"--num_procs={num_procs} --proc-id 0"
+            mp_arguments = f"--num-procs={num_procs} --proc-id 0"
         elif mp_role == DpdkMpRole.SECONDARY_PROCESS:
             # check the caller has provided a proc_id that makes sense,
             # this would indicate a bug in the test case itself.
@@ -949,7 +954,7 @@ class DpdkTestpmd(Tool):
                     "must be < num_procs argument ({num_procs})."
                 )
             ).is_less_than(num_procs)
-            mp_arguments = f"--num_procs={num_procs} --proc-id {proc_id}"
+            mp_arguments = f"--num-procs={num_procs} --proc-id {proc_id}"
         return mp_arguments
 
     def _determine_network_hardware(self) -> None:
