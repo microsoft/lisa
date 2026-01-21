@@ -380,7 +380,7 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Evaluatio
     generated_text = _clean_json_markers(generated_text)
     try:
         ai_analysis = json.loads(generated_text)
-    except Exception:
+    except (json.JSONDecodeError, TypeError, ValueError):
         ai_analysis = generated_text
 
     if isinstance(ai_analysis, dict) and "summary" in ai_analysis:
