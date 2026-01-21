@@ -1080,15 +1080,16 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for direct netvsc pmd setup.
+            Tests a sender/receiver 5-tuple-swap forwarding setup
+             for direct netvsc pmd setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
-            order-of-magnitude.
+            We check the traffic received matches the amount sent
+             and received by the forwarder.
             Test uses 1GB hugepages.
         """,
         priority=2,
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=32,
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
