@@ -388,7 +388,11 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Evaluatio
     else:
         generated_summary = str(ai_analysis)
 
-    ground_truth_summary = item["ground_truth"].get("summary", "")
+    ground_truth = item.get("ground_truth")
+    if isinstance(ground_truth, dict):
+        ground_truth_summary = ground_truth.get("summary", "")
+    else:
+        ground_truth_summary = "" if ground_truth is None else str(ground_truth)
     logger.info(f"Generated summary: {generated_summary}")
     logger.info(f"Ground truth summary: {ground_truth_summary}")
 
@@ -397,7 +401,9 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Evaluatio
     logger.info(f"Generated keywords: {generated_keywords}")
     logger.info(f"Ground truth keywords: {ground_truth_keywords}")
 
-    # Calculate similarity
+    if generated_summary == "" or ground_truth_summary == "":
+        raise ValueError("Generated or ground truth summary is empty.")
+
     similarity = _calculate_similarity(
         text1=generated_summary,
         text2=ground_truth_summary,
