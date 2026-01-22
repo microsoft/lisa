@@ -61,17 +61,93 @@ from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
 
 
-def check_rx_frames(node: Node, log_prefix: str = "") -> None:
+def set_rx_frames(node: Node, interface: str, rx_frames: int, log_prefix: str = "") -> None:
     """
-    Check rx-frames coalescing setting on MANA interfaces and verify it's 4.
-    Fails the test if rx-frames cannot be retrieved or if any interface doesn't have rx-frames = 4.
+    Set rx-frames coalescing setting on a network interface to enable CQE coalescing.
+    
+    Args:
+        node: The node to configure
+        interface: Network interface name (e.g., 'enP12345s0')
+        rx_frames: rx-frames value to set (typically 1 or 4)
+        log_prefix: Optional prefix for log messages
+        
+    Raises:
+        LisaException: If the ethtool command fails
+    """
+    try:
+        node.log.info(f"{log_prefix}Setting rx-frames to {rx_frames} on {interface}")
+        
+        # Run ethtool -C command with sudo to set rx-frames
+        result = node.execute(
+            f"ethtool -C {interface} rx-frames {rx_frames}",
+            sudo=True,
+            shell=True
+        )
+        
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to set rx-frames on {interface}: {result.stderr}"
+            )
+        
+        node.log.info(f"{log_prefix}✓ Successfully set rx-frames to {rx_frames} on {interface}")
+        
+        # Verify the setting was applied
+        ethtool = node.tools[Ethtool]
+        coalescing = ethtool.get_device_coalescing(interface)
+        actual_rx_frames = coalescing.rx_frames
+        
+        if actual_rx_frames == rx_frames:
+            node.log.info(f"{log_prefix}✓ Verified: rx-frames is now {actual_rx_frames} on {interface}")
+        else:
+            node.log.warning(
+                f"{log_prefix}Warning: rx-frames is {actual_rx_frames}, expected {rx_frames} on {interface}"
+            )
+            
+    except Exception as e:
+        raise LisaException(f"Failed to set rx-frames on {interface}: {e}")
+
+
+def configure_rx_frames_for_performance(node: Node, rx_frames: int = 4, log_prefix: str = "") -> None:
+    """
+    Configure rx-frames coalescing on all MANA SR-IOV interfaces for optimal performance.
+    
+    Args:
+        node: The node to configure
+        rx_frames: rx-frames value to set (default: 4 for balanced performance)
+        log_prefix: Optional prefix for log messages
+        
+    Raises:
+        LisaException: If configuration fails on any interface
+    """
+    try:
+        pci_nics = node.nics.get_pci_nics()
+        if not pci_nics:
+            node.log.info(f"{log_prefix}No PCI/SR-IOV interfaces found to configure")
+            return
+            
+        node.log.info(f"{log_prefix}Configuring rx-frames={rx_frames} on {len(pci_nics)} MANA interface(s)")
+        
+        for interface_name in pci_nics:
+            set_rx_frames(node, interface_name, rx_frames, log_prefix)
+            
+        node.log.info(f"{log_prefix}✓ All MANA interfaces configured with rx-frames={rx_frames}")
+        
+    except Exception as e:
+        raise LisaException(f"Failed to configure rx-frames on MANA interfaces: {e}")
+
+
+def check_rx_frames(node: Node, log_prefix: str = "", expected_rx_frames: int = 4) -> None:
+    """
+    Check rx-frames coalescing setting on MANA interfaces and verify it matches expected value.
+    Fails the test if rx-frames cannot be retrieved or if any interface doesn't have the expected value.
     
     Args:
         node: The node to check
         log_prefix: Optional prefix for log messages
+        expected_rx_frames: Expected rx-frames value (default: 4, but can be 1 for low latency)
         
     Raises:
-        LisaException: If rx-frames cannot be retrieved or any interface doesn't have rx-frames = 4
+        LisaException: If rx-frames cannot be retrieved or any interface doesn't have expected value
     """
     ethtool = node.tools[Ethtool]
     failed_interfaces = []
@@ -91,17 +167,17 @@ def check_rx_frames(node: Node, log_prefix: str = "") -> None:
                 checked_interfaces += 1
                 
                 node.log.info(
-                    f"{log_prefix}rx-frames on {interface_name}: {current_rx_frames}"
+                    f"{log_prefix}rx-frames on {interface_name}: {current_rx_frames} (expected: {expected_rx_frames})"
                 )
                 
-                # Verify rx-frames is set to 4
-                if current_rx_frames == 4:
+                # Verify rx-frames is set to expected value
+                if current_rx_frames == expected_rx_frames:
                     node.log.info(
-                        f"{log_prefix}✓ PASS: rx-frames is correctly set to 4 on {interface_name}"
+                        f"{log_prefix}✓ PASS: rx-frames is correctly set to {expected_rx_frames} on {interface_name}"
                     )
                 else:
                     node.log.error(
-                        f"{log_prefix}✗ FAIL: rx-frames is {current_rx_frames} (expected 4) on {interface_name}"
+                        f"{log_prefix}✗ FAIL: rx-frames is {current_rx_frames} (expected {expected_rx_frames}) on {interface_name}"
                     )
                     failed_interfaces.append(f"{interface_name} (rx-frames={current_rx_frames})")
                     
@@ -123,15 +199,15 @@ def check_rx_frames(node: Node, log_prefix: str = "") -> None:
     if checked_interfaces == 0:
         raise LisaException("No MANA SR-IOV interfaces found to check rx-frames settings")
     
-    # Fail the test if any interface doesn't have rx-frames = 4
+    # Fail the test if any interface doesn't have expected rx-frames
     if failed_interfaces:
         raise LisaException(
             f"Performance test cannot proceed: MANA interfaces with incorrect "
             f"rx-frames settings detected: {', '.join(failed_interfaces)}. "
-            f"Expected rx-frames=4 for optimal performance."
+            f"Expected rx-frames={expected_rx_frames} for optimal performance."
         )
     
-    node.log.info(f"{log_prefix}✓ All {checked_interfaces} MANA interfaces have correct rx-frames=4 setting")
+    node.log.info(f"{log_prefix}✓ All {checked_interfaces} MANA interfaces have correct rx-frames={expected_rx_frames} setting")
 
 
 def perf_nvme(
@@ -446,11 +522,12 @@ def perf_ntttcp(  # noqa: C901
             client_sriov_count = len(client.nics.get_pci_nics())
             server_sriov_count = len(server.nics.get_pci_nics())
             
-        # Check rx-frames BEFORE system setup/reboot to avoid connection issues
+        # Configure rx-frames BEFORE system setup/reboot to avoid connection issues
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
-            check_rx_frames(client, "CLIENT: ")
-            check_rx_frames(server, "SERVER: ")
+            # Configure optimal rx-frames settings for performance testing
+            configure_rx_frames_for_performance(client, rx_frames=4, log_prefix="CLIENT: ")
+            configure_rx_frames_for_performance(server, rx_frames=4, log_prefix="SERVER: ")
             
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
