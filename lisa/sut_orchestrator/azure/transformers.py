@@ -628,6 +628,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_architecture = features.pop(
                 "architecture", runbook.gallery_image_architecture
             )
+            features.pop("os_type", None)
         elif runbook.gallery_image_securitytype:
             features = {"SecurityType": runbook.gallery_image_securitytype}
 
