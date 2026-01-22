@@ -83,9 +83,7 @@ def check_rx_frames(node: Node, log_prefix: str = "") -> None:
         if not pci_nics:
             raise LisaException("No PCI/SR-IOV network interfaces found to check rx-frames settings")
             
-        for nic_info in pci_nics:
-            interface_name = nic_info.pci_device_name
-            
+        for interface_name in pci_nics:
             try:
                 # Get current coalescing settings
                 coalescing = ethtool.get_device_coalescing(interface_name)
