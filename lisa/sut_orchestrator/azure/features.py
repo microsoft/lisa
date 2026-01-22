@@ -187,9 +187,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -2798,9 +2798,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile[
-                "disk_encryption_set_id"
-            ] = settings.disk_encryption_set_id
+            node_parameters.security_profile["disk_encryption_set_id"] = (
+                settings.disk_encryption_set_id
+            )
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
