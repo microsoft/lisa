@@ -522,13 +522,6 @@ def perf_ntttcp(  # noqa: C901
             client_sriov_count = len(client.nics.get_pci_nics())
             server_sriov_count = len(server.nics.get_pci_nics())
             
-        # Configure rx-frames BEFORE system setup/reboot to avoid connection issues
-        data_path = get_nic_datapath(client)
-        if NetworkDataPath.Sriov.value == data_path:
-            # Configure optimal rx-frames settings for performance testing
-            configure_rx_frames_for_performance(client, rx_frames=4, log_prefix="CLIENT: ")
-            configure_rx_frames_for_performance(server, rx_frames=4, log_prefix="SERVER: ")
-            
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
@@ -551,6 +544,15 @@ def perf_ntttcp(  # noqa: C901
                 # check sriov count not change after reboot
                 check_sriov_count(client, client_sriov_count)
                 check_sriov_count(server, server_sriov_count)
+            
+            # Configure rx-frames AFTER reboot/system setup for optimal performance
+            # This ensures settings persist and are applied post-reboot
+            configure_rx_frames_for_performance(client, rx_frames=4, log_prefix="CLIENT: ")
+            configure_rx_frames_for_performance(server, rx_frames=4, log_prefix="SERVER: ")
+            
+            # Verify rx-frames settings are applied correctly
+            check_rx_frames(client, expected_rx_frames=4, log_prefix="CLIENT: ")
+            check_rx_frames(server, expected_rx_frames=4, log_prefix="SERVER: ")
             
             server_nic_name = (
                 server_nic_name
