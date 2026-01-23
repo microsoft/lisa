@@ -5,6 +5,7 @@ from pathlib import PurePath
 
 from retry import retry
 
+from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import ProvisionBootTimeMessage
 from lisa.util import LisaException, find_groups_in_lines
@@ -77,6 +78,16 @@ class SystemdAnalyze(Tool):
         )
         boot_time.provision_time = self.node.provision_time
         return boot_time
+
+    def send_boot_time_messages(self) -> None:
+        """
+        Send boot time messages as ProvisionBootTimeMessage.
+        """
+        boot_time = self.get_boot_time()
+        boot_time.information.update(self.node.get_information())
+        
+        # Send ProvisionBootTimeMessage
+        notifier.notify(boot_time)
 
     def plot(self, output_file: PurePath, sudo: bool = False) -> None:
         self.run(f"plot > {output_file}", shell=True, sudo=sudo, expected_exit_code=0)
