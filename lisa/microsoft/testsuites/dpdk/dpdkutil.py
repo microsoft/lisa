@@ -23,6 +23,7 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
+    DpdkGradeMetric
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
@@ -690,6 +691,7 @@ def verify_dpdk_send_receive(
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
+    grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -760,13 +762,23 @@ def verify_dpdk_send_receive(
 
     sender.dmesg.check_kernel_errors(force_run=True)
     receiver.dmesg.check_kernel_errors(force_run=True)
-    # differences in NIC type throughput can lead to different snd/rcv counts
-    assert_that(rcv_rx_pps).described_as(
-        "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
-    assert_that(snd_tx_pps).described_as(
-        "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
+    if grading_metric == DpdkGradeMetric.PPS:
+        # differences in NIC type throughput can lead to different snd/rcv counts
+        assert_that(rcv_rx_pps).described_as(
+            "Throughput for RECEIVE was below the correct order-of-magnitude"
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
+        assert_that(snd_tx_pps).described_as(
+            "Throughput for SEND was below the correct order of magnitude"
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
+    elif grading_metric == DpdkGradeMetric.BPS:
+        sender_gbps = sender.testpmd.check_bps_data("TX")
+        receiver_gbps = receiver.testpmd.check_bps_data("RX")
+        # annotate test result if it's available
+        if result:
+            result.information['tx_gbps'] = sender_gbps
+            result.information['rx_gbps'] = receiver_gbps
+    else:
+        pass # no-op if no grading is required.
 
     # sender packet drops are common when network bandwidth is
     # artificially throttled by the sku, so checking sender
@@ -803,6 +815,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     pmd: Pmd,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
+    grading_metric: DpdkGradeMetric = DpdkGradeMetric.BPS,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -816,6 +829,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         multiple_queues=True,
         result=result,
         set_mtu=set_mtu,
+        grading_metric=grading_metric,
     )
 
 

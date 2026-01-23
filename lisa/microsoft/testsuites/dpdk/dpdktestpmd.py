@@ -415,6 +415,8 @@ class DpdkTestpmd(Tool):
     _rx_drop_key = "rx-packet-drops"
     _tx_total_key = "tx-total-packets"
     _rx_total_key = "rx-total-packets"
+    _tx_bps_key = "transmit-bytes-per-second"
+    _rx_bps_key = "receive-bytes-per-second"
 
     _testpmd_output_regex = {
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
@@ -423,6 +425,8 @@ class DpdkTestpmd(Tool):
         _rx_drop_key: r"RX-dropped:\s+([0-9]+)",
         _tx_total_key: r"TX-packets:\s+([0-9]+)",
         _rx_total_key: r"RX-packets:\s+([0-9]+)",
+        _tx_bps_key: r"Tx-bps:\s+([0-9]+)",
+        _rx_bps_key: r"Rx-bps:\s+([0-9]+)",
     }
     _source_build_dest_dir = "/usr/local/bin"
 
@@ -751,6 +755,12 @@ class DpdkTestpmd(Tool):
         self.rx_total_packets = self.get_data_from_testpmd_output(
             self._rx_total_key, self._last_run_output
         )[-1]
+        self.tx_bps_data = self.get_data_from_testpmd_output(
+            self._tx_bps_key, self._last_run_output
+        )
+        self.rx_bps_data = self.get_data_from_testpmd_output(
+            self._rx_bps_key, self._last_run_output
+        )
 
     def get_mean_rx_pps(self) -> int:
         self._check_pps_data("RX")
@@ -878,18 +888,18 @@ class DpdkTestpmd(Tool):
         )
         self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
-    def _check_pps_data_exists(self, rx_or_tx: str) -> None:
-        data_attr_name = f"{rx_or_tx.lower()}_pps_data"
+    def _check_data_exists(self, rx_or_tx: str, data_type:str="pps") -> None:
+        data_attr_name = f"{rx_or_tx.lower()}_{data_type}_data"
         assert_that(hasattr(self, data_attr_name)).described_as(
             (
-                f"PPS data ({rx_or_tx}) did not exist for testpmd object. "
+                f"{data_type} data ({rx_or_tx}) did not exist for testpmd object. "
                 "This indicates either testpmd did not run or the suite is "
                 "missing an assert. Contact the test maintainer."
             )
         ).is_true()
 
     def _check_pps_data(self, rx_or_tx: str) -> None:
-        self._check_pps_data_exists(rx_or_tx)
+        self._check_data_exists(rx_or_tx)
         data_set: List[int] = []
         if rx_or_tx == "RX":
             data_set = self.rx_pps_data
@@ -905,6 +915,29 @@ class DpdkTestpmd(Tool):
             f"any({str(data_set)}) resolved to false. Test data was "
             f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
         ).is_true()
+
+    def check_bps_data(self, rx_or_tx: str) -> int:
+        self._check_data_exists(rx_or_tx, "bps")
+        data_set: List[int] = []
+        if rx_or_tx == "RX":
+            data_set = self.rx_bps_data
+        elif rx_or_tx == "TX":
+            data_set = self.tx_bps_data
+        else:
+            fail(
+                "Identifier passed to _check_pps_data was not recognized, "
+                f"must be RX or TX. Found {rx_or_tx}"
+            )
+
+        assert_that(any(data_set)).described_as(
+            f"any({str(data_set)}) resolved to false. Test data was "
+            f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_bps_data."
+        ).is_true()
+
+        # bits -> gigabits N>>30
+        gbps=max(data_set) >> 30
+        self._log.info(f"Found {rx_or_tx} Gbps: { gbps }")
+        return gbps
 
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
