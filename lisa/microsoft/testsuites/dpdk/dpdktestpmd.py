@@ -618,7 +618,8 @@ class DpdkTestpmd(Tool):
         if mtu:
             extra_args += (
                 f" --mbuf-size={mbuf_size}"
-                f" --max-pkt-len={mtu} --txpkts={mtu} --tx-offloads=0x00008000"
+                f" --max-pkt-len={mtu} --txpkts={mtu} "
+                "--tx-offloads=0x00008000"  # enable multi-segment tx offload
             )
 
         if mode == "txonly":
