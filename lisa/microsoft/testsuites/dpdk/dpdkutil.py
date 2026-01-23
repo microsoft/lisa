@@ -650,11 +650,11 @@ def start_testpmd_concurrent(
     output: Dict[DpdkTestResources, str],
 ) -> TaskManager[Tuple[DpdkTestResources, str]]:
     node_cmds = deque(node_cmd_pairs.items())
-    cmd_pairs_as_tuples : List[Tuple[DpdkTestResources,str]] = []
+    cmd_pairs_as_tuples: List[Tuple[DpdkTestResources, str]] = []
     for node_cmd_list in node_cmds:
         node = node_cmd_list[0]
         for cmd in node_cmd_list[1]:
-            cmd_pairs_as_tuples+=[ (node,cmd) ]
+            cmd_pairs_as_tuples += [(node, cmd)]
 
     def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
         output[result[0]] = result[1]

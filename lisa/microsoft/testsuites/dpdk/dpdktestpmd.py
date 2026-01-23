@@ -574,7 +574,7 @@ class DpdkTestpmd(Tool):
         # our tests use equal amounts for rx and tx
 
         if multiple_queues:
-            if self.is_mana and mode in [ "rxonly", "5tswap" ]:
+            if self.is_mana and mode in ["rxonly", "5tswap"]:
                 queues = 8
             else:
                 queues = 4
