@@ -484,16 +484,18 @@ class HyperV(Tool):
         )
 
     # delete NAT mapping for a port or internal IP
-    def delete_nat_mapping(
-        self, external_port: Optional[int] = None, internal_ip: Optional[str] = None
-    ) -> None:
-        if external_port is None:
-            external_port = self.node.tools[PowerShell].run_cmdlet(
-                f"Get-NetNatStaticMapping | "
-                f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
-                f" | Select-Object -ExpandProperty ExternalPort",
-                force_run=True,
-            )
+    def delete_nat_mapping(self, internal_ip: str) -> None:
+        external_port = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-NetNatStaticMapping | "
+            f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
+            f" | Select-Object -ExpandProperty ExternalPort",
+            force_run=True,
+        )
+
+        if not external_port:
+            self._log.debug(f"Mapping for internal IP {internal_ip} does not exist")
+            return
+
         mapping_id = self.get_nat_mapping_id(external_port)
         if mapping_id:
             # delete the NAT mapping if it exists
