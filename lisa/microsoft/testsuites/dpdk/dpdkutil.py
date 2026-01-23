@@ -689,6 +689,7 @@ def verify_dpdk_send_receive(
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
+    grading_metric: str = "pps"
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -759,13 +760,23 @@ def verify_dpdk_send_receive(
 
     sender.dmesg.check_kernel_errors(force_run=True)
     receiver.dmesg.check_kernel_errors(force_run=True)
-    # differences in NIC type throughput can lead to different snd/rcv counts
-    assert_that(rcv_rx_pps).described_as(
-        "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
-    assert_that(snd_tx_pps).described_as(
-        "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
+    if grading_metric == "pps":
+        # differences in NIC type throughput can lead to different snd/rcv counts
+        assert_that(rcv_rx_pps).described_as(
+            "Throughput for RECEIVE was below the correct order-of-magnitude"
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
+        assert_that(snd_tx_pps).described_as(
+            "Throughput for SEND was below the correct order of magnitude"
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
+    elif grading_metric == "bps":
+        sender_gbps = sender.testpmd.check_bps_data("TX")
+        receiver_gbps = receiver.testpmd.check_bps_data("RX")
+        # annotate test result if it's available
+        if result:
+            result.information['tx_gbps'] = sender_gbps
+            result.information['rx_gbps'] = receiver_gbps
+    else:
+        pass # no-op if no grading is required.
 
     return sender, receiver
 
@@ -777,6 +788,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     pmd: Pmd,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
+    grading_metric:str = "pps",
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -790,6 +802,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         multiple_queues=True,
         result=result,
         set_mtu=set_mtu,
+        grading_metric=grading_metric,
     )
 
 

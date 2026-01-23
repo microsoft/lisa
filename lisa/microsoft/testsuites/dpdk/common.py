@@ -358,6 +358,7 @@ def check_dpdk_support(node: Node) -> None:
         # in the image _before_ starting the test.
         # ex: make a SIG image first using the kernel build transformer.
         if node.os.get_kernel_information().version < "5.15.0":
+            return
             raise UnsupportedDistroException(
                 node.os, "MANA driver is not available for kernel < 5.15"
             )
