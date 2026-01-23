@@ -72,6 +72,7 @@ class Provisioning(TestSuite):
         priority=0,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
+            min_core_count=16,
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:

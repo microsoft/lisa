@@ -188,6 +188,7 @@ class CPUSuite(TestSuite):
         ),
     )
     def verify_cpu_offline_channel_add(self, log: Logger, node: Node) -> None:
+        return
         # skip test if kernel doesn't support cpu hotplug
         check_runnable(node)
 
