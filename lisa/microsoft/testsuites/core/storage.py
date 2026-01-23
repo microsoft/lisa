@@ -20,7 +20,7 @@ from lisa import (
 from lisa.base_tools.service import Systemctl
 from lisa.environment import Environment
 from lisa.feature import Feature
-from lisa.features import Disk, Nfs
+from lisa.features import Disk
 from lisa.features.disks import (
     DiskPremiumSSDLRS,
     DiskStandardHDDLRS,
@@ -35,7 +35,12 @@ from lisa.node import Node
 from lisa.operating_system import BSD, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
-from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
+from lisa.sut_orchestrator.azure.features import (
+    AzureDiskOptionSettings,
+    AzureFileShare,
+    FileShareConnectivity,
+    FileShareProtocol,
+)
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
 from lisa.tools.blkid import PartitionInfo
@@ -571,21 +576,32 @@ class Storage(TestSuite):
         This test case will verify mount azure nfs 4.1 on guest successfully.
         Refer to https://learn.microsoft.com/en-us/azure/storage/files/files-nfs-protocol#features # noqa: E501
 
-        Downgrading priority from 2 to 5. Creating and deleting file shares
-        with token authentication is unsupported.
+        Uses the unified AzureFileShare class with NFS protocol.
         """,
         timeout=TIME_OUT,
-        requirement=simple_requirement(supported_features=[Nfs]),
+        requirement=simple_requirement(supported_features=[AzureFileShare]),
         priority=5,
     )
-    def verify_azure_file_share_nfs(self, log: Logger, node: Node) -> None:
-        nfs = node.features[Nfs]
+    def verify_nfsv4_basic(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        azure_file_share = node.features[AzureFileShare]
         mount_dir = "/mount/azure_share"
 
-        nfs.create_share()
-        storage_account_name = nfs.storage_account_name
+        # Configure for NFS with private endpoint
+        azure_file_share.set_protocol(
+            FileShareProtocol.NFS,
+            FileShareConnectivity.PRIVATE_ENDPOINT,
+        )
+        azure_file_share.create_share()
+
+        storage_account_name = azure_file_share.storage_account_name
+        file_share_name = azure_file_share.file_share_name
         mount_nfs = f"{storage_account_name}.file.core.windows.net"
-        server_shared_dir = f"{nfs.storage_account_name}/{nfs.file_share_name}"
+        server_shared_dir = f"{storage_account_name}/{file_share_name}"
+
+        # Track test failure for keep_environment handling
+        test_failed = False
         try:
             node.tools[NFSClient].setup(
                 mount_nfs,
@@ -594,13 +610,43 @@ class Storage(TestSuite):
                 options="vers=4,minorversion=1,sec=sys",
             )
         except Exception as e:
+            test_failed = True
             raise LisaException(
                 f"fail to mount {server_shared_dir} into {mount_dir}"
                 f"{e.__class__.__name__}: {e}."
             )
         finally:
-            nfs.delete_share()
-            node.tools[NFSClient].stop(mount_dir)
+            # Always unmount first (needed regardless of keep_environment)
+            try:
+                node.tools[NFSClient].stop(mount_dir)
+            except Exception as e:
+                log.debug(f"Failed to unmount NFS share: {e}")
+
+            # Respect keep_environment setting for cleanup
+            # - "always": Never cleanup (user wants to inspect)
+            # - "failed": Cleanup only if test passed
+            # - "no" (default): Always cleanup
+            should_cleanup = True
+
+            if environment.platform:
+                keep_environment = environment.platform.runbook.keep_environment
+                if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
+                    should_cleanup = False
+                    log.info(
+                        "Skipping Azure Files NFS share cleanup because "
+                        f"keep_environment={keep_environment}"
+                    )
+                elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
+                    # Only cleanup if test passed (not failed)
+                    should_cleanup = not test_failed
+                    if not should_cleanup:
+                        log.info(
+                            "Skipping Azure Files NFS share cleanup because "
+                            f"keep_environment={keep_environment} and test failed"
+                        )
+
+            if should_cleanup:
+                azure_file_share.delete_share()
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]

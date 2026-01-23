@@ -2253,6 +2253,12 @@ def get_or_create_file_share(
     """
     Create an Azure Storage file share if it does not exist.
 
+    For NFS protocol, uses ARM API (StorageManagementClient) because NFS storage
+    accounts require allow_shared_key_access=False, which prevents data plane access.
+
+    For SMB protocol, uses data plane API (ShareServiceClient) for backward
+    compatibility and performance.
+
     For Provisioned v2 (PV2) billing model, you can optionally specify:
     - provisioned_iops: The provisioned IOPS for the share (PV2 only)
     - provisioned_bandwidth_mibps: The provisioned throughput in MiB/s (PV2 only)
@@ -2264,31 +2270,70 @@ def get_or_create_file_share(
     StandardV2_LRS, StandardV2_ZRS, StandardV2_GRS, or StandardV2_GZRS.
     PV2 minimum quota is 32 GiB (vs 100 GiB for PV1).
     """
-    share_service_client = get_share_service_client(
-        credential,
-        subscription_id,
-        cloud,
-        account_name,
-        resource_group_name,
-    )
-    all_shares = list(share_service_client.list_shares())
-    if file_share_name not in (x.name for x in all_shares):
-        log.debug(f"creating file share {file_share_name} with protocols {protocols}")
-        # Build kwargs for create_share - only include PV2 params if specified
-        create_kwargs: Dict[str, Any] = {
-            "protocols": protocols,
-            "quota": quota_in_gb,
-        }
-        # PV2-specific parameters (requires API version 2025-01-05+)
-        # These are only valid for PV2 storage accounts (PremiumV2_*, StandardV2_*)
-        if provisioned_iops is not None:
-            create_kwargs["provisioned_iops"] = provisioned_iops
-            log.debug(f"  provisioned_iops: {provisioned_iops}")
-        if provisioned_bandwidth_mibps is not None:
-            create_kwargs["provisioned_bandwidth_mibps"] = provisioned_bandwidth_mibps
-            log.debug(f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}")
-        share_service_client.create_share(file_share_name, **create_kwargs)
-    return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
+    # For NFS, use ARM API because NFS storage accounts don't allow shared key access
+    if protocols.upper() == "NFS":
+        storage_client = get_storage_client(credential, subscription_id, cloud)
+        # Check if share exists using ARM API
+        try:
+            storage_client.file_shares.get(
+                resource_group_name=resource_group_name,
+                account_name=account_name,
+                share_name=file_share_name,
+            )
+            log.debug(f"file share {file_share_name} already exists")
+        except Exception:
+            # Share doesn't exist, create it
+            log.debug(
+                f"creating file share {file_share_name} with protocols {protocols}"
+            )
+            from azure.mgmt.storage.models import FileShare
+
+            file_share = FileShare(
+                enabled_protocols=protocols,
+                share_quota=quota_in_gb,
+            )
+            storage_client.file_shares.create(
+                resource_group_name=resource_group_name,
+                account_name=account_name,
+                share_name=file_share_name,
+                file_share=file_share,
+            )
+        # Build the file share URL
+        storage_endpoint = cloud.suffixes.storage_endpoint
+        return f"//{account_name}.file.{storage_endpoint}/{file_share_name}"
+    else:
+        # For SMB, use data plane API (ShareServiceClient)
+        share_service_client = get_share_service_client(
+            credential,
+            subscription_id,
+            cloud,
+            account_name,
+            resource_group_name,
+        )
+        all_shares = list(share_service_client.list_shares())
+        if file_share_name not in (x.name for x in all_shares):
+            log.debug(
+                f"creating file share {file_share_name} with protocols {protocols}"
+            )
+            # Build kwargs for create_share - only include PV2 params if specified
+            create_kwargs: Dict[str, Any] = {
+                "protocols": protocols,
+                "quota": quota_in_gb,
+            }
+            # PV2-specific parameters (requires API version 2025-01-05+)
+            # These are only valid for PV2 storage accounts (PremiumV2_*, StandardV2_*)
+            if provisioned_iops is not None:
+                create_kwargs["provisioned_iops"] = provisioned_iops
+                log.debug(f"  provisioned_iops: {provisioned_iops}")
+            if provisioned_bandwidth_mibps is not None:
+                create_kwargs["provisioned_bandwidth_mibps"] = (
+                    provisioned_bandwidth_mibps
+                )
+                log.debug(f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}")
+            share_service_client.create_share(file_share_name, **create_kwargs)
+        return str(
+            "//" + share_service_client.primary_hostname + "/" + file_share_name
+        )
 
 
 def delete_file_share(
@@ -2299,19 +2344,36 @@ def delete_file_share(
     file_share_name: str,
     resource_group_name: str,
     log: Logger,
+    protocols: str = "SMB",
 ) -> None:
     """
-    Delete Azure Storage file share
+    Delete Azure Storage file share.
+
+    For NFS protocol, uses ARM API (StorageManagementClient) because NFS storage
+    accounts require allow_shared_key_access=False, which prevents data plane access.
+
+    For SMB protocol, uses data plane API (ShareServiceClient) for backward
+    compatibility.
     """
-    share_service_client = get_share_service_client(
-        credential,
-        subscription_id,
-        cloud,
-        account_name,
-        resource_group_name,
-    )
     log.debug(f"deleting file share {file_share_name}")
-    share_service_client.delete_share(file_share_name)
+    if protocols.upper() == "NFS":
+        # Use ARM API for NFS
+        storage_client = get_storage_client(credential, subscription_id, cloud)
+        storage_client.file_shares.delete(
+            resource_group_name=resource_group_name,
+            account_name=account_name,
+            share_name=file_share_name,
+        )
+    else:
+        # Use data plane API for SMB
+        share_service_client = get_share_service_client(
+            credential,
+            subscription_id,
+            cloud,
+            account_name,
+            resource_group_name,
+        )
+        share_service_client.delete_share(file_share_name)
 
 
 def save_console_log(
