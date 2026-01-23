@@ -2215,10 +2215,12 @@ class Disk(AzureFeatureMixin, features.Disk):
         nvme = self._node.features[Nvme]
         if self.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
             os_disk_namespace = nvme.get_nvme_os_disk_namespace()
-            os_disk_controller = nvme.get_nvme_os_disk_controller()
+            # TODO: Commented out controller checking logic for nvme list command
             # When disk_controller_type is NVME, all remote disks are connected to
             # same NVMe controller. The same controller is used by OS disk.
-            if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
+            # Original logic: if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
+            # New logic: just exclude the OS disk namespace, include all other NVMe disks
+            if disk != os_disk_namespace:
                 return True
             return False
 
