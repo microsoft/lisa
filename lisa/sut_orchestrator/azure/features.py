@@ -2001,7 +2001,9 @@ class Disk(AzureFeatureMixin, features.Disk):
             cmd_result = self._node.execute(
                 f"readlink -f {disk}", shell=True, sudo=True
             )
-            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
+            disk_array[
+                int(disk.split("/")[-1].replace("lun", ""))
+            ] = cmd_result.stdout.strip()
         return disk_array
 
     def get_all_disks(self) -> List[str]:
