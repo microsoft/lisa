@@ -2431,7 +2431,19 @@ class AzurePlatform(Platform):
         assert isinstance(
             node.capability.disk.data_disk_count, int
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
-        for _ in range(node.capability.disk.data_disk_count):
+        
+        # Use core count instead of requested data_disk_count for data disk provisioning
+        assert isinstance(node.capability.core_count, int), f"actual: {type(node.capability.core_count)}"
+        core_count = node.capability.core_count
+        original_disk_count = node.capability.disk.data_disk_count
+        
+        # Log the change for debugging
+        self._log.info(
+            f"Modifying data disk count from {original_disk_count} to {core_count} "
+            f"(matching VM core count for size {azure_node_runbook.vm_size})"
+        )
+        
+        for _ in range(core_count):
             assert isinstance(
                 node.capability.disk.data_disk_size, int
             ), f"actual: {type(node.capability.disk.data_disk_size)}"
@@ -2452,6 +2464,10 @@ class AzurePlatform(Platform):
                     None,
                 )
             )
+        
+        # Update the node's capability to reflect actual data disk count
+        node.capability.disk.data_disk_count = core_count
+        
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
         if node.capability.disk and isinstance(
             node.capability.disk.max_data_disk_count, int
