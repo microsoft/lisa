@@ -473,6 +473,7 @@ class SigTransformerSchema(schema.Transformer):
               - westus3
               - westus2
             gallery_image_hyperv_generation: 2
+            gallery_image_disk_controller_types: NVMe
             gallery_image_name: image_name
             gallery_image_architecture: Arm64
             gallery_image_fullname: Microsoft Linux arm64 0.0.1
@@ -515,6 +516,9 @@ class SigTransformerSchema(schema.Transformer):
     )
     # image security type, can be empty, TrustedLaunch
     gallery_image_securitytype: str = ""
+    # Disk controller type feature for the gallery image definition.
+    # Common values: NVMe, SCSI, or comma-separated (e.g. SCSI,NVMe)
+    gallery_image_disk_controller_types: str = ""
     gallery_image_osstate: str = field(
         default="Generalized",
         metadata=field_metadata(
@@ -629,8 +633,13 @@ class SharedGalleryImageTransformer(Transformer):
                 "architecture", runbook.gallery_image_architecture
             )
             features.pop("os_type", None)
-        elif runbook.gallery_image_securitytype:
-            features = {"SecurityType": runbook.gallery_image_securitytype}
+        else:
+            if runbook.gallery_image_securitytype:
+                features["SecurityType"] = runbook.gallery_image_securitytype
+
+            disk_controller_types = runbook.gallery_image_disk_controller_types
+            if disk_controller_types:
+                features["DiskControllerTypes"] = disk_controller_types
 
         (
             gallery_image_publisher,
