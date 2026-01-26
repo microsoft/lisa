@@ -81,14 +81,20 @@ class Provisioning(TestSuite):
     @TestCaseMetadata(
         description="""
         This case runs a smoke test and checks the serial console output for
-        an optional pattern.
+        an optional pattern with pre-check and post-check validation.
 
-        If the variable 'serial_console_pattern' is provided, the test fetches
-        the serial console log and searches for the specified pattern.
-        - If the pattern is found, the test fails.
-        - If the pattern is not found, the test passes.
+        If the variable 'serial_console_pattern' is provided:
+        1. Pre-check: Counts pattern occurrences before smoke test execution.
+           - Fails if pattern found (count > 0) indicating boot-time issues.
+        2. Runs standard smoke test operations (reboot, connectivity checks).
+        3. Post-check: Counts pattern occurrences after smoke test execution.
+           - Fails if new occurrences detected (post > pre) indicating issues
+             introduced during test operations.
 
         If the variable is not provided, the test is skipped.
+
+        This two-stage approach distinguishes boot-time issues from test-induced
+        issues and avoids false positives from pre-existing console content.
 
         This test requires serial console support on the platform.
         """,
@@ -155,11 +161,11 @@ class Provisioning(TestSuite):
                 f"[Post-check] Pattern '{pattern}' found {new_occurrences} new time(s) "
                 "in serial console output after smoke test execution. Test failed."
             )
-        else:
-            log.info(
-                f"Post-check passed: No new occurrences of pattern '{pattern}' "
-                "after smoke test. Test passed."
-            )
+
+        log.info(
+            f"Post-check passed: No new occurrences of pattern '{pattern}' "
+            "after smoke test. Test passed."
+        )
 
     @TestCaseMetadata(
         description="""
