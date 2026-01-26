@@ -106,7 +106,7 @@ class Provisioning(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         # Check if the optional pattern variable is provided
-        pattern = variables.get("serial_console_pattern", None)
+        pattern = variables.get("serial_console_pattern")
 
         if pattern is None:
             raise SkippedException(
