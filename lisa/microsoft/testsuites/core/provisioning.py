@@ -121,24 +121,20 @@ class Provisioning(TestSuite):
         self._smoke_test(log, node, log_path, "smoke_test_check_serial_console_pattern")
 
         # Check serial console output for the pattern
-        if node.features.is_supported(SerialConsole):
-            serial_console = node.features[SerialConsole]
-            console_output = serial_console.get_console_log(
-                saved_path=log_path, force_run=True
-            )
+        # SerialConsole is required by test metadata, so it's guaranteed to be available
+        serial_console = node.features[SerialConsole]
+        console_output = serial_console.get_console_log(
+            saved_path=log_path, force_run=True
+        )
 
-            if pattern in console_output:
-                raise LisaException(
-                    f"Pattern '{pattern}' found in serial console output. Test failed."
-                )
-            else:
-                log.info(
-                    f"Pattern '{pattern}' not found in serial console output. "
-                    "Test passed."
-                )
+        if pattern in console_output:
+            raise LisaException(
+                f"Pattern '{pattern}' found in serial console output. Test failed."
+            )
         else:
-            raise SkippedException(
-                "SerialConsole feature is not supported on this platform."
+            log.info(
+                f"Pattern '{pattern}' not found in serial console output. "
+                "Test passed."
             )
 
     @TestCaseMetadata(
