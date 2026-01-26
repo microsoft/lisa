@@ -126,10 +126,13 @@ class Provisioning(TestSuite):
             saved_path=log_path, force_run=True
         )
 
-        if pattern in pre_console_output:
+        # Count occurrences of pattern before smoke test
+        pre_pattern_count = pre_console_output.count(pattern)
+
+        if pre_pattern_count > 0:
             raise LisaException(
-                f"[Pre-check] Pattern '{pattern}' found in serial console output "
-                "before smoke test execution. Test failed."
+                f"[Pre-check] Pattern '{pattern}' found {pre_pattern_count} time(s) "
+                "in serial console output before smoke test execution. Test failed."
             )
 
         log.info(f"Pre-check passed: Pattern '{pattern}' not found before smoke test")
@@ -143,15 +146,19 @@ class Provisioning(TestSuite):
             saved_path=log_path, force_run=True
         )
 
-        if pattern in post_console_output:
+        # Count occurrences of pattern after smoke test
+        post_pattern_count = post_console_output.count(pattern)
+
+        if post_pattern_count > pre_pattern_count:
+            new_occurrences = post_pattern_count - pre_pattern_count
             raise LisaException(
-                f"[Post-check] Pattern '{pattern}' found in serial console output "
-                "after smoke test execution. Test failed."
+                f"[Post-check] Pattern '{pattern}' found {new_occurrences} new time(s) "
+                "in serial console output after smoke test execution. Test failed."
             )
         else:
             log.info(
-                f"Post-check passed: Pattern '{pattern}' not found after smoke test. "
-                "Test passed."
+                f"Post-check passed: No new occurrences of pattern '{pattern}' "
+                "after smoke test. Test passed."
             )
 
     @TestCaseMetadata(
