@@ -294,6 +294,7 @@ class SourceInstaller(BaseInstaller):
         code_path: PurePath,
         kconfig_file: str,
         kernel_version: VersionInfo,
+        use_ccache: bool = False,
     ) -> None:
         self._log.info("building code...")
 
@@ -375,8 +376,15 @@ class SourceInstaller(BaseInstaller):
         make = node.tools[Make]
         make.make(arguments="olddefconfig", cwd=code_path)
 
+        make_args = ""
+        if use_ccache:
+            make_args = "CC='ccache gcc'"
+            node.execute(f"export CCACHE_DIR="
+                         f"{str(code_path.parent)}/.ccache"
+            )
+
         # set timeout to 2 hours
-        make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
+        make.make(arguments=make_args, cwd=code_path, timeout=60 * 60 * 2)
 
     def _fix_mirrorlist_to_vault(self, node: Node) -> None:
         node.execute(
@@ -427,6 +435,7 @@ class SourceInstaller(BaseInstaller):
                     "cpio",
                     "flex",
                     "libelf-dev",
+                    "libdw-dev",
                     "libncurses5-dev",
                     "xz-utils",
                     "libssl-dev",
@@ -434,6 +443,9 @@ class SourceInstaller(BaseInstaller):
                     "ccache",
                     "zstd",
                     "libxxhash-dev",
+                    "fakeroot",
+                    "dpkg-dev",
+                    "debhelper-compat",
                 ]
             )
         elif isinstance(os, CBLMariner):
@@ -502,9 +514,10 @@ class RepoLocation(BaseLocation):
         if runbook.cleanup_code and self._node.shell.exists(code_path):
             self._node.shell.remove(code_path, True)
 
-        # create and give permission on code folder
-        self._node.execute(f"mkdir -p {code_path}", sudo=True)
-        self._node.execute(f"chmod -R 777 {code_path}", sudo=True)
+        # create and give permission on code folder if required
+        if not self._node.shell.exists(code_path):
+            self._node.execute(f"mkdir -p {code_path}", sudo=True)
+            self._node.execute(f"chmod 0777 {code_path}", sudo=True)
 
         self._log.info(f"cloning code from {runbook.repo} to {code_path}...")
         git = self._node.tools[Git]
