@@ -3,6 +3,7 @@
 
 from pathlib import Path
 from statistics import mean, median
+from typing import Any, Dict
 
 from assertpy import assert_that
 
@@ -76,6 +77,69 @@ class Provisioning(TestSuite):
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         self._smoke_test(log, node, log_path, "smoke_test")
+
+    @TestCaseMetadata(
+        description="""
+        This case runs a smoke test and checks the serial console output for
+        an optional pattern.
+
+        If the variable 'serial_console_pattern' is provided, the test fetches
+        the serial console log and searches for the specified pattern.
+        - If the pattern is found, the test fails.
+        - If the pattern is not found, the test passes.
+
+        If the variable is not provided, the test is skipped.
+
+        This test requires serial console support on the platform.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def smoke_test_check_serial_console_pattern(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        variables: Dict[str, Any],
+    ) -> None:
+        # Check if the optional pattern variable is provided
+        pattern = variables.get("serial_console_pattern", None)
+
+        if pattern is None:
+            raise SkippedException(
+                "Variable 'serial_console_pattern' not provided. Test skipped."
+            )
+
+        log.info(
+            f"Running smoke test and checking serial console for pattern: '{pattern}'"
+        )
+
+        # Run the standard smoke test first
+        self._smoke_test(log, node, log_path, "smoke_test_check_serial_console_pattern")
+
+        # Check serial console output for the pattern
+        if node.features.is_supported(SerialConsole):
+            serial_console = node.features[SerialConsole]
+            console_output = serial_console.get_console_log(
+                saved_path=log_path, force_run=True
+            )
+
+            if pattern in console_output:
+                raise LisaException(
+                    f"Pattern '{pattern}' found in serial console output. Test failed."
+                )
+            else:
+                log.info(
+                    f"Pattern '{pattern}' not found in serial console output. "
+                    "Test passed."
+                )
+        else:
+            raise SkippedException(
+                "SerialConsole feature is not supported on this platform."
+            )
 
     @TestCaseMetadata(
         description="""
