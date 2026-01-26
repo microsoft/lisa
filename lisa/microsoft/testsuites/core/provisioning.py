@@ -117,23 +117,40 @@ class Provisioning(TestSuite):
             f"Running smoke test and checking serial console for pattern: '{pattern}'"
         )
 
-        # Run the standard smoke test first
-        self._smoke_test(log, node, log_path, "smoke_test_check_serial_console_pattern")
-
-        # Check serial console output for the pattern
         # SerialConsole is required by test metadata, so it's guaranteed to be available
         serial_console = node.features[SerialConsole]
-        console_output = serial_console.get_console_log(
+
+        # Pre-check: Check serial console before running smoke test
+        log.info("Pre-check: Checking serial console output before smoke test")
+        pre_console_output = serial_console.get_console_log(
             saved_path=log_path, force_run=True
         )
 
-        if pattern in console_output:
+        if pattern in pre_console_output:
             raise LisaException(
-                f"Pattern '{pattern}' found in serial console output. Test failed."
+                f"[Pre-check] Pattern '{pattern}' found in serial console output "
+                "before smoke test execution. Test failed."
+            )
+
+        log.info(f"Pre-check passed: Pattern '{pattern}' not found before smoke test")
+
+        # Run the standard smoke test
+        self._smoke_test(log, node, log_path, "smoke_test_check_serial_console_pattern")
+
+        # Post-check: Check serial console after running smoke test
+        log.info("Post-check: Checking serial console output after smoke test")
+        post_console_output = serial_console.get_console_log(
+            saved_path=log_path, force_run=True
+        )
+
+        if pattern in post_console_output:
+            raise LisaException(
+                f"[Post-check] Pattern '{pattern}' found in serial console output "
+                "after smoke test execution. Test failed."
             )
         else:
             log.info(
-                f"Pattern '{pattern}' not found in serial console output. "
+                f"Post-check passed: Pattern '{pattern}' not found after smoke test. "
                 "Test passed."
             )
 
