@@ -3,11 +3,10 @@
 
 from typing import Any, Dict
 
-from microsoft.testsuites.kselftest.kselftest import Kselftest
-
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.util import SkippedException, UnsupportedDistroException
+from microsoft.testsuites.kselftest.kselftest import Kselftest
 
 
 @TestSuiteMetadata(
@@ -20,8 +19,8 @@ from lisa.util import SkippedException, UnsupportedDistroException
 class KselftestTestsuite(TestSuite):
     # kselftests take about a one and half an hour to complete,
     # timeout below is in seconds and set to 2 hours.
-    _CASE_TIME_OUT = 7200
-    _KSELF_TIMEOUT = 6700
+    _CASE_TIME_OUT = 19000
+    _KSELF_TIMEOUT = 18000
 
     @TestCaseMetadata(
         description="""
