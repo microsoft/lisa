@@ -986,9 +986,6 @@ class KdumpCheck(Tool):
 
         kdump.capture_info()
 
-        # Log memory usage statistics before triggering crash
-        self._log_memory_usage_before_crash()
-
         try:
             # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
             # We set a timeout time 10.
@@ -1026,37 +1023,6 @@ class KdumpCheck(Tool):
 
     def _check_exists(self) -> bool:
         return True
-
-    def _log_memory_usage_before_crash(self) -> None:
-        """
-        Log detailed memory usage statistics before triggering crash.
-        This helps understand how much memory needs to be dumped.
-        Note: makedumpfile filters memory, so actual vmcore size will be smaller.
-        """
-        try:
-            free = self.node.tools[Free]
-
-            # Get memory statistics using Free tool methods
-            total_memory_gb = free.get_total_memory_gb()
-            free_memory_gb = free.get_free_memory_gb()
-
-            self._log.info("=" * 70)
-            self._log.info("MEMORY USAGE BEFORE CRASH DUMP")
-            self._log.info("=" * 70)
-
-            # Use Free tool's built-in method to log memory statistics
-            free.log_memory_stats_mb()
-
-            # Calculate used memory
-            used_gb = total_memory_gb - free_memory_gb
-            usage_pct = (used_gb / total_memory_gb * 100) if total_memory_gb > 0 else 0
-
-            self._log.info(f"Memory Total: {total_memory_gb} GB")
-            self._log.info(f"Memory Free:  {free_memory_gb} GB")
-            self._log.info(f"Memory Used:  ~{used_gb} GB ({usage_pct:.1f}%)")
-
-        except Exception as e:
-            self._log.warning(f"Failed to log memory usage: {e}")
 
     # This method might stuck after triggering crash,
     # so use timeout to recycle it faster.
