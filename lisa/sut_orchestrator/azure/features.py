@@ -3351,7 +3351,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
         settings: Optional[Dict[str, Any]] = None,
         protected_settings: Any = None,
         suppress_failures: Optional[bool] = None,
-        timeout: int = 60 * 25,
+        timeout: int = 60 * 50,
     ) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)

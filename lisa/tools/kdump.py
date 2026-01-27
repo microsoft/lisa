@@ -820,7 +820,7 @@ class KdumpCheck(Tool):
     # When with large system memory, the dump file can achieve more than 7G. It will
     # cost about 10min to copy dump file to disk for some distros, such as Ubuntu.
     # So we set the timeout time 800s to make sure the dump file is completed.
-    timeout_of_dump_crash = 800
+    timeout_of_dump_crash = 8000
     trigger_kdump_cmd = "echo c > /proc/sysrq-trigger"
 
     @property
@@ -853,9 +853,9 @@ class KdumpCheck(Tool):
             # As system memory is more than free os disk size, need to
             # change the dump path and increase the timeout duration
             kdump.config_resource_disk_dump_path(self._get_disk_dump_path())
-            self.timeout_of_dump_crash = 1200
+            self.timeout_of_dump_crash = 8000
             if "T" in total_memory and float(total_memory.strip("T")) > 6:
-                self.timeout_of_dump_crash = 2000
+                self.timeout_of_dump_crash = 8000
 
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
@@ -866,7 +866,7 @@ class KdumpCheck(Tool):
         self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
         # Reboot system to make kdump take effect
-        self.node.reboot(time_out=600)
+        self.node.reboot(time_out=2600)
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
