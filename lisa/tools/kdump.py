@@ -6,7 +6,7 @@ import math
 import re
 from pathlib import Path, PurePath, PurePosixPath
 from time import sleep
-from typing import TYPE_CHECKING, Any, List, Type, cast
+from typing import TYPE_CHECKING, Any, List, Tuple, Type, cast
 
 from func_timeout import FunctionTimedOut, func_set_timeout
 from semver import VersionInfo
@@ -539,6 +539,124 @@ class KdumpBase(Tool):
                 "crash kernel"
             )
 
+    def _get_reserved_crashkernel_size_mb(self) -> int:
+        """
+        Get the actual reserved crashkernel size from /sys/kernel/kexec_crash_size.
+        Returns size in MB.
+        """
+        cat = self.node.tools[Cat]
+        result = cat.run("/sys/kernel/kexec_crash_size", force_run=True, sudo=True)
+        if result.exit_code != 0 or not result.stdout.strip():
+            self._log.warning(
+                "Could not read /sys/kernel/kexec_crash_size, "
+                "skipping size verification"
+            )
+            return 0
+        # Value is in bytes, convert to MB
+        size_bytes = int(result.stdout.strip())
+        return size_bytes // (1024 * 1024)
+
+    def _parse_iomem_crash_kernel_range(self) -> Tuple[int, int, int]:
+        """
+        Parse /proc/iomem to get the crash kernel memory range.
+        Returns (start_address, end_address, size_mb) or (0, 0, 0) if not found.
+        """
+        import re
+
+        cat = self.node.tools[Cat]
+        result = cat.run(self.iomem, force_run=True, sudo=True)
+        # Look for line like: "  1e000000-3df5cfff : Crash kernel"
+        match = re.search(
+            r"([0-9a-fA-F]+)-([0-9a-fA-F]+)\s*:\s*Crash kernel", result.stdout
+        )
+        if match:
+            start = int(match.group(1), 16)
+            end = int(match.group(2), 16)
+            size_mb = (end - start + 1) // (1024 * 1024)
+            return (start, end, size_mb)
+        return (0, 0, 0)
+
+    def verify_crashkernel_reservation(
+        self, expected_crashkernel: str, min_acceptable_ratio: float = 0.8
+    ) -> None:
+        """
+        Verify that the actual reserved crashkernel memory is sufficient.
+
+        Args:
+            expected_crashkernel: The requested crashkernel size (e.g., "512M", "2G")
+            min_acceptable_ratio: Minimum ratio of actual/expected that's acceptable
+                                 (default 0.8 = 80%)
+
+        Raises:
+            LisaException: If reserved memory is significantly less than expected
+        """
+        # Parse expected size
+        expected_mb = self._parse_crashkernel_to_mb(expected_crashkernel)
+        if expected_mb == 0:
+            self._log.info(
+                f"Could not parse expected crashkernel size '{expected_crashkernel}', "
+                "skipping verification"
+            )
+            return
+
+        # Get actual reserved size from /sys/kernel/kexec_crash_size
+        actual_mb = self._get_reserved_crashkernel_size_mb()
+
+        # Also get the address range from /proc/iomem for logging
+        start_addr, end_addr, iomem_size_mb = self._parse_iomem_crash_kernel_range()
+
+        self._log.info(
+            f"Crashkernel reservation verification: "
+            f"expected={expected_mb}MB, actual={actual_mb}MB, "
+            f"iomem_range=0x{start_addr:x}-0x{end_addr:x} ({iomem_size_mb}MB)"
+        )
+
+        if actual_mb == 0:
+            self._log.warning(
+                "Could not determine actual reserved size, proceeding with caution"
+            )
+            return
+
+        ratio = actual_mb / expected_mb
+        if ratio < min_acceptable_ratio:
+            raise LisaException(
+                f"Crashkernel reservation is insufficient: "
+                f"expected {expected_mb}MB but only {actual_mb}MB reserved "
+                f"({ratio:.1%} of expected). This may cause kdump to fail. "
+                f"Check kernel boot messages for crashkernel reservation errors."
+            )
+
+        if ratio < 1.0:
+            self._log.warning(
+                f"Crashkernel reservation is less than requested: "
+                f"{actual_mb}MB reserved vs {expected_mb}MB requested ({ratio:.1%})"
+            )
+
+    def _parse_crashkernel_to_mb(self, crashkernel: str) -> int:
+        """
+        Parse crashkernel size string to MB.
+        Handles formats like: "512M", "2G", "auto", "512M,high"
+        """
+        import re
+
+        if not crashkernel or crashkernel.lower() == "auto":
+            return 0
+
+        # Remove any suffixes like ",high" or ",low"
+        size_str = crashkernel.split(",")[0].strip()
+
+        # Match number with optional unit
+        match = re.match(r"^(\d+)([MmGg]?)$", size_str)
+        if not match:
+            return 0
+
+        value = int(match.group(1))
+        unit = match.group(2).upper() if match.group(2) else "M"
+
+        if unit == "G":
+            return value * 1024
+        return value
+
     def check_crashkernel_loaded(self, crashkernel_memory: str) -> None:
         if crashkernel_memory:
             # Check crashkernel parameter in cmdline
@@ -557,6 +675,10 @@ class KdumpBase(Tool):
 
         # Check if memory is reserved for crash kernel
         self._check_crashkernel_memory_reserved()
+
+        # Verify actual reserved size matches expected
+        if crashkernel_memory and crashkernel_memory.lower() != "auto":
+            self.verify_crashkernel_reservation(crashkernel_memory)
 
     def capture_info(self) -> None:
         # Override this method to print additional info before panic
@@ -849,6 +971,21 @@ class KdumpCBLMariner(KdumpBase):
         # print /etc/kdump.conf
         result = cat.run("/etc/kdump.conf", force_run=True, sudo=True)
         self._log.info(f"Current kdump configuration: {result.stdout}")
+
+        # Print crashkernel reservation details for debugging
+        result = cat.run("/sys/kernel/kexec_crash_size", force_run=True, sudo=True)
+        if result.exit_code == 0:
+            size_bytes = int(result.stdout.strip()) if result.stdout.strip() else 0
+            size_mb = size_bytes // (1024 * 1024)
+            self._log.info(
+                f"Crashkernel reserved size: {size_mb}MB ({size_bytes} bytes)"
+            )
+        result = cat.run(self.iomem, force_run=True, sudo=True)
+        crash_lines = [
+            line for line in result.stdout.splitlines() if "Crash kernel" in line
+        ]
+        if crash_lines:
+            self._log.info(f"Crashkernel in /proc/iomem: {crash_lines}")
         return
 
 
