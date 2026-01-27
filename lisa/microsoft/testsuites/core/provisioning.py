@@ -84,7 +84,8 @@ class Provisioning(TestSuite):
         This case runs a smoke test and checks the serial console output for
         an optional pattern with pre-check and post-check validation.
 
-        If the variable 'serial_console_pattern' is provided:
+        The variable 'serial_console_pattern' can be provided to check for
+        specific patterns. If not provided, defaults to 'BUG: soft lockup'.
         - Pattern can be a string (substring match) or regex pattern string
         1. Pre-check: Counts pattern occurrences before smoke test execution.
            - Fails if pattern found (count > 0) indicating boot-time issues.
@@ -92,8 +93,6 @@ class Provisioning(TestSuite):
         3. Post-check: Counts pattern occurrences after smoke test execution.
            - Fails if new occurrences detected (post > pre) indicating issues
              introduced during test operations.
-
-        If the variable is not provided, the test is skipped.
 
         This two-stage approach distinguishes boot-time issues from test-induced
         issues and avoids false positives from pre-existing console content.
@@ -113,13 +112,8 @@ class Provisioning(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
     ) -> None:
-        # Check if the optional pattern variable is provided
-        pattern = variables.get("serial_console_pattern")
-
-        if pattern is None:
-            raise SkippedException(
-                "Variable 'serial_console_pattern' not provided. Test skipped."
-            )
+        # Get the pattern variable with a default value
+        pattern = variables.get("serial_console_pattern", "BUG: soft lockup")
 
         log.info(
             f"Running smoke test and checking serial console for pattern: '{pattern}'"
