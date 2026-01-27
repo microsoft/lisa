@@ -113,6 +113,13 @@ class Provisioning(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
     ) -> None:
+        # Helper function to count pattern occurrences in text
+        def count_pattern(compiled_pattern: Union[str, Pattern[str]], text: str) -> int:
+            if isinstance(compiled_pattern, Pattern):
+                return len(compiled_pattern.findall(text))
+            else:
+                return text.count(compiled_pattern)
+
         # Check if the optional pattern variable is provided
         pattern = variables.get("serial_console_pattern")
 
@@ -125,12 +132,10 @@ class Provisioning(TestSuite):
             f"Running smoke test and checking serial console for pattern: '{pattern}'"
         )
 
-        # Convert pattern to regex if it's a string
-        # If pattern is already a regex pattern string (contains regex metacharacters),
-        # compile it; otherwise treat as literal string for substring matching
+        # Determine whether to interpret pattern as regex or literal string
+        # Checks for regex metacharacters to decide pattern type
         compiled_pattern: Union[str, Pattern[str]]
         try:
-            # Try to compile as regex - if it has regex syntax, use it as regex
             # Check if pattern looks like a regex (contains common regex metacharacters)
             regex_chars = r".*+?[]{}()^$|\\"
             if any(char in pattern for char in regex_chars):
@@ -157,10 +162,7 @@ class Provisioning(TestSuite):
         )
 
         # Count occurrences of pattern before smoke test
-        if isinstance(compiled_pattern, Pattern):
-            pre_pattern_count = len(compiled_pattern.findall(pre_console_output))
-        else:
-            pre_pattern_count = pre_console_output.count(compiled_pattern)
+        pre_pattern_count = count_pattern(compiled_pattern, pre_console_output)
 
         if pre_pattern_count > 0:
             raise LisaException(
@@ -180,10 +182,7 @@ class Provisioning(TestSuite):
         )
 
         # Count occurrences of pattern after smoke test
-        if isinstance(compiled_pattern, Pattern):
-            post_pattern_count = len(compiled_pattern.findall(post_console_output))
-        else:
-            post_pattern_count = post_console_output.count(compiled_pattern)
+        post_pattern_count = count_pattern(compiled_pattern, post_console_output)
 
         if post_pattern_count > pre_pattern_count:
             new_occurrences = post_pattern_count - pre_pattern_count
