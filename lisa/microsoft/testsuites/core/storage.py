@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Posix, Windows
+from lisa.operating_system import BSD, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
@@ -45,6 +45,7 @@ from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
     SkippedException,
+    constants,
     generate_random_chars,
     get_matched_str,
 )
@@ -93,6 +94,16 @@ class Storage(TestSuite):
         self,
         node: RemoteNode,
     ) -> None:
+        if (
+            node.features.is_supported(Disk)
+            and node.features[Disk].get_os_disk_controller_type()
+            == DiskControllerType.NVME
+        ):
+            raise SkippedException(
+                "Disk controller type is NVMe. Device timeout verification is not",
+                " applicable for NVMe disks",
+            )
+
         disks = node.features[Disk].get_all_disks()
         root_device_timeout_from_waagent = node.tools[
             Waagent
@@ -213,6 +224,19 @@ class Storage(TestSuite):
         ),
     )
     def verify_swap(self, node: RemoteNode) -> None:
+        # Skip Fedora: Since Fedora 33 (2020), Fedora uses zram-swap by default,
+        # which is compressed RAM-based swap managed independently by systemd's
+        # zram-generator, not by waagent. This creates a mismatch where:
+        # - waagent.conf has ResourceDisk.EnableSwap=n (no swap on /mnt/resource)
+        # - System has /dev/zram0 swap enabled (managed by systemd)
+        # Reference: https://fedoraproject.org/wiki/Changes/SwapOnZRAM
+        if type(node.os) is Fedora:
+            raise SkippedException(
+                "Fedora uses zram-swap managed independently of waagent. "
+                "Test assumption that waagent config matches system swap state "
+                "is invalid on Fedora."
+            )
+
         is_swap_enabled_wa_agent = node.tools[Waagent].is_swap_enabled()
         is_swap_enabled_distro = node.tools[Swap].is_swap_enabled()
         assert_that(
@@ -258,7 +282,7 @@ class Storage(TestSuite):
         )
 
         # read content from the file
-        read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True)
+        read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True).strip()
 
         assert_that(
             read_text,
@@ -600,6 +624,10 @@ class Storage(TestSuite):
         Downgrading priority from 1 to 5. The file share relies on the
          storage account key, which we cannot use currently.
         Will change it back once file share works with MSI.
+
+        TODO: Test this case with storage account reuse changes in
+         AzureFileShare class (features.py). This test does NOT use
+         private endpoints (enable_private_endpoint=False by default).
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(
@@ -617,9 +645,19 @@ class Storage(TestSuite):
         azure_file_share = node.features[AzureFileShare]
         self._install_cifs_dependencies(node)
 
+        # Clean up any leftover state from previous runs (important for deploy:false)
+        # This handles cases where the VM is reused but has stale mounts/folders
+        mount = node.tools[Mount]
+        # Remove any existing test folder (handles both mounted and unmounted cases)
+        node.execute(f"rm -rf {test_folder}", sudo=True)
+
+        # Track test failure for keep_environment handling
+        test_failed = False
         try:
             fs_url_dict = azure_file_share.create_file_share(
-                file_share_names=[fileshare_name], environment=environment
+                file_share_names=[fileshare_name],
+                environment=environment,
+                allow_shared_key_access=True,
             )
             test_folders_share_dict = {
                 test_folder: fs_url_dict[fileshare_name],
@@ -630,7 +668,6 @@ class Storage(TestSuite):
             self._reload_fstab_config(node)
 
             # Verify that the file share is mounted
-            mount = node.tools[Mount]
             mount_point_exists = mount.check_mount_point_exist(test_folder)
             if not mount_point_exists:
                 raise LisaException(f"Mount point {test_folder} does not exist.")
@@ -655,8 +692,26 @@ class Storage(TestSuite):
             )
             assert file_content_after_mount == initial_file_content
 
+        except Exception:
+            test_failed = True
+            raise
         finally:
-            azure_file_share.delete_azure_fileshare([fileshare_name])
+            # Respect keep_environment setting for cleanup
+            # - "always": Never cleanup (user wants to inspect)
+            # - "failed": Cleanup only if test passed
+            # - "no" (default): Always cleanup
+            should_cleanup = True
+
+            if environment.platform:
+                keep_environment = environment.platform.runbook.keep_environment
+                if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
+                    should_cleanup = False
+                elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
+                    # Only cleanup if test passed (not failed)
+                    should_cleanup = not test_failed
+
+            if should_cleanup:
+                azure_file_share.delete_azure_fileshare([fileshare_name])
 
     def _install_cifs_dependencies(self, node: Node) -> None:
         posix_os: Posix = cast(Posix, node.os)

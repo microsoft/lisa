@@ -467,6 +467,7 @@ def simple_requirement(
     min_memory_mb: Optional[int] = None,
     min_nic_count: Optional[int] = None,
     min_data_disk_count: Optional[int] = None,
+    min_os_disk_size: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
     network_interface: Optional[schema.NetworkInterfaceOptionSettings] = None,
     supported_platform_type: Optional[List[str]] = None,
@@ -491,11 +492,13 @@ def simple_requirement(
     if min_memory_mb:
         node.memory_mb = search_space.IntRange(min=min_memory_mb)
 
-    if min_data_disk_count or disk:
+    if min_data_disk_count or min_os_disk_size or disk:
         if not disk:
             disk = schema.DiskOptionSettings()
         if min_data_disk_count:
             disk.data_disk_count = search_space.IntRange(min=min_data_disk_count)
+        if min_os_disk_size:
+            disk.os_disk_size = search_space.IntRange(min=min_os_disk_size)
         node.disk = disk
 
     if min_nic_count or network_interface:
@@ -724,7 +727,8 @@ class TestSuite:
             case_kwargs.update({"result": case_result})
 
             case_log.info(
-                f"test case '{case_result.runtime_data.full_name}' is running"
+                f"test case '{case_result.runtime_data.full_name}' "
+                f"is running on environment '{environment.name}'"
             )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
@@ -778,7 +782,9 @@ class TestSuite:
                     )
 
             case_log.info(
-                f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
+                f"result: {case_result.status.name}, "
+                f"elapsed: {total_timer}, "
+                f"environment: {environment.name}"
             )
             case_result.unsubscribe_log(environment.log)
             case_result.close_log_file_handler()

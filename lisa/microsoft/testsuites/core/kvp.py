@@ -13,6 +13,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
@@ -47,6 +48,9 @@ class Kvp(TestSuite):
        correct.
     """,
         priority=1,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_kvp(self, node: Node, log: Logger) -> None:
         if isinstance(node.os, BSD):

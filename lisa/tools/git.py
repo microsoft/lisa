@@ -5,7 +5,6 @@ import pathlib
 import re
 from typing import Dict, List, Optional
 
-from assertpy import assert_that
 from semver import VersionInfo
 
 from lisa.executable import Tool
@@ -128,6 +127,30 @@ class Git(Tool):
             no_info_log=True,
             no_error_log=True,
         )
+
+        if result.exit_code != 0:
+            # Try fetching the ref and checking out FETCH_HEAD
+            # This is sometimes necessary when checking out pull requests refs such as
+            # refs/pull/1234/merge
+            self._log.debug(f"Direct checkout of {ref} failed, trying fetch")
+            self.run(
+                f"fetch origin {ref}",  # assuming the default 'origin' remote
+                force_run=True,
+                cwd=cwd,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+
+            result = self.run(
+                "checkout FETCH_HEAD",
+                force_run=True,
+                cwd=cwd,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+
         # delete old temp branch before checking out new one
         if delete_temp_branch:
             self.run(
@@ -260,6 +283,7 @@ class Git(Tool):
         contains: str = "",
         return_last: bool = True,
         filter_: str = "",
+        fail_on_not_found: bool = True,
     ) -> str:
         sort_arg = ""
         contains_arg = ""
@@ -299,10 +323,19 @@ class Git(Tool):
         error_info = f"sortby:{sort_by} contains:{contains}"
         if filter_:
             error_info += f" filter:{filter_}"
-        assert_that(len(tags)).described_as(
-            "Error: could not find any tags with this sort or "
-            f"filter setting: {error_info}"
-        ).is_greater_than(0)
+
+        if len(tags) == 0:
+            if fail_on_not_found:
+                raise LisaException(
+                    "Could not find any tags with this sort or "
+                    f"filter setting: {error_info}"
+                )
+            else:
+                self._log.debug(
+                    "Could not find any tags with this sort or "
+                    f"filter setting: {error_info}"
+                )
+                return ""
 
         if return_last:
             return tags[-1]

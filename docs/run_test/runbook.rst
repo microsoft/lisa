@@ -867,9 +867,9 @@ downstream notifiers and reporting systems.
    - Text-embedding-3-large for similarity calculations (optional)
 
 2. **Required Python packages** (automatically included with LISA):
-   - python-dotenv
-   - semantic-kernel
-   - azure-ai-inference
+   - openai
+   - agent-framework-core
+   - agent-framework-azure-ai
    - retry
 
 azure_openai_endpoint
@@ -958,6 +958,189 @@ Example of log_agent notifier:
 
 The AI analysis results are stored in the test result message's ``analysis["AI"]``
 field and can be consumed by other notifiers like HTML or custom reporting systems.
+
+perfevaluation
+^^^^^^^^^^^^^^
+
+Evaluates performance test results against predefined criteria and optionally fails tests when targets are not met.
+
+**Basic Usage:**
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria_file: "perf_criteria.yml"
+       output_file: "results.json"
+       fail_test_on_performance_failure: true
+
+**Parameters:**
+
+criteria_file
+'''''''''''''
+type: str, optional, default: "*_criteria.yml"
+
+Path or glob pattern to YAML files containing performance criteria.
+
+criteria
+''''''''
+type: dict, optional, default: None
+
+Direct criteria definition in runbook. Takes priority over criteria_file.
+
+Example:
+
+.. code:: yaml
+
+   notifier:
+     - type: perfevaluation
+       criteria:
+         statistics_times: 1
+         error_threshold: 0.1
+         statistics_type: average
+         groups:
+           - name: "NVMe Performance"
+             conditions:
+               - name: "test_case"
+                 type: "metadata"
+                 value: "perf_nvme"
+               - name: "vm_size"
+                 type: "information"
+                 value: "Standard_L64*"
+             metrics:
+               - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+                 min_value: 800000.0
+                 target_value: 979000.0
+                 error_threshold: 0.25
+
+output_file
+'''''''''''
+type: str, optional, default: None
+
+Output path for detailed evaluation results in JSON format.
+
+statistics_times
+''''''''''''''''
+type: int, optional, default: None
+
+Number of test runs to use for statistical calculations. If specified, overrides the global setting in criteria YAML.
+
+fail_test_on_performance_failure
+''''''''''''''''''''''''''''''''
+type: bool, optional, default: False
+
+Mark tests as failed when performance criteria are not met.
+
+**YAML Criteria Format:**
+
+Hierarchical format with groups and conditions:
+
+.. code:: yaml
+
+   # Global settings
+   statistics_times: 1
+   error_threshold: 0.1
+   statistics_type: average
+
+   groups:
+     - name: "NVMe Performance - L64 Series"
+       description: "Performance criteria for Standard_L64as_v3 and Standard_L64s_v2 VMs"
+       error_threshold: 0.20
+       statistics_type: average
+       statistics_times: 1
+
+       conditions:
+         - name: "test_case"
+           type: "metadata"
+           value: "perf_nvme"
+         - name: "vm_size"
+           type: "information"
+           value: "Standard_L64*"
+
+       metrics:
+         - name: "qdepth_32_iodepth_1_numjob_32_setup_raw_bs_4k_cores_32_disks_8_read_iops"
+           min_value: 800000.0
+           target_value: 979000.0
+           error_threshold: 0.25
+
+**Global Configuration:**
+
+- ``statistics_times``: Number of test runs for statistical calculations (default: 1)
+- ``error_threshold``: Global tolerance for performance deviation (default: 0.1 = 10%)
+- ``statistics_type``: Statistical method to use - ``average`` (default), ``median``, ``min``, or ``max``
+
+**Group Configuration:**
+
+Each group can override global settings and contains:
+
+- ``name``: Group identifier
+- ``description``: Human-readable description
+- ``error_threshold``: Group-level tolerance
+- ``statistics_type``: Statistical method for this group
+- ``statistics_times``: Number of runs for this group
+- ``conditions``: Matching rules for test results
+- ``metrics``: Performance metrics to evaluate
+
+**Metric Properties:**
+
+- ``min_value``: Minimum acceptable value (inclusive)
+- ``max_value``: Maximum acceptable value (inclusive)
+- ``target_value``: Expected target value
+- ``error_threshold``: Acceptable deviation from target (as decimal, e.g., 0.25 = 25%)
+
+**Pattern Matching:**
+
+Uses fnmatch-style wildcards:
+
+- ``Standard_L64*``: Matches Standard_L64as_v3, Standard_L64s_v2, etc.
+- ``*nvme*``: Test cases containing "nvme"
+- ``Standard_D*ads_v5``: D-series with specific pattern
+
+**Condition Structure:**
+
+Each condition must specify three fields:
+
+- ``name``: The field name to match (e.g., ``test_case``, ``vm_size``)
+- ``type``: The condition type - either ``metadata`` or ``information``
+- ``value``: The pattern to match (supports wildcards)
+
+**Condition Types:**
+
+- ``metadata``: Matches test case metadata fields (e.g., ``test_case`` name)
+- ``information``: Matches runtime information fields (e.g., ``vm_size``)
+- All conditions within a group must match (AND logic)
+
+Example condition:
+
+.. code:: yaml
+
+   conditions:
+     - name: "test_case"
+       type: "metadata"
+       value: "perf_nvme*"
+     - name: "vm_size"
+       type: "information"
+       value: "Standard_L*"
+
+**Example - Network Performance:**
+
+.. code:: yaml
+
+   groups:
+     - name: "TCP NTTTCP SRIOV Performance"
+       conditions:
+         - name: "test_case"
+           type: "metadata"
+           value: "perf_tcp_ntttcp_sriov"
+         - name: "vm_size"
+           type: "information"
+           value: "Standard_D2ads_v5"
+
+       metrics:
+         - name: "throughput_in_gbps_conn_1"
+           min_value: 10.0
+           target_value: 11.89
+           error_threshold: 0.30
 
 environment
 ~~~~~~~~~~~

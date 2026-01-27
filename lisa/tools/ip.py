@@ -322,6 +322,53 @@ class Ip(Tool):
         self.add_ipv4_address(name, ip)
         self.up(name)
 
+    def create_virtual_interface(
+        self,
+        name: str,
+        type_: str,
+        *,
+        dev: Optional[str] = None,
+        params: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """
+        Create a virtual interface using "ip link add" with a given link type.
+
+        Examples:
+        - XFRM: type_="xfrm", dev="eth0", params={"if_id": "100"}
+        - VRF:  type_="vrf", params={"table": "10"}
+
+        Args:
+            name: Interface name to create.
+            type_: Link type (e.g., "xfrm", "vrf", "bridge", "vlan").
+            dev: Optional underlying device to associate (e.g., physical NIC).
+            params: Optional key/value parameters specific to the link type.
+
+                Behavior:
+                        - If the interface already exists, this is a no-op
+                            (logs and returns).
+                        - Raises on failure with a descriptive message.
+        """
+        if self.nic_exists(name):
+            self._log.debug(f"Interface {name} already exists")
+            return
+
+        cmd = f"link add {name} type {type_}"
+        if dev:
+            cmd += f" dev {dev}"
+        if params:
+            for k, v in params.items():
+                cmd += f" {k} {v}"
+
+        self.run(
+            cmd,
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not create {type_} interface {name}"
+            ),
+        )
+
     def set_bridge_configuration(self, name: str, key: str, value: str) -> None:
         self.run(
             f"link set dev {name} type bridge {key} {value}",
@@ -500,6 +547,74 @@ class Ip(Tool):
         )
         detail = groups.get(attribute, "")
         return detail
+
+    def get_version(self) -> str:
+        """
+        Get iproute2 version string.
+        Returns the version output from 'ip -V'.
+        """
+        result = self.run("-V", sudo=False, force_run=True)
+        return result.stdout.strip()
+
+    def supports_xfrm(self, dev: str, if_id: str = "42") -> tuple[bool, str]:
+        """
+        Check if iproute2 supports XFRM interface creation with dev/if_id parameters.
+
+        Args:
+            dev: Network device name to use for the probe
+            if_id: Interface ID to use for the probe (default: "42")
+
+        Returns:
+            Tuple of (supported: bool, reason_if_not: str)
+            If supported is True, reason_if_not is empty.
+            If supported is False, reason_if_not contains the explanation.
+        """
+        probe_name = "xfrm-probe"
+        probe_cmd = f"link add {probe_name} type xfrm dev {dev} if_id {if_id}"
+
+        probe = self.run(probe_cmd, sudo=True, force_run=True)
+        if probe.exit_code == 0:
+            # Probe succeeded, clean up
+            self.run(f"link del {probe_name}", sudo=True, force_run=True)
+            return (True, "")
+
+        # Probe failed, determine why
+        probe_output = f"{probe.stdout}\n{probe.stderr}".lower()
+        full_output = f"{probe.stdout}{probe.stderr}".strip()
+
+        if "garbage instead of arguments" in probe_output:
+            version = self.get_version()
+            return (
+                False,
+                f"iproute2 doesn't support xfrm dev/if_id syntax. Version: {version}",
+            )
+        if (
+            "unknown" in probe_output and "type" in probe_output
+        ) or "not supported" in probe_output:
+            return (False, "System doesn't support xfrm link type")
+        if (
+            "no such device" in probe_output
+            or "failed policy validation" in probe_output
+        ):
+            return (
+                False,
+                f"Kernel/platform rejected xfrm link creation: {full_output}",
+            )
+        if (
+            "operation not permitted" in probe_output
+            or "permission denied" in probe_output
+        ):
+            return (
+                False,
+                "Insufficient permissions for xfrm operations (CAP_NET_ADMIN)",
+            )
+
+        # Unknown failure - include full output for debugging
+        error_msg = (
+            f"Unknown error (exit_code={probe.exit_code}): "
+            f"{full_output or '(no output)'}"
+        )
+        return (False, error_msg)
 
     def get_interface_list(self) -> list[str]:
         raise NotImplementedError()

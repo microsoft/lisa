@@ -6,7 +6,10 @@ import time
 from typing import Any, Dict, List, Tuple, Union, cast
 
 from assertpy import assert_that
-from microsoft.testsuites.network.common import cleanup_iperf3
+from microsoft.testsuites.network.common import (
+    cleanup_iperf3,
+    skip_if_no_synthetic_nics,
+)
 
 from lisa import (
     Environment,
@@ -100,6 +103,7 @@ class NetworkSettings(TestSuite):
         ),
     )
     def verify_ringbuffer_settings_change(self, node: Node) -> None:
+        skip_if_no_synthetic_nics(node)
         ethtool = node.tools[Ethtool]
         try:
             devices_settings = ethtool.get_all_device_ring_buffer_settings()
@@ -188,6 +192,8 @@ class NetworkSettings(TestSuite):
         requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_channels_change(self, node: Node, log: Logger) -> None:
+        skip_if_no_synthetic_nics(node)
+
         kernel_ver = node.tools[Uname].get_linux_information().kernel_version
         if (
             isinstance(node.os, Ubuntu)
@@ -258,6 +264,8 @@ class NetworkSettings(TestSuite):
         priority=1,
     )
     def verify_device_enabled_features(self, node: Node) -> None:
+        skip_if_no_synthetic_nics(node)
+
         required_features = [
             "rx-checksumming",
             "tx-checksumming",
@@ -298,6 +306,8 @@ class NetworkSettings(TestSuite):
         requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_gro_lro_settings_change(self, node: Node, log: Logger) -> None:
+        skip_if_no_synthetic_nics(node)
+
         ethtool = node.tools[Ethtool]
 
         skip_test = True
@@ -370,6 +380,8 @@ class NetworkSettings(TestSuite):
         requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_rss_hash_key_change(self, node: Node, log: Logger) -> None:
+        skip_if_no_synthetic_nics(node)
+
         uname = node.tools[Uname]
         linux_info = uname.get_linux_information()
 
@@ -435,6 +447,8 @@ class NetworkSettings(TestSuite):
         priority=2,
     )
     def verify_device_rx_hash_level_change(self, node: Node, log: Logger) -> None:
+        skip_if_no_synthetic_nics(node)
+
         ethtool = node.tools[Ethtool]
 
         # Run the test for both TCP and UDP
@@ -494,6 +508,8 @@ class NetworkSettings(TestSuite):
         ),
     )
     def verify_device_msg_level_change(self, node: Node, log: Logger) -> None:
+        skip_if_no_synthetic_nics(node)
+
         # Check if feature is supported by the kernel
         self._check_msg_level_change_supported(node)
 
@@ -605,6 +621,9 @@ class NetworkSettings(TestSuite):
     def verify_device_statistics(self, environment: Environment, log: Logger) -> None:
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
+
+        skip_if_no_synthetic_nics(client_node)
+
         ethtool = client_node.tools[Ethtool]
 
         self._verify_stats_exists(server_node, client_node)
@@ -614,10 +633,10 @@ class NetworkSettings(TestSuite):
 
         device = client_node.nics.default_nic
         nic = client_node.nics.get_nic(device)
-        if nic.lower:
+        if nic.is_pci_module_enabled:
             # If AN is enabled on this interface then use VF nic stats.
             an_enabled = True
-            device = nic.lower
+            device = nic.pci_device_name
 
         timeout = 300
         timer = create_timer()
@@ -773,9 +792,10 @@ class NetworkSettings(TestSuite):
         per_vf_queue_stats = 0
         for device_stats in devices_statistics:
             nic = client_node.nics.get_nic(device_stats.interface)
-            if nic.lower:
+            if nic.is_pci_module_enabled:
                 try:
-                    device_stats = ethtool.get_device_statistics(nic.lower, True)
+                    device_name = nic.pci_device_name
+                    device_stats = ethtool.get_device_statistics(device_name, True)
                 except UnsupportedOperationException as e:
                     raise SkippedException(e)
 

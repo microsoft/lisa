@@ -8,6 +8,7 @@ This module provides intelligent analysis of test failures using Azure OpenAI
 to help developers quickly understand the root cause of test issues.
 """
 
+import json
 import logging
 import os
 import pathlib
@@ -73,7 +74,7 @@ class LogAgentSchema(schema.Notifier):
     )
 
     skip_duplicate_errors: bool = field(
-        default=True,
+        default=False,
         metadata=field_metadata(
             description="Skip analysis for errors that have already been analyzed"
         ),
@@ -190,7 +191,16 @@ class LogAgent(Notifier):
             )
 
             # Parse and store analysis results
-            message.analysis["AI"] = analysis_result
+            try:
+                ai_analysis = json.loads(analysis_result)
+            except Exception:
+                ai_analysis = analysis_result
+
+            if isinstance(ai_analysis, dict) and "summary" in ai_analysis:
+                summary = ai_analysis["summary"]
+            else:
+                summary = str(ai_analysis)
+            message.analysis["AI"] = summary
 
             self._log.info(
                 f"Successfully completed AI analysis for test: {message.full_name}"

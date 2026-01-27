@@ -30,6 +30,7 @@ from lisa.tools import (
     Service,
     Stat,
     Tar,
+    Timeout,
 )
 from lisa.util import LisaException, SkippedException, find_group_in_lines
 from lisa.util.perf_timer import create_timer
@@ -307,10 +308,12 @@ class MshvHostTestSuite(TestSuite):
             create_result = node.execute(f"{mshvtrace_path} create", sudo=True)
             assert_that(create_result.exit_code).is_equal_to(0)
 
-            # 3. Collect trace for 30 seconds using node.execute with timeout argument
-            _ = node.execute(
-                f"{mshvtrace_path} collect -o {trace_output}", sudo=True, timeout=35
+            # 3. Collect trace for 15 seconds using timeout tool
+            collect_result = node.tools[Timeout].run_with_timeout(
+                command=f"{mshvtrace_path} collect -o {trace_output}", timeout=15
             )
+            assert_that(collect_result.exit_code).is_equal_to(0)
+
             trace_size = node.tools[Stat].get_total_size(trace_output, sudo=True)
             # 8192 is the min size of the trace file.
             assert_that(int(trace_size)).described_as(

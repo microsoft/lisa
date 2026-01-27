@@ -38,6 +38,7 @@ from .dnsmasq import Dnsmasq
 from .docker import Docker
 from .docker_compose import DockerCompose
 from .echo import Echo
+from .efibootmgr import EfiBootMgr
 from .ethtool import Ethtool
 from .fallocate import Fallocate
 from .fdisk import Fdisk
@@ -46,6 +47,7 @@ from .fio import FIOMODES, Fio, FIOResult, IoEngine
 from .fips import Fips
 from .firewall import Firewall, Iptables
 from .free import Free
+from .fstab import Fstab, FstabEntry
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
@@ -113,12 +115,14 @@ from .pvremove import Pvremove
 from .python import Pip, Python
 from .qemu import Qemu
 from .qemu_img import QemuImg
+from .readlink import Readlink
 from .reboot import Reboot
 from .remote_copy import RemoteCopy
 from .resize_partition import ResizePartition
 from .rm import Rm
 from .sar import Sar
 from .sockperf import Sockperf
+from .ss import Ss
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -132,6 +136,7 @@ from .tar import Tar
 from .taskset import TaskSet
 from .tcpdump import TcpDump
 from .tee import Tee
+from .testlimit import TestLimit
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
@@ -174,6 +179,7 @@ __all__ = [
     "Docker",
     "DockerCompose",
     "Echo",
+    "EfiBootMgr",
     "Ethtool",
     "Fallocate",
     "Fdisk",
@@ -185,6 +191,8 @@ __all__ = [
     "Fips",
     "Firewall",
     "Free",
+    "Fstab",
+    "FstabEntry",
     "Gcc",
     "Gdb",
     "Git",
@@ -268,6 +276,7 @@ __all__ = [
     "Qemu",
     "QemuImg",
     "Reboot",
+    "Readlink",
     "RemoteCopy",
     "ResizePartition",
     "Rpm",
@@ -277,6 +286,7 @@ __all__ = [
     "Service",
     "ServiceInternal",
     "Sockperf",
+    "Ss",
     "Ssh",
     "Sshpass",
     "StartConfiguration",
@@ -289,6 +299,7 @@ __all__ = [
     "Tar",
     "TaskSet",
     "Tee",
+    "TestLimit",
     "Texinfo",
     "TcpDump",
     "Timedatectl",

@@ -74,6 +74,14 @@ class HypervPlatform(Platform):
             log=self._log,
         )
 
+        # Initialize SerialConsoleLogger once here to avoid parallel access to
+        # server.working_path which can cause mkdir race condition/hangs
+        self._console_logger = SerialConsoleLogger(self._server)
+
+        # Download sources once here before parallel deployment to avoid
+        # race condition when multiple threads try to mkdir the same sources dir
+        self._download_sources(self._log)
+
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
         assert hyperv_runbook, "platform runbook cannot be empty"
@@ -119,7 +127,7 @@ class HypervPlatform(Platform):
             if not node_space.check(nodes_capabilities):
                 return False
 
-            requirement = node_space.generate_min_capability(nodes_capabilities)
+            requirement = node_space.choose_value(nodes_capabilities)
             nodes_requirement.append(requirement)
 
         if not self._is_host_resources_enough(nodes_requirement, log):
@@ -259,10 +267,6 @@ class HypervPlatform(Platform):
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
         }
 
-        self._download_sources(log)
-
-        self._console_logger = SerialConsoleLogger(self._server)
-
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
             node_runbook = node_space.get_extended_runbook(
                 HypervNodeSchema, type(self).type_name()
@@ -277,7 +281,6 @@ class HypervPlatform(Platform):
             assert self._source_vhd
 
             node.name = vm_name
-
             node_context = get_node_context(node)
             node_context.vm_name = vm_name
             node_context.host = self._server
@@ -306,13 +309,38 @@ class HypervPlatform(Platform):
                 com1_pipe_name, node_context.console_log_path, log
             )
 
+            # Determine which switch to use: node > platform > default
+            switch_to_use = (
+                node_runbook.switch_name
+                or self._hyperv_runbook.switch_name
+                or default_switch.name
+            )
+
+            # Validate that the specified switch exists if not using default
+            if switch_to_use != default_switch.name:
+                if not hv.exists_switch(switch_to_use):
+                    raise LisaException(
+                        f"Specified switch '{switch_to_use}' does not exist. "
+                        "Please create the switch first or use an existing "
+                        "switch name."
+                    )
+                log.info(f"Using specified switch: {switch_to_use}")
+            else:
+                log.debug(f"Using default switch: {switch_to_use}")
+
+            dm = node_runbook.dynamic_memory
             hv.create_vm(
                 name=vm_name,
                 guest_image_path=str(vhd_path),
-                switch_name=default_switch.name,
+                switch_name=switch_to_use,
                 generation=node_runbook.hyperv_generation,
                 cores=node.capability.core_count,
                 memory=node.capability.memory_mb,
+                dynamic_memory_enabled=True if dm else False,
+                minimum_memory_mb=dm.min_memory_mb if dm else None,
+                startup_memory_mb=dm.startup_memory_mb if dm else None,
+                maximum_memory_mb=dm.max_memory_mb if dm else None,
+                buffer=dm.buffer if dm else None,
                 secure_boot=False,
                 com_ports={
                     1: com1_pipe_path,
@@ -381,17 +409,17 @@ class HypervPlatform(Platform):
         if len(node_ctx.passthrough_devices) > 0:
             self.device_pool.release_devices(node_ctx)
 
+        # CRITICAL: Terminate serial console logger BEFORE deleting VM
+        # Otherwise it keeps trying to reconnect to the VM's named pipe
+        # causing 20+ minute hangs during cleanup
+        if node_ctx.serial_log_process:
+            node_ctx.serial_log_process.kill()
+            node_ctx.serial_log_process.wait_result(timeout=30)
+
         if wait_delete:
             hv.delete_vm(vm_name)
         else:
             hv.delete_vm_async(vm_name)
-
-        assert node_ctx.serial_log_process
-        result = node_ctx.serial_log_process.wait_result()
-        log.debug(
-            f"{vm_name} serial log process exited with {result.exit_code}. "
-            f"stdout: {result.stdout}"
-        )
 
     def _delete_nodes(self, environment: Environment, log: Logger) -> None:
         run_in_parallel(

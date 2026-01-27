@@ -469,6 +469,20 @@ class Idrac(Cluster):
                 # Re-raise to trigger retry
                 raise
 
+            # Check for VRM0021 virtual media attach mode errors that need iDRAC reset
+            # VRM0021: "Virtual Media is detached or Virtual Media devices are already
+            # in use" - indicates attach mode is wrong or stale session exists
+            if "VRM0021" in error_msg:
+                self._log.debug(
+                    "VRM0021 virtual media attach error detected. "
+                    "Ejecting media, resetting iDRAC to clear stale sessions..."
+                )
+                # Clear virtual media and reset iDRAC to fix attach mode/clear sessions
+                self._ensure_vm_cleared()
+                self._reset_idrac()
+                # Re-raise to trigger retry
+                raise
+
             # Check for RAC0904 or reachability errors that need iDRAC reset
             is_reachability_error = (
                 "RAC0904" in error_msg or "not accessible or reachable" in error_msg

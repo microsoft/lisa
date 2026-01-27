@@ -4,6 +4,7 @@ from microsoft.testsuites.performance.common import perf_nvme
 
 from lisa import (
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -12,6 +13,7 @@ from lisa import (
 from lisa.features import Nvme, NvmeSettings
 from lisa.testsuite import TestResult
 from lisa.tools.fio import IoEngine
+from lisa.tools.kernel_config import KernelConfig
 
 
 @TestSuiteMetadata(
@@ -50,4 +52,8 @@ class NvmePerformace(TestSuite):
         ),
     )
     def perf_nvme_io_uring(self, node: Node, result: TestResult) -> None:
+        # Check if io_uring is available in kernel configuration
+        kernel_config = node.tools[KernelConfig]
+        if not kernel_config.is_enabled("CONFIG_IO_URING"):
+            raise SkippedException("io_uring is not available in kernel configuration")
         perf_nvme(node, ioengine=IoEngine.IO_URING, result=result, max_iodepth=1024)

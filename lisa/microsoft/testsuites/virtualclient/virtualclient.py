@@ -13,7 +13,7 @@ from lisa import (
 )
 from lisa.operating_system import Debian, Ubuntu
 from lisa.tools import VcRunner
-from lisa.util import SkippedException
+from lisa.util import MissingPackagesException, SkippedException
 
 
 @TestSuiteMetadata(
@@ -96,10 +96,16 @@ class VirtualClient(TestSuite):
             roles = ["client", "server"]
 
         vc_runner: VcRunner = VcRunner(environment, roles)
-        vc_runner.run(
-            node=environment.nodes[0],
-            test_result=test_result,
-            profile_name=profile_name,
-            timeout=timeout,
-            log_path=log_path,
-        )
+        try:
+            vc_runner.run(
+                node=environment.nodes[0],
+                test_result=test_result,
+                profile_name=profile_name,
+                timeout=timeout,
+                log_path=log_path,
+            )
+        except MissingPackagesException:
+            raise SkippedException(
+                "Skipping test due to unauthorized access to "
+                "VirtualClient packages storage account."
+            )

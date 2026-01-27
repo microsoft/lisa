@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 from assertpy.assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
+from lisa.messages import (
+    MetricRelativity,
+    NetworkPPSPerformanceMessage,
+    create_perf_message,
+    send_unified_perf_message,
+)
 from lisa.operating_system import Posix
 from lisa.util import constants, find_groups_in_lines
 from lisa.util.process import ExecutableResult, Process
@@ -147,6 +152,15 @@ class Sar(Tool):
         result_fields["rx_tx_pps_maximum"] = max(tx_rx_pps)
         result_fields["rx_tx_pps_average"] = Decimal(sum(tx_rx_pps) / len(tx_rx_pps))
         result_fields["rx_tx_pps_minimum"] = min(tx_rx_pps)
+
+        # Send unified performance messages
+        self.send_pps_unified_perf_messages(
+            result_fields,
+            test_case_name,
+            test_type,
+            test_result,
+        )
+
         message = create_perf_message(
             NetworkPPSPerformanceMessage,
             self.node,
@@ -155,6 +169,92 @@ class Sar(Tool):
             result_fields,
         )
         return message
+
+    def send_pps_unified_perf_messages(
+        self,
+        result_fields: Dict[str, Any],
+        test_case_name: str,
+        test_type: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for PPS metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_SAR
+
+        metrics: List[Dict[str, Any]] = [
+            {
+                "name": "rx_pps_maximum",
+                "value": float(result_fields["rx_pps_maximum"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "rx_pps_average",
+                "value": float(result_fields["rx_pps_average"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "rx_pps_minimum",
+                "value": float(result_fields["rx_pps_minimum"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "tx_pps_maximum",
+                "value": float(result_fields["tx_pps_maximum"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "tx_pps_average",
+                "value": float(result_fields["tx_pps_average"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "tx_pps_minimum",
+                "value": float(result_fields["tx_pps_minimum"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "rx_tx_pps_maximum",
+                "value": float(result_fields["rx_tx_pps_maximum"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "rx_tx_pps_average",
+                "value": float(result_fields["rx_tx_pps_average"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "rx_tx_pps_minimum",
+                "value": float(result_fields["rx_tx_pps_minimum"]),
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/second",
+            },
+            {
+                "name": "test_type",
+                "str_value": test_type,
+                "relativity": MetricRelativity.Parameter,
+                "unit": "",
+            },
+        ]
+
+        for metric in metrics:
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric["name"],
+                metric_value=metric.get("value", 0.0),
+                metric_unit=metric["unit"],
+                metric_str_value=metric.get("str_value", ""),
+                metric_relativity=metric["relativity"],
+            )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]

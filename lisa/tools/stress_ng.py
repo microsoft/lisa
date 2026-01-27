@@ -48,6 +48,21 @@ class StressNg(Tool):
             cmd += f" --timeout {timeout_in_seconds} "
         self.run(cmd, force_run=True)
 
+    def launch_mmaphuge_stressor_async(
+        self, num_workers: int = 0, mmap_bytes: str = "", timeout_in_seconds: int = 0
+    ) -> Process:
+        # --mmaphuge N, start N workers stressing mmap with huge mappings
+        # --mmaphuge-bytes N, mmap and munmap N bytes for each stress iteration
+        # --timeout T, timeout after T seconds
+        cmd = ""
+        if num_workers:
+            cmd += f" --mmaphuge {num_workers} "
+        if mmap_bytes:
+            cmd += f" --mmap-bytes {mmap_bytes} "
+        if timeout_in_seconds:
+            cmd += f" --timeout {timeout_in_seconds} "
+        return self.run_async(cmd, force_run=True)
+
     def launch_cpu(self, num_cores: int = 0, timeout_in_seconds: int = 3600) -> None:
         # --cpu N, start N CPU workers
         # --timeout T, timeout after T seconds
@@ -80,7 +95,7 @@ class StressNg(Tool):
         v_flag = "-v" if verbose else ""
         return self.run_async(
             f"{v_flag} --sequential {num_workers} --class {class_name} "
-            f"--timeout {timeout_secs}",
+            f"--timeout {timeout_secs} --oom-avoid",
             sudo=sudo,
         )
 

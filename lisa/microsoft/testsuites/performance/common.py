@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
+import time
 from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -15,8 +16,10 @@ from lisa import (
     SkippedException,
     notifier,
     run_in_parallel,
+    schema,
 )
 from lisa.features import Nvme
+from lisa.features.disks import Disk
 from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
@@ -339,10 +342,16 @@ def perf_ntttcp(  # noqa: C901
             else:
                 connections = NTTTCP_TCP_CONCURRENCY
 
-    client_ntttcp, server_ntttcp = run_in_parallel(
-        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
-    )
+    # Initialize variables before try block
+    client_lagscope = None
+    server_lagscope = None
+    client_ntttcp = None
+    server_ntttcp = None
+
     try:
+        client_ntttcp, server_ntttcp = run_in_parallel(
+            [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
+        )
         client_lagscope, server_lagscope = run_in_parallel(
             [
                 lambda: client.tools[Lagscope],  # type: ignore
@@ -360,8 +369,8 @@ def perf_ntttcp(  # noqa: C901
         else:
             need_reboot = False
         if need_reboot:
-            client_sriov_count = len(client.nics.get_lower_nics())
-            server_sriov_count = len(server.nics.get_lower_nics())
+            client_sriov_count = len(client.nics.get_pci_nics())
+            server_sriov_count = len(server.nics.get_pci_nics())
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
@@ -408,15 +417,17 @@ def perf_ntttcp(  # noqa: C901
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
-        server_lagscope.run_as_server_async(
-            ip=lagscope_server_ip
-            if lagscope_server_ip is not None
-            else server.internal_address
-        )
         max_server_threads = 64
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
+
+        # Retry mechanism configuration:
+        # ntttcp client can sometimes hang or timeout, especially with
+        # high connection counts. We implement a retry mechanism to improve
+        # test reliability without failing the entire suite.
+        max_retries = 20  # Maximum retry attempts for each connection test
+
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
@@ -431,44 +442,154 @@ def perf_ntttcp(  # noqa: C901
             if udp_mode:
                 buffer_size = int(1024 / 1024)
 
-            server_result = server_ntttcp.run_as_server_async(
-                server_nic_name,
-                server_ip=server.internal_address if isinstance(server.os, BSD) else "",
-                ports_count=num_threads_p,
-                buffer_size=buffer_size,
-                dev_differentiator=dev_differentiator,
-                udp_mode=udp_mode,
-            )
-            client_lagscope_process = client_lagscope.run_as_client_async(
-                server_ip=server.internal_address,
-                ping_count=0,
-                run_time_seconds=10,
-                print_histogram=False,
-                print_percentile=False,
-                histogram_1st_interval_start_value=0,
-                length_of_histogram_intervals=0,
-                count_of_histogram_intervals=0,
-                dump_csv=False,
-            )
-            client_ntttcp_result = client_ntttcp.run_as_client(
-                client_nic_name,
-                server.internal_address,
-                buffer_size=buffer_size,
-                threads_count=num_threads_n,
-                ports_count=num_threads_p,
-                dev_differentiator=dev_differentiator,
-                udp_mode=udp_mode,
-            )
-            server.tools[Kill].by_name(server_ntttcp.command)
-            server_ntttcp_result = server_result.wait_result()
-            server_result_temp = server_ntttcp.create_ntttcp_result(
-                server_ntttcp_result
-            )
-            client_result_temp = client_ntttcp.create_ntttcp_result(
-                client_ntttcp_result, role="client"
-            )
-            client_sar_result = client_lagscope_process.wait_result()
-            client_average_latency = client_lagscope.get_average(client_sar_result)
+            # Retry mechanism for the current connection test:
+            # Each connection count (test_thread) gets up to max_retries
+            # attempts. This handles transient failures like process hangs,
+            # timeouts, or network issues.
+            retry_count = 0
+            test_success = False
+            server_result_temp = None
+            client_result_temp = None
+            client_average_latency = None
+
+            while retry_count < max_retries and not test_success:
+                try:
+                    if retry_count > 0:
+                        client.log.info(
+                            f"Retrying ntttcp test for {test_thread} connections "
+                            f"(attempt {retry_count + 1}/{max_retries})"
+                        )
+                        # Clean up any stuck processes from the previous attempt.
+                        # This is critical to prevent resource conflicts and
+                        # ensure a clean retry.
+                        for node in [client, server]:
+                            node.tools[Kill].by_name("ntttcp")
+                            node.tools[Kill].by_name("lagscope")
+
+                    # Restart lagscope server for each attempt to ensure clean
+                    # connection state
+                    server_lagscope.run_as_server_async(
+                        ip=(
+                            lagscope_server_ip
+                            if lagscope_server_ip is not None
+                            else server.internal_address
+                        )
+                    )
+
+                    # Start ntttcp server asynchronously to accept incoming
+                    # connections
+                    server_result = server_ntttcp.run_as_server_async(
+                        server_nic_name,
+                        server_ip=(
+                            server.internal_address
+                            if isinstance(server.os, BSD)
+                            else ""
+                        ),
+                        ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        dev_differentiator=dev_differentiator,
+                        udp_mode=udp_mode,
+                    )
+
+                    # Start lagscope client to measure latency during the
+                    # ntttcp test
+                    client_lagscope_process = client_lagscope.run_as_client_async(
+                        server_ip=server.internal_address,
+                        ping_count=0,
+                        run_time_seconds=10,
+                        print_histogram=False,
+                        print_percentile=False,
+                        histogram_1st_interval_start_value=0,
+                        length_of_histogram_intervals=0,
+                        count_of_histogram_intervals=0,
+                        dump_csv=False,
+                    )
+
+                    # Run ntttcp client and monitor for hangs
+                    # Use daemon mode to run in background, then monitor process
+                    client_ntttcp_result = client_ntttcp.run_as_client(
+                        client_nic_name,
+                        server.internal_address,
+                        buffer_size=buffer_size,
+                        threads_count=num_threads_n,
+                        ports_count=num_threads_p,
+                        dev_differentiator=dev_differentiator,
+                        udp_mode=udp_mode,
+                    )
+
+                    # Stop the server and collect results from both client
+                    # and server
+                    server.tools[Kill].by_name(server_ntttcp.command)
+                    server_ntttcp_result = server_result.wait_result()
+                    server_result_temp = server_ntttcp.create_ntttcp_result(
+                        server_ntttcp_result
+                    )
+                    client_result_temp = client_ntttcp.create_ntttcp_result(
+                        client_ntttcp_result, role="client"
+                    )
+
+                    # Collect latency measurement from lagscope client
+                    client_sar_result = client_lagscope_process.wait_result()
+                    client_average_latency = client_lagscope.get_average(
+                        client_sar_result
+                    )
+
+                    # Mark the test as successful and exit the retry loop
+                    test_success = True
+                    client.log.info(
+                        f"Successfully completed ntttcp test for "
+                        f"{test_thread} connections"
+                    )
+
+                except Exception as e:
+                    # An error occurred during the test (timeout, process hang,
+                    # network issue, etc.)
+
+                    time.sleep(30)
+                    client.log.error(
+                        f"Error during ntttcp test for {test_thread} connections "
+                        f"(attempt {retry_count}/{max_retries}): {e}"
+                    )
+                    retry_count += 1
+
+                    # Clean up all processes to ensure a clean state for the
+                    # next retry. This prevents hung processes from interfering
+                    # with subsequent attempts.
+                    try:
+                        for node in [client, server]:
+                            node.tools[Kill].by_name("ntttcp")
+                            node.tools[Kill].by_name("lagscope")
+                    except Exception as cleanup_error:
+                        # Log cleanup errors but don't fail the retry mechanism
+                        client.log.error(f"Cleanup error: {cleanup_error}")
+
+                    if retry_count >= max_retries:
+                        # All retry attempts exhausted for this connection count.
+                        # Log the failure and skip to the next connection count
+                        # instead of failing the entire test suite. This allows
+                        # other connection tests to proceed.
+                        client.log.error(
+                            f"Failed ntttcp test for {test_thread} connections "
+                            f"after {max_retries} attempts. "
+                            f"Skipping this connection count."
+                        )
+                        # Break out of the retry loop to move to the next
+                        # connection
+                        break
+
+            # All retry attempts exhausted without success.
+            # Raise an exception to fail the test as performance data
+            # could not be collected.
+            if not test_success:
+                raise LisaException(
+                    f"ntttcp test for {test_thread} connections failed after "
+                    f"{max_retries} attempts."
+                )
+            assert server_result_temp is not None, "server result should not be None"
+            assert client_result_temp is not None, "client result should not be None"
+            assert (
+                client_average_latency is not None
+            ), "client average latency should not be None"
             if udp_mode:
                 ntttcp_message: Union[
                     NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
@@ -496,6 +617,9 @@ def perf_ntttcp(  # noqa: C901
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+    except Exception as ex:
+        client.log.info(f"Exception during ntttcp performance test: {ex}")
+        raise
     finally:
         error_msg = ""
         throw_error = False
@@ -506,11 +630,13 @@ def perf_ntttcp(  # noqa: C901
         if throw_error:
             error_msg += "probably due to VM stuck on reboot stage."
             raise LisaException(error_msg)
-        for ntttcp in [client_ntttcp, server_ntttcp]:
-            ntttcp.restore_system(udp_mode)
-        for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.kill()
-            lagscope.restore_busy_poll()
+        if client_ntttcp and server_ntttcp:
+            for ntttcp in [client_ntttcp, server_ntttcp]:
+                ntttcp.restore_system(udp_mode)
+        if client_lagscope and server_lagscope:
+            for lagscope in [client_lagscope, server_lagscope]:
+                lagscope.kill()
+                lagscope.restore_busy_poll()
     return perf_ntttcp_message_list
 
 
@@ -649,6 +775,105 @@ def perf_sockperf(
             sysctl.reset()
 
 
+def perf_premium_datadisks(
+    node: Node,
+    test_result: TestResult,
+    disk_setup_type: DiskSetupType = DiskSetupType.raw,
+    disk_type: DiskType = DiskType.premiumssd,
+    block_size: int = 4,
+    start_iodepth: int = 1,
+    max_iodepth: int = 256,
+    ioengine: IoEngine = IoEngine.LIBAIO,
+) -> None:
+    disk = node.features[Disk]
+    data_disks = disk.get_raw_data_disks()
+    disk_count = len(data_disks)
+    assert_that(disk_count).described_as(
+        "At least 1 data disk for fio testing."
+    ).is_greater_than(0)
+    partition_disks = reset_partitions(node, data_disks)
+    filename = ":".join(partition_disks)
+    cpu = node.tools[Lscpu]
+    thread_count = cpu.get_thread_count()
+    perf_disk(
+        node,
+        start_iodepth,
+        max_iodepth,
+        filename,
+        test_name=inspect.stack()[1][3],
+        core_count=thread_count,
+        disk_count=disk_count,
+        disk_setup_type=disk_setup_type,
+        disk_type=disk_type,
+        numjob=thread_count,
+        block_size=block_size,
+        size_mb=8192,
+        overwrite=True,
+        test_result=test_result,
+        ioengine=ioengine,
+    )
+
+
+def perf_resource_disks(
+    node: Node,
+    test_result: TestResult,
+    disk_setup_type: DiskSetupType = DiskSetupType.raw,
+    block_size: int = 4,
+    start_iodepth: int = 1,
+    max_iodepth: int = 256,
+) -> None:
+    disk = node.features[Disk]
+    resource_disks = disk.get_resource_disks()
+    disk_count = len(resource_disks)
+    if disk_count == 0:
+        raise SkippedException(
+            "No resource disk found, skipping resource disk performance test."
+        )
+    resource_disk_type = disk.get_resource_disk_type()
+    if schema.ResourceDiskType.NVME == resource_disk_type:
+        perf_nvme(
+            node,
+            test_result,
+            disk_type=DiskType.localnvme,
+        )
+        return
+    elif schema.ResourceDiskType.SCSI == resource_disk_type:
+        # If there is only one resource disk and its SCSI type,
+        # it will be mounted at /mnt.
+        # Create a file under and use it as fio filename.
+        # If there are multiple resource disks, reset partitions and
+        # use the partition disks as fio filename.
+        if disk_count == 1:
+            filename = f"{disk.get_resource_disk_mount_point()}/fiodata"
+        else:
+            partition_disks = reset_partitions(node, resource_disks)
+            filename = ":".join(partition_disks)
+        core_count = node.tools[Lscpu].get_core_count()
+
+        perf_disk(
+            node,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=disk_count,
+            disk_setup_type=disk_setup_type,
+            disk_type=DiskType.localssd,
+            numjob=core_count,
+            block_size=block_size,
+            size_mb=8192,
+            overwrite=True,
+            test_result=test_result,
+        )
+
+    else:
+        raise SkippedException(
+            f"Resource disk type {resource_disk_type} not supported for "
+            f"performance test."
+        )
+
+
 def calculate_middle_average(values: List[Union[float, int]]) -> float:
     """
     This method is used to calculate an average indicator. It discard the max
@@ -664,7 +889,7 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()
 
-    assert_that(len(node_nic_info.get_lower_nics())).described_as(
-        f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+    assert_that(len(node_nic_info.get_pci_nics())).described_as(
+        f"VF count inside VM is {len(node_nic_info.get_pci_nics())},"
         f"actual sriov nic count is {sriov_count}"
     ).is_equal_to(sriov_count)

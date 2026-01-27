@@ -5,7 +5,7 @@ from typing import Dict, List, cast
 from assertpy import assert_that
 from retry import retry
 
-from lisa import Environment, Node, RemoteNode, constants
+from lisa import Environment, Node, RemoteNode, SkippedException, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD
@@ -205,14 +205,14 @@ def _setup_nic_monitoring(
     dest_synthetic_nic = dest_nic_info.name
 
     # Determine which NIC to monitor for packet counts
-    if source_nic_info.lower and source_nic_info.pci_device_name:
+    if source_nic_info.is_pci_module_enabled and source_nic_info.pci_device_name:
         source_pci_nic = source_nic_info.pci_device_name
         source_nic = source_pci_nic
     else:
         source_pci_nic = source_nic_info.name
         source_nic = source_synthetic_nic
 
-    if dest_nic_info.lower and dest_nic_info.pci_device_name:
+    if dest_nic_info.is_pci_module_enabled and dest_nic_info.pci_device_name:
         dest_pci_nic = dest_nic_info.pci_device_name
         dest_nic = dest_pci_nic
     else:
@@ -291,9 +291,9 @@ def sriov_vf_connection_test(
 
         # turn off lower device
         if turn_off_lower:
-            if source_nic_info.lower:
+            if source_nic_info.is_pci_module_enabled:
                 source_node.tools[Ip].down(source_pci_nic)
-            if dest_nic_info.lower:
+            if dest_nic_info.is_pci_module_enabled:
                 dest_node.tools[Ip].down(dest_pci_nic)
 
         # Perform file transfer to test connectivity
@@ -309,9 +309,9 @@ def sriov_vf_connection_test(
 
         # turn on lower device, if turned off before
         if turn_off_lower:
-            if source_nic_info.lower:
+            if source_nic_info.is_pci_module_enabled:
                 source_node.tools[Ip].up(source_pci_nic)
-            if dest_nic_info.lower:
+            if dest_nic_info.is_pci_module_enabled:
                 dest_node.tools[Ip].up(dest_pci_nic)
 
     # After testing all NICs, ensure at least one valid pair was tested
@@ -396,3 +396,20 @@ def reload_modules(environment: Environment) -> bool:
                 node.nics.load_module(module_name)
                 reload_modules = True
     return reload_modules
+
+
+def skip_if_no_synthetic_nics(node: Node) -> None:
+    """Skip test if node has no synthetic NICs available."""
+    if not node.nics.get_synthetic_devices():
+        raise SkippedException("No synthetic NICs available for testing")
+
+
+def skip_if_pci_only_nics(environment: Environment) -> None:
+    """Skip test if any node has PCI-only NICs (AN without synthetic pairing)."""
+    for node in environment.nodes.list():
+        for nic in node.nics.nics.values():
+            if nic.is_pci_only_nic:
+                raise SkippedException(
+                    f"SRIOV disable/enable test not applicable for "
+                    f"PCI-only NIC {nic.name} on node {node.name}."
+                )

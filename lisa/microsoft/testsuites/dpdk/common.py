@@ -461,3 +461,8 @@ class Pmd(str, Enum):
     # librte_net_netvsc
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
+
+
+# set a threshold for an expected PPS minimum with DPDK.
+# this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps (for now)
+DPDK_PPS_THRESHOLD = 1_200_000

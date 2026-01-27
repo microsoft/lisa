@@ -27,6 +27,7 @@ from lisa.util import (
 
 from .common import (
     AZURE_SHARED_RG_NAME,
+    AzureNodeSchema,
     check_blob_exist,
     check_or_create_gallery,
     check_or_create_gallery_image,
@@ -472,6 +473,7 @@ class SigTransformerSchema(schema.Transformer):
               - westus3
               - westus2
             gallery_image_hyperv_generation: 2
+            gallery_image_disk_controller_types: NVMe
             gallery_image_name: image_name
             gallery_image_architecture: Arm64
             gallery_image_fullname: Microsoft Linux arm64 0.0.1
@@ -514,6 +516,9 @@ class SigTransformerSchema(schema.Transformer):
     )
     # image security type, can be empty, TrustedLaunch
     gallery_image_securitytype: str = ""
+    # Disk controller type feature for the gallery image definition.
+    # Common values: NVMe, SCSI, or comma-separated (e.g. SCSI,NVMe)
+    gallery_image_disk_controller_types: str = ""
     gallery_image_osstate: str = field(
         default="Generalized",
         metadata=field_metadata(
@@ -572,6 +577,10 @@ class SigTransformerSchema(schema.Transformer):
             ),
         ),
     )
+    # Marketplace image to take features from.
+    # Will override gallery_image_architecture,
+    # gallery_image_hyperv_generation, and gallery_image_securitytype
+    marketplace_source: str = field(default="")
 
 
 class SharedGalleryImageTransformer(Transformer):
@@ -614,6 +623,24 @@ class SharedGalleryImageTransformer(Transformer):
             raise_error=True,
         )
 
+        # Get features from marketplace image if specified
+        features = self._get_image_features(platform, runbook.marketplace_source)
+        if features:
+            runbook.gallery_image_hyperv_generation = features.pop(
+                "hyper_v_generation", runbook.gallery_image_hyperv_generation
+            )
+            runbook.gallery_image_architecture = features.pop(
+                "architecture", runbook.gallery_image_architecture
+            )
+            features.pop("os_type", None)
+        else:
+            if runbook.gallery_image_securitytype:
+                features["SecurityType"] = runbook.gallery_image_securitytype
+
+            disk_controller_types = runbook.gallery_image_disk_controller_types
+            if disk_controller_types:
+                features["DiskControllerTypes"] = disk_controller_types
+
         (
             gallery_image_publisher,
             gallery_image_offer,
@@ -650,7 +677,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_osstate,
             runbook.gallery_image_hyperv_generation,
             runbook.gallery_image_architecture,
-            runbook.gallery_image_securitytype,
+            features,
         )
 
         check_or_create_gallery_image_version(
@@ -677,3 +704,26 @@ class SharedGalleryImageTransformer(Transformer):
 
         self._log.info(f"SIG Url: {sig_url}")
         return {self.__sig_name: sig_url}
+
+    def _get_image_features(
+        self, platform: AzurePlatform, marketplace: str
+    ) -> Dict[str, Any]:
+        if not marketplace:
+            return {}
+        node_schema = AzureNodeSchema(marketplace_raw=marketplace)
+        if not node_schema.marketplace:
+            return {}
+        features = node_schema.marketplace._get_info(platform)
+
+        # Convert hyper_v_generation to int from form "V1", "V2"
+        if (
+            features.get("hyper_v_generation", None)
+            and features["hyper_v_generation"].strip("V").isdigit()
+        ):
+            features["hyper_v_generation"] = int(
+                features["hyper_v_generation"].strip("V")
+            )
+        else:
+            features.pop("hyper_v_generation", None)
+
+        return features

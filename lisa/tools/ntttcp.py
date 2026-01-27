@@ -296,6 +296,38 @@ class Ntttcp(Tool):
             expected_exit_code_failure_message="fail to launch ntttcp server",
         )
 
+    def run_as_client_async(
+        self,
+        nic_name: str,
+        server_ip: str,
+        threads_count: int,
+        run_time_seconds: int = 10,
+        ports_count: int = 64,
+        buffer_size: int = 64,
+        cool_down_time_seconds: int = 1,
+        warm_up_time_seconds: int = 1,
+        dev_differentiator: str = "Hypervisor callback interrupts",
+        run_as_daemon: bool = False,
+        udp_mode: bool = False,
+    ) -> Process:
+        cmd = (
+            f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
+            f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
+            f"--show-nic-packets {nic_name} "
+        )
+        if udp_mode:
+            cmd += " -u "
+        if dev_differentiator:
+            cmd += f" --show-dev-interrupts {dev_differentiator} "
+        if run_as_daemon:
+            cmd += " -D "
+        process = self.node.execute_async(
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            shell=True,
+            sudo=True,
+        )
+        return process
+
     def run_as_client(
         self,
         nic_name: str,
@@ -309,6 +341,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        tolerance_seconds: int = 60,
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -327,25 +360,25 @@ class Ntttcp(Tool):
         # the devices specified by the differentiator
         # Examples for differentiator: Hyper-V PCIe MSI, mlx4, Hypervisor callback
         # interrupts
-        cmd = (
-            f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
-            f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
-            f"--show-nic-packets {nic_name} "
+
+        process = self.run_as_client_async(
+            nic_name,
+            server_ip,
+            threads_count,
+            run_time_seconds,
+            ports_count,
+            buffer_size,
+            cool_down_time_seconds,
+            warm_up_time_seconds,
+            dev_differentiator,
+            run_as_daemon,
+            udp_mode,
         )
-        if udp_mode:
-            cmd += " -u "
-        if dev_differentiator:
-            cmd += f" --show-dev-interrupts {dev_differentiator} "
-        if run_as_daemon:
-            cmd += " -D "
-        result = self.node.execute(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
-            shell=True,
-            sudo=True,
+        return process.wait_result(
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+            expected_exit_code_failure_message="fail to run ntttcp client",
+            timeout=run_time_seconds + tolerance_seconds,
         )
-        return result
 
     def create_ntttcp_result(
         self, result: ExecutableResult, role: str = "server"
@@ -868,6 +901,7 @@ class BSDNtttcp(Ntttcp):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        tolerance_seconds: int = 60,
     ) -> ExecutableResult:
         self._log.debug(
             "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
@@ -887,6 +921,7 @@ class BSDNtttcp(Ntttcp):
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+            timeout=run_time_seconds + tolerance_seconds,
         )
         return result
 

@@ -1184,7 +1184,7 @@ class AzureImageStandard(TestSuite):
         2. If any unexpected failure, error, warning messages excluding ignorable ones
          existing, fail the case.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_boot_error_fail_warnings(self, node: Node) -> None:

@@ -11,9 +11,10 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.tools import Git, Sed, Service, Usermod, Wget, Whoami
+from lisa.tools import Git, Ln, Sed, Service, Usermod, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
+    LisaException,
     UnsupportedDistroException,
     field_metadata,
     filter_ansi_escape,
@@ -27,6 +28,8 @@ from lisa.util.process import ExecutableResult
 @dataclass
 class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     force_install: bool = False
+    # Optional ref/tag/version to install. If not specified, uses latest release.
+    ref: str = ""
 
 
 @dataclass_json()
@@ -106,6 +109,16 @@ class QemuInstaller(BaseInstaller):
 class CloudHypervisorInstaller(BaseInstaller):
     _command = "cloud-hypervisor"
 
+    def _create_symlink_to_usr_bin(self) -> None:
+        """Create symlink in /usr/bin for non-login shells."""
+        ln = self._node.tools[Ln]
+        ln.create_link(
+            target="/usr/local/bin/cloud-hypervisor",
+            link="/usr/bin/cloud-hypervisor",
+            is_symbolic=True,
+            force=True,
+        )
+
 
 class LibvirtInstaller(BaseInstaller):
     _command = "libvirtd"
@@ -171,6 +184,18 @@ class CloudHypervisorInstallerTransformer(Transformer):
         runbook: InstallerTransformerSchema = self.runbook
         assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
+
+        # Check if cloudhypervisor_installer_ref variable is provided
+        if "cloudhypervisor_installer_ref" in self._runbook_builder.variables:
+            ref_value = self._runbook_builder.variables[
+                "cloudhypervisor_installer_ref"
+            ].data
+            # Only use variable if it has a value and runbook ref is not already set
+            if ref_value and runbook.installer.ref == "":
+                runbook.installer.ref = ref_value
+                self._log.info(
+                    f"Using cloudhypervisor_installer_ref variable: {ref_value}"
+                )
 
         node = quick_connect(runbook.connection, "cloudhypervisor_installer_node")
 
@@ -412,6 +437,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             shell=True,
             sudo=True,
         )
+        self._create_symlink_to_usr_bin()
 
     def _install_dependencies(self) -> None:
         linux: Linux = cast(Linux, self._node.os)
@@ -497,22 +523,45 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(packages_list)
-        command = (
-            "curl -s https://api.github.com/repos/cloud-hypervisor/"
-            "cloud-hypervisor/releases/latest | jq -r '.tag_name'"
-        )
-        latest_release_tag = self._node.execute(command, shell=True)
-        self._log.debug(f"latest tag: {latest_release_tag}")
+
+        runbook: BaseInstallerSchema = self.runbook
+        if runbook.ref:
+            release_tag = runbook.ref
+            # Validate ref format: should start with 'v' followed by version number
+            # or be a valid git ref (commit hash, branch name)
+            if not release_tag.strip():
+                raise LisaException(
+                    "Invalid cloud-hypervisor ref: empty string provided. "
+                    "Please specify a valid release tag (e.g., 'v40.0') or git ref."
+                )
+            self._log.info(f"Using specified cloud-hypervisor ref: {release_tag}")
+        else:
+            command = (
+                "curl -s https://api.github.com/repos/cloud-hypervisor/"
+                "cloud-hypervisor/releases/latest | jq -r '.tag_name'"
+            )
+            release_tag = self._node.execute(command, shell=True).stdout.strip()
+            self._log.info(f"Using latest cloud-hypervisor release: {release_tag}")
+
         wget = self._node.tools[Wget]
         file_url = (
             "https://github.com/cloud-hypervisor/cloud-hypervisor/"
-            f"releases/download/{latest_release_tag}/cloud-hypervisor"
+            f"releases/download/{release_tag}/cloud-hypervisor"
         )
-        file_path = wget.get(
-            url=file_url,
-            executable=True,
-            filename="cloud-hypervisor",
-        )
+
+        try:
+            file_path = wget.get(
+                url=file_url,
+                executable=True,
+                filename="cloud-hypervisor",
+            )
+        except Exception as e:
+            raise LisaException(
+                f"Failed to download cloud-hypervisor binary for ref '{release_tag}'. "
+                f"Please verify the ref exists at "
+                f"https://github.com/cloud-hypervisor/cloud-hypervisor/releases. "
+                f"Error: {e}"
+            ) from e
         self._node.execute(f"cp {file_path} /usr/local/bin", sudo=True)
         self._node.execute(
             "chmod a+rx /usr/local/bin/cloud-hypervisor",
@@ -523,6 +572,7 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
             "setcap cap_net_admin+ep /usr/local/bin/cloud-hypervisor",
             sudo=True,
         )
+        self._create_symlink_to_usr_bin()
         return self._get_version()
 
 

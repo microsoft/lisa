@@ -101,6 +101,14 @@ class XdpDump(Tool):
             sudo=True,
         )
 
+        # Fix Makefile compilation rule
+        sed.substitute(
+            "-O2 -emit-llvm -c -g \\$<",
+            "-O2 -emit-llvm -g $< -o ${<:.c=.ll}",
+            f"{self._code_path}/Makefile",
+            sudo=True,
+        )
+
         # create a default version for exists checking.
         make = self.node.tools[Make]
         make.make(
@@ -200,6 +208,13 @@ class XdpDump(Tool):
                 cflags = f"{cflags} -D __PERF__"
             env_variables["CFLAGS"] = cflags
 
+        # Fix Makefile compilation rule
+        self.node.tools[Sed].substitute(
+            "-O2 -emit-llvm -c -g \\$<",
+            "-O2 -emit-llvm -g $< -o ${<:.c=.ll}",
+            f"{self._code_path}/Makefile",
+            sudo=True,
+        )
         make = self.node.tools[Make]
         make.make(
             arguments="",

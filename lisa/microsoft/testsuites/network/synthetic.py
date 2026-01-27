@@ -9,8 +9,14 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, StartStop
+from lisa.search_space import IntRange
 
-from .common import initialize_nic_info, remove_extra_nics, restore_extra_nics
+from .common import (
+    initialize_nic_info,
+    remove_extra_nics,
+    restore_extra_nics,
+    skip_if_no_synthetic_nics,
+)
 
 
 @TestSuiteMetadata(
@@ -25,7 +31,7 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -33,20 +39,24 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         initialize_nic_info(environment, is_sriov=False)
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -56,15 +66,19 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
             node.reboot()
@@ -72,7 +86,7 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -82,15 +96,19 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
@@ -99,7 +117,7 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provison with max synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
@@ -109,15 +127,19 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-            ),
+                nic_count=IntRange(min=2, choose_max_value=True),
+            )
         ),
     )
     def verify_synthetic_provision_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         initialize_nic_info(environment, is_sriov=False)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
@@ -140,13 +162,17 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                max_nic_count=IntRange(min=8),
             ),
         ),
     )
     def verify_synthetic_add_max_nics_one_time_after_provision(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         remove_extra_nics(environment)
         try:
             for node in environment.nodes.list():
@@ -173,13 +199,17 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                max_nic_count=IntRange(min=8),
             ),
         ),
     )
     def verify_synthetic_add_max_nics_one_by_one_after_provision(
         self, environment: Environment
     ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
         remove_extra_nics(environment)
         try:
             for node in environment.nodes.list():

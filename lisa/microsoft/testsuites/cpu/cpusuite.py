@@ -325,10 +325,13 @@ class CPUSuite(TestSuite):
                 "Device Combined max <= 1 at baseline; cannot add channels."
             )
 
-        # Find idle CPUs; if none, shrink once to 1 and retry
-        idle = get_idle_cpus(node)
-        log.debug(f"Idle CPUs (initial): {idle}")
-        if len(idle) == 0:
+        max_device_channel = (
+            node.tools[Ethtool].get_device_channels_info("eth0", True)
+        ).max_channels
+        log.debug(f"max device channel count: {max_device_channel}")
+
+        # set channel count into 1 to get idle cpus
+        if len(idle_cpus) == 0:
             node.tools[Ethtool].change_device_channels_info("eth0", 1)
             idle = get_idle_cpus(node)
             log.debug(f"Idle CPUs (after shrink to 1): {idle}")
@@ -394,8 +397,20 @@ class CPUSuite(TestSuite):
                 1, min(threads_phase2, device_max_phase2, self.MAX_CHANNELS_LIMIT)
             )
 
-            current_channels_phase2 = self._read_current(node)
-            if current_channels_phase2 > upper_limit_phase2:
+            # if all cpus besides cpu 0 are changed into offline
+            # skip change the channel, since current channel is 1
+            first_channel_count = random.randint(
+                1, min(max_channel_count, 64, max_device_channel)
+            )
+            log.debug(f"first channel count to change: {first_channel_count}")
+            if first_current_device_channel > 1:
+                while True:
+                    if first_channel_count != first_current_device_channel:
+                        break
+                    first_channel_count = random.randint(
+                        1, min(thread_count, 64, max_device_channel)
+                    )
+                log.debug(f"first final channel count: {first_channel_count}")
                 node.tools[Ethtool].change_device_channels_info(
                     "eth0", upper_limit_phase2
                 )
@@ -404,15 +419,45 @@ class CPUSuite(TestSuite):
                     f"Reduced current channels at phase2: {current_channels_phase2}"
                 )
 
-            target_channels_phase2 = self._pick_target_not_eq_current(
-                current_channels_phase2, upper_limit_phase2
+            # verify that the added channels do not handle interrupts on offline cpu
+            lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
+            for channel in lsvmbus_channels:
+                # verify synthetic network adapter channels align with expected value
+                if channel.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
+                    log.debug(f"Network synthetic channel: {channel}")
+                    assert_that(channel.channel_vp_map).is_length(
+                        first_current_device_channel
+                    )
+
+                # verify that devices do not handle interrupts on offline cpu
+                for channel_vp in channel.channel_vp_map:
+                    assert_that(channel_vp.target_cpu).is_not_in(idle_cpus)
+
+            # reset idle cpu to online
+            set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
+
+            # reset max and current channel count into original ones
+            # by reloading hv_netvsc driver if hv_netvsc can be reload
+            # otherwise reboot vm
+            if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
+                node.tools[Modprobe].reload("hv_netvsc")
+            else:
+                node.tools[Reboot].reboot()
+
+            # change the combined channels count after all cpus online
+            second_channel_count = random.randint(
+                1, min(thread_count, 64, max_device_channel)
             )
-            new_channels_phase2 = self._set_channels_with_retry(
-                log,
-                node,
-                target_channels_phase2,
-                current_channels_phase2,
-                upper_limit_phase2,
+            log.debug(f"second channel count to change: {second_channel_count}")
+            while True:
+                if first_current_device_channel != second_channel_count:
+                    break
+                second_channel_count = random.randint(
+                    1, min(thread_count, 64, max_device_channel)
+                )
+            log.debug(f"second final channel count: {second_channel_count}")
+            node.tools[Ethtool].change_device_channels_info(
+                "eth0", second_channel_count
             )
             log.debug(
                 f"Phase2 set: current={current_channels_phase2} -> "

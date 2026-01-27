@@ -687,7 +687,7 @@ class Posix(OperatingSystem, BaseClassMixin):
             self._initialize_package_installation()
         return package_names
 
-    def _install_package_from_url(
+    def install_package_from_url(
         self,
         package_url: str,
         package_name: str = "",
@@ -906,7 +906,8 @@ class Debian(Linux):
                 key_basename = os.path.basename(key_file_path)
                 self._node.execute(
                     cmd=(
-                        f"gpg --dearmor -o /etc/apt/trusted.gpg.d/{key_basename}.gpg "
+                        "gpg --yes --dearmor -o "
+                        f"/etc/apt/trusted.gpg.d/{key_basename}.gpg "
                         f"{key_file_path}"
                     ),
                     sudo=True,
@@ -1356,6 +1357,16 @@ class Ubuntu(Debian):
         # /etc/apt/source.list file
         # not add expected_exit_code, since for other platforms
         # it may not have cloud-init
+
+        # Skip cloud-init wait for WSL guest nodes - cloud-init doesn't work in WSL
+        # Use class name check to avoid circular import
+        if self._node.__class__.__name__ == "WslContainerNode":
+            self._log.debug(
+                "Skipping cloud-init wait for WSL guest node "
+                "(cloud-init not applicable in WSL)"
+            )
+            return
+
         self._node.execute("cloud-init status --wait", sudo=True)
 
     def _get_information(self) -> OsInformation:
@@ -1688,8 +1699,23 @@ class RPMDistro(Linux):
         command = f"{self._dnf_tool()} list installed {package}"
         result = self._node.execute(command, sudo=True)
         if result.exit_code == 0:
+            # 'dnf5 (which is also triggered by the 'dnf' command) list installed' shows
+            # an "Available packages" section for packages that exist in repos but
+            # aren't installed. We need to ensure we're only checking the installed
+            # section.
+            in_installed_section = False
             for row in result.stdout.splitlines():
-                if package in row:
+                row_lower = row.lower().strip()
+                # Detect section headers
+                if "installed packages" in row_lower:
+                    in_installed_section = True
+                    continue
+                if "available packages" in row_lower:
+                    in_installed_section = False
+                    continue
+
+                # Only check for package in the installed section
+                if in_installed_section and package in row:
                     return True
 
         return False
@@ -1904,7 +1930,7 @@ class Redhat(Fedora):
         return False
 
     def _is_package_in_repo(self, package: str) -> bool:
-        command = f"yum --showduplicates list {package}"
+        command = f"yum --showduplicates -y list {package}"
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
 

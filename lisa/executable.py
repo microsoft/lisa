@@ -163,11 +163,11 @@ class Tool(InitializableMixin):
             windows_tool = cls._windows_tool()
             if windows_tool:
                 tool_cls = windows_tool
-        elif "FreeBSD" in node.os.name:
+        elif hasattr(node, "os") and "FreeBSD" in node.os.name:
             freebsd_tool = cls._freebsd_tool()
             if freebsd_tool:
                 tool_cls = freebsd_tool
-        elif "VMWareESXi" in node.os.name:
+        elif hasattr(node, "os") and "VMWareESXi" in node.os.name:
             vmware_esxi_tool = cls._vmware_esxi_tool()
             if vmware_esxi_tool:
                 tool_cls = vmware_esxi_tool
@@ -198,7 +198,7 @@ class Tool(InitializableMixin):
         exists = False
         use_sudo = False
         if self.node.is_posix:
-            if "VMWareESXi" in self.node.os.name:
+            if hasattr(self.node, "os") and "VMWareESXi" in self.node.os.name:
                 where_command = "which"
             else:
                 where_command = "command -v"
@@ -452,6 +452,48 @@ class CustomScript(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return self._dependencies
 
+    def _copy_files_into_executable_dir(
+        self, path: pathlib.PurePath, files: List[pathlib.PurePath]
+    ) -> pathlib.PurePath:
+        """
+        On remote POSIX nodes, copy the given files into the first existing
+        directory among ['/usr/local/bin', '/usr/bin', '/opt'] and return that
+        target directory path.
+        """
+        if not self.node.is_remote or not self.node.is_posix:
+            return path
+
+        preferred_dirs = ["/usr/local/bin", "/usr/bin", "/opt"]
+        srcs = [path.joinpath(f) for f in files]
+
+        for d in preferred_dirs:
+            target_dir = pathlib.PurePosixPath(d)
+            if not self.node.shell.exists(target_dir):
+                continue
+
+            # Log potential overwrites
+            for f in files:
+                dest = target_dir.joinpath(f)
+                if self.node.shell.exists(dest):
+                    self._log.warning(
+                        f"overwriting existing file at '{dest}' with "
+                        f"'{path.joinpath(f)}'"
+                    )
+
+            # Copy all files in a single command so failure means all failed
+            src_list = " ".join(f"'{str(s)}'" for s in srcs)
+            cmd = f"cp -f {src_list} '{str(target_dir)}'"
+            result = self.node.execute(cmd, shell=True, sudo=True)
+            if result.exit_code != 0:
+                self._log.debug(
+                    f"failed copying scripts to {target_dir}: {result.stdout}"
+                    f" {result.stderr}"
+                )
+                continue
+
+            return target_dir
+        return path
+
     def install(self) -> bool:
         if self.node.is_remote:
             # copy to remote
@@ -462,6 +504,21 @@ class CustomScript(Tool):
                 self.node.shell.copy(source_path, remote_path)
                 self.node.shell.chmod(remote_path, 0o755)
             self._cwd = node_script_path
+            if self.node.is_posix and self.node.is_path_mounted_noexec(
+                str(node_script_path)
+            ):
+                self._log.debug(
+                    f"Path {node_script_path} is on a 'noexec' filesystem. It cannot be"
+                    " executed directly, will copy to an alternate location"
+                )
+                # Some systems are not allowed to copy files from local node to
+                # /usr/local/bin, /usr/bin, /opt directly due to permission issues.
+                # So if the node_script_path is on a 'noexec' filesystem, we first copy
+                # the files to node_script_path, then copy them to the alternate
+                # location. Copy *all* files in one command so that failure is atomic.
+                self._cwd = self._copy_files_into_executable_dir(
+                    node_script_path, self._files
+                )
         else:
             self._cwd = self._local_path
 
@@ -613,9 +670,14 @@ class Tools:
                         )
                     tool_log.debug(f"installed in {timer}")
                 else:
+                    os_name = (
+                        self._node.os.__class__.__name__
+                        if hasattr(self._node, "os")
+                        else "Unknown"
+                    )
                     raise LisaException(
                         f"cannot find [{tool.name}] on [{self._node.name}], "
-                        f"{self._node.os.__class__.__name__}, "
+                        f"{os_name}, "
                         f"Remote({self._node.is_remote}) "
                         f"and installation of [{tool.name}] isn't enabled in lisa."
                     )

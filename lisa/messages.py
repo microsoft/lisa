@@ -87,6 +87,8 @@ class TestResultMessage(TestResultMessageBase):
     suite_full_name: str = ""
     log_file: str = ""
     analysis: Dict[str, Any] = field(default_factory=dict)
+    perf_runs: List[Dict[str, Any]] = field(default_factory=list)
+    perf_evaluation_summary: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -94,6 +96,9 @@ class SubTestMessage(TestResultMessageBase):
     hardware_platform: str = ""
     type: str = "SubTestResult"
     parent_test: str = ""
+    # Actual subtest duration in seconds, when known from test tool output.
+    # If set, this takes precedence over calculated elapsed time differences.
+    subtest_duration: Optional[float] = None
 
 
 class NetworkProtocol(str, Enum):
@@ -150,6 +155,7 @@ class UnifiedPerfMessage(PerfMessage):
     type: str = "UnifiedPerformance"
     metric_name: str = ""
     metric_value: float = 0.0
+    metric_str_value: str = ""
     metric_unit: str = ""
     metric_description: str = ""
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA
@@ -383,7 +389,21 @@ def send_sub_test_result_message(
     test_status: TestStatus = TestStatus.QUEUED,
     test_message: str = "",
     other_fields: Optional[Dict[str, Any]] = None,
+    subtest_duration: Optional[float] = None,
 ) -> SubTestMessage:
+    """Send a subtest result message.
+
+    Args:
+        test_result: The parent test result object.
+        test_case_name: Name of the subtest.
+        test_status: Status of the subtest (PASSED, FAILED, SKIPPED, etc.).
+        test_message: Message or output from the subtest.
+        other_fields: Additional fields to include in the message.
+        subtest_duration: Actual duration of the subtest in seconds, if known.
+            When provided, this value is used directly for timing in reports
+            (e.g., JUnit XML) instead of calculating from elapsed timestamps.
+            This is useful when the test tool reports actual execution times.
+    """
     message = SubTestMessage()
     dict_to_fields(test_result.environment_information, message)
     message.id_ = test_result.id_
@@ -391,6 +411,7 @@ def send_sub_test_result_message(
     message.status = test_status
     message.message = test_message
     message.elapsed = test_result.get_elapsed()
+    message.subtest_duration = subtest_duration
 
     if not other_fields:
         other_fields = {}
@@ -409,6 +430,7 @@ def send_unified_perf_message(
     metric_name: str = "",
     metric_value: float = 0.0,
     metric_unit: str = "",
+    metric_str_value: str = "",
     metric_description: str = "",
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
     tool: str = "",
@@ -431,6 +453,7 @@ def send_unified_perf_message(
     message.metric_unit = metric_unit
     message.metric_description = metric_description
     message.metric_relativity = metric_relativity
+    message.metric_str_value = metric_str_value
 
     message.tool = tool
 

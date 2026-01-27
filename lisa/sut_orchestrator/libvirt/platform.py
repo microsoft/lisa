@@ -285,7 +285,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
             # Rectify the general node capabilities with this node's specific
             # requirements.
-            node_requirement = node_space.generate_min_capability(nodes_capabilities)
+            node_requirement = node_space.choose_value(nodes_capabilities)
             nodes_requirement.append(node_requirement)
 
         if not self._check_host_capabilities(nodes_requirement, host_capabilities, log):
@@ -391,7 +391,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     # Note: Unlike other orchestrators, we don't want to fill up the capacity of
     # the host in case the test is running on a dev box.
     def _get_count_space_min(self, count_space: search_space.CountSpace) -> int:
-        return search_space.generate_min_capability_countspace(count_space, count_space)
+        return search_space.choose_value_countspace(count_space, count_space)
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         self._configure_nodes(environment, log)
@@ -1363,7 +1363,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return node_runbook_type
 
     def _get_host_distro(self) -> str:
-        result = self.host_node.os.information.full_version if self.host_node else ""
+        result = ""
+        if self.host_node and hasattr(self.host_node, "os"):
+            result = self.host_node.os.information.full_version
         return result
 
     def _get_host_kernel_version(self) -> str:
@@ -1451,8 +1453,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         for node in environment.nodes.list():
             # In some cases, we observe that resize vhd resizes the entire disk
             # but fails to expand the partition size.
-            log.debug(
-                f"Expanding os parition for: node: {node.name}, os: {node.os.name}"
-            )
+            os_name = node.os.name if hasattr(node, "os") else "Unknown"
+            log.debug(f"Expanding os partition for: node: {node.name}, os: {os_name}")
             resize = node.tools[ResizePartition]
             resize.expand_os_partition()

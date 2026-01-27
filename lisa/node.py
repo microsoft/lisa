@@ -122,6 +122,16 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     @property
     def is_posix(self) -> bool:
+        # Check if OS is initialized before forcing initialization
+        # to avoid triggering provision during error handling
+        if hasattr(self, "os"):
+            return self.os.is_posix
+
+        # For WSL nodes, they are always POSIX (Linux)
+        if self.__class__.__name__ == "WslContainerNode":
+            return True
+
+        # For other nodes, initialize if needed
         self.initialize()
         return self.os.is_posix
 
@@ -147,14 +157,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     def _check_sudo_available(self) -> bool:
         # Check if 'sudo' command exists
         process = self._execute("command -v sudo", shell=True, no_info_log=True)
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             self.log.debug("node doesn't support 'sudo', may cause failure later.")
             return False
 
         # Further test: try running 'ls' with sudo /bin/sh
         process = self._execute("ls", shell=True, sudo=True, no_info_log=True)
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             # e.g. raw error: "user is not allowed to execute '/bin/sh -c ...'"
             if "not allowed" in result.stderr:
@@ -378,7 +388,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self, size_in_gb: int, use_os_drive: bool = True, raise_error: bool = True
     ) -> str:
         self.initialize()
-        if self.os.is_windows:
+        if hasattr(self, "os") and self.os.is_windows:
             raise NotImplementedError(
                 (
                     "find_partition_with_freespace was called on a Windows "
@@ -459,6 +469,40 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             work_path = self.find_partition_with_freespace(required_size_in_gb)
             self.tools[Chmod].chmod(work_path, "777", sudo=True)
         return work_path
+
+    def is_path_mounted_noexec(self, path: str) -> bool:
+        """
+        Check if the filesystem that contains the given path is mounted with
+        the 'noexec' option.
+
+        Returns True if 'noexec' is present for the mountpoint of the path,
+        otherwise False. If the path cannot be resolved to a mountpoint,
+        returns False.
+        """
+        try:
+            df = self.tools[Df]
+            part = df.get_partition_by_path(path, force_run=True)
+            if not part or not part.mountpoint:
+                self.log.debug(
+                    f"cannot resolve mountpoint for path: {path}, assume exec"
+                )
+                return False
+
+            mountpoint = part.mountpoint
+            mount = self.tools[Mount]
+            parts = mount.get_partition_info(mountpoint=mountpoint)
+            if not parts:
+                self.log.debug(f"no mount info for {mountpoint}, assume exec")
+                return False
+
+            # Some distros may have duplicate entries; treat 'noexec' on any as True.
+            has_noexec = any("noexec" in p.options for p in parts)
+            self.log.debug(f"path={path} mountpoint={mountpoint} noexec={has_noexec}")
+            return has_noexec
+        except Exception as e:
+            # Be conservative: if detection fails, do not block execution
+            self.log.debug(f"failed to detect noexec for {path}: {e}")
+            return False
 
     def get_working_path(self) -> PurePath:
         """
@@ -716,7 +760,7 @@ class RemoteNode(Node):
             sudo=True,
             no_info_log=True,
         )
-        result = process.wait_result(10)
+        result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             for prompt in self._sudo_password_prompts:
                 if prompt in result.stdout:
@@ -751,7 +795,7 @@ class RemoteNode(Node):
                 sudo=True,
                 no_info_log=True,
             )
-            result = process.wait_result(10)
+            result = process.wait_result(timeout=10, raise_on_timeout=False)
             if result.exit_code != 0:
                 raise RequireUserPasswordException(
                     "The password might be invalid for running sudo command"
@@ -770,7 +814,7 @@ class RemoteNode(Node):
         # wordpress-red-hat images.
         if not self.has_checked_bash_prompt:
             process = self._execute(f"echo {constants.LISA_TEST_FOR_BASH_PROMPT}")
-            result = process.wait_result(10)
+            result = process.wait_result(timeout=10, raise_on_timeout=False)
             if result.stdout.endswith(f"{constants.LISA_TEST_FOR_BASH_PROMPT}"):
                 bash_prompt = result.stdout.replace(
                     constants.LISA_TEST_FOR_BASH_PROMPT, ""
@@ -1221,7 +1265,8 @@ class NodeHookImpl:
                         linux_information, fields=["hardware_platform"]
                     )
                     information.update(information_dict)
-                    information["distro_version"] = node.os.information.full_version
+                    if hasattr(node, "os"):
+                        information["distro_version"] = node.os.information.full_version
                     information["kernel_version"] = linux_information.kernel_version_raw
             except Exception as e:
                 node.log.exception("failed to get node information", exc_info=e)

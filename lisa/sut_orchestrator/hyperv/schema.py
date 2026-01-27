@@ -59,6 +59,9 @@ class HypervPlatformSchema:
     extra_args: List[ExtraArgs] = field(default_factory=list)
     wait_delete: bool = False
     device_pools: Optional[List[HostDevicePoolSchema]] = None
+    # Optional default switch name for all VMs.
+    # Can be overridden per-node in HypervNodeSchema.
+    switch_name: Optional[str] = None
 
 
 @dataclass_json
@@ -69,12 +72,34 @@ class VhdSchema(schema.ImageSchema):
 
 @dataclass_json
 @dataclass
+class DynamicMemorySchema:
+    """
+    Configuration schema for Hyper-V dynamic memory settings.
+
+    - min_memory_mb: Minimum memory in MB that the VM can shrink to.
+    - max_memory_mb: Maximum memory in MB that Hyper-V can assign to the VM.
+    - startup_memory_mb: Memory in MB assigned to the VM at boot.
+    - buffer: percentage of memory Hyper-V should try to reserve as a buffer.
+    """
+
+    min_memory_mb: int
+    max_memory_mb: int
+    startup_memory_mb: int
+    buffer: Optional[int] = None  # percentage
+
+
+@dataclass_json
+@dataclass
 class HypervNodeSchema:
     hyperv_generation: int = 2
     vhd: Optional[VhdSchema] = None
     osdisk_size_in_gb: int = 30
     # Configuration options for device-passthrough.
     device_passthrough: Optional[List[DevicePassthroughSchema]] = None
+    # Optional switch name to use for VM network connection.
+    # If not specified, the default switch will be used.
+    switch_name: Optional[str] = None
+    dynamic_memory: Optional[DynamicMemorySchema] = None
 
 
 @dataclass_json()

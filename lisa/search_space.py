@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 
 class RequirementMethod(Enum):
-    generate_min_capability: str = "generate_min_capability"
+    choose_value: str = "choose_value"
     intersect: str = "intersect"
 
 
@@ -58,9 +58,9 @@ class RequirementMixin:
     def check(self, capability: Any) -> ResultReason:
         raise NotImplementedError()
 
-    def generate_min_capability(self, capability: Any) -> Any:
+    def choose_value(self, capability: Any) -> Any:
         self._validate_result(capability)
-        return self._generate_min_capability(capability)
+        return self._choose_value(capability)
 
     def intersect(self, capability: Any) -> Any:
         self._validate_result(capability)
@@ -71,9 +71,9 @@ class RequirementMixin:
     ) -> Any:
         raise NotImplementedError(method)
 
-    def _generate_min_capability(self, capability: Any) -> Any:
+    def _choose_value(self, capability: Any) -> Any:
         return self._call_requirement_method(
-            method=RequirementMethod.generate_min_capability,
+            method=RequirementMethod.choose_value,
             capability=capability,
         )
 
@@ -99,6 +99,7 @@ class IntRange(RequirementMixin):
     min: int = 0
     max: int = field(default=sys.maxsize)
     max_inclusive: bool = True
+    choose_max_value: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         if self.min > self.max:
@@ -115,7 +116,8 @@ class IntRange(RequirementMixin):
         max_inclusive = ""
         if max_value:
             max_inclusive = "(inc)" if self.max_inclusive else "(exc)"
-        return f"[{self.min},{max_value}{max_inclusive}]"
+        choose_max_value = "(maximized)" if self.choose_max_value else ""
+        return f"[{self.min},{max_value}{max_inclusive}]{choose_max_value}"
 
     def __eq__(self, __o: object) -> bool:
         assert isinstance(__o, IntRange), f"actual type: {type(__o)}"
@@ -123,6 +125,7 @@ class IntRange(RequirementMixin):
             self.min == __o.min
             and self.max == __o.max
             and self.max_inclusive == __o.max_inclusive
+            and self.choose_max_value == __o.choose_max_value
         )
 
     def check(self, capability: Any) -> ResultReason:
@@ -181,23 +184,42 @@ class IntRange(RequirementMixin):
 
         return result
 
-    def _generate_min_capability(self, capability: Any) -> int:
+    def _choose_value(self, capability: Any) -> int:
         if isinstance(capability, int):
             result: int = capability
         elif isinstance(capability, IntRange):
-            if self.min < capability.min:
-                result = capability.min
-            else:
-                result = self.min
+            req_max = self.max - 1 if not self.max_inclusive else self.max
+            cap_max = (
+                capability.max - 1 if not capability.max_inclusive else capability.max
+            )
+            result = (
+                min(req_max, cap_max)
+                if self.choose_max_value or capability.choose_max_value
+                else max(self.min, capability.min)
+            )
         else:
             assert isinstance(capability, list), f"actual: {type(capability)}"
-            result = self.max if self.max_inclusive else self.max - 1
+            choose_max_value = self.choose_max_value or any(
+                [x.choose_max_value for x in capability if isinstance(x, IntRange)]
+            )
+            # If choosing max value, start with min requirement
+            #   and increase to max capability.
+            # Else start with max requirement and decrease to min capability.
+            result = self.min if choose_max_value else self.max
             for cap_item in capability:
                 temp_result = self.check(cap_item)
                 if temp_result.result:
-                    temp_min = self.generate_min_capability(cap_item)
-                    result = min(temp_min, result)
+                    temp_val = self.choose_value(cap_item)
+                    result = (
+                        max(temp_val, result)
+                        if choose_max_value
+                        else min(temp_val, result)
+                    )
 
+        if result == sys.maxsize:
+            raise NotMeetRequirementException(
+                "cannot choose value, max value is unbounded"
+            )
         return result
 
     def _intersect(self, capability: Any) -> Any:
@@ -205,7 +227,10 @@ class IntRange(RequirementMixin):
             return capability
         elif isinstance(capability, IntRange):
             result = IntRange(
-                min=self.min, max=self.max, max_inclusive=self.max_inclusive
+                min=self.min,
+                max=self.max,
+                max_inclusive=self.max_inclusive,
+                choose_max_value=self.choose_max_value or capability.choose_max_value,
             )
             if self.min < capability.min:
                 result.min = capability.min
@@ -339,7 +364,7 @@ class SetSpace(RequirementMixin, Set[T]):
         super().update(*s)
         self.items.extend(*s)
 
-    def _generate_min_capability(self, capability: Any) -> Optional[Set[T]]:
+    def _choose_value(self, capability: Any) -> Optional[Set[T]]:
         result: Optional[SetSpace[T]] = None
         if self.is_allow_set and len(self) > 0:
             assert isinstance(capability, SetSpace), f"actual: {type(capability)}"
@@ -352,7 +377,7 @@ class SetSpace(RequirementMixin, Set[T]):
         return result
 
     def _intersect(self, capability: Any) -> Any:
-        return self._generate_min_capability(capability)
+        return self._choose_value(capability)
 
 
 def decode_set_space(data: Any) -> Any:
@@ -439,33 +464,35 @@ def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultR
     return result
 
 
-def generate_min_capability_countspace(
-    requirement: CountSpace, capability: CountSpace
-) -> int:
+def choose_value_countspace(requirement: CountSpace, capability: CountSpace) -> int:
     check_result = check_countspace(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            "cannot get min value, capability doesn't support requirement: "
+            "cannot choose value, capability doesn't support requirement: "
             f"{check_result.reasons}"
         )
-    if requirement is None:
+    if requirement is None or (isinstance(requirement, list) and not requirement):
         if capability:
             requirement = capability
-            result: int = sys.maxsize
         else:
-            result = 0
+            return 0
     if isinstance(requirement, int):
         result = requirement
     elif isinstance(requirement, IntRange):
-        result = requirement.generate_min_capability(capability)
+        result = requirement.choose_value(capability)
     else:
         assert isinstance(requirement, list), f"actual: {type(requirement)}"
-        result = sys.maxsize
+        choose_max = any(
+            req_item.choose_max_value
+            for req_item in requirement
+            if isinstance(req_item, IntRange)
+        )
+        result = 0 if choose_max else sys.maxsize
         for req_item in requirement:
             temp_result = req_item.check(capability)
             if temp_result.result:
-                temp_min = req_item.generate_min_capability(capability)
-                result = min(result, temp_min)
+                temp_val = req_item.choose_value(capability)
+                result = max(temp_val, result) if choose_max else min(temp_val, result)
 
     return result
 
@@ -518,7 +545,7 @@ def check_setspace(
     return result
 
 
-def generate_min_capability_setspace_by_priority(
+def choose_value_setspace_by_priority(
     requirement: Optional[Union[SetSpace[T], T]],
     capability: Optional[Union[SetSpace[T], T]],
     priority_list: List[T],
@@ -526,7 +553,7 @@ def generate_min_capability_setspace_by_priority(
     check_result = check_setspace(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            "cannot get min value, capability doesn't support requirement"
+            "cannot choose value, capability doesn't support requirement"
             f"{check_result.reasons}"
         )
 
@@ -642,33 +669,37 @@ def _call_requirement_method(
     if requirement is None:
         if capability is not None:
             requirement = capability
-    if (
-        isinstance(requirement, list)
-        and method == RequirementMethod.generate_min_capability
-    ):
+    if isinstance(requirement, list) and method == RequirementMethod.choose_value:
         result = None
+        choose_max_value = any(
+            [x.choose_max_value for x in requirement if isinstance(x, IntRange)]
+        )
         for req_item in requirement:
             temp_result = req_item.check(capability)
             if temp_result.result:
-                temp_min = getattr(req_item, method.value)(capability)
+                temp_val = getattr(req_item, method.value)(capability)
                 if result is None:
-                    result = temp_min
+                    result = temp_val
                 else:
                     # TODO: multiple matches found, not supported well yet
                     # It can be improved by implement __eq__, __lt__ functions.
-                    result = min(result, temp_min)
+                    result = (
+                        max(result, temp_val)
+                        if choose_max_value
+                        else min(result, temp_val)
+                    )
     elif requirement is not None:
         result = getattr(requirement, method.value)(capability)
 
     return result
 
 
-def generate_min_capability(
+def choose_value(
     requirement: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
     capability: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
 ) -> Any:
     return _call_requirement_method(
-        RequirementMethod.generate_min_capability,
+        RequirementMethod.choose_value,
         requirement=requirement,
         capability=capability,
     )

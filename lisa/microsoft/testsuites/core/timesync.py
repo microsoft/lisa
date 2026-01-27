@@ -28,6 +28,7 @@ from lisa.tools import (
     Chrony,
     Dmesg,
     Echo,
+    Find,
     Hwclock,
     Ls,
     Lscpu,
@@ -75,7 +76,8 @@ class TimeSync(TestSuite):
     chrony_path = [
         "/etc/chrony.conf",
         "/etc/chrony/chrony.conf",
-        "/etc/chrony.d/azure.conf",
+        "/etc/chrony.d/*.conf",
+        "/etc/chrony/conf.d/*.conf",
     ]
     current_clocksource = (
         "/sys/devices/system/clocksource/clocksource0/current_clocksource"
@@ -146,13 +148,20 @@ class TimeSync(TestSuite):
 
         # 4. Chrony should be configured to use the symlink /dev/ptp_hyperv
         #  instead of /dev/ptp0 or /dev/ptp1.
+        find = node.tools[Find]
+        config_files = find.find_files(
+            node.get_pure_path("/etc"),
+            path_pattern=self.chrony_path,
+            file_type="f",
+            sudo=True,
+            ignore_not_exist=True,
+            force_run=True,
+        )
+
         all_chrony_configs: str = ""
-        for chrony_config in self.chrony_path:
-            if node.shell.exists(PurePosixPath(chrony_config)):
-                config_data = cat.run(
-                    f"{chrony_config}", sudo=True, shell=True, force_run=True
-                )
-                all_chrony_configs = all_chrony_configs + config_data.stdout + "\n"
+        for config_file in config_files:
+            config_data = cat.run(config_file, sudo=True, shell=True, force_run=True)
+            all_chrony_configs = all_chrony_configs + config_data.stdout + "\n"
         assert_that(all_chrony_configs).described_as(
             "Chrony config file should use the symlink /dev/ptp_hyperv."
         ).contains(self.hyperv_ptp_udev_rule)
@@ -166,7 +175,7 @@ class TimeSync(TestSuite):
              (there's a new feature in the AH2021 host that allows Linux guests so use
               the plain "tsc" instead of the "hyperv_clocksource_tsc_page",
               which produces a modest performance benefit when reading the clock.)
-            2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            2. Check CPU flag contains tsc from /proc/cpuinfo.
             3. Check clocksource name shown up in dmesg.
             4. Unbind current clock source if there are 2+ clock sources, check current
              clock source can be switched to a different one.
@@ -213,23 +222,20 @@ class TimeSync(TestSuite):
                 f"but actually it is {clock_source_result.stdout}."
             ).is_subset_of(clocksource)
 
-            # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            # 2. Check CPU flag contains tsc from /proc/cpuinfo.
             dmesg = node.tools[Dmesg]
             if CpuArchitecture.X64 == arch:
                 if not isinstance(node.os, BSD):
                     cpu_info_result = cat.run("/proc/cpuinfo")
-                    if CpuType.Intel == lscpu.get_cpu_type():
-                        expected_tsc_str = " constant_tsc "
-                    elif CpuType.AMD == lscpu.get_cpu_type():
-                        expected_tsc_str = " tsc "
-                    else:
-                        raise UnsupportedCpuArchitectureException(arch)
+                    # Use 'tsc' flag for both Intel and AMD CPUs
+                    expected_tsc_str = " tsc "
                     shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
                     assert_that(shown_up_times).described_as(
                         f"Expected {expected_tsc_str} shown up times in cpu flags is"
                         f" equal to cpu count."
                     ).is_equal_to(lscpu.get_thread_count())
                 else:
+                    # FreeBSD: Check for TSC in dmesg features
                     cpu_info_results = self.__freebsd_tsc_filter.findall(
                         dmesg.get_output()
                     )

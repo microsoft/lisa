@@ -129,6 +129,7 @@ from .common import (
     get_node_context,
     get_or_create_file_share,
     get_primary_ip_addresses,
+    get_storage_client,
     get_storage_credential,
     get_virtual_networks,
     get_vm,
@@ -577,7 +578,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     )
 
     def is_supported(self) -> bool:
-        # TODO: more supportability can be defined here
+        # TODO: The GPU Feature is supposed to handle cloud related
+        # requirements. The OS related dependencies should be
+        # moved to gpu_drivers and smi tools.
         node = self._node
         supported = False
         if isinstance(node.os, Redhat):
@@ -660,7 +663,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             result = extension.create_or_update(
                 type_="NvidiaGpuDriverLinux",
                 publisher="Microsoft.HpcCompute",
-                type_handler_version="1.6",
                 auto_upgrade_minor_version=True,
                 settings={},
             )
@@ -1035,6 +1037,23 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         sriov_enabled = primary_nic.enable_accelerated_networking
         return sriov_enabled
 
+    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
+    def _update_vm_nics(
+        self,
+        compute_client: Any,
+        resource_group_name: str,
+        vm_name: str,
+        network_interfaces_section: List[Dict[str, Any]],
+    ) -> None:
+        """Helper method to update VM network interfaces with retry logic."""
+        compute_client.virtual_machines.begin_update(
+            resource_group_name=resource_group_name,
+            vm_name=vm_name,
+            parameters={
+                "network_profile": {"network_interfaces": network_interfaces_section},
+            },
+        )
+
     def attach_nics(
         self, extra_nic_count: int, enable_accelerated_networking: bool = True
     ) -> None:
@@ -1103,12 +1122,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         network_interfaces_section.append({"id": primary_nic.id, "primary": True})
 
         self._log.debug(f"start to attach the nics into VM {self._node.name}.")
-        compute_client.virtual_machines.begin_update(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._node.name,
-            parameters={
-                "network_profile": {"network_interfaces": network_interfaces_section},
-            },
+        self._update_vm_nics(
+            compute_client,
+            self._resource_group_name,
+            self._node.name,
+            network_interfaces_section,
         )
         self._log.debug(f"attach the nics into VM {self._node.name} successfully.")
         startstop.start()
@@ -1140,12 +1158,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         network_interfaces_section.append({"id": primary_nic.id, "primary": True})
         startstop = self._node.features[StartStop]
         startstop.stop()
-        compute_client.virtual_machines.begin_update(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._node.name,
-            parameters={
-                "network_profile": {"network_interfaces": network_interfaces_section},
-            },
+        self._update_vm_nics(
+            compute_client,
+            self._resource_group_name,
+            self._node.name,
+            network_interfaces_section,
         )
         self._log.debug(
             f"Only associated nic {primary_nic.id} into VM {self._node.name}."
@@ -1657,7 +1674,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         value.data_disk_throughput = 0
         value.data_disk_size = 0
 
-        if method == RequirementMethod.generate_min_capability:
+        if method == RequirementMethod.choose_value:
             assert isinstance(
                 value.data_disk_type, schema.DiskType
             ), f"actual: {type(value.data_disk_type)}"
@@ -1694,7 +1711,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 min_size = max(req_disk_size.min, cap_disk_size.min)
                 max_size = min(req_disk_size.max, cap_disk_size.max)
 
-                value.data_disk_size = min(
+                compliant_sizes = [
                     size
                     for size, iops, throughput in disk_type_performance
                     if iops >= min_iops
@@ -1703,7 +1720,18 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     and throughput <= max_throughput
                     and size >= min_size
                     and size <= max_size
-                )
+                ]
+                if not compliant_sizes:
+                    raise NotMeetRequirementException(
+                        f"DiskType {value.data_disk_type} cannot "
+                        "achieve the requirement: "
+                        f"{min_iops} <= IOPS <= {max_iops}, "
+                        f"{min_throughput} <= Throughput <= {max_throughput}, "
+                        f"{min_size} <= Disk Size <= {max_size}. "
+                        "Consider specifiying a different disk type, "
+                        "or changing your requirements."
+                    )
+                value.data_disk_size = min(compliant_sizes)
 
                 (
                     value.data_disk_iops,
@@ -1984,7 +2012,9 @@ class Disk(AzureFeatureMixin, features.Disk):
             cmd_result = self._node.execute(
                 f"readlink -f {disk}", shell=True, sudo=True
             )
-            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
+            disk_array[
+                int(disk.split("/")[-1].replace("lun", ""))
+            ] = cmd_result.stdout.strip()
         return disk_array
 
     def get_all_disks(self) -> List[str]:
@@ -2256,6 +2286,21 @@ class Resize(AzureFeatureMixin, features.Resize):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
+    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
+    def _update_vm_size(
+        self,
+        compute_client: Any,
+        resource_group_name: str,
+        vm_name: str,
+        vm_update: VirtualMachineUpdate,
+    ) -> Any:
+        """Helper method to update VM size with retry logic."""
+        return compute_client.virtual_machines.begin_update(
+            resource_group_name=resource_group_name,
+            vm_name=vm_name,
+            parameters=vm_update,
+        )
+
     def resize(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[schema.NodeSpace, str, str]:
@@ -2269,10 +2314,11 @@ class Resize(AzureFeatureMixin, features.Resize):
         vm_update = VirtualMachineUpdate(hardware_profile=hardware_profile)
 
         # Resizing with new Vm Size
-        lro_poller = compute_client.virtual_machines.begin_update(
-            resource_group_name=node_context.resource_group_name,
-            vm_name=node_context.vm_name,
-            parameters=vm_update,
+        lro_poller = self._update_vm_size(
+            compute_client,
+            node_context.resource_group_name,
+            node_context.vm_name,
+            vm_update,
         )
 
         # Waiting for the Long Running Operation to finish
@@ -3143,6 +3189,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         self._initialize_information(self._node)
         self.storage_account_name: str = ""
         self.file_share_name: str = ""
+        self._private_endpoint_name: str = ""
 
     def create_share(
         self,
@@ -3155,6 +3202,8 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         self.storage_account_name = f"lisasc{random_str}"
         self.file_share_name = f"lisa{random_str}fs"
+        # Private endpoint name should be unique per storage account
+        self._private_endpoint_name = f"{self.storage_account_name}-file-pe"
 
         # create storage account and file share
         check_or_create_storage_account(
@@ -3197,8 +3246,8 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             subnet_id = subnet_ids[0]
             break
 
-        # create private endpoints
-        ipv4_address = create_update_private_endpoints(
+        # create private endpoints - returns (ip, was_created)
+        ipv4_address, _ = create_update_private_endpoints(
             platform,
             resource_group_name,
             location,
@@ -3206,6 +3255,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             storage_account_resource_id,
             ["file"],
             self._log,
+            private_endpoint_name=self._private_endpoint_name,
         )
         # create private zone
         private_dns_zone_id = create_update_private_zones(
@@ -3225,16 +3275,27 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             resource_group_name=resource_group_name,
             private_dns_zone_id=str(private_dns_zone_id),
             log=self._log,
+            private_endpoint_name=self._private_endpoint_name,
         )
 
     def delete_share(self) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         resource_group_name = self._resource_group_name
-        delete_private_dns_zone_groups(platform, resource_group_name, self._log)
+        delete_private_dns_zone_groups(
+            platform,
+            resource_group_name,
+            self._log,
+            private_endpoint_name=self._private_endpoint_name,
+        )
         delete_virtual_network_links(platform, resource_group_name, self._log)
         delete_record_sets(platform, resource_group_name, self._log)
         delete_private_zones(platform, resource_group_name, self._log)
-        delete_private_endpoints(platform, resource_group_name, self._log)
+        delete_private_endpoints(
+            platform,
+            resource_group_name,
+            self._log,
+            private_endpoint_name=self._private_endpoint_name,
+        )
         delete_file_share(
             platform.credential,
             platform.subscription_id,
@@ -3678,11 +3739,53 @@ class PasswordExtension(AzureFeatureMixin, features.PasswordExtension):
 
 
 class AzureFileShare(AzureFeatureMixin, Feature):
+    """
+    Azure File Share feature for LISA test automation.
+
+    Manages Azure SMB file shares with support for:
+    - Storage account reuse across test runs (keep_environment scenarios)
+    - Private endpoint management for secure connectivity
+    - Automatic cleanup with proper lifecycle management
+
+    Resource Naming Conventions:
+        - Storage accounts: lisasc<random10chars>
+        - Private endpoints: <storageaccountname>-file-pe
+        - Credential files: /etc/smbcredentials/<storageaccountname>.cred
+
+    Reuse Behavior:
+        When a VM is reused (deploy:false, keep_environment:always), existing
+        LISA-created storage accounts are detected by the 'lisasc' prefix and
+        reused instead of creating new ones. This avoids orphaned resources
+        and improves test efficiency.
+
+    Cleanup Behavior:
+        - File shares: Always deleted (test-specific)
+        - Storage accounts: Deleted only if LISA created them
+        - Private endpoints: Deleted only if LISA created them
+        - Pre-existing resources are never deleted (user-managed)
+
+    Attributes:
+        _storage_account_reused: True if using pre-existing storage account
+        _private_endpoint_created_by_lisa: True if PE was created by this run
+        _credential_file: Path to SMB credentials file on the VM
+        _private_endpoint_name: Unique name for the private endpoint
+    """
+
+    # Naming pattern constants for LISA-managed Azure resources
+    STORAGE_ACCOUNT_PREFIX = "lisasc"
+    PRIVATE_ENDPOINT_SUFFIX = "-file-pe"
+    CREDENTIAL_DIR = "/etc/smbcredentials"
+
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
+
+    @property
+    def credential_file(self) -> str:
+        """Return the path to the credential file for this file share."""
+        return self._credential_file
 
     def get_smb_version(self) -> str:
         if self._node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
@@ -3697,11 +3800,49 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         self._initialize_fileshare_information()
 
     def _initialize_fileshare_information(self) -> None:
-        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
-        self._storage_account_name = f"lisasc{random_str}"
+        platform: AzurePlatform = self._platform  # type: ignore
+        storage_client = get_storage_client(
+            platform.credential, platform.subscription_id, platform.cloud
+        )
+        storage_accounts = storage_client.storage_accounts.list_by_resource_group(
+            self._resource_group_name
+        )
+        # Track whether we're reusing an existing storage account
+        self._storage_account_reused = False
+        for account in storage_accounts:
+            if account.name.startswith(self.STORAGE_ACCOUNT_PREFIX):
+                self._storage_account_name = account.name
+                self._storage_account_reused = True
+                self._log.debug(
+                    f"Reusing existing storage account: {self._storage_account_name}"
+                )
+                break
+        else:
+            random_str = generate_random_chars(
+                string.ascii_lowercase + string.digits, 10
+            )
+            self._storage_account_name = f"{self.STORAGE_ACCOUNT_PREFIX}{random_str}"
+            self._log.debug(
+                f"Will create new storage account: {self._storage_account_name}"
+            )
+
+        # Track private endpoint creation state
+        self._private_endpoint_created_by_lisa: bool = False
+
+        # Private endpoint name should be unique per storage account to avoid conflicts
+        # Format: <storageaccountname>-file-pe
+        self._private_endpoint_name: str = (
+            f"{self._storage_account_name}{self.PRIVATE_ENDPOINT_SUFFIX}"
+        )
+
+        # Credential file uses storage account name to avoid conflicts
+        # when VM is reused with existing file share mounts
+        self._credential_file: str = (
+            f"{self.CREDENTIAL_DIR}/{self._storage_account_name}.cred"
+        )
         self._fstab_info = (
             f"nofail,vers={self.get_smb_version()},"
-            "credentials=/etc/smbcredentials/lisa.cred"
+            f"credentials={self._credential_file}"
             ",dir_mode=0777,file_mode=0777,serverino"
         )
 
@@ -3715,6 +3856,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         enable_https_traffic_only: bool = True,
         enable_private_endpoint: bool = False,
         quota_in_gb: int = 100,
+        provisioned_iops: Optional[int] = None,
+        provisioned_bandwidth_mibps: Optional[int] = None,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3742,6 +3885,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         # No changes need to be done in code calling function
         # For Quota, currently all volumes will share same quota number.
         # Ensure that you use the highest value applicable for your shares
+        # Reuse existing file shares if they exist, otherwise create new ones
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
@@ -3752,6 +3896,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 resource_group_name=resource_group_name,
                 log=self._log,
                 quota_in_gb=quota_in_gb,
+                provisioned_iops=provisioned_iops,
+                provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
             )
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane
@@ -3773,8 +3919,11 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 subnet_id = subnet_ids[0]
                 break
 
-            # Create Private endpoint
-            ipv4_address = create_update_private_endpoints(
+            # Create Private endpoint - returns (ip, was_created)
+            (
+                ipv4_address,
+                self._private_endpoint_created_by_lisa,
+            ) = create_update_private_endpoints(
                 platform,
                 resource_group_name,
                 location,
@@ -3782,6 +3931,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 storage_account_resource_id,
                 ["file"],
                 self._log,
+                private_endpoint_name=self._private_endpoint_name,
             )
             # Create private zone
             private_dns_zone_id = create_update_private_zones(
@@ -3801,6 +3951,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 resource_group_name=resource_group_name,
                 private_dns_zone_id=str(private_dns_zone_id),
                 log=self._log,
+                private_endpoint_name=self._private_endpoint_name,
             )
 
         return fs_url_dict
@@ -3829,29 +3980,132 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         )
 
     def delete_azure_fileshare(self, file_share_names: List[str]) -> None:
-        resource_group_name = self._resource_group_name
-        storage_account_name = self._storage_account_name
+        """
+        Delete Azure file shares and optionally the storage account.
+
+        Cleanup behavior:
+        - Always deletes the specified file shares (created by LISA for this test)
+        - Only deletes private endpoint resources if LISA created them
+        - Storage account deletion rules:
+          a) If LISA created it: Always delete (lifecycle tied to test case)
+          b) If reused/pre-existing: Never delete (user-managed resource)
+
+        Note: Pre-existing storage accounts are never deleted because they could
+        be set up by end users for monitoring, audit, or debugging purposes.
+
+        Args:
+            file_share_names: List of file share names to delete
+        """
+        # Step 1: Delete the file shares themselves
+        self._delete_file_shares(file_share_names)
+
+        # Step 2: Clean up private endpoint resources (if LISA created them)
+        self._cleanup_private_endpoint_resources()
+
+        # Step 3: Delete storage account (if LISA created it)
+        self._cleanup_storage_account()
+
+        # Step 4: Clean up VM state (fstab entries, credential files)
+        self._cleanup_vm_state(file_share_names)
+
+    def _delete_file_shares(self, file_share_names: List[str]) -> None:
+        """Delete the specified file shares from the storage account."""
         platform: AzurePlatform = self._platform  # type: ignore
         for share_name in file_share_names:
             delete_file_share(
                 credential=platform.credential,
                 subscription_id=platform.subscription_id,
                 cloud=platform.cloud,
-                account_name=storage_account_name,
+                account_name=self._storage_account_name,
                 file_share_name=share_name,
-                resource_group_name=resource_group_name,
+                resource_group_name=self._resource_group_name,
                 log=self._log,
             )
+
+    def _cleanup_private_endpoint_resources(self) -> None:
+        """
+        Clean up private endpoint and related DNS resources.
+
+        Only cleans up if LISA created them (tracked via
+        _private_endpoint_created_by_lisa flag).
+        """
+        platform: AzurePlatform = self._platform  # type: ignore
+        if not self._private_endpoint_created_by_lisa:
+            self._log.debug(
+                "Private endpoint was not created by LISA, skipping cleanup"
+            )
+            return
+
+        self._log.debug("Cleaning up private endpoint resources created by LISA")
+        delete_private_dns_zone_groups(
+            platform,
+            self._resource_group_name,
+            self._log,
+            private_endpoint_name=self._private_endpoint_name,
+        )
+        delete_virtual_network_links(platform, self._resource_group_name, self._log)
+        delete_record_sets(platform, self._resource_group_name, self._log)
+        delete_private_zones(platform, self._resource_group_name, self._log)
+        delete_private_endpoints(
+            platform,
+            self._resource_group_name,
+            self._log,
+            private_endpoint_name=self._private_endpoint_name,
+        )
+
+    def _cleanup_storage_account(self) -> None:
+        """
+        Delete the storage account if LISA created it.
+
+        Pre-existing/reused storage accounts are never deleted as they
+        may be user-managed for monitoring, audit, or debugging purposes.
+        """
+        platform: AzurePlatform = self._platform  # type: ignore
+        if self._storage_account_reused:
+            self._log.debug(
+                f"Storage account {self._storage_account_name} was pre-existing/"
+                "reused. Skipping deletion (user-managed resource)."
+            )
+            return
+
+        self._log.debug(
+            f"Storage account {self._storage_account_name} was created by LISA, "
+            "will delete."
+        )
         delete_storage_account(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
             cloud=platform.cloud,
-            account_name=storage_account_name,
-            resource_group_name=resource_group_name,
+            account_name=self._storage_account_name,
+            resource_group_name=self._resource_group_name,
             log=self._log,
         )
-        # revert file into original status after testing.
-        self._node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+
+    def _cleanup_vm_state(self, file_share_names: List[str]) -> None:
+        """
+        Clean up VM-local state: fstab entries and credential files.
+
+        Uses sed to remove specific fstab entries rather than restoring a
+        backup, which is more reliable and doesn't risk losing other changes.
+        Only removes the specific credential file for this storage account,
+        preserving credentials for other mounts on reused VMs.
+
+        Args:
+            file_share_names: List of share names to remove from fstab
+        """
+        # Remove fstab entries for the deleted file shares
+        for share_name in file_share_names:
+            self._node.execute(
+                f"sed -i '/{share_name}/d' /etc/fstab",
+                sudo=True,
+                shell=True,
+            )
+
+        # Remove only the specific credential file for this storage account
+        self._node.execute(
+            f"rm -f {self._credential_file}",
+            sudo=True,
+        )
 
     def _prepare_azure_file_share(
         self,
@@ -3860,20 +4114,42 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         test_folders_share_dict: Dict[str, str],
         fstab_info: str,
     ) -> None:
+        # Clean up any stale fstab entries from previous test runs
+        # This is critical for VM reuse scenarios
+        # (deploy:false or keep_environment:always)
+        # where previous tests may have left entries that weren't cleaned up.
+        # Using # as sed delimiter since paths contain /
+        for folder_name in test_folders_share_dict.keys():
+            node.execute(
+                f"sed -i '\\#{folder_name}#d' /etc/fstab",
+                sudo=True,
+                shell=True,
+            )
+        # Also clean up any stale backup files from previous tests
+        node.execute("rm -f /etc/fstab.backup /etc/fstab_cifs", sudo=True)
+
+        # Create smbcredentials folder if it doesn't exist
+        # Do NOT delete existing folder as it may contain credentials for other mounts
         folder_path = node.get_pure_path("/etc/smbcredentials")
-        if node.shell.exists(folder_path):
-            node.execute(f"rm -rf {folder_path}", sudo=True)
-        node.shell.mkdir(folder_path)
-        file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
+        if not node.shell.exists(folder_path):
+            node.shell.mkdir(folder_path)
+
+        # Create credential file with storage account name
+        # This avoids conflicts with other file share mounts on reused VMs
+        file_path = node.get_pure_path(self._credential_file)
+        # Remove existing credential file if it exists (from previous run)
+        node.execute(f"rm -f {file_path}", sudo=True)
         echo = node.tools[Echo]
         username = account_credential["account_name"]
         password = account_credential["account_key"]
         add_secret(password)
         echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
         echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
-        node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
+        # Create backup of original fstab before adding file share entries
+        # This backup is a safety net for VM reuse scenarios only
+        node.execute("cp -f /etc/fstab /etc/fstab.backup", sudo=True)
         for folder_name, share in test_folders_share_dict.items():
-            node.execute(f"mkdir {folder_name}", sudo=True)
+            node.execute(f"mkdir -p {folder_name}", sudo=True)
             echo.write_to_file(
                 f"{share} {folder_name} cifs {fstab_info}",
                 node.get_pure_path("/etc/fstab"),

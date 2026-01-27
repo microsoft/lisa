@@ -2,14 +2,13 @@
 # Licensed under the MIT license.
 
 import copy
-import json
 import time
 from logging import FileHandler
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 
 from lisa import messages, notifier, schema, transformer
-from lisa.action import Action
+from lisa.action import Action, ActionStatus
 from lisa.combinator import Combinator
 from lisa.environment import Environment
 from lisa.messages import TestResultMessage, TestResultMessageBase, TestStatus
@@ -64,15 +63,7 @@ def print_results(
 
         analysis: Dict[str, Any] = test_result.analysis  # type: ignore
         if analysis and "AI" in analysis:
-            try:
-                ai_analysis = json.loads(analysis["AI"])
-            except Exception:
-                ai_analysis = analysis["AI"]
-
-            if isinstance(ai_analysis, dict) and "summary" in ai_analysis:
-                summary = ai_analysis["summary"]
-            else:
-                summary = str(ai_analysis)
+            summary = analysis["AI"]
             output_with_ending(f"{'':<61}AI Analysis: {summary}")
 
         result_count = result_count_dict.get(result_status, 0)
@@ -291,7 +282,17 @@ class RootRunner(Action):
 
     async def stop(self) -> None:
         await super().stop()
-        # TODO: to be implemented
+        # Set status to stopping and cancel ongoing tasks
+        self.status = ActionStatus.STOPPING
+        try:
+            # Ensure cleanup is attempted even if cancel() raises.
+            try:
+                cancel()
+            finally:
+                self._cleanup()
+        finally:
+            # Always mark the action as stopped, even if errors occurred.
+            self.status = ActionStatus.STOPPED
 
     async def close(self) -> None:
         await super().close()

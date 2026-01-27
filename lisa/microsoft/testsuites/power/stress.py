@@ -5,6 +5,7 @@ from typing import Any, cast
 
 from microsoft.testsuites.power.common import (
     cleanup_env,
+    hibernation_before_case,
     is_distro_supported,
     verify_hibernation,
 )
@@ -20,9 +21,7 @@ from lisa import (
 from lisa.features import HibernationEnabled, Sriov
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
-from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
-from lisa.util import SkippedException
 
 
 @TestSuiteMetadata(
@@ -37,8 +36,7 @@ class PowerStress(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
-        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
-            raise SkippedException(f"{node.os} is not supported.")
+        hibernation_before_case(node, log)
 
     @TestCaseMetadata(
         description="""
@@ -47,6 +45,7 @@ class PowerStress(TestSuite):
         priority=3,
         timeout=720000,
         requirement=simple_requirement(
+            min_os_disk_size=500,
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
