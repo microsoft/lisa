@@ -223,6 +223,7 @@ class AzureDiskEncryption(TestSuite):
             type_=extension_name,
             type_handler_version=extension_version,
             settings=settings,
+            timeout=60*50
         )
         return extension_result
 
