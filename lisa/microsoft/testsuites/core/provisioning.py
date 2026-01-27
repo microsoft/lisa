@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from pathlib import Path
 from statistics import mean, median
-from typing import Any, Dict
+from typing import Any, Dict, Pattern, Union
 
 from assertpy import assert_that
 
@@ -84,6 +85,7 @@ class Provisioning(TestSuite):
         an optional pattern with pre-check and post-check validation.
 
         If the variable 'serial_console_pattern' is provided:
+        - Pattern can be a string (substring match) or regex pattern string
         1. Pre-check: Counts pattern occurrences before smoke test execution.
            - Fails if pattern found (count > 0) indicating boot-time issues.
         2. Runs standard smoke test operations (reboot, connectivity checks).
@@ -123,6 +125,28 @@ class Provisioning(TestSuite):
             f"Running smoke test and checking serial console for pattern: '{pattern}'"
         )
 
+        # Convert pattern to regex if it's a string
+        # If pattern is already a regex pattern string (contains regex metacharacters),
+        # compile it; otherwise treat as literal string for substring matching
+        compiled_pattern: Union[str, Pattern[str]]
+        try:
+            # Try to compile as regex - if it has regex syntax, use it as regex
+            # Check if pattern looks like a regex (contains common regex metacharacters)
+            regex_chars = r".*+?[]{}()^$|\\"
+            if any(char in pattern for char in regex_chars):
+                compiled_pattern = re.compile(pattern, re.MULTILINE)
+                log.info(f"Pattern interpreted as regex: {pattern}")
+            else:
+                # Use as literal string for simple substring matching
+                compiled_pattern = pattern
+                log.info(f"Pattern interpreted as literal string: {pattern}")
+        except (re.error, TypeError) as e:
+            # If regex compilation fails, fall back to literal string matching
+            compiled_pattern = pattern
+            log.info(
+                f"Pattern compilation failed ({e}), using as literal string: {pattern}"
+            )
+
         # SerialConsole is required by test metadata, so it's guaranteed to be available
         serial_console = node.features[SerialConsole]
 
@@ -133,7 +157,10 @@ class Provisioning(TestSuite):
         )
 
         # Count occurrences of pattern before smoke test
-        pre_pattern_count = pre_console_output.count(pattern)
+        if isinstance(compiled_pattern, Pattern):
+            pre_pattern_count = len(compiled_pattern.findall(pre_console_output))
+        else:
+            pre_pattern_count = pre_console_output.count(compiled_pattern)
 
         if pre_pattern_count > 0:
             raise LisaException(
@@ -153,7 +180,10 @@ class Provisioning(TestSuite):
         )
 
         # Count occurrences of pattern after smoke test
-        post_pattern_count = post_console_output.count(pattern)
+        if isinstance(compiled_pattern, Pattern):
+            post_pattern_count = len(compiled_pattern.findall(post_console_output))
+        else:
+            post_pattern_count = post_console_output.count(compiled_pattern)
 
         if post_pattern_count > pre_pattern_count:
             new_occurrences = post_pattern_count - pre_pattern_count
