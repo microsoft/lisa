@@ -289,7 +289,7 @@ def generate_5tswap_run_info(
         num_procs=2,
         proc_id=0,
         core_list="3,7,11,17,21",
-        extra_args=f"--tx-ip {snd_nic.ip_addr},{rcv_nic.ip_addr}",
+        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
     )
     snd_mp_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
@@ -786,7 +786,7 @@ def verify_dpdk_send_receive(
 
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
-    test_duration: int = variables.get("dpdk_test_duration", 20)
+    test_duration: int = variables.get("dpdk_test_duration", 15)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(
         environment, log, variables, pmd, hugepage_size=hugepage_size
@@ -828,13 +828,7 @@ def verify_dpdk_send_receive(
         )
         proc.wait_output("start packet forwarding")
         receiver_processes += [proc]
-    # receive_result = receiver.node.tools[Timeout].start_with_timeout(
-    #     kit_cmd_pairs[receiver],
-    #     receive_timeout,
-    #     constants.SIGINT,
-    #     kill_timeout=receive_timeout,
-    # )
-    # receive_result.wait_output("start packet forwarding")
+
     for command in kit_cmd_pairs[sender]:
         proc = sender.node.tools[Timeout].start_with_timeout(
             command=command,
