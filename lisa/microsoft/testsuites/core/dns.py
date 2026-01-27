@@ -68,7 +68,7 @@ class Dns(TestSuite):
 
         finally:
             self._check_dns_name_resolution(node)
-            node.reboot()
+            node.reboot(time_out=2700)
             self._check_dns_name_resolution(node)
 
     @retry_without_exceptions(

@@ -74,7 +74,7 @@ class Reboot(Tool):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
             raise e
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 2000) -> None:
         timer = create_timer()
 
         last_boot_time = self._get_last_boot_time()

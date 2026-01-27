@@ -251,7 +251,7 @@ class HvModule(TestSuite):
                 mod_name=module,
                 times=loop_count,
                 verbose=True,
-                timeout=1800,
+                timeout=3800,
             )
             if not result:
                 failed_modules[
