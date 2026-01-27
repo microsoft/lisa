@@ -108,6 +108,7 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
+        cpus_allowed: str = "",
         cwd: Optional[pathlib.PurePath] = None,
     ) -> FIOResult:
         cmd = self._get_command(
@@ -130,6 +131,7 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            cpus_allowed,
         )
         result = self.run(
             cmd,
@@ -166,6 +168,7 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
+        cpus_allowed: str = "",
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         cmd = self._get_command(
@@ -188,6 +191,7 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            cpus_allowed,
         )
         process = self.run_async(
             cmd,
@@ -338,6 +342,7 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
+        cpus_allowed: str = "",
     ) -> str:
         if isinstance(self.node.os, BSD):
             ioengine = IoEngine.POSIXAIO
@@ -376,6 +381,8 @@ class Fio(Tool):
             cmd += " --verify_fatal=1"
         if verify:
             cmd += f" --verify={verify}"
+        if cpus_allowed:
+            cmd += f" --cpus_allowed={cpus_allowed}"
 
         return cmd
 

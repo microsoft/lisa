@@ -100,12 +100,94 @@ def perf_nvme(
         filename,
         core_count=core_count,
         disk_count=disk_count,
-        numjob=core_count,
+        numjob=disk_count,  # Changed: 1 job per disk instead of core_count
         test_name=test_name,
         disk_setup_type=DiskSetupType.raw,
         disk_type=disk_type,
         test_result=result,
         ioengine=ioengine,
+        # CPU affinity: Prevent I/O queue pair overflow (Azure ASAP MEQS=255 limit)
+        # Each vCPU gets its own I/O queue, preventing aggregated depth > 255
+        cpus_allowed=",".join(str(i) for i in range(min(disk_count, core_count))),
+    )
+
+
+def _generate_cpu_affinity_for_disks(core_count: int, disk_count: int, numjob: int) -> str:
+    """
+    Generate CPU affinity string for 1:1:1 mapping (CPU:job:disk).
+    Starting from vCPU0, assigns one CPU per worker per disk.
+    
+    Args:
+        core_count: Total available CPU cores
+        disk_count: Number of disks to test
+        numjob: Number of FIO jobs (should equal disk_count for 1:1 mapping)
+    
+    Returns:
+        CPU affinity string like "0,1,2,3" for individual CPU assignment
+    """
+    # Ensure we don't exceed available cores
+    max_cpus_to_use = min(disk_count, numjob, core_count)
+    
+    # Generate CPU list starting from vCPU0
+    cpu_list = [str(i) for i in range(max_cpus_to_use)]
+    
+    return ",".join(cpu_list)
+
+
+def perf_disk_with_cpu_affinity(
+    node: Node,
+    start_iodepth: int,
+    max_iodepth: int,
+    filename: str,
+    core_count: int,
+    disk_count: int,
+    test_result: TestResult,
+    disk_setup_type: DiskSetupType = DiskSetupType.unknown,
+    disk_type: DiskType = DiskType.unknown,
+    test_name: str = "",
+    block_size: int = 4,
+    time: int = 120,
+    size_mb: int = 0,
+    overwrite: bool = False,
+    ioengine: IoEngine = IoEngine.LIBAIO,
+    cwd: Optional[pathlib.PurePath] = None,
+) -> None:
+    """
+    Run disk performance test with 1:1:1 CPU:job:disk mapping.
+    Starting from vCPU0, assigns one CPU per worker per disk.
+    """
+    # Set numjob to match disk_count for 1:1:1 mapping
+    numjob = min(disk_count, core_count)
+    
+    # Generate CPU affinity starting from vCPU0
+    cpus_allowed = _generate_cpu_affinity_for_disks(core_count, disk_count, numjob)
+    
+    node.log.info(
+        f"Starting 1:1:1 CPU:job:disk test - "
+        f"CPUs: {cpus_allowed}, Jobs: {numjob}, Disks: {disk_count}"
+    )
+    
+    # Call the main perf_disk function with generated parameters
+    perf_disk(
+        node=node,
+        start_iodepth=start_iodepth,
+        max_iodepth=max_iodepth,
+        filename=filename,
+        core_count=core_count,
+        disk_count=disk_count,
+        test_result=test_result,
+        disk_setup_type=disk_setup_type,
+        disk_type=disk_type,
+        test_name=test_name,
+        num_jobs=None,  # Use fixed numjob instead
+        block_size=block_size,
+        time=time,
+        size_mb=size_mb,
+        numjob=numjob,
+        overwrite=overwrite,
+        ioengine=ioengine,
+        cpus_allowed=cpus_allowed,
+        cwd=cwd,
     )
 
 
@@ -127,6 +209,7 @@ def perf_disk(
     numjob: int = 0,
     overwrite: bool = False,
     ioengine: IoEngine = IoEngine.LIBAIO,
+    cpus_allowed: str = "",
     cwd: Optional[pathlib.PurePath] = None,
 ) -> None:
     fio_result_list: List[FIOResult] = []
@@ -145,6 +228,15 @@ def perf_disk(
     # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
     if ioengine == IoEngine.LIBAIO:
         numjob = min(numjob, 256)
+    
+    # Auto-generate CPU affinity for 1:1:1 mapping (CPU:job:disk) if not provided
+    if not cpus_allowed and numjob > 0:
+        cpus_allowed = _generate_cpu_affinity_for_disks(core_count, disk_count, numjob)
+        node.log.info(
+            f"Auto-generated CPU affinity: {cpus_allowed} "
+            f"(cores:{core_count}, disks:{disk_count}, jobs:{numjob})"
+        )
+    
     for mode in FIOMODES:
         iodepth = start_iodepth
         numjobindex = 0
@@ -163,6 +255,7 @@ def perf_disk(
                 numjob=numjob,
                 cwd=cwd,
                 ioengine=ioengine,
+                cpus_allowed=cpus_allowed,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
@@ -805,12 +898,13 @@ def perf_premium_datadisks(
         disk_count=disk_count,
         disk_setup_type=disk_setup_type,
         disk_type=disk_type,
-        numjob=thread_count,
+        numjob=disk_count,  # Changed: 1 job per disk instead of thread_count
         block_size=block_size,
         size_mb=8192,
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
+        cpus_allowed=",".join(str(i) for i in range(min(disk_count, thread_count))),  # Added: vCPU0 to N
     )
 
 
@@ -860,11 +954,12 @@ def perf_resource_disks(
             disk_count=disk_count,
             disk_setup_type=disk_setup_type,
             disk_type=DiskType.localssd,
-            numjob=core_count,
+            numjob=disk_count,  # Changed: 1 job per disk instead of core_count
             block_size=block_size,
             size_mb=8192,
             overwrite=True,
             test_result=test_result,
+            cpus_allowed=",".join(str(i) for i in range(min(disk_count, core_count))),  # Added: vCPU0 to N
         )
 
     else:
