@@ -113,13 +113,6 @@ class Provisioning(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
     ) -> None:
-        # Helper function to count pattern occurrences in text
-        def count_pattern(compiled_pattern: Union[str, Pattern[str]], text: str) -> int:
-            if isinstance(compiled_pattern, Pattern):
-                return len(compiled_pattern.findall(text))
-            else:
-                return text.count(compiled_pattern)
-
         # Check if the optional pattern variable is provided
         pattern = variables.get("serial_console_pattern")
 
@@ -132,25 +125,8 @@ class Provisioning(TestSuite):
             f"Running smoke test and checking serial console for pattern: '{pattern}'"
         )
 
-        # Determine whether to interpret pattern as regex or literal string
-        # Checks for regex metacharacters to decide pattern type
-        compiled_pattern: Union[str, Pattern[str]]
-        try:
-            # Check if pattern looks like a regex (contains common regex metacharacters)
-            regex_chars = r".*+?[]{}()^$|\\"
-            if any(char in pattern for char in regex_chars):
-                compiled_pattern = re.compile(pattern, re.MULTILINE)
-                log.info(f"Pattern interpreted as regex: {pattern}")
-            else:
-                # Use as literal string for simple substring matching
-                compiled_pattern = pattern
-                log.info(f"Pattern interpreted as literal string: {pattern}")
-        except (re.error, TypeError) as e:
-            # If regex compilation fails, fall back to literal string matching
-            compiled_pattern = pattern
-            log.info(
-                f"Pattern compilation failed ({e}), using as literal string: {pattern}"
-            )
+        # Compile the pattern (auto-detect string vs regex)
+        compiled_pattern = self._compile_pattern(pattern, log)
 
         # SerialConsole is required by test metadata, so it's guaranteed to be available
         serial_console = node.features[SerialConsole]
@@ -162,7 +138,7 @@ class Provisioning(TestSuite):
         )
 
         # Count occurrences of pattern before smoke test
-        pre_pattern_count = count_pattern(compiled_pattern, pre_console_output)
+        pre_pattern_count = self._count_pattern(compiled_pattern, pre_console_output)
 
         if pre_pattern_count > 0:
             raise LisaException(
@@ -182,7 +158,7 @@ class Provisioning(TestSuite):
         )
 
         # Count occurrences of pattern after smoke test
-        post_pattern_count = count_pattern(compiled_pattern, post_console_output)
+        post_pattern_count = self._count_pattern(compiled_pattern, post_console_output)
 
         if post_pattern_count > pre_pattern_count:
             new_occurrences = post_pattern_count - pre_pattern_count
@@ -501,6 +477,52 @@ class Provisioning(TestSuite):
             # Mark node as dirty since we modified kernel parameters
             # This ensures the node won't be reused regardless of test outcome
             node.mark_dirty()
+
+    def _count_pattern(
+        self, compiled_pattern: Union[str, Pattern[str]], text: str
+    ) -> int:
+        """Count occurrences of a pattern in text.
+
+        Args:
+            compiled_pattern: Either a string for literal matching or compiled
+                regex Pattern
+            text: Text to search in
+
+        Returns:
+            Number of pattern occurrences found
+        """
+        if isinstance(compiled_pattern, Pattern):
+            return len(compiled_pattern.findall(text))
+        else:
+            return text.count(compiled_pattern)
+
+    def _compile_pattern(self, pattern: str, log: Logger) -> Union[str, Pattern[str]]:
+        """Determine whether to interpret pattern as regex or literal string.
+
+        Args:
+            pattern: Pattern string to compile
+            log: Logger for diagnostic messages
+
+        Returns:
+            Either the original string for literal matching or a compiled regex Pattern
+        """
+        try:
+            # Check if pattern looks like a regex (contains common regex metacharacters)
+            regex_chars = r".*+?[]{}()^$|\\"
+            if any(char in pattern for char in regex_chars):
+                compiled_pattern = re.compile(pattern, re.MULTILINE)
+                log.info(f"Pattern interpreted as regex: {pattern}")
+                return compiled_pattern
+            else:
+                # Use as literal string for simple substring matching
+                log.info(f"Pattern interpreted as literal string: {pattern}")
+                return pattern
+        except (re.error, TypeError) as e:
+            # If regex compilation fails, fall back to literal string matching
+            log.info(
+                f"Pattern compilation failed ({e}), using as literal string: {pattern}"
+            )
+            return pattern
 
     def _smoke_test(
         self,
