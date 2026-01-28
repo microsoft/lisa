@@ -411,10 +411,18 @@ class DpdkTestpmd(Tool):
 
     _tx_pps_key = "transmit-packets-per-second"
     _rx_pps_key = "receive-packets-per-second"
+    _tx_drop_key = "tx-packet-drops"
+    _rx_drop_key = "rx-packet-drops"
+    _tx_total_key = "tx-total-packets"
+    _rx_total_key = "rx-total-packets"
 
     _testpmd_output_regex = {
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
+        _tx_drop_key: r"TX-dropped:\s+([0-9]+)",
+        _rx_drop_key: r"RX-dropped:\s+([0-9]+)",
+        _tx_total_key: r"TX-packets:\s+([0-9]+)",
+        _rx_total_key: r"RX-packets:\s+([0-9]+)",
     }
     _source_build_dest_dir = "/usr/local/bin"
 
@@ -692,6 +700,7 @@ class DpdkTestpmd(Tool):
         self,
         search_key_constant: str,
         testpmd_output: str,
+        discard_first_and_last: bool = True,
     ) -> List[int]:
         # Find all data in the output that matches
         # Apply a list of filters to the data
@@ -709,9 +718,19 @@ class DpdkTestpmd(Tool):
                 "in the test output."
             )
         )
-        cast_to_ints = list(map(int, matches))
-        cast_to_ints = _discard_first_zeroes(cast_to_ints)
-        return _discard_first_and_last_sample(cast_to_ints)
+        data_as_integers = list(map(int, matches))
+        assert_that(data_as_integers).described_as(
+            f"Could not find any data in testpmd output"
+            f" for key {search_key_constant}"
+        ).is_not_empty()
+        data_as_integers = _discard_first_zeroes(data_as_integers)
+        if discard_first_and_last:
+            data_as_integers = _discard_first_and_last_sample(data_as_integers)
+        assert_that(data_as_integers).described_as(
+            f"Could not find any data in testpmd output"
+            f" for key {search_key_constant}."
+        ).is_not_empty()
+        return data_as_integers
 
     def populate_performance_data(self) -> None:
         self.rx_pps_data = self.get_data_from_testpmd_output(
@@ -720,6 +739,18 @@ class DpdkTestpmd(Tool):
         self.tx_pps_data = self.get_data_from_testpmd_output(
             self._tx_pps_key, self._last_run_output
         )
+        self.tx_packet_drops = self.get_data_from_testpmd_output(
+            self._tx_drop_key, self._last_run_output
+        )[-1]
+        self.rx_packet_drops = self.get_data_from_testpmd_output(
+            self._rx_drop_key, self._last_run_output
+        )[-1]
+        self.tx_total_packets = self.get_data_from_testpmd_output(
+            self._tx_total_key, self._last_run_output
+        )[-1]
+        self.rx_total_packets = self.get_data_from_testpmd_output(
+            self._rx_total_key, self._last_run_output
+        )[-1]
 
     def get_mean_rx_pps(self) -> int:
         self._check_pps_data("RX")
@@ -744,6 +775,26 @@ class DpdkTestpmd(Tool):
     def get_min_tx_pps(self) -> int:
         self._check_pps_data("TX")
         return min(self.tx_pps_data)
+
+    def check_tx_packet_drops(self) -> None:
+        if self.tx_total_packets == 0:
+            raise AssertionError(
+                "Test bug: tx packet data was 0, could not check dropped packets"
+            )
+        self.packet_drop_rate = self.tx_packet_drops / self.tx_total_packets
+        assert_that(self.packet_drop_rate).described_as(
+            "More than 33% of the tx packets were dropped!"
+        ).is_close_to(0, 0.33)
+
+    def check_rx_packet_drops(self) -> None:
+        if self.rx_total_packets == 0:
+            raise AssertionError(
+                "Test bug: rx packet data was 0 could not check dropped packets."
+            )
+        self.packet_drop_rate = self.rx_packet_drops / self.rx_total_packets
+        assert_that(self.packet_drop_rate).described_as(
+            "More than 1% of the received packets were dropped!"
+        ).is_close_to(0, 0.01)
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_hotplug(self._tx_pps_key)

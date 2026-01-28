@@ -689,6 +689,7 @@ def verify_dpdk_send_receive(
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
+    check_sender_packet_drops: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -767,7 +768,32 @@ def verify_dpdk_send_receive(
         "Throughput for SEND was below the correct order of magnitude"
     ).is_greater_than(DPDK_PPS_THRESHOLD)
 
+    # sender packet drops are common when network bandwidth is
+    # artificially throttled by the sku, so checking sender
+    # is optional
+    if check_sender_packet_drops:
+        sender.testpmd.check_tx_packet_drops()
+
+    # verify receiver didn't drop most of the packets
+    receiver.testpmd.check_rx_packet_drops()
+
+    # annotate the amount of dropped packets on the receiver
+    annotate_packet_drops(log, result, receiver)
+
     return sender, receiver
+
+
+def annotate_packet_drops(
+    log: Logger, result: Optional[TestResult], receiver: DpdkTestResources
+) -> None:
+    try:
+        if result and hasattr(receiver.testpmd, "packet_drop_rate"):
+            dropped_packets = receiver.testpmd.packet_drop_rate
+            fmt_drop_rate = f"{dropped_packets:.2f}"
+            result.information["rx_pkt_drop_rate"] = fmt_drop_rate
+            log.debug(f"Adding packet drop percentage: {fmt_drop_rate}")
+    except AssertionError as err:
+        receiver.node.log.debug(f"Could not add rx packet drop percentage: {str(err)}")
 
 
 def verify_dpdk_send_receive_multi_txrx_queue(
