@@ -864,7 +864,7 @@ def verify_dpdk_send_receive(
     if result:
         result.information["snd_pps"] = snd_tx_pps
         result.information["rcv_pps"] = rcv_rx_pps
-    
+
     # check for kernel errors before grading to avoid early fail
     # if the kernel issue caused dpdk to fail to run
     sender.dmesg.check_kernel_errors(force_run=True)
