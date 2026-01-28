@@ -788,12 +788,12 @@ def annotate_packet_drops(
 ) -> None:
     try:
         if result and hasattr(receiver.testpmd, "packet_drop_rate"):
-            dropped_packets = receiver.testpmd.packet_drop_rate
-            fmt_drop_rate = f"{dropped_packets:.2f}"
+            packet_drop_rate = receiver.testpmd.packet_drop_rate
+            fmt_drop_rate = f"{packet_drop_rate:.2f}"
             result.information["rx_pkt_drop_rate"] = fmt_drop_rate
             log.debug(f"Adding packet drop percentage: {fmt_drop_rate}")
     except AssertionError as err:
-        receiver.node.log.debug(f"Could not add rx packet drop percentage: {str(err)}")
+        receiver.node.log.debug(f"Could not add rx packet drop rate: {str(err)}")
 
 
 def verify_dpdk_send_receive_multi_txrx_queue(

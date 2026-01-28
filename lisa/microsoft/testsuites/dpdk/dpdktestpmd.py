@@ -717,7 +717,7 @@ class DpdkTestpmd(Tool):
                 f"{self._testpmd_output_regex[search_key_constant]} "
                 "in the test output."
             )
-        )
+        ).is_not_none()
         data_as_integers = list(map(int, matches))
         assert_that(data_as_integers).described_as(
             f"Could not find any data in testpmd output"
