@@ -8,10 +8,10 @@ from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
     DPDK_PPS_THRESHOLD,
     DPDK_STABLE_GIT_REPO,
+    DpdkGradeMetric,
     PackageManagerInstall,
     Pmd,
     force_dpdk_default_source,
-    DpdkGradeMetric
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
@@ -780,8 +780,13 @@ class Dpdk(TestSuite):
         mtu_size = variables.get("dpdk_mtu_size", 9000)
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC,
-                result=result, set_mtu=mtu_size, grading_metric=DpdkGradeMetric.BPS
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -813,8 +818,13 @@ class Dpdk(TestSuite):
         mtu_size = 1500
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC,
-                result=result, set_mtu=mtu_size, grading_metric=DpdkGradeMetric.BPS
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -845,9 +855,14 @@ class Dpdk(TestSuite):
         # allow configuring for different platforms
         mtu_size = 4000
         try:
-            snd, rcv =verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC,
-                result=result, set_mtu=mtu_size, grading_metric=DpdkGradeMetric.BPS
+            snd, rcv = verify_dpdk_send_receive_multi_txrx_queue(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -879,8 +894,13 @@ class Dpdk(TestSuite):
         mtu_size = 8000
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC,
-                result=result, set_mtu=mtu_size, grading_metric=DpdkGradeMetric.BPS
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)

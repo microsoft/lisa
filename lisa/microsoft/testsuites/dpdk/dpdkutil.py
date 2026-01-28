@@ -14,6 +14,7 @@ from microsoft.testsuites.dpdk.common import (
     DPDK_PPS_THRESHOLD,
     DPDK_STABLE_GIT_REPO,
     Downloader,
+    DpdkGradeMetric,
     GitDownloader,
     Installer,
     PackageManagerInstall,
@@ -23,7 +24,6 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
-    DpdkGradeMetric
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
@@ -771,7 +771,6 @@ def verify_dpdk_send_receive(
             "Throughput for SEND was below the correct order of magnitude"
         ).is_greater_than(DPDK_PPS_THRESHOLD)
     elif grading_metric == DpdkGradeMetric.BPS:
-
         # grading bits per second is non-trivial since
         # Azure internal SKU information is not exposed to the guest,
         # also it's difficult to look up the expected Mbps for a given SKU.
@@ -779,15 +778,14 @@ def verify_dpdk_send_receive(
         sender_gbps = sender.testpmd.check_bps_data("TX")
         receiver_gbps = receiver.testpmd.check_bps_data("RX")
 
-
         # so just annotate test result if it's available
         # a test crashing because of no data or dpdk failing to start
         # will still result in a fail.
         if result:
-            result.information['tx_gbps'] = sender_gbps
-            result.information['rx_gbps'] = receiver_gbps
+            result.information["tx_gbps"] = sender_gbps
+            result.information["rx_gbps"] = receiver_gbps
     else:
-        pass # no-op if no grading is required.
+        pass  # no-op if no grading is required.
 
     # sender packet drops are common when network bandwidth is
     # artificially throttled by the sku, so checking sender

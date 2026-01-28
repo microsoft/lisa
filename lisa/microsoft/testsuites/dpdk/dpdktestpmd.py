@@ -619,7 +619,7 @@ class DpdkTestpmd(Tool):
             # NOTE: ensure --mbuf-size is set before max-pkt-len and txpkts
             # this argument is sensitive to commandline ordering.
             # probably a bug; but unfixed as of 1/28/2026.
-            
+
             # set tx offloads, see dpdk/lib/ethdev/rte_ethdev.h
             # for RTE_ETH_(RX|TX)_OFFLOAD_* definitions.
             # The availability of offloads are hw dependent,
@@ -897,7 +897,7 @@ class DpdkTestpmd(Tool):
         )
         self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
-    def _check_data_exists(self, rx_or_tx: str, data_type:str="pps") -> None:
+    def _check_data_exists(self, rx_or_tx: str, data_type: str = "pps") -> None:
         data_attr_name = f"{rx_or_tx.lower()}_{data_type}_data"
         assert_that(hasattr(self, data_attr_name)).described_as(
             (
@@ -944,8 +944,8 @@ class DpdkTestpmd(Tool):
         ).is_true()
 
         # bits -> gigabits N>>30
-        gbps=max(data_set) >> 30
-        self._log.info(f"Found {rx_or_tx} Gbps: { gbps }")
+        gbps = max(data_set) >> 30
+        self._log.info(f"Found {rx_or_tx} Gbps: {gbps}")
         return gbps
 
     def _install(self) -> bool:
