@@ -860,6 +860,9 @@ def verify_dpdk_send_receive(
     log.info(f"receiver rx-pps: {rcv_rx_pps}")
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
+    # annotate pps result
+    result.information["snd_pps"] = snd_tx_pps
+    result.information["rcv_pps"] = rcv_rx_pps
     sender.dmesg.check_kernel_errors(force_run=True)
     receiver.dmesg.check_kernel_errors(force_run=True)
     if grading_metric == DpdkGradeMetric.PPS:
@@ -899,12 +902,15 @@ def verify_dpdk_send_receive(
     # annotate the amount of dropped packets on the receiver
     annotate_packet_drops(log, result, receiver)
 
-    if len(sender_processes) > 1:
+    if receiver_mode == TestpmdForwardMode.FIVE_TUPLE_SWAP:
+        # check that amount of packets re-sent was close to amount received
+        rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
         rcv_tx_pps = receiver.testpmd.get_mean_tx_pps()
-        forwarded_over_received = abs(rcv_tx_pps / snd_tx_pps)
+        forwarded_over_received = abs(rcv_tx_pps / rcv_rx_pps)
         assert_that(forwarded_over_received).described_as(
             "receiver re-send pps was unexpectedly low!"
         ).is_close_to(0.8, 0.2)
+    
 
     return sender, receiver
 
