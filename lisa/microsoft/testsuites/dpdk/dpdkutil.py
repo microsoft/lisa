@@ -910,7 +910,6 @@ def verify_dpdk_send_receive(
         assert_that(forwarded_over_received).described_as(
             "receiver re-send pps was unexpectedly low!"
         ).is_close_to(0.8, 0.2)
-    
 
     return sender, receiver
 
