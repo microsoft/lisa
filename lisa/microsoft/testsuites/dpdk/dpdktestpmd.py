@@ -616,6 +616,14 @@ class DpdkTestpmd(Tool):
             extra_args += f" --txq={queues} --rxq={queues}"
 
         if mtu:
+            # NOTE: ensure --mbuf-size is set before max-pkt-len and txpkts
+            # this argument is sensitive to commandline ordering.
+            # probably a bug; but unfixed as of 1/28/2026.
+            
+            # set tx offloads, see dpdk/lib/ethdev/rte_ethdev.h
+            # for RTE_ETH_(RX|TX)_OFFLOAD_* definitions.
+            # The availability of offloads are hw dependent,
+            # but the bitmask for DPDK does not change.
             extra_args += (
                 f" --mbuf-size={mbuf_size}"
                 f" --max-pkt-len={mtu} --txpkts={mtu} "
