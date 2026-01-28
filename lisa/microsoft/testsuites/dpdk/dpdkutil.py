@@ -861,8 +861,12 @@ def verify_dpdk_send_receive(
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
     # annotate pps result
-    result.information["snd_pps"] = snd_tx_pps
-    result.information["rcv_pps"] = rcv_rx_pps
+    if result:
+        result.information["snd_pps"] = snd_tx_pps
+        result.information["rcv_pps"] = rcv_rx_pps
+    
+    # check for kernel errors before grading to avoid early fail
+    # if the kernel issue caused dpdk to fail to run
     sender.dmesg.check_kernel_errors(force_run=True)
     receiver.dmesg.check_kernel_errors(force_run=True)
     if grading_metric == DpdkGradeMetric.PPS:
