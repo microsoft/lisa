@@ -771,9 +771,18 @@ def verify_dpdk_send_receive(
             "Throughput for SEND was below the correct order of magnitude"
         ).is_greater_than(DPDK_PPS_THRESHOLD)
     elif grading_metric == DpdkGradeMetric.BPS:
+
+        # grading bits per second is non-trivial since
+        # Azure internal SKU information is not exposed to the guest,
+        # also it's difficult to look up the expected Mbps for a given SKU.
+
         sender_gbps = sender.testpmd.check_bps_data("TX")
         receiver_gbps = receiver.testpmd.check_bps_data("RX")
-        # annotate test result if it's available
+
+
+        # so just annotate test result if it's available
+        # a test crashing because of no data or dpdk failing to start
+        # will still result in a fail.
         if result:
             result.information['tx_gbps'] = sender_gbps
             result.information['rx_gbps'] = receiver_gbps
@@ -815,7 +824,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     pmd: Pmd,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
-    grading_metric: DpdkGradeMetric = DpdkGradeMetric.BPS,
+    grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue

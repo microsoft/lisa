@@ -781,7 +781,7 @@ class Dpdk(TestSuite):
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
                 environment, log, variables, Pmd.NETVSC,
-                result=result, set_mtu=mtu_size, grading_metric=DpdkGr
+                result=result, set_mtu=mtu_size, grading_metric=DpdkGradeMetric.BPS
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
