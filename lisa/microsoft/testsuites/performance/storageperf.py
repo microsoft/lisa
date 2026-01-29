@@ -37,7 +37,7 @@ from lisa.testsuite import TestResult, node_requirement
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.tools.fio import IoEngine
 from lisa.tools.kernel_config import KernelConfig
-from lisa.util import SkippedException
+from lisa.util import SkippedException, constants
 
 
 @TestSuiteMetadata(
@@ -157,6 +157,7 @@ class StoragePerformance(TestSuite):
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=64),
+                data_disk_caching_type=constants.DATADISK_CACHING_TYPE_READONLY,
             ),
         ),
     )
@@ -176,6 +177,7 @@ class StoragePerformance(TestSuite):
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=64),
+                data_disk_caching_type=constants.DATADISK_CACHING_TYPE_READONLY,
             ),
         ),
     )
@@ -222,6 +224,7 @@ class StoragePerformance(TestSuite):
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=16),
+                data_disk_caching_type=constants.DATADISK_CACHING_TYPE_READONLY,
             ),
         ),
     )
