@@ -90,21 +90,20 @@ from lisa.environment import Environment
 from lisa.features import Disk, Nvme
 from lisa.operating_system import BSD, CBLMariner, Oracle, Redhat, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
-from lisa.sut_orchestrator.azure.features import (
-    AzureFileShare,
-    FileShareConnectivity,
-    FileShareProtocol,
-    Nfs,
-)
+from lisa.sut_orchestrator.azure.features import AzureFileShare, FileShareProtocol
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
-from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, NFSClient, Parted
-from lisa.util import (
-    BadEnvironmentStateException,
-    LisaException,
-    constants,
-    generate_random_chars,
+from lisa.tools import (
+    Echo,
+    FileSystem,
+    KernelConfig,
+    Mkfs,
+    Mount,
+    NFSClient,
+    Parted,
+    Ssh,
 )
+from lisa.util import BadEnvironmentStateException, constants, generate_random_chars
 
 # =============================================================================
 # Global Configuration Variables
@@ -335,7 +334,7 @@ _test_folder = "/mnt/test"
 #   Tests are distributed round-robin by count, not by runtime.
 #   Some tests vary significantly in duration (0s to 285s), causing
 #   potential worker imbalance. Future enhancement: runtime-aware distribution.
-_default_worker_count = 4
+_default_worker_count = 6
 
 
 # =============================================================================
@@ -422,7 +421,8 @@ def _deploy_azure_file_share(
     node: Node,
     environment: Environment,
     names: Dict[str, str],
-    azure_file_share: Union[AzureFileShare, Nfs],
+    azure_file_share: AzureFileShare,
+    protocol: FileShareProtocol = FileShareProtocol.SMB,
     allow_shared_key_access: bool = True,
     enable_private_endpoint: bool = True,
     storage_account_sku: str = "PremiumV2_LRS",
@@ -451,6 +451,7 @@ def _deploy_azure_file_share(
         - Use for regions where PV2 is not available
 
     Args:
+        protocol: FileShareProtocol.SMB (default) or FileShareProtocol.NFS
         provisioned_iops: Optional IOPS for PV2 (None = use Azure defaults)
         provisioned_bandwidth_mibps: Optional throughput for PV2 (None = defaults)
         use_pv1_model: Set True to use legacy PV1 billing model
@@ -466,31 +467,33 @@ def _deploy_azure_file_share(
         file_share_quota_in_gb = max(file_share_quota_in_gb, 100)  # PV1 minimum
         provisioned_iops = None  # PV1 doesn't support explicit IOPS
         provisioned_bandwidth_mibps = None  # PV1 doesn't support explicit throughput
-    if isinstance(azure_file_share, AzureFileShare):
-        fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
-            file_share_names=list(names.values()),
-            environment=environment,
-            sku=storage_account_sku,
-            kind=storage_account_kind,
-            allow_shared_key_access=allow_shared_key_access,
-            enable_private_endpoint=enable_private_endpoint,
-            enable_https_traffic_only=enable_https_traffic_only,
-            quota_in_gb=file_share_quota_in_gb,
-            provisioned_iops=provisioned_iops,
-            provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
-        )
-        # Only create CIFS mount entries for SMB shares
-        # NFS shares are mounted separately using NFSClient
-        if not skip_mount:
-            test_folders_share_dict: Dict[str, str] = {}
-            for key, value in names.items():
-                test_folders_share_dict[key] = fs_url_dict[value]
-            azure_file_share.create_fileshare_folders(test_folders_share_dict)
-    elif isinstance(azure_file_share, Nfs):
-        # NFS yet to be implemented
-        raise SkippedException("Skipping NFS deployment. Pending implementation.")
-    else:
-        raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
+
+    # Create file shares using AzureFileShare
+    # Protocol (SMB/NFS) is passed as parameter:
+    # - SMB: Uses create_file_share + create_fileshare_folders for CIFS mounts
+    # - NFS: Uses create_file_share only (skip_mount=True), mounts via NFSClient
+    fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
+        file_share_names=list(names.values()),
+        environment=environment,
+        protocol=protocol,
+        sku=storage_account_sku,
+        kind=storage_account_kind,
+        allow_shared_key_access=allow_shared_key_access,
+        enable_private_endpoint=enable_private_endpoint,
+        enable_https_traffic_only=enable_https_traffic_only,
+        quota_in_gb=file_share_quota_in_gb,
+        provisioned_iops=provisioned_iops,
+        provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
+    )
+
+    # Only create CIFS mount entries for SMB shares
+    # NFS shares are mounted separately using NFSClient (caller sets skip_mount=True)
+    if not skip_mount:
+        test_folders_share_dict: Dict[str, str] = {}
+        for key, value in names.items():
+            test_folders_share_dict[key] = fs_url_dict[value]
+        azure_file_share.create_fileshare_folders(test_folders_share_dict, protocol)
+
     return fs_url_dict
 
 
@@ -498,8 +501,8 @@ def _deploy_azure_file_share(
     area="storage",
     category="community",
     description="""
-    This test suite is to validate different types of data disk on Linux VM
-     using xfstests.
+    This test suite is to validate different types of data disk and network ile system
+    on Linux VM using xfstests.
     """,
 )
 class Xfstesting(TestSuite):
@@ -1159,12 +1162,6 @@ class Xfstesting(TestSuite):
         ctx.share_names = share_names
         ctx.all_share_names = all_share_names
 
-        # Configure for NFS with private endpoint
-        azure_file_share.set_protocol(
-            FileShareProtocol.NFS,
-            FileShareConnectivity.PRIVATE_ENDPOINT,
-        )
-
         log.info(f"Creating {len(ctx.all_share_names)} Azure NFS shares for workers")
         # NFS requires:
         # - allow_shared_key_access=False (NFS uses network-based auth, not shared keys)
@@ -1176,6 +1173,7 @@ class Xfstesting(TestSuite):
             environment=environment,
             names=names_dict,
             azure_file_share=azure_file_share,
+            protocol=FileShareProtocol.NFS,
             allow_shared_key_access=False,
             enable_private_endpoint=True,
             enable_https_traffic_only=False,
@@ -1295,6 +1293,21 @@ class Xfstesting(TestSuite):
         ctx = AzureFileShareContext(runner=runner, protocol="cifs")
 
         try:
+            # Increase SSH MaxSessions to handle parallel worker SSH commands.
+            # Default Ubuntu MaxSessions=10 is insufficient for 6 workers
+            # each running 4+ concurrent SSH commands during worker creation.
+            # This prevents: ChannelException(2, 'Connect failed')
+            log.debug(
+                f"Increasing SSH MaxSessions for {runner.worker_count} parallel workers"
+            )
+            node.tools[Ssh].set_max_session()
+
+            # Force SSH reconnection after set_max_session() closes the connection.
+            # This ensures the connection is re-established before parallel workers
+            # start, preventing race conditions where workers see _is_initialized=True
+            # but _inner_shell is still None (AssertionError in shell.spawn).
+            node.execute("echo 'SSH reconnected'")
+
             # Create worker xfstests directory copies first
             runner.create_workers()
 
@@ -1404,6 +1417,21 @@ class Xfstesting(TestSuite):
         ctx = AzureFileShareContext(runner=runner, protocol="nfs")
 
         try:
+            # Increase SSH MaxSessions to handle parallel worker SSH commands.
+            # Default Ubuntu MaxSessions=10 is insufficient for 6 workers
+            # each running 4+ concurrent SSH commands during worker creation.
+            # This prevents: ChannelException(2, 'Connect failed')
+            log.debug(
+                f"Increasing SSH MaxSessions for {runner.worker_count} parallel workers"
+            )
+            node.tools[Ssh].set_max_session()
+
+            # Force SSH reconnection after set_max_session() closes the connection.
+            # This ensures the connection is re-established before parallel workers
+            # start, preventing race conditions where workers see _is_initialized=True
+            # but _inner_shell is still None (AssertionError in shell.spawn).
+            node.execute("echo 'SSH reconnected'")
+
             # Create worker xfstests directory copies first
             runner.create_workers()
 
@@ -1536,19 +1564,25 @@ class Xfstesting(TestSuite):
                 except Exception:
                     pass  # Best effort - resource may not exist
 
-            # Clean up fstab entries for mount points used by xfstests
-            # Use sed to remove specific entries rather than restoring backup
-            # This is more reliable and doesn't risk losing other fstab changes
-            node.execute(
-                f"sed -i '\\#{_test_folder}#d' /etc/fstab",
-                sudo=True,
-                shell=True,
-            )
-            node.execute(
-                f"sed -i '\\#{_scratch_folder}#d' /etc/fstab",
-                sudo=True,
-                shell=True,
-            )
+            # -------------------------------------------------------------------------
+            # fstab Cleanup (CIFS/SMB mounts only)
+            # -------------------------------------------------------------------------
+            # NFS mounts use NFSClient.setup() which calls Mount.mount() directly
+            # without creating fstab entries, so this cleanup only affects CIFS.
+            #
+            # The sed patterns match mount point paths, which catches:
+            # - Standard mounts: /mnt/test, /mnt/scratch
+            # - Worker mounts: /mnt/test_worker_N, /mnt/scratch_worker_N
+            #
+            # This is more reliable than restoring a backup and doesn't risk
+            # losing other fstab changes made outside of LISA.
+            # -------------------------------------------------------------------------
+            for base_mount in [_test_folder, _scratch_folder]:
+                node.execute(
+                    f"sed -i '\\#{base_mount}#d' /etc/fstab",
+                    sudo=True,
+                    shell=True,
+                )
         except Exception as e:
             raise BadEnvironmentStateException(f"after case, {e}")
 

@@ -588,12 +588,11 @@ class Storage(TestSuite):
         azure_file_share = node.features[AzureFileShare]
         mount_dir = "/mount/azure_share"
 
-        # Configure for NFS with private endpoint
-        azure_file_share.set_protocol(
-            FileShareProtocol.NFS,
-            FileShareConnectivity.PRIVATE_ENDPOINT,
+        # Create NFS share with private endpoint (required for NFS)
+        azure_file_share.create_share(
+            protocol=FileShareProtocol.NFS,
+            connectivity=FileShareConnectivity.PRIVATE_ENDPOINT,
         )
-        azure_file_share.create_share()
 
         storage_account_name = azure_file_share.storage_account_name
         file_share_name = azure_file_share.file_share_name
