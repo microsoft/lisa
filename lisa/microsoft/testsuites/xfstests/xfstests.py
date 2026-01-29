@@ -82,6 +82,7 @@ Usage Example:
     finally:
         runner.cleanup_workers()
 """
+
 import random
 import re
 import time
@@ -1432,9 +1433,7 @@ class Xfstests(Tool):
                 subtest_duration=subtest_duration,
             )
 
-    def _file_exists_with_timeout(
-        self, path: PurePath, timeout: int = 60
-    ) -> bool:
+    def _file_exists_with_timeout(self, path: PurePath, timeout: int = 60) -> bool:
         """
         Check if a file exists on the remote node with a timeout.
 
@@ -1516,7 +1515,9 @@ class Xfstests(Tool):
             else:
                 # Add explicit timeout to prevent blocking in parallel execution
                 log_result = self.node.tools[Cat].run(
-                    str(console_log_results_path), force_run=True, sudo=True,
+                    str(console_log_results_path),
+                    force_run=True,
+                    sudo=True,
                     timeout=120,
                 )
                 log_result.assert_exit_code()
@@ -1544,7 +1545,9 @@ class Xfstests(Tool):
             else:
                 # Add explicit timeout to prevent blocking in parallel execution
                 results = self.node.tools[Cat].run(
-                    str(results_path), force_run=True, sudo=True,
+                    str(results_path),
+                    force_run=True,
+                    sudo=True,
                     timeout=120,
                 )
                 results.assert_exit_code()
