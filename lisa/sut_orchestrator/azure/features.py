@@ -4139,7 +4139,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         # Track created file shares and their protocols for cleanup
         # Format: {"share_name": FileShareProtocol.SMB or .NFS}
         self._file_share_protocols: Dict[str, FileShareProtocol] = {}
-        self._file_share_names: List[str] = []
         # Connectivity mode (set by create_file_share based on protocol requirements)
         self._connectivity = FileShareConnectivity.PUBLIC
         # Default auth mode for SMB (changes based on protocol per share)
@@ -4153,6 +4152,9 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         self._storage_account_name, self._storage_account_reused = (
             self._find_or_generate_storage_account_name(self.STORAGE_ACCOUNT_PREFIX)
         )
+
+        # Track created file shares for cleanup
+        self._file_share_names: List[str] = []
 
         # Track private endpoint creation state
         self._private_endpoint_created_by_lisa: bool = False

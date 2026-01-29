@@ -899,7 +899,7 @@ class Xfstesting(TestSuite):
         self,
         runner: XfstestsParallelRunner,
         random_str: str,
-    ) -> tuple:
+    ) -> Tuple[Dict[str, str], List[str], Dict[str, str], int]:
         """
         Create share names and mount point mappings for workers.
 
