@@ -3780,7 +3780,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
     Azure File Share feature for LISA test automation.
 
     Manages Azure SMB and NFS file shares with support for:
-    - Protocol selection (SMB or NFS) via set_protocol()
+    - Per-share protocol selection via create_share() or create_file_share()
     - Authentication mode selection (SHARED_KEY, future: MANAGED_IDENTITY, KERBEROS)
     - Storage account reuse across test runs (keep_environment scenarios)
     - Private endpoint management for secure connectivity
@@ -3795,7 +3795,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
           - Future: Encryption-in-transit via NfsSecurityMode
 
     Resource Naming Conventions:
-        - Storage accounts: lisa{smb|nfs}<random10chars>
+        - Storage accounts: lisafs<random10chars> (neutral prefix for mixed protocols)
         - Private endpoints: <storageaccountname>-file-pe
         - Credential files: /etc/smbcredentials/<storageaccountname>.cred (SMB only)
 
@@ -3823,8 +3823,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
     """
 
     # Naming pattern constants for LISA-managed Azure resources
-    STORAGE_ACCOUNT_PREFIX_SMB = "lisasmb"
-    STORAGE_ACCOUNT_PREFIX_NFS = "lisanfs"
+    # Use neutral prefix 'lisafs' to support mixed SMB+NFS on same storage account
+    STORAGE_ACCOUNT_PREFIX = "lisafs"
     PRIVATE_ENDPOINT_SUFFIX = "-file-pe"
     CREDENTIAL_DIR = "/etc/smbcredentials"
 
@@ -3858,51 +3858,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             version = "3.0"
         return version
 
-    def set_protocol(
-        self,
-        protocol: FileShareProtocol,
-        connectivity: Optional[FileShareConnectivity] = None,
-    ) -> None:
-        """
-        Configure the file share protocol and connectivity.
-
-        Must be called before create_file_share() or create_share().
-        Validates that connectivity is compatible with the protocol.
-
-        Args:
-            protocol: FileShareProtocol.SMB or FileShareProtocol.NFS
-            connectivity: Optional connectivity mode. If not specified:
-                          - SMB defaults to PUBLIC
-                          - NFS defaults to PRIVATE_ENDPOINT
-        """
-        self._protocol = protocol
-
-        # Set default connectivity based on protocol
-        if connectivity is None:
-            if protocol == FileShareProtocol.NFS:
-                connectivity = FileShareConnectivity.PRIVATE_ENDPOINT
-            else:
-                connectivity = FileShareConnectivity.PUBLIC
-
-        # Validate connectivity for protocol
-        # NFS does not support public endpoints
-        if protocol == FileShareProtocol.NFS:
-            if connectivity == FileShareConnectivity.PUBLIC:
-                raise LisaException(
-                    "NFS protocol does not support public endpoints. "
-                    "Use PRIVATE_ENDPOINT or SERVICE_ENDPOINT."
-                )
-        # SERVICE_ENDPOINT is valid for both SMB and NFS
-
-        self._connectivity = connectivity
-        self._log.debug(
-            f"Configured file share: protocol={protocol.value}, "
-            f"connectivity={connectivity.value}"
-        )
-
-        # Re-initialize storage account info with correct prefix
-        self._reinitialize_for_protocol()
-
     def _find_or_generate_storage_account_name(
         self, prefix: str
     ) -> Tuple[str, bool]:
@@ -3914,7 +3869,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         unique name.
 
         Args:
-            prefix: Storage account name prefix (e.g., 'lisasmb', 'lisanfs')
+            prefix: Storage account name prefix (e.g., 'lisafs')
 
         Returns:
             Tuple of (storage_account_name, was_reused)
@@ -3939,42 +3894,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         new_name = f"{prefix}{random_str}"
         self._log.debug(f"Will create new storage account: {new_name}")
         return (new_name, False)
-
-    def _reinitialize_for_protocol(self) -> None:
-        """Re-initialize storage account info based on current protocol."""
-        prefix = (
-            self.STORAGE_ACCOUNT_PREFIX_NFS
-            if self._protocol == FileShareProtocol.NFS
-            else self.STORAGE_ACCOUNT_PREFIX_SMB
-        )
-
-        self._storage_account_name, self._storage_account_reused = (
-            self._find_or_generate_storage_account_name(prefix)
-        )
-
-        self._private_endpoint_name = (
-            f"{self._storage_account_name}{self.PRIVATE_ENDPOINT_SUFFIX}"
-        )
-
-        if self._protocol == FileShareProtocol.NFS:
-            self._auth_mode = FileShareAuthMode.NETWORK
-            self._credential_file = ""
-            # NFS uses _netdev to delay mount until network is available
-            # noauto prevents systemd from auto-mounting when fstab is modified
-            self._fstab_info = "vers=4.1,_netdev,nofail,noauto,sec=sys"
-        else:
-            self._auth_mode = FileShareAuthMode.SHARED_KEY
-            self._credential_file = (
-                f"{self.CREDENTIAL_DIR}/{self._storage_account_name}.cred"
-            )
-            # Use 'noauto' to prevent systemd from auto-mounting when fstab is
-            # modified. This avoids race conditions where systemd mounts shares
-            # while xfstests tries to mount/unmount during _scratch_mkfs.
-            self._fstab_info = (
-                f"nofail,noauto,vers={self.get_smb_version()},"
-                f"credentials={self._credential_file}"
-                ",dir_mode=0777,file_mode=0777,serverino"
-            )
 
     def _setup_private_endpoint(self, location: str) -> None:
         """
@@ -4050,77 +3969,107 @@ class AzureFileShare(AzureFeatureMixin, Feature):
 
     def create_share(
         self,
+        protocol: FileShareProtocol = FileShareProtocol.SMB,
         quota_in_gb: int = 100,
+        connectivity: Optional[FileShareConnectivity] = None,
     ) -> None:
         """
-        Create a file share using the configured protocol.
+        Create a single file share with the specified protocol.
 
-        For NFS: Creates Premium storage account with private endpoint.
-        For SMB: Creates Standard storage account (public or private endpoint).
+        This is a simplified method for creating one share. For creating multiple
+        shares (potentially with different protocols), use create_file_share().
 
-        Must call set_protocol() before this method to configure NFS.
+        Storage Account Configuration:
+        - NFS: Premium_LRS, FileStorage, HTTPS disabled, private endpoint required
+        - SMB: Standard_LRS, StorageV2, HTTPS enabled
+
+        Args:
+            protocol: FileShareProtocol.SMB (default) or FileShareProtocol.NFS
+            quota_in_gb: Share quota in GB (default 100)
+            connectivity: Optional connectivity mode. If not specified:
+                          - SMB defaults to PUBLIC
+                          - NFS defaults to PRIVATE_ENDPOINT (required)
+
+        Raises:
+            LisaException: If NFS is requested with PUBLIC connectivity
         """
+        # Determine connectivity - NFS requires private endpoint
+        if connectivity is None:
+            if protocol == FileShareProtocol.NFS:
+                connectivity = FileShareConnectivity.PRIVATE_ENDPOINT
+            else:
+                connectivity = FileShareConnectivity.PUBLIC
+
+        # Validate connectivity for protocol
+        if protocol == FileShareProtocol.NFS:
+            if connectivity == FileShareConnectivity.PUBLIC:
+                raise LisaException(
+                    "NFS protocol does not support public endpoints. "
+                    "Use PRIVATE_ENDPOINT or SERVICE_ENDPOINT."
+                )
+
+        self._connectivity = connectivity
+
+        # Common setup - single entry point
         platform: AzurePlatform = self._platform  # type: ignore
         node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
         location = node_context.location
         resource_group_name = self._resource_group_name
 
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
-        self._file_share_names = [f"lisa{random_str}fs"]
-        self._private_endpoint_name = f"{self._storage_account_name}-file-pe"
+        share_name = f"lisa{random_str}fs"
+        self._file_share_names = [share_name]
+        self._file_share_protocols[share_name] = protocol
 
-        if self._protocol == FileShareProtocol.NFS:
-            # NFS requires Premium_LRS, FileStorage, HTTPS disabled
-            check_or_create_storage_account(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                cloud=platform.cloud,
-                account_name=self._storage_account_name,
-                resource_group_name=resource_group_name,
-                location=location,
-                log=self._log,
-                sku="Premium_LRS",
-                kind="FileStorage",
-                enable_https_traffic_only=False,
-            )
-            get_or_create_file_share(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                cloud=platform.cloud,
-                account_name=self._storage_account_name,
-                file_share_name=self._file_share_names[0],
-                resource_group_name=resource_group_name,
-                protocols="NFS",
-                log=self._log,
-                quota_in_gb=quota_in_gb,
-            )
+        # Determine protocol-specific parameters
+        is_nfs = protocol == FileShareProtocol.NFS
+
+        if is_nfs:
+            # NFS requires Premium tier, FileStorage kind, HTTPS disabled
+            sku = "Premium_LRS"
+            kind = "FileStorage"
+            enable_https = False
+            # NFS uses network-based auth, shared key access not applicable
+            allow_shared_key = True  # Required for ARM operations, not for mount
+            protocols_str = "NFS"
         else:
-            # SMB uses Standard storage
-            check_or_create_storage_account(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                cloud=platform.cloud,
-                account_name=self._storage_account_name,
-                resource_group_name=resource_group_name,
-                location=location,
-                log=self._log,
-                sku="Standard_LRS",
-                kind="StorageV2",
-                enable_https_traffic_only=True,
-                allow_shared_key_access=False,
-            )
-            get_or_create_file_share(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                cloud=platform.cloud,
-                account_name=self._storage_account_name,
-                file_share_name=self._file_share_names[0],
-                resource_group_name=resource_group_name,
-                log=self._log,
-                quota_in_gb=quota_in_gb,
-            )
+            # SMB storage configuration
+            sku = "Standard_LRS"
+            kind = "StorageV2"
+            enable_https = True
+            # SMB: Allow shared key based on auth mode
+            allow_shared_key = self._auth_mode == FileShareAuthMode.SHARED_KEY
+            protocols_str = "SMB"
 
-        # Create private endpoint if required
+        # Create storage account - unified call with protocol-specific params
+        check_or_create_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=self._storage_account_name,
+            resource_group_name=resource_group_name,
+            location=location,
+            log=self._log,
+            sku=sku,
+            kind=kind,
+            enable_https_traffic_only=enable_https,
+            allow_shared_key_access=allow_shared_key,
+        )
+
+        # Create file share - unified call with protocol-specific params
+        get_or_create_file_share(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=self._storage_account_name,
+            file_share_name=share_name,
+            resource_group_name=resource_group_name,
+            protocols=protocols_str,
+            log=self._log,
+            quota_in_gb=quota_in_gb,
+        )
+
+        # Create private endpoint if required - common exit point
         if self._connectivity == FileShareConnectivity.PRIVATE_ENDPOINT:
             self._setup_private_endpoint(location)
 
@@ -4128,13 +4077,18 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         """
         Delete the file share and associated resources.
 
-        Cleans up private endpoint resources if they were created.
+        Cleans up private endpoint resources only if LISA created them.
+        Uses tracked protocol per share for proper cleanup.
         """
         platform: AzurePlatform = self._platform  # type: ignore
         resource_group_name = self._resource_group_name
 
-        # Clean up private endpoint resources if created
-        if self._connectivity == FileShareConnectivity.PRIVATE_ENDPOINT:
+        # Clean up private endpoint resources only if LISA created them
+        # This preserves pre-existing private endpoints that were reused
+        if (
+            self._connectivity == FileShareConnectivity.PRIVATE_ENDPOINT
+            and self._private_endpoint_created_by_lisa
+        ):
             delete_private_dns_zone_groups(
                 platform,
                 resource_group_name,
@@ -4151,9 +4105,12 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 private_endpoint_name=self._private_endpoint_name,
             )
 
-        # Delete file share(s)
-        protocols = "NFS" if self._protocol == FileShareProtocol.NFS else "SMB"
+        # Delete file share(s) - use tracked protocol per share
         for share_name in self._file_share_names:
+            share_protocol = self._file_share_protocols.get(
+                share_name, FileShareProtocol.SMB
+            )
+            protocols_str = "NFS" if share_protocol == FileShareProtocol.NFS else "SMB"
             delete_file_share(
                 platform.credential,
                 platform.subscription_id,
@@ -4162,7 +4119,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 share_name,
                 resource_group_name,
                 self._log,
-                protocols=protocols,
+                protocols=protocols_str,
             )
 
         # Delete storage account if not reused
@@ -4179,18 +4136,22 @@ class AzureFileShare(AzureFeatureMixin, Feature):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
-        # Default to SMB protocol
-        self._protocol = FileShareProtocol.SMB
-        self._connectivity = FileShareConnectivity.PUBLIC
+        # Track created file shares and their protocols for cleanup
+        # Format: {"share_name": FileShareProtocol.SMB or .NFS}
+        self._file_share_protocols: Dict[str, FileShareProtocol] = {}
         self._file_share_names: List[str] = []
+        # Connectivity mode (set by create_file_share based on protocol requirements)
+        self._connectivity = FileShareConnectivity.PUBLIC
+        # Default auth mode for SMB (changes based on protocol per share)
         self._auth_mode = FileShareAuthMode.SHARED_KEY
         self._initialize_fileshare_information()
 
     def _initialize_fileshare_information(self) -> None:
-        """Initialize file share information with SMB defaults."""
+        """Initialize file share information with neutral defaults."""
         # Find existing or generate new storage account name
+        # Using neutral prefix to support mixed SMB+NFS on same account
         self._storage_account_name, self._storage_account_reused = (
-            self._find_or_generate_storage_account_name(self.STORAGE_ACCOUNT_PREFIX_SMB)
+            self._find_or_generate_storage_account_name(self.STORAGE_ACCOUNT_PREFIX)
         )
 
         # Track private endpoint creation state
@@ -4207,20 +4168,21 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         self._credential_file: str = (
             f"{self.CREDENTIAL_DIR}/{self._storage_account_name}.cred"
         )
+        # Default fstab info for SMB (will be overridden per-share as needed)
         # Use 'noauto' to prevent systemd from auto-mounting when fstab is modified.
-        # This avoids race conditions where systemd mounts shares while xfstests
-        # tries to mount/unmount during _scratch_mkfs, causing "target is busy" errors.
-        # xfstests handles mounting via its MOUNT_OPTIONS in local.config.
-        self._fstab_info = (
+        self._fstab_info_smb = (
             f"nofail,noauto,vers={self.get_smb_version()},"
             f"credentials={self._credential_file}"
             ",dir_mode=0777,file_mode=0777,serverino"
         )
+        # NFS fstab info template
+        self._fstab_info_nfs = "vers=4.1,_netdev,nofail,noauto,sec=sys"
 
     def create_file_share(
         self,
         file_share_names: List[str],
         environment: Environment,
+        protocol: FileShareProtocol = FileShareProtocol.SMB,
         allow_shared_key_access: bool = False,
         sku: str = "Standard_LRS",
         kind: str = "StorageV2",
@@ -4230,6 +4192,25 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         provisioned_iops: Optional[int] = None,
         provisioned_bandwidth_mibps: Optional[int] = None,
     ) -> Dict[str, str]:
+        """
+        Create multiple file shares with the specified protocol.
+
+        Args:
+            file_share_names: List of share names to create
+            environment: Environment object for location info
+            protocol: FileShareProtocol.SMB (default) or FileShareProtocol.NFS
+            allow_shared_key_access: Allow storage account key access (SMB only)
+            sku: Storage SKU (NFS requires Premium_LRS)
+            kind: Storage kind (NFS requires FileStorage)
+            enable_https_traffic_only: Enable HTTPS (must be False for NFS)
+            enable_private_endpoint: Create private endpoint
+            quota_in_gb: Share quota in GB
+            provisioned_iops: Optional provisioned IOPS
+            provisioned_bandwidth_mibps: Optional provisioned bandwidth
+
+        Returns:
+            Dict mapping share names to their URLs
+        """
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
         resource_group_name = self._resource_group_name
@@ -4257,8 +4238,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         # For Quota, currently all volumes will share same quota number.
         # Ensure that you use the highest value applicable for your shares
         # Reuse existing file shares if they exist, otherwise create new ones
-        # Determine protocol string from configured protocol enum
-        protocols = "NFS" if self._protocol == FileShareProtocol.NFS else "SMB"
+        # Determine protocol string from passed protocol enum
+        protocols_str = "NFS" if protocol == FileShareProtocol.NFS else "SMB"
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
@@ -4268,27 +4249,35 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=self._log,
-                protocols=protocols,
+                protocols=protocols_str,
                 quota_in_gb=quota_in_gb,
                 provisioned_iops=provisioned_iops,
                 provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
             )
+            # Track protocol per share for proper cleanup
+            self._file_share_protocols[share_name] = protocol
+
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane
         # once private endpoint is created. Observed in Terraform provider as well
         if enable_private_endpoint:
             self._setup_private_endpoint(location)
+            self._connectivity = FileShareConnectivity.PRIVATE_ENDPOINT
 
         # Track created shares for cleanup
         self._file_share_names = file_share_names
 
         return fs_url_dict
 
-    def create_fileshare_folders(self, test_folders_share_dict: Dict[str, str]) -> None:
+    def create_fileshare_folders(
+        self,
+        test_folders_share_dict: Dict[str, str],
+        protocol: FileShareProtocol = FileShareProtocol.SMB,
+    ) -> None:
         """
         Create mount point folders and configure fstab entries for file shares.
 
-        Supports both SMB and NFS protocols based on self._protocol setting.
+        Supports both SMB and NFS protocols based on the passed protocol parameter.
         Authentication mode determines whether credentials are needed:
         - SHARED_KEY (SMB): Creates credential file and CIFS fstab entries
         - MANAGED_IDENTITY/KERBEROS (SMB future): No credential file needed
@@ -4300,12 +4289,21 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                     "/mnt/test": "//server/share",
                     "/mnt/scratch": "//server/share2",
                 }
+            protocol: FileShareProtocol.SMB (default) or FileShareProtocol.NFS
         """
         platform: AzurePlatform = self._platform  # type: ignore
 
+        # Select correct fstab template based on protocol
+        if protocol == FileShareProtocol.NFS:
+            fstab_info = self._fstab_info_nfs
+            auth_mode = FileShareAuthMode.NETWORK
+        else:
+            fstab_info = self._fstab_info_smb
+            auth_mode = self._auth_mode
+
         # Only SHARED_KEY auth mode requires storage account credentials
         # NFS (NETWORK), managed identity, and Kerberos don't need shared keys
-        if self._auth_mode == FileShareAuthMode.SHARED_KEY:
+        if auth_mode == FileShareAuthMode.SHARED_KEY:
             account_credential = get_storage_credential(
                 credential=platform.credential,
                 subscription_id=platform.subscription_id,
@@ -4321,7 +4319,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             self._node,
             account_credential,
             test_folders_share_dict,
-            self._fstab_info,
+            fstab_info,
+            protocol,
         )
 
     def delete_azure_fileshare(self, file_share_names: List[str]) -> None:
@@ -4356,10 +4355,13 @@ class AzureFileShare(AzureFeatureMixin, Feature):
     def _delete_file_shares(self, file_share_names: List[str]) -> None:
         """Delete the specified file shares from the storage account."""
         platform: AzurePlatform = self._platform  # type: ignore
-        # Determine protocol string from configured protocol enum
+        # Use tracked protocol per share for proper cleanup
         # NFS requires ARM API because allow_shared_key_access=False
-        protocols = "NFS" if self._protocol == FileShareProtocol.NFS else "SMB"
         for share_name in file_share_names:
+            share_protocol = self._file_share_protocols.get(
+                share_name, FileShareProtocol.SMB
+            )
+            protocols_str = "NFS" if share_protocol == FileShareProtocol.NFS else "SMB"
             delete_file_share(
                 credential=platform.credential,
                 subscription_id=platform.subscription_id,
@@ -4368,7 +4370,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 file_share_name=share_name,
                 resource_group_name=self._resource_group_name,
                 log=self._log,
-                protocols=protocols,
+                protocols=protocols_str,
             )
 
     def _cleanup_private_endpoint_resources(self) -> None:
@@ -4434,15 +4436,26 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         """
         Clean up VM-local state: fstab entries and credential files.
 
+        Protocol-aware cleanup:
+        - SMB/CIFS: Removes fstab entries (share name in mount source) and
+          credential files. Fstab entries have format:
+          //server/sharename /mount/point cifs options 0 0
+        - NFS: Removes fstab entries (share name in export path). Fstab entries
+          have format: server:/account/sharename /mount/point nfs options 0 0
+
+        Both protocols' fstab entries contain the share name, so the sed
+        pattern '/{share_name}/d' works for both.
+
         Uses sed to remove specific fstab entries rather than restoring a
         backup, which is more reliable and doesn't risk losing other changes.
-        Only removes the specific credential file for this storage account,
-        preserving credentials for other mounts on reused VMs.
+        Only removes the specific credential file for this storage account
+        (SMB only), preserving credentials for other mounts on reused VMs.
 
         Args:
             file_share_names: List of share names to remove from fstab
         """
         # Remove fstab entries for the deleted file shares
+        # Works for both SMB (//server/sharename) and NFS (server:/account/sharename)
         for share_name in file_share_names:
             self._node.execute(
                 f"sed -i '/{share_name}/d' /etc/fstab",
@@ -4450,7 +4463,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 shell=True,
             )
 
-        # Remove only the specific credential file for this storage account
+        # Remove credential file (SMB only - NFS doesn't use credential files)
+        # Safe to call for NFS as rm -f ignores non-existent files
         self._node.execute(
             f"rm -f {self._credential_file}",
             sudo=True,
@@ -4462,6 +4476,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         account_credential: Dict[str, str],
         test_folders_share_dict: Dict[str, str],
         fstab_info: str,
+        protocol: FileShareProtocol = FileShareProtocol.SMB,
     ) -> None:
         """
         Prepare fstab entries for Azure file shares (SMB or NFS).
@@ -4476,6 +4491,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             account_credential: Storage account credentials (empty for non-SHARED_KEY)
             test_folders_share_dict: Mapping of mount points to share URLs
             fstab_info: Mount options for fstab entry
+            protocol: FileShareProtocol.SMB (default) or FileShareProtocol.NFS
         """
         # Clean up any stale fstab entries from previous test runs
         # This is critical for VM reuse scenarios
@@ -4523,12 +4539,13 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         node.execute("cp -f /etc/fstab /etc/fstab.backup", sudo=True)
 
         # Determine filesystem type based on protocol
-        fs_type = "nfs" if self._protocol == FileShareProtocol.NFS else "cifs"
+        is_nfs = protocol == FileShareProtocol.NFS
+        fs_type = "nfs" if is_nfs else "cifs"
 
         for folder_name, share in test_folders_share_dict.items():
             node.execute(f"mkdir -p {folder_name}", sudo=True)
 
-            if self._protocol == FileShareProtocol.NFS:
+            if is_nfs:
                 # For NFS, convert share URL from //server/share to
                 # server:/account/share format
                 # Input: //server.file.core.windows.net/sharename
