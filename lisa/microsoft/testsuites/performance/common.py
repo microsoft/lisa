@@ -246,39 +246,53 @@ def perf_disk(
     )
     
     if use_worker_specific_affinity:
-        # Split disks and run separate FIO jobs for precise worker→CPU mapping
+        # Split disks and run parallel FIO jobs for precise worker→CPU mapping
         disk_files = filename.split(":")
         node.log.info(
-            f"Running separate FIO jobs for worker-specific CPU affinity: "
+            f"Running parallel FIO jobs for worker-specific CPU affinity: "
             f"{len(disk_files)} disks, {disk_count} workers"
         )
         
-        # Run individual FIO job for each disk with specific CPU
-        for disk_idx, disk_file in enumerate(disk_files[:disk_count]):
-            specific_cpu = _generate_cpu_affinity_per_worker(disk_idx, core_count)
-            
-            for mode in FIOMODES:
-                iodepth = start_iodepth
-                numjobindex = 0
-                while iodepth <= max_iodepth:
-                    fio_result = fio.launch(
+        # Run parallel FIO jobs for each iodepth level
+        for mode in FIOMODES:
+            iodepth = start_iodepth
+            numjobindex = 0
+            while iodepth <= max_iodepth:
+                # Launch parallel FIO jobs for all disks at this iodepth
+                parallel_processes = []
+                
+                for disk_idx, disk_file in enumerate(disk_files[:disk_count]):
+                    specific_cpu = _generate_cpu_affinity_per_worker(disk_idx, core_count)
+                    
+                    # Use launch_async for parallel execution
+                    async_process = fio.launch_async(
                         name=f"worker{disk_idx+1}_iteration{numjobiterator}",
                         filename=disk_file,
                         mode=mode.name,
                         time=time,
-                        size_gb=size_mb // disk_count if size_mb > 0 else 0,  # Split size among disks
+                        size_gb=size_mb // disk_count if size_mb > 0 else 0,
                         block_size=f"{block_size}K",
-                        iodepth=iodepth // disk_count if iodepth > disk_count else 1,  # Split iodepth
+                        iodepth=iodepth // disk_count if iodepth > disk_count else 1,
                         overwrite=overwrite,
                         numjob=1,  # Single job per disk for precise CPU→worker mapping
                         cwd=cwd,
                         ioengine=ioengine,
                         cpus_allowed=specific_cpu,  # worker{disk_idx+1} → CPU{disk_idx}
                     )
+                    parallel_processes.append((async_process, disk_idx))
+                
+                # Wait for all parallel FIO jobs to complete and collect results
+                for async_process, disk_idx in parallel_processes:
+                    async_process.wait_result()  # Wait for completion
+                    output = async_process.stdout
+                    fio_result = fio.get_result_from_raw_output(
+                        mode.name, output, iodepth // disk_count if iodepth > disk_count else 1, 1
+                    )
                     fio_result_list.append(fio_result)
-                    iodepth = iodepth * 2
-                    numjobindex += 1
-                    numjobiterator += 1
+                
+                iodepth = iodepth * 2
+                numjobindex += 1
+                numjobiterator += 1
         
     else:
         # Standard single FIO job approach (workers may float among CPUs)
