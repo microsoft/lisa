@@ -65,7 +65,7 @@ Known Limitations:
 import string
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, cast
 
 from microsoft.testsuites.xfstests.xfstests import (
     DEFAULT_WORKER_BASE_DIR,
