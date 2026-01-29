@@ -782,7 +782,7 @@ def perf_premium_datadisks(
     disk_type: DiskType = DiskType.premiumssd,
     block_size: int = 4,
     start_iodepth: int = 1,
-    max_iodepth: int = 256,
+    max_iodepth: int = 1024,
     ioengine: IoEngine = IoEngine.LIBAIO,
 ) -> None:
     disk = node.features[Disk]
@@ -807,7 +807,7 @@ def perf_premium_datadisks(
         disk_type=disk_type,
         numjob=thread_count,
         block_size=block_size,
-        size_mb=8192,
+        size_mb=15360,
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
