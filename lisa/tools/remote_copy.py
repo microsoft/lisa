@@ -3,7 +3,6 @@
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Any, List, Optional, Type
 
-from lisa import LisaException
 from lisa.executable import Tool
 from lisa.tools.chown import Chown
 from lisa.tools.cp import Cp
@@ -12,7 +11,7 @@ from lisa.tools.ls import Ls
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.rm import Rm
 from lisa.tools.whoami import Whoami
-from lisa.util import constants
+from lisa.util import LisaException, constants
 
 if TYPE_CHECKING:
     from lisa.node import Node, RemoteNode
