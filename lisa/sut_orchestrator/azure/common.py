@@ -2329,11 +2329,11 @@ def get_or_create_file_share(
                 create_kwargs["provisioned_bandwidth_mibps"] = (
                     provisioned_bandwidth_mibps
                 )
-                log.debug(f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}")
+                log.debug(
+                    f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}"
+                )
             share_service_client.create_share(file_share_name, **create_kwargs)
-        return str(
-            "//" + share_service_client.primary_hostname + "/" + file_share_name
-        )
+        return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 
 
 def delete_file_share(

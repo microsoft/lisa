@@ -62,6 +62,7 @@ Known Limitations:
 - Some tests (e.g., generic/007: 285s) are much slower than others (0-5s)
 - This can cause worker imbalance; future work: runtime-aware distribution
 """
+
 import string
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1064,8 +1065,9 @@ class Xfstesting(TestSuite):
         """
         # Initialize context and create share mappings using helper
         ctx = AzureFileShareContext(runner=runner, protocol="cifs")
-        share_names, all_share_names, names_dict, per_share_quota = \
+        share_names, all_share_names, names_dict, per_share_quota = (
             self._create_worker_shares(runner, random_str)
+        )
         ctx.share_names = share_names
         ctx.all_share_names = all_share_names
 
@@ -1157,8 +1159,9 @@ class Xfstesting(TestSuite):
         """
         # Initialize context and create share mappings using helper
         ctx = AzureFileShareContext(runner=runner, protocol="nfs")
-        share_names, all_share_names, names_dict, per_share_quota = \
+        share_names, all_share_names, names_dict, per_share_quota = (
             self._create_worker_shares(runner, random_str)
+        )
         ctx.share_names = share_names
         ctx.all_share_names = all_share_names
 

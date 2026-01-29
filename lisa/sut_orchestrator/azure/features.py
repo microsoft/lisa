@@ -188,9 +188,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -565,8 +565,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         ]
     }
     """  # noqa: E501
-    _gpu_extension_nvidia_properties = json.loads(
-        """
+    _gpu_extension_nvidia_properties = json.loads("""
         {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
@@ -575,8 +574,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             "settings": {
             }
         }
-    """
-    )
+    """)
 
     def is_supported(self) -> bool:
         # TODO: The GPU Feature is supposed to handle cloud related
@@ -1421,7 +1419,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
     has_resource_disk: Optional[bool] = None
     ephemeral_disk_placement_type: Optional[
         Union[search_space.SetSpace[DiskPlacementType], DiskPlacementType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=[
@@ -2797,9 +2795,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile[
-                "disk_encryption_set_id"
-            ] = settings.disk_encryption_set_id
+            node_parameters.security_profile["disk_encryption_set_id"] = (
+                settings.disk_encryption_set_id
+            )
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
@@ -3489,7 +3487,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
 class HyperVGenerationSettings(schema.FeatureSettings):
     type: str = "HyperVGeneration"
     # Hyper-V Generation capabilities of the VM
-    gen: Optional[Union[search_space.SetSpace[int], int]] = field(  # type:ignore
+    gen: Optional[Union[search_space.SetSpace[int], int]] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=[1, 2],
@@ -3858,9 +3856,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             version = "3.0"
         return version
 
-    def _find_or_generate_storage_account_name(
-        self, prefix: str
-    ) -> Tuple[str, bool]:
+    def _find_or_generate_storage_account_name(self, prefix: str) -> Tuple[str, bool]:
         """
         Find an existing LISA-created storage account or generate a new name.
 
@@ -3888,9 +3884,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 return (account.name, True)
 
         # No existing account found, generate new name
-        random_str = generate_random_chars(
-            string.ascii_lowercase + string.digits, 10
-        )
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         new_name = f"{prefix}{random_str}"
         self._log.debug(f"Will create new storage account: {new_name}")
         return (new_name, False)
