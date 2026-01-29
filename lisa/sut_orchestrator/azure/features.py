@@ -3826,6 +3826,19 @@ class AzureFileShare(AzureFeatureMixin, Feature):
     PRIVATE_ENDPOINT_SUFFIX = "-file-pe"
     CREDENTIAL_DIR = "/etc/smbcredentials"
 
+    # Instance attribute type annotations (initialized in _initialize methods)
+    _storage_account_name: str
+    _storage_account_reused: bool
+    _file_share_names: List[str]
+    _private_endpoint_created_by_lisa: bool
+    _private_endpoint_name: str
+    _credential_file: str
+    _fstab_info_smb: str
+    _fstab_info_nfs: str
+    _file_share_protocols: Dict[str, FileShareProtocol]
+    _connectivity: FileShareConnectivity
+    _auth_mode: FileShareAuthMode
+
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
