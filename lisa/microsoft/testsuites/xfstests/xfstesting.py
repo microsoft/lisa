@@ -179,9 +179,8 @@ _default_nfs_excluded_tests: str = (
 # These tests validate NFS functionality that Azure Files supports.
 # Using the same generic tests as SMB where applicable.
 #
-# Total: 73 tests (down from 89 after removing 16 auto-skipping tests)
-# Tests removed: generic/024, 071, 086, 117, 214, 228, 286, 315, 391,
-#                422, 465, 528, 568, 590, 599, 635 (see excluded list)
+# Total: 74 tests (29 tests excluded due to Azure Files NFS limitations)
+# See _default_nfs_excluded_tests for full exclusion list with reasons.
 _default_nfs_testcases: str = (
     "generic/001 generic/005 generic/006 generic/007 generic/010 generic/011 "
     "generic/028 generic/029 generic/030 generic/036 "
