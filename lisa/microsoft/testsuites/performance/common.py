@@ -807,7 +807,7 @@ def perf_premium_datadisks(
         disk_type=disk_type,
         numjob=thread_count,
         block_size=block_size,
-        size_mb=10240,
+        size_mb=8192,
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
