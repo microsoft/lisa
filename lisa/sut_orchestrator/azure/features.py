@@ -4148,14 +4148,14 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         )
 
         # Track created file shares for cleanup
-        self._file_share_names: List[str] = []
+        self._file_share_names = []
 
         # Track private endpoint creation state
-        self._private_endpoint_created_by_lisa: bool = False
+        self._private_endpoint_created_by_lisa = False
 
         # Private endpoint name should be unique per storage account to avoid conflicts
         # Format: <storageaccountname>-file-pe
-        self._private_endpoint_name: str = (
+        self._private_endpoint_name = (
             f"{self._storage_account_name}{self.PRIVATE_ENDPOINT_SUFFIX}"
         )
 
