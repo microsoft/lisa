@@ -283,8 +283,10 @@ def perf_disk(
                 
                 # Wait for all parallel FIO jobs to complete and collect results
                 for async_process, disk_idx in parallel_processes:
-                    async_process.wait_result()  # Wait for completion
-                    output = async_process.stdout
+                    result = async_process.wait_result()  # Wait for completion and get result
+                    if result.exit_code != 0:
+                        raise LisaException(f"FIO failed with exit code {result.exit_code}: {result.stderr}")
+                    output = result.stdout
                     fio_result = fio.get_result_from_raw_output(
                         mode.name, output, iodepth // disk_count if iodepth > disk_count else 1, 1
                     )
