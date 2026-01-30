@@ -1064,9 +1064,12 @@ class Xfstesting(TestSuite):
         """
         # Initialize context and create share mappings using helper
         ctx = AzureFileShareContext(runner=runner, protocol="cifs")
-        share_names, all_share_names, names_dict, per_share_quota = (
-            self._create_worker_shares(runner, random_str)
-        )
+        (
+            share_names,
+            all_share_names,
+            names_dict,
+            per_share_quota,
+        ) = self._create_worker_shares(runner, random_str)
         ctx.share_names = share_names
         ctx.all_share_names = all_share_names
 
@@ -1158,9 +1161,12 @@ class Xfstesting(TestSuite):
         """
         # Initialize context and create share mappings using helper
         ctx = AzureFileShareContext(runner=runner, protocol="nfs")
-        share_names, all_share_names, names_dict, per_share_quota = (
-            self._create_worker_shares(runner, random_str)
-        )
+        (
+            share_names,
+            all_share_names,
+            names_dict,
+            per_share_quota,
+        ) = self._create_worker_shares(runner, random_str)
         ctx.share_names = share_names
         ctx.all_share_names = all_share_names
 
