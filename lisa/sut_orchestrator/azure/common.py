@@ -2348,9 +2348,9 @@ def get_or_create_file_share(
                 create_kwargs["provisioned_iops"] = provisioned_iops
                 log.debug(f"  provisioned_iops: {provisioned_iops}")
             if provisioned_bandwidth_mibps is not None:
-                create_kwargs["provisioned_bandwidth_mibps"] = (
-                    provisioned_bandwidth_mibps
-                )
+                create_kwargs[
+                    "provisioned_bandwidth_mibps"
+                ] = provisioned_bandwidth_mibps
                 log.debug(
                     f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}"
                 )

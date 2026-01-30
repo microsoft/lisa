@@ -188,9 +188,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
-            platform._azure_runbook.use_public_address
-        )
+        node_info[
+            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
+        ] = platform._azure_runbook.use_public_address
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -565,7 +565,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         ]
     }
     """  # noqa: E501
-    _gpu_extension_nvidia_properties = json.loads("""
+    _gpu_extension_nvidia_properties = json.loads(
+        """
         {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
@@ -574,7 +575,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             "settings": {
             }
         }
-    """)
+    """
+    )
 
     def is_supported(self) -> bool:
         # TODO: The GPU Feature is supposed to handle cloud related
@@ -2808,9 +2810,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile["disk_encryption_set_id"] = (
-                settings.disk_encryption_set_id
-            )
+            node_parameters.security_profile[
+                "disk_encryption_set_id"
+            ] = settings.disk_encryption_set_id
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
@@ -3950,17 +3952,18 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             break
 
         # Create private endpoint - returns (ip, was_created)
-        ipv4_address, self._private_endpoint_created_by_lisa = (
-            create_update_private_endpoints(
-                platform,
-                resource_group_name,
-                location,
-                subnet_id,
-                storage_account_resource_id,
-                ["file"],
-                self._log,
-                private_endpoint_name=self._private_endpoint_name,
-            )
+        (
+            ipv4_address,
+            self._private_endpoint_created_by_lisa,
+        ) = create_update_private_endpoints(
+            platform,
+            resource_group_name,
+            location,
+            subnet_id,
+            storage_account_resource_id,
+            ["file"],
+            self._log,
+            private_endpoint_name=self._private_endpoint_name,
         )
 
         # Create private DNS zone
@@ -4169,9 +4172,10 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         """Initialize file share information with neutral defaults."""
         # Find existing or generate new storage account name
         # Using neutral prefix to support mixed SMB+NFS on same account
-        self._storage_account_name, self._storage_account_reused = (
-            self._find_or_generate_storage_account_name(self.STORAGE_ACCOUNT_PREFIX)
-        )
+        (
+            self._storage_account_name,
+            self._storage_account_reused,
+        ) = self._find_or_generate_storage_account_name(self.STORAGE_ACCOUNT_PREFIX)
 
         # Track created file shares for cleanup
         self._file_share_names = []
