@@ -322,6 +322,31 @@ def perf_disk(
                 iodepth = iodepth * 2
                 numjobindex += 1
                 numjobiterator += 1
+    
+    # After all FIO jobs are complete, process and notify results
+    other_fields: Dict[str, Any] = {}
+    other_fields["core_count"] = core_count
+    other_fields["disk_count"] = disk_count
+    other_fields["block_size"] = block_size
+    other_fields["disk_setup_type"] = disk_setup_type
+    other_fields["disk_type"] = disk_type
+    if not test_name:
+        test_name = inspect.stack()[1][3]
+        
+    # Aggregate results if we used separate jobs per disk
+    aggregated_results = _aggregate_multi_disk_fio_results(
+        fio_result_list, disk_count, use_worker_specific_affinity
+    )
+    
+    fio_messages: List[DiskPerformanceMessage] = fio.create_performance_messages(
+        aggregated_results,
+        test_name=test_name,
+        test_result=test_result,
+        other_fields=other_fields,
+    )
+    for fio_message in fio_messages:
+        notifier.notify(fio_message)
+
 
 def _aggregate_multi_disk_fio_results(
     fio_result_list: List[FIOResult], disk_count: int, use_worker_specific_affinity: bool
@@ -368,34 +393,10 @@ def _aggregate_multi_disk_fio_results(
             aggregated_result.iops = total_iops
             aggregated_result.latency = avg_latency
             aggregated_result.iodepth = iodepth
-            aggregated_result.qdepth = iodepth * disk_count  # Total queue depth across all disks
+            aggregated_result.qdepth = iodepth  # Keep same qdepth format as original (iodepth * numjob where numjob=1 per disk)
             aggregated_results.append(aggregated_result)
     
     return aggregated_results
-
-
-    other_fields: Dict[str, Any] = {}
-    other_fields["core_count"] = core_count
-    other_fields["disk_count"] = disk_count
-    other_fields["block_size"] = block_size
-    other_fields["disk_setup_type"] = disk_setup_type
-    other_fields["disk_type"] = disk_type
-    if not test_name:
-        test_name = inspect.stack()[1][3]
-        
-    # Aggregate results if we used separate jobs per disk
-    aggregated_results = _aggregate_multi_disk_fio_results(
-        fio_result_list, disk_count, use_worker_specific_affinity
-    )
-    
-    fio_messages: List[DiskPerformanceMessage] = fio.create_performance_messages(
-        aggregated_results,
-        test_name=test_name,
-        test_result=test_result,
-        other_fields=other_fields,
-    )
-    for fio_message in fio_messages:
-        notifier.notify(fio_message)
 
 
 def get_nic_datapath(node: Node) -> str:
