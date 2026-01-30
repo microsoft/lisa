@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa.executable import CustomScript, CustomScriptBuilder, ExecutableResult, Tool
-from lisa.tools import Cat, Dhclient
+from lisa.tools import Cat, Dhclient, Whoami, Chown
 from lisa.tools.dmesg import Dmesg
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KLDStat
@@ -207,13 +207,9 @@ class Modprobe(Tool):
             include_output=True,
         )
 
-        original_user = self.node.connection_info.get('username', None)
+        original_user = self.node.tools[Whoami].get_username()
         if original_user:
-            self.node.execute(
-                f"chown {original_user}:{original_user} {loop_process_pid_file_name}",
-                sudo=True,
-                shell=True,
-            )
+            self.node.tools[Chown].change_owner(file=loop_process_pid_file_name, user=original_user)
 
         cat = self.node.tools[Cat]
         tried_times: int = 0
