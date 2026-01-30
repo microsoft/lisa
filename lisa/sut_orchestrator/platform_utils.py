@@ -28,20 +28,88 @@ KEY_HOST_VERSION = "host_version"
 
 
 def get_vmm_version(node: Node) -> str:
+    """
+    Detects cloud-hypervisor VMM version from cached value, local binary,
+    or git repository.
+
+    Checks in order:
+    1. Cached value from CloudHypervisorTests tool (if installed)
+    2. Local binary (fast, works for most installations)
+    3. Git repository (for Docker-based tests where binaries are compiled on-demand)
+
+    Returns version string (e.g., "48.0.235") or "UNKNOWN" if detection fails.
+    """
     result: str = "UNKNOWN"
     try:
-        if node.is_connected and node.is_posix:
-            node.log.debug("detecting vmm version...")
-            output = node.execute(
-                "cloud-hypervisor --version",
-                shell=True,
-            ).stdout
-            output = filter_ansi_escape(output)
+        # Check if CloudHypervisorTests tool has already cached the version.
+        # This lookup does not require SSH connectivity and should be usable
+        # even during teardown when the node may be disconnected.
+        extended_resources = getattr(node.capability, "extended_resources", None)
+        if extended_resources:
+            cached_version: str = extended_resources.get(
+                KEY_VMM_VERSION,
+                "UNKNOWN",
+            )
+            if cached_version and cached_version != "UNKNOWN":
+                node.log.debug(f"Using cached VMM version: {cached_version}")
+                return cached_version
+
+        # If there is no cached value, only proceed with SSH-based detection
+        # when the node is connected and running a POSIX-compatible OS.
+        if not (node.is_connected and node.is_posix):
+            return result
+
+        node.log.debug("detecting vmm version...")
+        # Primary method: Try local binary installation (fast, works for most cases)
+        node.log.debug("Trying local binary: cloud-hypervisor --version")
+        local_result = node.execute(
+            "cloud-hypervisor --version", shell=True, sudo=False
+        )
+
+        if local_result.exit_code == 0:
+            output = filter_ansi_escape(local_result.stdout)
             match = re.search(VMM_VERSION_PATTERN, output.strip())
             if match:
                 result = match.group("ch_version")
+                node.log.debug(
+                    f"Successfully detected VMM version from local binary: {result}"
+                )
+                return result
+
+        # Fallback method: Extract version from git repository
+        # For Docker-based tests where cloud-hypervisor is compiled from source
+        node.log.debug("Local binary not found, trying git repository...")
+
+        # Use standard LISA tool path where CloudHypervisorTests clones repo
+        git_repo_path = "~/lisa_working/tool/cloudhypervisortests/cloud-hypervisor"
+        git_cmd = (
+            f"bash -c 'cd {git_repo_path} 2>/dev/null && "
+            "git describe --tags --always --dirty 2>&1'"
+        )
+        git_result = node.execute(git_cmd, shell=True, sudo=False)
+
+        if git_result.exit_code == 0 and git_result.stdout.strip():
+            version_str = git_result.stdout.strip()
+            node.log.debug(f"Git describe output: '{version_str}'")
+
+            # Strip -dirty suffix if present
+            version_str = version_str.replace("-dirty", "")
+
+            # Extract clean version number from git describe output
+            # Handles patterns: "msft/v48.0.235", "v48.0.235-7-g6fed5f8e7", "v48.0.235"
+            # Extracts only the tag version, excluding commit count and hash suffixes
+            version_match = re.search(r"(?:msft/)?v?([\d.]+)", version_str)
+            if version_match:
+                result = version_match.group(1)
+                node.log.debug(
+                    f"Successfully detected VMM version from git repository: {result}"
+                )
+                return result
+
     except Exception as e:
-        node.log.debug(f"error on run vmm: {e}")
+        node.log.debug(f"Error during VMM version detection: {type(e).__name__}: {e}")
+
+    node.log.debug(f"VMM version detection result: {result}")
     return result
 
 

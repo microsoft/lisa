@@ -6,6 +6,7 @@ from typing import Any, Dict
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -32,6 +33,7 @@ from lisa.util import SkippedException
 class CloudHypervisorTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+
         if not isinstance(node.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"Cloud Hypervisor tests are not implemented in LISA for {node.os.name}"
@@ -46,6 +48,7 @@ class CloudHypervisorTestSuite(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+
         node.tools[Modprobe].remove(["openvswitch"])
 
         journalctl = node.tools[Journalctl]
@@ -73,6 +76,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_integration_tests(
         self,
+        environment: Environment,
         node: Node,
         log_path: Path,
         result: TestResult,
@@ -110,6 +114,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_live_migration_tests(
         self,
+        environment: Environment,
         node: Node,
         log_path: Path,
         result: TestResult,
@@ -143,6 +148,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_performance_metrics_tests(
         self,
+        environment: Environment,
         node: Node,
         log_path: Path,
         result: TestResult,
