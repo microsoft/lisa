@@ -258,39 +258,65 @@ def perf_disk(
         iodepth = start_iodepth
         numjobindex = 0
         while iodepth <= max_iodepth:
-                # Launch parallel FIO jobs for all disks at this iodepth
-                parallel_processes = []
+                # Create FIO job file for all disks at this iodepth
+                job_file_content = f"""[global]
+ioengine={ioengine.value}
+direct=1
+runtime={time}
+time_based=1
+bs={block_size}K
+rw={mode.name}
+iodepth={iodepth}
+group_reporting=1
+"""
+                if overwrite:
+                    job_file_content += "overwrite=1\n"
                 
+                job_file_content += "\n"
+                
+                # Add individual job sections for each disk
                 for disk_idx, disk_file in enumerate(disk_files[:disk_count]):
                     specific_cpu = _generate_cpu_affinity_per_worker(disk_idx, core_count)
+                    size_per_disk = size_mb // disk_count if size_mb > 0 else 0
                     
-                    # Use launch_async for parallel execution
-                    async_process = fio.launch_async(
-                        name=f"worker{disk_idx+1}_iteration{numjobiterator}",
-                        filename=disk_file,
-                        mode=mode.name,
-                        time=time,
-                        size_gb=size_mb // disk_count if size_mb > 0 else 0,
-                        block_size=f"{block_size}K",
-                        iodepth=iodepth,  # Each disk-worker-CPU set runs full iodepth range
-                        overwrite=overwrite,
-                        numjob=1,  # Single job per disk for precise CPU→worker mapping
-                        cwd=cwd,
-                        ioengine=ioengine,
-                        cpus_allowed=specific_cpu,  # worker{disk_idx+1} → CPU{disk_idx}
-                    )
-                    parallel_processes.append((async_process, disk_idx))
+                    job_file_content += f"""[worker{disk_idx+1}_iteration{numjobiterator}]
+filename={disk_file}
+cpus_allowed={specific_cpu}
+numjobs=1
+"""
+                    if size_per_disk > 0:
+                        job_file_content += f"size={size_per_disk}M\n"
+                    job_file_content += "\n"
                 
-                # Wait for all parallel FIO jobs to complete and collect results
-                for async_process, disk_idx in parallel_processes:
-                    result = async_process.wait_result()  # Wait for completion and get result
-                    if result.exit_code != 0:
-                        raise LisaException(f"FIO failed with exit code {result.exit_code}: {result.stderr}")
-                    output = result.stdout
-                    fio_result = fio.get_result_from_raw_output(
-                        mode.name, output, iodepth, 1  # Use full iodepth per disk
-                    )
-                    fio_result_list.append(fio_result)
+                # Write job file and execute single FIO command
+                job_file_path = f"/tmp/multi_disk_iodepth_{iodepth}_iter_{numjobiterator}.fio"
+                node.execute(f"cat > {job_file_path} << 'EOF'\n{job_file_content}EOF")
+                
+                # Run single FIO command with job file
+                fio_result = node.execute(f"fio {job_file_path}")
+                if fio_result.exit_code != 0:
+                    raise LisaException(f"FIO failed with exit code {fio_result.exit_code}: {fio_result.stderr}")
+                
+                # Parse aggregated results from the job file output
+                # FIO job files with group_reporting=1 aggregate all jobs into single result
+                aggregated_result = fio.get_result_from_raw_output(
+                    mode.name, fio_result.stdout, iodepth, len(disk_files[:disk_count])
+                )
+                
+                # For job files, we get one aggregated result representing all disks
+                # Split this into individual results for each disk (for compatibility)
+                individual_iops = aggregated_result.iops / len(disk_files[:disk_count])
+                for disk_idx in range(len(disk_files[:disk_count])):
+                    individual_result = FIOResult()
+                    individual_result.mode = mode.name
+                    individual_result.iops = individual_iops  # Distribute IOPS equally
+                    individual_result.latency = aggregated_result.latency  # Same latency
+                    individual_result.iodepth = iodepth
+                    individual_result.qdepth = iodepth
+                    fio_result_list.append(individual_result)
+                
+                # Clean up job file
+                node.execute(f"rm -f {job_file_path}")
                 
                 iodepth = iodepth * 2
                 numjobindex += 1
