@@ -159,8 +159,9 @@ def perf_disk_with_cpu_affinity(
     # Set numjob to match disk_count for 1:1:1 mapping
     numjob = min(disk_count, core_count)
     
-    # Generate CPU affinity starting from vCPU0
-    cpus_allowed = _generate_cpu_affinity_for_disks(core_count, disk_count, numjob)
+    # Generate CPU affinity starting from vCPU0 (legacy colon-separated format)
+    effective_workers = min(numjob, disk_count, core_count)
+    cpus_allowed = ":".join(str(i) for i in range(effective_workers))
     
     node.log.info(
         f"Starting 1:1:1 CPU:job:disk test - "
@@ -231,7 +232,8 @@ def perf_disk(
     
     # Auto-generate CPU affinity for 1:1:1 mapping (CPU:job:disk) if not provided
     if not cpus_allowed and numjob > 0:
-        cpus_allowed = _generate_cpu_affinity_for_disks(core_count, disk_count, numjob)
+        effective_workers = min(numjob, disk_count, core_count)
+        cpus_allowed = ":".join(str(i) for i in range(effective_workers))
         node.log.info(
             f"Auto-generated CPU affinity: {cpus_allowed} "
             f"(cores:{core_count}, disks:{disk_count}, jobs:{numjob})"
@@ -244,6 +246,22 @@ def perf_disk(
         numjob == disk_count and 
         ":" in filename  # Multiple disk files
     )
+    
+    # Resource validation for large-scale testing
+    if use_worker_specific_affinity and disk_count > 32:
+        node.log.warning(
+            f"Large-scale test detected: {disk_count} disks. "
+            f"This may stress system resources (memory, file descriptors, AIO limits)."
+        )
+    
+    # Validate AIO limits for libaio engine
+    if ioengine == IoEngine.LIBAIO and use_worker_specific_affinity:
+        max_aio_requests = disk_count * max_iodepth
+        if max_aio_requests > 65536:
+            node.log.warning(
+                f"AIO requests ({max_aio_requests}) may exceed system limit (65536). "
+                f"Consider reducing iodepth or using io_uring engine."
+            )
     
     if use_worker_specific_affinity:
         # Split disks and run parallel FIO jobs for precise worker→CPU mapping
@@ -297,20 +315,30 @@ numjobs=1
                 if result.exit_code != 0:
                     raise LisaException(f"Failed to write job file: {result.stderr}")
                 
-                # Run single FIO command with job file
-                fio_result = node.execute(f"fio {job_file_path}")
+                # Run single FIO command with job file (requires sudo for block device access)
+                fio_result = node.execute(f"sudo fio {job_file_path}")
                 if fio_result.exit_code != 0:
                     raise LisaException(f"FIO failed with exit code {fio_result.exit_code}: {fio_result.stderr}")
                 
                 # Parse aggregated results from the job file output
-                # FIO job files with group_reporting=1 aggregate all jobs into single result
-                aggregated_result = fio.get_result_from_raw_output(
-                    mode.name, fio_result.stdout, iodepth, len(disk_files[:disk_count])
-                )
+                try:
+                    # FIO job files with group_reporting=1 aggregate all jobs into single result
+                    aggregated_result = fio.get_result_from_raw_output(
+                        mode.name, fio_result.stdout, iodepth, len(disk_files[:disk_count])
+                    )
+                except Exception as parse_error:
+                    # Log FIO output for debugging if parsing fails
+                    node.log.error(f"Failed to parse FIO output. Raw output: {fio_result.stdout[:1000]}...")
+                    raise LisaException(f"FIO result parsing failed: {parse_error}")
                 
                 # For job files, we get one aggregated result representing all disks
                 # Split this into individual results for each disk (for compatibility)
-                individual_iops = aggregated_result.iops / len(disk_files[:disk_count])
+                if aggregated_result.iops > 0:
+                    individual_iops = aggregated_result.iops / len(disk_files[:disk_count])
+                else:
+                    node.log.warning("FIO reported zero IOPS, using fallback value")
+                    individual_iops = Decimal(1)  # Fallback to prevent division by zero
+                    
                 for disk_idx in range(len(disk_files[:disk_count])):
                     individual_result = FIOResult()
                     individual_result.mode = mode.name
@@ -368,6 +396,18 @@ numjobs=1
     aggregated_results = _aggregate_multi_disk_fio_results(
         fio_result_list, disk_count, use_worker_specific_affinity
     )
+    
+    # Print aggregated results to screen for debugging
+    node.log.info("=== FIO Performance Results ===")
+    for result in aggregated_results:
+        node.log.info(
+            f"Mode: {result.mode}, "
+            f"IODepth: {result.iodepth}, "
+            f"QDepth: {result.qdepth}, "
+            f"IOPS: {result.iops:,.0f}, "
+            f"Latency: {result.latency:.2f}μs"
+        )
+    node.log.info("==============================")
     
     fio_messages: List[DiskPerformanceMessage] = fio.create_performance_messages(
         aggregated_results,
