@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa.executable import CustomScript, CustomScriptBuilder, ExecutableResult, Tool
-from lisa.tools import Cat, Dhclient, Whoami, Chown
+from lisa.tools import Cat, Dhclient, Chown
 from lisa.tools.dmesg import Dmesg
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KLDStat
