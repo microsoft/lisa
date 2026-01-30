@@ -290,7 +290,12 @@ numjobs=1
                 
                 # Write job file and execute single FIO command
                 job_file_path = f"/tmp/multi_disk_iodepth_{iodepth}_iter_{numjobiterator}.fio"
-                node.execute(f"cat > {job_file_path} << 'EOF'\n{job_file_content}EOF")
+                
+                # Use shell=True to execute heredoc as a single shell command
+                write_command = f"cat > {job_file_path} << 'EOF'\n{job_file_content}EOF"
+                result = node.execute(write_command, shell=True)
+                if result.exit_code != 0:
+                    raise LisaException(f"Failed to write job file: {result.stderr}")
                 
                 # Run single FIO command with job file
                 fio_result = node.execute(f"fio {job_file_path}")
