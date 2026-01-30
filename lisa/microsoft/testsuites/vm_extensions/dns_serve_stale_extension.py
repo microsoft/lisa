@@ -4,6 +4,7 @@
 from typing import Any
 
 from assertpy import assert_that
+from semver import VersionInfo
 
 from lisa import (
     Logger,
@@ -13,14 +14,14 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import BSD, CBLMariner, Ubuntu
+from lisa.base_tools import Systemctl
+from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator.azure.common import get_node_context
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.util import SkippedException
-from lisa.base_tools import Systemctl
-from semver import VersionInfo
+
 
 @TestSuiteMetadata(
     area="vm_extension",
@@ -45,8 +46,7 @@ class DNSServeStaleExtensionBvt(TestSuite):
             raise SkippedException(
                 f"systemd {systemd_version} is not supported. "
                 "DNSServeStale requires systemd >= 255.4"
-                )
-
+            )
 
     @TestCaseMetadata(
         description="""
@@ -145,9 +145,7 @@ class DNSServeStaleExtensionBvt(TestSuite):
         log.info("Deleting DNSServeStale extension")
         extension.delete(self.EXTENSION_NAME)
 
-        assert_that(
-            extension.check_exist(self.EXTENSION_NAME)
-        ).described_as(
+        assert_that(extension.check_exist(self.EXTENSION_NAME)).described_as(
             "Extension should be removed after delete"
         ).is_false()
 
@@ -171,7 +169,7 @@ class DNSServeStaleExtensionBvt(TestSuite):
         self, log: Logger, node: Node, result: TestResult
     ) -> None:
         import time
-        
+
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         platform = environment.platform
@@ -216,7 +214,6 @@ class DNSServeStaleExtensionBvt(TestSuite):
         assert_that(dig1.exit_code).described_as(
             "Initial DNS query should succeed"
         ).is_equal_to(0)
-        
         log.info("Initial DNS resolution works correctly")
 
         # Step 3: Get DNS server IP from resolvectl
@@ -249,7 +246,6 @@ class DNSServeStaleExtensionBvt(TestSuite):
             f"iptables -A OUTPUT -p tcp -d {dns_ip} --dport 53 -j DROP", sudo=True
         )
         node.execute("iptables-save", sudo=True)
-        
         log.info("DNS traffic blocked successfully")
         # Wait for DNS blocking to take effect
         log.info("Waiting 30 seconds for DNS blocking to take effect...")
@@ -257,9 +253,7 @@ class DNSServeStaleExtensionBvt(TestSuite):
 
         # Step 5: DNS query under failure (should initially fail)
         log.info(f"Running dig after blocking DNS (expected timeout) for {test_domain}")
-        dig2 = node.execute(
-            f"dig {test_domain} +time=2 +tries=1", timeout=30
-        )
+        dig2 = node.execute(f"dig {test_domain} +time=2 +tries=1", timeout=30)
 
         assert_that(dig2.exit_code).described_as(
             "DNS query should initially fail when upstream is unreachable"
@@ -271,9 +265,7 @@ class DNSServeStaleExtensionBvt(TestSuite):
 
         # Step 6: Retry DNS query (expected to succeed via stale cache)
         log.info(f"Retrying dig to validate stale cache behavior for {test_domain}")
-        dig3 = node.execute(
-            f"dig {test_domain} +time=2 +tries=2", timeout=30
-        )
+        dig3 = node.execute(f"dig {test_domain} +time=2 +tries=2", timeout=30)
 
         log.info(f"Final DNS query output {dig3.stdout}")
 
@@ -304,9 +296,7 @@ class DNSServeStaleExtensionBvt(TestSuite):
 
         # Cleanup extension
         extension.delete(self.EXTENSION_NAME)
-        assert_that(
-            extension.check_exist(self.EXTENSION_NAME)
-        ).described_as(
+        assert_that(extension.check_exist(self.EXTENSION_NAME)).described_as(
             "Extension should be removed after runtime behavior test"
         ).is_false()
 

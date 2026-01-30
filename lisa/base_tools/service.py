@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from semver import VersionInfo
 from enum import Enum
 from time import sleep
 from typing import Optional, Type
+
+from semver import VersionInfo
 
 from lisa.executable import ExecutableResult, Tool
 from lisa.tools.dmesg import Dmesg
@@ -161,9 +162,7 @@ class Systemctl(Tool):
 
         matched = self.__pattern_systemd_version.search(first_line)
         if not matched:
-            raise LisaException(
-                f"No matched systemd version found in: {first_line}"
-            )
+            raise LisaException(f"No matched systemd version found in: {first_line}")
 
         # Prefer RPM-style version if present: (255-25.azl3)
         if matched.group("rpm_major") and matched.group("rpm_minor"):
