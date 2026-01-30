@@ -210,7 +210,7 @@ class Modprobe(Tool):
         original_user = self.node.tools[Whoami].get_username()
         if original_user:
             self.node.tools[Chown].change_owner(
-                file=loop_process_pid_file_name, user=original_user
+                file=Path(loop_process_pid_file_name), user=original_user
             )
 
         cat = self.node.tools[Cat]
