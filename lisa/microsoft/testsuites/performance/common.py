@@ -253,11 +253,11 @@ def perf_disk(
             f"{len(disk_files)} disks, {disk_count} workers"
         )
         
-        # Run parallel FIO jobs for each iodepth level
-        for mode in FIOMODES:
-            iodepth = start_iodepth
-            numjobindex = 0
-            while iodepth <= max_iodepth:
+        # Run parallel FIO jobs for each iodepth level (randread mode only)
+        mode = FIOMODES.randread
+        iodepth = start_iodepth
+        numjobindex = 0
+        while iodepth <= max_iodepth:
                 # Launch parallel FIO jobs for all disks at this iodepth
                 parallel_processes = []
                 
@@ -272,7 +272,7 @@ def perf_disk(
                         time=time,
                         size_gb=size_mb // disk_count if size_mb > 0 else 0,
                         block_size=f"{block_size}K",
-                        iodepth=iodepth // disk_count if iodepth > disk_count else 1,
+                        iodepth=iodepth,  # Each disk-worker-CPU set runs full iodepth range
                         overwrite=overwrite,
                         numjob=1,  # Single job per disk for precise CPU→worker mapping
                         cwd=cwd,
@@ -288,7 +288,7 @@ def perf_disk(
                         raise LisaException(f"FIO failed with exit code {result.exit_code}: {result.stderr}")
                     output = result.stdout
                     fio_result = fio.get_result_from_raw_output(
-                        mode.name, output, iodepth // disk_count if iodepth > disk_count else 1, 1
+                        mode.name, output, iodepth, 1  # Use full iodepth per disk
                     )
                     fio_result_list.append(fio_result)
                 
@@ -297,11 +297,11 @@ def perf_disk(
                 numjobiterator += 1
         
     else:
-        # Standard single FIO job approach (workers may float among CPUs)
-        for mode in FIOMODES:
-            iodepth = start_iodepth
-            numjobindex = 0
-            while iodepth <= max_iodepth:
+        # Standard single FIO job approach (workers may float among CPUs) - randread mode only
+        mode = FIOMODES.randread
+        iodepth = start_iodepth
+        numjobindex = 0
+        while iodepth <= max_iodepth:
                 if num_jobs:
                     numjob = num_jobs[numjobindex]
                 fio_result = fio.launch(
