@@ -77,11 +77,15 @@ Usage Example:
             test_section="cifs",
             timeout=3600,
         )
+        runner.send_deferred_notifications(results, result)  # Send notifications
         runner.aggregate_results(results)  # Raises if any failures
     finally:
         runner.cleanup_workers()
 """
+
+import random
 import re
+import time
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path, PurePath, PurePosixPath
@@ -148,6 +152,11 @@ class XfstestsRunResult:
     Result object returned by run_test() to support parallel execution.
     Instead of raising immediately on failure, this allows callers to
     aggregate results from multiple parallel runs before deciding how to fail.
+
+    For parallel execution, raw_message and data_disk are stored to enable
+    deferred notification sending after all workers complete. This prevents
+    deadlock when multiple workers try to send SubTestResult notifications
+    concurrently to the single-threaded notifier message manager.
     """
 
     success: bool = True
@@ -157,6 +166,9 @@ class XfstestsRunResult:
     fail_info: str = ""
     run_id: str = ""
     test_section: str = ""
+    # Fields for deferred notification support (parallel execution)
+    raw_message: str = ""  # Raw xfstests output for sending notifications later
+    data_disk: str = ""  # Data disk info for notification context
 
     def get_failure_message(self) -> str:
         """Generate a formatted failure message for this run."""
@@ -211,6 +223,7 @@ class XfstestsParallelRunner:
         try:
             batches = runner.split_tests(test_list)
             results = runner.run_parallel(batches, log_path, result, "cifs", 3600)
+            runner.send_deferred_notifications(results, result)
             runner.aggregate_results(results)
         finally:
             runner.cleanup_workers()
@@ -396,6 +409,7 @@ class XfstestsParallelRunner:
                 run_id=run_id,
                 raise_on_failure=False,
                 xfstests_path=worker_path,
+                send_notifications=False,  # Defer notifications to avoid deadlock
             )
             # Log completion with result summary at INFO level for console visibility
             status = "PASSED" if worker_result.success else "FAILED"
@@ -486,6 +500,48 @@ class XfstestsParallelRunner:
             )
 
         return total_passed, total_failed, any_failures
+
+    def send_deferred_notifications(
+        self,
+        worker_results: List["XfstestsRunResult"],
+        result: "TestResult",
+    ) -> None:
+        """
+        Send deferred SubTestResult notifications for all worker results.
+
+        This method should be called AFTER run_parallel() completes and before
+        aggregate_results(). It sends all the SubTestResult messages that were
+        deferred during parallel execution to avoid deadlock in the notification
+        system.
+
+        When workers run in parallel and each tries to send SubTestResult
+        notifications concurrently, the single-threaded message manager can
+        deadlock due to thread contention. By deferring notifications until
+        after parallel execution completes, we can send them sequentially
+        from the main thread.
+
+        Args:
+            worker_results: List of results from run_parallel()
+            result: LISA TestResult object for subtest reporting
+        """
+        self.log.info(
+            f"Sending deferred notifications for {len(worker_results)} workers..."
+        )
+
+        for worker_result in worker_results:
+            if worker_result.raw_message:
+                # We have deferred notification data - send it now
+                self.log.debug(
+                    f"Sending deferred notification for {worker_result.run_id}"
+                )
+                self.xfstests.create_send_subtest_msg(
+                    test_result=result,
+                    raw_message=worker_result.raw_message,
+                    test_section=worker_result.run_id,  # Use run_id as section
+                    data_disk=worker_result.data_disk,
+                )
+
+        self.log.info("Deferred notifications sent successfully")
 
 
 class Xfstests(Tool):
@@ -700,6 +756,7 @@ class Xfstests(Tool):
         run_id: str = "",
         raise_on_failure: bool = True,
         xfstests_path: Optional[PurePath] = None,
+        send_notifications: bool = True,
     ) -> XfstestsRunResult:
         """About: This method runs XFSTest on a given node with the specified
         test group and test cases
@@ -824,6 +881,14 @@ class Xfstests(Tool):
             self._log.error(f"[{run_id}] xfstests execution failed: {e}")
             raise
         finally:
+            # Add random delay (1-5 seconds) to stagger check_test_results() calls
+            # when parallel workers complete around the same time. This prevents
+            # SSH connection pool contention that can cause indefinite blocking.
+            delay = random.uniform(1.0, 5.0)
+            self._log.debug(
+                f"[{run_id}] Waiting {delay:.1f}s before checking results..."
+            )
+            time.sleep(delay)
             self._log.debug(f"[{run_id}] Checking test results...")
             run_result = self.check_test_results(
                 log_path=log_path,
@@ -834,6 +899,7 @@ class Xfstests(Tool):
                 check_log_name=check_log_name,
                 run_id=run_id,
                 xfstests_path=working_path,
+                send_notifications=send_notifications,
             )
 
         # Raise exception if tests failed and raise_on_failure is True
@@ -1281,7 +1347,16 @@ class Xfstests(Tool):
         data_disk: The data disk used for testing. ( method is partially implemented )
         """
         all_cases_match = self.__all_cases_pattern.match(raw_message)
-        assert all_cases_match, "fail to find run cases from xfstests output"
+        if not all_cases_match:
+            # No tests were run (e.g., xfstests failed during setup).
+            # This can happen when scratch device is busy, mkfs fails, etc.
+            # Log a warning and skip sending notifications for this section.
+            self._log.warning(
+                f"No test cases found in xfstests output for '{test_section}'. "
+                f"This may indicate a setup failure (e.g., scratch device busy). "
+                f"Skipping subtest notifications."
+            )
+            return
         all_cases = (all_cases_match.group("all_cases")).split()
         not_run_cases: List[str] = []
         fail_cases: List[str] = []
@@ -1358,6 +1433,30 @@ class Xfstests(Tool):
                 subtest_duration=subtest_duration,
             )
 
+    def _file_exists_with_timeout(self, path: PurePath, timeout: int = 60) -> bool:
+        """
+        Check if a file exists on the remote node with a timeout.
+
+        Uses node.execute() with 'test -e' instead of shell.exists() to avoid
+        indefinite blocking when multiple parallel workers access the same node.
+        The shell.exists() method uses SFTP operations that can deadlock when
+        the SSH connection pool is contended by concurrent threads.
+
+        Args:
+            path: Path to check on the remote node
+            timeout: Maximum seconds to wait (default 60)
+
+        Returns:
+            True if file exists, False otherwise
+        """
+        result = self.node.execute(
+            f"test -e {path}",
+            shell=True,
+            timeout=timeout,
+            expected_exit_code=None,  # Don't fail on non-zero exit
+        )
+        return result.exit_code == 0
+
     def check_test_results(
         self,
         log_path: Path,
@@ -1368,6 +1467,7 @@ class Xfstests(Tool):
         check_log_name: str = "check.log",
         run_id: str = "",
         xfstests_path: Optional[PurePath] = None,
+        send_notifications: bool = True,
     ) -> XfstestsRunResult:
         """
         About: This method is intended to be called by run_test method only.
@@ -1389,6 +1489,9 @@ class Xfstests(Tool):
         run_id: Unique identifier for this test run (used in result object)
         xfstests_path: Optional custom xfstests directory path for worker execution.
             If not provided, uses the default path from get_xfstests_path().
+        send_notifications: If True (default), send SubTestResult notifications
+            immediately. If False, store raw_message in the result for deferred
+            notification sending (used for parallel execution to avoid deadlock).
         Returns:
             XfstestsRunResult: Object containing success status and failure details.
         """
@@ -1402,33 +1505,50 @@ class Xfstests(Tool):
             test_section=test_section,
         )
         try:
-            if not self.node.shell.exists(console_log_results_path):
+            # Use _file_exists_with_timeout instead of shell.exists() to avoid
+            # indefinite blocking in parallel execution scenarios
+            if not self._file_exists_with_timeout(console_log_results_path):
                 raise LisaException(
                     f"Console log path {console_log_results_path} doesn't exist, "
                     "please check testing runs well or not."
                 )
             else:
+                # Add explicit timeout to prevent blocking in parallel execution
                 log_result = self.node.tools[Cat].run(
-                    str(console_log_results_path), force_run=True, sudo=True
+                    str(console_log_results_path),
+                    force_run=True,
+                    sudo=True,
+                    timeout=120,
                 )
                 log_result.assert_exit_code()
                 ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
                 raw_message = ansi_escape.sub("", log_result.stdout)
-                self.create_send_subtest_msg(
-                    test_result=result,
-                    raw_message=raw_message,
-                    test_section=test_section,
-                    data_disk=data_disk,
-                )
+                if send_notifications:
+                    self.create_send_subtest_msg(
+                        test_result=result,
+                        raw_message=raw_message,
+                        test_section=test_section,
+                        data_disk=data_disk,
+                    )
+                else:
+                    # Store for deferred notification (parallel execution)
+                    run_result.raw_message = raw_message
+                    run_result.data_disk = data_disk
 
-            if not self.node.shell.exists(results_path):
+            # Use _file_exists_with_timeout instead of shell.exists() to avoid
+            # indefinite blocking in parallel execution scenarios
+            if not self._file_exists_with_timeout(results_path):
                 raise LisaException(
                     f"Result path {results_path} doesn't exist, please check testing"
                     " runs well or not."
                 )
             else:
+                # Add explicit timeout to prevent blocking in parallel execution
                 results = self.node.tools[Cat].run(
-                    str(results_path), force_run=True, sudo=True
+                    str(results_path),
+                    force_run=True,
+                    sudo=True,
+                    timeout=120,
                 )
                 results.assert_exit_code()
                 pass_match = self.__all_pass_pattern.match(results.stdout)
@@ -1508,13 +1628,15 @@ class Xfstests(Tool):
         # Use custom path if provided, otherwise use default installation path
         working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
         self.node.tools[Chmod].update_folder(str(working_path), "a+rwx", sudo=True)
-        if self.node.shell.exists(working_path / "results/check.log"):
+        # Use _file_exists_with_timeout instead of shell.exists() to avoid
+        # indefinite blocking in parallel execution scenarios
+        if self._file_exists_with_timeout(working_path / "results/check.log"):
             self.node.shell.copy_back(
                 working_path / "results/check.log",
                 log_path / f"xfstests/{check_log_name}",
             )
         console_log_path = working_path / console_log_name
-        if self.node.shell.exists(console_log_path):
+        if self._file_exists_with_timeout(console_log_path):
             self.node.shell.copy_back(
                 console_log_path,
                 log_path / f"xfstests/{console_log_name}",
@@ -1523,19 +1645,21 @@ class Xfstests(Tool):
         for fail_case in fail_cases_list:
             file_name = f"results/{test_section}/{fail_case}.out.bad"
             result_path = working_path / file_name
-            if self.node.shell.exists(result_path):
+            # Use _file_exists_with_timeout instead of shell.exists() to avoid
+            # indefinite blocking in parallel execution scenarios
+            if self._file_exists_with_timeout(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
                 self._log.debug(f"{file_name} doesn't exist.")
             file_name = f"results/{test_section}/{fail_case}.full"
             result_path = working_path / file_name
-            if self.node.shell.exists(result_path):
+            if self._file_exists_with_timeout(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
                 self._log.debug(f"{file_name} doesn't exist.")
             file_name = f"results/{test_section}/{fail_case}.dmesg"
             result_path = working_path / file_name
-            if self.node.shell.exists(result_path):
+            if self._file_exists_with_timeout(result_path):
                 self.node.shell.copy_back(result_path, log_path / file_name)
             else:
                 self._log.debug(f"{file_name} doesn't exist.")
