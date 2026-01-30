@@ -251,7 +251,6 @@ class DNSServeStaleExtensionBvt(TestSuite):
         node.execute("iptables-save", sudo=True)
         
         log.info("DNS traffic blocked successfully")
-        
         # Wait for DNS blocking to take effect
         log.info("Waiting 30 seconds for DNS blocking to take effect...")
         time.sleep(30)
@@ -265,7 +264,6 @@ class DNSServeStaleExtensionBvt(TestSuite):
         assert_that(dig2.exit_code).described_as(
             "DNS query should initially fail when upstream is unreachable"
         ).is_not_equal_to(0)
-        
         log.info("DNS query timed out as expected")
 
         log.info("Waiting 30 seconds again.")
@@ -295,7 +293,9 @@ class DNSServeStaleExtensionBvt(TestSuite):
         )
 
         # Test DNS resolution works again after cleanup
-        final_dig_result = node.execute(f"dig {test_domain} +time=2 +tries=1", timeout=30)
+        final_dig_result = node.execute(
+            f"dig {test_domain} +time=2 +tries=1", timeout=30
+        )
         assert_that(final_dig_result.exit_code).described_as(
             f"Final dig for {test_domain} should succeed after cleanup"
         ).is_equal_to(0)
@@ -311,4 +311,3 @@ class DNSServeStaleExtensionBvt(TestSuite):
         ).is_false()
 
         log.info("✓ DNSServeStale runtime behavior validated successfully")
-
