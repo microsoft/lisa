@@ -4,9 +4,10 @@ import random
 import re
 import string
 import time
-from typing import Any, Pattern, cast
+from typing import Any, List, Pattern, cast
 
 from assertpy.assertpy import assert_that
+from retry import retry
 
 from lisa import (
     Logger,
@@ -41,6 +42,7 @@ from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, S
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
@@ -771,7 +773,10 @@ class Storage(TestSuite):
 
             # verify that partition count is increased by 1
             # and the size of partition is correct
-            partitons_after_adding_disk = lsblk.get_disks(force_run=True)
+            self._check_disk_count(
+                added_disk_count, lsblk, partitions_before_adding_disk, log
+            )
+            partitons_after_adding_disk = lsblk.get_disks()
             added_partitions = [
                 item
                 for item in partitons_after_adding_disk
@@ -962,3 +967,24 @@ class Storage(TestSuite):
                 node.tools[Systemctl].daemon_reload()
             else:
                 raise e
+
+    @retry(AssertionError, tries=3, delay=5, backoff=2)  # type: ignore
+    def _check_disk_count(
+        self,
+        expected_disk_count: int,
+        lsblk: Lsblk,
+        partitions_before_adding_disk: List[DiskInfo],
+        log: Logger,
+    ) -> None:
+        partitons_after_adding_disk = lsblk.get_disks(force_run=True)
+        added_partitions = [
+            item
+            for item in partitons_after_adding_disk
+            if item not in partitions_before_adding_disk
+        ]
+        log.debug(f"added_partitions: {added_partitions}")
+        if len(added_partitions) != expected_disk_count:
+            log.error("Data Disk not added. Retrying...")
+        assert_that(added_partitions, "Data disk should be added").is_length(
+            expected_disk_count
+        )
