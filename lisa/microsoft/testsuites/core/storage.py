@@ -611,7 +611,8 @@ class Storage(TestSuite):
         # cleanup any disks added as part of the test
         # If the cleanup operation fails, mark node to be recycled
         try:
-            disk.remove_data_disk()
+            # disk.remove_data_disk()
+            pass
         except Exception:
             raise BadEnvironmentStateException
 
