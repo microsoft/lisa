@@ -4039,8 +4039,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             sku = "Premium_LRS"
             kind = "FileStorage"
             enable_https = False
-            # NFS uses network-based auth, shared key access not applicable
-            allow_shared_key = True  # Required for ARM operations, not for mount
+            # NFS uses network-based auth; disable shared key access entirely
+            allow_shared_key = False
             protocols_str = "NFS"
         else:
             # SMB storage configuration
@@ -4181,15 +4181,18 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         self._credential_file: str = (
             f"{self.CREDENTIAL_DIR}/{self._storage_account_name}.cred"
         )
-        # Default fstab info for SMB (will be overridden per-share as needed)
-        # Use 'noauto' to prevent systemd from auto-mounting when fstab is modified.
+        # Default fstab info for SMB - auto-mount enabled by default.
+        # Use create_fileshare_folders(disable_auto_mount=True) for xfstests
+        # or scenarios requiring explicit mount control.
         self._fstab_info_smb = (
-            f"nofail,noauto,vers={self.get_smb_version()},"
+            f"nofail,vers={self.get_smb_version()},"
             f"credentials={self._credential_file}"
             ",dir_mode=0777,file_mode=0777,serverino"
         )
-        # NFS fstab info template
-        self._fstab_info_nfs = "vers=4.1,_netdev,nofail,noauto,sec=sys"
+        # NFS fstab info template - auto-mount enabled by default
+        self._fstab_info_nfs = (
+            "vers=4,minorversion=1,_netdev,nofail,noauto,sec=sys"
+        )
 
     def create_file_share(
         self,
@@ -4286,6 +4289,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         self,
         test_folders_share_dict: Dict[str, str],
         protocol: FileShareProtocol = FileShareProtocol.SMB,
+        disable_auto_mount: bool = False,
     ) -> None:
         """
         Create mount point folders and configure fstab entries for file shares.
@@ -4303,15 +4307,27 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                     "/mnt/scratch": "//server/share2",
                 }
             protocol: FileShareProtocol.SMB (default) or FileShareProtocol.NFS
+            disable_auto_mount: If True, adds 'noauto' to mount options preventing
+                               automatic mounting on boot or via 'mount -a'. Set to
+                               True for xfstests or scenarios requiring explicit
+                               mount control. Default is False (shares mount
+                               automatically).
         """
         platform: AzurePlatform = self._platform  # type: ignore
 
-        # Select correct fstab template based on protocol
+        # Build mount options dynamically based on disable_auto_mount
+        auto_mount_opt = "noauto," if disable_auto_mount else ""
+
+        # Select correct fstab template based on protocol and inject noauto if needed
         if protocol == FileShareProtocol.NFS:
-            fstab_info = self._fstab_info_nfs
+            fstab_info = f"vers=4.1,_netdev,nofail,{auto_mount_opt}sec=sys"
             auth_mode = FileShareAuthMode.NETWORK
         else:
-            fstab_info = self._fstab_info_smb
+            fstab_info = (
+                f"nofail,{auto_mount_opt}vers={self.get_smb_version()},"
+                f"credentials={self._credential_file}"
+                ",dir_mode=0777,file_mode=0777,serverino"
+            )
             auth_mode = self._auth_mode
 
         # Only SHARED_KEY auth mode requires storage account credentials
