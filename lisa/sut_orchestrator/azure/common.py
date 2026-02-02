@@ -29,7 +29,7 @@ from typing import (
 import requests
 from assertpy import assert_that
 from azure.core.credentials import AccessToken, TokenCredential
-from azure.core.exceptions import ResourceExistsError
+from azure.core.exceptions import HttpResponseError, ResourceExistsError
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -2388,7 +2388,34 @@ def get_or_create_file_share(
                 log.debug(
                     f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}"
                 )
-            share_service_client.create_share(file_share_name, **create_kwargs)
+
+            try:
+                share_service_client.create_share(file_share_name, **create_kwargs)
+            except HttpResponseError as e:
+                # Handle PV2 parameters unsupported by the storage account
+                if "UnsupportedHeader" in str(e) and (
+                    "x-ms-share-provisioned-iops" in str(e)
+                    or "x-ms-share-provisioned-bandwidth" in str(e)
+                ):
+                    log.warning(
+                        "PV2 parameters not supported by storage account, "
+                        "retrying without provisioned_iops/provisioned_bandwidth_mibps"
+                    )
+
+                    # Remove PV2-specific parameters and retry
+                    create_kwargs.pop("provisioned_iops", None)
+                    create_kwargs.pop("provisioned_bandwidth_mibps", None)
+
+                    # For non-PV2 premium shares, minimum quota is 100 GiB
+                    if create_kwargs.get("quota", 0) < 100:
+                        log.warning(
+                            f"Increasing quota from {create_kwargs.get('quota')} "
+                            "to 100 GiB (minimum for non-PV2 premium file shares)"
+                        )
+                        create_kwargs["quota"] = 100
+                    share_service_client.create_share(file_share_name, **create_kwargs)
+                else:
+                    raise
         return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 
 
