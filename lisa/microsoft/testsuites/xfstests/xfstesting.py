@@ -334,7 +334,7 @@ _test_folder = "/mnt/test"
 #   Tests are distributed round-robin by count, not by runtime.
 #   Some tests vary significantly in duration (0s to 285s), causing
 #   potential worker imbalance. Future enhancement: runtime-aware distribution.
-_default_worker_count = 6
+_default_worker_count = 4
 
 
 # =============================================================================
@@ -492,7 +492,11 @@ def _deploy_azure_file_share(
         test_folders_share_dict: Dict[str, str] = {}
         for key, value in names.items():
             test_folders_share_dict[key] = fs_url_dict[value]
-        azure_file_share.create_fileshare_folders(test_folders_share_dict, protocol)
+        # xfstests requires explicit mount control - disable auto-mount to prevent
+        # systemd from auto-mounting shares when fstab is modified during tests
+        azure_file_share.create_fileshare_folders(
+            test_folders_share_dict, protocol, disable_auto_mount=True
+        )
 
     return fs_url_dict
 
@@ -501,7 +505,7 @@ def _deploy_azure_file_share(
     area="storage",
     category="community",
     description="""
-    This test suite is to validate different types of data disk and network ile system
+    This test suite is to validate different types of data disk and network file system
     on Linux VM using xfstests.
     """,
 )
