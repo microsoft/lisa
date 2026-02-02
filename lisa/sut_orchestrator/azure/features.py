@@ -4203,9 +4203,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             ",dir_mode=0777,file_mode=0777,serverino"
         )
         # NFS fstab info template - auto-mount enabled by default
-        self._fstab_info_nfs = (
-            "vers=4,minorversion=1,_netdev,nofail,noauto,sec=sys"
-        )
+        self._fstab_info_nfs = "vers=4,minorversion=1,_netdev,nofail,noauto,sec=sys"
 
     def create_file_share(
         self,
