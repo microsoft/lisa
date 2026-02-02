@@ -14,7 +14,7 @@ from .make import Make
 
 class StressNg(Tool):
     repo = "https://github.com/ColinIanKing/stress-ng"
-    branch = "V0.14.01"
+    branch = "V0.20.00"
 
     @property
     def command(self) -> str:
