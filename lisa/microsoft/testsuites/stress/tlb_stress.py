@@ -529,7 +529,7 @@ class TlbStress(Tool):
 
             # Wait for perf monitoring to complete with extended timeout
             if perf_monitor_process:
-                perf_result = perf_monitor_process.wait_result(timeout=300)
+                perf_result = perf_monitor_process.wait_result(timeout=1800)
 
                 # Parse supported events with fallback
                 if event_support.get("dTLB-load-misses", False):

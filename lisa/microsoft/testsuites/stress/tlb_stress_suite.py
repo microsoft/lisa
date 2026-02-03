@@ -83,7 +83,7 @@ class TlbStressTestSuite(TestSuite):
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
 
         # Test configuration - scale for Azure VMs
-        test_duration = 300
+        test_duration = 1800
         tlb_threads = self._calculate_optimal_thread_count(nodes[0])
         tlb_pages = 1000
 
