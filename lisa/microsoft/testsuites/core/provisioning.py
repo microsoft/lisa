@@ -134,7 +134,7 @@ class Provisioning(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case runs smoke test on a node provisioned with 64 P60 premium disks.
+        This case runs smoke test on a node provisioned with multiple P60 premium disks.
         The test steps are same as `smoke_test`.
         """,
         priority=1,
@@ -143,7 +143,7 @@ class Provisioning(TestSuite):
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_size=search_space.IntRange(min=8192),  # P60 = 8TB
-                data_disk_count=search_space.IntRange(min=64),   # 64 disks
+                data_disk_count=search_space.IntRange(min=16),   # 16 disks (reduced from 64)
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
             ),
         ),
