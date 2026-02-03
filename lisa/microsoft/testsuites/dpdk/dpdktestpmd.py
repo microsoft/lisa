@@ -630,8 +630,21 @@ class DpdkTestpmd(Tool):
                 "--tx-offloads=0x00008000"  # enable multi-segment tx offload
             )
 
-        if mode == "txonly":
+        # txonly-multi-flow will spread the sender traffic across tcp/udp ports
+        # this allows RSS to improve perf.
+        # the flag either doesn't exist or is buggy before 24.11
+        # so skip applying it unless the version is good.
+        if (
+            mode == "txonly"
+            and self.has_dpdk_version()
+            and bool(self.get_dpdk_version() > "23.7.0")
+        ):
             extra_args += " --txonly-multi-flow"
+        else:
+            self.node.log.debug(
+                "note: skipping use of testpmd txonly-multi-flow flag "
+                "before dpdk 24.11. perf on receive side may be suboptimal."
+            )
 
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
