@@ -117,7 +117,7 @@ class UtilsTestCase(TestCase):
             yield value
 
 
-class TestPanicTestCase(TestCase):
+class TestPanicDetectionTestCase(TestCase):
     """Test cases for test panic detection functionality"""
 
     def test_test_panic_exception_creation(self):
