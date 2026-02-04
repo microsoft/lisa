@@ -230,6 +230,7 @@ def generate_send_receive_run_info(
         [snd_nic],
         0,
         "txonly",
+        pmd=pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
@@ -240,6 +241,7 @@ def generate_send_receive_run_info(
         [rcv_nic],
         0,
         "rxonly",
+        pmd=pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -282,6 +284,7 @@ def generate_5tswap_run_info(
         [snd_nic],
         0,
         "txonly",
+        pmd=pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -296,6 +299,7 @@ def generate_5tswap_run_info(
         [snd_nic],
         0,
         "rxonly",
+        pmd=pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -309,6 +313,7 @@ def generate_5tswap_run_info(
         [rcv_nic],
         0,
         "5tswap",
+        pmd=pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -383,6 +388,7 @@ def generate_testpmd_multiple_port_command(
             [sender_nic],
             0,
             "txonly",
+            pmd,
             extra_args=f"--tx-ip={sender_nic.ip_addr},{receiver_nic.ip_addr}",
             multiple_queues=multiple_queues,
             service_cores=use_service_cores,
@@ -393,7 +399,7 @@ def generate_testpmd_multiple_port_command(
         kit_cmd_pairs[sender] = [snd_cmd]
         # receiver needs multiple ports, so only generate the include.
         receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i
+            receiver_nics[sender_subnet], i, pmd
         )
         # and save it
         receiver_includes += [receiver_include]
@@ -403,6 +409,7 @@ def generate_testpmd_multiple_port_command(
         list([receiver_nics[key] for key in receiver_nics]),
         0,
         "rxonly",
+        pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -743,7 +750,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        [test_nic], 0, "txonly", multiple_queues=multiple_queues
+        [test_nic], 0, "txonly", pmd=pmd, multiple_queues=multiple_queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -1393,10 +1400,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
+            subnet_a_nics[forwarder], dpdk_port_a, pmd=pmd, force_netvsc=True
         ),
         fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
+            subnet_b_nics[forwarder], dpdk_port_b, pmd=pmd, force_netvsc=True
         ),
     ]
 
@@ -1547,7 +1554,7 @@ def generate_l3fwd_command(
     config_tups = []
     included_cores = []
     last_core = 1
-    server_app_path = fwd_kit.testpmd.get_example_app_path("dpdk-l3fwd")
+    server_app_path = fwd_kit.testpmd.get_example_app_path("l3fwd")
     # create the list of tuples for p,q,c
     # 2 ports, N queues, N cores for MANA
     # 2 ports, N queues, 2N cores for MLX

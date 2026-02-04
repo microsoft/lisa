@@ -14,6 +14,7 @@ from microsoft.testsuites.dpdk.common import (
     Installer,
     OsPackageDependencies,
     PackageManagerInstall,
+    Pmd,
     TarDownloader,
     get_debian_backport_repo_args,
     is_url_for_git_repo,
@@ -470,7 +471,7 @@ class DpdkTestpmd(Tool):
             return False
 
     def generate_testpmd_include(
-        self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
+        self, node_nic: NicInfo, vdev_id: int, pmd: Pmd, force_netvsc: bool = False
     ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
@@ -501,10 +502,12 @@ class DpdkTestpmd(Tool):
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
         elif self.is_mana:
             # mana selects by mac, just return the vdev info directly
-            if node_nic.module_name == "uio_hv_generic" or force_netvsc:
+            if pmd == Pmd.NETVSC or force_netvsc:
                 return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
             # if mana_ib is present, use mana friendly args
-            elif self.node.tools[Modprobe].module_exists("mana_ib"):
+            elif pmd == Pmd.FAILSAFE and self.node.tools[Modprobe].module_exists(
+                "mana_ib"
+            ):
                 return (
                     f' --vdev="net_vdev_netvsc0,mac={node_nic.mac_addr}"'
                     f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
@@ -520,12 +523,12 @@ class DpdkTestpmd(Tool):
             # mlnx setup for failsafe
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
-        if node_nic.module_name == "hv_netvsc":
+        if pmd == Pmd.FAILSAFE:
             # primary/upper/master nic is bound to hv_netvsc
             # when using net_failsafe implicitly or explicitly.
             # Set up net_failsafe/net_vdev_netvsc args here
             return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
-        elif node_nic.module_name == "uio_hv_generic":
+        elif pmd == Pmd.NETVSC:
             # if using netvsc pmd, just let -w or -a select
             # which device to use. No other args are needed.
             return include_flag
@@ -545,6 +548,7 @@ class DpdkTestpmd(Tool):
         nic_to_include: List[NicInfo],
         vdev_id: int,
         mode: str,
+        pmd: Pmd,
         extra_args: str = "",
         multiple_queues: bool = False,
         service_cores: int = 1,
@@ -591,7 +595,7 @@ class DpdkTestpmd(Tool):
         # generate the flags for which devices to include in the tests
         nic_include_infos = []
         for nic in nic_to_include:
-            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id)]
+            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id, pmd)]
             vdev_id += 1
 
         # infer core count to assign based on number of queues

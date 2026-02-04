@@ -542,7 +542,7 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly")
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
         kit_cmd_pairs = {
             test_kit: [testpmd_cmd],
         }
