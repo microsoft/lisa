@@ -199,9 +199,12 @@ class Git(Tool):
         )
         result.assert_exit_code(message=f"failed to pull code. {result.stdout}")
 
-    def fetch(self, cwd: pathlib.PurePath) -> None:
+    def fetch(self, cwd: pathlib.PurePath, remote: str = "") -> None:
+        cmd = "fetch -p"
+        if remote:
+            cmd += f" {remote}"
         result = self.run(
-            "fetch -p",
+            cmd,
             force_run=True,
             cwd=cwd,
             no_info_log=True,
@@ -425,6 +428,252 @@ class Git(Tool):
         }
 
         return result
+
+    def remote_list(self, cwd: pathlib.PurePath) -> List[str]:
+        result = self.run(
+            "remote",
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to list remotes.",
+        )
+        remotes = filter_ansi_escape(result.stdout).strip()
+        return remotes.splitlines()
+
+    def remote_exists(self, cwd: pathlib.PurePath, name: str) -> bool:
+        remotes = self.remote_list(cwd=cwd)
+        return name in remotes
+
+    def remote_add(
+        self,
+        cwd: pathlib.PurePath,
+        name: str,
+        url: str,
+        fetch: bool = False,
+    ) -> None:
+        result = self.run(
+            f"remote add {name} {url}",
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(
+            message=f"failed to add remote '{name}' with url '{url}'.",
+            include_output=True,
+        )
+        self._log.debug(f"added remote '{name}' -> {url}")
+
+        if fetch:
+            self.fetch(cwd=cwd, remote=name)
+
+    def remote_remove(self, cwd: pathlib.PurePath, name: str) -> None:
+        result = self.run(
+            f"remote remove {name}",
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(
+            message=f"failed to remove remote '{name}'.", include_output=True
+        )
+        self._log.debug(f"removed remote '{name}'")
+
+    def remote_set_url(
+        self,
+        cwd: pathlib.PurePath,
+        name: str,
+        url: str,
+        push: bool = False,
+    ) -> None:
+        cmd = "remote set-url"
+        if push:
+            cmd += " --push"
+
+        cmd += f" {name} {url}"
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=False,
+        )
+        result.assert_exit_code(
+            message=f"failed to set url for remote '{name}'.", include_output=True
+        )
+        self._log.debug(f"set url for remote '{name}' -> {url}")
+
+    def remote_get_url(
+        self,
+        cwd: pathlib.PurePath,
+        name: str = "origin",
+        push: bool = False,
+    ) -> str:
+        cmd = "remote get-url"
+        if push:
+            cmd += " --push"
+        cmd += f" {name}"
+
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(
+            message=f"failed to get url for remote {name}", include_output=True
+        )
+        return filter_ansi_escape(result.stdout).strip()
+
+    def worktree_add(
+        self,
+        cwd: pathlib.PurePath,
+        path: pathlib.PurePath,
+        remote: str = "",
+        remote_ref: str = "",
+        new_branch: str = "",
+        track: bool = False,
+        detach: bool = False,
+    ) -> pathlib.PurePath:
+        self._mark_safe(cwd)
+
+        cmd = "worktree add"
+
+        if detach:
+            cmd += " --detach"
+        elif new_branch:
+            if self.worktree_is_branch_checked_out(cwd, new_branch):
+                # new_branch = f"{new_branch}_{constants.RUN_ID}"
+                detach = True
+                cmd += " --detach"
+            else:
+                if track:
+                    cmd += " --track"
+                cmd += f" -b {new_branch}"
+
+        cmd += f" {path} "
+
+        if remote:
+            cmd += f"{remote}/"
+        if remote_ref:
+            cmd += f"{remote_ref}"
+
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            no_info_log=True,
+        )
+        result.assert_exit_code(
+            message=f"Failed to create worktree: {path}.", include_output=True
+        )
+        self._log.debug(f"created worktree at: {path}")
+        self._mark_safe(path)
+        return path
+
+    def worktree_list(
+        self,
+        cwd: pathlib.PurePath,
+    ) -> List[Dict[str, str]]:
+        result = self.run(
+            "worktree list --porcelain",
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to list worktrees.",
+        )
+
+        worktrees: List[Dict[str, str]] = []
+        current_worktree: Dict[str, str] = {}
+
+        for line in filter_ansi_escape(result.stdout).splitlines():
+            line = line.strip()
+            if not line:
+                if current_worktree:
+                    worktrees.append(current_worktree)
+                    current_worktree = {}
+                continue
+
+            if line.startswith("worktree "):
+                current_worktree["path"] = line[len("worktree ") :]
+            elif line.startswith("HEAD "):
+                current_worktree["commit"] = line[len("HEAD ") :]
+            elif line.startswith("branch "):
+                current_worktree["branch"] = line[len("branch ") :]
+            elif line == "detached":
+                current_worktree["branch"] = "(detached)"
+            elif line == "bare":
+                current_worktree["branch"] = "(bare)"
+
+        if current_worktree:
+            worktrees.append(current_worktree)
+
+        return worktrees
+
+    def worktree_remove(
+        self,
+        cwd: pathlib.PurePath,
+        path: pathlib.PurePath,
+        force: bool = False,
+    ) -> None:
+        cmd = "worktree remove"
+        if force:
+            cmd += " --force"
+        cmd += f" {path}"
+
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(
+            message=f"failed to remove worktree at '{path}'.", include_output=True
+        )
+        self._log.debug(f"removed worktree at: {path}")
+
+    def worktree_prune(
+        self,
+        cwd: pathlib.PurePath,
+        dry_run: bool = False,
+    ) -> str:
+        cmd = "worktree prune"
+        if dry_run:
+            cmd += " --dry-run"
+
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to prune worktrees.",
+        )
+        return filter_ansi_escape(result.stdout)
+
+    def worktree_exists(self, cwd: pathlib.PurePath, path: str) -> bool:
+        worktrees = self.worktree_list(cwd)
+        return any(wt["path"] == path for wt in worktrees)
+
+    def worktree_is_branch_checked_out(
+        self,
+        cwd: pathlib.PurePath,
+        branch_name: str,
+    ) -> bool:
+        worktrees = self.worktree_list(cwd=cwd)
+
+        # Normalize branch name - handle both "main" and "refs/heads/main"
+        if not branch_name.startswith("refs/heads/"):
+            full_branch_ref = f"refs/heads/{branch_name}"
+        else:
+            full_branch_ref = branch_name
+
+        for wt in worktrees:
+            wt_branch = wt["branch"]
+            if wt_branch == full_branch_ref or wt_branch == branch_name:
+                return True
+
+        return False
 
 
 class GitBisect(Git):
