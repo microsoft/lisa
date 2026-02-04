@@ -145,10 +145,10 @@ class TestPanicTestCase(TestCase):
         Test failed
         """
         log = Mock()
-        
+
         with self.assertRaises(TestPanicException) as context:
             check_test_panic(content, "test_stage", log, test_result=None)
-        
+
         exception = context.exception
         assert_that(exception.stage).is_equal_to("test_stage")
         assert_that(exception.panics).is_not_empty()
@@ -165,10 +165,10 @@ class TestPanicTestCase(TestCase):
         Test failed
         """
         log = Mock()
-        
+
         with self.assertRaises(TestPanicException) as context:
             check_test_panic(content, "test_stage", log, test_result=None)
-        
+
         exception = context.exception
         assert_that(exception.panics).is_not_empty()
         panic_str = " ".join(exception.panics)
@@ -185,10 +185,10 @@ class TestPanicTestCase(TestCase):
         Test failed
         """
         log = Mock()
-        
+
         with self.assertRaises(TestPanicException) as context:
             check_test_panic(content, "test_stage", log, test_result=None)
-        
+
         exception = context.exception
         assert_that(exception.panics).is_not_empty()
         panic_str = " ".join(exception.panics)
@@ -202,7 +202,7 @@ class TestPanicTestCase(TestCase):
         Test completed
         """
         log = Mock()
-        
+
         # Should not raise any exception
         check_test_panic(content, "test_stage", log, test_result=None)
 
@@ -216,11 +216,11 @@ class TestPanicTestCase(TestCase):
         log = Mock()
         test_result = Mock()
         test_result.message = ""
-        
+
         check_test_panic(
             content, "test_stage", log, test_result=test_result, node_name="test_node"
         )
-        
+
         # Should set the message instead of raising exception
         assert_that(test_result.message).is_not_empty()
         assert_that(test_result.message).contains("TEST PANIC DETECTED")
@@ -237,11 +237,11 @@ class TestPanicTestCase(TestCase):
         log = Mock()
         test_result = Mock()
         test_result.message = "Original failure message"
-        
+
         check_test_panic(
             content, "test_stage", log, test_result=test_result, node_name="test_node"
         )
-        
+
         # Should append to existing message
         assert_that(test_result.message).contains("Original failure message")
         assert_that(test_result.message).contains("TEST PANIC DETECTED")
@@ -257,11 +257,11 @@ class TestPanicTestCase(TestCase):
         log = Mock()
         test_result = Mock()
         test_result.message = "Test passed"
-        
+
         check_test_panic(
             content, "test_stage", log, test_result=test_result, node_name="test_node"
         )
-        
+
         # Message should remain unchanged
         assert_that(test_result.message).is_equal_to("Test passed")
 
@@ -271,12 +271,12 @@ class TestPanicTestCase(TestCase):
         panicked at 'error', file.rs:1:1
         """
         log = Mock()
-        
+
         with self.assertRaises(TestPanicException) as context:
             check_test_panic(
                 content, "test_stage", log, test_result=None, source="custom_log.txt"
             )
-        
+
         exception = context.exception
         assert_that(exception.source).is_equal_to("custom_log.txt")
 
@@ -288,10 +288,10 @@ class TestPanicTestCase(TestCase):
            0: rust_begin_unwind
         """
         log = Mock()
-        
+
         with self.assertRaises(TestPanicException) as context:
             check_test_panic(content, "test_stage", log, test_result=None)
-        
+
         exception = context.exception
         assert_that(exception.panics).is_not_empty()
         panic_str = " ".join(exception.panics).lower()
@@ -311,10 +311,10 @@ class TestPanicTestCase(TestCase):
         Error: test failed
         """
         log = Mock()
-        
+
         with self.assertRaises(TestPanicException) as context:
             check_test_panic(content, "integration_test", log, test_result=None)
-        
+
         exception = context.exception
         assert_that(exception.panics).is_not_empty()
         assert_that(len(exception.panics)).is_greater_than(1)
