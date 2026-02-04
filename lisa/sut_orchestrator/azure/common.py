@@ -545,10 +545,17 @@ class SharedImageGallerySchema(AzureImageSchema):
 
 @dataclass_json()
 @dataclass
+class DataVhdPath:
+    vhd_uri: str = ""
+
+
+@dataclass_json()
+@dataclass
 class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
     cvm_gueststate_path: Optional[str] = None
     cvm_metadata_path: Optional[str] = None
+    data_vhd_paths: Optional[List[DataVhdPath]] = None
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
         # There are no platform tags to parse, but we can assume the
@@ -900,6 +907,9 @@ class AzureNodeSchema:
                     add_secret(vhd.cvm_gueststate_path, PATTERN_URL)
                 if vhd.cvm_metadata_path:
                     add_secret(vhd.cvm_metadata_path, PATTERN_URL)
+                if vhd.data_vhd_paths:
+                    for data_vhd in vhd.data_vhd_paths:
+                        add_secret(data_vhd.vhd_uri, PATTERN_URL)
                 # this step makes vhd_raw is validated, and
                 # filter out any unwanted content.
                 self.vhd_raw = vhd.to_dict()  # type: ignore
@@ -1131,6 +1141,7 @@ class DataDiskCreateOption:
     DATADISK_CREATE_OPTION_TYPE_EMPTY: str = "Empty"
     DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE: str = "FromImage"
     DATADISK_CREATE_OPTION_TYPE_ATTACH: str = "Attach"
+    DATADISK_CREATE_OPTION_TYPE_IMPORT: str = "Import"
 
     @staticmethod
     def get_create_option() -> List[str]:
@@ -1138,6 +1149,7 @@ class DataDiskCreateOption:
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
+            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_IMPORT,
         ]
 
 
@@ -1163,6 +1175,14 @@ def get_disk_placement_priority() -> List[DiskPlacementType]:
         DiskPlacementType.RESOURCE,
         DiskPlacementType.NONE,
     ]
+
+
+@dataclass_json()
+@dataclass
+class VhdDetails:
+    vhd_uri: str = ""
+    storage_account_name: str = ""
+    storage_resource_group_name: str = ""
 
 
 @dataclass_json()
@@ -1204,6 +1224,7 @@ class DataDiskSchema:
             validate=validate.OneOf(DataDiskCreateOption.get_create_option())
         ),
     )
+    vhd_details: Optional[VhdDetails] = None
 
 
 @dataclass_json()
@@ -1238,6 +1259,7 @@ class AzureArmParameter:
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
     subnet_prefix: str = AZURE_SUBNET_PREFIX
     is_ultradisk: bool = False
+    is_data_disk_with_vhd: bool = False
     use_ipv6: bool = False
     enable_vm_nat: bool = False
     create_public_address: bool = True
@@ -2845,7 +2867,7 @@ def check_or_create_gallery_image(
     gallery_image_osstate: str,
     gallery_image_hyperv_generation: int,
     gallery_image_architecture: str,
-    gallery_image_securitytype: str,
+    gallery_image_features: Dict[str, Any],
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
@@ -2877,12 +2899,13 @@ def check_or_create_gallery_image(
                 ],
             }
 
-            if gallery_image_securitytype:
+            if gallery_image_features:
                 image_post_body["features"] = [
                     {
-                        "name": "SecurityType",
-                        "value": gallery_image_securitytype,
+                        "name": key,
+                        "value": value,
                     }
+                    for (key, value) in gallery_image_features.items()
                 ]
             operation = compute_client.gallery_images.begin_create_or_update(
                 gallery_resource_group_name,

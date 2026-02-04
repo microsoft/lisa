@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa.executable import CustomScript, CustomScriptBuilder, ExecutableResult, Tool
-from lisa.tools import Cat, Dhclient
+from lisa.tools import Cat, Chown, Dhclient
 from lisa.tools.dmesg import Dmesg
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KLDStat
@@ -206,6 +206,12 @@ class Modprobe(Tool):
             ),
             include_output=True,
         )
+
+        original_user = self.node.tools[Whoami].get_username()
+        if original_user:
+            self.node.tools[Chown].change_owner(
+                file=Path(loop_process_pid_file_name), user=original_user
+            )
 
         cat = self.node.tools[Cat]
         tried_times: int = 0

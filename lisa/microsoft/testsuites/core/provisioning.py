@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from pathlib import Path
 from statistics import mean, median
+from typing import Any, Dict, Pattern, Union
 
 from assertpy import assert_that
 
@@ -76,6 +78,93 @@ class Provisioning(TestSuite):
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         self._smoke_test(log, node, log_path, "smoke_test")
+
+    @TestCaseMetadata(
+        description="""
+        This case runs a smoke test and checks the serial console output for
+        an optional pattern with pre-check and post-check validation.
+
+        The variable 'serial_console_pattern' can be provided to check for
+        specific patterns. If not provided, defaults to 'BUG: soft lockup'.
+        - Pattern can be a string (substring match) or regex pattern string
+        1. Pre-check: Counts pattern occurrences before smoke test execution.
+           - Fails if pattern found (count > 0) indicating boot-time issues.
+        2. Runs standard smoke test operations (reboot, connectivity checks).
+        3. Post-check: Counts pattern occurrences after smoke test execution.
+           - Fails if new occurrences detected (post > pre) indicating issues
+             introduced during test operations.
+
+        This two-stage approach distinguishes boot-time issues from test-induced
+        issues and avoids false positives from pre-existing console content.
+
+        This test requires serial console support on the platform.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def smoke_test_check_serial_console_pattern(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        variables: Dict[str, Any],
+    ) -> None:
+        # Get the pattern variable with a default value
+        pattern = variables.get("serial_console_pattern", "BUG: soft lockup")
+
+        log.info(
+            f"Running smoke test and checking serial console for pattern: '{pattern}'"
+        )
+
+        # Compile the pattern (auto-detect string vs regex)
+        compiled_pattern = self._compile_pattern(pattern, log)
+
+        # SerialConsole is required by test metadata, so it's guaranteed to be available
+        serial_console = node.features[SerialConsole]
+
+        # Pre-check: Check serial console before running smoke test
+        log.info("Pre-check: Checking serial console output before smoke test")
+        pre_console_output = serial_console.get_console_log(
+            saved_path=log_path, force_run=True
+        )
+
+        # Count occurrences of pattern before smoke test
+        pre_pattern_count = self._count_pattern(compiled_pattern, pre_console_output)
+
+        if pre_pattern_count > 0:
+            raise LisaException(
+                f"[Pre-check] Pattern '{pattern}' found {pre_pattern_count} time(s) "
+                "in serial console output before smoke test execution. Test failed."
+            )
+
+        log.info(f"Pre-check passed: Pattern '{pattern}' not found before smoke test")
+
+        # Run the standard smoke test
+        self._smoke_test(log, node, log_path, "smoke_test_check_serial_console_pattern")
+
+        # Post-check: Check serial console after running smoke test
+        log.info("Post-check: Checking serial console output after smoke test")
+        post_console_output = serial_console.get_console_log(
+            saved_path=log_path, force_run=True
+        )
+
+        # Count occurrences of pattern after smoke test
+        post_pattern_count = self._count_pattern(compiled_pattern, post_console_output)
+
+        if post_pattern_count > pre_pattern_count:
+            new_occurrences = post_pattern_count - pre_pattern_count
+            raise LisaException(
+                f"[Post-check] Pattern '{pattern}' found {new_occurrences} new time(s) "
+                "in serial console output after smoke test execution. Test failed."
+            )
+
+        log.info(
+            f"Post-check passed: No new occurrences of pattern '{pattern}' "
+            "after smoke test. Test passed."
+        )
 
     @TestCaseMetadata(
         description="""
@@ -382,6 +471,52 @@ class Provisioning(TestSuite):
             # Mark node as dirty since we modified kernel parameters
             # This ensures the node won't be reused regardless of test outcome
             node.mark_dirty()
+
+    def _count_pattern(
+        self, compiled_pattern: Union[str, Pattern[str]], text: str
+    ) -> int:
+        """Count occurrences of a pattern in text.
+
+        Args:
+            compiled_pattern: Either a string for literal matching or compiled
+                regex Pattern
+            text: Text to search in
+
+        Returns:
+            Number of pattern occurrences found
+        """
+        if isinstance(compiled_pattern, Pattern):
+            return len(compiled_pattern.findall(text))
+        else:
+            return text.count(compiled_pattern)
+
+    def _compile_pattern(self, pattern: str, log: Logger) -> Union[str, Pattern[str]]:
+        """Determine whether to interpret pattern as regex or literal string.
+
+        Args:
+            pattern: Pattern string to compile
+            log: Logger for diagnostic messages
+
+        Returns:
+            Either the original string for literal matching or a compiled regex Pattern
+        """
+        try:
+            # Check if pattern looks like a regex (contains common regex metacharacters)
+            regex_chars = r".*+?[]{}()^$|\\"
+            if any(char in pattern for char in regex_chars):
+                compiled_pattern = re.compile(pattern, re.MULTILINE)
+                log.info(f"Pattern interpreted as regex: {pattern}")
+                return compiled_pattern
+            else:
+                # Use as literal string for simple substring matching
+                log.info(f"Pattern interpreted as literal string: {pattern}")
+                return pattern
+        except (re.error, TypeError) as e:
+            # If regex compilation fails, fall back to literal string matching
+            log.info(
+                f"Pattern compilation failed ({e}), using as literal string: {pattern}"
+            )
+            return pattern
 
     def _smoke_test(
         self,

@@ -14,6 +14,7 @@ from microsoft.testsuites.dpdk.common import (
     DPDK_PPS_THRESHOLD,
     DPDK_STABLE_GIT_REPO,
     Downloader,
+    DpdkGradeMetric,
     GitDownloader,
     Installer,
     PackageManagerInstall,
@@ -689,6 +690,8 @@ def verify_dpdk_send_receive(
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
+    check_sender_packet_drops: bool = False,
+    grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -759,15 +762,57 @@ def verify_dpdk_send_receive(
 
     sender.dmesg.check_kernel_errors(force_run=True)
     receiver.dmesg.check_kernel_errors(force_run=True)
-    # differences in NIC type throughput can lead to different snd/rcv counts
-    assert_that(rcv_rx_pps).described_as(
-        "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
-    assert_that(snd_tx_pps).described_as(
-        "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
+    if grading_metric == DpdkGradeMetric.PPS:
+        # differences in NIC type throughput can lead to different snd/rcv counts
+        assert_that(rcv_rx_pps).described_as(
+            "Throughput for RECEIVE was below the correct order-of-magnitude"
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
+        assert_that(snd_tx_pps).described_as(
+            "Throughput for SEND was below the correct order of magnitude"
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
+    elif grading_metric == DpdkGradeMetric.BPS:
+        # grading bits per second is non-trivial since
+        # Azure internal SKU information is not exposed to the guest,
+        # also it's difficult to look up the expected Mbps for a given SKU.
+
+        sender_gbps = sender.testpmd.check_bps_data("TX")
+        receiver_gbps = receiver.testpmd.check_bps_data("RX")
+
+        # so just annotate test result if it's available
+        # a test crashing because of no data or dpdk failing to start
+        # will still result in a fail.
+        if result:
+            result.information["tx_gbps"] = sender_gbps
+            result.information["rx_gbps"] = receiver_gbps
+    else:
+        pass  # no-op if no grading is required.
+
+    # sender packet drops are common when network bandwidth is
+    # artificially throttled by the sku, so checking sender
+    # is optional
+    if check_sender_packet_drops:
+        sender.testpmd.check_tx_packet_drops()
+
+    # verify receiver didn't drop most of the packets
+    receiver.testpmd.check_rx_packet_drops()
+
+    # annotate the amount of dropped packets on the receiver
+    annotate_packet_drops(log, result, receiver)
 
     return sender, receiver
+
+
+def annotate_packet_drops(
+    log: Logger, result: Optional[TestResult], receiver: DpdkTestResources
+) -> None:
+    try:
+        if result and hasattr(receiver.testpmd, "packet_drop_rate"):
+            dropped_packets = receiver.testpmd.packet_drop_rate
+            fmt_drop_rate = f"{dropped_packets:.2f}"
+            result.information["rx_pkt_drop_rate"] = fmt_drop_rate
+            log.debug(f"Adding packet drop percentage: {fmt_drop_rate}")
+    except AssertionError as err:
+        receiver.node.log.debug(f"Could not add rx packet drop percentage: {str(err)}")
 
 
 def verify_dpdk_send_receive_multi_txrx_queue(
@@ -777,6 +822,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     pmd: Pmd,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
+    grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -790,6 +836,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         multiple_queues=True,
         result=result,
         set_mtu=set_mtu,
+        grading_metric=grading_metric,
     )
 
 

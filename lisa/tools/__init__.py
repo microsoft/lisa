@@ -5,6 +5,7 @@
 from lisa.base_tools import (
     AptAddRepository,
     Cat,
+    Dpkg,
     Mv,
     Rpm,
     Sed,
@@ -178,6 +179,7 @@ __all__ = [
     "Dnsmasq",
     "Docker",
     "DockerCompose",
+    "Dpkg",
     "Echo",
     "EfiBootMgr",
     "Ethtool",
