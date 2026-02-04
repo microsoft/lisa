@@ -26,7 +26,7 @@ from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
-from lisa.util import KernelPanicException, SkippedException
+from lisa.util import KernelPanicException, SkippedException, check_test_panic
 from lisa.util.logger import Logger
 from lisa.util.process import Process
 
@@ -268,7 +268,11 @@ class StressNgTestSuite(TestSuite):
             )
 
             execution_status, execution_summary = self._monitor_stress_execution(
-                stress_processes, nodes, log, job_file_name
+                stress_processes,
+                nodes,
+                log,
+                job_file_name,
+                test_result,
             )
 
         except Exception as execution_error:
@@ -339,6 +343,7 @@ class StressNgTestSuite(TestSuite):
         nodes: List[RemoteNode],
         log: Logger,
         job_file_name: str,
+        test_result: TestResult,
     ) -> Tuple[TestStatus, str]:
         """
         Monitor stress-ng execution and capture stress-ng info output.
@@ -355,8 +360,22 @@ class StressNgTestSuite(TestSuite):
         for i, process in enumerate(stress_processes):
             node_name = nodes[i].name
             try:
-                process.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
+                result = process.wait_result(
+                    timeout=self.TIME_OUT,
+                    expected_exit_code=0,
+                )
                 log.info(f"{node_name} completed successfully")
+
+                panic_content = f"{result.stdout}\n{result.stderr}".strip()
+                if panic_content:
+                    check_test_panic(
+                        panic_content,
+                        stage=f"stress-ng job {job_file_name}",
+                        log=log,
+                        test_result=test_result,
+                        node_name=node_name,
+                        source="stress-ng output",
+                    )
 
                 # Process YAML output if applicable
                 node_output = self._process_yaml_output(nodes[i], job_file_name, log)
