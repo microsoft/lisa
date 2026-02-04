@@ -222,7 +222,8 @@ class NetworkPerformance(TestSuite):
             node=schema.NodeSpace(
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
-            )
+            ),
+            supported_platform_type=[CLOUD_HYPERVISOR],
         ),
     )
     def perf_tcp_ntttcp_passthrough_host_guest(
@@ -257,7 +258,8 @@ class NetworkPerformance(TestSuite):
             node=schema.NodeSpace(
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
-            )
+            ),
+            supported_platform_type=[CLOUD_HYPERVISOR],
         ),
     )
     def perf_udp_1k_ntttcp_passthrough_host_guest(
@@ -442,7 +444,8 @@ class NetworkPerformance(TestSuite):
             node=schema.NodeSpace(
                 node_count=2,
                 memory_mb=search_space.IntRange(min=8192),
-            )
+            ),
+            supported_platform_type=[CLOUD_HYPERVISOR],
         ),
     )
     def perf_tcp_ntttcp_passthrough_two_guest(self, result: TestResult) -> None:
@@ -478,7 +481,8 @@ class NetworkPerformance(TestSuite):
             node=schema.NodeSpace(
                 node_count=2,
                 memory_mb=search_space.IntRange(min=8192),
-            )
+            ),
+            supported_platform_type=[CLOUD_HYPERVISOR],
         ),
     )
     def perf_udp_1k_ntttcp_passthrough_two_guest(self, result: TestResult) -> None:
