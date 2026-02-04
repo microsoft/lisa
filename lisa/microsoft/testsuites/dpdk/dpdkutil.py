@@ -1362,7 +1362,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             pmd,
             hugepage_size,
             sample_apps=["l3fwd"],
-            test_nics=[subnet_b_nics[forwarder]],
+            test_nics=[subnet_a_nics[forwarder], subnet_b_nics[forwarder]],
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
@@ -1371,13 +1371,24 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
-    if fwd_kit.testpmd.is_mana:
-        dpdk_port_a = 1
-        dpdk_port_b = 2
-    else:
-        dpdk_port_a = 2
-        dpdk_port_b = 3
 
+    # setup the DPDK EAL arguments for netvsc
+    devname_info = DpdkDevnameInfo(testpmd=fwd_kit.testpmd)
+    try:
+        port_mask = devname_info.get_port_info(nics=[subnet_a_nics[forwarder], subnet_b_nics[forwarder]], expect_ports=2)
+        nic_args = devname_info.nic_args
+        dpdk_port_a=devname_info.port_ids[subnet_a_nics[forwarder]]
+        dpdk_port_b=devname_info.port_ids[subnet_b_nics[forwarder]]
+    except AssertionError:
+        forwarder.log.info("Could not determine ports with devname (likely a bug on older dpdk).")
+        if fwd_kit.testpmd.is_mana:
+            dpdk_port_a=1
+            dpdk_port_b=2
+            port_mask="6"
+        else:
+            dpdk_port_a=2
+            dpdk_port_b=3
+            port_mask="C"
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
@@ -1425,6 +1436,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         fwd_kit=fwd_kit,
         dpdk_port_a=dpdk_port_a,
         dpdk_port_b=dpdk_port_b,
+        port_mask=port_mask,
         include_devices=include_devices,
         queue_count=queue_count,
     )
@@ -1546,8 +1558,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
 def generate_l3fwd_command(
     fwd_kit: DpdkTestResources,
-    dpdk_port_a: int,
-    dpdk_port_b: int,
+    dpdk_port_a:int,
+    dpdk_port_b:int,
+    port_mask: str,
     queue_count: int,
     include_devices: List[str],
 ) -> str:
@@ -1582,7 +1595,7 @@ def generate_l3fwd_command(
     joined_core_list = ",".join(included_cores)
     fwd_cmd = (
         f"{server_app_path} {joined_include} -l {joined_core_list} -- "
-        f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
+        f" {promiscuous} -p {port_mask} "
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
@@ -1715,7 +1728,10 @@ def annotate_dpdk_test_result(
 
 
 devname_port_regex = re.compile(
-    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+    r"^dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .* "
+    r"macaddr=(?P<mac_addr>"
+    r"[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2}"
+    r":[a-fA-F0-9]{2}:[a-fA-F0-9]{2}:[a-fA-F0-9]{2})",
 )
 
 
@@ -1731,6 +1747,7 @@ class DpdkDevnameInfo:
     def __init__(self, testpmd: DpdkTestpmd) -> None:
         self._node = testpmd.node
         self._testpmd = testpmd
+        self.port_ids : Dict[NicInfo,int] = {}
 
     def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
         # since we only need this for netvsc, we'll only generate
@@ -1757,29 +1774,31 @@ class DpdkDevnameInfo:
         # run the application with the device include arguments.
 
         output = self._node.execute(
-            f"{str(self._testpmd.get_example_app_path('devname'))} {nic_args}",
+            f"{str(self._testpmd.get_example_app_path('devname'))} {nic_args} || true",
             sudo=True,
             shell=True,
         ).stdout
 
         # find all the matches for devices bound to net_netvsc PMD
-        matches = devname_port_regex.findall(output)
+        matches = devname_port_regex.finditer(output)
         if not matches:
             fail(f"dpdk-devname could not find port ids in: {output}")
 
         # then create the port mask in hex from the port ids
         port_mask = 0
-        self.port_ids = []
         found_ports = 0
         for match in matches:
             found_ports += 1
-            port_id = int(match)
-            self.port_ids += [port_id]
+            port_id = int(match.group("port_id"))
+            for nic in nics:
+                if nic.mac_addr.lower() == str(match.group("mac_addr")).lower():    
+                    self.port_ids[nic] = port_id
             port_mask ^= 1 << (port_id)
         if found_ports != expect_ports:
             self._node.execute("dmesg", sudo=True)
             fail(
                 "Could not find expected number of DPDK ports! "
+                f"Expected {expect_ports} found {found_ports}. "
                 "Application will fail. Bailing..."
             )
         self.port_mask = hex(port_mask)[2:]
