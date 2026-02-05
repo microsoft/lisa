@@ -4,6 +4,7 @@ import json
 import time
 from typing import TYPE_CHECKING
 
+from lisa import SkippedException
 from lisa.node import Node
 from lisa.testsuite import TestCaseMetadata, TestSuite, TestSuiteMetadata
 
@@ -53,7 +54,7 @@ class SanitySuite(TestSuite):
 
     # ------------------------- helpers (no decorators) -------------------------
 
-    def _is_marketplace_image(self, node: Node) -> bool:
+    def _is_marketplace_image(self, log: "Logger", node: Node) -> bool:
         """
         Return True if the VM image comes from Marketplace (per Azure metadata).
         Falls back to False on any failure (prefer running safety checks).
@@ -74,12 +75,12 @@ class SanitySuite(TestSuite):
                 response = node.execute(command, sudo=False)
                 if response.exit_code != 0 or not response.stdout:
                     if attempt_number < self.IMDS_MAX_RETRIES:
-                        self._log.debug(
+                        log.debug(
                             f"IMDS attempt {attempt_number + 1} failed, retrying..."
                         )
                         time.sleep(self.IMDS_RETRY_DELAY_SECONDS)
                         continue
-                    self._log.debug(
+                    log.debug(
                         "All IMDS attempts failed, assuming non-marketplace image"
                     )
                     return False
@@ -90,7 +91,7 @@ class SanitySuite(TestSuite):
                 offer = str(metadata.get("offer", "")).strip().lower()
                 sku = str(metadata.get("sku", "")).strip().lower()
 
-                self._log.debug(
+                log.debug(
                     f"IMDS response: publisher='{publisher}', "
                     f"offer='{offer}', sku='{sku}'"
                 )
@@ -100,11 +101,11 @@ class SanitySuite(TestSuite):
                 image_type = (
                     "marketplace" if is_marketplace_image else "non-marketplace"
                 )
-                self._log.debug(f"Detected {image_type} image")
+                log.debug(f"Detected {image_type} image")
                 return is_marketplace_image
 
             except json.JSONDecodeError as json_error:
-                self._log.debug(
+                log.debug(
                     f"IMDS JSON parse error on attempt {attempt_number + 1}: "
                     f"{json_error}"
                 )
@@ -112,7 +113,7 @@ class SanitySuite(TestSuite):
                     time.sleep(self.IMDS_RETRY_DELAY_SECONDS)
                     continue
             except Exception as general_error:
-                self._log.debug(
+                log.debug(
                     f"IMDS error on attempt {attempt_number + 1}: {general_error}"
                 )
                 if attempt_number < self.IMDS_MAX_RETRIES:
@@ -120,7 +121,7 @@ class SanitySuite(TestSuite):
                     continue
 
         # If all attempts failed, assume non-marketplace (prefer running checks)
-        self._log.debug("All IMDS attempts failed, defaulting to non-marketplace image")
+        log.debug("All IMDS attempts failed, defaulting to non-marketplace image")
         return False
 
     def _check_ssh_security(self, log: "Logger", node: Node) -> None:
@@ -206,11 +207,11 @@ class SanitySuite(TestSuite):
                 "Could not check UID 0 accounts - /etc/passwd may be inaccessible"
             )
 
-    def _should_run_sanity(self, node: Node) -> bool:
+    def _should_run_sanity(self, log: "Logger", node: Node) -> bool:
         """
         Only run sanity checks on non-marketplace images.
         """
-        return not self._is_marketplace_image(node)
+        return not self._is_marketplace_image(log, node)
 
     def _check_basic_integrity(self, log: "Logger", node: Node) -> None:
         """
@@ -283,11 +284,10 @@ class SanitySuite(TestSuite):
         If the image is from marketplace, skip. Otherwise run comprehensive but
         conservative integrity checks to catch obvious compromise indicators.
         """
-        if not self._should_run_sanity(node):
-            self._log.skip(
+        if not self._should_run_sanity(log, node):
+            raise SkippedException(
                 "Skipping sanity check: marketplace image detected per IMDS."
             )
-            return
 
         log.info("Running non-marketplace VM comprehensive sanity checks...")
         try:
