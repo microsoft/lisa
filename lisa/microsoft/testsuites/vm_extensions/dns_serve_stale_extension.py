@@ -283,6 +283,7 @@ class DNSServeStaleExtensionBvt(TestSuite):
         node.execute(
             f"iptables -D OUTPUT -p tcp -d {dns_ip} --dport 53 -j DROP", sudo=True
         )
+        node.execute("iptables-save", sudo=True)
 
         # Test DNS resolution works again after cleanup
         final_dig_result = node.execute(
