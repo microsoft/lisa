@@ -247,7 +247,7 @@ class BareMetalPlatform(Platform):
             if not node_space.check(client_capability):
                 return False
 
-            node_requirement = node_space.choose_value(client_capability)
+            node_requirement = node_space.generate_min_capability(client_capability)
             nodes_requirement.append(node_requirement)
 
         environment.runbook.nodes_requirement = nodes_requirement

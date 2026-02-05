@@ -810,7 +810,7 @@ class LisaRunner(BaseRunner):
 
                     if platform_requirement.node_count:
                         # get minimun node count from the runbook.
-                        node_count = search_space.choose_value_countspace(
+                        node_count = search_space.generate_min_capability_countspace(
                             platform_requirement.node_count,
                             platform_requirement.node_count,
                         )

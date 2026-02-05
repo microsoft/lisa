@@ -951,8 +951,8 @@ class VirtualizationSettings(FeatureSettings):
             # Use SetSpace methods directly
             if method == search_space.RequirementMethod.intersect:
                 value.host_type = self_host_type.intersect(cap_host_type)
-            elif method == search_space.RequirementMethod.choose_value:
-                value.host_type = self_host_type.choose_value(cap_host_type)
+            elif method == search_space.RequirementMethod.generate_min_capability:
+                value.host_type = self_host_type.generate_min_capability(cap_host_type)
         elif capability.host_type is not None:
             value.host_type = capability.host_type
         else:
@@ -1057,10 +1057,12 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
     @property
     def cost(self) -> float:
-        core_count = search_space.choose_value_countspace(
+        core_count = search_space.generate_min_capability_countspace(
             self.core_count, self.core_count
         )
-        gpu_count = search_space.choose_value_countspace(self.gpu_count, self.gpu_count)
+        gpu_count = search_space.generate_min_capability_countspace(
+            self.gpu_count, self.gpu_count
+        )
         return core_count + gpu_count * 100
 
     @property
@@ -1171,7 +1173,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
         # expand node count in requirement to one,
         # so that's easy to compare equalization later.
         expanded_requirements: List[NodeSpace] = []
-        node_count = search_space.choose_value_countspace(
+        node_count = search_space.generate_min_capability_countspace(
             self.node_count, self.node_count
         )
         for _ in range(node_count):
@@ -1234,7 +1236,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
         if (
             capability.features
-            and method == search_space.RequirementMethod.choose_value
+            and method == search_space.RequirementMethod.generate_min_capability
         ):
             # The requirement features are ignored, if cap doesn't have it.
             value.features = search_space.SetSpace[FeatureSettings](is_allow_set=True)
@@ -1260,7 +1262,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
         if (
             capability.excluded_features
-            and method == search_space.RequirementMethod.choose_value
+            and method == search_space.RequirementMethod.generate_min_capability
         ):
             # TODO: the min value for excluded feature is not clear. It may need
             # to be improved with real scenarios.

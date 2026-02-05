@@ -285,7 +285,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
             # Rectify the general node capabilities with this node's specific
             # requirements.
-            node_requirement = node_space.choose_value(nodes_capabilities)
+            node_requirement = node_space.generate_min_capability(nodes_capabilities)
             nodes_requirement.append(node_requirement)
 
         if not self._check_host_capabilities(nodes_requirement, host_capabilities, log):
@@ -391,7 +391,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     # Note: Unlike other orchestrators, we don't want to fill up the capacity of
     # the host in case the test is running on a dev box.
     def _get_count_space_min(self, count_space: search_space.CountSpace) -> int:
-        return search_space.choose_value_countspace(count_space, count_space)
+        return search_space.generate_min_capability_countspace(count_space, count_space)
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         self._configure_nodes(environment, log)

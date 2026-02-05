@@ -81,7 +81,7 @@ class MockPlatform(Platform):
         if self._mock_runbook.return_prepared and requirements:
             min_capabilities: List[schema.NodeSpace] = []
             for node_space in requirements:
-                min_capabilities.append(node_space.choose_value(node_space))
+                min_capabilities.append(node_space.generate_min_capability(node_space))
             environment.runbook.nodes_requirement = min_capabilities
         return self._mock_runbook.return_prepared
 

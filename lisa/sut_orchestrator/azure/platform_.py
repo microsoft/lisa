@@ -529,7 +529,7 @@ class AzurePlatform(Platform):
         1. If predefined location exists on node level, check conflict and use it.
         2. If predefined vm size exists on node level, check exists and use it.
         3. check capability for each node by order of pattern.
-        4. choose a value for each capability match
+        4. get min capability for each match
         """
 
         if not environment.runbook.nodes_requirement:
@@ -2347,7 +2347,7 @@ class AzurePlatform(Platform):
         azure_capability: AzureCapability,
         location: str,
     ) -> schema.NodeSpace:
-        min_cap: schema.NodeSpace = requirement.choose_value(
+        min_cap: schema.NodeSpace = requirement.generate_min_capability(
             azure_capability.capability
         )
         # Apply azure specified values. They will pass into arm template
