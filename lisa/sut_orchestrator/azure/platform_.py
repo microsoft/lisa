@@ -2438,7 +2438,7 @@ class AzurePlatform(Platform):
         original_disk_count = node.capability.disk.data_disk_count
         
         # Cap disk count at 9 if core count exceeds 9
-        disk_count = min(core_count, 20)
+        disk_count = min(core_count, 64)
         
         # Log the change for debugging
         self._log.info(
