@@ -15,11 +15,13 @@ from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
     Downloader,
     DpdkGradeMetric,
+    DpdkMpRole,
     GitDownloader,
     Installer,
     PackageManagerInstall,
     Pmd,
     TarDownloader,
+    TestpmdForwardMode,
     check_dpdk_support,
     is_url_for_git_repo,
     is_url_for_tarball,
@@ -207,7 +209,7 @@ def generate_send_receive_run_info(
     multiple_queues: bool = False,
     use_service_cores: int = 1,
     set_mtu: int = 0,
-) -> Dict[DpdkTestResources, str]:
+) -> Dict[DpdkTestResources, List[str]]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
@@ -223,6 +225,7 @@ def generate_send_receive_run_info(
             )
     else:
         maxmtu_int = 0
+
     snd_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
         0,
@@ -244,11 +247,77 @@ def generate_send_receive_run_info(
     )
 
     kit_cmd_pairs = {
-        sender: snd_cmd,
-        receiver: rcv_cmd,
+        sender: [snd_cmd],
+        receiver: [rcv_cmd],
     }
 
     return kit_cmd_pairs
+
+
+def generate_5tswap_run_info(
+    pmd: Pmd,
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    multiple_queues: bool = False,
+    use_service_cores: int = 1,
+    set_mtu: int = 0,
+) -> Dict[DpdkTestResources, List[str]]:
+    snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
+    # for MTU test: check that we can fetch the max MTU size for the NIC
+    if set_mtu:
+        check_nic = sender.node.nics.get_primary_nic().lower
+        maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        if not maxmtu:
+            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+        maxmtu_int = int(maxmtu)
+        if set_mtu > maxmtu_int:
+            raise SkippedException(
+                "Requested MTU size exceeds max mtu for DPDK mtu test: "
+                f"{set_mtu} > {maxmtu}."
+            )
+    else:
+        maxmtu_int = 0
+
+    snd_cmd = sender.testpmd.generate_testpmd_command(
+        [snd_nic],
+        0,
+        "txonly",
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        mp_role=DpdkMpRole.PRIMARY_PROCESS,
+        num_procs=2,
+        proc_id=0,
+    )
+    snd_mp_cmd = sender.testpmd.generate_testpmd_command(
+        [snd_nic],
+        0,
+        "rxonly",
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        mp_role=DpdkMpRole.SECONDARY_PROCESS,
+        num_procs=2,
+        proc_id=1,
+    )
+    rcv_cmd = receiver.testpmd.generate_testpmd_command(
+        [rcv_nic],
+        0,
+        "5tswap",
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+    )
+
+    dpdk_kit_cmds = {
+        sender: [snd_cmd, snd_mp_cmd],
+        receiver: [rcv_cmd],
+    }
+
+    return dpdk_kit_cmds
 
 
 def generate_testpmd_multiple_port_command(
@@ -258,7 +327,7 @@ def generate_testpmd_multiple_port_command(
     multiple_queues: bool = False,
     use_service_cores: int = 1,
     set_mtu: int = 0,
-) -> Dict[DpdkTestResources, str]:
+) -> Dict[DpdkTestResources, List[str]]:
     # for N senders, make a list of subnets from
     # 10.0.1.0/24 to 10.0.N.0/24.
     # these can be arbitrarily picked, each VM has nics on each
@@ -293,7 +362,7 @@ def generate_testpmd_multiple_port_command(
                 )
     else:
         maxmtu_int = 0
-    kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
+    kit_cmd_pairs: Dict[DpdkTestResources, List[str]] = dict()
     receiver_includes: List[str] = []
     for i in range(len(senders)):
         # get the sender
@@ -317,7 +386,7 @@ def generate_testpmd_multiple_port_command(
             mbuf_size=maxmtu_int,
         )
         # store this senders command
-        kit_cmd_pairs[sender] = snd_cmd
+        kit_cmd_pairs[sender] = [snd_cmd]
         # receiver needs multiple ports, so only generate the include.
         receiver_include = receiver.testpmd.generate_testpmd_include(
             receiver_nics[sender_subnet], i
@@ -336,7 +405,7 @@ def generate_testpmd_multiple_port_command(
         mbuf_size=maxmtu_int,
     )
 
-    kit_cmd_pairs[receiver] = rcv_cmd
+    kit_cmd_pairs[receiver] = [rcv_cmd]
 
     return kit_cmd_pairs
 
@@ -531,7 +600,7 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
 
 
 def run_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
+    node_cmd_pairs: Dict[DpdkTestResources, List[str]],
     seconds: int,
     log: Logger,
     hotplug_sriov: bool = False,
@@ -572,12 +641,13 @@ def run_testpmd_concurrent(
 
 
 def start_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
+    node_cmd_pairs: Dict[DpdkTestResources, List[str]],
     seconds: int,
     log: Logger,
     output: Dict[DpdkTestResources, str],
 ) -> TaskManager[Tuple[DpdkTestResources, str]]:
     cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
+    cmd_pairs_as_tuples = [(node, cmds[0]) for (node, cmds) in cmd_pairs_as_tuples]
 
     def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
         output[result[0]] = result[1]
@@ -692,6 +762,7 @@ def verify_dpdk_send_receive(
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
+    receiver_mode: TestpmdForwardMode = TestpmdForwardMode.RXONLY,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -721,35 +792,61 @@ def verify_dpdk_send_receive(
     # annotate test result before starting
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
-
-    kit_cmd_pairs = generate_send_receive_run_info(
-        pmd,
-        sender,
-        receiver,
-        use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
-        set_mtu=set_mtu,
-    )
+    if receiver_mode == TestpmdForwardMode.RXONLY:
+        kit_cmd_pairs = generate_send_receive_run_info(
+            pmd,
+            sender,
+            receiver,
+            use_service_cores=use_service_cores,
+            multiple_queues=multiple_queues,
+            set_mtu=set_mtu,
+        )
+    elif receiver_mode == TestpmdForwardMode.FIVE_TUPLE_SWAP:
+        kit_cmd_pairs = generate_5tswap_run_info(
+            pmd,
+            sender,
+            receiver,
+            use_service_cores=use_service_cores,
+            multiple_queues=multiple_queues,
+            set_mtu=set_mtu,
+        )
     receive_timeout = kill_timeout + 10
-    receive_result = receiver.node.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[receiver],
-        receive_timeout,
-        constants.SIGINT,
-        kill_timeout=receive_timeout,
-    )
-    receive_result.wait_output("start packet forwarding")
-    sender_result = sender.node.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[sender],
-        test_duration,
-        constants.SIGINT,
-        kill_timeout=kill_timeout,
-    )
+    receiver_processes: List[Process] = []
+    sender_processes: List[Process] = []
+    for command in kit_cmd_pairs[receiver]:
+        proc = receiver.node.tools[Timeout].start_with_timeout(
+            command=command,
+            timeout=receive_timeout,
+            signal=constants.SIGINT,
+            kill_timeout=receive_timeout,
+        )
+        proc.wait_output("start packet forwarding")
+        receiver_processes += [proc]
+    # receive_result = receiver.node.tools[Timeout].start_with_timeout(
+    #     kit_cmd_pairs[receiver],
+    #     receive_timeout,
+    #     constants.SIGINT,
+    #     kill_timeout=receive_timeout,
+    # )
+    # receive_result.wait_output("start packet forwarding")
+    for command in kit_cmd_pairs[sender]:
+        proc = sender.node.tools[Timeout].start_with_timeout(
+            command=command,
+            timeout=test_duration,
+            signal=constants.SIGINT,
+            kill_timeout=kill_timeout,
+        )
+        sender_processes += [proc]
 
     results = dict()
-    results[sender] = sender.testpmd.process_testpmd_output(sender_result.wait_result())
-    results[receiver] = receiver.testpmd.process_testpmd_output(
-        receive_result.wait_result()
+    results[sender] = sender.testpmd.process_testpmd_output(
+        sender_processes[0].wait_result()
     )
+    results[receiver] = receiver.testpmd.process_testpmd_output(
+        receiver_processes[0].wait_result()
+    )
+    # wait for the others
+    [x.wait_result() for x in sender_processes[1:] + receiver_processes[1:]]
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
@@ -798,6 +895,13 @@ def verify_dpdk_send_receive(
 
     # annotate the amount of dropped packets on the receiver
     annotate_packet_drops(log, result, receiver)
+
+    if len(sender_processes) > 1:
+        rcv_tx_pps = receiver.testpmd.get_mean_tx_pps()
+        forwarded_over_received = abs(rcv_tx_pps / snd_tx_pps)
+        assert_that(rcv_tx_pps).described_as(
+            "receiver re-send pps was unexpectedly low!"
+        ).is_close_to(forwarded_over_received, 0.8)
 
     return sender, receiver
 
@@ -911,7 +1015,7 @@ def verify_dpdk_mutliple_ports(
     )
     receive_timeout = kill_timeout + 10
     receive_result = receiver.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[receiver_kit],
+        kit_cmd_pairs[receiver_kit][0],
         receive_timeout,
         constants.SIGINT,
         kill_timeout=receive_timeout,
@@ -920,7 +1024,7 @@ def verify_dpdk_mutliple_ports(
     sender_results: Dict[DpdkTestResources, Process] = dict()
     for sender in sender_kits:
         sender_results[sender] = sender.node.tools[Timeout].start_with_timeout(
-            kit_cmd_pairs[sender],
+            kit_cmd_pairs[sender][0],
             test_duration,
             constants.SIGINT,
             kill_timeout=kill_timeout,
