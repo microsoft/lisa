@@ -1133,24 +1133,29 @@ class Xfstests(Tool):
 
         self._log.debug(f"Creating worker {worker_id} xfstests copy at {worker_path}")
 
-        # Remove existing directory if present
-        self.node.execute(f"rm -rf {worker_path}", sudo=True)
-
-        # Create directory and copy xfstests
-        # Using cp -a to preserve permissions and symlinks
-        self.node.execute(f"mkdir -p {base_dir}", sudo=True)
+        # Combine all setup commands into a single SSH session to minimize
+        # concurrent SSH channel usage. When create_workers() runs all workers
+        # in parallel via run_in_parallel(), each separate node.execute() call
+        # opens a new SSH channel. With 8 workers × 4 commands = 32 simultaneous
+        # channels, this exceeds the SSH server's MaxSessions limit (default 10),
+        # causing ChannelException(2, 'Connect failed').
+        # By combining into one command, each worker uses only 1 channel.
+        combined_cmd = (
+            f"rm -rf {worker_path} && "
+            f"mkdir -p {base_dir} && "
+            f"cp -a {source_path} {worker_path} && "
+            f"chmod -R a+rwx {worker_path}"
+        )
         result = self.node.execute(
-            f"cp -a {source_path} {worker_path}",
+            combined_cmd,
             sudo=True,
+            shell=True,
             timeout=300,  # Copy can take time for large directories
         )
         if result.exit_code != 0:
             raise LisaException(
                 f"Failed to create worker {worker_id} copy: {result.stderr}"
             )
-
-        # Ensure proper permissions for the worker directory
-        self.node.execute(f"chmod -R a+rwx {worker_path}", sudo=True)
 
         self._log.debug(f"Worker {worker_id} xfstests copy created at {worker_path}")
         return worker_path
@@ -1314,6 +1319,7 @@ class Xfstests(Tool):
         raw_message: str,
         test_section: str,
         data_disk: str,
+        xfstests_path: Optional[PurePath] = None,
     ) -> None:
         """
         About:This method is internal to LISA and is not intended for direct calls.
@@ -1323,6 +1329,8 @@ class Xfstests(Tool):
         raw_message: The raw message from the xfstests output
         test_section: The test group name used for testing
         data_disk: The data disk used for testing. ( method is partially implemented )
+        xfstests_path: Optional custom xfstests directory path. Used for parallel
+            worker execution. If not provided, uses get_xfstests_path().
         """
         all_cases_match = self.__all_cases_pattern.match(raw_message)
         if not all_cases_match:
@@ -1382,7 +1390,10 @@ class Xfstests(Tool):
                 info["information"]["data_disk"] = data_disk
             info["information"]["test_details"] = str(
                 self.create_xfstest_stack_info(
-                    result.name, test_section, str(result.status.name)
+                    result.name,
+                    test_section,
+                    str(result.status.name),
+                    xfstests_path=xfstests_path,
                 )
             )
             # Parse actual test duration from xfstests output (e.g., "46s", "302s")
@@ -1502,6 +1513,7 @@ class Xfstests(Tool):
                     raw_message=raw_message,
                     test_section=test_section,
                     data_disk=data_disk,
+                    xfstests_path=working_path,
                 )
 
             # Use _file_exists_with_timeout instead of shell.exists() to avoid
@@ -1689,6 +1701,7 @@ class Xfstests(Tool):
         case: str,
         test_section: str,
         test_status: str,
+        xfstests_path: Optional[PurePath] = None,
     ) -> str:
         """
         About:This method is used to look up the xfstests results directory and extract
@@ -1698,6 +1711,9 @@ class Xfstests(Tool):
         case: The test case name for which the stack info is needed
         test_section: The test group name used for testing
         test_status: The test status for the given test case
+        xfstests_path: Optional custom xfstests directory path. Used for parallel
+            worker execution where results are in worker-specific directories.
+            If not provided, uses get_xfstests_path() (default installation path).
         Returns:
         The method returns the stack info message for the given test case
         Example:
@@ -1714,10 +1730,11 @@ class Xfstests(Tool):
         """
 
         # Get XFSTest current path. we are looking at results/{test_type} directory here
-        xfstests_path = self.get_xfstests_path()
+        # Use provided path for worker execution, or default installation path
+        working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
         test_class = case.split("/")[0]
         test_id = case.split("/")[1]
-        result_path = xfstests_path / f"results/{test_section}/{test_class}"
+        result_path = working_path / f"results/{test_section}/{test_class}"
         cat_tool = self.node.tools[Cat]
         result = ""
         # note: ls tool is not used here due to performance issues.
