@@ -488,10 +488,13 @@ class Process:
             self._log.debug(f"Killing process : {self._id_}, pid: {self._process.pid}")
             try:
                 if self._is_posix:
+                    self._log.debug("is posix, send signal to kill")
                     if self._shell.is_remote:
+                        self._log.debug("remote process should use signal 9 to kill, because it works on both Linux and Windows")
                         # Support remote Posix so far
                         self._process.send_signal(9)
                     else:
+                        self._log.debug("local process should use signal SIGTERM to kill, because it can be caught by process and do some clean up, and it's enough for local process. And SIGKILL might cause issue for local process, e.g. it might cause the ssh connection closed unexpectedly if the local process is ssh connection.")
                         # local process should use the compiled value
                         # the value is different between windows and posix
                         self._process.send_signal(signal.SIGTERM)
