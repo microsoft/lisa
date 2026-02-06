@@ -125,6 +125,7 @@ from .common import (
     get_deployable_storage_path,
     get_environment_context,
     get_marketplace_ordering_client,
+    get_network_client,
     get_node_context,
     get_or_create_storage_container,
     get_primary_ip_addresses,
@@ -134,6 +135,7 @@ from .common import (
     get_vhd_details,
     get_vm,
     global_credential_access_lock,
+    NIC_NAME_PATTERN,
     load_location_info_from_file,
     save_console_log,
     wait_operation,
@@ -830,6 +832,111 @@ class AzurePlatform(Platform):
             )
         except Exception as e:
             node.log.debug(f"error detecting MANA information: {e}")
+
+    def _log_node_network_security_rules(self, node: Node) -> None:
+        try:
+            vm = get_vm(self, node)
+        except Exception as e:
+            node.log.debug(f"error on get vm for network rules: {e}")
+            return
+
+        node_context = get_node_context(node)
+        if not vm.network_profile or not vm.network_profile.network_interfaces:
+            node.log.info("no network interfaces found on vm")
+            return
+
+        network_client = get_network_client(self)
+
+        for network_interface in vm.network_profile.network_interfaces:
+            if not network_interface.id:
+                continue
+            nic_name = get_matched_str(network_interface.id, NIC_NAME_PATTERN)
+
+            self._log_effective_security_rules(
+                node,
+                network_client,
+                node_context.resource_group_name,
+                nic_name,
+            )
+
+    def _log_security_rule(self, node: Node, rule: Any) -> None:
+        source_ports = self._format_ports(
+            getattr(rule, "source_port_range", None),
+            getattr(rule, "source_port_ranges", None),
+        )
+        destination_ports = self._format_ports(
+            getattr(rule, "destination_port_range", None),
+            getattr(rule, "destination_port_ranges", None),
+        )
+        node.log.info(
+            "- name=%s, priority=%s, access=%s, protocol=%s, source=%s, "
+            "destination=%s, source_ports=%s, destination_ports=%s",
+            getattr(rule, "name", None),
+            getattr(rule, "priority", None),
+            getattr(rule, "access", None),
+            getattr(rule, "protocol", None),
+            getattr(rule, "source_address_prefix", None),
+            getattr(rule, "destination_address_prefix", None),
+            source_ports,
+            destination_ports,
+        )
+
+    def _format_ports(self, port_range: Any, port_ranges: Any) -> str:
+        if port_ranges:
+            return ",".join([str(x) for x in port_ranges])
+        return str(port_range) if port_range else "*"
+
+    def _log_effective_security_rules(
+        self,
+        node: Node,
+        network_client: Any,
+        resource_group_name: str,
+        nic_name: str,
+    ) -> None:
+        try:
+            if hasattr(
+                network_client.network_interfaces,
+                "begin_list_effective_network_security_groups",
+            ):
+                begin_list = (
+                    network_client.network_interfaces
+                    .begin_list_effective_network_security_groups
+                )
+                poller = begin_list(resource_group_name, nic_name)
+                effective = poller.result()
+            elif hasattr(
+                network_client.network_interfaces,
+                "list_effective_network_security_groups",
+            ):
+                list_rules = (
+                    network_client.network_interfaces
+                    .list_effective_network_security_groups
+                )
+                effective = list_rules(resource_group_name, nic_name)
+            else:
+                return
+        except Exception as e:
+            node.log.debug(f"error on get effective nsgs: {e}")
+            return
+
+        values = (
+            getattr(effective, "value", None)
+            or getattr(effective, "network_security_groups", None)
+            or effective
+        )
+        if not values:
+            return
+
+        node.log.info("effective security rules:")
+        for item in values:
+            nsg = getattr(item, "network_security_group", None) or item
+            nsg_name = getattr(nsg, "name", None)
+            if nsg_name:
+                node.log.info(f"- effective nsg: {nsg_name}")
+            rules = getattr(item, "effective_security_rules", None) or []
+            for rule in rules:
+                if getattr(rule, "direction", None) == "Inbound":
+                    self._log_security_rule(node, rule)
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
@@ -1858,6 +1965,7 @@ class AzurePlatform(Platform):
             node_context.use_public_address = self._azure_runbook.use_public_address
             node_context.use_ipv6 = self._azure_runbook.use_ipv6
             assert isinstance(node, RemoteNode)
+            self._log_node_network_security_rules(node)
             node.set_connection_info(
                 address=private_address,
                 port=22,
