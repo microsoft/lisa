@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.37.4.10188",
-      "templateHash": "16291477761159155605"
+      "version": "0.36.177.2456",
+      "templateHash": "18099469189437246926"
     }
   },
   "functions": [
@@ -194,7 +194,7 @@
           ],
           "output": {
             "type": "object",
-            "value": "[if(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
+            "value": "[if(or(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), and(not(empty(parameters('dataDisk').vhd_details)), not(empty(parameters('dataDisk').vhd_details.vhd_uri)))), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
           }
         },
         "getOsDiskSharedGallery": {
@@ -512,6 +512,13 @@
         "description": "whether to use ultra disk"
       }
     },
+    "is_data_disk_with_vhd": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "whether to use data disk with vhd"
+      }
+    },
     "ip_service_tags": {
       "type": "object",
       "metadata": {
@@ -784,6 +791,29 @@
       },
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
     },
+    "nodes_data_disks_with_vhds": {
+      "copy": {
+        "name": "nodes_data_disks_with_vhds",
+        "count": "[length(range(0, mul(length(parameters('data_disks')), variables('node_count'))))]"
+      },
+      "condition": "[and(parameters('is_data_disk_with_vhd'), not(parameters('is_ultradisk')))]",
+      "type": "Microsoft.Compute/disks",
+      "apiVersion": "2022-03-02",
+      "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "creationData": {
+          "createOption": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].create_option]",
+          "storageAccountId": "[resourceId(parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].vhd_details.storage_resource_group_name, 'Microsoft.Storage/storageAccounts', parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].vhd_details.storage_account_name)]",
+          "sourceUri": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].vhd_details.vhd_uri]"
+        }
+      },
+      "sku": {
+        "name": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].type]"
+      },
+      "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
+    },
     "nodes_vms": {
       "copy": {
         "name": "nodes_vms",
@@ -840,6 +870,7 @@
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]",
       "dependsOn": [
         "availability_set",
+        "nodes_data_disks_with_vhds",
         "nodes_disk",
         "nodes_image",
         "nodes_nics",
@@ -898,8 +929,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.37.4.10188",
-              "templateHash": "17932923534203698710"
+              "version": "0.36.177.2456",
+              "templateHash": "15654609969338604205"
             }
           },
           "functions": [

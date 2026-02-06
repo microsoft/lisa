@@ -2382,7 +2382,27 @@ class Suse(Linux):
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
-        if install_result.exit_code in (1, 100):
+
+        # zypper exit codes that indicate dependency/resolution issues:
+        # 1: ZYPPER_EXIT_ERR_BUG - Unexpected situation
+        # 4: ZYPPER_EXIT_INF_CAP_NOT_FOUND - Capability not found or dependency problem
+        # 100: ZYPPER_EXIT_INF_UPDATE_NEEDED - Updates available
+        # If installation failed due to dependency conflicts, retry with
+        # --force-resolution to allow zypper to automatically resolve conflicts
+        if install_result.exit_code in (1, 4, 100):
+            self._log.debug(
+                f"Installation failed with exit code {install_result.exit_code}, "
+                "retrying with --force-resolution to resolve dependency conflicts."
+            )
+            command_with_force = f"zypper --non-interactive {add_args}"
+            if not signed:
+                command_with_force += " --no-gpg-checks "
+            command_with_force += f" in --force-resolution {' '.join(packages)}"
+            install_result = self._node.execute(
+                command_with_force, shell=True, sudo=True, timeout=timeout
+            )
+
+        if install_result.exit_code in (1, 4, 100):
             raise LisaException(
                 f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
                 f"stderr: {install_result.stderr}"

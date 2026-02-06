@@ -62,10 +62,11 @@ Known Limitations:
 - Some tests (e.g., generic/007: 285s) are much slower than others (0-5s)
 - This can cause worker imbalance; future work: runtime-aware distribution
 """
+
 import string
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from microsoft.testsuites.xfstests.xfstests import (
     DEFAULT_WORKER_BASE_DIR,
@@ -90,25 +91,115 @@ from lisa.environment import Environment
 from lisa.features import Disk, Nvme
 from lisa.operating_system import BSD, CBLMariner, Oracle, Redhat, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
-from lisa.sut_orchestrator.azure.features import AzureFileShare, Nfs
+from lisa.sut_orchestrator.azure.features import AzureFileShare, FileShareProtocol
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
-from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
-from lisa.util import (
-    BadEnvironmentStateException,
-    LisaException,
-    constants,
-    generate_random_chars,
+from lisa.tools import (
+    Echo,
+    FileSystem,
+    KernelConfig,
+    Mkfs,
+    Mount,
+    NFSClient,
+    Parted,
+    Ssh,
 )
+from lisa.util import BadEnvironmentStateException, constants, generate_random_chars
 
 # =============================================================================
 # Global Configuration Variables
 # =============================================================================
 
-# Section : NFS options. <TODO>
-_default_nfs_mount = "vers=4,minorversion=1,_netdev,nofail,sec=sys 0 0"
-_default_nfs_excluded_tests: str = ""
-_default_nfs_testcases: str = ""
+# Section : NFS options.
+# NFS mount options for Azure Files NFSv4.1
+# Two forms needed:
+# - _default_nfs_mount_opts: Raw options for LISA's NFSClient tool (adds -o internally)
+# - _default_nfs_mount: Full option string for xfstests local.config MOUNT_OPTIONS
+#   xfstests constructs: mount -t nfs $MOUNT_OPTIONS <device> <mountpoint>
+#   So MOUNT_OPTIONS must include "-o" prefix for options to be parsed correctly.
+_default_nfs_mount_opts = "vers=4,minorversion=1,sec=sys"
+_default_nfs_mount = f"-o {_default_nfs_mount_opts}"
+
+# Excluded tests for Azure Files NFS:
+# Reference: https://learn.microsoft.com/azure/storage/files/
+#            files-nfs-protocol#limitations
+#
+# Azure Files NFS does NOT support:
+# - Hard links (link() syscall fails)
+# - Symbolic links with certain operations
+# - mknod/mkfifo (no device nodes, FIFOs, or sockets)
+# - Some POSIX features (sparse files, hole punching)
+# - fallocate() syscall
+#
+_default_nfs_excluded_tests: str = (
+    # =========================================================================
+    # Section 1: Features unsupported by Azure Files NFS
+    # =========================================================================
+    # Hard links not supported:
+    "generic/013 "
+    # Sparse files / hole punching not supported:
+    "generic/014 generic/129 generic/130 generic/239 generic/240 "
+    "generic/469 generic/567 "
+    # mknod/mkfifo not supported:
+    "generic/184 generic/306 "
+    # mkfs_sized not applicable (cloud filesystem):
+    "generic/211 "
+    # =========================================================================
+    # Section 2: fallocate() not supported on Azure Files NFS
+    # These tests require fallocate() or fallocate -k (keep size) which
+    # Azure Files NFS does not implement. Tests auto-skip at runtime but
+    # excluding explicitly saves scheduling overhead.
+    # =========================================================================
+    "generic/071 generic/086 generic/214 generic/228 generic/286 "
+    "generic/315 generic/391 generic/422 generic/568 generic/590 "
+    # =========================================================================
+    # Section 3: NFS protocol limitations
+    # These tests require features not available on NFS filesystems
+    # =========================================================================
+    # renameat2 RENAME_EXCHANGE/RENAME_NOREPLACE not supported:
+    "generic/024 "
+    # User extended attributes (xattr namespace 'user') not supported on NFS:
+    "generic/117 "
+    # Test explicitly excludes NFS filesystem type:
+    "generic/465 "
+    # Inode creation time (btime/birth time) not supported:
+    "generic/528 "
+    # Filesystem shutdown not applicable to NFS (network filesystem):
+    "generic/599 generic/635 "
+    # =========================================================================
+    # Section 4: Tests that may have issues on Azure Files NFS
+    # =========================================================================
+    # Extended attributes stress tests - may timeout on cloud filesystems:
+    "generic/070 "
+    # File locking tests - NFSv4.1 has locking but Azure Files behavior varies:
+    "generic/504 "
+)
+
+# Test cases for Azure Files NFS validation.
+# These tests validate NFS functionality that Azure Files supports.
+# Using the same generic tests as SMB where applicable.
+#
+# Total: 74 tests (29 tests excluded due to Azure Files NFS limitations)
+# See _default_nfs_excluded_tests for full exclusion list with reasons.
+_default_nfs_testcases: str = (
+    "generic/001 generic/005 generic/006 generic/007 generic/010 generic/011 "
+    "generic/028 generic/029 generic/030 generic/036 "
+    "generic/069 generic/074 generic/080 generic/084 "
+    "generic/091 generic/095 generic/098 generic/100 generic/109 "
+    "generic/113 generic/124 generic/132 generic/133 generic/135 "
+    "generic/141 generic/169 generic/198 generic/207 generic/208 generic/210 "
+    "generic/212 generic/215 generic/221 generic/241 "
+    "generic/246 generic/247 generic/248 generic/249 generic/257 generic/258 "
+    "generic/308 generic/310 generic/313 generic/339 "
+    "generic/340 generic/344 generic/345 generic/354 generic/360 "
+    "generic/393 generic/394 generic/406 generic/412 generic/428 "
+    "generic/432 generic/433 generic/437 generic/443 generic/450 generic/451 "
+    "generic/452 generic/460 generic/464 generic/538 "
+    "generic/565 generic/591 generic/604 "
+    "generic/609 generic/615 generic/632 generic/634 generic/637 "
+    "generic/638 generic/639"
+)
+
 # Section : SMB options.
 _default_smb_mount = (
     "vers=3.11,dir_mode=0755,file_mode=0755,serverino,nosharesock"
@@ -250,36 +341,49 @@ _default_worker_count = 4
 # Azure File Share Parallel Execution Context
 # =============================================================================
 @dataclass
-class AzureFileShareParallelContext:
+class AzureFileShareContext:
     """
-    Holds state for Azure File Share parallel test execution.
+    Holds state for Azure File Share parallel test execution (SMB or NFS).
 
-    This dataclass encapsulates all the resources created during parallel
-    test setup, making cleanup deterministic and self-documenting. It's
-    populated by _setup_azure_file_share_workers() and consumed by
-    _cleanup_azure_file_share_workers().
+    This unified dataclass encapsulates all the resources created during
+    parallel test setup for both SMB (CIFS) and NFS protocols. It makes
+    cleanup deterministic and self-documenting.
+
+    Works correctly with any worker_count (1 = single worker, N = N workers).
 
     Usage:
-        context = AzureFileShareParallelContext(runner=runner)
+        context = AzureFileShareContext(runner=runner, protocol="cifs")
         # ... setup populates context fields ...
         # ... tests run ...
         # ... cleanup uses context to know what to clean ...
 
     Attributes:
         runner: XfstestsParallelRunner managing worker lifecycle
+        protocol: Protocol type - "cifs" for SMB or "nfs" for NFS
         share_names: Mapping of worker share keys to Azure share names
                      e.g., {"test_1": "lisaXXXw1fs", "scratch_1": "lisaXXXw1sc"}
         all_share_names: Flat list of all created share names for bulk deletion
-        fs_url_dict: Mapping of share names to //server/share URLs
-        mount_opts: CIFS mount options string used for all mounts
+        fs_url_dict: Mapping of share names to device paths
+                     SMB: //server/share URLs, NFS: server:/export paths
+        mount_opts: Mount options string
+                    SMB: full CIFS mount options with credentials
+                    NFS: raw options for LISA's NFSClient (without -o)
+        xfstests_mount_opts: Mount options for xfstests local.config
+                             NFS only: includes -o prefix
+                             SMB: same as mount_opts
+        nfs_server: NFS server hostname (NFS only, empty for SMB)
+                    e.g., account.file.core.windows.net
         test_failed: Whether the test failed (affects cleanup behavior)
     """
 
     runner: XfstestsParallelRunner
+    protocol: str = "cifs"  # "cifs" or "nfs"
     share_names: Dict[str, str] = field(default_factory=dict)
     all_share_names: List[str] = field(default_factory=list)
     fs_url_dict: Dict[str, str] = field(default_factory=dict)
     mount_opts: str = ""
+    xfstests_mount_opts: str = ""  # Used by NFS, same as mount_opts for SMB
+    nfs_server: str = ""  # NFS only
     test_failed: bool = False
 
 
@@ -317,7 +421,8 @@ def _deploy_azure_file_share(
     node: Node,
     environment: Environment,
     names: Dict[str, str],
-    azure_file_share: Union[AzureFileShare, Nfs],
+    azure_file_share: AzureFileShare,
+    protocol: FileShareProtocol = FileShareProtocol.SMB,
     allow_shared_key_access: bool = True,
     enable_private_endpoint: bool = True,
     storage_account_sku: str = "PremiumV2_LRS",
@@ -326,6 +431,8 @@ def _deploy_azure_file_share(
     provisioned_iops: Optional[int] = None,
     provisioned_bandwidth_mibps: Optional[int] = None,
     use_pv1_model: bool = False,
+    skip_mount: bool = False,
+    enable_https_traffic_only: bool = True,
 ) -> Dict[str, str]:
     """
     About: This method will provision azure file shares on a new or existing
@@ -344,9 +451,12 @@ def _deploy_azure_file_share(
         - Use for regions where PV2 is not available
 
     Args:
+        protocol: FileShareProtocol.SMB (default) or FileShareProtocol.NFS
         provisioned_iops: Optional IOPS for PV2 (None = use Azure defaults)
         provisioned_bandwidth_mibps: Optional throughput for PV2 (None = defaults)
         use_pv1_model: Set True to use legacy PV1 billing model
+        skip_mount: If True, skip creating CIFS mount entries in fstab.
+            Use this for NFS shares which are mounted separately.
 
     Returns: Dict[str, str] - A dictionary containing the file share names
     and their respective URLs.
@@ -357,27 +467,37 @@ def _deploy_azure_file_share(
         file_share_quota_in_gb = max(file_share_quota_in_gb, 100)  # PV1 minimum
         provisioned_iops = None  # PV1 doesn't support explicit IOPS
         provisioned_bandwidth_mibps = None  # PV1 doesn't support explicit throughput
-    if isinstance(azure_file_share, AzureFileShare):
-        fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
-            file_share_names=list(names.values()),
-            environment=environment,
-            sku=storage_account_sku,
-            kind=storage_account_kind,
-            allow_shared_key_access=allow_shared_key_access,
-            enable_private_endpoint=enable_private_endpoint,
-            quota_in_gb=file_share_quota_in_gb,
-            provisioned_iops=provisioned_iops,
-            provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
-        )
+
+    # Create file shares using AzureFileShare
+    # Protocol (SMB/NFS) is passed as parameter:
+    # - SMB: Uses create_file_share + create_fileshare_folders for CIFS mounts
+    # - NFS: Uses create_file_share only (skip_mount=True), mounts via NFSClient
+    fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
+        file_share_names=list(names.values()),
+        environment=environment,
+        protocol=protocol,
+        sku=storage_account_sku,
+        kind=storage_account_kind,
+        allow_shared_key_access=allow_shared_key_access,
+        enable_private_endpoint=enable_private_endpoint,
+        enable_https_traffic_only=enable_https_traffic_only,
+        quota_in_gb=file_share_quota_in_gb,
+        provisioned_iops=provisioned_iops,
+        provisioned_bandwidth_mibps=provisioned_bandwidth_mibps,
+    )
+
+    # Only create CIFS mount entries for SMB shares
+    # NFS shares are mounted separately using NFSClient (caller sets skip_mount=True)
+    if not skip_mount:
         test_folders_share_dict: Dict[str, str] = {}
         for key, value in names.items():
             test_folders_share_dict[key] = fs_url_dict[value]
-        azure_file_share.create_fileshare_folders(test_folders_share_dict)
-    elif isinstance(azure_file_share, Nfs):
-        # NFS yet to be implemented
-        raise SkippedException("Skipping NFS deployment. Pending implementation.")
-    else:
-        raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
+        # xfstests requires explicit mount control - disable auto-mount to prevent
+        # systemd from auto-mounting shares when fstab is modified during tests
+        azure_file_share.create_fileshare_folders(
+            test_folders_share_dict, protocol, disable_auto_mount=True
+        )
+
     return fs_url_dict
 
 
@@ -385,8 +505,8 @@ def _deploy_azure_file_share(
     area="storage",
     category="community",
     description="""
-    This test suite is to validate different types of data disk on Linux VM
-     using xfstests.
+    This test suite is to validate different types of data disk and network file system
+    on Linux VM using xfstests.
     """,
 )
 class Xfstesting(TestSuite):
@@ -779,6 +899,144 @@ class Xfstesting(TestSuite):
             excluded_tests=self.excluded_tests,
         )
 
+    def _create_worker_shares(
+        self,
+        runner: XfstestsParallelRunner,
+        random_str: str,
+    ) -> Tuple[Dict[str, str], List[str], Dict[str, str], int]:
+        """
+        Create share names and mount point mappings for workers.
+
+        This helper extracts the common logic for generating Azure File Share
+        names and mount point mappings used by both SMB and NFS setup methods.
+
+        Works with any worker_count (1 = single share pair, N = N share pairs).
+
+        Args:
+            runner: XfstestsParallelRunner with worker configuration
+            random_str: Random string for unique share naming
+
+        Returns:
+            tuple: (share_names, all_share_names, names_dict, per_share_quota)
+                - share_names: dict mapping worker keys to share names
+                - all_share_names: flat list of all share names
+                - names_dict: mount point to share name mapping
+                - per_share_quota: Quota in GB per share
+        """
+        share_names: Dict[str, str] = {}
+        all_share_names: List[str] = []
+        names_dict: Dict[str, str] = {}
+
+        # Create share names for each worker
+        # Each worker gets: test share (w{id}fs) + scratch share (w{id}sc)
+        for worker_id in runner.worker_ids():
+            test_share = f"lisa{random_str}w{worker_id}fs"
+            scratch_share = f"lisa{random_str}w{worker_id}sc"
+            share_names[f"test_{worker_id}"] = test_share
+            share_names[f"scratch_{worker_id}"] = scratch_share
+            all_share_names.extend([test_share, scratch_share])
+
+            # Build mount point to share name mapping
+            test_mount = f"{_test_folder}_worker_{worker_id}"
+            scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
+            names_dict[test_mount] = test_share
+            names_dict[scratch_mount] = scratch_share
+
+        # Calculate per-share quota (minimum 50 GB)
+        per_share_quota = max(100 // runner.worker_count, 50)
+
+        return share_names, all_share_names, names_dict, per_share_quota
+
+    def _create_worker_mount_points(
+        self,
+        node: RemoteNode,
+        runner: XfstestsParallelRunner,
+    ) -> None:
+        """
+        Create mount point directories for all workers on the VM.
+
+        Args:
+            node: Remote VM node
+            runner: XfstestsParallelRunner with worker configuration
+        """
+        for worker_id in runner.worker_ids():
+            test_mount = f"{_test_folder}_worker_{worker_id}"
+            scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
+            node.execute(f"mkdir -p {test_mount} {scratch_mount}", sudo=True)
+
+    def _cleanup_azure_workers(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        ctx: AzureFileShareContext,
+        azure_file_share: AzureFileShare,
+        environment: Environment,
+    ) -> None:
+        """
+        Clean up all resources created for parallel Azure File Share workers.
+
+        This unified cleanup method handles both SMB (CIFS) and NFS protocols
+        based on the protocol field in the context object.
+
+        Cleanup sequence (in order):
+        1. Unmount worker-specific test/scratch directories
+           - SMB: Uses Mount.umount()
+           - NFS: Uses NFSClient.stop()
+        2. Remove worker xfstests directory copies (via runner.cleanup_workers)
+        3. Delete Azure file shares (respects keep_environment setting)
+
+        Args:
+            log: Logger for status messages
+            node: Remote VM node to clean up
+            ctx: AzureFileShareContext with all setup state
+            azure_file_share: AzureFileShare feature for share deletion
+            environment: LISA environment for platform settings
+        """
+        runner = ctx.runner
+
+        # Step 1: Unmount worker mount points based on protocol
+        log.debug(f"Cleaning up worker {ctx.protocol.upper()} mount points...")
+        for worker_id in runner.worker_ids():
+            test_mount = f"{_test_folder}_worker_{worker_id}"
+            scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
+            try:
+                if ctx.protocol == "nfs":
+                    node.tools[NFSClient].stop(test_mount)
+                    node.tools[NFSClient].stop(scratch_mount)
+                else:
+                    node.tools[Mount].umount("", test_mount, erase=False)
+                    node.tools[Mount].umount("", scratch_mount, erase=False)
+            except Exception:
+                pass  # Ignore unmount failures (may already be unmounted)
+
+        # Step 2: Remove worker xfstests directory copies
+        runner.cleanup_workers()
+
+        # Step 3: Delete Azure file shares (respects keep_environment setting)
+        should_cleanup = True
+        if environment.platform:
+            keep_environment = environment.platform.runbook.keep_environment
+            if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
+                should_cleanup = False
+                log.info(
+                    f"Skipping Azure {ctx.protocol.upper()} file share cleanup as "
+                    f"keep_environment={keep_environment}"
+                )
+            elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
+                if ctx.test_failed:
+                    should_cleanup = False
+                    log.info(
+                        f"Skipping Azure {ctx.protocol.upper()} file share cleanup as "
+                        f"keep_environment={keep_environment} and test failed"
+                    )
+
+        if should_cleanup:
+            log.info(f"Cleaning up Azure {ctx.protocol.upper()} file shares")
+            try:
+                azure_file_share.delete_azure_fileshare(ctx.all_share_names)
+            except Exception as cleanup_error:
+                log.error(f"Failed to clean up file shares: {cleanup_error}")
+
     def _setup_azure_file_share_workers(
         self,
         log: Logger,
@@ -788,18 +1046,13 @@ class Xfstesting(TestSuite):
         azure_file_share: AzureFileShare,
         runner: XfstestsParallelRunner,
         random_str: str,
-    ) -> AzureFileShareParallelContext:
+    ) -> AzureFileShareContext:
         """
-        Set up Azure File Shares for parallel xfstests workers.
+        Set up Azure File Shares (SMB/CIFS) for parallel xfstests workers.
 
         Creates separate file shares per worker and configures each worker's
         local.config and exclude.txt. Worker directories must be created
         by runner.create_workers() before calling this method.
-
-        Azure File Share Requirements:
-        - Each worker needs its own test + scratch share (CIFS doesn't support
-          subdirectory mounts for xfstests)
-        - Share names follow pattern: lisa{random}w{id}fs / lisa{random}w{id}sc
 
         Args:
             log: Logger for status messages
@@ -811,29 +1064,18 @@ class Xfstesting(TestSuite):
             random_str: Random string for unique share naming
 
         Returns:
-            AzureFileShareParallelContext: Context object with all setup state
+            AzureFileShareContext: Context object with all setup state
         """
-        # Initialize context with runner
-        ctx = AzureFileShareParallelContext(runner=runner)
-        worker_paths = runner.worker_paths
-
-        # Create separate file shares per worker for isolation
-        # Each worker gets: test share (w{id}fs) + scratch share (w{id}sc)
-        for worker_id in runner.worker_ids():
-            test_share = f"lisa{random_str}w{worker_id}fs"
-            scratch_share = f"lisa{random_str}w{worker_id}sc"
-            ctx.share_names[f"test_{worker_id}"] = test_share
-            ctx.share_names[f"scratch_{worker_id}"] = scratch_share
-            ctx.all_share_names.extend([test_share, scratch_share])
-
-        # Build mount point to share name mapping for Azure provisioning
-        per_share_quota = max(100 // runner.worker_count, 50)
-        names_dict: Dict[str, str] = {}
-        for worker_id in runner.worker_ids():
-            test_mount = f"{_test_folder}_worker_{worker_id}"
-            scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
-            names_dict[test_mount] = ctx.share_names[f"test_{worker_id}"]
-            names_dict[scratch_mount] = ctx.share_names[f"scratch_{worker_id}"]
+        # Initialize context and create share mappings using helper
+        ctx = AzureFileShareContext(runner=runner, protocol="cifs")
+        (
+            share_names,
+            all_share_names,
+            names_dict,
+            per_share_quota,
+        ) = self._create_worker_shares(runner, random_str)
+        ctx.share_names = share_names
+        ctx.all_share_names = all_share_names
 
         log.info(f"Creating {len(ctx.all_share_names)} Azure file shares for workers")
         ctx.fs_url_dict = _deploy_azure_file_share(
@@ -850,14 +1092,13 @@ class Xfstesting(TestSuite):
             f"-o {_default_smb_mount},"
             f"credentials={azure_file_share.credential_file}"
         )
+        ctx.xfstests_mount_opts = ctx.mount_opts  # Same for SMB
 
         # Create worker mount points on the VM
-        for worker_id in runner.worker_ids():
-            test_mount = f"{_test_folder}_worker_{worker_id}"
-            scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
-            node.execute(f"mkdir -p {test_mount} {scratch_mount}", sudo=True)
+        self._create_worker_mount_points(node, runner)
 
         # Configure each worker's local.config with worker-specific paths
+        worker_paths = runner.worker_paths
         for worker_id in runner.worker_ids():
             test_mount = f"{_test_folder}_worker_{worker_id}"
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
@@ -865,7 +1106,6 @@ class Xfstesting(TestSuite):
             scratch_share_name = ctx.share_names[f"scratch_{worker_id}"]
             test_dev = ctx.fs_url_dict[test_share_name]
             scratch_dev = ctx.fs_url_dict[scratch_share_name]
-            # worker_paths is 0-indexed, worker_ids are 1-indexed
             worker_path = worker_paths[worker_id - 1]
 
             log.debug(
@@ -893,69 +1133,127 @@ class Xfstesting(TestSuite):
 
         return ctx
 
-    def _cleanup_azure_file_share_workers(
+    def _setup_azure_nfs_workers(
         self,
         log: Logger,
         node: RemoteNode,
-        ctx: AzureFileShareParallelContext,
-        azure_file_share: AzureFileShare,
+        xfstests: Xfstests,
         environment: Environment,
-    ) -> None:
+        azure_file_share: AzureFileShare,
+        runner: XfstestsParallelRunner,
+        random_str: str,
+    ) -> AzureFileShareContext:
         """
-        Clean up all resources created for parallel Azure File Share workers.
+        Set up Azure Files NFS shares for parallel xfstests workers.
 
-        Cleanup sequence (in order):
-        1. Unmount worker-specific test/scratch directories
-        2. Remove worker xfstests directory copies (via runner.cleanup_workers)
-        3. Delete Azure file shares (respects keep_environment setting)
+        Creates separate NFS shares per worker and configures each worker's
+        local.config. Uses shared helper methods for common operations.
+        Worker directories must be created by runner.create_workers() before
+        calling this method.
 
         Args:
             log: Logger for status messages
-            node: Remote VM node to clean up
-            ctx: AzureFileShareParallelContext with all setup state
-            azure_file_share: AzureFileShare feature for share deletion
-            environment: LISA environment for platform settings
-        """
-        runner = ctx.runner
+            node: Remote VM node to configure
+            xfstests: Xfstests tool instance
+            environment: LISA environment for Azure provisioning
+            azure_file_share: AzureFileShare feature for share creation
+            runner: XfstestsParallelRunner with workers already created
+            random_str: Random string for unique share naming
 
-        # Step 1: Unmount worker mount points
-        log.debug("Cleaning up worker mount points...")
+        Returns:
+            AzureFileShareContext: Context object with all setup state
+        """
+        # Initialize context and create share mappings using helper
+        ctx = AzureFileShareContext(runner=runner, protocol="nfs")
+        (
+            share_names,
+            all_share_names,
+            names_dict,
+            per_share_quota,
+        ) = self._create_worker_shares(runner, random_str)
+        ctx.share_names = share_names
+        ctx.all_share_names = all_share_names
+
+        log.info(f"Creating {len(ctx.all_share_names)} Azure NFS shares for workers")
+        # NFS requires:
+        # - allow_shared_key_access=False (NFS uses network-based auth, not shared keys)
+        # - enable_private_endpoint=True (NFS requires private network access)
+        # - enable_https_traffic_only=False (NFS doesn't use HTTPS)
+        # - skip_mount=True (NFS mounting is done separately with NFSClient)
+        ctx.fs_url_dict = _deploy_azure_file_share(
+            node=node,
+            environment=environment,
+            names=names_dict,
+            azure_file_share=azure_file_share,
+            protocol=FileShareProtocol.NFS,
+            allow_shared_key_access=False,
+            enable_private_endpoint=True,
+            enable_https_traffic_only=False,
+            file_share_quota_in_gb=per_share_quota,
+            provisioned_bandwidth_mibps=110,
+            provisioned_iops=3110,
+            skip_mount=True,
+        )
+
+        # Configure NFS-specific settings
+        storage_account_name = azure_file_share.storage_account_name
+        ctx.nfs_server = f"{storage_account_name}.file.core.windows.net"
+        ctx.mount_opts = _default_nfs_mount_opts
+        ctx.xfstests_mount_opts = _default_nfs_mount
+
+        # Create worker mount points on the VM
+        self._create_worker_mount_points(node, runner)
+
+        # Mount NFS shares and configure each worker's local.config
+        worker_paths = runner.worker_paths
         for worker_id in runner.worker_ids():
             test_mount = f"{_test_folder}_worker_{worker_id}"
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
-            try:
-                node.tools[Mount].umount("", test_mount, erase=False)
-                node.tools[Mount].umount("", scratch_mount, erase=False)
-            except Exception:
-                pass  # Ignore unmount failures (may already be unmounted)
+            test_share_name = ctx.share_names[f"test_{worker_id}"]
+            scratch_share_name = ctx.share_names[f"scratch_{worker_id}"]
 
-        # Step 2: Remove worker xfstests directory copies
-        runner.cleanup_workers()
+            # NFS export path format: /storageaccount/sharename
+            test_export = f"/{storage_account_name}/{test_share_name}"
+            scratch_export = f"/{storage_account_name}/{scratch_share_name}"
 
-        # Step 3: Delete Azure file shares (respects keep_environment setting)
-        should_cleanup = True
-        if environment.platform:
-            keep_environment = environment.platform.runbook.keep_environment
-            if keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
-                should_cleanup = False
-                log.info(
-                    f"Skipping Azure file share cleanup as "
-                    f"keep_environment={keep_environment}"
-                )
-            elif keep_environment == constants.ENVIRONMENT_KEEP_FAILED:
-                if ctx.test_failed:
-                    should_cleanup = False
-                    log.info(
-                        f"Skipping Azure file share cleanup as "
-                        f"keep_environment={keep_environment} and test failed"
-                    )
+            # NFS device format for xfstests: server:/export
+            test_dev = f"{ctx.nfs_server}:{test_export}"
+            scratch_dev = f"{ctx.nfs_server}:{scratch_export}"
 
-        if should_cleanup:
-            log.info("Cleaning up Azure file shares")
-            try:
-                azure_file_share.delete_azure_fileshare(ctx.all_share_names)
-            except Exception as cleanup_error:
-                log.error(f"Failed to clean up Azure file shares: {cleanup_error}")
+            worker_path = worker_paths[worker_id - 1]
+
+            log.debug(
+                f"Worker {worker_id}: Mounting NFS shares "
+                f"(test={test_share_name}, scratch={scratch_share_name})"
+            )
+
+            # Mount NFS shares
+            node.tools[NFSClient].setup(
+                ctx.nfs_server, test_export, test_mount, options=ctx.mount_opts
+            )
+            node.tools[NFSClient].setup(
+                ctx.nfs_server, scratch_export, scratch_mount, options=ctx.mount_opts
+            )
+
+            xfstests.set_local_config(
+                scratch_dev=scratch_dev,
+                scratch_mnt=scratch_mount,
+                test_dev=test_dev,
+                test_folder=test_mount,
+                file_system="nfs",
+                test_section="nfs",
+                mount_opts=ctx.xfstests_mount_opts,
+                testfs_mount_opts=ctx.xfstests_mount_opts,
+                overwrite_config=True,
+                xfstests_path=worker_path,
+            )
+
+            xfstests.set_excluded_tests(
+                _default_nfs_excluded_tests,
+                xfstests_path=worker_path,
+            )
+
+        return ctx
 
     @TestCaseMetadata(
         description="""
@@ -965,14 +1263,14 @@ class Xfstesting(TestSuite):
         and use access key // ntlmv2 for authentication.
 
         Parallel Execution:
-        Tests are split across multiple workers (default: 3) to reduce
+        Tests are split across multiple workers (default: 4) to reduce
         total execution time. Each worker gets its own:
         - xfstests directory copy (to avoid shared state conflicts)
         - Azure File Share pair (CIFS doesn't support subdirectory mounts)
         - Test and scratch mount points
         """,
         requirement=simple_requirement(
-            min_core_count=16,
+            min_core_count=8,
             supported_platform_type=[AZURE, HYPERV],
             unsupported_os=[BSD, Windows],
         ),
@@ -1004,9 +1302,24 @@ class Xfstesting(TestSuite):
         log.info(f"Using {runner.worker_count} parallel workers for xfstests")
 
         # Initialize context - will be populated by setup, used by cleanup
-        ctx = AzureFileShareParallelContext(runner=runner)
+        ctx = AzureFileShareContext(runner=runner, protocol="cifs")
 
         try:
+            # Increase SSH MaxSessions to handle parallel worker SSH commands.
+            # Default Ubuntu MaxSessions=10 is insufficient for 6 workers
+            # each running 4+ concurrent SSH commands during worker creation.
+            # This prevents: ChannelException(2, 'Connect failed')
+            log.debug(
+                f"Increasing SSH MaxSessions for {runner.worker_count} parallel workers"
+            )
+            node.tools[Ssh].set_max_session()
+
+            # Force SSH reconnection after set_max_session() closes the connection.
+            # This ensures the connection is re-established before parallel workers
+            # start, preventing race conditions where workers see _is_initialized=True
+            # but _inner_shell is still None (AssertionError in shell.spawn).
+            node.execute("echo 'SSH reconnected'")
+
             # Create worker xfstests directory copies first
             runner.create_workers()
 
@@ -1042,6 +1355,9 @@ class Xfstesting(TestSuite):
                 run_id_prefix="cifs_worker",
             )
 
+            # Send deferred notifications now that parallel execution is complete
+            runner.send_deferred_notifications(worker_results, result)
+
             # Aggregate results (raises on failure)
             _, _, ctx.test_failed = runner.aggregate_results(worker_results)
 
@@ -1049,7 +1365,130 @@ class Xfstesting(TestSuite):
             ctx.test_failed = True
             raise
         finally:
-            self._cleanup_azure_file_share_workers(
+            self._cleanup_azure_workers(
+                log=log,
+                node=node,
+                ctx=ctx,
+                azure_file_share=azure_file_share,
+                environment=environment,
+            )
+
+    @TestCaseMetadata(
+        description="""
+        This test case runs xfstests against Azure Files NFSv4.1 shares.
+
+        This is similar to verify_azure_file_share but uses NFSv4.1 protocol
+        instead of SMB/CIFS. Azure Files NFS requires:
+        - Premium FileStorage storage account
+        - Private endpoint connectivity (NFS doesn't support public endpoints)
+        - NFSv4.1 protocol support
+
+        Parallel Execution:
+        Tests are split across multiple workers (default: 4) to reduce
+        total execution time. Each worker gets its own:
+        - xfstests directory copy (to avoid shared state conflicts)
+        - Azure NFS File Share pair (test + scratch)
+        - Test and scratch mount points
+
+        Reference:
+        https://learn.microsoft.com/en-us/azure/storage/files/files-nfs-protocol
+        """,
+        requirement=simple_requirement(
+            min_core_count=8,
+            supported_platform_type=[AZURE],
+            unsupported_os=[BSD, Windows],
+        ),
+        timeout=TIME_OUT,
+        use_new_environment=True,
+        priority=5,
+    )
+    def verify_azure_file_share_nfsv4(
+        self, log: Logger, log_path: Path, result: TestResult
+    ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        assert isinstance(environment.platform, AzurePlatform)
+        node = cast(RemoteNode, environment.nodes[0])
+
+        # Install xfstests
+        xfstests = self._install_xfstests(node)
+
+        # Get Azure File Share feature
+        azure_file_share = node.features[AzureFileShare]
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
+
+        # Create parallel runner for worker management
+        runner = XfstestsParallelRunner(
+            xfstests=xfstests,
+            log=log,
+            worker_count=_default_worker_count,
+        )
+        log.info(f"Using {runner.worker_count} parallel workers for NFS xfstests")
+
+        # Initialize context - will be populated by setup, used by cleanup
+        ctx = AzureFileShareContext(runner=runner, protocol="nfs")
+
+        try:
+            # Increase SSH MaxSessions to handle parallel worker SSH commands.
+            # Default Ubuntu MaxSessions=10 is insufficient for 6 workers
+            # each running 4+ concurrent SSH commands during worker creation.
+            # This prevents: ChannelException(2, 'Connect failed')
+            log.debug(
+                f"Increasing SSH MaxSessions for {runner.worker_count} parallel workers"
+            )
+            node.tools[Ssh].set_max_session()
+
+            # Force SSH reconnection after set_max_session() closes the connection.
+            # This ensures the connection is re-established before parallel workers
+            # start, preventing race conditions where workers see _is_initialized=True
+            # but _inner_shell is still None (AssertionError in shell.spawn).
+            node.execute("echo 'SSH reconnected'")
+
+            # Create worker xfstests directory copies first
+            runner.create_workers()
+
+            # Set up Azure Files NFS shares and configure workers
+            ctx = self._setup_azure_nfs_workers(
+                log=log,
+                node=node,
+                xfstests=xfstests,
+                environment=environment,
+                azure_file_share=azure_file_share,
+                runner=runner,
+                random_str=random_str,
+            )
+
+            # Get the list of tests and split into batches
+            all_tests = _default_nfs_testcases.split()
+            test_batches = runner.split_tests(all_tests)
+            log.info(
+                f"Split {len(all_tests)} tests into {runner.worker_count} batches: "
+                f"{[len(b) for b in test_batches]} tests each"
+            )
+
+            log.info("Running xfstests against Azure Files NFS with parallel workers")
+
+            # Execute tests in parallel using the runner
+            worker_results = runner.run_parallel(
+                test_batches=test_batches,
+                log_path=log_path,
+                result=result,
+                test_section="nfs",
+                timeout=self.TIME_OUT,
+                run_id_prefix="nfs_worker",
+            )
+
+            # Send deferred notifications now that parallel execution is complete
+            runner.send_deferred_notifications(worker_results, result)
+
+            # Aggregate results (raises on failure)
+            _, _, ctx.test_failed = runner.aggregate_results(worker_results)
+
+        except Exception:
+            ctx.test_failed = True
+            raise
+        finally:
+            self._cleanup_azure_workers(
                 log=log,
                 node=node,
                 ctx=ctx,
@@ -1137,19 +1576,25 @@ class Xfstesting(TestSuite):
                 except Exception:
                     pass  # Best effort - resource may not exist
 
-            # Clean up fstab entries for mount points used by xfstests
-            # Use sed to remove specific entries rather than restoring backup
-            # This is more reliable and doesn't risk losing other fstab changes
-            node.execute(
-                f"sed -i '\\#{_test_folder}#d' /etc/fstab",
-                sudo=True,
-                shell=True,
-            )
-            node.execute(
-                f"sed -i '\\#{_scratch_folder}#d' /etc/fstab",
-                sudo=True,
-                shell=True,
-            )
+            # -------------------------------------------------------------------------
+            # fstab Cleanup (CIFS/SMB mounts only)
+            # -------------------------------------------------------------------------
+            # NFS mounts use NFSClient.setup() which calls Mount.mount() directly
+            # without creating fstab entries, so this cleanup only affects CIFS.
+            #
+            # The sed patterns match mount point paths, which catches:
+            # - Standard mounts: /mnt/test, /mnt/scratch
+            # - Worker mounts: /mnt/test_worker_N, /mnt/scratch_worker_N
+            #
+            # This is more reliable than restoring a backup and doesn't risk
+            # losing other fstab changes made outside of LISA.
+            # -------------------------------------------------------------------------
+            for base_mount in [_test_folder, _scratch_folder]:
+                node.execute(
+                    f"sed -i '\\#{base_mount}#d' /etc/fstab",
+                    sudo=True,
+                    shell=True,
+                )
         except Exception as e:
             raise BadEnvironmentStateException(f"after case, {e}")
 

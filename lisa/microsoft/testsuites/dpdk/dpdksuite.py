@@ -8,6 +8,7 @@ from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
     DPDK_PPS_THRESHOLD,
     DPDK_STABLE_GIT_REPO,
+    DpdkGradeMetric,
     PackageManagerInstall,
     Pmd,
     force_dpdk_default_source,
@@ -757,9 +758,8 @@ class Dpdk(TestSuite):
             Tests a basic sender/receiver setup for dpdk netvsc pmd with jumbo frames.
             Default is set to request an mtu of 9k, test will skip if it's not possible.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
-            order-of-magnitude.
-        """,
+            Test checks that traffic flowed, and annotates the Gbps throughput.
+            """,
         priority=2,
         requirement=simple_requirement(
             min_core_count=8,
@@ -776,9 +776,131 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
+        # allow configuring 'max' for adhoc runs on different platforms
+        mtu_size = variables.get("dpdk_mtu_size", 9000)
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC, result=result, set_mtu=9000
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of 1500.
+            Sender sends the packets, receiver receives them.
+            Test will fail if MTU set fails and/or DPDK crashes.
+            Test Gbps throughput is annotated into the test result.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_multi_txrx_queue_1500_mtu_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        # allow configuring for different platforms
+        mtu_size = 1500
+        try:
+            verify_dpdk_send_receive_multi_txrx_queue(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of 4k.
+            Sender sends the packets, receiver receives them.
+            Test will fail if MTU set fails and/or DPDK crashes.
+            Test Gbps throughput is annotated into the test result.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_multi_txrx_queue_4k_mtu_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        # allow configuring for different platforms
+        mtu_size = 4000
+        try:
+            snd, rcv = verify_dpdk_send_receive_multi_txrx_queue(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of 8k.
+            Sender sends the packets, receiver receives them.
+            Test will fail if MTU set fails and/or DPDK crashes.
+            Test Gbps throughput is annotated into the test result.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_multi_txrx_queue_8k_mtu_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        # allow configuring for different platforms
+        mtu_size = 8000
+        try:
+            verify_dpdk_send_receive_multi_txrx_queue(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
+                set_mtu=mtu_size,
+                grading_metric=DpdkGradeMetric.BPS,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
