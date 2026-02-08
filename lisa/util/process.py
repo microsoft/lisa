@@ -475,7 +475,7 @@ class Process:
         self._result = result
         return self._result
 
-    def kill(self) -> None:
+    def kill(self, raise_on_timeout: bool = True) -> None:
         if (
             isinstance(self._shell, SshShell)
             and self._shell._inner_shell
@@ -505,7 +505,7 @@ class Process:
                         f"{task_kill} /F /T /PID " + str(self._process.pid),
                         no_info_log=True,
                     )
-                    kill_process.wait_result(1)
+                    kill_process.wait_result(1, raise_on_timeout=raise_on_timeout)
             except Exception as e:
                 self._log.debug(f"failed on killing process: {e}")
 

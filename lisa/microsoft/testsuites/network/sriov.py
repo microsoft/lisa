@@ -760,8 +760,8 @@ class Sriov(TestSuite):
             log.debug(f"iperf3 failed: {e}")
             err_msg += "\nPotential issues running iperf3, check logs for details."
 
-        irqbalance.kill()
-        result = irqbalance.wait_result()
+        irqbalance.kill(raise_on_timeout=False)
+        result = irqbalance.wait_result(raise_on_timeout=False)
         assert re.search(
             "Selecting irq [0-9]+ for rebalancing",
             result.stdout,
