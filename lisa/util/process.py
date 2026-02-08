@@ -8,7 +8,6 @@ import re
 import shlex
 import signal
 import subprocess
-import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,7 +42,6 @@ class ExecutableResult:
     _stderr: str
     exit_code: Optional[int]
     cmd: Union[str, List[str]]
-    _id_: str
     elapsed: float
     is_timeout: bool = False
 
@@ -72,9 +70,7 @@ class ExecutableResult:
         message: str = "",
         include_output: bool = False,
     ) -> AssertionBuilder:
-        message = "\n".join(
-            [message, f"Get unexpected exit code on cmd {self._id_} {self.cmd}"]
-        )
+        message = "\n".join([message, f"Get unexpected exit code on cmd {self.cmd}"])
         if include_output:
             message = "\n".join(
                 [message, "stdout:", self.stdout, "stderr:", self.stderr]
@@ -215,7 +211,6 @@ class Process:
         self._result: Optional[ExecutableResult] = None
         self._sudo: bool = False
         self._nohup: bool = False
-        self._result_lock = threading.Lock()
 
         # add a string stream handler to the logger
         self.log_buffer = io.StringIO()
@@ -325,7 +320,7 @@ class Process:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Posix
             self._result = ExecutableResult(
-                "", e.strerror, 1, split_command, self._id_, self._timer.elapsed()
+                "", e.strerror, 1, split_command, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {e}")
         except SshSpawnTimeoutException:
@@ -367,27 +362,7 @@ class Process:
         timeout: float = 600,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
-        raise_on_timeout: bool = True,
     ) -> ExecutableResult:
-        with self._result_lock:
-            return self._wait_result(
-                timeout,
-                expected_exit_code,
-                expected_exit_code_failure_message,
-                raise_on_timeout,
-            )
-
-    def _wait_result(
-        self,
-        timeout: float,
-        expected_exit_code: Optional[int],
-        expected_exit_code_failure_message: str,
-        raise_on_timeout: bool,
-    ) -> ExecutableResult:
-        if self._result is not None:
-            if self._result.is_timeout and raise_on_timeout:
-                self._raise_timeout_exception(self._cmd, timeout)
-            return self._result
         timer = create_timer()
         is_timeout = False
 
@@ -400,79 +375,77 @@ class Process:
             self.kill()
             is_timeout = True
 
-        assert self._process
-        if is_timeout:
-            # LogWriter only flushes if "\n" is written, so we need to flush
-            # manually.
-            self._stdout_writer.flush()
-            self._stderr_writer.flush()
-            process_result = spur.results.result(
-                return_code=1,
-                allow_error=True,
-                output=self.log_buffer.getvalue(),
-                stderr_output="",
+        if self._result is None:
+            assert self._process
+            if is_timeout:
+                # LogWriter only flushes if "\n" is written, so we need to flush
+                # manually.
+                self._stdout_writer.flush()
+                self._stderr_writer.flush()
+                process_result = spur.results.result(
+                    return_code=1,
+                    allow_error=True,
+                    output=self.log_buffer.getvalue(),
+                    stderr_output="",
+                )
+            else:
+                process_result = self._process.wait_for_result()
+            if not self._is_posix and self._shell.is_remote:
+                # special handle remote windows. There are extra control chars
+                # and on extra line at the end.
+
+                # remove extra controls in remote Windows
+                process_result.output = filter_ansi_escape(process_result.output)
+                process_result.stderr_output = filter_ansi_escape(
+                    process_result.stderr_output
+                )
+
+            self._stdout_writer.close()
+            self._stderr_writer.close()
+            # cache for future queries, in case it's queried twice.
+            self._result = ExecutableResult(
+                process_result.output.strip(),
+                process_result.stderr_output.strip(),
+                process_result.return_code,
+                self._cmd,
+                self._timer.elapsed(),
+                is_timeout,
             )
-        else:
-            process_result = self._process.wait_for_result()
 
-        if not self._is_posix and self._shell.is_remote:
-            # special handle remote windows. There are extra control chars
-            # and on extra line at the end.
+            self._recycle_resource()
 
-            # remove extra controls in remote Windows
-            process_result.output = filter_ansi_escape(process_result.output)
-            process_result.stderr_output = filter_ansi_escape(
-                process_result.stderr_output
+            if not self._is_posix:
+                # convert windows error code to int4, so it's more friendly.
+                assert self._result.exit_code is not None
+                exit_code = self._result.exit_code
+                if exit_code > 2**31:
+                    self._result.exit_code = exit_code - 2**32
+
+            self._log.debug(
+                f"execution time: {self._timer}, exit code: {self._result.exit_code}"
             )
-
-        self._stdout_writer.close()
-        self._stderr_writer.close()
-
-        # cache for future queries, in case it's queried twice.
-        result = ExecutableResult(
-            process_result.output.strip(),
-            process_result.stderr_output.strip(),
-            process_result.return_code,
-            self._cmd,
-            self._id_,
-            self._timer.elapsed(),
-            is_timeout,
-        )
-
-        self._recycle_resource()
-
-        if not self._is_posix:
-            # convert windows error code to int4, so it's more friendly.
-            assert result.exit_code is not None
-            exit_code = result.exit_code
-            if exit_code > 2**31:
-                result.exit_code = exit_code - 2**32
-
-        self._log.debug(f"execution time: {self._timer}, exit code: {result.exit_code}")
 
         if expected_exit_code is not None:
-            result.assert_exit_code(
+            self._result.assert_exit_code(
                 expected_exit_code=expected_exit_code,
                 message=expected_exit_code_failure_message,
             )
 
         if self._is_posix and self._sudo:
-            result.stdout = self._filter_sudo_result(result.stdout)
+            self._result.stdout = self._filter_sudo_result(self._result.stdout)
 
-        result.stdout = self._filter_profile_error(result.stdout)
-        result.stdout = self._filter_bash_prompt(result.stdout)
-        self._check_if_need_input_password(result.stdout)
-        result.stdout = self._filter_sudo_required_password_info(result.stdout)
+        self._result.stdout = self._filter_profile_error(self._result.stdout)
+        self._result.stdout = self._filter_bash_prompt(self._result.stdout)
+        self._check_if_need_input_password(self._result.stdout)
+        self._result.stdout = self._filter_sudo_required_password_info(
+            self._result.stdout
+        )
 
         if not self._is_posix:
             # fix windows ending with " by some unknown reason.
-            result.stdout = self._remove_ending_quote(result.stdout)
-            result.stderr = self._remove_ending_quote(result.stderr)
+            self._result.stdout = self._remove_ending_quote(self._result.stdout)
+            self._result.stderr = self._remove_ending_quote(self._result.stderr)
 
-        if is_timeout and raise_on_timeout:
-            self._raise_timeout_exception(self._cmd, timeout)
-
-        self._result = result
         return self._result
 
     def kill(self) -> None:
@@ -573,9 +546,6 @@ class Process:
             if self._process._stderr:
                 self._process._stderr.close()
         self._process = None
-
-    def _raise_timeout_exception(self, cmdlet: List[str], timeout: float) -> None:
-        raise LisaException(f"command '{cmdlet}' timeout after {timeout} seconds.")
 
     def _filter_sudo_result(self, raw_input: str) -> str:
         # this warning message may break commands, so remove it from the first line
