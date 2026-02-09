@@ -1,24 +1,25 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import json
 import shlex
 import time
 import uuid
-from pathlib import PurePosixPath
 from typing import Any, Dict, Tuple
+
+from func_timeout import FunctionTimedOut
 
 from lisa import (
     Logger,
     Node,
     RemoteNode,
     TestCaseMetadata,
+    TestResult,
     TestSuite,
     TestSuiteMetadata,
 )
 from lisa.base_tools import Cat, Uname
 from lisa.operating_system import Posix
-from lisa.util import SkippedException
-from lisa.util.shell import try_connect
+from lisa.tools import Ls, Who
+from lisa.util import LisaException, SkippedException, create_timer
 
 
 @TestSuiteMetadata(
@@ -31,10 +32,8 @@ from lisa.util.shell import try_connect
     """,
 )
 class KexecSuite(TestSuite):
-    MARKER_DIR = "/var/lib/lisa"
     RECONNECT_TIMEOUT = 600  # 10 minutes
     RECONNECT_INTERVAL = 10  # Check every 10 seconds
-    MAX_AFTER_UPTIME = 900  # 15 minutes - max uptime after kexec for validation
 
     @TestCaseMetadata(
         description="""
@@ -51,9 +50,52 @@ class KexecSuite(TestSuite):
         """,
         priority=3,
     )
-    def verify_kexec_reboot(self, node: Node, log: Logger) -> None:
+    def verify_kexec_reboot_systemd(
+        self, node: Node, log: Logger, result: TestResult
+    ) -> None:
         """
-        Perform an end-to-end kexec reboot test.
+        Test kexec reboot via systemctl kexec (graceful, systemd-integrated path).
+
+        This tests the systemd integration where shutdown scripts run
+        before kexec executes. Tests that systemd properly handles
+        kexec as a reboot mechanism.
+        """
+        # Check systemctl availability early
+        if node.execute("which systemctl", shell=True).exit_code != 0:
+            raise SkippedException("systemctl not available on this system")
+
+        self._run_kexec_test(node, log, result, use_systemctl=True)
+
+    @TestCaseMetadata(
+        description="""
+        Test kexec reboot via direct kexec -e command.
+
+        Validates raw kernel kexec execution without systemd involvement.
+        Tests the core kexec mechanism where the new kernel is executed
+        immediately without running shutdown scripts.
+        """,
+        priority=3,
+    )
+    def verify_kexec_reboot_direct(
+        self, node: Node, log: Logger, result: TestResult
+    ) -> None:
+        """
+        Test kexec reboot via kexec -e (direct kernel execution).
+
+        This tests the raw kexec path where the loaded kernel is
+        executed immediately without systemd coordination.
+        """
+        self._run_kexec_test(node, log, result, use_systemctl=False)
+
+    def _run_kexec_test(
+        self, node: Node, log: Logger, result: TestResult, use_systemctl: bool
+    ) -> None:
+        """
+        Common test flow for kexec reboot tests.
+
+        Args:
+            result: TestResult for serial console log capture on failure
+            use_systemctl: If True, use systemctl kexec; if False, use kexec -e
 
         Test flow:
         - Record pre-reboot state (boot_id, uptime, kernel version)
@@ -73,7 +115,7 @@ class KexecSuite(TestSuite):
         self._check_kernel_kexec_support(node, log)
 
         # Record "before" state
-        before_state = self._record_before_state(node, log)
+        before_state = self._record_state(node, log, include_cmdline=True)
         log.info(
             f"Before state: boot_id={before_state['boot_id']}, "
             f"kernel={before_state['uname']}, uptime={before_state['uptime']}s"
@@ -83,47 +125,42 @@ class KexecSuite(TestSuite):
         kernel_path, initrd_path = self._resolve_boot_artifacts(node, log)
         log.info(f"Resolved kernel={kernel_path}, initrd={initrd_path}")
 
-        # Create marker with all info (includes nonce for unique filename)
-        marker = self._create_marker(before_state, kernel_path, initrd_path)
-        marker_path = self._write_marker(node, marker, log)
+        # Create unique nonce for cmdline validation
+        nonce = str(uuid.uuid4())
+        log.info(f"Created nonce: {nonce}")
 
-        # Ensure marker cleanup happens even on failure
+        # Load kexec image with cmdline nonce
+        self._load_kexec_image(
+            node, kernel_path, initrd_path, before_state["cmdline"], nonce, log
+        )
+
+        # Trigger kexec reboot
+        method = "systemctl kexec" if use_systemctl else "kexec -e"
+        log.info(f"Triggering kexec reboot via {method}...")
+        # Get boot time before triggering reboot
+        last_boot_time = self._get_last_boot_time(node)
+        self._trigger_kexec_reboot(node, log, use_systemctl=use_systemctl)
+
+        # Reconnect + validation
+        log.info("Waiting for system to come back up...")
+        self._wait_for_reconnect(node, log, last_boot_time)
+
+        after_state = self._record_state(node, log, force_run=True)
+        log.info(
+            f"After state: boot_id={after_state['boot_id']}, "
+            f"kernel={after_state['uname']}, uptime={after_state['uptime']}s"
+        )
+
+        # Validate the reboot
         try:
-            # Load kexec image
-            self._load_kexec_image(
-                node, kernel_path, initrd_path, before_state["cmdline"], log
-            )
-
-            # Trigger kexec reboot
-            log.info("Triggering kexec reboot...")
-            self._trigger_kexec_reboot(node, log)
-
-            # Reconnect + validation
-            log.info("Waiting for system to come back up...")
-            self._wait_for_reconnect(node, log)
-
-            after_state = self._record_after_state(node, log)
-            log.info(
-                f"After state: boot_id={after_state['boot_id']}, "
-                f"kernel={after_state['uname']}, uptime={after_state['uptime']}s"
-            )
-
-            # Validate the reboot
-            self._validate_kexec_reboot(
-                node, marker, marker_path, before_state, after_state, log
-            )
-
-            log.info("Kexec reboot test completed successfully")
-        finally:
-            # Cleanup marker (best effort, don't fail test if cleanup fails)
-            self._cleanup_marker(node, marker_path, log)
-            # Unload kexec if still loaded (best effort)
+            self._validate_kexec_reboot(node, nonce, before_state, after_state, log)
+        except Exception:
+            # Capture serial console logs on validation failure for debugging
             try:
-                node.execute(
-                    "kexec -u || true", sudo=True, shell=True, no_error_log=True
-                )
-            except Exception:
-                pass  # Ignore cleanup errors
+                result.capture_serial_console_log()
+            except Exception as e:
+                log.debug(f"Failed to capture serial console log: {e}")
+            raise
 
     def _ensure_kexec_tools_installed(self, node: RemoteNode, log: Logger) -> None:
         """
@@ -189,28 +226,45 @@ class KexecSuite(TestSuite):
             "Will attempt to proceed; kexec -l will fail if unsupported."
         )
 
-    def _record_before_state(self, node: RemoteNode, log: Logger) -> Dict[str, Any]:
+    def _record_state(
+        self,
+        node: RemoteNode,
+        log: Logger,
+        force_run: bool = False,
+        include_cmdline: bool = False,
+    ) -> Dict[str, Any]:
         """
-        Record system state before kexec reboot.
+        Record system state.
 
-        Returns dict with boot_id, uname, uptime, cmdline.
+        Args:
+            force_run: Use force_run=True to bypass cache (for post-reboot reads)
+            include_cmdline: Include /proc/cmdline in returned state
+
+        Returns dict with boot_id, uname, uptime, and optionally cmdline.
         """
-        log.debug("Recording pre-reboot state...")
-
         boot_id = (
-            node.tools[Cat].read("/proc/sys/kernel/random/boot_id", sudo=True).strip()
+            node.tools[Cat]
+            .read("/proc/sys/kernel/random/boot_id", sudo=True, force_run=force_run)
+            .strip()
         )
         uname_r = node.tools[Uname].get_linux_information().kernel_version_raw
         uptime_result = node.execute("cut -d. -f1 /proc/uptime", sudo=True)
         uptime = int(float(uptime_result.stdout.strip()))
-        cmdline = node.tools[Cat].read("/proc/cmdline", sudo=True).strip()
 
-        return {
+        state = {
             "boot_id": boot_id,
             "uname": uname_r,
             "uptime": uptime,
-            "cmdline": cmdline,
         }
+
+        if include_cmdline:
+            state["cmdline"] = (
+                node.tools[Cat]
+                .read("/proc/cmdline", sudo=True, force_run=force_run)
+                .strip()
+            )
+
+        return state
 
     def _resolve_boot_artifacts(self, node: RemoteNode, log: Logger) -> Tuple[str, str]:
         """
@@ -240,8 +294,9 @@ class KexecSuite(TestSuite):
 
         # Find kernel
         kernel_path = None
+        ls = node.tools[Ls]
         for candidate in kernel_candidates:
-            if node.execute(f"test -f {candidate}", sudo=True).exit_code == 0:
+            if ls.path_exists(candidate, sudo=True):
                 kernel_path = candidate
                 log.debug(f"Found kernel: {kernel_path}")
                 break
@@ -263,7 +318,7 @@ class KexecSuite(TestSuite):
         # Find initrd
         initrd_path = None
         for candidate in initrd_candidates:
-            if node.execute(f"test -f {candidate}", sudo=True).exit_code == 0:
+            if ls.path_exists(candidate, sudo=True):
                 initrd_path = candidate
                 log.debug(f"Found initrd: {initrd_path}")
                 break
@@ -284,85 +339,38 @@ class KexecSuite(TestSuite):
 
         return kernel_path, initrd_path
 
-    def _create_marker(
-        self,
-        before_state: Dict[str, Any],
-        kernel_path: str,
-        initrd_path: str,
-    ) -> Dict[str, Any]:
-        """Create marker file content for validation after reboot."""
-        return {
-            "nonce": str(uuid.uuid4()),
-            "boot_id_before": before_state["boot_id"],
-            "uname_before": before_state["uname"],
-            "uptime_before": before_state["uptime"],
-            "kexec_kernel": kernel_path,
-            "kexec_initrd": initrd_path,
-            "timestamp_epoch": time.time(),
-        }
-
-    def _write_marker(
-        self, node: RemoteNode, marker: Dict[str, Any], log: Logger
-    ) -> PurePosixPath:
-        """Write marker file to disk for post-reboot validation.
-
-        Returns the full path to the marker file.
-        """
-        marker_dir = PurePosixPath(self.MARKER_DIR)
-        # Use nonce-specific filename to avoid collisions in concurrent runs
-        marker_filename = f"kexec_marker_{marker['nonce']}.json"
-        marker_path = marker_dir / marker_filename
-
-        log.debug(f"Writing marker to {marker_path}")
-
-        # Ensure directory exists
-        node.execute(f"mkdir -p {marker_dir}", sudo=True)
-
-        # Write marker as JSON using cat with here-document
-        # to avoid quote escaping issues
-        marker_json = json.dumps(marker, indent=2)
-        write_cmd = f"cat > {marker_path} << 'EOF'\n{marker_json}\nEOF"
-        result = node.execute(write_cmd, sudo=True, shell=True)
-
-        if result.exit_code != 0:
-            raise RuntimeError(
-                f"Failed to write marker file to {marker_path}. "
-                f"Exit code: {result.exit_code}"
-            )
-
-        # Verify marker file exists and has content
-        verify_result = node.execute(f"test -s {marker_path}", sudo=True)
-        if verify_result.exit_code != 0:
-            raise RuntimeError(
-                f"Marker file {marker_path} is empty or missing after write"
-            )
-
-        return marker_path
-
     def _load_kexec_image(
         self,
         node: RemoteNode,
         kernel_path: str,
         initrd_path: str,
         cmdline: str,
+        nonce: str,
         log: Logger,
     ) -> None:
         """
         Load kexec image into kernel memory.
 
         Uses kexec -l to prepare the new kernel for execution.
+        Appends a unique cmdline nonce to prove kexec reboot occurred.
         """
         log.info(f"Loading kexec image: {kernel_path}")
 
         # Unload any previously loaded kernel (ignore errors)
         node.execute("kexec -u || true", sudo=True, shell=True, no_error_log=True)
 
+        # Append nonce to cmdline to prove we actually booted via kexec
+        # (not a firmware reboot)
+        kexec_marker = f"lisa_kexec_nonce={nonce}"
+        new_cmdline = f"{cmdline} {kexec_marker}"
+        log.info(f"Appending cmdline marker: {kexec_marker}")
+
         # Build kexec load command with properly escaped paths and cmdline
         # Use shlex.quote to safely escape all arguments for shell
         kexec_cmd = (
             f"kexec -l {shlex.quote(kernel_path)} "
             f"--initrd={shlex.quote(initrd_path)} "
-            f"--command-line={shlex.quote(cmdline)}"
+            f"--command-line={shlex.quote(new_cmdline)}"
         )
 
         result = node.execute(kexec_cmd, sudo=True, shell=True)
@@ -380,50 +388,32 @@ class KexecSuite(TestSuite):
 
         # Verify load status
         verify_result = node.tools[Cat].read("/sys/kernel/kexec_loaded", sudo=True)
-        if "1" not in verify_result:
-            log.debug("kexec_loaded sysfs shows unexpected value")
+        if verify_result.strip() != "1":
+            log.debug(f"unexpected /sys/kernel/kexec_loaded: {verify_result.strip()!r}")
 
-    def _trigger_kexec_reboot(self, node: RemoteNode, log: Logger) -> None:
+    def _trigger_kexec_reboot(
+        self, node: RemoteNode, log: Logger, use_systemctl: bool
+    ) -> None:
         """
-        Trigger kexec reboot.
+        Trigger kexec reboot using specified method.
 
-        Tries systemctl kexec first, falls back to kexec -e.
-        SSH connection will drop - this is expected.
+        Args:
+            use_systemctl: If True, use systemctl kexec; if False, use kexec -e
+
+        SSH connection may disconnect during this operation.
         """
-        # Try systemctl kexec first (cleaner shutdown)
-        has_systemctl = node.execute("which systemctl", shell=True).exit_code == 0
-        if has_systemctl:
-            log.debug("Attempting systemctl kexec...")
+        if use_systemctl:
             try:
-                # This may disconnect; if it returns quickly with a failure,
-                # fall back to kexec -e explicitly.
-                result = node.execute(
+                node.execute(
                     "systemctl kexec",
                     sudo=True,
                     timeout=5,
                     expected_exit_code=None,
                     no_error_log=True,
                 )
-                if result.exit_code not in (0, None):
-                    log.debug(
-                        f"systemctl kexec failed with exit code "
-                        f"{result.exit_code}, falling back to kexec -e..."
-                    )
-                    try:
-                        node.execute(
-                            "kexec -e",
-                            sudo=True,
-                            timeout=5,
-                            expected_exit_code=None,
-                            no_error_log=True,
-                        )
-                    except Exception as e:
-                        log.debug(f"kexec -e disconnected as expected: {e}")
             except Exception as e:
-                log.debug(f"systemctl kexec disconnected as expected: {e}")
+                log.debug(f"systemctl kexec may have disconnected: {e}")
         else:
-            # Fallback to kexec -e
-            log.debug("systemctl not available, using kexec -e...")
             try:
                 node.execute(
                     "kexec -e",
@@ -433,83 +423,71 @@ class KexecSuite(TestSuite):
                     no_error_log=True,
                 )
             except Exception as e:
-                log.debug(f"kexec -e disconnected as expected: {e}")
+                log.debug(f"kexec -e may have disconnected: {e}")
 
         # Give the system a moment to start shutting down
         time.sleep(5)
 
-    def _is_system_connected(self, node: RemoteNode, log: Logger) -> bool:
+    def _get_last_boot_time(self, node: RemoteNode) -> Any:
         """
-        Check if system can be connected via SSH.
-        Uses fresh connection attempt, not cached session.
+        Get last boot time using Who tool (with Uptime fallback).
+        Matches Reboot tool's _get_last_boot_time implementation.
         """
         try:
-            try_connect(node._connection_info, ssh_timeout=10)  # pyright: ignore
-            return True
-        except Exception as e:
-            log.debug(f"Connection check failed: {e}")
-            return False
+            last_boot_time = node.tools[Who].last_boot()
+        except Exception:
+            # Fallback to uptime if who fails
+            from lisa.tools import Uptime
 
-    def _wait_for_reconnect(self, node: RemoteNode, log: Logger) -> None:
+            last_boot_time = node.tools[Uptime].since_time()
+        return last_boot_time
+
+    def _wait_for_reconnect(
+        self, node: RemoteNode, log: Logger, last_boot_time: Any
+    ) -> None:
         """
         Wait for system to reboot and reconnect.
-        Uses kdump's pattern: test connection, close once, then work.
+        Uses Reboot tool's pattern: close connection and retry until boot time changes.
         """
-        start_time = time.time()
-        elapsed = 0
+        timer = create_timer()
+        connected: bool = False
+        tried_times: int = 0
 
-        while elapsed < self.RECONNECT_TIMEOUT:
-            # First check if system is connectable (fresh connection test)
-            if not self._is_system_connected(node, log):
-                log.debug(f"System not connectable yet ({elapsed}s)")
-                time.sleep(self.RECONNECT_INTERVAL)
-                elapsed = int(time.time() - start_time)
-                continue
-
-            # System is connectable, close old session and execute command
-            log.debug(f"System connectable after {elapsed}s, closing old session...")
-            node.close()
-
+        # The previous steps may take longer time than time out. After that, it
+        # needs to connect at least once.
+        while (timer.elapsed(False) < self.RECONNECT_TIMEOUT) or tried_times < 1:
+            tried_times += 1
             try:
-                # Execute a simple command to verify
-                result = node.execute("echo 'alive'", timeout=5)
-                if result.exit_code == 0 and "alive" in result.stdout:
-                    log.info(f"Reconnected successfully after {elapsed}s")
-                    # Give system a few more seconds to stabilize
-                    time.sleep(5)
-                    return
+                node.close()
+                current_boot_time = self._get_last_boot_time(node)
+                connected = True
+            except FunctionTimedOut as e:
+                # The FunctionTimedOut must be caught separated, or the process
+                # will exit.
+                log.debug(f"ignorable timeout exception: {e}")
             except Exception as e:
-                log.debug(f"Command execution failed, retrying: {e}")
+                # error is ignorable, as ssh may be closed suddenly.
+                log.debug(f"ignorable ssh exception: {e}")
+            log.debug(f"reconnected with uptime: {current_boot_time}")
+            if last_boot_time < current_boot_time:
+                break
 
             time.sleep(self.RECONNECT_INTERVAL)
-            elapsed = int(time.time() - start_time)
 
-        raise RuntimeError(
-            f"Failed to reconnect to node within {self.RECONNECT_TIMEOUT}s"
-        )
-
-    def _record_after_state(self, node: RemoteNode, log: Logger) -> Dict[str, Any]:
-        """Record system state after kexec reboot."""
-        log.debug("Recording post-reboot state...")
-
-        boot_id = (
-            node.tools[Cat].read("/proc/sys/kernel/random/boot_id", sudo=True).strip()
-        )
-        uname_r = node.tools[Uname].get_linux_information().kernel_version_raw
-        uptime_result = node.execute("cut -d. -f1 /proc/uptime", sudo=True)
-        uptime = int(float(uptime_result.stdout.strip()))
-
-        return {
-            "boot_id": boot_id,
-            "uname": uname_r,
-            "uptime": uptime,
-        }
+        if last_boot_time == current_boot_time:
+            if connected:
+                raise LisaException(
+                    "timeout to wait reboot, the node may not perform reboot."
+                )
+            else:
+                raise LisaException(
+                    "timeout to wait reboot, the node may stuck on reboot command."
+                )
 
     def _validate_kexec_reboot(
         self,
         node: RemoteNode,
-        marker: Dict[str, Any],
-        marker_path: PurePosixPath,
+        nonce: str,
         before_state: Dict[str, Any],
         after_state: Dict[str, Any],
         log: Logger,
@@ -518,36 +496,47 @@ class KexecSuite(TestSuite):
         Validate that kexec reboot was successful.
 
         Checks:
-        - Marker file exists and matches
-        - boot_id changed
-        - uptime reset
+        - Cmdline nonce present
+        - boot_id changed (proves reboot occurred)
         - System health
         """
         log.info("Validating kexec reboot...")
 
-        # Read marker file
-        marker_content = node.tools[Cat].read(str(marker_path), sudo=True)
+        # PRIMARY VALIDATION: Check cmdline nonce
+        # This is the most reliable proof that we booted via kexec
+        kexec_marker = f"lisa_kexec_nonce={nonce}"
+        # Use Cat tool with force_run to avoid cached output after reboot
+        cmdline_after = (
+            node.tools[Cat].read("/proc/cmdline", sudo=True, force_run=True).strip()
+        )
+        if kexec_marker not in cmdline_after:
+            # Gather diagnostic info from previous boot logs
+            diagnostic_info = ""
+            has_journalctl = node.execute("which journalctl", shell=True).exit_code == 0
+            if has_journalctl:
+                try:
+                    # Check previous boot (-b-1) for kexec evidence
+                    journal_result = node.execute(
+                        "journalctl -b-1 | grep -i kexec | head -n 10",
+                        sudo=True,
+                        shell=True,
+                    )
+                    if journal_result.exit_code == 0 and journal_result.stdout.strip():
+                        diagnostic_info = (
+                            f"\n\nDiagnostic - Previous boot kexec evidence:\n"
+                            f"{journal_result.stdout}"
+                        )
+                except Exception:
+                    pass  # Diagnostic only, don't fail on errors
 
-        try:
-            stored_marker = json.loads(marker_content)
-        except json.JSONDecodeError as e:
-            raise AssertionError(f"Marker file corrupted: {e}")
-
-        # Validate nonce
-        if stored_marker.get("nonce") != marker["nonce"]:
             raise AssertionError(
-                f"Marker nonce mismatch. Expected: {marker['nonce']}, "
-                f"Got: {stored_marker.get('nonce')}"
+                f"kexec cmdline marker not found after reboot.\n"
+                f"Expected marker: {kexec_marker}\n"
+                f"Actual /proc/cmdline: {cmdline_after}\n"
+                f"This indicates the system rebooted via firmware, not kexec."
+                f"{diagnostic_info}"
             )
-
-        # Validate marker's stored boot_id matches before_state
-        # (helps debugging if marker files get manually copied/reused)
-        if stored_marker.get("boot_id_before") != before_state["boot_id"]:
-            raise AssertionError(
-                f"Marker boot_id mismatch. Expected: {before_state['boot_id']}, "
-                f"Got: {stored_marker.get('boot_id_before')}. "
-                "Marker file may be stale or corrupted."
-            )
+        log.info(f"Cmdline marker validated: {kexec_marker}")
 
         # Validate boot_id changed
         if after_state["boot_id"] == before_state["boot_id"]:
@@ -561,24 +550,8 @@ class KexecSuite(TestSuite):
             f"{after_state['boot_id'][:8]}..."
         )
 
-        # Validate uptime reset with threshold (handle slow reconnects)
-        # After kexec boot, uptime should be small
-        if after_state["uptime"] > self.MAX_AFTER_UPTIME:
-            raise AssertionError(
-                f"Uptime too high after reboot: {after_state['uptime']}s "
-                f"(threshold: {self.MAX_AFTER_UPTIME}s). System may not have rebooted."
-            )
-
-        log.info(
-            f"Uptime reset confirmed: {before_state['uptime']}s -> "
-            f"{after_state['uptime']}s (threshold: {self.MAX_AFTER_UPTIME}s)"
-        )
-
         # Check system health (best effort)
         self._check_system_health(node, log)
-
-        # Optional: Check for kexec evidence in logs
-        self._check_kexec_evidence(node, log)
 
     def _check_system_health(self, node: RemoteNode, log: Logger) -> None:
         """Check basic system health after reboot."""
@@ -596,48 +569,3 @@ class KexecSuite(TestSuite):
                 )
         else:
             log.debug("systemctl not available, skipping health check")
-
-    def _check_kexec_evidence(self, node: RemoteNode, log: Logger) -> None:
-        """
-        Check for kexec evidence in logs (best effort).
-
-        This is informational only and not a hard requirement.
-        """
-        log.debug("Checking for kexec evidence in logs...")
-
-        # Check dmesg
-        try:
-            dmesg_result = node.execute(
-                "dmesg | grep -i kexec | head -n 5",
-                sudo=True,
-                shell=True,
-            )
-            if dmesg_result.exit_code == 0 and dmesg_result.stdout.strip():
-                log.info(f"dmesg kexec evidence:\n{dmesg_result.stdout}")
-        except Exception as e:
-            log.debug(f"Could not check dmesg: {e}")
-
-        # Check journalctl if available
-        has_journalctl = node.execute("which journalctl", shell=True).exit_code == 0
-        if has_journalctl:
-            try:
-                journal_result = node.execute(
-                    "journalctl -b | grep -i kexec | head -n 5",
-                    sudo=True,
-                    shell=True,
-                )
-                if journal_result.exit_code == 0 and journal_result.stdout.strip():
-                    log.info(f"journalctl kexec evidence:\n{journal_result.stdout}")
-            except Exception as e:
-                log.debug(f"Could not check journalctl: {e}")
-
-    def _cleanup_marker(
-        self, node: RemoteNode, marker_path: PurePosixPath, log: Logger
-    ) -> None:
-        """Remove marker file (best effort, don't fail on errors)."""
-        log.debug(f"Cleaning up marker: {marker_path}")
-
-        try:
-            node.execute(f"rm -f {marker_path}", sudo=True)
-        except Exception as e:
-            log.debug(f"Failed to cleanup marker file {marker_path}: {e}")
