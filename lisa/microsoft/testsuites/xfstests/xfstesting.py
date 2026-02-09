@@ -1355,9 +1355,6 @@ class Xfstesting(TestSuite):
                 run_id_prefix="cifs_worker",
             )
 
-            # Send deferred notifications now that parallel execution is complete
-            runner.send_deferred_notifications(worker_results, result)
-
             # Aggregate results (raises on failure)
             _, _, ctx.test_failed = runner.aggregate_results(worker_results)
 
@@ -1477,9 +1474,6 @@ class Xfstesting(TestSuite):
                 timeout=self.TIME_OUT,
                 run_id_prefix="nfs_worker",
             )
-
-            # Send deferred notifications now that parallel execution is complete
-            runner.send_deferred_notifications(worker_results, result)
 
             # Aggregate results (raises on failure)
             _, _, ctx.test_failed = runner.aggregate_results(worker_results)
