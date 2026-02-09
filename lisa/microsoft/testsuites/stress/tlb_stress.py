@@ -698,7 +698,7 @@ class TlbStress(Tool):
         test_status = TestStatus.PASSED if analysis["pass"] else TestStatus.FAILED
         send_sub_test_result_message(
             test_result=test_result,
-            test_case_name="stress_tlb_performance",
+            test_case_name=test_result.name,
             test_status=test_status,
             test_message=summary_message,
             other_fields={"performance_metrics": analysis.get("metrics", {})},
