@@ -331,8 +331,8 @@ class Dpdk(TestSuite):
         force_dpdk_default_source(variables)
         kill = node.tools[Kill]
         pmd = Pmd.FAILSAFE
-        server_app_name = "dpdk-mp_server"
-        client_app_name = "dpdk-mp_client"
+        server_app_name = "multi_process/client_server_mp/mp_server"
+        client_app_name = "multi_process/client_server_mp/mp_client"
         # initialize DPDK with sample applications selected for build
         try:
             test_kit = initialize_node_resources(
@@ -342,8 +342,8 @@ class Dpdk(TestSuite):
                 pmd,
                 HugePageSize.HUGE_2MB,
                 sample_apps=[
-                    "multi_process/client_server_mp/mp_server",
-                    "multi_process/client_server_mp/mp_client",
+                    server_app_name,
+                    client_app_name,
                 ],
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
@@ -387,7 +387,7 @@ class Dpdk(TestSuite):
         )
 
         # client blocks and returns, kill server once client is finished.
-        kill.by_name(str(server_app_name), signum=SIGINT)
+        kill.by_name(str(server_app_path.name), signum=SIGINT)
         server_result = server_proc.wait_result()
 
         # perform the checks from v2
