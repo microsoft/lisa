@@ -614,7 +614,7 @@ class Git(Tool):
     def worktree_remove(
         self,
         cwd: pathlib.PurePath,
-        path: pathlib.PurePath,
+        path: str,
         force: bool = False,
     ) -> None:
         cmd = "worktree remove"
