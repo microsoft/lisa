@@ -34,6 +34,7 @@ from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
     Echo,
+    Ethtool,
     Fdisk,
     Fio,
     FIOResult,
@@ -349,6 +350,7 @@ def perf_ntttcp(  # noqa: C901
         # if it's not filled, assume it's called by case directly.
         test_case_name = inspect.stack()[1][3]
 
+    # Determine default connection counts
     if connections is None:
         if udp_mode:
             connections = NTTTCP_UDP_CONCURRENCY
@@ -357,6 +359,68 @@ def perf_ntttcp(  # noqa: C901
                 connections = NTTTCP_TCP_CONCURRENCY_BSD
             else:
                 connections = NTTTCP_TCP_CONCURRENCY
+
+    # MTU-specific tuning for the SR-IOV max throughput test
+    mtu_value = 0
+    if variables is not None:
+        mtu_value = int(variables.get("perf_ntttcp_mtu", 0))
+
+    # If no MTU override is provided, assume default 1500
+    if mtu_value == 0:
+        mtu_value = 1500
+
+    # Defaults used when not in the max-tuned test
+    use_mtu_specific_tuning = False
+    tuned_connections = connections
+    tuned_buffer_kb = None
+    tuned_run_time = None
+    tuned_warmup = None
+    tuned_cooldown = None
+    tuned_rss_channels = None
+    tuned_rx_ring = None
+
+    # Support both the original max test name and the renamed
+    # perf_tcp_ntttcp_sriov used in your suite.
+    if test_case_name in (
+        "perf_tcp_ntttcp_sriov_max",
+        "perf_tcp_ntttcp_sriov",
+    ) and not udp_mode:
+        use_mtu_specific_tuning = True
+        if mtu_value == 1500:
+            # MTU 1500 profile
+            tuned_connections = [180]
+            tuned_buffer_kb = 512  # 512k
+            tuned_run_time = 60
+            tuned_warmup = 10
+            tuned_cooldown = 5
+            tuned_rss_channels = 16
+            tuned_rx_ring = 1024
+        elif mtu_value == 4000:
+            # MTU 4000 profile
+            tuned_connections = [54]
+            tuned_buffer_kb = 2048  # 2m
+            tuned_run_time = 1000
+            tuned_warmup = 10
+            tuned_cooldown = 5
+            tuned_rss_channels = 12
+            tuned_rx_ring = 384
+        elif mtu_value == 9000:
+            # MTU 9000 profile
+            tuned_connections = [32]
+            tuned_buffer_kb = 2048  # 2m
+            tuned_run_time = 1000
+            tuned_warmup = 10
+            tuned_cooldown = 5
+            tuned_rss_channels = 8
+            tuned_rx_ring = 512
+        else:
+            # Unsupported MTU for this tuned test, skip with clear message
+            raise SkippedException(
+                f"perf_tcp_ntttcp_sriov_max supports MTU 1500, 4000, 9000 only. "
+                f"Got MTU {mtu_value}."
+            )
+
+        connections = tuned_connections
 
     # Initialize variables before try block
     client_lagscope = None
@@ -425,6 +489,27 @@ def perf_ntttcp(  # noqa: C901
                 # set mtu for AN nics, MTU needs to be set on both AN and non-AN nics
                 client_ip.set_mtu(client_nic_name, mtu)
                 server_ip.set_mtu(server_nic_name, mtu)
+
+            # Apply NIC tuning for the max SR-IOV test based on MTU
+            if use_mtu_specific_tuning and tuned_rss_channels and tuned_rx_ring:
+                ethtool_client = client.tools[Ethtool]
+                ethtool_server = server.tools[Ethtool]
+
+                # RSS processors (combined channels)
+                ethtool_client.change_device_channels_info(
+                    client_nic_name, tuned_rss_channels
+                )
+                ethtool_server.change_device_channels_info(
+                    server_nic_name, tuned_rss_channels
+                )
+
+                # RX/TX ring buffers (set both to tuned_rx_ring)
+                ethtool_client.change_device_ring_buffer_settings(
+                    client_nic_name, rx=tuned_rx_ring, tx=tuned_rx_ring
+                )
+                ethtool_server.change_device_ring_buffer_settings(
+                    server_nic_name, rx=tuned_rx_ring, tx=tuned_rx_ring
+                )
         else:
             server_nic_name = (
                 server_nic_name if server_nic_name else server.nics.default_nic
@@ -457,6 +542,19 @@ def perf_ntttcp(  # noqa: C901
                 buffer_size = int(65536 / 1024)
             if udp_mode:
                 buffer_size = int(1024 / 1024)
+
+            # Override buffer size and timing for the MTU-tuned SR-IOV max test
+            run_time_seconds = 10
+            warm_up_seconds = 1
+            cool_down_seconds = 1
+            if use_mtu_specific_tuning and tuned_buffer_kb is not None:
+                buffer_size = tuned_buffer_kb
+            if use_mtu_specific_tuning and tuned_run_time is not None:
+                run_time_seconds = tuned_run_time
+            if use_mtu_specific_tuning and tuned_warmup is not None:
+                warm_up_seconds = tuned_warmup
+            if use_mtu_specific_tuning and tuned_cooldown is not None:
+                cool_down_seconds = tuned_cooldown
 
             # Retry mechanism for the current connection test:
             # Each connection count (test_thread) gets up to max_retries
@@ -496,13 +594,16 @@ def perf_ntttcp(  # noqa: C901
                     # connections
                     server_result = server_ntttcp.run_as_server_async(
                         server_nic_name,
+                        run_time_seconds=run_time_seconds,
+                        ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        cool_down_time_seconds=cool_down_seconds,
+                        warm_up_time_seconds=warm_up_seconds,
                         server_ip=(
                             server.internal_address
                             if isinstance(server.os, BSD)
                             else ""
                         ),
-                        ports_count=num_threads_p,
-                        buffer_size=buffer_size,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                     )
@@ -526,9 +627,12 @@ def perf_ntttcp(  # noqa: C901
                     client_ntttcp_result = client_ntttcp.run_as_client(
                         client_nic_name,
                         server.internal_address,
-                        buffer_size=buffer_size,
                         threads_count=num_threads_n,
+                        run_time_seconds=run_time_seconds,
                         ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        cool_down_time_seconds=cool_down_seconds,
+                        warm_up_time_seconds=warm_up_seconds,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                     )

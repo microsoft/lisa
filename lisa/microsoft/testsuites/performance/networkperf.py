@@ -184,10 +184,37 @@ class NetworkPerformace(TestSuite):
             )
         ),
     )
-    def perf_tcp_ntttcp_sriov(
+    def perf_tcp_ntttcp_sriov_1(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
         perf_ntttcp(result, variables=variables)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses ntttcp to test sriov tcp network throughput
+        with max-throughput tuning based on MTU (1500, 4000, 9000).
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=2,
+                memory_mb=search_space.IntRange(min=8192),
+                network_interface=Sriov(),
+            )
+        ),
+    )
+    def perf_tcp_ntttcp_sriov(
+        self, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
+        # Uses perf_ntttcp with MTU-specific tuning for SR-IOV max throughput.
+        # Pass an explicit test_case_name so common.perf_ntttcp can reliably
+        # detect and apply the MTU-specific profile.
+        perf_ntttcp(
+            result,
+            test_case_name="perf_tcp_ntttcp_sriov_max",
+            variables=variables,
+        )
 
     @TestCaseMetadata(
         description="""
