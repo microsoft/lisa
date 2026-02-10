@@ -921,7 +921,7 @@ class DpdkTestpmd(Tool):
     def _generate_mp_arguments(
         self, mp_role: DpdkMpRole, num_procs: int, proc_id: int
     ) -> str:
-        # Check and set multi_process arugments for testpmd.
+        # Check and set multi_process arguments for testpmd.
         mp_arguments = ""
 
         # IFF testpmd is being invoked with multiple processes,
@@ -936,7 +936,7 @@ class DpdkTestpmd(Tool):
         ).is_greater_than(1)
 
         if mp_role == DpdkMpRole.PRIMARY_PROCESS:
-            mp_arguments = f"--num_procs={num_procs} --proc-id 0"
+            mp_arguments = f"--num-procs={num_procs} --proc-id 0"
         elif mp_role == DpdkMpRole.SECONDARY_PROCESS:
             # check the caller has provided a proc_id that makes sense,
             # this would indicate a bug in the test case itself.
@@ -950,7 +950,7 @@ class DpdkTestpmd(Tool):
                     "must be < num_procs argument ({num_procs})."
                 )
             ).is_less_than(num_procs)
-            mp_arguments = f"--num_procs={num_procs} --proc-id {proc_id}"
+            mp_arguments = f"--num-procs={num_procs} --proc-id {proc_id}"
         return mp_arguments
 
     def _determine_network_hardware(self) -> None:

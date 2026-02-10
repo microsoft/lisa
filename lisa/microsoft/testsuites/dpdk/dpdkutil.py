@@ -646,8 +646,12 @@ def start_testpmd_concurrent(
     log: Logger,
     output: Dict[DpdkTestResources, str],
 ) -> TaskManager[Tuple[DpdkTestResources, str]]:
-    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
-    cmd_pairs_as_tuples = [(node, cmds[0]) for (node, cmds) in cmd_pairs_as_tuples]
+    command_pairs_as_tuples: List[Tuple[DpdkTestResources, str]] = []
+    kits_and_commands = deque(node_cmd_pairs.items())
+    for kit_and_commands in kits_and_commands:
+        kit, commands = kit_and_commands
+        for command in commands:
+            command_pairs_as_tuples += [(kit, command)]
 
     def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
         output[result[0]] = result[1]
@@ -659,7 +663,7 @@ def start_testpmd_concurrent(
         return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
 
     task_manager = run_in_parallel_async(
-        [partial(_run_command_with_testkit, x) for x in cmd_pairs_as_tuples],
+        [partial(_run_command_with_testkit, x) for x in command_pairs_as_tuples],
         _collect_dict_result,
     )
 
