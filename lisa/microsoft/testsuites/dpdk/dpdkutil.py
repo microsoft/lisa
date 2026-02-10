@@ -331,7 +331,7 @@ def generate_testpmd_multiple_port_command(
     multiple_queues: bool = False,
     use_service_cores: int = 1,
     set_mtu: int = 0,
-) -> Dict[DpdkTestResources, List[str]]:
+) -> Dict[DpdkTestResources, str]:
     # for N senders, make a list of subnets from
     # 10.0.1.0/24 to 10.0.N.0/24.
     # these can be arbitrarily picked, each VM has nics on each
@@ -366,7 +366,7 @@ def generate_testpmd_multiple_port_command(
                 )
     else:
         maxmtu_int = 0
-    kit_cmd_pairs: Dict[DpdkTestResources, List[str]] = dict()
+    kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
     receiver_includes: List[str] = []
     for i in range(len(senders)):
         # get the sender
@@ -390,7 +390,7 @@ def generate_testpmd_multiple_port_command(
             mbuf_size=maxmtu_int,
         )
         # store this senders command
-        kit_cmd_pairs[sender] = [snd_cmd]
+        kit_cmd_pairs[sender] = snd_cmd
         # receiver needs multiple ports, so only generate the include.
         receiver_include = receiver.testpmd.generate_testpmd_include(
             receiver_nics[sender_subnet], i
@@ -409,7 +409,7 @@ def generate_testpmd_multiple_port_command(
         mbuf_size=maxmtu_int,
     )
 
-    kit_cmd_pairs[receiver] = [rcv_cmd]
+    kit_cmd_pairs[receiver] = rcv_cmd
 
     return kit_cmd_pairs
 
@@ -1027,7 +1027,7 @@ def verify_dpdk_mutliple_ports(
     )
     receive_timeout = kill_timeout + 10
     receive_result = receiver.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[receiver_kit][0],
+        kit_cmd_pairs[receiver_kit],
         receive_timeout,
         constants.SIGINT,
         kill_timeout=receive_timeout,
@@ -1036,7 +1036,7 @@ def verify_dpdk_mutliple_ports(
     sender_results: Dict[DpdkTestResources, Process] = dict()
     for sender in sender_kits:
         sender_results[sender] = sender.node.tools[Timeout].start_with_timeout(
-            kit_cmd_pairs[sender][0],
+            kit_cmd_pairs[sender],
             test_duration,
             constants.SIGINT,
             kill_timeout=kill_timeout,
