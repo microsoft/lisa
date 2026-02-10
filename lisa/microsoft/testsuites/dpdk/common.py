@@ -480,7 +480,7 @@ class DpdkMpRole(str, Enum):
     # to occur fairly transparently, but require it to be declared
     # at start time. The primary process has a proc_id of '0'
     # This is unfortunate, since it's the nice python default for
-    # integer arugments.
+    # integer arguments.
     #
     # Use this enum to differentiate between primary and secondary
     # multiple process context types. There is no single process
@@ -497,7 +497,7 @@ class TestpmdForwardMode(str, Enum):
     # to occur fairly transparently, but require it to be declared
     # at start time. The primary process has a proc_id of '0'
     # This is unfortunate, since it's the nice python default for
-    # integer arugments.
+    # integer arguments.
     #
     # Use this enum to differentiate between primary and secondary
     # multiple process context types. There is no single process
