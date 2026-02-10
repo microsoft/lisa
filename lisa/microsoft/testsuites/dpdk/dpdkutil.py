@@ -1239,7 +1239,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             pmd,
             hugepage_size,
             sample_apps=["l3fwd"],
-            test_nics=[subnet_b_nics[forwarder]],
+            test_nics=[subnet_a_nics[forwarder], subnet_b_nics[forwarder]],
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
@@ -1431,7 +1431,7 @@ def generate_l3fwd_command(
     config_tups = []
     included_cores = []
     last_core = 1
-    server_app_path = fwd_kit.testpmd.get_example_app_path("dpdk-l3fwd")
+    server_app_path = fwd_kit.testpmd.get_example_app_path("l3fwd")
     # create the list of tuples for p,q,c
     # 2 ports, N queues, N cores for MANA
     # 2 ports, N queues, 2N cores for MLX
