@@ -856,7 +856,7 @@ class Dpdk(TestSuite):
         # allow configuring for different platforms
         mtu_size = 4000
         try:
-            snd, rcv = verify_dpdk_send_receive_multi_txrx_queue(
+            verify_dpdk_send_receive_multi_txrx_queue(
                 environment,
                 log,
                 variables,
