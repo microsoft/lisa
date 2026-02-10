@@ -817,6 +817,7 @@ def verify_dpdk_send_receive(
     receive_timeout = kill_timeout + 10
     receiver_processes: List[Process] = []
     sender_processes: List[Process] = []
+    # start the testpmd processes
     for command in kit_cmd_pairs[receiver]:
         proc = receiver.node.tools[Timeout].start_with_timeout(
             command=command,
@@ -826,13 +827,6 @@ def verify_dpdk_send_receive(
         )
         proc.wait_output("start packet forwarding")
         receiver_processes += [proc]
-    # receive_result = receiver.node.tools[Timeout].start_with_timeout(
-    #     kit_cmd_pairs[receiver],
-    #     receive_timeout,
-    #     constants.SIGINT,
-    #     kill_timeout=receive_timeout,
-    # )
-    # receive_result.wait_output("start packet forwarding")
     for command in kit_cmd_pairs[sender]:
         proc = sender.node.tools[Timeout].start_with_timeout(
             command=command,
