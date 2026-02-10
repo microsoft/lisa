@@ -468,9 +468,11 @@ class Pmd(str, Enum):
 # this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps (for now)
 DPDK_PPS_THRESHOLD = 1_200_000
 
+
 class DpdkGradeMetric(str, Enum):
     PPS = "pps"
     BPS = "bps"
+
 
 class DpdkMpRole(str, Enum):
     # dpdk multiprocessing allows numerous secondary processes to
