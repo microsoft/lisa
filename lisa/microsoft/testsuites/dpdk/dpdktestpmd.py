@@ -777,12 +777,13 @@ class DpdkTestpmd(Tool):
         self.rx_total_packets = self.get_data_from_testpmd_output(
             self._rx_total_key, self._last_run_output
         )[-1]
-        self.tx_bps_data = self.get_data_from_testpmd_output(
-            self._tx_bps_key, self._last_run_output
-        )
-        self.rx_bps_data = self.get_data_from_testpmd_output(
-            self._rx_bps_key, self._last_run_output
-        )
+        if self.has_dpdk_version() and self.get_dpdk_version() > "21.11.0":
+            self.tx_bps_data = self.get_data_from_testpmd_output(
+                self._tx_bps_key, self._last_run_output
+            )
+            self.rx_bps_data = self.get_data_from_testpmd_output(
+                self._rx_bps_key, self._last_run_output
+            )
 
     def get_mean_rx_pps(self) -> int:
         self._check_pps_data("RX")
