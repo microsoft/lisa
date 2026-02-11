@@ -371,7 +371,6 @@ def perf_ntttcp(  # noqa: C901
 
     # Defaults used when not in the max-tuned test
     use_mtu_specific_tuning = False
-    tuned_connections = connections
     tuned_buffer_kb = None
     tuned_run_time = None
     tuned_warmup = None
@@ -388,7 +387,6 @@ def perf_ntttcp(  # noqa: C901
         use_mtu_specific_tuning = True
         if mtu_value == 1500:
             # MTU 1500 profile
-            tuned_connections = [180]
             tuned_buffer_kb = 512  # 512k
             tuned_run_time = 60
             tuned_warmup = 10
@@ -397,7 +395,6 @@ def perf_ntttcp(  # noqa: C901
             tuned_rx_ring = 1024
         elif mtu_value == 4000:
             # MTU 4000 profile
-            tuned_connections = [54]
             tuned_buffer_kb = 2048  # 2m
             tuned_run_time = 1000
             tuned_warmup = 10
@@ -406,7 +403,6 @@ def perf_ntttcp(  # noqa: C901
             tuned_rx_ring = 384
         elif mtu_value == 9000:
             # MTU 9000 profile
-            tuned_connections = [32]
             tuned_buffer_kb = 2048  # 2m
             tuned_run_time = 1000
             tuned_warmup = 10
@@ -419,8 +415,6 @@ def perf_ntttcp(  # noqa: C901
                 f"perf_tcp_ntttcp_sriov_max supports MTU 1500, 4000, 9000 only. "
                 f"Got MTU {mtu_value}."
             )
-
-        connections = tuned_connections
 
     # Initialize variables before try block
     client_lagscope = None
