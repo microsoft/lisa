@@ -22,9 +22,12 @@ class AzureExtensionTransformerSchema(DeploymentTransformerSchema):
     Schema for Azure Extension Transformer.
     Installs or updates an Azure VM Extension before test execution.
     """
+
     extension_name: str = field(default="", metadata=field_metadata(required=True))
     publisher: str = field(default="", metadata=field_metadata(required=True))
-    type_handler_version: str = field(default="", metadata=field_metadata(required=True))
+    type_handler_version: str = field(
+        default="", metadata=field_metadata(required=True)
+    )
 
     settings: Dict[str, Any] = field(default_factory=dict)
 
@@ -35,9 +38,10 @@ class AzureExtensionTransformerSchema(DeploymentTransformerSchema):
 class AzureExtensionTransformer(DeploymentTransformer):
     """
     Installs Azure VM Extensions on a deployed node.
-    
-    This transformer inherits from DeploymentTransformer to work with 
-    azure_deploy and azure_vhd transformers, ensuring connection object availability.
+
+    This transformer inherits from DeploymentTransformer to work with
+    azure_deploy and azure_vhd transformers, ensuring connection object
+    availability.
     """
 
     @classmethod
@@ -55,7 +59,7 @@ class AzureExtensionTransformer(DeploymentTransformer):
     def _validate(self) -> None:
         """Validate that the node supports Azure extensions."""
         runbook: AzureExtensionTransformerSchema = self.runbook
-        
+
         if not runbook.extension_name:
             raise LisaException("extension_name is required")
         if not runbook.publisher:
@@ -66,7 +70,7 @@ class AzureExtensionTransformer(DeploymentTransformer):
         # Check if node supports AzureExtension feature
         if not self._node.features.is_supported(AzureExtension):
             raise LisaException(
-                f"Node '{self._node.name}' does not support AzureExtension feature."
+                f"Node '{self._node.name}' does not support " f"AzureExtension feature."
             )
 
     def _internal_run(self) -> Dict[str, Any]:
@@ -75,9 +79,10 @@ class AzureExtensionTransformer(DeploymentTransformer):
         node = self._node
 
         extension = node.features[AzureExtension]
-        
+
         log.info(
-            f"Installing Azure extension '{runbook.extension_name}' on node '{node.name}'"
+            f"Installing Azure extension '{runbook.extension_name}' "
+            f"on node '{node.name}'"
         )
 
         result = extension.create_or_update(
@@ -99,7 +104,8 @@ class AzureExtensionTransformer(DeploymentTransformer):
             )
 
         log.info(
-            f"Extension '{runbook.extension_name}' installed successfully on '{node.name}'"
+            f"Extension '{runbook.extension_name}' installed successfully "
+            f"on '{node.name}'"
         )
 
         return {
