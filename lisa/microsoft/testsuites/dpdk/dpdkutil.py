@@ -74,6 +74,7 @@ from lisa.tools import (
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import sleep
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 
@@ -477,7 +478,7 @@ def initialize_node_resources(
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
     try:
-        hugepages.init_hugepages(hugepage_size, minimum_gb=4 * numa_nodes)
+        hugepages.init_hugepages(hugepage_size, minimum_gb=8 * numa_nodes)
     except NotEnoughMemoryException as err:
         raise SkippedException(err)
 
@@ -1720,6 +1721,8 @@ def run_dpdk_symmetric_mp(
     - count packets received on tx/rx side of each process and port
 
     """
+
+    test_timeout = 120 + (60 * hotplug_times if trigger_hotplug else 35)
     # setup and unwrap the resources for this test
     # get a list of the upper non-primary nics and select two of them
     test_nics = [
@@ -1792,9 +1795,9 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
             f"{symmetric_mp_args} --proc-id 0"
         ),
-        timeout=660,
+        timeout=test_timeout,
         signal=SIGINT,
-        kill_timeout=30,
+        kill_timeout=test_timeout + 5,
     )
 
     # wait for it to start
@@ -1806,9 +1809,9 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
             f"{symmetric_mp_args} --proc-id 1"
         ),
-        timeout=600,
+        timeout=test_timeout,
         signal=SIGINT,
-        kill_timeout=35,
+        kill_timeout=test_timeout + 5,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
 
@@ -1844,7 +1847,7 @@ def run_dpdk_symmetric_mp(
                 "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
                 delta_only=True,
             )  # relying on compiler defaults here, not great.
-
+            sleep(1)
             # turn SRIOV on
             node.features[NetworkInterface].switch_sriov(
                 enable=True, wait=False, reset_connections=False
@@ -1869,6 +1872,8 @@ def run_dpdk_symmetric_mp(
             )
             # expect additional pings for each post-hotplug instance
             expected_pings += 100
+            # sleep for a moment to avoid api throttling
+            sleep(1)
 
     ping.ping_async(
         target=test_nics[0].ip_addr,

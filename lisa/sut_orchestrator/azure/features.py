@@ -95,6 +95,7 @@ from lisa.util import (
     generate_random_chars,
     get_matched_str,
     set_filtered_fields,
+    sleep,
 )
 
 if TYPE_CHECKING:
@@ -1016,6 +1017,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"now set its status into [{enable}]."
                 )
                 updated_nic.enable_accelerated_networking = enable
+
                 network_client.network_interfaces.begin_create_or_update(
                     self._resource_group_name, updated_nic.name, updated_nic
                 )
@@ -1027,6 +1029,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
                 status_changed = True
+                sleep(0.5)
 
         # wait settings effective
         if wait and status_changed:
