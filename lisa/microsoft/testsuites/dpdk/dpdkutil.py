@@ -1790,9 +1790,9 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
             f"{symmetric_mp_args} --proc-id 0"
         ),
-        timeout=660,
+        timeout=1200,
         signal=SIGINT,
-        kill_timeout=30,
+        kill_timeout=1200,
     )
 
     # wait for it to start
@@ -1806,7 +1806,7 @@ def run_dpdk_symmetric_mp(
         ),
         timeout=600,
         signal=SIGINT,
-        kill_timeout=35,
+        kill_timeout=1200,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
 

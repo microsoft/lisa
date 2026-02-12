@@ -136,6 +136,29 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            netvsc pmd version.
+            This test case checks dpdk symmetic mp app, plus an sriov hotplug.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_symmetric_mp_hotplug(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        run_dpdk_symmetric_mp(node, log, variables, trigger_hotplug=True)
+
+    @TestCaseMetadata(
+        description="""
             netvsc pmd version with 1GiB hugepages
             This test case checks DPDK can be built and installed correctly.
             Prerequisites, accelerated networking must be enabled.
