@@ -207,12 +207,6 @@ class Modprobe(Tool):
             include_output=True,
         )
 
-        original_user = self.node.tools[Whoami].get_username()
-        if original_user:
-            self.node.tools[Chown].change_owner(
-                file=Path(loop_process_pid_file_name), user=original_user
-            )
-
         cat = self.node.tools[Cat]
         tried_times: int = 0
         timer = create_timer()
@@ -220,7 +214,7 @@ class Modprobe(Tool):
         while (timer.elapsed(False) < timeout) or tried_times < 1:
             tried_times += 1
             try:
-                pid = cat.read(loop_process_pid_file_name, force_run=True)
+                pid = cat.read(loop_process_pid_file_name, force_run=True,sudo=True)
                 r = self.node.execute(
                     f"ps -p {pid} > /dev/null && echo 'running' || echo 'not_running'",
                     sudo=True,
