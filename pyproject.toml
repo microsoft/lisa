@@ -63,8 +63,8 @@ azure = [
 ]
 
 ai = [
-    "agent-framework-core ~= 1.0.0b251120",
-    "agent-framework-azure-ai ~= 1.0.0b251120",
+    "agent-framework-core == 1.0.0b260130",
+    "agent-framework-azure-ai == 1.0.0b260130",
     "openai ~= 2.8.1",
 ]
 
