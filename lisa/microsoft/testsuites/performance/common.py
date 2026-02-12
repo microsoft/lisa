@@ -503,12 +503,27 @@ def perf_ntttcp(  # noqa: C901
                     server_nic_name, tuned_rss_channels
                 )
 
-                # RX/TX ring buffers (set both to tuned_rx_ring)
+                # RX ring buffers: set RX to tuned_rx_ring while preserving
+                # the existing TX ring size on each NIC.
+                client_ring_settings = ethtool_client.get_device_ring_buffer_settings(
+                    client_nic_name, force_run=True
+                )
+                server_ring_settings = ethtool_server.get_device_ring_buffer_settings(
+                    server_nic_name, force_run=True
+                )
+
+                client_tx_ring = int(
+                    client_ring_settings.current_ring_buffer_settings["TX"]
+                )
+                server_tx_ring = int(
+                    server_ring_settings.current_ring_buffer_settings["TX"]
+                )
+
                 ethtool_client.change_device_ring_buffer_settings(
-                    client_nic_name, rx=tuned_rx_ring, tx=tuned_rx_ring
+                    client_nic_name, rx=tuned_rx_ring, tx=client_tx_ring
                 )
                 ethtool_server.change_device_ring_buffer_settings(
-                    server_nic_name, rx=tuned_rx_ring, tx=tuned_rx_ring
+                    server_nic_name, rx=tuned_rx_ring, tx=server_tx_ring
                 )
         else:
             server_nic_name = (
