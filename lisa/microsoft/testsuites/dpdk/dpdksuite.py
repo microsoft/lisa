@@ -147,6 +147,7 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),
+        timeout=1200,
     )
     def verify_dpdk_symmetric_mp_hotplug(
         self,
@@ -155,7 +156,35 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        run_dpdk_symmetric_mp(node, log, variables, trigger_hotplug=True)
+        run_dpdk_symmetric_mp(
+            node, log, variables, trigger_hotplug=True, hotplug_times=10
+        )
+
+    @TestCaseMetadata(
+        description="""
+            netvsc pmd version.
+            This test case checks dpdk symmetic mp app, plus an sriov hotplug.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+        timeout=6000,
+    )
+    def stress_dpdk_symmetric_mp_hotplug(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        run_dpdk_symmetric_mp(
+            node, log, variables, trigger_hotplug=True, hotplug_times=100
+        )
 
     @TestCaseMetadata(
         description="""

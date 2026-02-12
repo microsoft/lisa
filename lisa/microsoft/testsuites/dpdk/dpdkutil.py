@@ -1718,6 +1718,8 @@ def run_dpdk_symmetric_mp(
     - count packets received on tx/rx side of each process and port
 
     """
+
+    test_timeout = 60 * hotplug_times if trigger_hotplug else 35
     # setup and unwrap the resources for this test
     # get a list of the upper non-primary nics and select two of them
     test_nics = [
@@ -1790,9 +1792,9 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
             f"{symmetric_mp_args} --proc-id 0"
         ),
-        timeout=1200,
+        timeout=test_timeout,
         signal=SIGINT,
-        kill_timeout=1200,
+        kill_timeout=test_timeout + 5,
     )
 
     # wait for it to start
@@ -1804,9 +1806,9 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
             f"{symmetric_mp_args} --proc-id 1"
         ),
-        timeout=600,
+        timeout=test_timeout,
         signal=SIGINT,
-        kill_timeout=1200,
+        kill_timeout=test_timeout + 5,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
 
