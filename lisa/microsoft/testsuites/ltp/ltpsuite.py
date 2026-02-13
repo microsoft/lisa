@@ -2,9 +2,8 @@
 # Licensed under the MIT license.
 
 from logging import Logger
+from pathlib import Path
 from typing import Any, Dict
-
-from microsoft.testsuites.ltp.ltp import Ltp
 
 from lisa import (
     Node,
@@ -18,6 +17,7 @@ from lisa import (
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Lsblk, Swap
+from microsoft.testsuites.ltp.ltp import Ltp
 
 
 @TestSuiteMetadata(
@@ -118,6 +118,12 @@ class LtpTestsuite(TestSuite):
     ) -> None:
         test_list = test_str.split(",") if test_str else []
         skip_test_str = variables.get("ltp_skip_test", "")
+
+        default_skip_file = Path(__file__).parent / "ltp_skip_file.txt"
+        skip_test_file = variables.get(
+            "ltp_skip_test_file",
+            str(default_skip_file) if default_skip_file.exists() else "",
+        )
         source_file = variables.get("ltp_source_file", "")
         git_tag = variables.get("ltp_tests_git_tag", "")
         run_timeout = int(variables.get("ltp_run_timeout", 12000))
@@ -155,6 +161,7 @@ class LtpTestsuite(TestSuite):
             test_list,
             skip_test_list,
             log_path,
+            skip_test_file,
             block_device=block_device,
             ltp_run_timeout=run_timeout,
         )
