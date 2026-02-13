@@ -2,10 +2,18 @@
 # Licensed under the MIT license.
 
 from argparse import ArgumentParser, Namespace
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from lisa import commands
 from lisa.util import constants
+
+
+def _get_version() -> str:
+    try:
+        return version("mslisa")
+    except PackageNotFoundError:
+        return "unknown (package not installed)"
 
 
 def support_runbook(parser: ArgumentParser, required: bool = True) -> None:
@@ -84,6 +92,12 @@ def support_id(parser: ArgumentParser) -> None:
 def parse_args() -> Namespace:
     """This wraps Python's 'ArgumentParser' to setup our CLI."""
     parser = ArgumentParser(prog="lisa")
+    parser.add_argument(
+        "--version",
+        "-V",
+        action="version",
+        version=f"LISA {_get_version()}",
+    )
     support_debug(parser)
     support_runbook(parser, required=False)
     support_variable(parser)
