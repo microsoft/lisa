@@ -104,6 +104,7 @@ class Ltp(Tool):
         ltp_tests: List[str],
         skip_tests: List[str],
         log_path: str,
+        user_input_skip_file: str = "",
         block_device: Optional[str] = None,
         temp_dir: str = "/tmp/",
         ltp_run_timeout: int = 12000,
@@ -147,7 +148,15 @@ class Ltp(Tool):
         parameters += f"-d {temp_dir} "
 
         # add the list of skip tests to run
-        if len(skip_tests) > 0:
+        if user_input_skip_file:
+            # copy user provided skip file to remote skip_file location
+            self._log.debug(f"---user_input_skip_file: {user_input_skip_file}")
+            self.node.shell.copy(
+                PurePath(user_input_skip_file),
+                PurePosixPath(skip_file),
+            )
+            parameters += f"-S {skip_file} "
+        elif len(skip_tests) > 0:
             # write skip test to skipfile with newline separator
             skip_file_value = "\n".join(skip_tests)
             self.node.tools[Echo].write_to_file(
