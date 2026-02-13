@@ -146,3 +146,28 @@ FeatureName1, FeatureName2, FeatureName3
 - exact image string 2
 - exact image string 3
 ```
+
+## LISA Installation Guide
+
+When a user asks to install LISA, use these commands:
+
+### Linux Installation
+```bash
+curl -sSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.sh | bash
+```
+
+Options: `--install-path PATH`, `--use-venv true|false|auto`, `--branch BRANCH`, `--python-version VER`
+
+### Windows Installation
+```powershell
+.\quick-install.ps1
+```
+
+Options: `-InstallPath`, `-PythonVersion`, `-Branch`, `-SkipPython`
+
+### Docker Installation
+```bash
+docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r lisa/examples/runbook/hello_world.yml
+```
+
+For detailed installation options, see `.github/prompts/install-lisa.prompt.md`.
