@@ -33,8 +33,6 @@ It is:
 
 ### Not Responsible For:
 
-- Provisioning virtual machines
-- Installing OS packages (unless justified)
 - Modifying system-wide configuration permanently
 - Acting as a shell script wrapper
 
@@ -67,17 +65,17 @@ Do not write a new test case for:
 
 Follow these conventions:
 
-- **File Location:** `lisa/testsuites/<feature_area>/test_<feature>.py`
+- **File Location:** `lisa/microsoft/testsuites/<feature_area>/<test_name>.py`
 - **Class Naming:** One test class per file; name describes the feature, not a scenario
-- **Test Method Naming:** Start with `test_`, name describes the scenario being validated
+- **Test Method Naming:** Name describes the scenario being validated
 
 Example structure:
 
 ```
-lisa/testsuites/networking/
-    test_sriov.py
-        class SriovValidation(TestSuite):
-            def test_sriov_basic(self):
+lisa/microsoft/testsuites/network/
+    sriov.py
+        class Sriov(TestSuite):
+            def verify_services_state(self, node: Node) -> None:
                 ...
 ```
 

@@ -321,6 +321,215 @@ class GpuTestSuite(TestSuite):
         ).is_equal_to(expected_count)
 
 
+#     @TestCaseMetadata(
+#         description="""
+#         This test case validates GPU memory allocation and usage under pressure.
+
+#         Steps:
+#         1. Install GPU drivers if not already loaded.
+#         2. Get GPU memory capacity using vendor tools (nvidia-smi, rocm-smi, etc).
+#         3. Create Python script that allocates GPU memory in increments.
+#         4. Allocate up to 80% of total GPU memory to stress memory subsystem.
+#         5. Perform compute operations on allocated memory.
+#         6. Release memory and verify GPU returns to idle state.
+#         7. Verify GPU remains functional after memory stress.
+#         8. Check for memory leaks by comparing initial and final memory usage.
+
+#         This test ensures:
+#         - GPU memory can be allocated and used under pressure
+#         - No memory leaks occur during allocation/deallocation cycles
+#         - GPU driver remains stable during memory stress
+#         - GPU is functional after memory stress test
+#         """,
+#         priority=2,
+#         timeout=TIMEOUT,
+#         requirement=simple_requirement(
+#             supported_features=[GpuEnabled()],
+#             unsupported_os=[AlmaLinux, Oracle, Suse],
+#         ),
+#     )
+#     def verify_gpu_memory_stress(self, node: Node, log_path: Path, log: Logger) -> None:
+#         """
+#         Validates GPU memory allocation and usage under sustained pressure.
+
+#         Uses PyTorch to allocate and stress GPU memory, verifying:
+#         - Memory can be allocated up to capacity
+#         - GPU remains stable during memory operations
+#         - No memory leaks occur
+#         - GPU is functional after stress
+#         """
+#         # Arrange
+#         _install_driver(node, log_path, log)
+#         _check_driver_installed(node, log)
+
+#         gpu_feature = node.features[Gpu]
+#         compute_sdk = _get_supported_driver(node)
+#         gpu_driver: GpuDriver = node.tools.get(GpuDriver, compute_sdk=compute_sdk)
+
+#         # Get initial GPU memory state
+#         initial_memory_info = gpu_driver.get_memory_info()
+#         log.info(f"Initial GPU memory info: {initial_memory_info}")
+
+#         # Verify we have at least one GPU
+#         gpu_count = gpu_feature.get_gpu_count_with_lspci()
+#         assert_that(gpu_count).described_as(
+#             "At least one GPU required for memory stress test"
+#         ).is_greater_than(0)
+
+#         # Setup Python environment for memory stress
+#         memory_stress_required_space = 10
+#         work_path = node.get_working_path_with_required_space(
+#             memory_stress_required_space
+#         )
+
+#         _install_cudnn(node, log, work_path)
+#         pythonvenv_path = work_path + "/gpu_memory_stress"
+#         pythonvenv = node.tools.create(PythonVenv, venv_path=pythonvenv_path)
+
+#         if isinstance(node.os, Linux):
+#             node.os.clean_package_cache()
+
+#         pythonvenv.install_packages("torch")
+
+#         # Act - Run GPU memory stress test
+#         log.info("Starting GPU memory stress test")
+
+#         # Create Python script that stresses GPU memory
+#         # Allocates memory in chunks, performs operations, then releases
+#         gpu_memory_stress_script = """
+# import torch
+# import gc
+
+# def stress_gpu_memory():
+#     device = torch.device('cuda:0')
+#     total_memory = torch.cuda.get_device_properties(0).total_memory
+#     target_memory = int(total_memory * 0.8)  # Use 80% of GPU memory
+#     chunk_size = 100 * 1024 * 1024  # 100MB chunks
+
+#     tensors = []
+#     allocated = 0
+
+#     print(f'Total GPU memory: {total_memory / (1024**3):.2f} GB')
+#     print(f'Target allocation: {target_memory / (1024**3):.2f} GB')
+
+#     try:
+#         # Allocate memory in chunks
+#         while allocated < target_memory:
+#             try:
+#                 tensor = torch.randn(chunk_size // 4, device=device)
+#                 tensors.append(tensor)
+#                 allocated += chunk_size
+
+#                 # Perform some compute operations to stress the GPU
+#                 if len(tensors) % 10 == 0:
+#                     result = torch.matmul(tensor, tensor.t())
+#                     del result
+
+#             except RuntimeError as e:
+#                 print(f'Allocation stopped at {allocated / (1024**3):.2f} GB: {e}')
+#                 break
+
+#         print(f'Successfully allocated {allocated / (1024**3):.2f} GB')
+#         print(f'Allocated {len(tensors)} tensors')
+
+#         # Perform sustained operations on allocated memory
+#         for i in range(5):
+#             if tensors:
+#                 idx = i % len(tensors)
+#                 result = tensors[idx] * 2.0
+#                 del result
+
+#         # Release memory
+#         del tensors
+#         gc.collect()
+#         torch.cuda.empty_cache()
+
+#         print('Memory released successfully')
+#         print(f'Final memory allocated: {torch.cuda.memory_allocated(0) / (1024**3):.2f} GB')
+#         print(f'Final memory reserved: {torch.cuda.memory_reserved(0) / (1024**3):.2f} GB')
+
+#         return True
+
+#     except Exception as e:
+#         print(f'Error during memory stress: {e}')
+#         # Cleanup on error
+#         del tensors
+#         gc.collect()
+#         torch.cuda.empty_cache()
+#         raise
+
+# if __name__ == '__main__':
+#     try:
+#         success = stress_gpu_memory()
+#         print('GPU memory stress test completed successfully')
+#     except Exception as e:
+#         print(f'GPU memory stress test failed: {e}')
+#         exit(1)
+# """
+
+#         # Write script to file
+#         script_path = work_path + "/gpu_memory_stress.py"
+#         node.shell.write_to_file(script_path, gpu_memory_stress_script)
+
+#         # Execute memory stress test
+#         log.info("Executing GPU memory stress script")
+#         stress_result = pythonvenv.run(
+#             script_path,
+#             force_run=True,
+#             timeout=300,
+#         )
+
+#         log.info(f"Memory stress output: {stress_result.stdout}")
+
+#         # Assert - Verify results
+#         stress_result.assert_exit_code(
+#             message=f"GPU memory stress test failed: {stress_result.stdout}"
+#         )
+
+#         # Verify script completed successfully
+#         assert_that(stress_result.stdout).described_as(
+#             "Memory stress test should complete successfully"
+#         ).contains("GPU memory stress test completed successfully")
+
+#         # Verify memory was allocated
+#         assert_that(stress_result.stdout).described_as(
+#             "Should show successful memory allocation"
+#         ).contains("Successfully allocated")
+
+#         # Verify memory was released
+#         assert_that(stress_result.stdout).described_as(
+#             "Memory should be released after stress"
+#         ).contains("Memory released successfully")
+
+#         # Verify GPU is still functional after stress
+#         log.info("Verifying GPU functionality after memory stress")
+#         _check_driver_installed(node, log)
+
+#         # Get final memory state and check for leaks
+#         final_memory_info = gpu_driver.get_memory_info()
+#         log.info(f"Final GPU memory info: {final_memory_info}")
+
+#         # Verify GPU memory returned to approximately initial state
+#         # Allow some tolerance for driver overhead
+#         initial_used = initial_memory_info.get("used_memory_mb", 0)
+#         final_used = final_memory_info.get("used_memory_mb", 0)
+#         memory_diff = abs(final_used - initial_used)
+
+#         log.info(
+#             f"Memory usage: initial={initial_used}MB, final={final_used}MB, "
+#             f"diff={memory_diff}MB"
+#         )
+
+#         # Allow up to 500MB difference for driver caching
+#         assert_that(memory_diff).described_as(
+#             f"GPU memory should return to near-initial state. "
+#             f"Initial: {initial_used}MB, Final: {final_used}MB, "
+#             f"Difference: {memory_diff}MB should be < 500MB"
+#         ).is_less_than(500)
+
+#         log.info("GPU memory stress test completed successfully")
+
+
 def _check_driver_installed(node: Node, log: Logger) -> None:
     gpu = node.features[Gpu]
     lspci_gpucount = gpu.get_gpu_count_with_lspci()
