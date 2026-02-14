@@ -8,6 +8,7 @@ import math
 import os
 import re
 import sys
+import threading
 from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
@@ -482,6 +483,8 @@ class AzurePlatform(Platform):
             platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
             platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
         }
+
+        self._private_key_lock = threading.Lock()
 
     @classmethod
     def type_name(cls) -> str:
@@ -1224,8 +1227,14 @@ class AzurePlatform(Platform):
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
         # if no key or password specified, generate the key pair
-        if not self.runbook.admin_private_key_file and not self.runbook.admin_password:
-            self.runbook.admin_private_key_file = get_or_generate_key_pairs(self._log)
+        with self._private_key_lock:
+            if (
+                not self.runbook.admin_private_key_file
+                and not self.runbook.admin_password
+            ):
+                self.runbook.admin_private_key_file = get_or_generate_key_pairs(
+                    self._log
+                )
 
         if self.runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
