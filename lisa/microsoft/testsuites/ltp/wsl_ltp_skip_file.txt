@@ -1,3 +1,8 @@
+ioperm01
+ioperm02
+iopl01
+iopl02
+reboot01
 fork13
 fork14
 vfork01

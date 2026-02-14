@@ -13,6 +13,13 @@ from lisa.util import (
     find_patterns_in_lines,
 )
 
+# WSL error patterns that indicate connection issues, not process absence
+_WSL_ERROR_PATTERNS = [
+    "HCS_E_CONNECTION_TIMEOUT",
+    "E_UNEXPECTED",
+    "Catastrophic failure",
+]
+
 
 class ProcessInfo(object):
     def __init__(self, name: str, pid: str) -> None:
@@ -44,9 +51,16 @@ class Pgrep(Tool):
 
     def get_processes(self, process_identifier: str) -> List[ProcessInfo]:
         running_process: List[ProcessInfo] = []
-        output = self.run(
-            f'-l "{process_identifier}"', sudo=True, force_run=True
-        ).stdout
+        result = self.run(f'-l "{process_identifier}"', sudo=True, force_run=True)
+
+        # Check for WSL connection errors before processing
+        if any(err in result.stdout for err in _WSL_ERROR_PATTERNS):
+            raise LisaException(
+                f"WSL error while checking process '{process_identifier}': "
+                f"{result.stdout}"
+            )
+
+        output = result.stdout
         found_processes = find_patterns_in_lines(output, [self._process_map_regex])
         running_process.extend(
             ProcessInfo(name=item[1], pid=item[0]) for item in found_processes[0]
@@ -93,7 +107,16 @@ class PsBSD(Pgrep):
         return "ps"
 
     def get_processes(self, process_identifier: str) -> List[ProcessInfo]:
-        output = self.run("-axceo user,pid,command", sudo=True, force_run=True).stdout
+        result = self.run("-axceo user,pid,command", sudo=True, force_run=True)
+
+        # Check for WSL connection errors before processing
+        if any(err in result.stdout for err in _WSL_ERROR_PATTERNS):
+            raise LisaException(
+                f"WSL error while checking process '{process_identifier}': "
+                f"{result.stdout}"
+            )
+
+        output = result.stdout
         found_processes = find_groups_in_lines(output, self._process_map_regex)
         running_process: List[ProcessInfo] = [
             ProcessInfo(name=item["name"], pid=item["id"])

@@ -119,7 +119,7 @@ class LtpTestsuite(TestSuite):
         test_list = test_str.split(",") if test_str else []
         skip_test_str = variables.get("ltp_skip_test", "")
 
-        default_skip_file = Path(__file__).parent / "ltp_skip_file.txt"
+        default_skip_file = Path(__file__).parent / "wsl_ltp_skip_file.txt"
         skip_test_file = variables.get(
             "ltp_skip_test_file",
             str(default_skip_file) if default_skip_file.exists() else "",

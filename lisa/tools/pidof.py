@@ -24,6 +24,19 @@ class Pidof(Tool):
         result = self.run(process_name, force_run=True, shell=True, sudo=sudo)
         if result.exit_code == 0:
             pids = [x.strip() for x in result.stdout.split(" ")]
+        elif any(
+            err in result.stdout
+            for err in [
+                "HCS_E_CONNECTION_TIMEOUT",
+                "E_UNEXPECTED",
+                "Catastrophic failure",
+            ]
+        ):
+            # WSL connection error - raise exception to avoid false positive
+            raise LisaException(
+                f"WSL error while checking process '{process_name}': "
+                f"{result.stdout}"
+            )
         return pids
 
     def wait_processes(
