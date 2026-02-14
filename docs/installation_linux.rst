@@ -11,25 +11,9 @@ Minimum System Requirements
 We will guide you through the installation of LISA on Linux.
 The following commands assume Ubuntu or Azure Linux is being used.
 
-Quick Start with Docker
------------------------
+.. tip::
 
-For the fastest way to get started with LISA, you can use our Docker container:
-
-.. code:: bash
-
-   # Pull and run LISA with a runbook
-   docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r lisa/examples/runbook/hello_world.yml
-
-Or use our quick-container script for easier management:
-
-.. code:: bash
-
-   bash quick-container.sh -r lisa/examples/runbook/hello_world.yml
-
-See :doc:`docker_linux` for detailed Docker usage instructions.
-
-If you need to develop LISA or make custom modifications, continue with the local installation below.
+   For the fastest way to get started without local installation, see :doc:`docker_linux` for Docker-based usage.
 
 
 Install Python on Linux
@@ -144,11 +128,11 @@ This script will:
 
 .. code:: bash
 
-   # Custom installation path
-   bash quick-install.sh --install-path /opt/lisa
+   # Custom installation path (use sudo for system paths like /opt)
+   sudo bash quick-install.sh --install-path /opt/lisa
 
    # Specific Python version
-   bash quick-install.sh --python-version 3.11
+   bash quick-install.sh --python-version 3.12
 
    # Specific git branch
    bash quick-install.sh --branch develop

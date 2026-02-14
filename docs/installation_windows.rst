@@ -15,8 +15,62 @@ We will guide you through the installation of LISA on Windows.
    message when installing tools.
 
 
-Install Python on Windows
+Quick Installation Script
 -------------------------
+
+For a quick and automated installation, you can use the provided PowerShell installation script:
+
+.. code:: powershell
+
+   # Download and run the script
+   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.ps1" -OutFile "quick-install.ps1"
+   .\quick-install.ps1
+
+Or run directly (requires execution policy adjustment):
+
+.. code:: powershell
+
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.ps1'))
+
+This script will:
+
+- Check and install Python 3.12 (via winget or direct download)
+- Install Python dependencies (pip, nox, toml, wheel)
+- Clone the LISA repository
+- Install LISA with Azure extension
+- Verify the installation
+
+**Customization options:**
+
+.. code:: powershell
+
+   # Custom installation path
+   .\quick-install.ps1 -InstallPath "C:\tools\lisa"
+
+   # Specific Python version
+   .\quick-install.ps1 -PythonVersion "3.12"
+
+   # Specific git branch
+   .\quick-install.ps1 -Branch "develop"
+
+   # Skip Python installation (use existing Python)
+   .\quick-install.ps1 -SkipPython
+
+For help:
+
+.. code:: powershell
+
+   Get-Help .\quick-install.ps1 -Detailed
+
+If you prefer manual installation or need to customize your setup, continue with the steps below.
+
+
+Manual Installation
+-------------------
+
+Install Python on Windows
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 LISA has been tested to work with `Python 3.8 64-bit <https://www.python.org/>`__ and above.
 The latest version of Python 3 is recommended. If you find that LISA is not compatible
@@ -53,14 +107,14 @@ to PATH” option in installation.
 
 
 Install system dependencies on Windows
---------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In Windows, you need to install `git <https://git-scm.com/downloads>`__,
 and `Visual C++ redistributive package <https://aka.ms/vs/16/release/vc_redist.x64.exe>`__
 
 
 Clone code
-----------
+~~~~~~~~~~
 
 .. code:: sh
 
