@@ -107,8 +107,15 @@ tests:
 
 .. code:: bash
 
-   ls -la ./lisa-logs/log/
-   cat ./lisa-logs/log/lisa-*.log
+   # Install tree to view directory structure (optional)
+   sudo apt install tree -y   # Ubuntu/Debian
+   sudo tdnf install tree -y  # Azure Linux
+
+   # View log directory structure
+   tree ./lisa-logs/
+
+   # List log files
+   ls -la ./lisa-logs/
 
 Save logs to a custom directory:
 
