@@ -1,20 +1,6 @@
 Install LISA on Linux
 =====================
 
-This guide provides two ways to install LISA on Linux:
-
-- **Option A: Quick Installation Script** — automated, recommended for most users
-- **Option B: Manual Installation** — step-by-step commands if you prefer full control
-
-.. contents:: Table of Contents
-   :local:
-   :depth: 2
-
-.. tip::
-
-   For the fastest way to get started without local installation, see :doc:`docker_linux` for Docker-based usage.
-
-
 Minimum System Requirements
 ---------------------------
 
@@ -22,66 +8,16 @@ Minimum System Requirements
 2. Dual core processor
 3. 4 GB system memory
 
-
-Option A: Quick Installation Script (Recommended)
--------------------------------------------------
-
-For a quick and automated installation, you can use the provided installation script:
-
-.. code:: bash
-
-   curl -sSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.sh | bash
-
-This script will:
-
-- Detect your Linux distribution and version
-- Install Python 3.12 (or use existing Python 3.8+)
-- Install system dependencies based on your distribution
-- Clone the LISA repository
-- Install LISA with Azure and libvirt extensions
-
-**For Ubuntu 24.04+:** The script automatically creates a virtual environment to comply with PEP 668.
-
-**Customization options:**
-
-.. code:: bash
-
-   # Custom installation path (use sudo for system paths like /opt)
-   sudo bash quick-install.sh --install-path /opt/lisa
-
-   # Specific Python version
-   bash quick-install.sh --python-version 3.12
-
-   # Specific git branch
-   bash quick-install.sh --branch develop
-
-   # Skip Python installation
-   bash quick-install.sh --skip-python
-
-For help:
-
-.. code:: bash
-
-   bash quick-install.sh --help
-
-If you prefer manual installation or need to customize your setup, continue with Option B below.
-
-
-Option B: Manual Installation
------------------------------
-
+We will guide you through the installation of LISA on Linux.
 The following commands assume Ubuntu or Azure Linux is being used.
 
-<<<<<<< HEAD
 .. tip::
 
    For the fastest way to get started without local installation, see :doc:`docker_linux` for Docker-based usage.
 
 
-=======
->>>>>>> 52ac9e751 (Refine doc for installing lisa)
 Install Python on Linux
-~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------
 
 LISA has been tested to work with `Python >=3.8 64-bit <https://www.python.org/>`__.
 Python 3.12 is recommended.
@@ -108,7 +44,7 @@ For Azure Linux, Python installation is included in the system dependencies sect
 
 
 Install system dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 Run the command below to install the dependencies on Ubuntu:
 
@@ -132,7 +68,7 @@ If you're using a different distribution or python version, adjust the command a
 
 
 Check PATH
-~~~~~~~~~~
+----------
 
 When installing Python packages via ``pip``, they will be installed as a local user unless invoked
 as root. Some Python packages contain entry point scripts which act as user-facing commands
@@ -161,7 +97,7 @@ the bottom of your ``~/.profile`` or ``~.bash_profile`` files.
 
 
 Clone code
-~~~~~~~~~~
+----------
 
 .. code:: sh
 
@@ -169,7 +105,6 @@ Clone code
    cd lisa
 
 
-<<<<<<< HEAD
 Quick Installation Script
 -------------------------
 
@@ -221,10 +156,6 @@ Runtime Environment
 -------------------
 
 This installation method is used to run LISA if no change in source code is desired, for example, when setting up automation with LISA in pipelines. Direct installation requires pip 22.2.2 or higher. If the version of pip provided by your installation is older than this, a newer version should be installed.
-=======
-Install LISA
-~~~~~~~~~~~~
->>>>>>> 52ac9e751 (Refine doc for installing lisa)
 
 **For Ubuntu 24.04 and later:**
 
@@ -236,13 +167,6 @@ Due to PEP 668 externally-managed-environment restrictions, it's recommended to 
    source venv/bin/activate
    pip install --upgrade pip
    pip install --editable .[azure,libvirt] --config-settings editable_mode=compat
-
-**For Ubuntu 22.04 and earlier, or other distributions:**
-
-.. code:: bash
-
-   python3 -m pip install --upgrade pip
-   python3 -m pip install --editable .[azure,libvirt] --config-settings editable_mode=compat
 
 To use LISA after installation in a virtual environment:
 
@@ -258,11 +182,18 @@ To use LISA after installation in a virtual environment:
    # Option 3: Create an alias (add to ~/.bashrc)
    alias lisa='/path/to/lisa/venv/bin/lisa'
 
+**For Ubuntu 22.04 and earlier, or other distributions:**
 
-Development Environment
------------------------
+.. code:: bash
 
-For making any code changes and running test cases in LISA, you will need to setup a development environment. Instructions for setting up the development environment are present here: :ref:`DevEnv`.
+   python3 -m pip install --upgrade pip
+
+The example below will install LISA directly for the invoking user.
+To install system-wide, preface the command with ``sudo``.
+
+.. code:: bash
+
+   python3 -m pip install --editable .[azure,libvirt] --config-settings editable_mode=compat
 
 
 Verify installation
