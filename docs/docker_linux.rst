@@ -107,7 +107,17 @@ tests:
 
 .. code:: bash
 
+   # Install tree to view directory structure (optional)
+   sudo apt install tree -y   # Ubuntu/Debian
+   sudo tdnf install tree -y  # Azure Linux
+
+   # View log directory structure
+   tree ./lisa-logs/log/
+
+   # List log files
    ls -la ./lisa-logs/log/
+
+   # View log content
    cat ./lisa-logs/log/lisa-*.log
 
 Save logs to a custom directory:
