@@ -42,6 +42,7 @@ from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
     from lisa.operating_system import OperatingSystem
+    from lisa.testsuite import TestResult
     from lisa.util.logger import Logger
 
 T = TypeVar("T")
@@ -143,6 +144,12 @@ PANIC_IGNORABLE_PATTERNS: List[Pattern[str]] = [
     # more NUMA nodes on AMD processors.
     # The call trace is annoying but does not affect correct operation of the VM.
     re.compile(r"(.*RIP: 0010:topology_sane.isra.*)$", re.MULTILINE),
+]
+
+TEST_PANIC_PATTERNS: List[Pattern[str]] = [
+    # Rust panics - must have "panicked at" with backtrace markers
+    re.compile(r"^(.*panicked at .*)$", re.MULTILINE),
+    re.compile(r"^(.*stack backtrace:.*)$", re.MULTILINE | re.IGNORECASE),
 ]
 
 # Root filesystem mount failure patterns
@@ -384,6 +391,24 @@ class KernelPanicException(LisaException):
             "details from the serial console log. Please download the test logs and "
             "retrieve the serial_log from 'environments' directory, or you can ask "
             f"support. Detected Panic phrases: {self.panics}"
+        )
+
+
+class PostTestPanicDetectedError(LisaException):
+    """
+    This exception is raised when a test panic is detected in test output.
+    """
+
+    def __init__(self, stage: str, panics: List[Any], source: str = "test log") -> None:
+        self.stage = stage
+        self.panics = panics
+        self.source = source
+        super().__init__(str(self))
+
+    def __str__(self) -> str:
+        return (
+            f"{self.stage} found test panic in {self.source}. "
+            f"Detected Test Panic lines: {self.panics}"
         )
 
 
@@ -977,6 +1002,55 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
 
     if panics:
         raise KernelPanicException(stage, panics)
+
+
+def append_test_panic_to_test_result(
+    test_result: "TestResult", node_name: str, panics: List[str]
+) -> None:
+    # Filter out empty/whitespace-only lines and remove duplicates
+    # while preserving order
+    filtered_panics = [p.strip() for p in panics if p and p.strip()]
+    unique_panics = list(dict.fromkeys(filtered_panics))
+    panic_lines = "\n".join(unique_panics)
+    panic_summary = (
+        f"TEST PANIC DETECTED on {node_name}\n"
+        f"Detected Test Panic Lines:\n{panic_lines}\n"
+    )
+
+    # Check if we've already added this panic to avoid duplicates from
+    # both success and failure paths
+    if test_result.message and panic_summary in test_result.message:
+        return
+
+    if test_result.message:
+        test_result.message += f"\n\n{panic_summary}"
+    else:
+        test_result.message = panic_summary
+
+
+def check_test_panic(
+    content: str,
+    stage: str,
+    log: "Logger",
+    test_result: Optional["TestResult"] = None,
+    node_name: str = "",
+    source: str = "test log",
+) -> None:
+    log.debug("checking test panic...")
+    panics = [
+        x
+        for sublist in find_patterns_in_lines(str(content), TEST_PANIC_PATTERNS)
+        for x in sublist
+        if x
+    ]
+
+    if panics:
+        if test_result is not None:
+            # Append panic info to existing test result message, don't raise
+            append_test_panic_to_test_result(test_result, node_name, panics)
+        else:
+            # Only raise exception if no test_result context
+            raise PostTestPanicDetectedError(stage, panics, source)
 
 
 def check_rootfs_failure(content: str, log: "Logger") -> None:

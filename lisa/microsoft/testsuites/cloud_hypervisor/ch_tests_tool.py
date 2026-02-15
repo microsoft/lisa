@@ -30,7 +30,12 @@ from lisa.tools import (
     Sed,
     Whoami,
 )
-from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
+from lisa.util import (
+    LisaException,
+    UnsupportedDistroException,
+    check_test_panic,
+    find_groups_in_lines,
+)
 
 
 @dataclass
@@ -302,6 +307,7 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         log_path: Path,
         subtests: Set[str],
+        test_name: str,
     ) -> None:
         """Process test results and handle various failure scenarios."""
         # Report subtest results and collect logs before doing any assertions.
@@ -317,6 +323,14 @@ class CloudHypervisorTests(Tool):
             )
 
         self._save_kernel_logs(log_path)
+
+        self._check_test_panic_from_logs(
+            test_result=test_result,
+            log_path=log_path,
+            content=result.stdout,
+            stage=f"{test_type} tests",
+            test_name=test_name,
+        )
 
         has_failures = len(failures) > 0
         if result.is_timeout and has_failures:
@@ -384,6 +398,7 @@ class CloudHypervisorTests(Tool):
             hypervisor,
             log_path,
             subtests["subtest_set"],
+            test_name,
         )
 
     def run_metrics_tests(
@@ -437,6 +452,14 @@ class CloudHypervisorTests(Tool):
                 test_result, testcase, status, metrics, trace
             )
             self._write_testcase_log(log_path, testcase, trace)
+
+            self._check_test_panic_from_logs(
+                test_result=test_result,
+                log_path=log_path,
+                content=trace,
+                stage=f"metrics test {testcase}",
+                test_name=testcase,
+            )
 
         self._save_kernel_logs(log_path)
 
@@ -726,6 +749,25 @@ class CloudHypervisorTests(Tool):
             return f"Process exited with code {result.exit_code}"
 
         return ""
+
+    def _check_test_panic_from_logs(
+        self,
+        test_result: TestResult,
+        log_path: Path,
+        content: str,
+        stage: str,
+        test_name: str,
+    ) -> None:
+        # Check the test output for panic markers
+        if content and content.strip():
+            check_test_panic(
+                content,
+                stage,
+                self._log,
+                test_result=test_result,
+                node_name=self.node.name,
+                source=f"{test_name} output",
+            )
 
     def _extract_stdout_diagnostics(self, stdout: str) -> List[str]:
         """Extract diagnostic information from stdout."""
