@@ -412,7 +412,7 @@ class Git(Tool):
         ).stdout
 
         describe = self.run(
-            "describe",
+            "describe --always",
             shell=True,
             cwd=cwd,
             force_run=True,
