@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Dict, cast
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.base_tools import Cat
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR
 from lisa.testsuite import TestResult, simple_requirement
@@ -69,20 +70,58 @@ class DevicePassthroughFunctionalTests(TestSuite):
     ) -> None:
         lspci = node.tools[Lspci]
         platform = cast("CloudHypervisorPlatform", environment.platform)
-        pool_vendor_device_map = {}
+        pool_vendor_device_map: Dict[str, Dict[str, str]] = {}
         assert platform.platform_runbook.device_pools, "Device pool can't be empty"
+
+        from lisa.sut_orchestrator.util.schema import (
+            PciAddressIdentifier,
+            VendorDeviceIdIdentifier,
+        )
+
         for pool in platform.platform_runbook.device_pools:
             pool_type = str(pool.type.value)
             if not pool.devices:
                 raise LisaException(f"No devices defined for pool type: {pool_type}")
-            vendor_device_id = {
-                "vendor_id": pool.devices[0].vendor_id,
-                "device_id": pool.devices[0].device_id,
-            }
+            if isinstance(pool.devices, list):
+                first: VendorDeviceIdIdentifier = pool.devices[0]
+                vendor_device_id = {
+                    "vendor_id": first.vendor_id,
+                    "device_id": first.device_id,
+                }
+            elif isinstance(pool.devices, PciAddressIdentifier):
+                # Resolve vendor/device IDs from host sysfs for BDF pools.
+                if not pool.devices.pci_bdf:
+                    raise LisaException(f"Pool '{pool_type}' has no pci_bdf entries")
+                vendor_device_id = self._vendor_device_from_host_bdf(
+                    platform, pool.devices.pci_bdf[0]
+                )
+            elif isinstance(pool.devices, dict):
+                # dataclasses_json fallback: raw dict form from runbook.
+                if "pci_bdf" in pool.devices:
+                    bdf_list = pool.devices["pci_bdf"]
+                    if not bdf_list:
+                        raise LisaException(f"Pool '{pool_type}' pci_bdf list is empty")
+                    vendor_device_id = self._vendor_device_from_host_bdf(
+                        platform, bdf_list[0]
+                    )
+                elif "vendor_id" in pool.devices and "device_id" in pool.devices:
+                    vendor_device_id = {
+                        "vendor_id": pool.devices["vendor_id"],
+                        "device_id": pool.devices["device_id"],
+                    }
+                else:
+                    raise LisaException(
+                        f"Pool '{pool_type}' devices dict has neither 'pci_bdf' "
+                        f"nor 'vendor_id'/'device_id' keys: {pool.devices}"
+                    )
+            else:
+                raise LisaException(
+                    f"Pool '{pool_type}' has unrecognised devices type: "
+                    f"{type(pool.devices)}"
+                )
             pool_vendor_device_map[pool_type] = vendor_device_id
 
-        # Get the node's runbook to check its passthrough requirements
-        # Import at runtime to avoid libvirt dependency on non-libvirt platforms
+        # Import at runtime to avoid libvirt dependency on other platforms.
         from lisa.sut_orchestrator.libvirt.schema import BaseLibvirtNodeSchema
 
         node_runbook: "BaseLibvirtNodeSchema" = node.capability.get_extended_runbook(
@@ -112,3 +151,17 @@ class DevicePassthroughFunctionalTests(TestSuite):
                     f"device(s) but expected {req.count}. "
                     f"Vendor/Device ID: {ven_id}:{dev_id}"
                 )
+
+    @staticmethod
+    def _vendor_device_from_host_bdf(
+        platform: "CloudHypervisorPlatform",
+        bdf: str,
+    ) -> Dict[str, str]:
+        """Read vendor_id and device_id for a BDF from host sysfs."""
+        cat = platform.host_node.tools[Cat]
+        vendor_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/vendor", sudo=True).strip()
+        device_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/device", sudo=True).strip()
+        # Normalize to 4-digit lowercase hex used by lspci identifiers.
+        vendor_id = vendor_raw.lower().replace("0x", "").zfill(4)
+        device_id = device_raw.lower().replace("0x", "").zfill(4)
+        return {"vendor_id": vendor_id, "device_id": device_id}

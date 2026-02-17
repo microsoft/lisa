@@ -1,6 +1,11 @@
 from typing import Any, List, Optional
 
-from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
+from lisa.sut_orchestrator.util.schema import (
+    HostDevicePoolSchema,
+    HostDevicePoolType,
+    PciAddressIdentifier,
+    VendorDeviceIdIdentifier,
+)
 from lisa.util import LisaException
 
 
@@ -13,6 +18,13 @@ class BaseDevicePool:
         pool_type: HostDevicePoolType,
         vendor_id: str,
         device_id: str,
+    ) -> None:
+        raise NotImplementedError()
+
+    def create_device_pool_from_pci_addresses(
+        self,
+        pool_type: HostDevicePoolType,
+        pci_addr_list: List[str],
     ) -> None:
         raise NotImplementedError()
 
@@ -44,22 +56,57 @@ class BaseDevicePool:
                         f"Pool type '{pool_type}' is not supported by platform"
                     )
             for config in device_configs:
-                vendor_device_list = config.devices
-                if len(vendor_device_list) > 1:
-                    raise LisaException(
-                        "Device Pool does not support more than one "
-                        "vendor/device id list for given pool type"
+                devices = config.devices
+                if isinstance(devices, list) and all(
+                    isinstance(d, VendorDeviceIdIdentifier) for d in devices
+                ):
+                    if not devices:
+                        raise LisaException(
+                            "Device pool configuration has no vendor/device "
+                            "id entries for pool type"
+                        )
+                    if len(devices) > 1:
+                        raise LisaException(
+                            "Device Pool does not support more than one "
+                            "vendor/device id list for given pool type"
+                        )
+
+                    vendor_device_id = devices[0]
+                    vendor_id = vendor_device_id.vendor_id.strip()
+                    if not vendor_id:
+                        raise LisaException(
+                            "Device pool configuration has empty 'vendor_id'"
+                        )
+                    device_id = vendor_device_id.device_id.strip()
+                    if not device_id:
+                        raise LisaException(
+                            "Device pool configuration has empty 'device_id'"
+                        )
+
+                    self.create_device_pool(
+                        pool_type=config.type,
+                        vendor_id=vendor_id,
+                        device_id=device_id,
                     )
-
-                vendor_device_id = vendor_device_list[0]
-                assert vendor_device_id.vendor_id.strip()
-                vendor_id = vendor_device_id.vendor_id.strip()
-
-                assert vendor_device_id.device_id.strip()
-                device_id = vendor_device_id.device_id.strip()
-
-                self.create_device_pool(
-                    pool_type=config.type,
-                    vendor_id=vendor_id,
-                    device_id=device_id,
-                )
+                elif isinstance(devices, (dict, PciAddressIdentifier)):
+                    if isinstance(devices, dict):
+                        if "pci_bdf" not in devices:
+                            raise LisaException(
+                                "Key not found in device configuration: 'pci_bdf'"
+                            )
+                        pci_addr_list: List[str] = devices["pci_bdf"]
+                    else:
+                        pci_addr_list = devices.pci_bdf
+                    if not pci_addr_list:
+                        raise LisaException(
+                            "PCI address list 'pci_bdf' must not be empty"
+                        )
+                    self.create_device_pool_from_pci_addresses(
+                        pool_type=config.type,
+                        pci_addr_list=pci_addr_list,
+                    )
+                else:
+                    raise LisaException(
+                        f"Unknown device identifier of type: {type(devices)}"
+                        f", value: {devices}"
+                    )

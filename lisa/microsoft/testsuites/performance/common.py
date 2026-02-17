@@ -330,6 +330,7 @@ def perf_ntttcp(  # noqa: C901
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
     variables: Optional[Dict[str, Any]] = None,
+    skip_server_task_max: bool = False,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -387,8 +388,9 @@ def perf_ntttcp(  # noqa: C901
         if need_reboot:
             client_sriov_count = len(client.nics.get_pci_nics())
             server_sriov_count = len(server.nics.get_pci_nics())
-        for ntttcp in [client_ntttcp, server_ntttcp]:
-            ntttcp.setup_system(udp_mode, set_task_max)
+        client_ntttcp.setup_system(udp_mode, set_task_max)
+        # skip_server_task_max: don't reboot the baremetal host (NIC DHCP state lost).
+        server_ntttcp.setup_system(udp_mode, set_task_max and not skip_server_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         client_nic = client.nics.default_nic
