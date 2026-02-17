@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from assertpy import assert_that
+from assertpy import assert_that, fail
 from retry import retry
 
 from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Readlink, Tee
@@ -147,6 +147,7 @@ class Nics(InitializableMixin):
         super().__init__()
         self._node = node
         self.nics: Dict[str, NicInfo] = OrderedDict()
+        self.default_nic = ""
 
     def __str__(self) -> str:
         _str = ""
@@ -260,7 +261,17 @@ class Nics(InitializableMixin):
     def get_secondary_nic(self) -> NicInfo:
         # get a nic which isn't servicing the SSH connection with lisa.
         # will assert if none is present.
-        return self.get_nic_by_index(1)
+        assert (
+            self.default_nic
+        ), "Test bug: get_secondary_nic called before node.nics was initialized"
+
+        for nic in self.nics:
+            if nic != self.default_nic and nic != self.get_nic(self.default_nic).lower:
+                return self.get_nic(nic)
+
+        raise AssertionError(
+            f"Test bug: no secondary NIC was found in list: {self.nics.keys()}"
+        )
 
     def get_nic_by_index(self, index: int = -1) -> NicInfo:
         # get nic by index, default is -1 to give a non-primary nic
@@ -303,6 +314,18 @@ class Nics(InitializableMixin):
                 )
                 return nic
         raise LisaException(f"Could not find a nic for requested subnet: {subnet}")
+
+    # non-fatal check for nic on subnet
+    def has_nic_on_subnet(self, subnet: str) -> bool:
+        # parses the subnet and mask string ex '10.0.1.0/24'
+        network = ipaddress.ip_network(subnet)
+        for nic in self.nics.values():
+            # parse the ip address str for comparison
+            ip_addr = ipaddress.ip_address(nic.ip_addr)
+            # if the ip address resides within the subnet
+            if ip_addr in network:
+                return True
+        return False
 
     def unbind(self, nic: NicInfo) -> None:
         # unbind nic from current driver and return the old sysfs path

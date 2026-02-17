@@ -1,3 +1,4 @@
+import ipaddress
 import itertools
 import re
 import time
@@ -6,7 +7,7 @@ from decimal import Decimal
 from enum import Enum
 from functools import partial
 from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -259,6 +260,9 @@ def generate_testpmd_multiple_port_command(
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
+    # first check that the subnets match our expectations.
+    verify_subnet_config([kit.node for kit in senders + [receiver]])
+
     # for N senders, make a list of subnets from
     # 10.0.1.0/24 to 10.0.N.0/24.
     # these can be arbitrarily picked, each VM has nics on each
@@ -485,21 +489,19 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
-
-    # check an assumption that our nics are bound to hv_netvsc
-    # at test start.
-
-    assert_that(test_nic.module_name).described_as(
-        f"Error: Expected test nic {test_nic.name} to be "
-        f"bound to hv_netvsc. Found {test_nic.module_name}."
-    ).is_equal_to("hv_netvsc")
-
     # netvsc pmd requires uio_hv_generic to be loaded before use
 
     # Allow user to pass in an explicit list of nics to use for the test.
     if test_nics is None:
         test_nics = [node.nics.get_secondary_nic()]
+
+    # check an assumption that our nics are bound to hv_netvsc
+    # at test start.
+
+    assert_that(test_nics[0].module_name).described_as(
+        f"Error: Expected test nic {test_nics[0].name} to be "
+        f"bound to hv_netvsc. Found {test_nics[0].module_name}."
+    ).is_equal_to("hv_netvsc")
 
     do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
@@ -869,6 +871,10 @@ def verify_dpdk_mutliple_ports(
         (f"receiver:{external_ips[0]}\nsenders:{external_ips[1]},{external_ips[2]}\n")
     )
     receiver, sender_a, sender_b = environment.nodes.list()
+
+    # verify that the expected subnets and addresses exist.
+    verify_subnet_config([receiver, sender_a, sender_b], 2)
+
     nic_pairings = {
         receiver: [
             receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
@@ -1115,22 +1121,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # 3. enjoy the thrill of victory, ship a cloud net applicance.
 
     l3fwd_app_name = "l3fwd"
-    # pick fwd/send/receive nodes based on well known addresses in our subnets
-    forwarder = [
-        node
-        for node in environment.nodes.list()
-        if node.nics.get_primary_nic().ip_addr.endswith("4")
-    ][0]
-    sender = [
-        node
-        for node in environment.nodes.list()
-        if node.nics.get_primary_nic().ip_addr.endswith("5")
-    ][0]
-    receiver = [
-        node
-        for node in environment.nodes.list()
-        if node.nics.get_primary_nic().ip_addr.endswith("6")
-    ][0]
+
+    # verify first that the VMs have nics on the subnets we expect.
+    forwarder, sender, receiver = environment.nodes.list()
+    verify_subnet_config(nodes=[forwarder, sender, receiver])
 
     if not (
         forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
@@ -1419,6 +1413,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         "Verify netvsc was used over failsafe, check netvsc init was succesful "
         "and the DPDK port IDs were correct."
     ).is_greater_than(1)
+
+
+def verify_subnet_config(nodes: List[Node], subnet_count: int = 1) -> None:
+    # l3fwd test assumes we will forward between shared subnets of a vnet.
+    # Ideally, people shouldn't run it when multiple subnets aren't used.
+    # but just in case, check and skip if things don't look right.
+    required_subnets = ["10.0.1.0/24", "10.0.1.0/24"]
+    assert subnet_count > 0, f"test bug, subnet_count {subnet_count} should be > 0"
+    for node in nodes:
+        for subnet in required_subnets[:subnet_count]:
+            if not node.nics.has_nic_on_subnet(subnet):
+                raise SkippedException(
+                    f"Test VM {node.name} does not have a NIC on required subnet: {subnet}"
+                )
 
 
 def generate_l3fwd_command(
