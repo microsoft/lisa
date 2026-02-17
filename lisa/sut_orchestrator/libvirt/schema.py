@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from dataclasses_json import dataclass_json
 
@@ -47,6 +47,16 @@ class DeviceAddressSchema:
     bus: str = ""
     slot: str = ""
     function: str = ""
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, DeviceAddressSchema):
+            return (
+                self.domain == other.domain
+                and self.bus == other.bus
+                and self.slot == other.slot
+                and self.function == other.function
+            )
+        return False
 
 
 # QEMU orchestrator's global configuration options.
