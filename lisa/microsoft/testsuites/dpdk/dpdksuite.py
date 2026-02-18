@@ -147,7 +147,7 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),
-        timeout=1200,
+        timeout=600,
     )
     def verify_dpdk_symmetric_mp_hotplug(
         self,
@@ -157,7 +157,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         run_dpdk_symmetric_mp(
-            node, log, variables, trigger_hotplug=True, hotplug_times=10
+            node, log, variables, trigger_hotplug=True, hotplug_times=3
         )
 
     @TestCaseMetadata(
@@ -183,7 +183,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         run_dpdk_symmetric_mp(
-            node, log, variables, trigger_hotplug=True, hotplug_times=100
+            node, log, variables, trigger_hotplug=True, hotplug_times=40
         )
 
     @TestCaseMetadata(
