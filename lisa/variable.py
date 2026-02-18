@@ -16,6 +16,7 @@ DataType = Union[str, bool, int]
 _VARIABLE_PATTERN = re.compile(r"(\$\(.+?\))", re.MULTILINE)
 _ENV_START = "LISA_"
 _SECRET_ENV_START = "S_LISA_"
+_CASE_VISIBLE_ENV_START = "CV_LISA_"
 
 
 @dataclass
@@ -146,6 +147,7 @@ def _load_from_env() -> Dict[str, VariableEntry]:
     for env_name in os.environ:
         is_lisa_variable = True
         is_secret = False
+        is_case_visible = False
         name = ""
         if env_name.startswith(_ENV_START):
             name = env_name[len(_ENV_START) :]
@@ -153,12 +155,21 @@ def _load_from_env() -> Dict[str, VariableEntry]:
         elif env_name.startswith(_SECRET_ENV_START):
             name = env_name[len(_SECRET_ENV_START) :]
             is_secret = True
+        elif env_name.startswith(_CASE_VISIBLE_ENV_START):
+            name = env_name[len(_CASE_VISIBLE_ENV_START) :]
+            is_case_visible = True
         else:
             is_lisa_variable = False
 
         if is_lisa_variable:
             value = os.environ[env_name]
-            _add_variable(name, value, results, is_secret=is_secret)
+            _add_variable(
+                name,
+                value,
+                results,
+                is_secret=is_secret,
+                is_case_visible=is_case_visible,
+            )
     return results
 
 
