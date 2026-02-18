@@ -20,7 +20,7 @@ from lisa.features import NetworkInterface, SerialConsole, Synthetic
 from lisa.operating_system import FreeBSD
 from lisa.tools import Ip, KernelConfig, Uname, Wget
 from lisa.util import perf_timer
-
+import time
 
 @TestSuiteMetadata(
     area="network",
@@ -48,6 +48,8 @@ class NetInterface(TestSuite):
         requirement=simple_requirement(network_interface=Synthetic()),
     )
     def validate_netvsc_reload(self, node: Node, log_path: Path) -> None:
+        print("Sleeping for 120 seconds to wait for system to be stable before reloading netvsc module...")
+        time.sleep(120)
         self._validate_netvsc_built_in(node)
         network_interface_feature = node.features[NetworkInterface]
         # Test loading and unloading netvsc driver

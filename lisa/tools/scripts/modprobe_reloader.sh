@@ -45,7 +45,11 @@ if [ "$module_name" = "hv_netvsc" ]; then
     # shellcheck disable=SC2086,SC2129
     service ssh status >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
+    sleep 10
     ip a >> $log_file 2>&1
+    ip route >> $log_file 2>&1
+    journalctl > "$HOME/jctl.log" 2>&1
+    dmesg > "$HOME/dmesg.log" 2>&1
   ) &
   echo $! > "$pid_file"
 else
