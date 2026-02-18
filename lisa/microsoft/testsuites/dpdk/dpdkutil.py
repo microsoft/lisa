@@ -74,6 +74,7 @@ from lisa.tools import (
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import sleep
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 
@@ -477,7 +478,7 @@ def initialize_node_resources(
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
     try:
-        hugepages.init_hugepages(hugepage_size, minimum_gb=4 * numa_nodes)
+        hugepages.init_hugepages(hugepage_size, minimum_gb=8 * numa_nodes)
     except NotEnoughMemoryException as err:
         raise SkippedException(err)
 
@@ -1719,7 +1720,7 @@ def run_dpdk_symmetric_mp(
 
     """
 
-    test_timeout = 60 * hotplug_times if trigger_hotplug else 35
+    test_timeout = 120 + (60 * hotplug_times if trigger_hotplug else 35)
     # setup and unwrap the resources for this test
     # get a list of the upper non-primary nics and select two of them
     test_nics = [
@@ -1869,6 +1870,8 @@ def run_dpdk_symmetric_mp(
             )
             # expect additional pings for each post-hotplug instance
             expected_pings += 100
+            # sleep for a moment to avoid api throttling
+            sleep(1)
 
     ping.ping_async(
         target=test_nics[0].ip_addr,
