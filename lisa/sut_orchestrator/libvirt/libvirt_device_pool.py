@@ -9,8 +9,10 @@ from typing import Any, Dict, List, Optional, cast
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
-from lisa.tools import Ls, Lspci, Modprobe
+from lisa.tools import Cat, Ls, Lspci, Modprobe
+from lisa.tools.ip import Ip
 from lisa.util import LisaException, ResourceAwaitableException, find_group_in_lines
+from lisa.util.logger import Logger, get_logger
 
 from .context import DevicePassthroughContext, NodeContext
 from .schema import (
@@ -37,6 +39,7 @@ class LibvirtDevicePool(BaseDevicePool):
         ]
         self.host_node = host_node
         self.platform_runbook = runbook
+        self._log: Logger = get_logger("", self.__class__.__name__)
 
     def configure_device_passthrough_pool(
         self,
@@ -257,6 +260,175 @@ class LibvirtDevicePool(BaseDevicePool):
         device.function = fn
 
         return device
+
+    def auto_detect_passthrough_nics(
+        self,
+        count: int = 1,
+        vendor_id: str = "",
+        device_id: str = "",
+    ) -> List[str]:
+        """
+        Auto-detect NICs suitable for passthrough on the host.
+
+        Returns a list of PCI BDF addresses for NICs that meet criteria:
+        - Have IOMMU group
+        - Are SR-IOV capable
+        - Not the default route interface
+        - Have link up (mandatory)
+        - Optionally match vendor/device ID
+        """
+        self._log.info(
+            f"Auto-detecting passthrough NICs (count={count})"
+        )
+
+        cat = self.host_node.tools[Cat]
+        ip_tool = self.host_node.tools[Ip]
+        ls = self.host_node.tools[Ls]
+
+        # Get default route interface to exclude
+        default_iface = ""
+        try:
+            default_iface, _ = ip_tool.get_default_route_info()
+            self._log.info(f"Default route interface: {default_iface}")
+        except Exception as e:
+            self._log.warning(f"Could not determine default route interface: {e}")
+
+        # Get all network interfaces
+        result = self.host_node.execute(
+            "ls -1 /sys/class/net/",
+            shell=True,
+            sudo=True,
+        )
+        interfaces = [iface.strip() for iface in result.stdout.splitlines()]
+        self._log.debug(f"Found interfaces: {interfaces}")
+
+        suitable_bdfs: List[str] = []
+
+        for iface in interfaces:
+            # Skip loopback and default route interface
+            if iface == "lo" or iface == default_iface:
+                self._log.debug(f"Skipping {iface} (loopback or default route)")
+                continue
+
+            # Get BDF from /sys/class/net/<iface>/device
+            device_path = f"/sys/class/net/{iface}/device"
+            if not ls.path_exists(device_path, sudo=True):
+                self._log.debug(f"Skipping {iface} (no device path)")
+                continue
+
+            # Resolve the actual PCI device path
+            result = self.host_node.execute(
+                f"readlink -f {device_path}",
+                shell=True,
+                sudo=True,
+            )
+            device_real_path = result.stdout.strip()
+
+            # Extract BDF from path like /sys/devices/pci0000:00/0000:00:03.0/...
+            bdf_pattern = re.compile(r"(\d{4}:[\da-fA-F]{2}:[\da-fA-F]{2}\.\d)")
+            bdf_matches = bdf_pattern.findall(device_real_path)
+            if not bdf_matches:
+                self._log.debug(f"Skipping {iface} (no BDF found in path)")
+                continue
+
+            # Use the last match which is typically the device itself
+            bdf = bdf_matches[-1]
+            self._log.debug(f"Interface {iface} has BDF {bdf}")
+
+            # Check if IOMMU group exists
+            iommu_group_path = f"/sys/bus/pci/devices/{bdf}/iommu_group"
+            if not ls.path_exists(iommu_group_path, sudo=True):
+                self._log.debug(f"Skipping {iface} (no IOMMU group)")
+                continue
+
+            # Check for SR-IOV capability
+            sriov_totalvfs_path = f"/sys/bus/pci/devices/{bdf}/sriov_totalvfs"
+            if not ls.path_exists(sriov_totalvfs_path, sudo=True):
+                self._log.debug(f"Skipping {iface} (not SR-IOV capable)")
+                continue
+
+            # Verify SR-IOV is actually available (totalvfs > 0)
+            try:
+                sriov_totalvfs = cat.read(sriov_totalvfs_path, sudo=True).strip()
+                if int(sriov_totalvfs) == 0:
+                    self._log.debug(f"Skipping {iface} (SR-IOV totalvfs=0)")
+                    continue
+            except Exception as e:
+                self._log.debug(f"Skipping {iface} (error reading SR-IOV info: {e})")
+                continue
+
+            # Check link status (mandatory)
+            carrier_path = f"/sys/class/net/{iface}/carrier"
+            if ls.path_exists(carrier_path, sudo=True):
+                try:
+                    carrier = cat.read(carrier_path, sudo=True).strip()
+                    if carrier != "1":
+                        self._log.debug(f"Skipping {iface} (link down)")
+                        continue
+                except Exception:
+                    # Carrier file unreadable (e.g. interface down) - skip
+                    self._log.debug(f"Skipping {iface} (carrier unreadable, link down)")
+                    continue
+            else:
+                self._log.debug(f"Skipping {iface} (no carrier file, link status unknown)")
+                continue
+
+            # Check vendor/device ID if specified
+            if vendor_id or device_id:
+                vendor_path = f"/sys/bus/pci/devices/{bdf}/vendor"
+                device_path_id = f"/sys/bus/pci/devices/{bdf}/device"
+
+                try:
+                    actual_vendor = cat.read(vendor_path, sudo=True).strip()
+                    actual_device = cat.read(device_path_id, sudo=True).strip()
+
+                    # Normalize format (e.g., 0x8086 -> 8086)
+                    actual_vendor = actual_vendor.replace("0x", "")
+                    actual_device = actual_device.replace("0x", "")
+                    vendor_id_norm = vendor_id.replace("0x", "")
+                    device_id_norm = device_id.replace("0x", "")
+
+                    if vendor_id and actual_vendor.lower() != vendor_id_norm.lower():
+                        self._log.debug(
+                            f"Skipping {iface} (vendor mismatch: "
+                            f"{actual_vendor} != {vendor_id})"
+                        )
+                        continue
+
+                    if device_id and actual_device.lower() != device_id_norm.lower():
+                        self._log.debug(
+                            f"Skipping {iface} (device mismatch: "
+                            f"{actual_device} != {device_id})"
+                        )
+                        continue
+                except Exception as e:
+                    self._log.debug(
+                        f"Skipping {iface} (error checking vendor/device: {e})"
+                    )
+                    continue
+
+            self._log.info(
+                f"Found suitable NIC: {iface} with BDF {bdf} "
+                f"(SR-IOV totalvfs={sriov_totalvfs})"
+            )
+            suitable_bdfs.append(bdf)
+
+            if len(suitable_bdfs) >= count:
+                break
+
+        if not suitable_bdfs:
+            raise LisaException(
+                "No suitable NICs found for passthrough. Checked criteria: "
+                "IOMMU group, SR-IOV capability, not default route interface"
+            )
+
+        if len(suitable_bdfs) < count:
+            self._log.warning(
+                f"Only found {len(suitable_bdfs)} suitable NICs, "
+                f"requested {count}"
+            )
+
+        return suitable_bdfs[:count]
 
     def _add_device_passthrough_xml(
         self,

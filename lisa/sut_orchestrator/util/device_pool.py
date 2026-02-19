@@ -1,6 +1,7 @@
 from typing import Any, List, Optional, cast
 
 from lisa.sut_orchestrator.util.schema import (
+    AutoDetectIdentifier,
     HostDevicePoolSchema,
     HostDevicePoolType,
     VendorDeviceIdIdentifier,
@@ -25,6 +26,16 @@ class BaseDevicePool:
         pool_type: HostDevicePoolType,
         pci_addr_list: List[str],
     ) -> None:
+        raise NotImplementedError()
+
+    def auto_detect_passthrough_nics(
+        self,
+        count: int = 1,
+        require_link_up: bool = False,
+        vendor_id: str = "",
+        device_id: str = "",
+    ) -> List[str]:
+        """Auto-detect suitable NICs for device passthrough."""
         raise NotImplementedError()
 
     def get_primary_nic_id(self) -> List[str]:
@@ -87,6 +98,24 @@ class BaseDevicePool:
                         pool_type=config.type,
                         pci_addr_list=pci_addr_list,
                     )
+                elif isinstance(devices, AutoDetectIdentifier):
+                    # Auto-detect suitable NICs
+                    auto_config: AutoDetectIdentifier = devices
+                    if auto_config.enabled:
+                        detected_bdfs = self.auto_detect_passthrough_nics(
+                            count=auto_config.count,
+                            vendor_id=auto_config.vendor_id,
+                            device_id=auto_config.device_id,
+                        )
+                        # Create pool from auto-detected BDFs
+                        self.create_device_pool_from_pci_addresses(
+                            pool_type=config.type,
+                            pci_addr_list=detected_bdfs,
+                        )
+                    else:
+                        raise LisaException(
+                            "Auto-detect is disabled but no devices specified"
+                        )
                 else:
                     raise LisaException(
                         f"Unknown device identifier of type: {type(devices)}"

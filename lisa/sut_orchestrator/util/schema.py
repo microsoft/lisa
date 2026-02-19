@@ -24,14 +24,29 @@ class PciAddressIdentifier:
     pci_bdf: List[str] = field(default_factory=list)
 
 
+@dataclass_json()
+@dataclass
+class AutoDetectIdentifier:
+    # Auto-detect suitable NICs for passthrough
+    # When enabled, LISA will automatically select NICs that:
+    # - Have IOMMU group support
+    # - Are SR-IOV capable
+    # - Are not the default route interface
+    # - Have link up (mandatory)
+    enabled: bool = True
+    count: int = 1  # Number of NICs to detect
+    vendor_id: str = ""  # Optional: filter by vendor ID
+    device_id: str = ""  # Optional: filter by device ID
+
+
 # Configuration options for device-passthrough for the VM.
 @dataclass_json()
 @dataclass
 class HostDevicePoolSchema:
     type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
-    devices: Union[List[VendorDeviceIdIdentifier], PciAddressIdentifier] = field(
-        default_factory=lambda: cast(List[VendorDeviceIdIdentifier], [])
-    )
+    devices: Union[
+        List[VendorDeviceIdIdentifier], PciAddressIdentifier, AutoDetectIdentifier
+    ] = field(default_factory=lambda: cast(List[VendorDeviceIdIdentifier], []))
 
 
 @dataclass_json()
