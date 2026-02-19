@@ -9,6 +9,7 @@ from lisa.environment import Environment
 from lisa.node import Node
 from lisa.platform_ import Platform
 from lisa.sut_orchestrator import platform_utils
+from lisa.util import LisaException
 from lisa.util.logger import Logger
 from lisa.util.subclasses import Factory
 
@@ -127,7 +128,19 @@ class BareMetalPlatform(Platform):
 
             # ready checker
             if ready_checker:
-                ready_checker.is_ready(node)
+                try:
+                    ready_checker.is_ready(node)
+                except (LisaException, AssertionError) as e:
+                    log.info(
+                        f"SSH ready check failed: {e}. "
+                        "Resetting server and retrying..."
+                    )
+                    node.features[StartStop].restart()
+                    log.info(
+                        "Retrying SSH ready check after server reset "
+                        "(this is the final attempt)..."
+                    )
+                    ready_checker.is_ready(node)
 
             assert node_context.client.connection, "connection is required"
             # get ip address
