@@ -71,12 +71,12 @@ def sriov_basic_test(environment: Environment) -> None:
         devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
-        if len(devices_slots) != len(set(node.nics.get_device_slots())):
+        if len(devices_slots) != len(set(node.nics.get_ethernet_device_slots())):
             node.nics.reload()
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
-        ).is_length(len(set(node.nics.get_device_slots())))
+        ).is_length(len(set(node.nics.get_ethernet_device_slots())))
 
         # 2. Check module of sriov network device is loaded.
         for module_name in node.nics.get_used_modules(["hv_netvsc"]):
