@@ -53,8 +53,9 @@ def initialize_nic_info(
                 f"inside vm, it should equal to {interface_info.ip_addr}."
             ).is_true()
         if is_sriov:
-            assert_that(len(nics_info.get_device_slots())).described_as(
-                f"VF count inside VM is {len(set(nics_info.get_device_slots()))}, "
+            ethernet_vf_slots = set(nics_info.get_ethernet_device_slots())
+            assert_that(len(ethernet_vf_slots)).described_as(
+                f"Ethernet VF count inside VM is {len(ethernet_vf_slots)}, "
                 f"actual sriov nic count is {sriov_count}"
             ).is_equal_to(sriov_count)
         vm_nics[node.name] = nics_info.nics

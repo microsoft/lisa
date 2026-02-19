@@ -221,6 +221,19 @@ class Nics(InitializableMixin):
     def get_device_slots(self) -> List[str]:
         return [x.pci_slot for x in self.nics.values() if x.pci_slot]
 
+    def get_ethernet_device_slots(self) -> List[str]:
+        """Get PCI slots for Ethernet NICs only, excluding InfiniBand (ib*) interfaces.
+
+        On HPC/GPU SKUs (e.g., GB300), InfiniBand RDMA interfaces also have PCI
+        slots but are not standard SR-IOV Ethernet VFs. This method filters them
+        out for accurate VF counting.
+        """
+        return [
+            x.pci_slot
+            for x in self.nics.values()
+            if x.pci_slot and not (x.name and x.name.startswith("ib"))
+        ]
+
     def _get_nics_driver(self) -> None:
         for nic in [x.name for x in self.nics.values()]:
             self.get_nic_driver(nic)
