@@ -303,10 +303,51 @@ class Nvmecli(Tool):
     def get_disks(self, force_run: bool = False) -> List[str]:
         device_paths = sorted(self.get_devices(force_run=force_run).keys())
         return device_paths
-
+    
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
         device_paths_namespace_ids_map = self.get_devices(force_run=force_run)
         return [{path: nsid} for path, nsid in device_paths_namespace_ids_map.items()]
+    
+    def get_device_models(self, force_run: bool = False) -> Dict[str, str]:
+        """
+        Return a mapping of NVMe device paths to their model names.
+
+        Example return:
+            {
+                "/dev/nvme0n1": "MSFT NVMe Accelerator v1.0",
+                "/dev/nvme1n1": "Microsoft NVMe Direct Disk v2",
+            }
+        """
+        nvme_list = self.run(
+            "list -o json 2>/dev/null",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
+        if not nvme_list.stdout:
+            return {}
+
+        nvme_devices = json.loads(nvme_list.stdout)["Devices"]
+        device_models: Dict[str, str] = {}
+
+        for nvme_device in nvme_devices or []:
+            # Legacy schema (flat fields):
+            device_path = nvme_device.get("DevicePath")
+            model = nvme_device.get("ModelNumber", "")
+            if isinstance(device_path, str) and device_path.startswith("/dev/"):
+                device_models[device_path] = model.strip()
+
+            # New schema: Subsystems → Controllers → Namespaces
+            for subsystem in nvme_device.get("Subsystems") or []:
+                for controller in (subsystem or {}).get("Controllers") or []:
+                    ctrl_model = (controller or {}).get("ModelNumber", "").strip()
+                    for namespace in (controller or {}).get("Namespaces") or []:
+                        namespace_name = namespace.get("NameSpace")
+                        if isinstance(namespace_name, str) and namespace_name:
+                            device_models[f"/dev/{namespace_name}"] = ctrl_model
+
+        return device_models
 
 
 class BSDNvmecli(Nvmecli):

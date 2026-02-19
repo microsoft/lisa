@@ -2229,10 +2229,29 @@ class Disk(AzureFeatureMixin, features.Disk):
         nvme = self._node.features[Nvme]
         if self.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
             os_disk_namespace = nvme.get_nvme_os_disk_namespace()
+
+            # Skip the OS disk itself
+            if disk == os_disk_namespace:
+                return False
+
+            # First, try model-based detection. Azure remote disks (OS + data)
+            # use "MSFT NVMe Accelerator" model, while local NVMe resource disks
+            # use "Microsoft NVMe Direct Disk". This handles VM types where
+            # remote data disks are on different controllers than the OS disk
+            # (e.g., GB200 and newer VM sizes).
+            nvme_cli = self._node.tools[Nvmecli]
+            device_models = nvme_cli.get_device_models()
+            if device_models:
+                model = device_models.get(disk, "")
+                if model:
+                    # "MSFT NVMe Accelerator" = remote disk (OS + data)
+                    # "Microsoft NVMe Direct Disk" = local NVMe resource disk
+                    return "nvme accelerator" in model.lower()
+
+            # Fallback: legacy behavior — assume all remote disks share
+            # the same NVMe controller as the OS disk
             os_disk_controller = nvme.get_nvme_os_disk_controller()
-            # When disk_controller_type is NVME, all remote disks are connected to
-            # same NVMe controller. The same controller is used by OS disk.
-            if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
+            if disk.startswith(os_disk_controller):
                 return True
             return False
 

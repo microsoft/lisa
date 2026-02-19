@@ -151,8 +151,22 @@ class Nvme(Feature):
             self._node.features[Disk].get_os_disk_controller_type()
             == schema.DiskControllerType.NVME
         ):
+            # First, try model-based detection to handle VMs where remote
+            # data disks are on different controllers than the OS disk.
+            nvme_cli = self._node.tools[Nvmecli]
+            device_models = nvme_cli.get_device_models()
+            if device_models:
+                # Remove any disk whose model contains "NVMe Accelerator"
+                # (these are remote disks: OS disk + remote data disks)
+                return [
+                    disk
+                    for disk in disk_list
+                    if "nvme accelerator"
+                    not in device_models.get(disk, "").lower()
+                ]
+
+            # Fallback: legacy behavior — remove disks on the OS disk controller
             os_disk_nvme_device = self._get_os_disk_nvme_device()
-            # Removing OS disk/device from the list.
             for disk in disk_list.copy():
                 if os_disk_nvme_device in disk:
                     disk_list.remove(disk)
