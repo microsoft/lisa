@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Dict, List, cast
+from typing import Dict, List, Tuple, cast
 
 from assertpy import assert_that
 from retry import retry
@@ -173,7 +173,7 @@ def _find_matching_dest_nic(
     source_nic_info: NicInfo,
     vm_nics: Dict[str, Dict[str, NicInfo]],
     dest_node: RemoteNode,
-) -> tuple[str, int]:
+) -> Tuple[str, int]:
     """Find destination NIC on same subnet as source.
     Returns (nic_name, skipped_count)."""
     skipped_infiniband = 0
@@ -199,7 +199,7 @@ def _setup_nic_monitoring(
     remove_module: bool,
     turn_off_lower: bool,
     source_node: RemoteNode,
-) -> tuple[str, str, str, str]:
+) -> Tuple[str, str, str, str]:
     """Setup NIC monitoring based on configuration.
     Returns (source_nic, dest_nic, source_pci_nic, dest_pci_nic)."""
     source_synthetic_nic = source_nic_info.name
