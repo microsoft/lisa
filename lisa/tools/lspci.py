@@ -411,8 +411,11 @@ class Lspci(Tool):
     def get_pci_slot_from_device_path(self, device_path: str) -> Optional[str]:
         """
         Extract PCI slot information from a device path.
+        Returns the last (leaf device) PCI slot in the path, since device
+        paths may traverse multiple PCIe bridges/switches and the leaf slot
+        is the actual device.
         """
-        pci_slot = get_matched_str(device_path, PATTERN_PCI_SLOT)
+        pci_slot = get_matched_str(device_path, PATTERN_PCI_SLOT, first_match=False)
         return pci_slot if pci_slot else None
 
 
