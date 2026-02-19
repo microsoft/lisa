@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+import time
 from typing import Dict, List
 
 from lisa import BadEnvironmentStateException, Logger, Node
@@ -47,6 +48,17 @@ def set_interrupts_assigned_cpu(
                 ] = current_target_cpu
         # set all vmbus channel interrupts go into cpu target_cpu.
         assign_interrupts(file_path_list, node, target_cpu)
+        # Allow time for interrupt migration to complete before CPU hotplug.
+        # This prevents race conditions on kernels with PREEMPT_DYNAMIC (e.g., RHEL 9.7)
+        # where voluntary preemption can delay interrupt handler migration.
+        if file_path_list:
+            log.debug(
+                f"Waiting for interrupt migration to settle after reassigning "
+                f"{len(file_path_list)} channels to CPU{target_cpu}..."
+            )
+            time.sleep(2)
+            # Verify the migration completed successfully
+            verify_interrupt_migration(log, file_path_list, node, target_cpu)
     else:
         # if current distro doesn't support this feature, the backup dict will be empty,
         # there is nothing we can restore later, the case will rely on actual cpu usage
@@ -160,6 +172,40 @@ def get_cpu_state_file(cpu_id: str) -> str:
 
 def get_interrupts_assigned_cpu(device_id: str, channel_id: str) -> str:
     return f"/sys/bus/vmbus/devices/{device_id}/channels/{channel_id}/cpu"
+
+
+def verify_interrupt_migration(
+    log: Logger,
+    path_cpu: Dict[str, str],
+    node: Node,
+    expected_cpu: str = "0",
+) -> None:
+    """
+    Verify that all vmbus channel interrupts have been successfully migrated
+    to the expected CPU. This prevents race conditions during CPU hotplug.
+    """
+    cat = node.tools[Cat]
+    failed_migrations = []
+    
+    for path, original_cpu in path_cpu.items():
+        try:
+            current_cpu = cat.read(path, force_run=True, sudo=True).strip()
+            if current_cpu != expected_cpu:
+                failed_migrations.append(
+                    f"{path}: expected CPU{expected_cpu}, found CPU{current_cpu}"
+                )
+        except Exception as e:
+            log.warning(f"Failed to verify interrupt migration for {path}: {e}")
+    
+    if failed_migrations:
+        log.warning(
+            f"Some interrupt migrations incomplete: {', '.join(failed_migrations)}"
+        )
+    else:
+        log.debug(
+            f"Verified {len(path_cpu)} interrupt channels successfully "
+            f"migrated to CPU{expected_cpu}"
+        )
 
 
 def assign_interrupts(
