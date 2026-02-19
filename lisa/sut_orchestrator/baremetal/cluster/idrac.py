@@ -10,6 +10,7 @@ from typing import Any, Optional, Type
 
 import redfish
 from assertpy import assert_that
+from redfish.rest.v1 import JsonDecodingError
 from retry import retry
 
 from lisa import features, schema
@@ -612,37 +613,62 @@ class Idrac(Cluster):
         self._log.debug(f"Updating boot source to {boot_from} completed")
 
     def _enable_serial_console(self) -> None:
-        self.login()
-        response = self.redfish_instance.get(
-            "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+        # iDRAC may return 503 Service Unavailable transiently (e.g. just after
+        # a reset or during initialisation). Retry for up to IDRAC_RESET_TIMEOUT
+        # seconds before giving up.
+        def _try_enable() -> bool:
+            try:
+                self.login()
+                response = self.redfish_instance.get(
+                    "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+                )
+                attributes = response.dict.get("Attributes", {})
+                serial_capture_enabled = attributes.get(
+                    "SerialCapture.1.Enable", "Disabled"
+                )
+
+                # Treat missing attribute as "Disabled" and attempt to enable
+                if serial_capture_enabled != "Enabled":
+                    self._log.debug(
+                        f"Serial console is '{serial_capture_enabled}'. Enabling..."
+                    )
+                    self.redfish_instance.patch(
+                        "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes",
+                        body={"Attributes": {"SerialCapture.1.Enable": "Enabled"}},
+                    )
+
+                # Verify it's enabled
+                response = self.redfish_instance.get(
+                    "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+                )
+                attributes = response.dict.get("Attributes", {})
+                final_state = attributes.get("SerialCapture.1.Enable", "Unknown")
+                if final_state == "Enabled":
+                    self._log.debug("Serial console enabled successfully.")
+                    return True
+                raise LisaException(
+                    f"Failed to enable serial console. Current state: {final_state}"
+                )
+            except JsonDecodingError as e:
+                # iDRAC returned a non-JSON response (e.g. 503 HTML page);
+                # log and signal caller to retry.
+                self._log.info(
+                    f"iDRAC returned invalid JSON (likely 503 transient error): "
+                    f"{e}. Retrying..."
+                )
+                return False
+            finally:
+                self.logout()
+
+        check_till_timeout(
+            _try_enable,
+            timeout_message=(
+                "iDRAC Attributes endpoint unavailable after retries "
+                "(repeated 503 / invalid JSON responses)"
+            ),
+            timeout=IDRAC_RESET_TIMEOUT,
+            interval=10,
         )
-
-        attributes = response.dict.get("Attributes", {})
-        serial_capture_enabled = attributes.get("SerialCapture.1.Enable", "Disabled")
-
-        # Treat missing attribute as "Disabled" and attempt to enable
-        if serial_capture_enabled != "Enabled":
-            self._log.debug(
-                f"Serial console is '{serial_capture_enabled}'. Enabling..."
-            )
-            response = self.redfish_instance.patch(
-                "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes",
-                body={"Attributes": {"SerialCapture.1.Enable": "Enabled"}},
-            )
-
-        # Verify it's enabled
-        response = self.redfish_instance.get(
-            "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
-        )
-        attributes = response.dict.get("Attributes", {})
-        final_state = attributes.get("SerialCapture.1.Enable", "Unknown")
-        if final_state == "Enabled":
-            self._log.debug("Serial console enabled successfully.")
-        else:
-            raise LisaException(
-                f"Failed to enable serial console. Current state: {final_state}"
-            )
-        self.logout()
 
     def _clear_serial_console_log(self) -> None:
         response = self.redfish_instance.get(
