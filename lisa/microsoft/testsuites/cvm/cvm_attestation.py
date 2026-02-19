@@ -48,9 +48,14 @@ class AzureCVMAttestationTestSuite(TestSuite):
                 )
             )
 
-        if node.tools[Lscpu].get_cpu_type() != CpuType.AMD:
+        cpu_type = node.tools[Lscpu].get_cpu_type()
+        if cpu_type not in (CpuType.AMD, CpuType.Intel):
             raise SkippedException(
-                "CVM attestation report supports only SEV-SNP (AMD) CPU."
+                "CVM attestation report supports only AMD SEV-SNP or Intel TDX CPU."
+            )
+        if cpu_type == CpuType.Intel and isinstance(node.os, CBLMariner):
+            raise SkippedException(
+                "Intel TDX CVM attestation does not support Azure Linux."
             )
 
     @TestCaseMetadata(
@@ -75,9 +80,15 @@ class AzureCVMAttestationTestSuite(TestSuite):
     ) -> None:
         if isinstance(node.os, Ubuntu):
             cvm_tests: AzureCVMAttestationTests = node.tools[AzureCVMAttestationTests]
+            if node.tools[Lscpu].get_cpu_type() == CpuType.AMD:
+                config_file = "config_snp_guest.json"
+            else:
+                config_file = "config_tdx_guest.json"
+
             cvm_tests.run_cvm_attestation(
                 result,
                 environment,
+                config_file,
                 log_path,
             )
         elif isinstance(node.os, CBLMariner):
