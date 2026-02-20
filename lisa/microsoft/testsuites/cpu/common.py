@@ -159,11 +159,11 @@ def verify_cpu_hot_plug(log: Logger, node: Node, run_times: int = 1) -> None:
             set_idle_cpu_offline_online(log, node, idle_cpu)
             # when kernel doesn't support set vmbus channels target cpu feature, the
             # dict which stores original status is empty, nothing need to be restored.
-            restore_interrupts_assignment(file_path_list, node)
+            restore_interrupts_assignment(log, file_path_list, node)
             restore_state = True
     finally:
         if not restore_state:
-            restore_interrupts_assignment(file_path_list, node)
+            restore_interrupts_assignment(log, file_path_list, node)
 
 
 def get_cpu_state_file(cpu_id: str) -> str:
@@ -218,13 +218,48 @@ def assign_interrupts(
 
 
 def restore_interrupts_assignment(
+    log: Logger,
     path_cpu: Dict[str, str],
     node: Node,
 ) -> None:
+    """
+    Restore vmbus channel interrupt assignments to their original CPUs.
+    Only restore if the target CPU is currently online to avoid failures.
+    """
     if path_cpu:
+        cat = node.tools[Cat]
+        skipped_restorations = []
+        
         for path, target_cpu in path_cpu.items():
-            node.tools[Echo].write_to_file(
-                target_cpu, node.get_pure_path(path), sudo=True
+            # Check if target CPU is online before attempting restoration
+            cpu_state_file = get_cpu_state_file(target_cpu)
+            try:
+                cpu_state = cat.read(cpu_state_file, force_run=True, sudo=True).strip()
+                if cpu_state == CPUState.ONLINE:
+                    node.tools[Echo].write_to_file(
+                        target_cpu, node.get_pure_path(path), sudo=True
+                    )
+                else:
+                    # CPU is offline, skip restoration and assign to CPU0 instead
+                    skipped_restorations.append(f"CPU{target_cpu} (offline)")
+                    node.tools[Echo].write_to_file(
+                        "0", node.get_pure_path(path), sudo=True
+                    )
+            except Exception as e:
+                # If we can't read CPU state, assume it's offline and assign to CPU0
+                log.warning(
+                    f"Failed to check state of CPU{target_cpu}: {e}. "
+                    f"Assigning interrupt to CPU0 instead."
+                )
+                skipped_restorations.append(f"CPU{target_cpu} (error)")
+                node.tools[Echo].write_to_file(
+                    "0", node.get_pure_path(path), sudo=True
+                )
+        
+        if skipped_restorations:
+            log.debug(
+                f"Skipped restoring interrupts to offline CPUs, "
+                f"reassigned to CPU0: {', '.join(skipped_restorations)}"
             )
 
 
