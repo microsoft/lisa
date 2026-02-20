@@ -71,25 +71,47 @@ def set_interrupts_assigned_cpu(
     return file_path_list
 
 
-def get_idle_cpus(node: Node) -> List[str]:
+def get_cpus_with_interrupts(node: Node) -> set:
+    """
+    Get the set of CPUs that currently have VMBus channel interrupts assigned.
+    These CPUs must NOT be hotplugged to avoid race conditions with interrupt migration.
+    """
     lsvmbus = node.tools[Lsvmbus]
     channels = lsvmbus.get_device_channels(force_run=True)
-    # get all cpu in used from vmbus channels assignment
-    cpu_in_used = set()
+    cpus_with_interrupts = set()
+    
     for channel in channels:
         for channel_vp_map in channel.channel_vp_map:
-            target_cpu = channel_vp_map.target_cpu
-            if target_cpu == "0":
-                continue
-            cpu_in_used.add(target_cpu)
+            cpus_with_interrupts.add(channel_vp_map.target_cpu)
+    
+    return cpus_with_interrupts
 
-    # get all cpu exclude cpu 0, usually cpu 0 is not allowed to do hotplug
+
+def get_idle_cpus(node: Node, cpus_to_exclude: set = None) -> List[str]:
+    """
+    Get list of CPUs that are safe to hotplug.
+    Excludes CPU0 (usually not hotpluggable) and any CPUs in cpus_to_exclude.
+    
+    Args:
+        node: The node to query
+        cpus_to_exclude: Set of CPU IDs (as strings) that must not be hotplugged
+    
+    Returns:
+        List of CPU IDs (as strings) that can be safely hotplugged
+    """
+    if cpus_to_exclude is None:
+        cpus_to_exclude = set()
+    
+    # Always exclude CPU0 - usually not allowed to hotplug
+    cpus_to_exclude.add("0")
+    
+    # Get all CPUs on the system
     thread_count = node.tools[Lscpu].get_thread_count()
-    all_cpu = list(range(1, thread_count))
-
-    # get the idle cpu by excluding in used cpu from all cpu
-    idle_cpu = [str(x) for x in all_cpu if str(x) not in cpu_in_used]
-    return idle_cpu
+    all_cpus = set(str(x) for x in range(thread_count))
+    
+    # Return CPUs that are not in the exclusion set
+    idle_cpus = sorted(all_cpus - cpus_to_exclude, key=int)
+    return idle_cpus
 
 
 def set_cpu_state_serial(
@@ -138,32 +160,71 @@ def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) ->
 
 
 def verify_cpu_hot_plug(log: Logger, node: Node, run_times: int = 1) -> None:
+    """
+    Verify CPU hotplug functionality by taking CPUs offline and back online.
+    
+    CRITICAL: This function does NOT migrate interrupts. It only hotplugs CPUs that
+    never had any VMBus channel interrupts assigned. This avoids race conditions with
+    asynchronous interrupt migration on kernels with voluntary preemption (e.g., RHEL 9.7).
+    
+    The race condition occurs because writing to sysfs (echo "0" > .../channels/X/cpu)
+    completes immediately, but the kernel migrates interrupt handlers asynchronously.
+    On PREEMPT_DYNAMIC kernels with voluntary preemption, this can take several seconds.
+    If we offline a CPU before migration completes, active interrupt handlers (like SSH)
+    are killed, crashing the test.
+    
+    By only hotplugging CPUs that never had interrupts, we eliminate this race entirely.
+    """
     check_runnable(node)
-    file_path_list: Dict[str, str] = {}
-    restore_state = False
-    try:
-        for iteration in range(1, run_times + 1):
-            log.debug(f"start the {iteration} time(s) testing.")
-            restore_state = False
-            # set vmbus channels target cpu into 0 if kernel supports this feature.
-            file_path_list = set_interrupts_assigned_cpu(log, node)
-            # when kernel doesn't support above feature, we have to rely on current vm's
-            # cpu usage. then collect the cpu not in used exclude cpu0.
-            idle_cpu = get_idle_cpus(node)
-            if 0 == len(idle_cpu):
+    
+    # Get CPUs that currently have VMBus interrupts - we must NEVER hotplug these
+    cpus_with_interrupts = get_cpus_with_interrupts(node)
+    
+    log.debug(
+        f"Found {len(cpus_with_interrupts)} CPUs with VMBus interrupts: "
+        f"{sorted(cpus_with_interrupts, key=lambda x: int(x))}"
+    )
+    log.debug(
+        "These CPUs will NOT be hotplugged to avoid interrupt migration race conditions"
+    )
+    
+    # Get CPUs that are safe to hotplug (never had interrupts)
+    idle_cpus = get_idle_cpus(node, cpus_with_interrupts)
+    
+    if len(idle_cpus) == 0:
+        raise SkippedException(
+            f"No CPUs available for hotplug testing. All CPUs except CPU0 have "
+            f"VMBus channel interrupts assigned. CPUs with interrupts: {sorted(cpus_with_interrupts, key=lambda x: int(x))}"
+        )
+    
+    log.debug(
+        f"Found {len(idle_cpus)} CPUs safe for hotplug testing: {idle_cpus}"
+    )
+    
+    # Run the hotplug test iterations
+    for iteration in range(1, run_times + 1):
+        log.debug(f"Starting CPU hotplug iteration {iteration}/{run_times}")
+        
+        # Verify CPUs with interrupts haven't changed during test
+        current_cpus_with_interrupts = get_cpus_with_interrupts(node)
+        if current_cpus_with_interrupts != cpus_with_interrupts:
+            log.warning(
+                f"VMBus interrupt assignments changed during test. "
+                f"Original: {sorted(cpus_with_interrupts, key=lambda x: int(x))}, "
+                f"Current: {sorted(current_cpus_with_interrupts, key=lambda x: int(x))}"
+            )
+            # Update our exclusion list to be safe
+            cpus_with_interrupts = current_cpus_with_interrupts
+            idle_cpus = get_idle_cpus(node, cpus_with_interrupts)
+            if len(idle_cpus) == 0:
                 raise SkippedException(
-                    "all of the cpu are associated vmbus channels,"
-                    " no idle cpu can be used to test hotplug."
+                    "No CPUs available for hotplug after interrupt reassignment"
                 )
-            # start to take idle cpu from online to offline, then offline to online.
-            set_idle_cpu_offline_online(log, node, idle_cpu)
-            # when kernel doesn't support set vmbus channels target cpu feature, the
-            # dict which stores original status is empty, nothing need to be restored.
-            restore_interrupts_assignment(log, file_path_list, node)
-            restore_state = True
-    finally:
-        if not restore_state:
-            restore_interrupts_assignment(log, file_path_list, node)
+        
+        # Hotplug the safe CPUs
+        set_idle_cpu_offline_online(log, node, idle_cpus)
+        
+        log.debug(f"Completed CPU hotplug iteration {iteration}/{run_times}")
 
 
 def get_cpu_state_file(cpu_id: str) -> str:
