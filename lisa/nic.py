@@ -107,7 +107,7 @@ class Nics(InitializableMixin):
             r"/sys/class/net/"
             r"([a-zA-Z0-9_\-]+)"  # network interface GROUP1
             r"/lower_([a-zA-Z0-9_\-]+)"  # pci interface GROUP2
-            r"/device -> ../../../"  # link to devices guid
+            r"/device -> (?:\.\./){2,}"  # link to devices guid (flexible depth)
             r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}.[a-zA-Z0-9])"  # bus info
         )
     )
@@ -117,7 +117,7 @@ class Nics(InitializableMixin):
         (
             r"/sys/class/net/"
             r"([a-zA-Z0-9_\-]+)"  # pci interface name
-            r"/device -> ../../../"  # link to devices guid
+            r"/device -> (?:\.\./){2,}"  # link to devices guid (flexible depth)
             r"([a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}.[a-zA-Z0-9])"  # bus info
         )
     )

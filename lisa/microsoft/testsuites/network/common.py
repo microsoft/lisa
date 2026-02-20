@@ -53,10 +53,19 @@ def initialize_nic_info(
                 f"inside vm, it should equal to {interface_info.ip_addr}."
             ).is_true()
         if is_sriov:
-            ethernet_vf_slots = set(nics_info.get_ethernet_device_slots())
-            assert_that(len(ethernet_vf_slots)).described_as(
-                f"Ethernet VF count inside VM is {len(ethernet_vf_slots)}, "
-                f"actual sriov nic count is {sriov_count}"
+            # Count Ethernet NICs with PCI associations, excluding InfiniBand.
+            # Use get_pci_nics() which counts NIC names (handles MANA vPort
+            # where multiple NICs share one PCI device) and filter out IB.
+            ethernet_pci_nics = [
+                nic_name
+                for nic_name in nics_info.get_pci_nics()
+                if not nic_name.startswith("ib")
+            ]
+            pci_nic_count = len(ethernet_pci_nics)
+            assert_that(pci_nic_count).described_as(
+                f"Ethernet VF count inside VM is {pci_nic_count}, "
+                f"actual sriov nic count is {sriov_count}. "
+                f"Ethernet PCI NICs: {ethernet_pci_nics}"
             ).is_equal_to(sriov_count)
         vm_nics[node.name] = nics_info.nics
 
@@ -71,12 +80,21 @@ def sriov_basic_test(environment: Environment) -> None:
         devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
-        if len(devices_slots) != len(set(node.nics.get_ethernet_device_slots())):
+        # Filter get_device_slots() to only include Ethernet NIC PCI slots,
+        # excluding InfiniBand (class 0207) which uses different PCI slots.
+        ethernet_device_slots = set(
+            nic.pci_slot
+            for nic in node.nics.nics.values()
+            if nic.pci_slot
+            and not (nic.name and nic.name.startswith("ib"))
+            and not (nic.lower and nic.lower.startswith("ib"))
+        )
+        if len(devices_slots) != len(ethernet_device_slots):
             node.nics.reload()
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
-        ).is_length(len(set(node.nics.get_ethernet_device_slots())))
+        ).is_length(len(ethernet_device_slots))
 
         # 2. Check module of sriov network device is loaded.
         for module_name in node.nics.get_used_modules(["hv_netvsc"]):
