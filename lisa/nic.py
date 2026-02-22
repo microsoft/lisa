@@ -186,6 +186,35 @@ class Nics(InitializableMixin):
         return synthetic_devices
 
     def get_pci_nics(self) -> List[str]:
+        """Get NIC names for PCI-associated NICs, excluding InfiniBand (ib*).
+
+        On HPC/GPU SKUs (e.g., GB300), InfiniBand RDMA interfaces also have
+        PCI slots but are not standard SR-IOV Ethernet VFs. This method
+        filters them out for accurate VF counting.
+
+        Returns lower device names for paired NICs, or the NIC name itself
+        for standalone PCI NICs.
+        """
+        pci_nics = []
+        for nic in self.nics.values():
+            # Skip InfiniBand interfaces — they use RDMA, not Ethernet SR-IOV
+            nic_name = nic.lower if nic.lower else nic.name
+            if nic_name and nic_name.startswith("ib"):
+                continue
+            if nic.name and nic.name.startswith("ib"):
+                continue
+            if nic.is_pci_only_nic:
+                pci_nics.append(nic.name)
+            elif nic.lower:
+                pci_nics.append(nic.lower)
+        return pci_nics
+
+    def get_all_pci_nics(self) -> List[str]:
+        """Get NIC names for ALL PCI-associated NICs, including InfiniBand.
+
+        Use this when you need the full list (e.g., for before/after
+        hibernation comparisons where you just need consistency).
+        """
         pci_nics = []
         for nic in self.nics.values():
             if nic.is_pci_only_nic:

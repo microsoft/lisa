@@ -53,19 +53,14 @@ def initialize_nic_info(
                 f"inside vm, it should equal to {interface_info.ip_addr}."
             ).is_true()
         if is_sriov:
-            # Count Ethernet NICs with PCI associations, excluding InfiniBand.
-            # Use get_pci_nics() which counts NIC names (handles MANA vPort
-            # where multiple NICs share one PCI device) and filter out IB.
-            ethernet_pci_nics = [
-                nic_name
-                for nic_name in nics_info.get_pci_nics()
-                if not nic_name.startswith("ib")
-            ]
-            pci_nic_count = len(ethernet_pci_nics)
+            # get_pci_nics() already excludes InfiniBand interfaces and
+            # counts NIC names (handles MANA vPort where multiple NICs
+            # share one PCI device).
+            pci_nic_count = len(nics_info.get_pci_nics())
             assert_that(pci_nic_count).described_as(
                 f"Ethernet VF count inside VM is {pci_nic_count}, "
                 f"actual sriov nic count is {sriov_count}. "
-                f"Ethernet PCI NICs: {ethernet_pci_nics}"
+                f"PCI NICs: {nics_info.get_pci_nics()}"
             ).is_equal_to(sriov_count)
         vm_nics[node.name] = nics_info.nics
 
