@@ -192,7 +192,6 @@ deployment.
       azure:
          virtual_network_resource_group: $(virtual_network_resource_group)
          virtual_network_name: $(virtual_network_name)
-         subnet_prefix: $(subnet_prefix)
          use_public_address: "<true or false>"
          create_public_address: "<true or false>"
          use_ipv6: "<true or false>"
@@ -236,12 +235,6 @@ deployment.
   `<virtual_network_name>`.  If `virtual_network_resource_group` is provided,
   an existing virtual network, with the name equal to `virtual_network_name`,
   will be used.
-* **subnet_prefix**. Specify the desired subnet prefix.  If
-  `virtual_network_resource_group` is not provided, a virtual network and
-  subnet will be created and the resulting subnets will look like
-  `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If
-  `virtual_network_resource_group` is provided, an existing virtual network and
-  subnet, with the name equal to `subnet_prefix`, will be used.
 * **use_public_address**. True means to connect to the Azure VMs with their
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP

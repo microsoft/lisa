@@ -112,7 +112,6 @@ if TYPE_CHECKING:
 
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 AZURE_VIRTUAL_NETWORK_NAME = "lisa-virtualNetwork"
-AZURE_SUBNET_PREFIX = "lisa-subnet-"
 
 NIC_NAME_PATTERN = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
 PATTERN_PUBLIC_IP_NAME = re.compile(
@@ -1257,7 +1256,6 @@ class AzureArmParameter:
 
     virtual_network_resource_group: str = ""
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
-    subnet_prefix: str = AZURE_SUBNET_PREFIX
     is_ultradisk: bool = False
     is_data_disk_with_vhd: bool = False
     use_ipv6: bool = False

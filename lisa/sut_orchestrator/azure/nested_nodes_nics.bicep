@@ -2,8 +2,7 @@ param vmName string
 param nic_count int
 param location string
 param vnet_id string
-param subnet_prefix string
-param existing_subnet_ref string
+param resource_group_index int
 param enable_sriov bool
 param tags object
 param use_ipv6 bool
@@ -15,6 +14,8 @@ func getPublicIpAddress(vmName string, publicIpName string) object => {
 
 var publicIpAddress = getPublicIpAddress(vmName, '${vmName}-public-ip')
 var publicIpAddressV6 = getPublicIpAddress(vmName, '${vmName}-public-ipv6')
+
+func getSubnetName(resource_group_index int, nic_index int) string => '10.${resource_group_index}.${nic_index}.0'
 
 resource vm_nics 'Microsoft.Network/networkInterfaces@2023-06-01' = [for i in range(0, nic_count): {
   name: '${vmName}-nic-${i}'
@@ -29,7 +30,7 @@ resource vm_nics 'Microsoft.Network/networkInterfaces@2023-06-01' = [for i in ra
             privateIPAddressVersion: 'IPv4'
             publicIPAddress: ((0 == i && create_public_address) ? publicIpAddress : null)
             subnet: {
-              id: ((!empty(existing_subnet_ref)) ? existing_subnet_ref : '${vnet_id}/subnets/${subnet_prefix}${i}')
+              id: '${vnet_id}/subnets/${getSubnetName(resource_group_index, i)}'
             }
             privateIPAllocationMethod: 'Dynamic'
           }
@@ -42,7 +43,7 @@ resource vm_nics 'Microsoft.Network/networkInterfaces@2023-06-01' = [for i in ra
             privateIPAddressVersion: 'IPv6'
             publicIPAddress: ((0 == i && create_public_address) ? publicIpAddressV6 : null)
             subnet: {
-              id: ((!empty(existing_subnet_ref)) ? existing_subnet_ref : '${vnet_id}/subnets/${subnet_prefix}${i}')
+              id: '${vnet_id}/subnets/${getSubnetName(resource_group_index, i)}'
             }
             privateIPAllocationMethod: 'Dynamic'
           }
