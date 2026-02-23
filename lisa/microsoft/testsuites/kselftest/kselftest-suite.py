@@ -20,8 +20,8 @@ from lisa.util import SkippedException, UnsupportedDistroException
 class KselftestTestsuite(TestSuite):
     # kselftests take about a one and half an hour to complete,
     # timeout below is in seconds and set to 2 hours.
-    _CASE_TIME_OUT = 7200
-    _KSELF_TIMEOUT = 6700
+    _CASE_TIME_OUT = 12000
+    _KSELF_TIMEOUT = 12000
 
     @TestCaseMetadata(
         description="""

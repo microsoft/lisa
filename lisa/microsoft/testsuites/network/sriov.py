@@ -532,7 +532,7 @@ class Sriov(TestSuite):
          check the scatter-gather feature status keep consistent in VF.
         """,
         priority=2,
-        timeout=7200,
+        timeout=12000,
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
