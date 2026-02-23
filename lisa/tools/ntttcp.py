@@ -214,13 +214,20 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        mtu: int = 0,
     ) -> Process:
         cmd = f"-r -m {ports_count},*,{server_ip if server_ip else ''} -t {run_time_seconds} -b {buffer_size}k"
         if udp_mode:
             cmd += " -u"
 
+        # Determine taskset based on MTU
+        taskset_cmd = self.pre_command
+        if mtu in [9000, 4500]:
+            taskset = self.node.tools[TaskSet]
+            taskset_cmd = f"{taskset.command} -c 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 "
+
         process = self.node.execute_async(
-            f"ulimit -n 204800 && taskset -c 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {taskset_cmd}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
@@ -296,12 +303,20 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        mtu: int = 0,
     ) -> Process:
         cmd = f"-s -m {ports_count},*,{server_ip} -t {run_time_seconds} -b {buffer_size}k"
         if udp_mode:
             cmd += " -u"
+
+        # Determine taskset based on MTU
+        taskset_cmd = self.pre_command
+        if mtu in [9000, 4500]:
+            taskset = self.node.tools[TaskSet]
+            taskset_cmd = f"{taskset.command} -c 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 "
+
         process = self.node.execute_async(
-            f"ulimit -n 204800 && taskset -c 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {taskset_cmd}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
