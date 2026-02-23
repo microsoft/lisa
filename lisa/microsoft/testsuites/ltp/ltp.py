@@ -150,6 +150,10 @@ class Ltp(Tool):
         # add the list of skip tests to run
         if user_input_skip_file:
             # copy user provided skip file to remote skip_file location
+            if not os.path.exists(user_input_skip_file):
+                raise LisaException(
+                    f"User provided skip file does not exist: {user_input_skip_file}"
+                )
             self._log.debug(f"user_input_skip_file: {user_input_skip_file}")
             self.node.shell.copy(
                 PurePath(user_input_skip_file),
