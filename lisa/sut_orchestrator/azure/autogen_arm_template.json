@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "16491672364169834990"
+      "templateHash": "6973919806372738793"
     }
   },
   "functions": [
@@ -596,9 +596,9 @@
             "name": "subnets",
             "count": "[length(range(0, parameters('subnet_count')))]",
             "input": {
-              "name": "[format('10.{0}.{1}.0/24', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
+              "name": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '10.0.0.0', format('10.{0}.{1}.0', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')]))]",
               "properties": {
-                "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/24', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}:{1}::/64', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
+                "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/24', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '0', parameters('resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}:{1}::/64', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), range(0, parameters('subnet_count'))[copyIndex('subnets')], parameters('resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
                 "defaultOutboundAccess": "[parameters('enable_vm_nat')]",
                 "networkSecurityGroup": {
                   "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg', toLower(parameters('virtual_network_name'))))]"
@@ -933,7 +933,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "1909517540330820286"
+              "templateHash": "18100026266609217689"
             }
           },
           "functions": [
@@ -971,7 +971,7 @@
                   ],
                   "output": {
                     "type": "string",
-                    "value": "[format('10.{0}.{1}.0', parameters('resource_group_index'), parameters('nic_index'))]"
+                    "value": "[if(equals(parameters('nic_index'), 0), '10.0.0.0', format('10.{0}.{1}.0', parameters('resource_group_index'), parameters('nic_index')))]"
                   }
                 }
               }
