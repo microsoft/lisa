@@ -108,9 +108,12 @@ class Waagent(Tool):
         # 1. Old WALinuxAgent versions have compatibility issues with pip's build
         #    isolation (missing 'distro' module, deprecated platform APIs)
         # 2. The legacy 'setup.py install' works but requires compatible setuptools
+        # Note: shell=True is required so the shell properly interprets the
+        # '<' in the version specifier instead of treating it as a redirect
         downgrade_result = self.node.execute(
             f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall",
             sudo=True,
+            shell=True,
         )
 
         if downgrade_result.exit_code != 0:
