@@ -629,6 +629,7 @@ def perf_ntttcp(  # noqa: C901
                         ),
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
+                        mtu=mtu,
                     )
 
                     # Start lagscope client to measure latency during the
@@ -658,6 +659,7 @@ def perf_ntttcp(  # noqa: C901
                         warm_up_time_seconds=warm_up_seconds,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
+                        mtu=mtu,
                     )
 
                     # Stop the server and collect results from both client
