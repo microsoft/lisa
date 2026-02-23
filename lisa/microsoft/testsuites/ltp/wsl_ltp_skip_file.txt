@@ -44,7 +44,6 @@ cpuhotplug06
 cpuhotplug07
 rcu_torture
 lock_torture
-rtc01
 ltp_acpi
 cpufreq_boost
 cgroup_fj_function_debug
