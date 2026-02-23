@@ -373,6 +373,7 @@ def perf_ntttcp(  # noqa: C901
     use_mtu_specific_tuning = False
     tuned_connections = connections
     tuned_buffer_kb = None
+    tuned_buffer_kb_receiver = None
     tuned_run_time = None
     tuned_warmup = None
     tuned_cooldown = None
@@ -407,7 +408,8 @@ def perf_ntttcp(  # noqa: C901
         elif mtu_value == 9000:
             # MTU 9000 profile
             tuned_connections = [32]
-            tuned_buffer_kb = 2048  # 2m
+            tuned_buffer_kb = 2048  # 2m for sender
+            tuned_buffer_kb_receiver = 1024  # 1m for receiver
             tuned_run_time = 1000
             tuned_warmup = 10
             tuned_cooldown = 5
@@ -562,8 +564,14 @@ def perf_ntttcp(  # noqa: C901
             run_time_seconds = 10
             warm_up_seconds = 1
             cool_down_seconds = 1
+            buffer_size_sender = buffer_size
+            buffer_size_receiver = buffer_size
             if use_mtu_specific_tuning and tuned_buffer_kb is not None:
-                buffer_size = tuned_buffer_kb
+                buffer_size_sender = tuned_buffer_kb
+            if use_mtu_specific_tuning and tuned_buffer_kb_receiver is not None:
+                buffer_size_receiver = tuned_buffer_kb_receiver
+            else:
+                buffer_size_receiver = buffer_size_sender
             if use_mtu_specific_tuning and tuned_run_time is not None:
                 run_time_seconds = tuned_run_time
             if use_mtu_specific_tuning and tuned_warmup is not None:
@@ -611,7 +619,7 @@ def perf_ntttcp(  # noqa: C901
                         server_nic_name,
                         run_time_seconds=run_time_seconds,
                         ports_count=num_threads_p,
-                        buffer_size=buffer_size,
+                        buffer_size=buffer_size_receiver,
                         cool_down_time_seconds=cool_down_seconds,
                         warm_up_time_seconds=warm_up_seconds,
                         server_ip=(
@@ -645,7 +653,7 @@ def perf_ntttcp(  # noqa: C901
                         threads_count=num_threads_n,
                         run_time_seconds=run_time_seconds,
                         ports_count=num_threads_p,
-                        buffer_size=buffer_size,
+                        buffer_size=buffer_size_sender,
                         cool_down_time_seconds=cool_down_seconds,
                         warm_up_time_seconds=warm_up_seconds,
                         dev_differentiator=dev_differentiator,
