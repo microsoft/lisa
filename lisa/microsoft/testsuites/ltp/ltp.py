@@ -150,7 +150,7 @@ class Ltp(Tool):
         # add the list of skip tests to run
         if user_input_skip_file:
             # copy user provided skip file to remote skip_file location
-            self._log.debug(f"---user_input_skip_file: {user_input_skip_file}")
+            self._log.debug(f"user_input_skip_file: {user_input_skip_file}")
             self.node.shell.copy(
                 PurePath(user_input_skip_file),
                 PurePosixPath(skip_file),
