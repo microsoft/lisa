@@ -103,7 +103,6 @@ from .. import AZURE
 from . import features
 from .common import (
     AZURE_SHARED_RG_NAME,
-    AZURE_SUBNET_PREFIX,
     AZURE_VIRTUAL_NETWORK_NAME,
     SAS_URL_PATTERN,
     AzureArmParameter,
@@ -322,7 +321,6 @@ class AzurePlatformSchema:
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
-    subnet_prefix: str = field(default=AZURE_SUBNET_PREFIX)
 
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
@@ -375,7 +373,6 @@ class AzurePlatformSchema:
                 "log_level",
                 "virtual_network_resource_group",
                 "virtual_network_name",
-                "subnet_prefix",
                 "use_public_address",
                 "use_ipv6",
                 "enable_vm_nat",
@@ -1215,9 +1212,6 @@ class AzurePlatform(Platform):
 
         arm_parameters.virtual_network_resource_group = (
             self._azure_runbook.virtual_network_resource_group
-        )
-        arm_parameters.subnet_prefix = (
-            self._azure_runbook.subnet_prefix or AZURE_SUBNET_PREFIX
         )
         arm_parameters.virtual_network_name = (
             self._azure_runbook.virtual_network_name or AZURE_VIRTUAL_NETWORK_NAME
