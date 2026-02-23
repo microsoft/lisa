@@ -15,7 +15,7 @@ func getPublicIpAddress(vmName string, publicIpName string) object => {
 var publicIpAddress = getPublicIpAddress(vmName, '${vmName}-public-ip')
 var publicIpAddressV6 = getPublicIpAddress(vmName, '${vmName}-public-ipv6')
 
-func getSubnetName(resource_group_index int, nic_index int) string => '10.${resource_group_index}.${nic_index}.0'
+func getSubnetName(resource_group_index int, nic_index int) string => nic_index == 0 ? '10.0.0.0' : '10.${resource_group_index}.${nic_index}.0'
 
 resource vm_nics 'Microsoft.Network/networkInterfaces@2023-06-01' = [for i in range(0, nic_count): {
   name: '${vmName}-nic-${i}'

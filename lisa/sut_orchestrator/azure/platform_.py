@@ -605,6 +605,7 @@ class AzurePlatform(Platform):
         assert self._azure_runbook
 
         environment_context = get_environment_context(environment=environment)
+
         if self._azure_runbook.resource_group_name:
             resource_group_name = self._azure_runbook.resource_group_name
         else:
@@ -1217,6 +1218,7 @@ class AzurePlatform(Platform):
             self._azure_runbook.virtual_network_name or AZURE_VIRTUAL_NETWORK_NAME
         )
         arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
+        arm_parameters.resource_group_index = int(environment.id)
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username

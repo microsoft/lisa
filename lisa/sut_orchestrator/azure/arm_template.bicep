@@ -269,11 +269,11 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
       )
     }
     subnets: [for j in range(0, subnet_count): {
-      name: '10.${resource_group_index}.${j}.0/24'
+      name: j == 0 ? '10.0.0.0' : '10.${resource_group_index}.${j}.0'
       properties: {
         addressPrefixes: concat(
-          ['10.${resource_group_index}.${j}.0/24'],
-          use_ipv6 ? ['2001:db8:${resource_group_index}:${j}::/64'] : []
+          ['10.${j ==0 ? '0' : resource_group_index}.${j}.0/24'],
+          use_ipv6 ? ['2001:db8:${j == 0 ? j : resource_group_index}:${j}::/64'] : []
         )
         defaultOutboundAccess: enable_vm_nat
         networkSecurityGroup: {
