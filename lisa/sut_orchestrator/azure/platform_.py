@@ -129,6 +129,7 @@ from .tools import Uname, VmGeneration, Waagent
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
 AZURE_RG_NAME_KEY = "resource_group_name"
+AZURE_RG_INDEX_PATTERN = re.compile(r"-e(?P<index>\d+)$")
 AZURE_INTERNAL_ERROR_PATTERN = re.compile(
     r"OSProvisioningInternalError: OS Provisioning failed "
     r"for VM.*due to an internal error."
@@ -1079,6 +1080,16 @@ class AzurePlatform(Platform):
         )
         arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
         arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
+
+        rg_index_match = AZURE_RG_INDEX_PATTERN.search(resource_group_name)
+        arm_parameters.resource_group_index = (
+            int(rg_index_match.group("index")) if rg_index_match else environment.id
+        )
+        log.debug(
+            "resolved resource_group_index=%s from resource_group_name=%s",
+            arm_parameters.resource_group_index,
+            resource_group_name,
+        )
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username

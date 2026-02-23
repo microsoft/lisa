@@ -22,6 +22,9 @@ param shared_resource_group_name string
 @description('created subnet count')
 param subnet_count int
 
+@description('index of test resource group for shared vnet subnet mapping')
+param resource_group_index int = 0
+
 @description('options for availability sets, zones, and VMSS')
 param availability_options object
 
@@ -49,10 +52,11 @@ param is_ultradisk bool = false
 @description('IP Service Tags')
 param ip_service_tags object
 
-var vnet_id = virtual_network_name_resource.id
+var vnet_id = empty(virtual_network_resource_group)
+? virtual_network_name_resource.id
+: resourceId(virtual_network_resource_group, 'Microsoft.Network/virtualNetworks', virtual_network_name)
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
-var existing_subnet_ref = (empty(virtual_network_resource_group) ? '' : resourceId(virtual_network_resource_group, 'Microsoft.Network/virtualNetworks/subnets', virtual_network_name, subnet_prefix))
 var availability_set_tags = availability_options.availability_set_tags
 var availability_set_properties = availability_options.availability_set_properties
 var availability_zones = availability_options.availability_zones
@@ -213,11 +217,13 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
   name: '${nodes[i].name}-nics'
   params: {
     vmName: nodes[i].name
+    vm_index: i
     nic_count: nodes[i].nic_count
     location: location
     vnet_id: vnet_id
     subnet_prefix: subnet_prefix
-    existing_subnet_ref: existing_subnet_ref
+    resource_group_index: resource_group_index
+    use_existing_vnet: !empty(virtual_network_resource_group)
     enable_sriov: nodes[i].enable_sriov
     tags: tags
   }

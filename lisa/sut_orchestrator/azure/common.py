@@ -1146,6 +1146,7 @@ class AzureArmParameter:
     admin_password: str = ""
     admin_key_data: str = ""
     subnet_count: int = 1
+    resource_group_index: int = 0
     availability_options: AvailabilityArmParameter = field(
         default_factory=AvailabilityArmParameter
     )
