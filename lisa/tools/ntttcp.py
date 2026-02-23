@@ -215,25 +215,12 @@ class Ntttcp(Tool):
         run_as_daemon: bool = False,
         udp_mode: bool = False,
     ) -> Process:
-        cmd = ""
-        if server_ip:
-            cmd += f" -r{server_ip} "
-        cmd += (
-            f" -P {ports_count} -t {run_time_seconds} -W {warm_up_time_seconds} "
-            f"-C {cool_down_time_seconds} -b {buffer_size}k "
-            f"--show-nic-packets {nic_name} "
-        )
+        cmd = f"-r -m {ports_count},*,{server_ip if server_ip else ''} -t {run_time_seconds} -b {buffer_size}k"
         if udp_mode:
-            cmd += " -u "
-        if use_epoll:
-            cmd += " -e "
-        if dev_differentiator:
-            cmd += f" --show-dev-interrupts {dev_differentiator} "
-        if run_as_daemon:
-            cmd += " -D "
+            cmd += " -u"
 
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && taskset -c 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
@@ -310,19 +297,11 @@ class Ntttcp(Tool):
         run_as_daemon: bool = False,
         udp_mode: bool = False,
     ) -> Process:
-        cmd = (
-            f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
-            f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
-            f"--show-nic-packets {nic_name} "
-        )
+        cmd = f"-s -m {ports_count},*,{server_ip} -t {run_time_seconds} -b {buffer_size}k"
         if udp_mode:
-            cmd += " -u "
-        if dev_differentiator:
-            cmd += f" --show-dev-interrupts {dev_differentiator} "
-        if run_as_daemon:
-            cmd += " -D "
+            cmd += " -u"
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && taskset -c 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
