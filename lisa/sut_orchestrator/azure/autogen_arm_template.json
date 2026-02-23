@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.36.177.2456",
-      "templateHash": "18099469189437246926"
+      "version": "0.40.2.10011",
+      "templateHash": "16491672364169834990"
     }
   },
   "functions": [
@@ -463,6 +463,12 @@
         "description": "created subnet count"
       }
     },
+    "resource_group_index": {
+      "type": "int",
+      "metadata": {
+        "description": "index of the test resource group for shared vnet subnet mapping"
+      }
+    },
     "availability_options": {
       "type": "object",
       "metadata": {
@@ -479,12 +485,6 @@
       "type": "string",
       "metadata": {
         "description": "the name of vnet"
-      }
-    },
-    "subnet_prefix": {
-      "type": "string",
-      "metadata": {
-        "description": "the prefix of the subnets"
       }
     },
     "vm_tags": {
@@ -554,6 +554,11 @@
   "variables": {
     "copy": [
       {
+        "name": "shared_subnet_names",
+        "count": "[length(range(0, parameters('subnet_count')))]",
+        "input": "[format('10.{0}.{1}.0', variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('shared_subnet_names')])]"
+      },
+      {
         "name": "ip_tags",
         "count": "[length(objectKeys(parameters('ip_service_tags')))]",
         "input": {
@@ -562,10 +567,11 @@
         }
       }
     ],
-    "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtual_network_name'))]",
+    "vnet_id": "[if(variables('use_existing_vnet'), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks', parameters('virtual_network_name')), resourceId('Microsoft.Network/virtualNetworks', parameters('virtual_network_name')))]",
     "node_count": "[length(parameters('nodes'))]",
     "availability_set_name_value": "lisa-availabilitySet",
-    "existing_subnet_ref": "[if(empty(parameters('virtual_network_resource_group')), '', resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')))]",
+    "wrapped_resource_group_index": "[mod(parameters('resource_group_index'), 256)]",
+    "use_existing_vnet": "[not(empty(parameters('virtual_network_resource_group')))]",
     "availability_set_tags": "[parameters('availability_options').availability_set_tags]",
     "availability_set_properties": "[parameters('availability_options').availability_set_properties]",
     "availability_zones": "[parameters('availability_options').availability_zones]",
@@ -590,9 +596,9 @@
             "name": "subnets",
             "count": "[length(range(0, parameters('subnet_count')))]",
             "input": {
-              "name": "[format('{0}{1}', parameters('subnet_prefix'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
+              "name": "[format('10.{0}.{1}.0/24', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
               "properties": {
-                "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
+                "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/24', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}:{1}::/64', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
                 "defaultOutboundAccess": "[parameters('enable_vm_nat')]",
                 "networkSecurityGroup": {
                   "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg', toLower(parameters('virtual_network_name'))))]"
@@ -602,7 +608,7 @@
           }
         ],
         "addressSpace": {
-          "addressPrefixes": "[concat(createArray('10.0.0.0/16'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
+          "addressPrefixes": "[concat(createArray('10.0.0.0/8'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
         }
       },
       "dependsOn": [
@@ -883,7 +889,7 @@
         "count": "[length(range(0, variables('node_count')))]"
       },
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
+      "apiVersion": "2025-04-01",
       "name": "[format('{0}-nics', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -903,11 +909,8 @@
           "vnet_id": {
             "value": "[variables('vnet_id')]"
           },
-          "subnet_prefix": {
-            "value": "[parameters('subnet_prefix')]"
-          },
-          "existing_subnet_ref": {
-            "value": "[variables('existing_subnet_ref')]"
+          "resource_group_index": {
+            "value": "[variables('wrapped_resource_group_index')]"
           },
           "enable_sriov": {
             "value": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].enable_sriov]"
@@ -929,8 +932,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.36.177.2456",
-              "templateHash": "15654609969338604205"
+              "version": "0.40.2.10011",
+              "templateHash": "1909517540330820286"
             }
           },
           "functions": [
@@ -954,6 +957,22 @@
                       "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIpName'))]"
                     }
                   }
+                },
+                "getSubnetName": {
+                  "parameters": [
+                    {
+                      "type": "int",
+                      "name": "resource_group_index"
+                    },
+                    {
+                      "type": "int",
+                      "name": "nic_index"
+                    }
+                  ],
+                  "output": {
+                    "type": "string",
+                    "value": "[format('10.{0}.{1}.0', parameters('resource_group_index'), parameters('nic_index'))]"
+                  }
                 }
               }
             }
@@ -971,11 +990,8 @@
             "vnet_id": {
               "type": "string"
             },
-            "subnet_prefix": {
-              "type": "string"
-            },
-            "existing_subnet_ref": {
-              "type": "string"
+            "resource_group_index": {
+              "type": "int"
             },
             "enable_sriov": {
               "type": "bool"
@@ -1006,7 +1022,7 @@
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
               "properties": {
-                "ipConfigurations": "[concat(createArray(createObject('name', 'IPv4Config', 'properties', createObject('privateIPAddressVersion', 'IPv4', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddress'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), if(parameters('use_ipv6'), createArray(createObject('name', 'IPv6Config', 'properties', createObject('privateIPAddressVersion', 'IPv6', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddressV6'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), createArray()))]",
+                "ipConfigurations": "[concat(createArray(createObject('name', 'IPv4Config', 'properties', createObject('privateIPAddressVersion', 'IPv4', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddress'), null()), 'subnet', createObject('id', format('{0}/subnets/{1}', parameters('vnet_id'), __bicep.getSubnetName(parameters('resource_group_index'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), if(parameters('use_ipv6'), createArray(createObject('name', 'IPv6Config', 'properties', createObject('privateIPAddressVersion', 'IPv6', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddressV6'), null()), 'subnet', createObject('id', format('{0}/subnets/{1}', parameters('vnet_id'), __bicep.getSubnetName(parameters('resource_group_index'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), createArray()))]",
                 "enableAcceleratedNetworking": "[parameters('enable_sriov')]"
               }
             }
@@ -1016,8 +1032,63 @@
       "dependsOn": [
         "[format('nodes_public_ip[{0}]', range(0, variables('node_count'))[copyIndex()])]",
         "[format('nodes_public_ip_ipv6[{0}]', range(0, variables('node_count'))[copyIndex()])]",
+        "shared_vnet_subnets",
         "virtual_network_name_resource"
       ]
+    },
+    "shared_vnet_subnets": {
+      "condition": "[variables('use_existing_vnet')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "shared-vnet-subnets",
+      "resourceGroup": "[parameters('virtual_network_resource_group')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "virtual_network_name": {
+            "value": "[parameters('virtual_network_name')]"
+          },
+          "subnet_names": {
+            "value": "[variables('shared_subnet_names')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.40.2.10011",
+              "templateHash": "1894805062932954870"
+            }
+          },
+          "parameters": {
+            "virtual_network_name": {
+              "type": "string"
+            },
+            "subnet_names": {
+              "type": "array"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "shared_vnet_subnets",
+                "count": "[length(parameters('subnet_names'))]"
+              },
+              "type": "Microsoft.Network/virtualNetworks/subnets",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('virtual_network_name'), parameters('subnet_names')[copyIndex()])]",
+              "properties": {
+                "addressPrefix": "[format('{0}/24', parameters('subnet_names')[copyIndex()])]"
+              }
+            }
+          ]
+        }
+      }
     }
   }
 }
