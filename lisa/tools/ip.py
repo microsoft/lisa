@@ -25,7 +25,11 @@ class IpInfo:
         self.nic_name = nic_name
         self.mac_addr = mac_addr
         self.ip_addr = ip_addr
-        self.subnet = ipaddress.ip_network(f"{ip_addr}/{subnet_mask}", strict=False)
+        self.subnet = (
+            ipaddress.ip_network(f"{ip_addr}/{subnet_mask}", strict=False)
+            if all([ip_addr, subnet_mask])
+            else None
+        )
 
 
 class Ip(Tool):

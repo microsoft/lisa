@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "6973919806372738793"
+      "templateHash": "1821201376234486735"
     }
   },
   "functions": [
@@ -556,7 +556,7 @@
       {
         "name": "shared_subnet_names",
         "count": "[length(range(0, parameters('subnet_count')))]",
-        "input": "[format('10.{0}.{1}.0', variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('shared_subnet_names')])]"
+        "input": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('shared_subnet_names')], 0), '10.0.0.0', format('e{0}-10.{1}.{2}.0', parameters('resource_group_index'), variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('shared_subnet_names')]))]"
       },
       {
         "name": "ip_tags",
@@ -583,8 +583,24 @@
     "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]"
   },
   "resources": {
+    "shared_vnet_subnets": {
+      "copy": {
+        "name": "shared_vnet_subnets",
+        "count": "[length(range(0, parameters('subnet_count')))]"
+      },
+      "condition": "[and(variables('use_existing_vnet'), greater(range(0, parameters('subnet_count'))[copyIndex()], 0))]",
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2024-05-01",
+      "name": "[format('{0}/{1}', parameters('virtual_network_name'), variables('shared_subnet_names')[range(0, parameters('subnet_count'))[copyIndex()]])]",
+      "properties": {
+        "addressPrefix": "[format('10.{0}.{1}.0/24', variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex()])]"
+      },
+      "dependsOn": [
+        "virtual_network_name_resource"
+      ]
+    },
     "virtual_network_name_resource": {
-      "condition": "[empty(parameters('virtual_network_resource_group'))]",
+      "condition": "[not(variables('use_existing_vnet'))]",
       "type": "Microsoft.Network/virtualNetworks",
       "apiVersion": "2024-05-01",
       "name": "[parameters('virtual_network_name')]",
@@ -596,9 +612,9 @@
             "name": "subnets",
             "count": "[length(range(0, parameters('subnet_count')))]",
             "input": {
-              "name": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '10.0.0.0', format('10.{0}.{1}.0', parameters('resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')]))]",
+              "name": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '10.0.0.0', format('e{0}-10.{1}.{2}.0', parameters('resource_group_index'), variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')]))]",
               "properties": {
-                "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/24', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '0', parameters('resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}:{1}::/64', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), range(0, parameters('subnet_count'))[copyIndex('subnets')], parameters('resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
+                "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/{2}', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '0', variables('wrapped_resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')], if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), 16, 24))), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}:{1}::/64', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), range(0, parameters('subnet_count'))[copyIndex('subnets')], variables('wrapped_resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
                 "defaultOutboundAccess": "[parameters('enable_vm_nat')]",
                 "networkSecurityGroup": {
                   "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg', toLower(parameters('virtual_network_name'))))]"
@@ -633,6 +649,58 @@
               "destinationPortRange": "22",
               "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
               "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowAgentPool",
+            "properties": {
+              "priority": 101,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "1ESResourceManager",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "22"
+            }
+          },
+          {
+            "name": "AllowCorpNetPublic",
+            "properties": {
+              "priority": 102,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "CorpNetPublic",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
+            }
+          },
+          {
+            "name": "VirtualNetworkIn",
+            "properties": {
+              "priority": 103,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
+            }
+          },
+          {
+            "name": "AllowManagedVPN",
+            "properties": {
+              "priority": 104,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourceAddressPrefixes": ["20.120.143.192/28","20.241.227.160/28","20.31.68.160/28","20.198.165.176/28","20.83.242.194/32"],
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
             }
           },
           {
@@ -910,7 +978,7 @@
             "value": "[variables('vnet_id')]"
           },
           "resource_group_index": {
-            "value": "[variables('wrapped_resource_group_index')]"
+            "value": "[parameters('resource_group_index')]"
           },
           "enable_sriov": {
             "value": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].enable_sriov]"
@@ -933,7 +1001,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "18100026266609217689"
+              "templateHash": "2629862527207444319"
             }
           },
           "functions": [
@@ -971,7 +1039,7 @@
                   ],
                   "output": {
                     "type": "string",
-                    "value": "[if(equals(parameters('nic_index'), 0), '10.0.0.0', format('10.{0}.{1}.0', parameters('resource_group_index'), parameters('nic_index')))]"
+                    "value": "[if(equals(parameters('nic_index'), 0), '10.0.0.0', format('e{0}-10.{1}.{2}.0', parameters('resource_group_index'), mod(parameters('resource_group_index'), 256), parameters('nic_index')))]"
                   }
                 }
               }
@@ -1035,60 +1103,6 @@
         "shared_vnet_subnets",
         "virtual_network_name_resource"
       ]
-    },
-    "shared_vnet_subnets": {
-      "condition": "[variables('use_existing_vnet')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "shared-vnet-subnets",
-      "resourceGroup": "[parameters('virtual_network_resource_group')]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "virtual_network_name": {
-            "value": "[parameters('virtual_network_name')]"
-          },
-          "subnet_names": {
-            "value": "[variables('shared_subnet_names')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "1894805062932954870"
-            }
-          },
-          "parameters": {
-            "virtual_network_name": {
-              "type": "string"
-            },
-            "subnet_names": {
-              "type": "array"
-            }
-          },
-          "resources": [
-            {
-              "copy": {
-                "name": "shared_vnet_subnets",
-                "count": "[length(parameters('subnet_names'))]"
-              },
-              "type": "Microsoft.Network/virtualNetworks/subnets",
-              "apiVersion": "2024-05-01",
-              "name": "[format('{0}/{1}', parameters('virtual_network_name'), parameters('subnet_names')[copyIndex()])]",
-              "properties": {
-                "addressPrefix": "[format('{0}/24', parameters('subnet_names')[copyIndex()])]"
-              }
-            }
-          ]
-        }
-      }
     }
   }
 }

@@ -19,7 +19,10 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
 import requests
-from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import (
+    HttpResponseError,
+    ResourceNotFoundError,
+)
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
     CommunityGalleryImage,
@@ -71,6 +74,7 @@ from lisa.util import (
     KernelPanicException,
     LisaException,
     LisaTimeoutException,
+    DeploymentActiveException,
     NotMeetRequirementException,
     ResourceAwaitableException,
     RootFsMountFailedException,
@@ -1689,6 +1693,7 @@ class AzurePlatform(Platform):
             plugin_manager.hook.azure_deploy_failed(error_message=error_message)
             raise LisaException(error_message)
 
+    @retry(exceptions=DeploymentActiveException, tries=5, delay=60)  # type: ignore
     def _deploy(
         self,
         location: str,
@@ -1773,6 +1778,8 @@ class AzurePlatform(Platform):
                     f"provisioning failed for an internal error, try to run case. "
                     f"Exception: {error_message}"
                 )
+            elif "ResourceExistsError" in error_message:
+                raise DeploymentActiveException(error_message)
             else:
                 try:
                     self._save_console_log_and_check_panic(
