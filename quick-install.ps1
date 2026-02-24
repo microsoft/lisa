@@ -19,45 +19,100 @@ Function Update-PATH {
     $Env:PATH = (@($Env:PATH -split ';') + @([Environment]::GetEnvironmentVariable('PATH', 'Machine') -split ';') + @([Environment]::GetEnvironmentVariable('PATH', 'User') -split ';') | Select-Object -Unique) -join ';'
 }
 
+# Function to find Python executable (avoiding Windows Store alias)
+Function Find-PythonExecutable {
+    param([string]$Version = "3.12")
+    
+    $versionNoDoc = $Version -replace '\.', ''
+    
+    # First, try to find the specific requested version
+    $specificPaths = @(
+        "$env:LOCALAPPDATA\Programs\Python\Python$versionNoDoc\python.exe",
+        "$env:ProgramFiles\Python$versionNoDoc\python.exe",
+        "C:\Python$versionNoDoc\python.exe"
+    )
+    
+    foreach ($path in $specificPaths) {
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+    
+    # Search for any Python 3.8+ installation dynamically
+    $searchDirs = @(
+        "$env:LOCALAPPDATA\Programs\Python",
+        "$env:ProgramFiles",
+        "C:\"
+    )
+    
+    # Look for Python3xx directories (3.8 to 3.20 should cover future versions)
+    $foundPythons = @()
+    foreach ($dir in $searchDirs) {
+        if (Test-Path $dir) {
+            # Search for Python3* folders
+            $pythonDirs = Get-ChildItem -Path $dir -Directory -Filter "Python3*" -ErrorAction SilentlyContinue
+            foreach ($pyDir in $pythonDirs) {
+                $pyExe = Join-Path $pyDir.FullName "python.exe"
+                if (Test-Path $pyExe) {
+                    # Extract version number from folder name (e.g., Python312 -> 12)
+                    if ($pyDir.Name -match 'Python3(\d+)') {
+                        $minorVer = [int]$Matches[1]
+                        if ($minorVer -ge 8) {
+                            $foundPythons += @{Path = $pyExe; Minor = $minorVer}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    # Return the highest version found
+    if ($foundPythons.Count -gt 0) {
+        $best = $foundPythons | Sort-Object -Property Minor -Descending | Select-Object -First 1
+        return $best.Path
+    }
+    
+    # Fallback: search in PATH but verify it's not the Store alias
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source -and (Test-Path $pythonCmd.Source)) {
+        # Check if it's the Windows Store alias
+        if ($pythonCmd.Source -notlike "*WindowsApps*") {
+            return $pythonCmd.Source
+        }
+    }
+    
+    return $null
+}
+
+# Script-level variable to store Python executable path
+$script:PythonExe = $null
+
 # Step 1: Check Python
 if (-not $SkipPython) {
     Write-Host "`n[1/4] Checking Python..." -ForegroundColor Yellow
     
-    # Check if Python is actually installed (not just the Windows Store alias)
+    # Try to find existing Python installation
+    $script:PythonExe = Find-PythonExecutable -Version $PythonVersion
+    
     $pythonInstalled = $false
-    $Python = Get-Command python -ErrorAction SilentlyContinue
-    if ($Python) {
-        # Try to run python --version to verify it's a real Python installation
-        # Windows has an App Execution Alias that redirects to Microsoft Store
+    if ($script:PythonExe) {
         try {
-            $versionOutput = & python --version 2>&1
+            $versionOutput = & $script:PythonExe --version 2>&1
             if ($versionOutput -match 'Python \d+\.\d+') {
                 $pythonInstalled = $true
                 $version = $versionOutput
             }
         }
         catch {
-            # Python command exists but failed - likely the Store alias
             $pythonInstalled = $false
         }
     }
     
     if ($pythonInstalled) {
         Write-Host "  [OK] Python is installed: $version" -ForegroundColor Green
+        Write-Host "  [INFO] Python location: $script:PythonExe" -ForegroundColor Gray
         
-        # Check if installed version matches requested version
-        if ($version -match 'Python (\d+\.\d+)') {
-            $installedMajorMinor = $Matches[1]
-            if ($installedMajorMinor -ne $PythonVersion) {
-                Write-Host "  [INFO] Installed Python ($installedMajorMinor) differs from requested ($PythonVersion)" -ForegroundColor Yellow
-                Write-Host "  Attempting to install Python $PythonVersion..." -ForegroundColor Yellow
-                $pythonInstalled = $false  # Trigger installation of requested version
-            }
-        }
-    }
-
-    if ($pythonInstalled) {
-        # Check if version is 3.11 or higher (recommended)
+        # Check if version is 3.8 or higher (required)
         if ($version -match 'Python 3\.(\d+)') {
             $minorVersion = [int]$Matches[1]
             if ($minorVersion -lt 8) {
@@ -84,14 +139,26 @@ if (-not $SkipPython) {
             Update-PATH
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
             
-            # Verify installation
-            $Python = Get-Command python -ErrorAction SilentlyContinue
-            if ($Python) {
-                $version = & python --version 2>&1
+            # Wait a moment for installation to complete
+            Start-Sleep -Seconds 2
+            
+            # Find Python executable using our function
+            $script:PythonExe = Find-PythonExecutable -Version $PythonVersion
+            
+            if ($script:PythonExe) {
+                $version = & $script:PythonExe --version 2>&1
                 Write-Host "  [OK] Python installed: $version" -ForegroundColor Green
+                Write-Host "  [INFO] Python location: $script:PythonExe" -ForegroundColor Gray
+                
+                # Add Python directory to PATH for this session
+                $pythonDir = Split-Path $script:PythonExe -Parent
+                $pythonScripts = Join-Path $pythonDir "Scripts"
+                if ($env:Path -notlike "*$pythonDir*") {
+                    $env:Path = "$pythonDir;$pythonScripts;$env:Path"
+                }
             }
             else {
-                Write-Host "  [WARN] Python installed but not in PATH. Please restart your terminal." -ForegroundColor Yellow
+                Write-Host "  [WARN] Python installed but not found. Please restart your terminal." -ForegroundColor Yellow
                 Write-Host "  Or manually add Python to PATH and re-run this script." -ForegroundColor Yellow
                 exit 1
             }
@@ -133,11 +200,23 @@ if (-not $SkipPython) {
                 Update-PATH
                 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
                 
-                # Verify installation
-                $Python = Get-Command python -ErrorAction SilentlyContinue
-                if ($Python) {
-                    $version = & python --version 2>&1
+                # Wait a moment for installation to complete
+                Start-Sleep -Seconds 2
+                
+                # Find Python executable using our function
+                $script:PythonExe = Find-PythonExecutable -Version $PythonVersion
+                
+                if ($script:PythonExe) {
+                    $version = & $script:PythonExe --version 2>&1
                     Write-Host "  [OK] Python installed: $version" -ForegroundColor Green
+                    Write-Host "  [INFO] Python location: $script:PythonExe" -ForegroundColor Gray
+                    
+                    # Add Python directory to PATH for this session
+                    $pythonDir = Split-Path $script:PythonExe -Parent
+                    $pythonScripts = Join-Path $pythonDir "Scripts"
+                    if ($env:Path -notlike "*$pythonDir*") {
+                        $env:Path = "$pythonDir;$pythonScripts;$env:Path"
+                    }
                 }
                 else {
                     Write-Host "  [WARN] Python installed but not immediately available." -ForegroundColor Yellow
@@ -158,13 +237,25 @@ if (-not $SkipPython) {
 }
 else {
     Write-Host "`n[1/4] Skipping Python check" -ForegroundColor Gray
+    # When skipping Python check, try to find existing Python
+    $script:PythonExe = Find-PythonExecutable -Version $PythonVersion
+    if (-not $script:PythonExe) {
+        Write-Host "  [ERROR] Python not found. Please install Python first or remove -SkipPython flag." -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Ensure we have a valid Python executable
+if (-not $script:PythonExe) {
+    Write-Host "  [ERROR] Python executable not found. Installation failed." -ForegroundColor Red
+    exit 1
 }
 
 # Step 2: Install Python dependencies
 Write-Host "`n[2/4] Installing Python dependencies..." -ForegroundColor Yellow
 
 try {
-    & python -m pip install --upgrade pip --quiet
+    & $script:PythonExe -m pip install --upgrade pip --quiet
     Write-Host "  [OK] pip upgraded" -ForegroundColor Green
 }
 catch {
@@ -173,11 +264,11 @@ catch {
 
 Write-Host "  Installing nox, toml, wheel..." -ForegroundColor Yellow
 # Use --no-warn-script-location to suppress PATH warnings
-& pip install --user --upgrade --no-warn-script-location nox toml wheel | Out-Null
+& $script:PythonExe -m pip install --user --upgrade --no-warn-script-location nox toml wheel | Out-Null
 Write-Host "  [OK] Dependencies installed" -ForegroundColor Green
 
 # After installation, add Python Scripts directory to PATH
-$sitePathDirectory = (Join-Path -Path (Split-Path -Path (python -m site --user-site) -Parent) -ChildPath Scripts)
+$sitePathDirectory = (Join-Path -Path (Split-Path -Path (& $script:PythonExe -m site --user-site) -Parent) -ChildPath Scripts)
 if (Test-Path $sitePathDirectory) {
     # Add to current session PATH immediately
     if ($env:Path -notlike "*$sitePathDirectory*") {
@@ -348,7 +439,7 @@ if (-not (Test-Path "$InstallPath\pyproject.toml")) {
 try {
     Push-Location $InstallPath
     Write-Host "  Installing LISA with Azure extensions in editable mode..." -ForegroundColor Yellow
-    & python -m pip install --editable .[azure] --config-settings editable_mode=compat --quiet
+    & $script:PythonExe -m pip install --editable .[azure] --config-settings editable_mode=compat --quiet
     Pop-Location
     
     Write-Host "  [OK] LISA installed from $InstallPath" -ForegroundColor Green
