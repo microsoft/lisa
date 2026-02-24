@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from assertpy import assert_that
 from retry import retry
@@ -44,6 +44,9 @@ class NicInfo:
         self.pci_slot = pci_slot
         self.dev_uuid = ""
         self.module_name = ""
+        self.subnet: Optional[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]] = (
+            None,
+        )
         if driver_sysfs_path is None:
             self.driver_sysfs_path = PurePosixPath("")
         else:
@@ -59,6 +62,15 @@ class NicInfo:
             f"mac_addr: {self.mac_addr}\n"
             f"dev_uuid: {self.dev_uuid}\n"
         )
+
+    def get_subnet(self) -> Union[ipaddress.IPv4Network, ipaddress.IPv6Network]:
+        # get the subnet for this nic, assuming a mask of /24
+        # note: if the bicep template changes to assign different masks for subnet_prefix,
+        # this function will need to be updated to
+        if self.subnet:
+            return self.subnet
+        else:
+            raise LisaException(f"No subnet information available for {self.name} ")
 
     @property
     def is_pci_module_enabled(self) -> bool:
@@ -304,6 +316,19 @@ class Nics(InitializableMixin):
                 return nic
         raise LisaException(f"Could not find a nic for requested subnet: {subnet}")
 
+    # get a list of all subnets associated with the nics on this node,
+    # with the option to include the primary nic subnet or not.
+    def get_node_subnets(
+        self, include_primary: bool = True
+    ) -> List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+        return list(
+            [
+                nic.subnet
+                for nic in self.nics.values()
+                if nic.subnet and (include_primary or nic.name != self.default_nic)
+            ]
+        )
+
     def unbind(self, nic: NicInfo) -> None:
         # unbind nic from current driver and return the old sysfs path
         tee = self._node.tools[Tee]
@@ -341,6 +366,7 @@ class Nics(InitializableMixin):
                 nic_entry = self.nics[nic_name]
                 nic_entry.ip_addr = ip_addr
                 nic_entry.mac_addr = mac
+                nic_entry.subnet = nic_info.subnet
                 found_nics.append(nic_name)
 
         if not nic_name:
