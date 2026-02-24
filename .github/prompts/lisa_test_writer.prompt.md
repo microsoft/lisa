@@ -43,6 +43,10 @@ It is:
 3. **Deterministic Outcome** – Given the same environment, results are consistent.
 4. **Observable Assertions** – Clear success/failure indicators.
 
+### Pre-coding, Ask yourself/the user:
+- **What is the observable signal?** (e.g., a kernel log, a file existence, a command return code).
+- **What Tools are needed?** Check `lisa/tools/`.
+- **What Features are required?** Check `lisa/features/`.
 ---
 
 ## Step 2: When to Write a New Test Case
@@ -65,9 +69,16 @@ Do not write a new test case for:
 
 Follow these conventions:
 
-- **File Location:** `lisa/microsoft/testsuites/<feature_area>/<test_name>.py`
-- **Class Naming:** One test class per file; name describes the feature, not a scenario
-- **Test Method Naming:** Name describes the scenario being validated
+### 1. File Location & Naming
+- Path: `lisa/microsoft/testsuites/<feature_area>/<test_name>.py`
+- Filename: snake_case (e.g., `network_latency.py`).
+
+### 2. Class & Method Structure
+- Class name: PascalCase, One test class per file; name describes the feature, not a scenario. Inheriting from `TestSuite`.
+- Method name: Prefix with `verify_` or `test_`. Name describes the scenario being validated.
+
+### 3. Type Hinting (Crucial)
+Always include type hints for `node: Node`, `environment: Environment`, and return types.
 
 Example structure:
 
@@ -88,6 +99,16 @@ Every test suite and test case must include metadata:
 - `@TestSuiteMetadata` – describes suite features, owners, and requirements
 - `@TestCaseMetadata` – describes test ID, description, timeout, priority, platform restrictions
 
+### @TestSuiteMetadata
+- `area`: The functional area (e.g., `storage`, `network`, `kernel`).
+- `category`: `functional`, `performance`, or `community`.
+- `description`: High-level purpose of the suite.
+
+### @TestCaseMetadata
+- `priority`: 1 (Critical) to 4 (Rarely run).
+- `requirement`: Use `simple_requirement` to define CPU, Memory, or Feature needs.
+- **Do not** hardcode `platform` unless the feature is physically limited to that platform.
+
 **Principles:**
 
 - Metadata **precedes logic**
@@ -101,12 +122,17 @@ Every test suite and test case must include metadata:
 Follow the AAA pattern:
 
 1. **Arrange**
-   - Acquire nodes, features, and tools
-   - Verify environment meets test preconditions
+   - Acquire nodes, features, and tools. E.g. Use `node.tools` to initialize required utilities.
+   - Verify environment meets test preconditions. E.g. Use `node.features` to check hardware/platform capabilities.
+    ```python
+    # Best Practice
+    gcc = node.tools[Gcc]
+    sriov = node.features[Sriov]
 2. **Act**
    - Perform minimal actions to trigger the behavior
 3. **Assert**
    - Explicitly verify expected outcomes
+   - Prefer LISA's "node.execute(...).assert_exit_code(0)" for simple checks.
    - Do not hide failures
    - No “best-effort” or log-only assertions
 
@@ -133,6 +159,10 @@ Best Practices:
 - DRY – reuse helpers, do not duplicate setup logic
 - Isolate failures – one test failure should not block others
 - Readable and maintainable code – new contributors should understand logic without deep investigation
+- Avoid time.sleep(): Use node.tools[Core].wait_for_condition(...).
+- Prefer Executable Tools: If a command is missing, create a new Tool class in lisa/tools/.
+- Path Handling: Use node.get_pure_path() for cross-OS path compatibility.
+- Cleanup: Use try...finally or cleanup parameters if the test modifies the node state.
 
 ---
 
@@ -179,33 +209,77 @@ When assisting a contributor or generating code:
 Use the following skeleton when generating a new LISA test case:
 
 ```python
-from lisa import TestCaseMetadata, TestSuiteMetadata, Node
-from lisa.sut_orchestrator import Node
-from lisa.tools import Tool
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
+from typing import Any
+
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.features import Sriov
+from lisa.tools import Lspci
 
 @TestSuiteMetadata(
-    area="networking",
-    owner="your_name",
-    feature="SR-IOV validation",
+    area="network",
+    category="functional",
+    description="""
+    This suite validates SR-IOV (Single Root I/O Virtualization) functionality.
+    It ensures that Accelerated Networking is correctly surfacing VFs to the guest.
+    """,
+    owner="xxxx",
 )
 class SriovValidation(TestSuite):
     @TestCaseMetadata(
-        description="Verify SR-IOV basic functionality",
+        description="""
+        Verify SR-IOV basic functionality by checking for Virtual Functions (VF).
+        Steps:
+        1. Ensure the platform supports SR-IOV.
+        2. Use lspci to find devices with 'Virtual Function' in their description.
+        """,
         priority=1,
-        timeout=1800,
-        requirement="SR-IOV feature must be present on node",
-        platform=["Ubuntu", "CentOS"],
+        timeout=1800, # Inherited from your sample: useful for long-running network tasks
+        requirement=simple_requirement(
+            network_interface=Sriov, # Gold Standard: Ensures environment is ready
+        ),
     )
-    def test_sriov_basic(self, node: Node) -> None:
-        # Arrange
-        node.tools.require("lspci")
-        sriov_present = node.tools["lspci"].check_sriov()
+    def verify_sriov_basic(self, node: Node, log: Logger) -> None:
+        # --- Arrange ---
+        # Using Class References (Gold Standard) instead of strings for Type Safety
+        lspci = node.tools[Lspci]
+        
+        # Verify precondition via Feature API
+        sriov_feature = node.features[Sriov]
+        log.info(f"SR-IOV Feature enabled: {sriov_feature.is_enabled}")
 
-        # Act
-        # minimal actions to trigger behavior (if needed)
+        # --- Act ---
+        # Minimal action: Capture the current hardware state
+        log.info("Scanning PCI bus for Virtual Functions...")
+        devices = lspci.get_devices()
 
-        # Assert
-        assert sriov_present, "SR-IOV is not present on the node"
+        # --- Assert ---
+        # Combine your clear assertion logic with Gold Standard's robust checking
+        sriov_present = any(
+            "Virtual Function" in device.device_class for device in devices
+        )
+
+        assert sriov_present, (
+            "SR-IOV Virtual Function (VF) not found. "
+            "Ensure 'Accelerated Networking' is enabled in the platform settings."
+        )
+        
+        log.info("Successfully validated SR-IOV Virtual Function presence.")
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        """
+        Cleanup or post-test telemetry can be added here.
+        """
+        pass
 ```
 
 **Usage Notes:**
