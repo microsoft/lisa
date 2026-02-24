@@ -105,17 +105,15 @@ class Waagent(Tool):
                 self.node.os.install_packages(package)  # type: ignore
 
         # Downgrading setuptools is required because:
-        # 1. Old WALinuxAgent versions (e.g. v2.9.0.4) have compatibility issues
-        #    with pip's build isolation (missing 'distro' module, deprecated
-        #    platform APIs)
+        # 1. Old WALinuxAgent versions have compatibility issues with pip's build
+        #    isolation (missing 'distro' module, deprecated platform APIs)
         # 2. The legacy 'setup.py install' works but requires compatible setuptools
-        # 3. setuptools >= 71 introduced a breaking change in
-        #    canonicalize_version() that causes TypeError with older packaging
-        # Note: We use == instead of < to avoid shell redirect interpretation
-        # of the '<' character when commands are sent over SSH
+        # Note: shell=True is required so the shell properly interprets the
+        # '<' in the version specifier instead of treating it as a redirect
         downgrade_result = self.node.execute(
-            f"{python_cmd} -m pip install setuptools==70.0.0 --force-reinstall",
+            f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall --break-system-packages",
             sudo=True,
+            shell=True,
         )
 
         if downgrade_result.exit_code != 0:
@@ -125,7 +123,7 @@ class Waagent(Tool):
             # Fallback: try pip install with --no-build-isolation to avoid
             # downloading latest setuptools in isolated environment
             self.node.execute(
-                f"{python_cmd} -m pip install --no-build-isolation .",
+                f"{python_cmd} -m pip install --no-build-isolation --break-system-packages .",
                 sudo=True,
                 cwd=self.node.working_path.joinpath("WALinuxAgent"),
                 expected_exit_code=0,
