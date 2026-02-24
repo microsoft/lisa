@@ -7,6 +7,7 @@ from enum import Enum
 from functools import partial
 from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Union
+import ipaddress
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -259,23 +260,23 @@ def generate_testpmd_multiple_port_command(
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
-    # for N senders, make a list of subnets from
-    # 10.0.1.0/24 to 10.0.N.0/24.
-    # these can be arbitrarily picked, each VM has nics on each
-    # subnets, so it doesn't matter which is picked for each VM
-    # as long as the senders are on distinct subnets.
-    subnets = []
-    for i in range(len(senders)):
-        subnets += [f"10.0.{i + 1}.0/24"]
+    # make a list of nics on each non-primary subnet on the receiver
+    # these can be arbitrarily picked, each VM must have nics on each
+    # subnet for the test to run, so as long as we exclude the ssh
+    # interface, it doesn't matter which is picked as long as the mapping
+    # is consistent between senders and receiver.
+    subnets = [
+        subnet for subnet in receiver.node.nics.get_node_subnets(include_primary=False)
+    ]
     sender_nics: Dict[DpdkTestResources, NicInfo] = dict()
     receiver_nics: Dict[str, NicInfo] = dict()
     for i in range(len(senders)):
         # pick one nic per subnet for the senders
         subnet = subnets[i]  # defined above as "10.0.{i + 1}.0/24"
         sender = senders[i]
-        sender_nics[sender] = sender.node.nics.get_nic_by_subnet(subnet)
+        sender_nics[sender] = sender.node.nics.get_nic_by_subnet(str(subnet))
         # and the corresponding nic on the receiver for that subnet.
-        receiver_nics[subnet] = receiver.node.nics.get_nic_by_subnet(subnet)
+        receiver_nics[subnet] = receiver.node.nics.get_nic_by_subnet(str(subnet))
 
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
@@ -298,7 +299,7 @@ def generate_testpmd_multiple_port_command(
     for i in range(len(senders)):
         # get the sender
         sender = senders[i]
-        sender_subnet = subnets[i]  # defined above as "10.0.{i + 1}.0/24"
+        sender_subnet = subnets[i]  # will be something like 10.X.Y.0/24
         # get the sender nic we picked
         sender_nic = sender_nics[sender]
         # get the subnet for that nic (follows the pattern from before)
@@ -484,8 +485,13 @@ def initialize_node_resources(
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
-
-    test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
+    # get a sorted list of subnets for the nics on the node,
+    # excluding the primary nic subnet,
+    # and pick the one on the lowest subnet as the testing default.
+    subnets = sorted(
+        [str(subnet) for subnet in node.nics.get_node_subnets(include_primary=False)]
+    )
+    test_nic = node.nics.get_nic_by_subnet(str(subnets[0]))
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -869,13 +875,17 @@ def verify_dpdk_mutliple_ports(
         (f"receiver:{external_ips[0]}\nsenders:{external_ips[1]},{external_ips[2]}\n")
     )
     receiver, sender_a, sender_b = environment.nodes.list()
+    subnets = receiver.nics.get_node_subnets(include_primary=False)
+    subnet_a, subnet_b = subnets[:2]  # will be something like 10.X.Y.0/24
+    # note: will assert if there are no nics on corresponding subnets,
+    #       this is good and proper since we can't run without that setup.
     nic_pairings = {
         receiver: [
-            receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
-            receiver.nics.get_nic_by_subnet("10.0.2.0/24"),
+            receiver.nics.get_nic_by_subnet(str(subnet_a)),
+            receiver.nics.get_nic_by_subnet(str(subnet_b)),
         ],
-        sender_a: [sender_a.nics.get_nic_by_subnet("10.0.1.0/24")],
-        sender_b: [sender_b.nics.get_nic_by_subnet("10.0.2.0/24")],
+        sender_a: [sender_a.nics.get_nic_by_subnet(str(subnet_a))],
+        sender_b: [sender_b.nics.get_nic_by_subnet(str(subnet_b))],
     }
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -986,10 +996,12 @@ def ipv4_to_lpm(addr: str) -> str:
 # enable ip forwarding for secondary and tertiary nics in this test.
 # run in parallel to save a bit of time on this net io step.
 def __enable_ip_forwarding(node: Node) -> None:
-    fwd_subnets = [
-        node.nics.get_nic_by_index(nic_index).ip_addr for nic_index in [1, 2]
-    ]
-    for subnet_ip in fwd_subnets:
+    fwd_subnets = node.nics.get_node_subnets(include_primary=False)
+    subnet_nics = [node.nics.get_nic_by_subnet(str(subnet)) for subnet in fwd_subnets]
+    subnet_ips = [nic.ip_addr for nic in subnet_nics]
+
+    for subnet_ip in subnet_ips:
+        node.log.debug(f"Enabling IP forwarding for nic on subnet {subnet_ip}")
         node.features[NetworkInterface].switch_ip_forwarding(
             enable=True, private_ip_addr=subnet_ip
         )
@@ -1115,22 +1127,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # 3. enjoy the thrill of victory, ship a cloud net applicance.
 
     l3fwd_app_name = "l3fwd"
-    # pick fwd/send/receive nodes based on well known addresses in our subnets
-    forwarder = [
-        node
-        for node in environment.nodes.list()
-        if node.nics.get_primary_nic().ip_addr.endswith("4")
-    ][0]
-    sender = [
-        node
-        for node in environment.nodes.list()
-        if node.nics.get_primary_nic().ip_addr.endswith("5")
-    ][0]
-    receiver = [
-        node
-        for node in environment.nodes.list()
-        if node.nics.get_primary_nic().ip_addr.endswith("6")
-    ][0]
+
+    forwarder, sender, receiver = environment.nodes.list()
 
     if not (
         forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
@@ -1172,15 +1170,22 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     forwarder.log.debug(f"fwd: {str(forwarder.nics)}")
     receiver.log.debug(f"rcv: {str(receiver.nics)}")
     sender.log.debug(f"snd: {str(sender.nics)}")
+    subnets = forwarder.nics.get_all_subnets(include_primary=False)
+    if len(subnets) != 2:
+        raise SkippedException(
+            "Expected exactly 2 non-primary subnets for this test. "
+            f"Found subnets: {subnets}"
+        )
+    subnet_a, subnet_b = subnets
     subnet_a_nics = {
-        forwarder: forwarder.nics.get_nic_by_subnet("10.0.1.0/24"),
-        sender: sender.nics.get_nic_by_subnet("10.0.1.0/24"),
-        receiver: receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
+        forwarder: forwarder.nics.get_nic_by_subnet(str(subnet_a)),
+        sender: sender.nics.get_nic_by_subnet(str(subnet_a)),
+        receiver: receiver.nics.get_nic_by_subnet(str(subnet_a)),
     }
     subnet_b_nics = {
-        forwarder: forwarder.nics.get_nic_by_subnet("10.0.2.0/24"),
-        receiver: receiver.nics.get_nic_by_subnet("10.0.2.0/24"),
-        sender: sender.nics.get_nic_by_subnet("10.0.2.0/24"),
+        forwarder: forwarder.nics.get_nic_by_subnet(str(subnet_b)),
+        receiver: receiver.nics.get_nic_by_subnet(str(subnet_b)),
+        sender: sender.nics.get_nic_by_subnet(str(subnet_b)),
     }
 
     # We use ntttcp for snd/rcv which will respect the kernel route table.
