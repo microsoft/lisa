@@ -93,7 +93,7 @@ class RunbookBuilder:
 
         runbook_name = builder.partial_resolve(constants.NAME)
 
-        constants.RUN_NAME = f"lisa-{runbook_name}-{constants.RUN_ID}"
+        constants.RUN_NAME = f"{runbook_name}-{constants.RUN_ID}"
         builder._log.info(f"run name is '{constants.RUN_NAME}'")
 
         return builder

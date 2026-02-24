@@ -44,9 +44,10 @@ class NicInfo:
         self.pci_slot = pci_slot
         self.dev_uuid = ""
         self.module_name = ""
-        self.subnet: Optional[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]] = (
-            None,
-        )
+        self.subnet: Optional[
+            Union[ipaddress.IPv4Network, ipaddress.IPv6Network]
+        ] = None
+
         if driver_sysfs_path is None:
             self.driver_sysfs_path = PurePosixPath("")
         else:

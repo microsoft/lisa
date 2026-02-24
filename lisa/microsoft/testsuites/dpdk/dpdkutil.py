@@ -276,7 +276,7 @@ def generate_testpmd_multiple_port_command(
         sender = senders[i]
         sender_nics[sender] = sender.node.nics.get_nic_by_subnet(str(subnet))
         # and the corresponding nic on the receiver for that subnet.
-        receiver_nics[subnet] = receiver.node.nics.get_nic_by_subnet(str(subnet))
+        receiver_nics[str(subnet)] = receiver.node.nics.get_nic_by_subnet(str(subnet))
 
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
@@ -305,7 +305,7 @@ def generate_testpmd_multiple_port_command(
         # get the subnet for that nic (follows the pattern from before)
 
         # get the corresponding receiver nic for that subnet
-        receiver_nic = receiver_nics[sender_subnet]
+        receiver_nic = receiver_nics[str(sender_subnet)]
         # generate the command for the sender
         snd_cmd = sender.testpmd.generate_testpmd_command(
             [sender_nic],
@@ -321,7 +321,7 @@ def generate_testpmd_multiple_port_command(
         kit_cmd_pairs[sender] = snd_cmd
         # receiver needs multiple ports, so only generate the include.
         receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i
+            receiver_nics[str(sender_subnet)], i
         )
         # and save it
         receiver_includes += [receiver_include]
@@ -1170,7 +1170,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     forwarder.log.debug(f"fwd: {str(forwarder.nics)}")
     receiver.log.debug(f"rcv: {str(receiver.nics)}")
     sender.log.debug(f"snd: {str(sender.nics)}")
-    subnets = forwarder.nics.get_all_subnets(include_primary=False)
+    subnets = forwarder.nics.get_node_subnets(include_primary=False)
     if len(subnets) != 2:
         raise SkippedException(
             "Expected exactly 2 non-primary subnets for this test. "

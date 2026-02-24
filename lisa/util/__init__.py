@@ -161,6 +161,15 @@ class LisaException(Exception):
         super().__init__(*args)
 
 
+class DeploymentActiveException(LisaException):
+    """
+    This exception is used to indicate that there is an active deployment with the same name. It may be caused by the previous deployment not cleaned up yet.
+    LISA should catch this exception and retry the deployment after a timeout period to allow the old environment to be cleaned up.
+    """
+
+    ...
+
+
 class UnsupportedOperationException(LisaException):
     """
     An operation might not be supported. Use this exception to

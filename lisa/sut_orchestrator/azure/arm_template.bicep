@@ -71,7 +71,7 @@ var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
 var wrapped_resource_group_index = resource_group_index % 256
 var use_existing_vnet = !empty(virtual_network_resource_group)
-var shared_subnet_names = [for nic_index in range(0, subnet_count): '10.${wrapped_resource_group_index}.${nic_index}.0']
+var shared_subnet_names = [for nic_index in range(0, subnet_count): nic_index==0 ? '10.0.0.0' : 'e${resource_group_index}-10.${wrapped_resource_group_index}.${nic_index}.0']
 var availability_set_tags = availability_options.availability_set_tags
 var availability_set_properties = availability_options.availability_set_properties
 var availability_zones = availability_options.availability_zones
@@ -235,7 +235,7 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
     nic_count: nodes[i].nic_count
     location: location
     vnet_id: vnet_id
-    resource_group_index: wrapped_resource_group_index
+    resource_group_index: resource_group_index
     enable_sriov: nodes[i].enable_sriov
     tags: tags
     use_ipv6: use_ipv6
@@ -248,16 +248,25 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
   ]
 }]
 
-module shared_vnet_subnets './nested_shared_vnet_subnets.bicep' = if (use_existing_vnet) {
-  name: 'shared-vnet-subnets'
-  scope: resourceGroup(virtual_network_resource_group)
-  params: {
-    virtual_network_name: virtual_network_name
-    subnet_names: shared_subnet_names
-  }
-}
+// If there is already a vnet, LISA only needs to create the test nic subnets. 10.0.0.0/24 must already exist.
+// This deployment should generate an exception at runtime if two environments have overlapping address spaces;
+// this is expected and will happen if the environment id mod 256 rolls over while an old environment is still active. This should be rare, but will work out so long as:
+// LISA must catch this exception and retry the deployment after a timeout period to allow the old environment to be cleaned up. 
+// LISA must remove old subnets when an environment is not needed anymore.
+// This will ensure no collisions occur where one test in a subnet can disturb another in the same subnet.
 
-resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-05-01' = if (empty(virtual_network_resource_group)) {
+resource shared_vnet_subnets 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = [for j in range(0, subnet_count): if (use_existing_vnet && j > 0) {
+  parent: virtual_network_name_resource
+  name:  shared_subnet_names[j]
+  properties: {
+    addressPrefix: '10.${wrapped_resource_group_index}.${j}.0/24'
+  }
+}]
+
+
+
+
+resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-05-01' = if (!use_existing_vnet) {
   name: virtual_network_name
   tags: tags
   location: location
@@ -269,11 +278,11 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
       )
     }
     subnets: [for j in range(0, subnet_count): {
-      name: j == 0 ? '10.0.0.0' : '10.${resource_group_index}.${j}.0'
+      name: j == 0 ? '10.0.0.0' : 'e${resource_group_index}-10.${wrapped_resource_group_index}.${j}.0'
       properties: {
         addressPrefixes: concat(
-          ['10.${j ==0 ? '0' : resource_group_index}.${j}.0/24'],
-          use_ipv6 ? ['2001:db8:${j == 0 ? j : resource_group_index}:${j}::/64'] : []
+          ['10.${j ==0 ? '0' : wrapped_resource_group_index}.${j}.0/${j == 0 ? 16: 24}'],
+          use_ipv6 ? ['2001:db8:${j == 0 ? j : wrapped_resource_group_index}:${j}::/64'] : []
         )
         defaultOutboundAccess: enable_vm_nat
         networkSecurityGroup: {
