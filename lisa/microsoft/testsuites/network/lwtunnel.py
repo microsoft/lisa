@@ -41,10 +41,7 @@ from lisa.util import UnsupportedDistroException
 class LwtunnelSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
-        if (
-            not isinstance(node.os, CBLMariner)
-            or node.os.information.version < "3.0.0"
-        ):
+        if not isinstance(node.os, CBLMariner) or node.os.information.version < "3.0.0":
             raise SkippedException(
                 UnsupportedDistroException(
                     node.os,
@@ -151,9 +148,7 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
             )
             if compile_result.exit_code != 0:
                 error_output = compile_result.stderr or compile_result.stdout
-                raise SkippedException(
-                    f"Failed to compile BPF program: {error_output}"
-                )
+                raise SkippedException(f"Failed to compile BPF program: {error_output}")
 
             node.log.info("BPF program compiled successfully")
 
@@ -176,8 +171,9 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
                 force_run=True,
             )
             assert_that(route_result.exit_code).described_as(
-                f"BPF encap route should be added successfully. "
-                f"Failure indicates kernel lacks LWTUNNEL_BPF support: {route_result.stderr}"
+                "BPF encap route should be added successfully. "
+                "Failure indicates kernel lacks LWTUNNEL_BPF "
+                f"support: {route_result.stderr}"
             ).is_equal_to(0)
 
             # Verify route shows BPF encap
