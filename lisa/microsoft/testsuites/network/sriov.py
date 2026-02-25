@@ -552,6 +552,9 @@ class Sriov(TestSuite):
 
         # skip test if scatter-gather can't be updated
         for client_nic_info in vm_nics[client_node.name].values():
+            # Skip InfiniBand interfaces — they don't support ethtool SG settings
+            if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                continue
             device_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.name, True
             )
@@ -569,13 +572,17 @@ class Sriov(TestSuite):
 
         # run iperf3 on server side and client side
         # iperfResults.log stored client side log
+        # Use a longer runtime to cover all test operations (disable/enable,
+        # sriov_disable_enable, reload_modules) which can take significant time
+        # on VMs with many NICs (e.g., 8 NICs on GB300).
+        iperf3_run_time = self.TIME_OUT * 4
         source_iperf3 = server_node.tools[Iperf3]
         dest_iperf3 = client_node.tools[Iperf3]
         source_iperf3.run_as_server_async()
         dest_iperf3.run_as_client_async(
             server_ip=server_node.internal_address,
             log_file=client_iperf3_log,
-            run_time_seconds=self.TIME_OUT,
+            run_time_seconds=iperf3_run_time,
         )
 
         # wait for a while then check any error shown up in iperfResults.log
@@ -600,6 +607,9 @@ class Sriov(TestSuite):
         # set on for scatter-gather feature for synthetic nic
         # verify vf scatter-gather feature has value 'on'
         for client_nic_info in vm_nics[client_node.name].values():
+            # Skip InfiniBand interfaces — they use RDMA, not standard Ethernet
+            if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                continue
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.name, True
             )
@@ -614,6 +624,9 @@ class Sriov(TestSuite):
         # set off for scatter-gather feature for synthetic nic
         # verify vf scatter-gather feature has value 'off'
         for client_nic_info in vm_nics[client_node.name].values():
+            # Skip InfiniBand interfaces — they use RDMA, not standard Ethernet
+            if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                continue
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.name, False
             )
@@ -632,6 +645,9 @@ class Sriov(TestSuite):
 
         # check VF's scatter-gather feature keep consistent with previous status
         for client_nic_info in vm_nics[client_node.name].values():
+            # Skip InfiniBand interfaces — they use RDMA, not standard Ethernet
+            if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                continue
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
             )
@@ -647,6 +663,9 @@ class Sriov(TestSuite):
 
         # check VF's scatter-gather feature keep consistent with previous status
         for client_nic_info in vm_nics[client_node.name].values():
+            # Skip InfiniBand interfaces — they use RDMA, not standard Ethernet
+            if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                continue
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
             )
@@ -662,6 +681,9 @@ class Sriov(TestSuite):
 
             # check VF's scatter-gather feature keep consistent with previous status
             for client_nic_info in vm_nics[client_node.name].values():
+                # Skip InfiniBand interfaces — they use RDMA, not standard Ethernet
+                if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                    continue
                 device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                     client_nic_info.pci_device_name, True
                 )
