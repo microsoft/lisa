@@ -1262,7 +1262,7 @@ class AzureArmParameter:
     enable_vm_nat: bool = False
     create_public_address: bool = True
     source_address_prefixes: List[str] = field(default_factory=list)
-    resource_group_index: int = 0
+    resource_group_index: Optional[int] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
