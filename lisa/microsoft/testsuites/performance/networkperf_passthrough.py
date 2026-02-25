@@ -26,7 +26,7 @@ from lisa.environment import Environment, Node
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR
 from lisa.testsuite import TestResult
-from lisa.tools import Kill, Sysctl, TcpDump
+from lisa.tools import Kill, Sysctl
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
@@ -89,10 +89,10 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot the nodes before configuration. Libvirt sometimes re-uses the nodes.
-        # Boot into a fresh state so that the passthrough NIC comes up cleanly.
+        # Reboot only the guest VM before configuration.
+        # Libvirt sometimes re-uses nodes; boot into a fresh state so the
+        # passthrough NIC comes up cleanly. Do NOT reboot the baremetal host.
         cast(RemoteNode, node).reboot()
-        server.reboot(time_out=1200)
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -129,10 +129,10 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot the nodes before configuration. Libvirt sometimes re-uses the nodes.
-        # Boot into a fresh state so that the passthrough NIC comes up cleanly.
+        # Reboot only the guest VM before configuration.
+        # Libvirt sometimes re-uses nodes; boot into a fresh state so the
+        # passthrough NIC comes up cleanly. Do NOT reboot the baremetal host.
         cast(RemoteNode, node).reboot()
-        server.reboot(time_out=1200)
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -171,10 +171,10 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot the nodes before configuration. Libvirt sometimes re-uses the nodes.
-        # Boot into a fresh state so that the passthrough NIC comes up cleanly.
+        # Reboot only the guest VM before configuration.
+        # Libvirt sometimes re-uses nodes; boot into a fresh state so the
+        # passthrough NIC comes up cleanly. Do NOT reboot the baremetal host.
         cast(RemoteNode, node).reboot()
-        server.reboot(time_out=1200)
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -211,10 +211,10 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot the nodes before configuration. Libvirt sometimes re-uses the nodes.
-        # Boot into a fresh state so that the passthrough NIC comes up cleanly.
+        # Reboot only the guest VM before configuration.
+        # Libvirt sometimes re-uses nodes; boot into a fresh state so the
+        # passthrough NIC comes up cleanly. Do NOT reboot the baremetal host.
         cast(RemoteNode, node).reboot()
-        server.reboot(time_out=1200)
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -252,10 +252,10 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot the nodes before configuration. Libvirt sometimes re-uses the nodes.
-        # Boot into a fresh state so that the passthrough NIC comes up cleanly.
+        # Reboot only the guest VM before configuration.
+        # Libvirt sometimes re-uses nodes; boot into a fresh state so the
+        # passthrough NIC comes up cleanly. Do NOT reboot the baremetal host.
         cast(RemoteNode, node).reboot()
-        server.reboot(time_out=1200)
 
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -292,10 +292,10 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot the nodes before configuration. Libvirt sometimes re-uses the nodes.
-        # Boot into a fresh state so that the passthrough NIC comes up cleanly.
+        # Reboot only the guest VM before configuration.
+        # Libvirt sometimes re-uses nodes; boot into a fresh state so the
+        # passthrough NIC comes up cleanly. Do NOT reboot the baremetal host.
         cast(RemoteNode, node).reboot()
-        server.reboot(time_out=1200)
 
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -576,6 +576,25 @@ class NetworkPerformance(TestSuite):
     ) -> Tuple[RemoteNode, str]:
         from lisa.sut_orchestrator.libvirt.context import get_node_context
 
+        def _wrap_aa_unconfined(cmd: str) -> str:
+            """Wrap *cmd* so it runs under the AppArmor 'unconfined' profile
+            when aa-exec is available; fall back to plain cmd otherwise.
+
+            The if/then/else/fi must be inside a sh -c '...' so that
+            'timeout' receives a single executable (sh) rather than the
+            bare word 'if', which is a shell built-in and would cause:
+              sh: Syntax error: "then" unexpected
+            timeout is still placed *outside* this wrapper so it controls
+            the full process lifetime regardless of confinement.
+            """
+            return (
+                "sh -c '"
+                "if command -v aa-exec >/dev/null 2>&1; then "
+                f"aa-exec -p unconfined -- {cmd}; "
+                f"else {cmd}; "
+                "fi'"
+            )
+
         ctx = get_node_context(node)
         if not ctx.passthrough_devices:
             raise SkippedException("No passthrough devices found for node")
@@ -606,21 +625,107 @@ class NetworkPerformance(TestSuite):
                 shell=True,
             ).stdout.strip()
             host_nic_name = _h.split()[0] if _h.split() else ""
-        err_msg: str = f"Can't find interface from PCI address: {device_bdf}"
-        interface_name = (
-            node.execute(
-                cmd=f"ls /sys/bus/pci/devices/{device_bdf}/net/",
-                sudo=True,
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=err_msg,
+        # Identify the passthrough NIC inside the guest without relying on
+        # the host-side BDF (QEMU assigns a guest-local BDF that differs).
+        #
+        # Strategy:
+        #   1. Find the SSH management interface via 'ip route get <mgmt_ip>'.
+        #   2. Enumerate all non-loopback interfaces that have a PCI backing
+        #      (/sys/class/net/<if>/device must exist) in one shell pass.
+        #   3. Exclude the management interface; prefer non-virtio-pci drivers
+        #      (virtio = emulated mgmt/data NIC, non-virtio = passthrough NIC).
+        #   4. Once the interface is identified, look up its guest BDF via
+        #      readlink and use canonical sysfs to confirm the mapping.
+        # Use the stable SSH target address — NOT internal_address, which gets
+        # overwritten with the passthrough IP later in this function.
+        mgmt_ip_ssh = cast(RemoteNode, node).connection_info[
+            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+        ]
+        mgmt_iface_raw = node.execute(
+            cmd=f"ip -4 route get {mgmt_ip_ssh} 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        ).stdout.strip()
+        _m = re.search(r"\bdev\s+(\S+)", mgmt_iface_raw)
+        mgmt_iface = _m.group(1) if _m else ""
+
+        # One-shot loop: emit "<iface> <driver> <carrier>" for every
+        # PCI-backed interface.
+        # carrier==1 means link is up; we prefer those candidates.
+        iface_info_raw = node.execute(
+            cmd=(
+                "for iface in /sys/class/net/*/; do "
+                "iface=$(basename $iface); "
+                "[ -e /sys/class/net/$iface/device ] || continue; "
+                "drv=$(basename "
+                "$(readlink /sys/class/net/$iface/device/driver 2>/dev/null) "
+                "2>/dev/null); "
+                "carrier=$(cat /sys/class/net/$iface/carrier 2>/dev/null "
+                "|| echo 0); "
+                'echo "$iface $drv $carrier"; '
+                "done"
+            ),
+            sudo=False,
+            shell=True,
+        ).stdout.strip()
+
+        # Tuples of (carrier_up, iface) — non-virtio preferred, link-up preferred.
+        # Virtio drivers (virtio_net, virtio-pci, …) are the emulated mgmt/data
+        # NICs; anything else is a passthrough candidate.
+        pt_candidates: List[Tuple[bool, str]] = []
+        virtio_fallback: List[Tuple[bool, str]] = []
+        for _line in iface_info_raw.splitlines():
+            _parts = _line.split()
+            if not _parts:
+                continue
+            _iface = _parts[0]
+            _drv = _parts[1] if len(_parts) > 1 else ""
+            _carrier_up = (_parts[2] == "1") if len(_parts) > 2 else False
+            if _iface == mgmt_iface or _iface == "lo":
+                continue
+            if _drv.startswith("virtio"):
+                virtio_fallback.append((_carrier_up, _iface))
+            else:
+                pt_candidates.append((_carrier_up, _iface))
+
+        # Fall back to virtio interfaces if no non-virtio candidate found.
+        # Sort so link-up (carrier=True) interfaces come first.
+        if not pt_candidates:
+            pt_candidates = virtio_fallback
+        pt_candidates.sort(key=lambda t: (not t[0], t[1]))
+
+        if not pt_candidates:
+            raise LisaException(
+                f"No passthrough NIC found in guest. "
+                f"Management iface: {mgmt_iface!r}, "
+                f"Enumerated (iface driver carrier): {iface_info_raw!r}"
             )
-            .stdout.strip()
-            .split()[0]
-        )
-        assert (
-            interface_name
-        ), f"No interface found at /sys/bus/pci/devices/{device_bdf}/net/"
+        interface_name = pt_candidates[0][1]
+
+        # Confirm via canonical sysfs: get the guest BDF and verify net/ entry
+        _bdf_raw = node.execute(
+            cmd=f"readlink -f /sys/class/net/{interface_name}/device 2>/dev/null"
+            " | xargs basename 2>/dev/null || true",
+            sudo=False,
+            shell=True,
+        ).stdout.strip()
+        if _bdf_raw:
+            _sysfs_check = node.execute(
+                cmd=f"ls /sys/bus/pci/devices/{_bdf_raw}/net/ 2>/dev/null || true",
+                sudo=False,
+                shell=True,
+            ).stdout.strip()
+            node.log.debug(
+                f"[passthrough-nic] guest BDF={_bdf_raw!r} "
+                f"net/={_sysfs_check!r} selected iface={interface_name!r}"
+            )
+
+        node.log.info(f"[passthrough-nic] GUEST iface={interface_name!r}")
+        if host_node is not None and host_nic_name:
+            host_node.log.info(
+                f"[passthrough-nic] HOST nic={host_nic_name!r}"
+                f" (host BDF={device_bdf!r})"
+            )
 
         # Bring the interface up before configuring it
         node.execute(
@@ -632,18 +737,41 @@ class NetworkPerformance(TestSuite):
             ),
         )
 
-        # Wait for carrier (link up) - some NICs take time to negotiate
-        # Exit code 124 = timeout (no carrier), which is acceptable if DHCP works anyway
+        # Wait for carrier (link up) — some NICs take time to negotiate.
+        # 60 s is used because VFs occasionally report carrier late on some
+        # host driver combinations.
         carrier_result = node.execute(
-            cmd=f"timeout 30 sh -c 'until cat /sys/class/net/{interface_name}/carrier"
+            cmd=f"timeout 60 sh -c 'until cat /sys/class/net/{interface_name}/carrier"
             f" 2>/dev/null | grep -q 1; do sleep 1; done'",
             sudo=True,
             shell=True,
         )
         if carrier_result.exit_code == 124:
-            node.log.warning(
-                f"Interface {interface_name} carrier not detected after 30s. "
-                f"Proceeding with DHCP anyway - may fail if no physical link."
+            # Carrier not up after 60 s — physical link is down.
+            # DHCP will never succeed without a link; fail fast with diagnostics.
+            _nc_ethtool = node.execute(
+                cmd=f"ethtool {interface_name} 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            ).stdout.strip()
+            _nc_ip_link = node.execute(
+                cmd=f"ip -d link show {interface_name}",
+                sudo=True,
+                shell=True,
+            ).stdout.strip()
+            _nc_dmesg = node.execute(
+                cmd="dmesg -T 2>/dev/null"
+                f" | grep -E 'i40e|ixgbe|mlx|vfio|{interface_name}|link|carrier'"
+                " | tail -n 50 || true",
+                sudo=True,
+                shell=True,
+            ).stdout.strip()
+            raise LisaException(
+                f"Interface {interface_name} NO-CARRIER after 60 s. "
+                f"Physical link is not up — DHCP would fail. Failing fast.\n"
+                f"ethtool {interface_name}:\n{_nc_ethtool}\n"
+                f"ip -d link show:\n{_nc_ip_link}\n"
+                f"dmesg (NIC/carrier):\n{_nc_dmesg}"
             )
         elif carrier_result.exit_code != 0:
             raise LisaException(
@@ -654,268 +782,320 @@ class NetworkPerformance(TestSuite):
         # Bounded DHCP: kill any stale dhclient, release old lease, then renew
         # with a hard timeout so we never hang for 600 s waiting for a server.
 
-        # Debug: capture routing state before DHCP to detect management-NIC disruption
-        mgmt_ip = cast(RemoteNode, node).connection_info.get(
-            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS, ""
+        # Flush stale address/route state from previous runs so dhclient
+        # starts from a clean slate (avoids duplicate-IP / route conflicts).
+        node.execute(
+            f"ip addr flush dev {interface_name} 2>/dev/null || true",
+            sudo=True,
+            shell=True,
         )
-        pre_routes = node.execute("ip -4 route show", sudo=True, shell=True).stdout
-        pre_rules = node.execute("ip -4 rule show", sudo=True, shell=True).stdout
-        pre_ssh = node.execute(
-            "ss -tnp | grep ':22' || true", sudo=True, shell=True
-        ).stdout
-        pre_mgmt_route = (
+        node.execute(
+            f"ip route flush dev {interface_name} 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+        # Use deterministic pid and lease file paths so:
+        #   - kill can target by pidfile (no stale process ambiguity)
+        #   - dhclient -r releases the exact lease we acquired
+        #   - lease file is readable after the run for diagnostics
+        dhcp_pid_file = f"/run/dhclient-{interface_name}.pid"
+        dhcp_lease_file = f"/var/lib/dhcp/dhclient-{interface_name}.leases"
+        # Two hook scripts, both in /usr/local/bin (noexec-safe, AppArmor-
+        # accessible; /run can be mounted noexec on some images).
+        #
+        # dhcp_bypass_script: pure noop (exit 0).  Used only for the probe
+        #   run so we can test the base DHCP/ARP path without executing any
+        #   hook at all.
+        #
+        # dhcp_config_script: minimal "configure IP only" hook.  Used for the
+        #   real dhclient run.  It applies ip-addr to the passthrough NIC but
+        #   does NOT add a default route — the stock dhclient-script would
+        #   add a default route via the passthrough GW and displace the
+        #   existing default route used by the management SSH session (ens4),
+        #   which breaks the SSH connection and causes a 15-minute hang.
+        dhcp_bypass_script = "/usr/local/bin/lisa-dhclient-noop"
+        dhcp_config_script = "/usr/local/bin/lisa-dhclient-config"
+
+        # Ensure both the lease directory and the script directory exist.
+        # /usr/local/bin can be absent on minimal images; /var/lib/dhcp path
+        # varies by distro but is the most common location.
+        node.execute("mkdir -p /usr/local/bin /var/lib/dhcp", sudo=True, shell=True)
+
+        # Noop script — just exit 0 so every hook reason is a no-op.
+        node.execute(
+            "printf '#!/bin/sh\\nexit 0\\n'"
+            f" | tee '{dhcp_bypass_script}' >/dev/null"
+            f" && chmod 0755 '{dhcp_bypass_script}'"
+            f" && chown root:root '{dhcp_bypass_script}'",
+            sudo=True,
+            shell=True,
+        )
+
+        # Minimal config script — applies ip addr, NO default route, NO
+        # resolv.conf, NO NM notification.  This is exactly what we need
+        # for the passthrough NIC: get an IP assigned without touching the
+        # routing table's default entry.
+        #
+        # ISC dhclient does NOT set new_prefix_length / old_prefix_length.
+        # It provides new_subnet_mask / old_subnet_mask (e.g. "255.255.254.0").
+        # We compute the CIDR prefix length with a portable sh bit-count loop.
+        # Using unset IFS (instead of IFS=' ') avoids a literal single-quote
+        # inside the printf '...' wrapper.
+        node.execute(
+            f"printf '#!/bin/sh\\n"
+            f"pfx=0\\n"
+            f"IFS=.\\n"
+            f'case "$reason" in\\n'
+            f'  BOUND|RENEW|REBIND|REBOOT) _mask="$new_subnet_mask" ;;\\n'
+            f'  *)                          _mask="$old_subnet_mask" ;;\\n'
+            f"esac\\n"
+            f"for _o in $_mask; do\\n"
+            f"  case $_o in\\n"
+            f"    255) pfx=$((pfx+8)) ;;\\n"
+            f"    254) pfx=$((pfx+7)) ;;\\n"
+            f"    252) pfx=$((pfx+6)) ;;\\n"
+            f"    248) pfx=$((pfx+5)) ;;\\n"
+            f"    240) pfx=$((pfx+4)) ;;\\n"
+            f"    224) pfx=$((pfx+3)) ;;\\n"
+            f"    192) pfx=$((pfx+2)) ;;\\n"
+            f"    128) pfx=$((pfx+1)) ;;\\n"
+            f"  esac\\n"
+            f"done\\n"
+            f"unset IFS\\n"
+            f'case "$reason" in\\n'
+            f"  BOUND|RENEW|REBIND|REBOOT)\\n"
+            f'    ip addr replace "${{new_ip_address}}/$pfx"'
+            f' dev "$interface" 2>/dev/null || true\\n'
+            f"    ;;\\n"
+            f"  EXPIRE|FAIL|RELEASE|STOP)\\n"
+            f'    ip addr del "${{old_ip_address}}/$pfx"'
+            f' dev "$interface" 2>/dev/null || true\\n'
+            f"    ;;\\n"
+            f"esac\\n"
+            f"exit 0\\n'"
+            f" | tee '{dhcp_config_script}' >/dev/null"
+            f" && chmod 0755 '{dhcp_config_script}'"
+            f" && chown root:root '{dhcp_config_script}'",
+            sudo=True,
+            shell=True,
+        )
+
+        # Sanity-check both scripts: execute them directly so we catch noexec
+        # mounts or permission issues immediately.
+        node.execute(f"'{dhcp_bypass_script}'", sudo=True, shell=True)
+        node.execute(f"'{dhcp_config_script}'", sudo=True, shell=True)
+
+        # ── Suppress competing DHCP managers for the duration ─────────────
+        # NetworkManager and systemd-networkd both react to carrier-up events
+        # and can race dhclient for port 68, corrupt the lease, or apply their
+        # own routes while we're doing DHCP.  Stop them briefly; restore after
+        # in a try/finally so the node is never left with managers stopped if
+        # an exception fires mid-way.
+        _nm_was_active = (
             node.execute(
-                f"ip route get {mgmt_ip} 2>/dev/null || true",
+                "systemctl is-active NetworkManager 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            ).stdout.strip()
+            == "active"
+        )
+        # Only stop systemd-networkd if it is both active AND currently
+        # managing the passthrough interface.  If the interface is already
+        # "unmanaged", stopping networkd would disrupt management networking
+        # for zero gain (and could drop the SSH session on some images).
+        _nd_systemd_active = (
+            node.execute(
+                "systemctl is-active systemd-networkd 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            ).stdout.strip()
+            == "active"
+        )
+        _nd_iface_managed = _nd_systemd_active and (
+            "unmanaged"
+            not in node.execute(
+                f"networkctl status {interface_name} 2>/dev/null || true",
                 sudo=True,
                 shell=True,
             ).stdout
-            if mgmt_ip
-            else ""
         )
-
-        # Debug: check for conflicting dhclient/NM processes on this interface
-        conflicting_procs = node.execute(
-            "ps aux | grep -E 'dhclient|NetworkManager|systemd-networkd'"
-            " | grep -v grep || true",
-            sudo=True,
-            shell=True,
-        ).stdout
-        pid_files = node.execute(
-            "ls -l /run/dhclient*.pid /var/run/dhclient*.pid 2>/dev/null || true",
-            sudo=True,
-            shell=True,
-        ).stdout
-        nm_status = node.execute(
-            "nmcli dev status 2>/dev/null || true", sudo=True, shell=True
-        ).stdout
-        networkctl_status = node.execute(
-            f"networkctl status {interface_name} 2>/dev/null || true",
-            sudo=True,
-            shell=True,
-        ).stdout
-        link_detail = node.execute(
-            f"ip -d link show {interface_name}", sudo=True, shell=True
-        ).stdout
-        # Debug: capture interface IP and lease state before dhclient -r (release)
-        pre_release_addr = node.execute(
-            f"ip -4 addr show dev {interface_name}", sudo=True, shell=True
-        ).stdout
-        pre_release_routes = node.execute(
-            f"ip -4 route show dev {interface_name}", sudo=True, shell=True
-        ).stdout
-        dhclient_procs_intf = node.execute(
-            f"pgrep -a dhclient | grep {interface_name} || true",
-            sudo=True,
-            shell=True,
-        ).stdout
-        lease_info = node.execute(
-            f"grep -nE 'interface \"{interface_name}\"|fixed-address|lease'"
-            f" /var/lib/dhcp/dhclient*.leases 2>/dev/null | tail -n 60 || true",
-            sudo=True,
-            shell=True,
-        ).stdout
-
-        # Guest VLAN / offload / kernel ring-buffer state
-        ethtool_k = node.execute(
-            f"ethtool -k {interface_name} 2>/dev/null"
-            " | egrep -i 'rx-vlan|tx-vlan|gro|gso|lro|tso' || true",
-            sudo=True,
-            shell=True,
-        ).stdout
-        bridge_vlan = node.execute(
-            "bridge vlan show 2>/dev/null || true", sudo=True, shell=True
-        ).stdout
-        dmesg_out = node.execute(
-            "dmesg -T 2>/dev/null"
-            " | egrep -i 'i40e|ixgbe|mlx|vfio|pci|net|link|firmware'"
-            " | tail -n 200 || true",
-            sudo=True,
-            shell=True,
-        ).stdout
-
-        # Host-side NIC / VLAN state (if host is accessible)
-        host_pre_info = ""
-        if host_node is not None:
-            h_link = host_node.execute(
-                f"ip -d link show {host_nic_name}"
-                if host_nic_name
-                else "ip -d link show",
+        _nd_was_active = _nd_iface_managed
+        if _nm_was_active:
+            node.execute(
+                "systemctl stop NetworkManager 2>/dev/null || true",
                 sudo=True,
                 shell=True,
-            ).stdout
-            h_bridge_vlan = host_node.execute(
-                "bridge vlan show 2>/dev/null || true", sudo=True, shell=True
-            ).stdout
-            host_pre_info = (
-                f"[dhclient-debug] HOST NIC state"
-                f" (bdf={device_bdf}, nic={host_nic_name or 'any'}):\n"
-                f"  link detail: {h_link.strip()}\n"
-                f"  bridge vlan:\n{h_bridge_vlan}"
             )
-            node.log.debug(host_pre_info)
-
-        node.log.debug(
-            f"[dhclient-debug] PRE-DHCP on {interface_name}:\n"
-            f"  mgmt_ip={mgmt_ip}\n"
-            f"  route get mgmt: {pre_mgmt_route.strip()}\n"
-            f"  routes:\n{pre_routes}\n"
-            f"  rules:\n{pre_rules}\n"
-            f"  sshd bindings: {pre_ssh.strip()}\n"
-            f"  link detail: {link_detail.strip()}\n"
-            f"  ethtool -k (offloads): {ethtool_k.strip()}\n"
-            f"  bridge vlan:\n{bridge_vlan}\n"
-            f"  dmesg (NIC-related):\n{dmesg_out}\n"
-            f"  --- pre-release state (before dhclient -r) ---\n"
-            f"  addr on {interface_name}: {pre_release_addr.strip()}\n"
-            f"  routes on {interface_name}: {pre_release_routes.strip()}\n"
-            f"  dhclient procs for {interface_name}: {dhclient_procs_intf.strip()}\n"
-            f"  lease info:\n{lease_info}\n"
-            f"  --- conflict checks ---\n"
-            f"  dhclient/NM procs:\n{conflicting_procs}\n"
-            f"  pid files: {pid_files.strip()}\n"
-            f"  nmcli dev status:\n{nm_status}\n"
-            f"  networkctl {interface_name}:\n{networkctl_status}"
-        )
-
-        # Guest tcpdump: captures DHCP DISCOVER/OFFER as seen by the VM.
-        # This tells us whether DISCOVER reaches the network and OFFER comes back.
-        tcpdump_pcap = "dhclient_dhcp_debug.pcap"
-        tcpdump_proc = node.tools[TcpDump].dump_async(
-            nic_name=interface_name,
-            expression="port 67 or port 68",
-            packet_filename=tcpdump_pcap,
-        )
-
-        # Host tcpdump: captures the same DHCP exchange on the physical NIC.
-        # Comparing guest vs host capture reveals where packets are lost:
-        #   guest DISCOVER but no host DISCOVER → VF/VFIO path broken
-        #   both DISCOVER, no OFFER anywhere   → switch/VLAN/DHCP server issue
-        #   OFFER on host but not guest         → VF RX filtering or tagging issue
-        host_tcpdump_pcap = "host_dhclient_dhcp_debug.pcap"
-        host_tcpdump_proc = None
-        if host_node is not None:
-            host_tcpdump_iface = host_nic_name or "any"
-            host_tcpdump_proc = host_node.tools[TcpDump].dump_async(
-                nic_name=host_tcpdump_iface,
-                expression="port 67 or port 68",
-                packet_filename=host_tcpdump_pcap,
-            )
-
-        node.execute(
-            f"pkill -f 'dhclient.*{interface_name}' || true",
-            sudo=True,
-            shell=True,
-        )
-        node.execute(
-            f"dhclient -r {interface_name} || true",
-            sudo=True,
-            shell=True,
-        )
-        dhcp_result = node.execute(
-            # Outer shell timeout guarantees an exit code even if dhclient
-            # ignores -timeout or hangs on a different code path.
-            f"timeout 30 dhclient -v -1 -timeout 15 {interface_name}",
-            sudo=True,
-            shell=True,
-            timeout=45,
-        )
-
-        # Stop tcpdump and read back the capture in verbose text form
-        tcpdump_proc.kill()
-        tcpdump_path = node.tools[TcpDump].get_tool_path() / tcpdump_pcap
-        tcpdump_out = (
-            node.tools[TcpDump]
-            .run(
-                f"-vvv -n -r {tcpdump_path}",
+        if _nd_was_active:
+            node.execute(
+                "systemctl stop systemd-networkd 2>/dev/null || true",
                 sudo=True,
-                force_run=True,
                 shell=True,
             )
-            .stdout
-        )
-        node.log.debug(
-            f"[dhclient-debug] tcpdump DHCP traffic on {interface_name}:\n"
-            f"{tcpdump_out[:4000]}"
-        )
-        node.log.info(
-            f"[dhclient-debug] tcpdump DHCP traffic on {interface_name}"
-            f" (first 10 lines):\n" + "\n".join(tcpdump_out.splitlines()[:10])
-        )
-        # Copy the pcap back to the local artifact directory so it is always
-        # available after the run, whether DHCP succeeded or failed.
         try:
-            local_pcap = log_path / f"{node.name}_{tcpdump_pcap}"
-            node.shell.copy_back(tcpdump_path, local_pcap)
-            node.log.debug(f"[dhclient-debug] pcap saved locally to {local_pcap}")
-        except Exception as copy_err:
-            node.log.warning(
-                f"[dhclient-debug] Could not copy pcap back to {log_path}: {copy_err}"
+            # Cleanup order: release first (best-effort, frees DHCP server
+            # binding), then kill any survivors.
+            # Kill order: SIGTERM → 1 s grace → SIGKILL.
+            node.execute(
+                f"dhclient -r -pf {dhcp_pid_file} -lf {dhcp_lease_file}"
+                f" {interface_name} 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            )
+            node.execute(
+                # Guard with -s to skip empty/garbage pidfiles.
+                f"if [ -s {dhcp_pid_file} ]; then"
+                f'  kill "$(cat {dhcp_pid_file})" 2>/dev/null || true; fi'
+                f"; sleep 1"
+                f"; if [ -s {dhcp_pid_file} ]; then"
+                f'  kill -9 "$(cat {dhcp_pid_file})" 2>/dev/null || true; fi'
+                f"; rm -f {dhcp_pid_file}"
+                f"; pkill -f 'dhclient.*{interface_name}' 2>/dev/null || true",
+                sudo=True,
+                shell=True,
             )
 
-        # Stop host tcpdump, read back and copy to local artifacts
-        host_tcpdump_out = ""
-        if host_tcpdump_proc is not None and host_node is not None:
-            host_tcpdump_proc.kill()
-            host_tcpdump_path = (
-                host_node.tools[TcpDump].get_tool_path() / host_tcpdump_pcap
+            # ── Script-bypass probe ────────────────────────────────────────
+            # Run dhclient with -sf pointing to our noop script (skips all
+            # enter/exit hooks: route injection, resolv.conf, etc.).
+            # Success → base DHCP/ARP path is fine; hooks were not exercised.
+            # If this probe succeeds but the normal run hangs → hang is in hooks.
+            # If this probe also hangs → hang is in ARP/kernel/netlink, not hooks.
+            # aa-exec -p unconfined: run dhclient outside its AppArmor profile to
+            # avoid policy interactions (netlink, helper scripts, resolvconf, etc.)
+            # that can cause hangs under confinement.
+            # Falls back to plain dhclient on images without aa-exec (non-Ubuntu).
+            # timeout wraps the whole aa-exec invocation so it controls the full
+            # process lifetime; SIGTERM at 25 s, SIGKILL 2 s later.
+            probe_cmd = (
+                f"dhclient -v -1 -4"
+                f" -sf {dhcp_bypass_script}"
+                f" -pf {dhcp_pid_file} -lf {dhcp_lease_file}"
+                f" {interface_name}"
             )
-            host_tcpdump_out = (
-                host_node.tools[TcpDump]
-                .run(
-                    f"-vvv -n -r {host_tcpdump_path}",
+            probe_result = node.execute(
+                f"timeout -k 2s 25s {_wrap_aa_unconfined(probe_cmd)}",
+                sudo=True,
+                shell=True,
+                timeout=30,
+            )
+            if probe_result.exit_code in (124, 137):
+                # 124 = SIGTERM timeout; 137 = SIGKILL (timeout -k sent it)
+                node.log.warning(
+                    f"dhclient probe timed out on {interface_name}"
+                    f" (exit {probe_result.exit_code})"
+                )
+            elif probe_result.exit_code != 0:
+                node.log.warning(
+                    f"dhclient probe failed (exit {probe_result.exit_code})"
+                    f" on {interface_name}"
+                )
+            # Kill any probe residual before the real run.
+            node.execute(
+                f"if [ -s {dhcp_pid_file} ]; then"
+                f'  kill -9 "$(cat {dhcp_pid_file})" 2>/dev/null || true; fi'
+                f"; rm -f {dhcp_pid_file}",
+                sudo=True,
+                shell=True,
+            )
+            node.execute(
+                f"ip addr flush dev {interface_name} 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            )
+
+            # ── Normal dhclient run ────────────────────────────────────────
+            # Use -sf {dhcp_config_script} instead of the default
+            # dhclient-script.  The default script adds a default route via
+            # the passthrough GW (displacing ens4's default route and killing
+            # the SSH session) and rewrites resolv.conf.  Our minimal script
+            # only does ip addr, which is all the test needs.
+            # aa-exec: avoid AppArmor policy interactions on Ubuntu.
+            # timeout: SIGTERM at 30 s, SIGKILL 2 s later.
+            dhcp_cmd = (
+                f"dhclient -v -1 -4"
+                f" -sf {dhcp_config_script}"
+                f" -pf {dhcp_pid_file} -lf {dhcp_lease_file}"
+                f" {interface_name}"
+            )
+            dhcp_result = node.execute(
+                f"timeout -k 2s 30s {_wrap_aa_unconfined(dhcp_cmd)}",
+                sudo=True,
+                shell=True,
+                timeout=45,
+            )
+            if dhcp_result.exit_code in (124, 137):
+                # Timed out — capture in-flight diagnostics while the process
+                # may still be in a hook or kernel/netlink call.
+                _pid = node.execute(
+                    f"cat {dhcp_pid_file} 2>/dev/null || true",
                     sudo=True,
-                    force_run=True,
+                    shell=True,
+                ).stdout.strip()
+                _wchan = node.execute(
+                    f"cat /proc/{_pid}/wchan 2>/dev/null || true" if _pid else "true",
+                    sudo=True,
+                    shell=True,
+                ).stdout.strip()
+                _stack = node.execute(
+                    f"cat /proc/{_pid}/stack 2>/dev/null || true" if _pid else "true",
+                    sudo=True,
+                    shell=True,
+                ).stdout.strip()
+                _timeout_ps = node.execute(
+                    "ps -ef | grep [d]hclient || true", sudo=True, shell=True
+                ).stdout
+                _timeout_ss = node.execute(
+                    "ss -uapn 2>/dev/null | grep ':68' || true",
+                    sudo=True,
+                    shell=True,
+                ).stdout
+                _iface_addr = node.execute(
+                    f"ip -4 addr show dev {interface_name} 2>/dev/null || true",
+                    sudo=True,
+                    shell=True,
+                ).stdout
+                _iface_route = node.execute(
+                    f"ip -4 route show dev {interface_name} 2>/dev/null || true",
+                    sudo=True,
+                    shell=True,
+                ).stdout
+                _ip_rules = node.execute(
+                    "ip rule show 2>/dev/null || true",
+                    sudo=True,
+                    shell=True,
+                ).stdout
+                node.log.warning(
+                    f"[dhclient-debug] dhclient timed out"
+                    f" (exit {dhcp_result.exit_code}) on {interface_name}.\n"
+                    f"dhclient output (first 800 chars):\n"
+                    f"{dhcp_result.stdout[:800]}\n"
+                    f"pid={_pid!r}  wchan={_wchan!r}\n"
+                    f"kernel stack:\n{_stack}\n"
+                    f"ps (dhclient):\n{_timeout_ps}\n"
+                    f"ss port 68:\n{_timeout_ss}\n"
+                    f"ip addr {interface_name}:\n{_iface_addr}\n"
+                    f"ip route {interface_name}:\n{_iface_route}\n"
+                    f"ip rules:\n{_ip_rules}"
+                )
+        finally:
+            # ── Restore suppressed managers ────────────────────────────────
+            # Runs even if dhclient raises or the test assertion fires above.
+            if _nd_was_active:
+                node.execute(
+                    "systemctl start systemd-networkd 2>/dev/null || true",
+                    sudo=True,
                     shell=True,
                 )
-                .stdout
-            )
-            node.log.debug(
-                f"[dhclient-debug] HOST tcpdump DHCP traffic"
-                f" ({host_nic_name or 'any'}):\n{host_tcpdump_out[:4000]}"
-            )
-            node.log.info(
-                f"[dhclient-debug] HOST tcpdump DHCP traffic"
-                f" ({host_nic_name or 'any'}) (first 10 lines):\n"
-                + "\n".join(host_tcpdump_out.splitlines()[:10])
-            )
-            try:
-                local_host_pcap = log_path / f"{node.name}_host_{host_tcpdump_pcap}"
-                host_node.shell.copy_back(host_tcpdump_path, local_host_pcap)
-                node.log.debug(
-                    f"[dhclient-debug] host pcap saved locally to {local_host_pcap}"
+            if _nm_was_active:
+                node.execute(
+                    "systemctl start NetworkManager 2>/dev/null || true",
+                    sudo=True,
+                    shell=True,
                 )
-            except Exception as hcopy_err:
-                node.log.warning(
-                    f"[dhclient-debug] Could not copy host pcap: {hcopy_err}"
-                )
-        if "DHCPOFFER" not in tcpdump_out and "OFFER" not in tcpdump_out:
-            node.log.warning(
-                f"[dhclient-debug] No DHCPOFFER seen on GUEST {interface_name}. "
-                "DHCP server may be unreachable (no VLAN, blocked port, "
-                "no DHCP service on this network)."
-            )
-        if (
-            host_tcpdump_out
-            and "DHCPOFFER" not in host_tcpdump_out
-            and "OFFER" not in host_tcpdump_out
-        ):
-            node.log.warning(
-                "[dhclient-debug] No DHCPOFFER seen on HOST side either. "
-                "DHCP server not responding to this network segment."
-            )
-        elif (
-            host_tcpdump_out
-            and ("DHCPDISCOVER" in host_tcpdump_out or "DISCOVER" in host_tcpdump_out)
-            and "DHCPOFFER" not in tcpdump_out
-            and "OFFER" not in tcpdump_out
-        ):
-            node.log.warning(
-                "[dhclient-debug] DISCOVER seen on HOST but no OFFER on GUEST. "
-                "Possible VF RX filtering or VLAN tagging mismatch on the VF path."
-            )
 
         if dhcp_result.exit_code != 0:
-            # Gather as much NIC state as possible to diagnose why DHCP failed.
+            # Gather as much NIC/routing state as possible to diagnose the failure.
             fail_link = node.execute(
                 f"ip -d link show {interface_name}", sudo=True, shell=True
             ).stdout
@@ -935,6 +1115,14 @@ class NetworkPerformance(TestSuite):
                 sudo=True,
                 shell=True,
             ).stdout
+            fail_routes = node.execute("ip -4 route", sudo=True, shell=True).stdout
+            fail_rules = node.execute("ip -4 rule", sudo=True, shell=True).stdout
+            fail_rp = node.execute(
+                f"sysctl net.ipv4.conf.{interface_name}.rp_filter"
+                " net.ipv4.conf.all.rp_filter 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            ).stdout
             fail_host_info = ""
             if host_node is not None:
                 fail_h_link = host_node.execute(
@@ -947,10 +1135,27 @@ class NetworkPerformance(TestSuite):
                 fail_h_bridge = host_node.execute(
                     "bridge vlan show 2>/dev/null || true", sudo=True, shell=True
                 ).stdout
+                fail_h_routes = host_node.execute(
+                    "ip -4 route show default", sudo=True, shell=True
+                ).stdout
+                fail_h_rules = host_node.execute(
+                    "ip -4 rule", sudo=True, shell=True
+                ).stdout
+                _rp_iface = (
+                    f" net.ipv4.conf.{host_nic_name}.rp_filter" if host_nic_name else ""
+                )
+                fail_h_rp = host_node.execute(
+                    f"sysctl net.ipv4.conf.all.rp_filter{_rp_iface}"
+                    " 2>/dev/null || true",
+                    sudo=True,
+                    shell=True,
+                ).stdout
                 fail_host_info = (
                     f"--- HOST ip -d link show ---\n{fail_h_link}\n"
                     f"--- HOST bridge vlan show ---\n{fail_h_bridge}\n"
-                    f"--- HOST tcpdump capture ---\n{host_tcpdump_out[:4000]}\n"
+                    f"--- HOST ip route show default ---\n{fail_h_routes}\n"
+                    f"--- HOST ip rule ---\n{fail_h_rules}\n"
+                    f"--- HOST rp_filter ---\n{fail_h_rp}\n"
                 )
             raise LisaException(
                 f"DHCP lease failed on interface {interface_name} "
@@ -959,35 +1164,13 @@ class NetworkPerformance(TestSuite):
                 f"--- ip -d link show ---\n{fail_link}\n"
                 f"--- ip -4 addr show ---\n{fail_addr}\n"
                 f"--- ip -s link show (stats) ---\n{fail_stats}\n"
+                f"--- ip -4 route ---\n{fail_routes}\n"
+                f"--- ip rule ---\n{fail_rules}\n"
+                f"--- rp_filter ---\n{fail_rp}\n"
                 f"--- ethtool ---\n{fail_ethtool}\n"
                 f"--- ethtool -S (counters) ---\n{fail_ethtool_s}\n"
-                f"--- tcpdump DHCP capture (guest) ---\n{tcpdump_out[:4000]}\n"
                 f"{fail_host_info}"
             )
-        # Debug: capture routing state after DHCP to detect if default route flipped
-        post_routes = node.execute("ip -4 route show", sudo=True, shell=True).stdout
-        post_mgmt_route = (
-            node.execute(
-                f"ip route get {mgmt_ip} 2>/dev/null || true",
-                sudo=True,
-                shell=True,
-            ).stdout
-            if mgmt_ip
-            else ""
-        )
-        node.log.debug(
-            f"[dhclient-debug] POST-DHCP on {interface_name}:\n"
-            f"  route get mgmt: {post_mgmt_route.strip()}\n"
-            f"  routes:\n{post_routes}"
-        )
-        if pre_routes != post_routes:
-            node.log.warning(
-                f"[dhclient-debug] Routing table changed after dhclient on "
-                f"{interface_name}! This may disrupt management connectivity.\n"
-                f"  BEFORE:\n{pre_routes}\n"
-                f"  AFTER:\n{post_routes}"
-            )
-
         # Wait for the IP address to appear. dhclient may return before the
         # kernel has fully processed the DHCP ACK (especially with
         # systemd-networkd interactions), so poll for up to 10 seconds.
