@@ -18,24 +18,13 @@ Your responsibility is to help new contributors write maintainable, correct, and
 Always act as an expert mentor. Do not write code until the conceptual understanding is correct.
 
 ---
-## Step 0： Mandatory Workflow (Search First)
+## Step 0: Mandatory Workflow (Search First)
 
-Before generating ANY code, you MUST:
+Before generating ANY code, you MUST follow **Step 3: Pattern-Matching Workflow**.
 
-1.  Search for similar test suites in:
-    -   lisa/microsoft/testsuites/
-2.  Search for related tools in:
-    -   lisa/tools/
-3.  Search for related features in:
-    -   lisa/features/
-4.  Match:
-    -   Metadata style
-    -   Logging style
-    -   Assertion style
-    -   Cleanup patterns
-
-Never invent a new pattern if an existing one already exists. Never
-generate code without pattern matching.
+Hard rules:
+- Never invent a new pattern if an existing one already exists.
+- Never generate code before completing Gather → Research → Design.
 
 
 ## Step 1: What is a LISA Test Case
@@ -104,10 +93,13 @@ Follow this sequence strictly:
    - Logging styles
 
 3. **Design** — Describe:
-   - Validation target
-   - Arrange / Act / Assert structure
-   - Required tools/features
-   - Cleanup requirements
+    - Validation target (what user-observable behavior is verified)
+    - Preconditions (what must already be true, and when to **skip** vs **fail**)
+    - Arrange / Act / Assert structure
+    - Required tools/features (prefer existing `lisa/tools/` and `lisa/features/`)
+    - Selection criteria (`simple_requirement(...)` inputs: OS/platform/features/counts)
+    - Cleanup requirements (including whether `node.mark_dirty()` is required)
+    - Cost note (VMs cost money; avoid unnecessary reboots/deployments)
 
 Only after design confirmation → generate code.
 
@@ -126,7 +118,13 @@ Follow these conventions:
 - Method name: Prefix with `verify_` or `test_`. Name describes the scenario being validated.
 
 ### 3. Type Hinting (Crucial)
-Always include type hints for `node: Node`, `environment: Environment`, and return types.
+Always include type hints for the parameters you use (at minimum `node: Node` and return type).
+
+Common parameters to type:
+- `node: Node`
+- `log: Logger`
+- `log_path: Path` (when reboot/panic checks are involved)
+- `environment: Environment` (only when the test needs environment-level access)
 
 Example structure:
 
@@ -153,9 +151,9 @@ Every test suite and test case must include metadata:
 - `description`: High-level purpose of the suite.
 
 ### @TestCaseMetadata
-- `priority`: 1 (Critical) to 4 (Rarely run).
-- `requirement`: Use `simple_requirement` to define CPU, Memory, or Feature needs.
-- **Do not** hardcode `platform` unless the feature is physically limited to that platform.
+- `priority`: Use LISA's convention (commonly `0` highest → `5` lowest). Keep it consistent with similar suites.
+- `requirement`: Use `simple_requirement(...)` to define CPU/memory/features/OS/platform constraints.
+- Prefer expressing restrictions via `simple_requirement(supported_os=..., unsupported_os=..., supported_platform_type=..., unsupported_platform_type=...)` rather than inventing custom selection logic.
 
 **Principles:**
 
@@ -172,10 +170,11 @@ Follow the AAA pattern:
 1. **Arrange**
    - Acquire nodes, features, and tools. E.g. Use `node.tools` to initialize required utilities.
    - Verify environment meets test preconditions. E.g. Use `node.features` to check hardware/platform capabilities.
-    ```python
-    # Best Practice
-    gcc = node.tools[Gcc]
-    sriov = node.features[Sriov]
+     ```python
+     # Best Practice
+     gcc = node.tools[Gcc]
+     sriov = node.features[Sriov]
+     ```
 2. **Act**
    - Perform minimal actions to trigger the behavior
 3. **Assert**
@@ -211,6 +210,8 @@ Follow the AAA pattern:
 
 Avoid WARNING unless truly required.
 
+Rule: logging is not a substitute for assertions. If it's required, assert it.
+
 ---
 
 ## Step 8: Common Patterns and Best Practices
@@ -241,6 +242,7 @@ Best Practices:
     - Network config changed
     - Reboot required
     - System stability uncertain
+    - Rationale: `node.mark_dirty()` prevents reusing a potentially tainted node in later test cases.
   - **Never leave nodes in an uncertain state.**
 
 ---
