@@ -332,6 +332,17 @@ class CloudHypervisorTests(Tool):
             test_name=test_name,
         )
 
+        # Check serial console for guest kernel panics whenever the run was
+        # not clean (failures or non-zero exit).  For exception paths this is
+        # already handled in run_tests; this covers the normal non-exception
+        # exit-code != 0 / subtest-failure path.
+        if (
+            len(failures) > 0 or result.exit_code != 0
+        ) and self.node.features.is_supported(SerialConsole):
+            self.node.features[SerialConsole].check_panic(
+                saved_path=log_path, force_run=True, test_result=test_result
+            )
+
         has_failures = len(failures) > 0
         if result.is_timeout and has_failures:
             self._handle_timeout_failure(
@@ -442,7 +453,7 @@ class CloudHypervisorTests(Tool):
 
         for testcase in subtests:
             status, metrics, trace = self._run_single_metrics_test(
-                testcase, hypervisor, log_path, subtest_timeout
+                testcase, hypervisor, log_path, subtest_timeout, test_result
             )
 
             if status == TestStatus.FAILED:
@@ -453,10 +464,16 @@ class CloudHypervisorTests(Tool):
             )
             self._write_testcase_log(log_path, testcase, trace)
 
+            # Scan the full stdout for panics (including guest kernel panics),
+            # not just the short diagnostic trace.
+            _last = getattr(self, "_last_result", None)
+            panic_content = (
+                ((_last.stdout or "") + "\n" + trace) if _last is not None else trace
+            )
             self._check_test_panic_from_logs(
                 test_result=test_result,
                 log_path=log_path,
-                content=trace,
+                content=panic_content,
                 stage=f"metrics test {testcase}",
                 test_name=testcase,
             )
@@ -520,6 +537,7 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         log_path: Path,
         subtest_timeout: Optional[int],
+        test_result: Optional[TestResult] = None,
     ) -> Tuple[TestStatus, str, str]:
         """Run a single metrics test and return status, metrics, trace."""
         status: TestStatus = TestStatus.QUEUED
@@ -558,6 +576,15 @@ class CloudHypervisorTests(Tool):
             status, metrics, trace = self._process_metrics_result(
                 result, testcase, log_path, test_name
             )
+
+            # For non-exception failures (exit_code != 0), the serial console
+            # check is not reached via the except branch below.  Check here so
+            # kernel panics that caused the binary to exit non-zero are caught.
+            if status == TestStatus.FAILED:
+                if self.node.features.is_supported(SerialConsole):
+                    self.node.features[SerialConsole].check_panic(
+                        saved_path=log_path, force_run=True, test_result=test_result
+                    )
 
         except Exception as e:
             self._log.info(f"Testcase failed, tescase name: {testcase}")
@@ -767,11 +794,21 @@ class CloudHypervisorTests(Tool):
                 test_result=test_result,
                 node_name=self.node.name,
                 source=f"{test_name} output",
+                subtest_name=test_name,
             )
 
     def _extract_stdout_diagnostics(self, stdout: str) -> List[str]:
         """Extract diagnostic information from stdout."""
         diagnostic_messages: List[str] = []
+
+        # Look for guest VM kernel panics first (highest priority)
+        kernel_panic_match = re.search(
+            r"Kernel panic - not syncing:\s*([^\n]+)", stdout
+        )
+        if kernel_panic_match:
+            diagnostic_messages.append(
+                f"Guest kernel panic: {kernel_panic_match.group(1).strip()[:120]}"
+            )
 
         # Look for specific Rust test failures
         test_failure_pattern = r"test\s+(\S+)\s+\.\.\.\s+FAILED"
@@ -780,13 +817,19 @@ class CloudHypervisorTests(Tool):
             # Limit to 3 tests
             diagnostic_messages.append(f"Failed tests: {', '.join(failed_tests[:3])}")
 
-        # Look for panic messages
-        panic_pattern = r"thread .* panicked at '([^']+)', ([^:\n]+:\d+:\d+)"
-        panics = re.findall(panic_pattern, stdout, re.MULTILINE)
-        if panics:
-            msg, loc = panics[0]
+        # Look for panic messages — old style: panicked at 'msg', file:line
+        panic_pattern_old = r"thread .* panicked at '([^']+)', ([^:\n]+:\d+:\d+)"
+        panics_old = re.findall(panic_pattern_old, stdout, re.MULTILINE)
+        if panics_old:
+            msg, loc = panics_old[0]
             diagnostic_messages.append(f"Panic: {msg[:100]}")
             diagnostic_messages.append(f"At: {loc}")
+        else:
+            # New style (Rust 2021+): panicked at file:line:col:\n  message
+            panic_pattern_new = r"thread '.*?' panicked at ([^:\n]+:\d+:\d+)"
+            panics_new = re.findall(panic_pattern_new, stdout, re.MULTILINE)
+            if panics_new:
+                diagnostic_messages.append(f"Rust panic at: {panics_new[0]}")
 
         # Look for fatal runtime errors
         fatal_match = re.search(r"(.*fatal runtime error[^\n]*)", stdout)
@@ -1437,9 +1480,14 @@ exit $ec
 
     def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> Set[str]:
         tests_list = []
+        # Use CMD_TIME_OUT (not PERF_CMD_TIME_OUT) here because dev_cli.sh
+        # may need to pull the Docker image before it can list tests.
+        # On a slow link the pull alone can exceed PERF_CMD_TIME_OUT (1200 s);
+        # CMD_TIME_OUT (3600 s) gives enough headroom without blocking actual
+        # per-test runs which keep their own shorter PERF_CMD_TIME_OUT.
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
-            timeout=self.PERF_CMD_TIME_OUT,
+            timeout=self.CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
             shell=True,

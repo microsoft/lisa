@@ -1006,7 +1006,10 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
 
 
 def append_test_panic_to_test_result(
-    test_result: "TestResult", node_name: str, panics: List[str]
+    test_result: "TestResult",
+    node_name: str,
+    panics: List[str],
+    subtest_name: str = "",
 ) -> None:
     # Filter out empty/whitespace-only lines and remove duplicates
     # while preserving order
@@ -1016,8 +1019,9 @@ def append_test_panic_to_test_result(
 
     panic_id = hashlib.sha256(f"{node_name}\x00{panic_lines}".encode()).hexdigest()[:16]
 
+    subtest_suffix = f" (subtest: {subtest_name})" if subtest_name else ""
     panic_summary = (
-        f"TEST PANIC DETECTED on {node_name} [id:{panic_id}]\n"
+        f"TEST PANIC DETECTED on {node_name}{subtest_suffix} [id:{panic_id}]\n"
         f"Detected Test Panic Lines:\n{panic_lines}\n"
     )
 
@@ -1039,6 +1043,7 @@ def check_test_panic(
     test_result: Optional["TestResult"] = None,
     node_name: str = "",
     source: str = "test log",
+    subtest_name: str = "",
 ) -> None:
     log.debug("checking test panic...")
     panics = [
@@ -1051,7 +1056,9 @@ def check_test_panic(
     if panics:
         if test_result is not None:
             # Append panic info to existing test result message, don't raise
-            append_test_panic_to_test_result(test_result, node_name, panics)
+            append_test_panic_to_test_result(
+                test_result, node_name, panics, subtest_name=subtest_name
+            )
         else:
             # Only raise exception if no test_result context
             raise PostTestPanicDetectedError(stage, panics, source)
