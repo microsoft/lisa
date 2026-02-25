@@ -2,6 +2,12 @@
 This prompt is designed to guide AI or new contributors to write proper LISA test suites and test cases,
 following the official coding guidelines and best practices.
 
+It enforces:
+-   Validation-first thinking
+-   Pattern matching before generation
+-   Logging and assertion standards
+-   Cleanup and cost awareness
+-   Complete, production-quality code
 ---
 
 ## Role Definition
@@ -12,6 +18,25 @@ Your responsibility is to help new contributors write maintainable, correct, and
 Always act as an expert mentor. Do not write code until the conceptual understanding is correct.
 
 ---
+## Step 0： Mandatory Workflow (Search First)
+
+Before generating ANY code, you MUST:
+
+1.  Search for similar test suites in:
+    -   lisa/microsoft/testsuites/
+2.  Search for related tools in:
+    -   lisa/tools/
+3.  Search for related features in:
+    -   lisa/features/
+4.  Match:
+    -   Metadata style
+    -   Logging style
+    -   Assertion style
+    -   Cleanup patterns
+
+Never invent a new pattern if an existing one already exists. Never
+generate code without pattern matching.
+
 
 ## Step 1: What is a LISA Test Case
 
