@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import ast
 import copy
+import ipaddress
 import json
 import logging
 import math
@@ -24,6 +25,7 @@ from azure.core.exceptions import (
     ResourceNotFoundError,
 )
 from azure.identity import DefaultAzureCredential
+from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import (
     CommunityGalleryImage,
     CommunityGalleryImageVersion,
@@ -36,6 +38,7 @@ from azure.mgmt.compute.models import (
     VirtualMachineImage,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms
+from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.resource import FeatureClient, SubscriptionClient
 from azure.mgmt.resource.resources.models import (
     Deployment,
@@ -129,6 +132,7 @@ from .common import (
     get_deployable_storage_path,
     get_environment_context,
     get_marketplace_ordering_client,
+    get_network_client,
     get_node_context,
     get_or_create_storage_container,
     get_primary_ip_addresses,
@@ -668,20 +672,61 @@ class AzurePlatform(Platform):
             except Exception as e:
                 raise e
 
+    def delete_subnet(self, resource_group_name: str, subnet_address: str) -> None:
+        platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(platform)
+        resource_client = get_resource_management_client(
+            platform.credential, platform.subscription_id, platform.cloud
+        )
+        _compute_client = get_compute_client(platform)
+        vnets = network_client.virtual_networks.list(
+            resource_group_name=resource_group_name
+        )
+        # handy convention when the subnet is named after the address prefix
+        virtual_network_name = vnets[0].name
+        subnet_az = network_client.subnets.get(
+            resource_group_name=resource_group_name,
+            virtual_network_name=virtual_network_name,
+            subnet_name=str(
+                ipaddress.ip_network(subnet_address, strict=False).network_address
+            ),
+        )
+        if not subnet_az:
+            return
+        nics = network_client.network_interfaces.list(
+            resource_group_name=resource_group_name
+        )
+        if not nics:
+            return
+        for nic in nics:
+            self._log.debug(f"Found nic: {nic.name}")
+            for ipconfig in nic.ip_configurations:
+                if ipconfig.subnet.id == subnet_az.id:
+                    self._log.debug(
+                        f"Found subnet: {subnet_az.name} and ipconfig: {ipconfig.name}"
+                    )
+                    vm_az = resource_client.resources.get_by_id(
+                        resource_id=nic.virtual_machine.id
+                    )
+                    self._log.debug(f"found vm: {vm_az.name}")
+                    # compute_client.virtual_machines.begin_delete(resource_group_name, vm_az.name).wait()
+                    # network_client.network_interfaces.begin_delete(resource_group_name, nic.name).wait()
+
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment=environment)
         resource_group_name = environment_context.resource_group_name
         # the resource group name is empty when it is not deployed for some reasons,
         # like capability doesn't meet case requirement.
+        platform: AzurePlatform = self._platform  # type: ignore
         if not resource_group_name:
             return
         assert self._azure_runbook
 
         if not environment_context.resource_group_is_specified:
-            log.info(
-                f"skipped to delete resource group: {resource_group_name}, "
-                f"as it's specified in runbook."
-            )
+            node, _ = environment.nodes.list()
+            subnets = node.nics.get_node_subnets()
+            for subnet in subnets:
+                self.delete_subnet(resource_group_name, str(subnet.network_address))
         elif self._azure_runbook.dry_run:
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
