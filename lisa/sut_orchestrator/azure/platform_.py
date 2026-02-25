@@ -1566,6 +1566,23 @@ class AzurePlatform(Platform):
             },
         )
 
+    def _generate_node_name(self, index: int, name_prefix: str) -> str:
+        # the max length of vm name is 64 chars. Below logic takes last 45
+        # chars in resource group name and keep the leading 5 chars.
+        # name_prefix can contain any of customized (existing) or
+        # generated (starts with "lisa-") resource group name,
+        # so, pass the first 5 chars as prefix to truncate_keep_prefix
+        # to handle both cases.
+        # When a resource group is provided by the user, include a
+        # timestamp in the VM name to ensure uniqueness across
+        # multiple deployments into the same resource group.
+        if self._azure_runbook.resource_group_name:
+            time_stamp = get_datetime_path()
+            node_name = f"{name_prefix}-{time_stamp}-n{index}"
+        else:
+            node_name = f"{name_prefix}-n{index}"
+        return truncate_keep_prefix(node_name, 50, node_name[:5])
+
     def _create_node_runbook(
         self,
         index: int,
@@ -1583,14 +1600,7 @@ class AzurePlatform(Platform):
         #  if user gives the vm name, azure_node_runbook.name stores the given user name
         #  if user doesn't give the vm name, it will be filled in initialize_environment
         if self._azure_runbook.deploy and not azure_node_runbook.name:
-            # the max length of vm name is 64 chars. Below logic takes last 45
-            # chars in resource group name and keep the leading 5 chars.
-            # name_prefix can contain any of customized (existing) or
-            # generated (starts with "lisa-") resource group name,
-            # so, pass the first 5 chars as prefix to truncate_keep_prefix
-            # to handle both cases
-            node_name = f"{name_prefix}-n{index}"
-            azure_node_runbook.name = truncate_keep_prefix(node_name, 50, node_name[:5])
+            azure_node_runbook.name = self._generate_node_name(index, name_prefix)
         if azure_node_runbook.name:
             # It's used as computer name only. Windows doesn't support name more
             # than 15 chars
