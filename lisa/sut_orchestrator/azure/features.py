@@ -1133,13 +1133,23 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         startstop.start()
 
     def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
-        return len(
+        arm_sriov_count = len(
             [
                 x
                 for x in self._get_all_nics()
                 if x.enable_accelerated_networking == is_sriov_enabled
             ]
         )
+        if arm_sriov_count == 0 and is_sriov_enabled:
+            # On PCI-only SKUs (e.g., GB300 with MANA), ARM-level
+            # enable_accelerated_networking may be False even though
+            # the VM uses PCI networking natively. Check inside the VM.
+            pci_nics = self._node.nics
+            pci_nics.initialize()
+            pci_count = len(pci_nics.get_pci_nics())
+            if pci_count > 0:
+                return pci_count
+        return arm_sriov_count
 
     def remove_extra_nics(self) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
