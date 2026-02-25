@@ -55,7 +55,7 @@ class SchedCore(TestSuite):
             raise SkippedException(
                 UnsupportedDistroException(
                     node.os,
-                    "SCHED_CORE support is only tested on" " AzureLinux 3.0 and later.",
+                    "SCHED_CORE support is only tested on AzureLinux 3.0 and later.",
                 )
             )
 
