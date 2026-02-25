@@ -146,7 +146,7 @@ lisa/microsoft/testsuites/network/
 Every test suite and test case must include metadata:
 
 - `@TestSuiteMetadata` – describes suite features, owners, and requirements
-- `@TestCaseMetadata` – describes test ID, description, timeout, priority, platform restrictions
+- `@TestCaseMetadata` – describes test ID, description, timeout, and priority
 
 ### @TestSuiteMetadata
 - `area`: The functional area (e.g., `storage`, `network`, `kernel`).
@@ -162,7 +162,7 @@ Every test suite and test case must include metadata:
 
 - Metadata **precedes logic**
 - Metadata drives environment provisioning and test selection
-- Always include accurate owners and platform restrictions
+- Always include accurate owners and selection requirements
 
 ---
 
@@ -176,7 +176,7 @@ Follow the AAA pattern:
      ```python
      # Best Practice
      gcc = node.tools[Gcc]
-     sriov = node.features[Sriov]
+    network_interface = node.features[NetworkInterface]
      ```
 2. **Act**
    - Perform minimal actions to trigger the behavior
@@ -232,7 +232,7 @@ Best Practices:
 - DRY – reuse helpers, do not duplicate setup logic
 - Isolate failures – one test failure should not block others
 - Readable and maintainable code – new contributors should understand logic without deep investigation
-- Avoid time.sleep(): Use node.tools[Core].wait_for_condition(...).
+- Avoid time.sleep(): Use bounded waits (e.g. `lisa.util.check_till_timeout(...)`, `lisa.util.retry_without_exceptions(...)`, or the existing `retry` patterns in similar suites).
 - Prefer Executable Tools: If a command is missing, create a new Tool class in lisa/tools/.
 - Path Handling: Use node.get_pure_path() for cross-OS path compatibility.
 - **Cost Awareness:** VMs cost money. Always evaluate whether a test modifies system state.
@@ -245,7 +245,6 @@ Best Practices:
     - Network config changed
     - Reboot required
     - System stability uncertain
-
     - Rationale: `node.mark_dirty()` prevents reusing a potentially tainted node in later test cases.
   - **Never leave nodes in an uncertain state.**
 
@@ -309,6 +308,7 @@ from lisa import (
 )
 from lisa.features import Sriov
 from lisa.tools import Lspci
+from lisa.util.constants import DEVICE_TYPE_SRIOV
 
 @TestSuiteMetadata(
     area="network",
@@ -317,46 +317,33 @@ from lisa.tools import Lspci
     This suite validates SR-IOV (Single Root I/O Virtualization) functionality.
     It ensures that Accelerated Networking is correctly surfacing VFs to the guest.
     """,
-    owner="xxxx",
+    owner="REPLACE_WITH_OWNER",
 )
 class SriovValidation(TestSuite):
     @TestCaseMetadata(
         description="""
         Verify SR-IOV basic functionality by checking for Virtual Functions (VF).
         Steps:
-        1. Ensure the platform supports SR-IOV.
-        2. Use lspci to find devices with 'Virtual Function' in their description.
+        1. Require SR-IOV via `simple_requirement(network_interface=Sriov())`.
+        2. Use lspci to locate SR-IOV VF devices and assert at least one exists.
         """,
         priority=1,
-        timeout=1800, # Inherited from your sample: useful for long-running network tasks
+        timeout=1800,
         requirement=simple_requirement(
-            network_interface=Sriov, # Gold Standard: Ensures environment is ready
+            network_interface=Sriov(),
         ),
     )
     def verify_sriov_basic(self, node: Node, log: Logger) -> None:
         # --- Arrange ---
-        # Using Class References (Gold Standard) instead of strings for Type Safety
         lspci = node.tools[Lspci]
-        
-        # Verify precondition via Feature API
-        sriov_feature = node.features[Sriov]
-        log.info(f"SR-IOV Feature enabled: {sriov_feature.is_enabled}")
 
         # --- Act ---
         # Minimal action: Capture the current hardware state
         log.info("Scanning PCI bus for Virtual Functions...")
-        devices = lspci.get_devices()
+        vf_slots = lspci.get_device_names_by_type(DEVICE_TYPE_SRIOV, force_run=True)
 
         # --- Assert ---
-        # Combine your clear assertion logic with Gold Standard's robust checking
-        sriov_present = any(
-            "Virtual Function" in device.device_class for device in devices
-        )
-
-        assert sriov_present, (
-            "SR-IOV Virtual Function (VF) not found. "
-            "Ensure 'Accelerated Networking' is enabled in the platform settings."
-        )
+        assert vf_slots, "No SR-IOV VF devices found via lspci. Verify SR-IOV is enabled."
         
         log.info("Successfully validated SR-IOV Virtual Function presence.")
 
@@ -369,7 +356,7 @@ class SriovValidation(TestSuite):
 
 **Usage Notes:**
 
-- Replace `area`, `owner`, `feature`, `description`, `platform`, and `requirement` with actual test details
+- Replace `area`, `owner`, `description`, and `requirement` with actual test details
 - Keep test logic **minimal, deterministic, and focused**
 - Always include **clear Arrange / Act / Assert sections**
 - Only request tools/features required for the test
