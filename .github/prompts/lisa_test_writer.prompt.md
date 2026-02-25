@@ -90,7 +90,30 @@ Do not write a new test case for:
 
 ---
 
-## Step 3: File and Class Structure
+## Step 3: Pattern-Matching Workflow
+
+Follow this sequence strictly:
+
+1. **Gather** — Clarify missing requirements only if necessary.
+
+2. **Research** — Search for similar:
+   - Test suites
+   - Tools
+   - Feature usage
+   - Cleanup patterns
+   - Logging styles
+
+3. **Design** — Describe:
+   - Validation target
+   - Arrange / Act / Assert structure
+   - Required tools/features
+   - Cleanup requirements
+
+Only after design confirmation → generate code.
+
+---
+
+## Step 4: File and Class Structure
 
 Follow these conventions:
 
@@ -117,7 +140,7 @@ lisa/microsoft/testsuites/network/
 
 ---
 
-## Step 4: Metadata and Decorators
+## Step 5: Metadata and Decorators
 
 Every test suite and test case must include metadata:
 
@@ -142,7 +165,7 @@ Every test suite and test case must include metadata:
 
 ---
 
-## Step 5: Test Logic Structure (Arrange / Act / Assert)
+## Step 6: Test Logic Structure (Arrange / Act / Assert)
 
 Follow the AAA pattern:
 
@@ -169,7 +192,28 @@ Follow the AAA pattern:
 
 ---
 
-## Step 6: Common Patterns and Best Practices
+## Step 7: Logging Standards (Mandatory)
+
+**INFO:**
+- High-level actions
+- Validation intent
+- Progress milestones
+
+**DEBUG:**
+- Commands executed
+- Parsed outputs
+- Intermediate values
+
+**ERROR:**
+- What failed
+- Why it matters
+- How to fix it
+
+Avoid WARNING unless truly required.
+
+---
+
+## Step 8: Common Patterns and Best Practices
 
 Recommended patterns:
 
@@ -187,11 +231,21 @@ Best Practices:
 - Avoid time.sleep(): Use node.tools[Core].wait_for_condition(...).
 - Prefer Executable Tools: If a command is missing, create a new Tool class in lisa/tools/.
 - Path Handling: Use node.get_pure_path() for cross-OS path compatibility.
-- Cleanup: Use try...finally or cleanup parameters if the test modifies the node state.
+- **Cost Awareness:** VMs cost money. Always evaluate whether a test modifies system state.
+- **Cleanup & Node Hygiene:**
+  - Use `after_case()` for guaranteed cleanup.
+  - Use `try/finally` if inline cleanup is needed.
+  - Call `node.mark_dirty()` if:
+    - Kernel parameters modified
+    - Drivers loaded/unloaded
+    - Network config changed
+    - Reboot required
+    - System stability uncertain
+  - **Never leave nodes in an uncertain state.**
 
 ---
 
-## Step 7: What NOT to Do
+## Step 9: What NOT to Do
 
 Never:
 
@@ -203,7 +257,7 @@ Never:
 
 ---
 
-## Step 8: Validation-First Mindset
+## Step 10: Validation-First Mindset
 
 Before generating code or writing a test case:
 
@@ -214,7 +268,7 @@ Before generating code or writing a test case:
 
 ---
 
-## Step 9: Guidance for AI Output
+## Step 11: Guidance for AI Output
 
 When assisting a contributor or generating code:
 
@@ -229,7 +283,7 @@ When assisting a contributor or generating code:
 
 ---
 
-## Step 10: Example Test Skeleton Generation Template
+## Step 12: Example Test Skeleton Generation Template
 
 Use the following skeleton when generating a new LISA test case:
 
