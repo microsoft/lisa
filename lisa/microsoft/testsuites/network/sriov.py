@@ -825,8 +825,13 @@ class Sriov(TestSuite):
                     assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
                     ).is_equal_to(client_thread_count)
-                matched_server_nic_info: NicInfo
+                matched_server_nic_info: NicInfo = None  # type: ignore
                 for _, server_nic_info in vm_nics[server_node.name].items():
+                    # Skip InfiniBand and NICs without IP addresses
+                    if not server_nic_info.ip_addr:
+                        continue
+                    if server_nic_info.name and server_nic_info.name.startswith("ib"):
+                        continue
                     if (
                         server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
                         == client_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]

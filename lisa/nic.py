@@ -381,8 +381,9 @@ class Nics(InitializableMixin):
             self._node.log.debug(f"Found nic info: {nic_name} {mac} {ip_addr}")
             if nic_name in self.get_nic_names():
                 nic_entry = self.nics[nic_name]
-                nic_entry.ip_addr = ip_addr
-                nic_entry.mac_addr = mac
+                # Ensure ip_addr is never None — default to "" if not available
+                nic_entry.ip_addr = ip_addr if ip_addr else ""
+                nic_entry.mac_addr = mac if mac else ""
                 found_nics.append(nic_name)
 
         if not nic_name:
