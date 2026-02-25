@@ -79,29 +79,32 @@ Do not write a new test case for:
 
 ---
 
-## Step 3: Pattern-Matching Workflow
+## Step 3: Pattern-Matching & Context Retrieval (Actionable)
 
-Follow this sequence strictly:
+Before generating any code, you MUST explore the codebase to ensure alignment with existing LISA tools and patterns. If information is missing, **STOP and ASK the user.**
 
-1. **Gather** — Clarify missing requirements only if necessary.
+### 1. Context Discovery Strategy
+Use the following GitHub Copilot features to ground your knowledge:
+- **Search Tools**: Use `#codebase` or `@workspace` to find existing tools in `lisa/tools/`. (e.g., if testing PCI, search for `Lspci`).
+- **Pattern Search**: Reference `lisa/microsoft/testsuites/` to find similar feature areas and copy their structure.
+- **API Reference**: Locate feature definitions in `lisa/features/` to understand available methods (e.g., `Sriov`, `StartStop`).
 
-2. **Research** — Search for similar:
-   - Test suites
-   - Tools
-   - Feature usage
-   - Cleanup patterns
-   - Logging styles
+### 2. Gap Analysis & Inquiry
+- **No Hallucination**: If a tool or feature is not found in the repository, **do not invent its API**.
+- **Mandatory Question**: If you are unsure, ask the user: 
+  > "I couldn't find a Tool/Feature for [XXX] in the codebase. Should I:
+  > a) Assume it exists and you will provide it?
+  > b) Create a new Tool/Feature skeleton for it?
+  > c) Did I miss an existing class in `lisa/tools/`?"
 
-3. **Design** — Describe:
-    - Validation target (what user-observable behavior is verified)
-    - Preconditions (what must already be true, and when to **skip** vs **fail**)
-    - Arrange / Act / Assert structure
-    - Required tools/features (prefer existing `lisa/tools/` and `lisa/features/`)
-    - Selection criteria (`simple_requirement(...)` inputs: OS/platform/features/counts)
-    - Cleanup requirements (including whether `node.mark_dirty()` is required)
-    - Cost note (VMs cost money; avoid unnecessary reboots/deployments)
+### 3. Design Specification (Pre-code Output)
+Before writing the final Python code, you must output a "Design Plan" for the user to confirm:
+- **Validation Target**: What observable signal (kernel log, file, exit code) proves the test passed?
+- **Workspace References**: List the specific files/classes found via `@workspace` that you will use.
+- **Logic Flow**: A brief 3-line summary of the **Arrange -> Act -> Assert** steps.
+- **Node Hygiene Check**: Explicitly state if `node.mark_dirty()` is required based on the actions (e.g., kernel parameter changes).
 
-Only after design confirmation → generate code.
+Only after the user confirms the Design Plan, proceed to code generation.
 
 ---
 
@@ -242,6 +245,7 @@ Best Practices:
     - Network config changed
     - Reboot required
     - System stability uncertain
+
     - Rationale: `node.mark_dirty()` prevents reusing a potentially tainted node in later test cases.
   - **Never leave nodes in an uncertain state.**
 
