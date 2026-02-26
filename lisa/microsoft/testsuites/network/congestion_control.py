@@ -4,7 +4,7 @@
 import os
 import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from assertpy import assert_that
 
@@ -119,6 +119,7 @@ class CongestionControlSuite(TestSuite):
     )
     def verify_bbr3_applies_to_live_tcp_flow(self, node: Node) -> None:
         loaded_by_test = False
+        test_port: Optional[int] = None
         script_path = node.working_path / self._TCP_SCRIPT
         connection_process = None
         sysctl = node.tools[Sysctl]
@@ -183,6 +184,17 @@ class CongestionControlSuite(TestSuite):
                         f"{pkill_result.exit_code}."
                     )
                 connection_process.wait_result(timeout=5, raise_on_timeout=False)
+                # Socket teardown can lag process exit; wait before module cleanup.
+                if test_port is not None and not self._wait_for_connection_state(
+                    node=node,
+                    port=test_port,
+                    expected_state=Ss.ConnState.NONE,
+                    timeout=10,
+                    poll_interval=0.3,
+                ):
+                    node.log.warning(
+                        f"Connection on port {test_port} still exists during cleanup."
+                    )
 
             if node.shell.exists(script_path):
                 try:
@@ -293,7 +305,26 @@ class CongestionControlSuite(TestSuite):
         if active_algo == self._BBR3:
             return
 
-        node.tools[Modprobe].remove([self._BBR3_MODULE])
+        # Sometimes modprobe can fail to remove the module on the first try due to lingering references.
+        modprobe = node.tools[Modprobe]
+        last_error: Optional[AssertionError] = None
+        for _ in range(5):
+            if not modprobe.is_module_loaded(self._BBR3_MODULE, force_run=True):
+                return
+
+            try:
+                modprobe.remove([self._BBR3_MODULE])
+                return
+            except AssertionError as identifier:
+                last_error = identifier
+                time.sleep(1)
+
+        if modprobe.is_module_loaded(self._BBR3_MODULE, force_run=True):
+            node.log.warning(
+                f"Best-effort cleanup could not remove module {self._BBR3_MODULE}. "
+                f"Leaving it loaded to avoid failing the functional test. "
+                f"Last error: {last_error}"
+            )
 
     def _find_available_port(self, node: Node) -> int:
         ss = node.tools[Ss]
