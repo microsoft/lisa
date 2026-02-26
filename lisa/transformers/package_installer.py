@@ -54,7 +54,7 @@ class PackageInstaller(DeploymentTransformer):
             assert self._node.shell.exists(
                 directory / file
             ), f"Node does not contain package file: {file}"
-            self._validate_package(str(directory / file))
+            self._validate_package(self._node.get_str_path(directory / file))
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
