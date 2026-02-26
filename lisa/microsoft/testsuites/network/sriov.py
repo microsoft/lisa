@@ -657,7 +657,15 @@ class Sriov(TestSuite):
             ).is_equal_to(False)
 
         # disable and enable sriov in network interface level
-        sriov_disable_enable(environment, 3)
+        # Use times=1 instead of 3: this test only needs to verify that SG
+        # settings survive a single SRIOV disable/enable cycle. Using times=3
+        # causes 4 ARM API toggles on all 8 NICs, each with nested retries
+        # (_check_sriov_enabled: @retry(60×10s) → check_pci_enabled:
+        # @retry(15×3s×1.15 backoff)), which can exceed the 12000s timeout
+        # on high-NIC-count SKUs like GB300 (8 Ethernet + 4 IB per node).
+        # Repeated SRIOV toggle reliability is already covered by the
+        # dedicated verify_sriov_disable_enable test case.
+        sriov_disable_enable(environment, 1)
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
