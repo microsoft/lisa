@@ -261,9 +261,10 @@ class Stress(TestSuite):
     def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
         initialize_nic_info(environment)
         sriov_basic_test(environment)
-        for _ in range(10):
+        for i in range(10):
             for node in environment.nodes.list():
-                node.reboot()
+                print(f"Rebooting node {node.name}, iteration {i+1}/10")
+                node.reboot(time_out=36000)
             initialize_nic_info(environment)
             sriov_basic_test(environment)
 

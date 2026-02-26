@@ -1787,6 +1787,7 @@ def get_environment_context(environment: Environment) -> EnvironmentContext:
 def wait_operation(
     operation: Any, time_out: int = sys.maxsize, failure_identity: str = ""
 ) -> Any:
+    print(f"timeout: {time_out} seconds, waiting for operation: {operation}")
     timer = create_timer()
     wait_result: Any = None
     if failure_identity:
@@ -1807,7 +1808,7 @@ def wait_operation(
     result = operation.result()
     if result:
         result = result.as_dict()
-
+    print(f"operation result: {result}")
     return result
 
 
