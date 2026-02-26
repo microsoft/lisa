@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from statistics import mean, median
 from typing import Any, Dict, Pattern, Union
-
+from lisa.search_space import IntRange
 from assertpy import assert_that
 
 from lisa import (
@@ -73,7 +73,10 @@ class Provisioning(TestSuite):
         """,
         priority=0,
         requirement=simple_requirement(
-            environment_status=EnvironmentStatus.Deployed,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
+                data_path=schema.NetworkDataPath.Sriov,
+            ),
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
