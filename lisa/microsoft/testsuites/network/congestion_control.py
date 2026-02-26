@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner
-from lisa.tools import KernelConfig, Modprobe, Rm, Ss, Sysctl
+from lisa.tools import Cat, KernelConfig, Modprobe, Rm, Ss, Sysctl
 from lisa.util import create_timer
 
 
@@ -40,6 +40,7 @@ class CongestionControlSuite(TestSuite):
     _TCP_ACTIVE = "net.ipv4.tcp_congestion_control"
     _BBR3_CONFIG = "CONFIG_TCP_CONG_BBR3"
     _TCP_SCRIPT = "lisa_tcp_test.py"
+    _TCP_ALGO_OUTPUT = "lisa_tcp_algo.txt"
     _INVALID_ALGO = "lisa_invalid_cc_algorithm"
     _PORT_RANGE_START = 34567
     _PORT_RANGE_END = 34667
@@ -121,6 +122,7 @@ class CongestionControlSuite(TestSuite):
         loaded_by_test = False
         test_port: Optional[int] = None
         script_path = node.working_path / self._TCP_SCRIPT
+        algo_output_path = node.working_path / self._TCP_ALGO_OUTPUT
         connection_process = None
         sysctl = node.tools[Sysctl]
         rm = node.tools[Rm]
@@ -139,7 +141,7 @@ class CongestionControlSuite(TestSuite):
             self._copy_to_node(node, self._TCP_SCRIPT)
 
             connection_process = node.execute_async(
-                f"python3 {script_path} {test_port}",
+                f"python3 {script_path} {test_port} {algo_output_path}",
                 sudo=False,
                 nohup=True,
             )
@@ -154,6 +156,14 @@ class CongestionControlSuite(TestSuite):
                 raise LisaException(
                     f"TCP connection on port {test_port} did not reach ESTAB."
                 )
+
+            socket_algo = self._read_socket_congestion_algorithm(
+                node=node,
+                output_path=algo_output_path,
+            )
+            assert_that(socket_algo).described_as(
+                "Expected live TCP socket congestion algorithm to be bbr3."
+            ).is_equal_to(self._BBR3)
 
             time.sleep(2)
 
@@ -202,6 +212,14 @@ class CongestionControlSuite(TestSuite):
                 except AssertionError as identifier:
                     cleanup_errors.append(
                         f"Failed to remove temporary script {script_path}: {identifier}"
+                    )
+            if node.shell.exists(algo_output_path):
+                try:
+                    rm.remove_file(str(algo_output_path), sudo=True)
+                except AssertionError as identifier:
+                    cleanup_errors.append(
+                        f"Failed to remove algorithm output {algo_output_path}: "
+                        f"{identifier}"
                     )
 
             sysctl.write(self._TCP_ACTIVE, original_algo)
@@ -342,6 +360,26 @@ class CongestionControlSuite(TestSuite):
         file_path = Path(os.path.dirname(__file__)) / "TestScripts" / filename
         if not node.shell.exists(node.working_path / filename):
             node.shell.copy(file_path, node.working_path / filename)
+
+    def _read_socket_congestion_algorithm(
+        self,
+        node: Node,
+        output_path: Path,
+        timeout: int = 5,
+        poll_interval: float = 0.2,
+    ) -> str:
+        timer = create_timer()
+        cat = node.tools[Cat]
+        while timer.elapsed(stop=False) < timeout:
+            if node.shell.exists(output_path):
+                algo = cat.read(str(output_path), force_run=True).strip()
+                if algo:
+                    return algo
+            time.sleep(poll_interval)
+
+        raise LisaException(
+            f"Failed to read TCP congestion algorithm output from {output_path}."
+        )
 
     def _wait_for_connection_state(
         self,
