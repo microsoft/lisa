@@ -348,7 +348,7 @@ class CongestionControlSuite(TestSuite):
         ss = node.tools[Ss]
 
         for port in range(self._PORT_RANGE_START, self._PORT_RANGE_END):
-            if not ss.connection_exists(port=port, sport=True):
+            if not ss.port_in_use(port=port, sport=True):
                 return port
 
         raise LisaException(
