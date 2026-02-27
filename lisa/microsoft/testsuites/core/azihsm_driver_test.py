@@ -61,10 +61,11 @@ class AziHsmDriverTest(TestSuite):
     ]
 
     def _get_source_url(self) -> str:
-        """Get the OOT source URL from runbook parameters if provided"""
-        # Get the runbook parameters - this is how LISA accesses test case variables/parameters
-        runbook_params = self.runbook.testcase.get(type(self).__name__, {})
-        return runbook_params.get("oot_source_url", "")
+        """Get the OOT source URL from LISA variables if provided"""
+        # LISA variables are typically accessed through environment variables or command line
+        # This can be set via: lisa -v oot_source_url:https://example.com/source.tar.gz
+        import os
+        return os.environ.get("LISA_OOT_SOURCE_URL", "")
 
     def _setup_driver_source(self, node: Node, log: Logger, source_url: str = "") -> str:
         """Setup and build the driver source code"""
@@ -466,9 +467,9 @@ class AziHsmDriverTest(TestSuite):
         
         if not self._check_pci_device_present(node, log):
             raise SkippedException("AziHSM PCI device not found")
+            
         source_url = self._get_source_url()
-        driver_path = self._setup_driver_source(node, log, source_url
-        driver_path = self._setup_driver_source(node, log)
+        driver_path = self._setup_driver_source(node, log, source_url)
         
         # Get path to the userspace test source file
         import os
@@ -526,10 +527,10 @@ class AziHsmDriverTest(TestSuite):
         """Test userspace cryptographic operations"""
         
         if not self._check_pci_device_present(node, log):
-        source_url = self._get_source_url()
-        driver_path = self._setup_driver_source(node, log, source_url found")
+            raise SkippedException("AziHSM PCI device not found")
             
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         
         # Get path to the crypto test source file
         import os
@@ -586,10 +587,10 @@ class AziHsmDriverTest(TestSuite):
         """Test concurrent userspace access patterns"""
         
         if not self._check_pci_device_present(node, log):
-        source_url = self._get_source_url()
-        driver_path = self._setup_driver_source(node, log, source_url found")
+            raise SkippedException("AziHSM PCI device not found")
             
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         
         # Get path to the concurrent test source file
         import os
@@ -645,11 +646,11 @@ class AziHsmDriverTest(TestSuite):
     def test_userspace_error_handling(self, node: Node, log: Logger) -> None:
         """Test userspace error handling and edge cases"""
         
-        source_url = self._get_source_url()
-        driver_path = self._setup_driver_source(node, log, source_url
+        if not self._check_pci_device_present(node, log):
             raise SkippedException("AziHSM PCI device not found")
             
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         
         # Get path to the error test source file
         import os
