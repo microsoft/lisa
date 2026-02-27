@@ -28,7 +28,8 @@ from lisa.tools import (
     Ls,
     Echo,
     Wget,
-    Tar
+    Tar,
+    Uname
 )
 from lisa.util import LisaException, SkippedException
 
@@ -70,6 +71,9 @@ class AziHsmDriverTest(TestSuite):
     def _setup_driver_source(self, node: Node, log: Logger, source_url: str = "") -> str:
         """Setup and build the driver source code"""
         log.info("Setting up azihsm driver source...")
+        
+        # Install build dependencies
+        self._install_build_dependencies(node, log)
         
         driver_path = ""
         
@@ -162,24 +166,124 @@ class AziHsmDriverTest(TestSuite):
             
         # Verify Makefile exists
         makefile_path = f"{driver_path}/Makefile"
+        ls = node.tools[Ls]
         if not ls.path_exists(path=makefile_path, sudo=True):
             raise SkippedException(f"Makefile not found at {makefile_path}")
             
-        # Build the driver
-        make = node.tools[Make]
-        log.info(f"Building azihsm driver from {driver_path}...")
-        result = make.run_make(
-            arguments="", 
+        # Get kernel headers path for KERNEL_SRC
+        kernel_src = self._get_kernel_headers_path(node, log)
+        if not kernel_src:
+            raise LisaException("Could not find kernel headers path")
+            
+        # Build the driver with proper environment
+        log.info(f"Building azihsm driver from {driver_path} using kernel headers at {kernel_src}...")
+        
+        # Clean first
+        result = node.execute(
+            "make clean", 
+            cwd=driver_path, 
+            sudo=True, 
+            timeout=60
+        )
+        if result.exit_code != 0:
+            log.info(f"Clean command failed (may be normal): {result.stderr}")
+        
+        # Build with KERNEL_SRC set
+        build_env = {"KERNEL_SRC": kernel_src}
+        result = node.execute(
+            "make",
             cwd=driver_path,
             sudo=True,
-            timeout=300
+            timeout=300,
+            env=build_env
         )
         
         if result.exit_code != 0:
             raise LisaException(f"Driver build failed: {result.stderr}")
             
+        # Verify the kernel module was built
+        ko_file = f"{driver_path}/azihsm.ko"
+        if not ls.path_exists(path=ko_file, sudo=True):
+            raise LisaException(f"Expected kernel module azihsm.ko not found at {ko_file}")
+            
         log.info("Driver build completed successfully")
         return driver_path
+
+    def _install_build_dependencies(self, node: Node, log: Logger) -> None:
+        """Install necessary build dependencies for kernel module compilation"""
+        log.info("Installing build dependencies...")
+        
+        # Get kernel version for headers package
+        uname = node.tools[Uname]
+        kernel_info = uname.get_linux_information()
+        kernel_version = kernel_info.kernel_version_raw
+        
+        # Packages needed for building kernel modules
+        packages = [
+            "build-essential",
+            "make", 
+            "gcc",
+            f"linux-headers-{kernel_version}"
+        ]
+        
+        log.info(f"Installing packages: {packages}")
+        try:
+            node.os.install_packages(packages)
+            log.info("Build dependencies installed successfully")
+        except Exception as e:
+            log.warning(f"Failed to install some packages: {e}")
+            # Try alternative package names
+            alt_packages = [
+                "build-essential",
+                "make",
+                "gcc", 
+                "linux-headers-$(uname -r)"  # Alternative format
+            ]
+            log.info(f"Trying alternative packages: {alt_packages}")
+            node.os.install_packages(alt_packages)
+
+    def _get_kernel_headers_path(self, node: Node, log: Logger) -> str:
+        """Get the path to kernel headers for building modules"""
+        uname = node.tools[Uname]
+        kernel_info = uname.get_linux_information()
+        kernel_version = kernel_info.kernel_version_raw
+        
+        # Common locations for kernel headers
+        possible_paths = [
+            f"/usr/src/linux-headers-{kernel_version}",
+            f"/lib/modules/{kernel_version}/build",
+            f"/usr/src/kernels/{kernel_version}",
+            "/usr/src/linux-headers-$(uname -r)",
+        ]
+        
+        ls = node.tools[Ls]
+        
+        for path in possible_paths:
+            # Handle dynamic kernel version in path
+            if "$(uname -r)" in path:
+                result = node.execute("uname -r", sudo=False)
+                if result.exit_code == 0:
+                    actual_version = result.stdout.strip()
+                    path = path.replace("$(uname -r)", actual_version)
+            
+            log.info(f"Checking kernel headers path: {path}")
+            if ls.path_exists(path=path, sudo=True):
+                # Verify it has the necessary build files
+                makefile_path = f"{path}/Makefile"
+                if ls.path_exists(path=makefile_path, sudo=True):
+                    log.info(f"Found kernel headers at: {path}")
+                    return path
+                else:
+                    log.warning(f"Path exists but no Makefile found: {makefile_path}")
+        
+        # If not found, try to detect using modinfo on any loaded module
+        result = node.execute("find /lib/modules/$(uname -r) -name 'build' -type l", sudo=True)
+        if result.exit_code == 0 and result.stdout.strip():
+            path = result.stdout.strip()
+            log.info(f"Found kernel build path via symlink: {path}")
+            return path
+            
+        raise LisaException(f"Could not find kernel headers. Tried paths: {possible_paths}")
 
     def _check_pci_device_present(self, node: Node, log: Logger) -> bool:
         """Check if AziHSM PCI device is present"""
