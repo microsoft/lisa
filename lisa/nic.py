@@ -185,6 +185,23 @@ class Nics(InitializableMixin):
         self._node.log.debug(f"Found synthetic devices: {synthetic_devices}")
         return synthetic_devices
 
+    def get_pci_nics_except_ib(self) -> List[str]:
+        """
+        Get NIC names for PCI-associated NICs, excluding InfiniBand (ib*)
+        """
+        pci_nics = []
+        for nic in self.nics.values():
+            nic_name = nic.lower if nic.lower else nic.name
+            if nic_name and nic_name.startswith("ib"):
+                continue
+            if nic.name and nic.name.startswith("ib"):
+                continue
+            if nic.is_pci_only_nic:
+                pci_nics.append(nic.name)
+            elif nic.lower:
+                pci_nics.append(nic.lower)
+        return pci_nics
+
     def get_pci_nics(self) -> List[str]:
         pci_nics = []
         for nic in self.nics.values():
@@ -220,6 +237,20 @@ class Nics(InitializableMixin):
 
     def get_device_slots(self) -> List[str]:
         return [x.pci_slot for x in self.nics.values() if x.pci_slot]
+    
+    def get_device_slots_except_ib(self) -> List[str]:
+        """Get PCI slots for NICs, excluding InfiniBand (ib*) interfaces."""
+        slots = []
+        for nic in self.nics.values():
+            if not nic.pci_slot:
+                continue
+            nic_name = nic.lower if nic.lower else nic.name
+            if nic_name and nic_name.startswith("ib"):
+                continue
+            if nic.name and nic.name.startswith("ib"):
+                continue
+            slots.append(nic.pci_slot)
+        return slots
 
     def _get_nics_driver(self) -> None:
         for nic in [x.name for x in self.nics.values()]:

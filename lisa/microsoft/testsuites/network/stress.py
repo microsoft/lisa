@@ -73,15 +73,20 @@ class Stress(TestSuite):
         client_nic_info_list = [
             x
             for _, x in vm_nics[client_node.name].items()
-            if x.ip_addr == client_node.internal_address
+            if x.ip_addr and x.ip_addr == client_node.internal_address
         ]
         assert_that(client_nic_info_list).described_as(
             "not found the primary network interface."
-        ).is_not_none()
+        ).is_not_empty()
         client_nic_info = client_nic_info_list[0]
         isinstance(client_nic_info, NicInfo)
-        matched_server_nic_info: NicInfo
+        matched_server_nic_info: NicInfo = None
         for _, server_nic_info in vm_nics[server_node.name].items():
+            # Skip InfiniBand and NICs without IP addresses
+            if not server_nic_info.ip_addr:
+                continue
+            if server_nic_info.name and server_nic_info.name.startswith("ib"):
+                continue
             if (
                 server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
                 == client_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
