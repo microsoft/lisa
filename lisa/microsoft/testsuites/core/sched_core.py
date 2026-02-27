@@ -77,6 +77,13 @@ class SchedCore(TestSuite):
 
         log.info("CONFIG_SCHED_CORE is enabled")
 
+        smt_result = node.execute("cat /sys/devices/system/cpu/smt/active", sudo=True)
+        if smt_result.stdout.strip() != "1":
+            raise SkippedException("SMT is not active; core scheduling requires SMT.")
+
+        assert isinstance(node.os, CBLMariner), "Expected CBLMariner OS"
+        node.os.install_packages(("glibc-devel", "kernel-headers", "binutils"))
+
         node_src = node.working_path / f"{self._file_name}.c"
         node_bin = node.working_path / self._file_name
 
