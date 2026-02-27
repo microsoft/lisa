@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Type
@@ -161,11 +162,18 @@ class Ltp(Tool):
             )
             parameters += f"-S {skip_file} "
         elif len(skip_tests) > 0:
-            # write skip test to skipfile with newline separator
+            # Write skip tests to a local temp file and copy to remote,
+            # avoiding shell quoting issues entirely.
             skip_file_value = "\n".join(skip_tests)
-            self.node.tools[Echo].write_to_file(
-                skip_file_value, PurePosixPath(skip_file), sudo=True
-            )
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".skipfile", delete=False
+            ) as tmp:
+                tmp.write(skip_file_value)
+                local_tmp_path = tmp.name
+            try:
+                self.node.shell.copy(PurePath(local_tmp_path), PurePosixPath(skip_file))
+            finally:
+                os.unlink(local_tmp_path)
             parameters += f"-S {skip_file} "
 
         # Minimum 4M swap space is needed by some mmp test
