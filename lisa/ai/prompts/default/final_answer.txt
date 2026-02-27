@@ -17,7 +17,6 @@ Your response must be in valid JSON format with the following fields:
         • The specific error that occurred
    - Evidence supporting this conclusion
    - The underlying problem
-   - Recommended and actionable next steps
    - If confidence is low for the primary cause, add one sentence about the secondary possibility
 
 2. **problem**: A single, clear sentence describing the underlying problem.
@@ -43,11 +42,6 @@ Your response must be in valid JSON format with the following fields:
 - Be specific about file names, line numbers, and error messages
 - Avoid unnecessary technical jargon in the summary
 
-**Actionable Outcomes**
-- Provide clear next steps for resolution
-- Prioritize the most impactful recommendations
-- Consider both immediate fixes and preventive measures
-
 ## Output Format:
 
 CRITICAL:
@@ -62,5 +56,6 @@ Example structure:
     "problem_keywords": ["", ""],
     "code_recommendation": ""
 }
+.
 
-Remember: Focus on the most critical issue first, provide concrete evidence, and ensure all recommendations are actionable.
+Remember: Focus on the most critical issue first, provide concrete evidence.
