@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import base64
 import os
 import re
 from dataclasses import dataclass
@@ -163,8 +164,10 @@ class Ltp(Tool):
         elif len(skip_tests) > 0:
             # write skip test to skipfile with newline separator
             skip_file_value = "\n".join(skip_tests)
+            encoded = base64.b64encode(skip_file_value.encode()).decode()
+
             self.node.tools[Echo].write_to_file(
-                skip_file_value, PurePosixPath(skip_file), sudo=True
+                encoded, PurePosixPath(skip_file), sudo=True
             )
             parameters += f"-S {skip_file} "
 
