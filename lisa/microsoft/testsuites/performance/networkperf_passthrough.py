@@ -267,6 +267,10 @@ class NetworkPerformance(TestSuite):
             server=server,
             server_nic_name=self._get_host_nic_name(server),
             client_nic_name=client_nic_name,
+            # The server is the baremetal host — never reboot it for TasksMax.
+            # A host reboot clears the passthrough NIC DHCP state and breaks
+            # the test (ntttcp server becomes unreachable on that IP).
+            skip_server_task_max=True,
         )
 
     @TestCaseMetadata(
@@ -308,6 +312,8 @@ class NetworkPerformance(TestSuite):
             server_nic_name=self._get_host_nic_name(server),
             client_nic_name=client_nic_name,
             udp_mode=True,
+            # The server is the baremetal host — never reboot it for TasksMax.
+            skip_server_task_max=True,
         )
 
     # Network device passthrough tests between 2 guests
