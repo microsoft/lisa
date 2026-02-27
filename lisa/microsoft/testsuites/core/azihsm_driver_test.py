@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any
+from typing import Any, Dict
 import time
 import os
 
@@ -26,7 +26,9 @@ from lisa.tools import (
     Gcc,
     Cat,
     Ls,
-    Echo
+    Echo,
+    Wget,
+    Tar
 )
 from lisa.util import LisaException, SkippedException
 
@@ -58,34 +60,104 @@ class AziHsmDriverTest(TestSuite):
         "/dev/azihsm-mgmt", # MGMT device (will have numbered suffix) 
     ]
 
-    def _setup_driver_source(self, node: Node, log: Logger) -> str:
+    def _get_source_url(self) -> str:
+        """Get the OOT source URL from runbook parameters if provided"""
+        # Get the runbook parameters - this is how LISA accesses test case variables/parameters
+        runbook_params = self.runbook.testcase.get(type(self).__name__, {})
+        return runbook_params.get("oot_source_url", "")
+
+    def _setup_driver_source(self, node: Node, log: Logger, source_url: str = "") -> str:
         """Setup and build the driver source code"""
         log.info("Setting up azihsm driver source...")
         
-        # Check multiple possible source locations
-        possible_paths = [
-            "/tmp/azihsm-driver/src",  # Original test assumption
-            "/home/*/oot_modules/azihsm-linux-driver-main/src",  # Actual location from analysis
-            "/opt/azihsm/src",  # Alternative location
-        ]
-        
-        ls = node.tools[Ls]
         driver_path = ""
         
-        for path_pattern in possible_paths:
-            if "*" in path_pattern:
-                # Handle wildcard paths
-                result = node.execute(f"ls -d {path_pattern} 2>/dev/null || true", sudo=True)
-                if result.exit_code == 0 and result.stdout.strip():
-                    driver_path = result.stdout.strip().split('\n')[0]
-                    break
+        # If source URL is provided, download and extract it
+        if source_url:
+            log.info(f"Downloading driver source from URL: {source_url}")
+            
+            # Create temporary download directory
+            download_dir = "/tmp/azihsm-download"
+            node.execute(f"mkdir -p {download_dir}", sudo=True)
+            
+            # Extract filename from URL
+            filename = source_url.split('/')[-1]
+            download_path = f"{download_dir}/{filename}"
+            
+            # Download the source archive
+            wget = node.tools[Wget]
+            result = node.execute(f"wget -O {download_path} {source_url}", sudo=True, timeout=300)
+            if result.exit_code != 0:
+                raise LisaException(f"Failed to download source from {source_url}: {result.stderr}")
+            
+            log.info(f"Successfully downloaded {filename}")
+            
+            # Extract the archive to /tmp/azihsm-driver/
+            extract_dir = "/tmp/azihsm-driver"
+            node.execute(f"rm -rf {extract_dir} && mkdir -p {extract_dir}", sudo=True)
+            
+            tar = node.tools[Tar]
+            
+            # Determine extraction command based on file extension
+            if filename.endswith('.tar.gz') or filename.endswith('.tgz'):
+                extract_cmd = f"tar -xzf {download_path} -C {extract_dir} --strip-components=1"
+            elif filename.endswith('.tar.bz2') or filename.endswith('.tbz2'):
+                extract_cmd = f"tar -xjf {download_path} -C {extract_dir} --strip-components=1"
+            elif filename.endswith('.tar'):
+                extract_cmd = f"tar -xf {download_path} -C {extract_dir} --strip-components=1"
             else:
-                if ls.path_exists(path=path_pattern, sudo=True):
-                    driver_path = path_pattern
+                raise LisaException(f"Unsupported archive format: {filename}")
+            
+            result = node.execute(extract_cmd, sudo=True, timeout=120)
+            if result.exit_code != 0:
+                raise LisaException(f"Failed to extract {filename}: {result.stderr}")
+                
+            log.info(f"Successfully extracted source to {extract_dir}")
+            
+            # Set driver path to the extracted source directory
+            potential_src_paths = [
+                f"{extract_dir}/src",      # Most common pattern
+                f"{extract_dir}",          # Root directory
+                f"{extract_dir}/driver",   # Alternative pattern
+            ]
+            
+            ls = node.tools[Ls]
+            for path in potential_src_paths:
+                if ls.path_exists(path=f"{path}/Makefile", sudo=True):
+                    driver_path = path
+                    log.info(f"Found Makefile in {driver_path}")
                     break
-        
-        if not driver_path:
-            raise SkippedException("Driver source not found in any expected location")
+            
+            if not driver_path:
+                # List contents to help debug
+                result = node.execute(f"find {extract_dir} -name Makefile -type f", sudo=True)
+                log.warning(f"Available Makefiles: {result.stdout}")
+                raise LisaException(f"Could not find Makefile in extracted source at {extract_dir}")
+                
+        else:
+            # Fallback to existing logic - check multiple possible source locations
+            possible_paths = [
+                "/tmp/azihsm-driver/src",  # Downloaded source location
+                "/home/*/oot_modules/azihsm-linux-driver-main/src",  # Actual location from analysis
+                "/opt/azihsm/src",  # Alternative location
+            ]
+            
+            ls = node.tools[Ls]
+            
+            for path_pattern in possible_paths:
+                if "*" in path_pattern:
+                    # Handle wildcard paths
+                    result = node.execute(f"ls -d {path_pattern} 2>/dev/null || true", sudo=True)
+                    if result.exit_code == 0 and result.stdout.strip():
+                        driver_path = result.stdout.strip().split('\n')[0]
+                        break
+                else:
+                    if ls.path_exists(path=path_pattern, sudo=True):
+                        driver_path = path_pattern
+                        break
+            
+            if not driver_path:
+                raise SkippedException("Driver source not found in any expected location and no source URL provided")
             
         # Verify Makefile exists
         makefile_path = f"{driver_path}/Makefile"
@@ -167,7 +239,8 @@ class AziHsmDriverTest(TestSuite):
             raise SkippedException("AziHSM PCI device not found - skipping driver test")
         
         # Setup and build driver
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         
         try:
             # Load driver
@@ -198,7 +271,8 @@ class AziHsmDriverTest(TestSuite):
         if not self._check_pci_device_present(node, log):
             raise SkippedException("AziHSM PCI device not found")
             
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         
         try:
             self._load_driver(node, log, driver_path)
@@ -243,7 +317,8 @@ class AziHsmDriverTest(TestSuite):
     def test_driver_info(self, node: Node, log: Logger) -> None:
         """Test driver module information"""
         
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         ko_file = f"{driver_path}/{self.DRIVER_NAME}.ko"
         
         # Get module info before loading
@@ -272,7 +347,8 @@ class AziHsmDriverTest(TestSuite):
         if not self._check_pci_device_present(node, log):
             raise SkippedException("AziHSM PCI device not found")
             
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         dmesg = node.tools[Dmesg]
         
         try:
@@ -318,7 +394,8 @@ class AziHsmDriverTest(TestSuite):
         if not self._check_pci_device_present(node, log):
             raise SkippedException("AziHSM PCI device not found")
             
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         
         try:
             self._load_driver(node, log, driver_path)
@@ -356,7 +433,8 @@ class AziHsmDriverTest(TestSuite):
         if not self._check_pci_device_present(node, log):
             raise SkippedException("AziHSM PCI device not found")
             
-        driver_path = self._setup_driver_source(node, log)
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url)
         iterations = 5
         
         log.info(f"Starting load/unload stress test with {iterations} iterations")
@@ -388,7 +466,8 @@ class AziHsmDriverTest(TestSuite):
         
         if not self._check_pci_device_present(node, log):
             raise SkippedException("AziHSM PCI device not found")
-            
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url
         driver_path = self._setup_driver_source(node, log)
         
         # Get path to the userspace test source file
@@ -447,7 +526,8 @@ class AziHsmDriverTest(TestSuite):
         """Test userspace cryptographic operations"""
         
         if not self._check_pci_device_present(node, log):
-            raise SkippedException("AziHSM PCI device not found")
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url found")
             
         driver_path = self._setup_driver_source(node, log)
         
@@ -506,7 +586,8 @@ class AziHsmDriverTest(TestSuite):
         """Test concurrent userspace access patterns"""
         
         if not self._check_pci_device_present(node, log):
-            raise SkippedException("AziHSM PCI device not found")
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url found")
             
         driver_path = self._setup_driver_source(node, log)
         
@@ -564,7 +645,8 @@ class AziHsmDriverTest(TestSuite):
     def test_userspace_error_handling(self, node: Node, log: Logger) -> None:
         """Test userspace error handling and edge cases"""
         
-        if not self._check_pci_device_present(node, log):
+        source_url = self._get_source_url()
+        driver_path = self._setup_driver_source(node, log, source_url
             raise SkippedException("AziHSM PCI device not found")
             
         driver_path = self._setup_driver_source(node, log)
