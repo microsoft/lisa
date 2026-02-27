@@ -2781,7 +2781,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 node_parameters.security_profile["security_type"] = "TrustedLaunch"
                 node_parameters.security_profile["encryption_type"] = "TrustedLaunch"
             elif SecurityProfileType.Stateless == settings.security_profile:
-                node_parameters.security_profile["secure_boot"] = False
+                node_parameters.security_profile["secure_boot"] = True
                 node_parameters.security_profile["security_type"] = "ConfidentialVM"
                 node_parameters.security_profile["encryption_type"] = (
                     "ConfidentialVM_NonPersistedTPM" if is_vhd else "NonPersistedTPM"
