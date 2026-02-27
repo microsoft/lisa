@@ -103,6 +103,11 @@ def _write_case(file: TextIO, metadata: Dict[str, str], suite_name: str = "") ->
 
     file.write(f"        :priority: ``{metadata.get('priority', 2)}``\n")  # Priority
 
+    if "supported_platform_type" in metadata:
+        file.write(
+            f"        :platform: ``{metadata['supported_platform_type']}``\n"
+        )
+
     if "requirement" in metadata:
         file.write(f"        :requirement: ``{metadata['requirement']}``\n")
 

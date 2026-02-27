@@ -107,9 +107,15 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
                         elif isinstance(req.value, ast.Constant):
                             val = f"{req.arg}={req.value.value}"
                         elif isinstance(req.value, ast.List):
+                            items = []
                             for r in req.value.elts:
                                 if isinstance(r, ast.Name):
                                     val = add_req(val, r.id)  # type: ignore
+                                    items.append(r.id)
+                            if req.arg == "supported_platform_type" and items:
+                                metadata["supported_platform_type"] = ", ".join(
+                                    items
+                                )
 
                 elif isinstance(param.value, ast.Constant):
                     val = param.value.value
