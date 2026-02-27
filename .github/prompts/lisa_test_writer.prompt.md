@@ -92,9 +92,9 @@ Use the following GitHub Copilot features to ground your knowledge:
 ### 2. Gap Analysis & Inquiry
 - **No Hallucination**: If a tool or feature is not found in the repository, **do not invent its API**.
 - **Mandatory Question**: If you are unsure, ask the user: 
-  > "I couldn't find a Tool/Feature for [XXX] in the codebase. Should I:
-  > a) Assume it exists and you will provide it?
-  > b) Create a new Tool/Feature skeleton for it?
+  > "I couldn't find a Tool/Feature for [XXX] in the codebase. Should I:  
+  > a) Assume it exists and you will provide it?  
+  > b) Create a new Tool/Feature skeleton for it?  
   > c) Did I miss an existing class in `lisa/tools/`?"
 
 ### 3. Design Specification (Pre-code Output)
@@ -176,7 +176,7 @@ Follow the AAA pattern:
      ```python
      # Best Practice
      gcc = node.tools[Gcc]
-    network_interface = node.features[NetworkInterface]
+     network_interface = node.features[NetworkInterface]
      ```
 2. **Act**
    - Perform minimal actions to trigger the behavior
