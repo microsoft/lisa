@@ -8,6 +8,7 @@ from lisa import LisaException, SkippedException, simple_requirement
 from lisa.node import Node
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.tools import Curl
 
 
 @TestSuiteMetadata(
@@ -88,13 +89,14 @@ class SanitySuite(TestSuite):
         for attempt_number in range(self.IMDS_MAX_RETRIES + 1):
             try:
                 # Cloud-init installs curl/wget typically; use wget --header for IMDS.
-                command = (
-                    "wget -qO- --header Metadata:true "
-                    f"'{imds_url}' || "
-                    "curl -s -H Metadata:true "
-                    f"'{imds_url}'"
+                response = node.tools[Curl].run(
+                    f"-sS --fail --connect-timeout 2 --max-time 5 "
+                    f"-H 'Metadata:true' "
+                    f"'{imds_url}'",
+                    shell=True,
+                    sudo=True,
+                    force_run=True,
                 )
-                response = node.execute(command, sudo=False, shell=True)
                 if response.exit_code != 0 or not response.stdout:
                     if attempt_number < self.IMDS_MAX_RETRIES:
                         node.log.debug(
