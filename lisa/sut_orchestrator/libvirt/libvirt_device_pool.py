@@ -215,36 +215,44 @@ class LibvirtDevicePool(BaseDevicePool):
         pool_type: HostDevicePoolType,
         bdf_list: List[str],
     ) -> None:
-        iommu_grp_of_used_devices = []
         primary_nic_iommu = self.get_primary_nic_id()
+        seen_iommu_groups: List[str] = []
         for bdf in bdf_list:
             domain, bus, slot, fn = self._parse_pci_address_str(bdf)
             dev = self._get_pci_address_instance(domain, bus, slot, fn)
             is_vfio_pci = self._is_driver_vfio_pci(dev)
             iommu_group = self._get_device_iommu_group(dev)
 
-            if iommu_group in iommu_grp_of_used_devices:
-                # No need to add this device in pool as one of the devices for this
-                # iommu group is in use
+            if iommu_group in seen_iommu_groups:
+                # Already processed this IOMMU group in this call; skip duplicates.
+                continue
+
+            if iommu_group in primary_nic_iommu:
+                # Never passthrough the management NIC.
+                self._log.debug(
+                    f"Skipping {bdf}: IOMMU group {iommu_group} "
+                    "is the management NIC"
+                )
                 continue
 
             if is_vfio_pci:
-                # Do not consider any device for pool if any device of same iommu group
-                # is already assigned
-                pool = self.available_host_devices.get(pool_type, {})
-                pool.pop(iommu_group, [])
-                self.available_host_devices[pool_type] = pool
-                iommu_grp_of_used_devices.append(iommu_group)
-            elif (
-                iommu_group not in primary_nic_iommu
-                and iommu_group not in iommu_grp_of_used_devices
-            ):
-                pool = self.available_host_devices.get(pool_type, {})
-                devices = pool.get(iommu_group, [])
-                if dev not in devices:
-                    devices.append(dev)
-                pool[iommu_group] = devices
-                self.available_host_devices[pool_type] = pool
+                # Device is currently bound to vfio-pci — possibly left over from a
+                # previous interrupted run.  Include it in the pool anyway: libvirt
+                # (managed="yes") will rebind it when it starts the VM.  If another
+                # VM is actively using it, libvirt will fail to start and we will
+                # surface a clear error then rather than silently emptying the pool.
+                self._log.warning(
+                    f"Device {bdf} (IOMMU group {iommu_group}) is already bound "
+                    "to vfio-pci; adding to pool as a recovered/leftover device."
+                )
+
+            pool = self.available_host_devices.get(pool_type, {})
+            devices = pool.get(iommu_group, [])
+            if dev not in devices:
+                devices.append(dev)
+            pool[iommu_group] = devices
+            self.available_host_devices[pool_type] = pool
+            seen_iommu_groups.append(iommu_group)
 
     def _get_pci_address_instance(
         self,
@@ -263,7 +271,7 @@ class LibvirtDevicePool(BaseDevicePool):
 
     def auto_detect_passthrough_nics(
         self,
-        count: int = 1,
+        count: int = 0,
         vendor_id: str = "",
         device_id: str = "",
     ) -> List[str]:
@@ -271,14 +279,18 @@ class LibvirtDevicePool(BaseDevicePool):
         Auto-detect NICs suitable for passthrough on the host.
 
         Returns a list of PCI BDF addresses for NICs that meet criteria:
-        - Have IOMMU group
-        - Are SR-IOV capable
-        - Not the default route interface
-        - Have link up (mandatory)
+        - Have IOMMU group (required for VFIO passthrough)
+        - Not the default route interface (management NIC must stay accessible)
+        - Have link up
         - Optionally match vendor/device ID
+
+        count=0 (default) means detect ALL suitable NICs so the pool is fully
+        populated and can satisfy any number of concurrent passthrough nodes.
         """
+        # count=0 means "no cap" — detect all suitable NICs
+        detect_all = count == 0
         self._log.info(
-            f"Auto-detecting passthrough NICs (count={count})"
+            f"Auto-detecting passthrough NICs " f"({'all' if detect_all else count})"
         )
 
         cat = self.host_node.tools[Cat]
@@ -335,29 +347,15 @@ class LibvirtDevicePool(BaseDevicePool):
             bdf = bdf_matches[-1]
             self._log.debug(f"Interface {iface} has BDF {bdf}")
 
-            # Check if IOMMU group exists
+            # Check if IOMMU group exists — mandatory for VFIO passthrough.
+            # SR-IOV capability is NOT required: physical NICs are passed through
+            # directly and do not need to support virtual functions.
             iommu_group_path = f"/sys/bus/pci/devices/{bdf}/iommu_group"
             if not ls.path_exists(iommu_group_path, sudo=True):
                 self._log.debug(f"Skipping {iface} (no IOMMU group)")
                 continue
 
-            # Check for SR-IOV capability
-            sriov_totalvfs_path = f"/sys/bus/pci/devices/{bdf}/sriov_totalvfs"
-            if not ls.path_exists(sriov_totalvfs_path, sudo=True):
-                self._log.debug(f"Skipping {iface} (not SR-IOV capable)")
-                continue
-
-            # Verify SR-IOV is actually available (totalvfs > 0)
-            try:
-                sriov_totalvfs = cat.read(sriov_totalvfs_path, sudo=True).strip()
-                if int(sriov_totalvfs) == 0:
-                    self._log.debug(f"Skipping {iface} (SR-IOV totalvfs=0)")
-                    continue
-            except Exception as e:
-                self._log.debug(f"Skipping {iface} (error reading SR-IOV info: {e})")
-                continue
-
-            # Check link status (mandatory)
+            # Check link status (mandatory — only pass through a live NIC)
             carrier_path = f"/sys/class/net/{iface}/carrier"
             if ls.path_exists(carrier_path, sudo=True):
                 try:
@@ -366,11 +364,12 @@ class LibvirtDevicePool(BaseDevicePool):
                         self._log.debug(f"Skipping {iface} (link down)")
                         continue
                 except Exception:
-                    # Carrier file unreadable (e.g. interface down) - skip
                     self._log.debug(f"Skipping {iface} (carrier unreadable, link down)")
                     continue
             else:
-                self._log.debug(f"Skipping {iface} (no carrier file, link status unknown)")
+                self._log.debug(
+                    f"Skipping {iface} (no carrier file, link status unknown)"
+                )
                 continue
 
             # Check vendor/device ID if specified
@@ -407,28 +406,24 @@ class LibvirtDevicePool(BaseDevicePool):
                     )
                     continue
 
-            self._log.info(
-                f"Found suitable NIC: {iface} with BDF {bdf} "
-                f"(SR-IOV totalvfs={sriov_totalvfs})"
-            )
+            self._log.info(f"Found suitable NIC for passthrough: {iface} (BDF {bdf})")
             suitable_bdfs.append(bdf)
 
-            if len(suitable_bdfs) >= count:
+            if not detect_all and len(suitable_bdfs) >= count:
                 break
 
         if not suitable_bdfs:
             raise LisaException(
                 "No suitable NICs found for passthrough. Checked criteria: "
-                "IOMMU group, SR-IOV capability, not default route interface"
+                "IOMMU group present, not default route interface, link up"
             )
 
-        if len(suitable_bdfs) < count:
+        if not detect_all and len(suitable_bdfs) < count:
             self._log.warning(
-                f"Only found {len(suitable_bdfs)} suitable NICs, "
-                f"requested {count}"
+                f"Only found {len(suitable_bdfs)} suitable NICs, " f"requested {count}"
             )
 
-        return suitable_bdfs[:count]
+        return suitable_bdfs
 
     def _add_device_passthrough_xml(
         self,

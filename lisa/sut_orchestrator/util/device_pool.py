@@ -4,6 +4,7 @@ from lisa.sut_orchestrator.util.schema import (
     AutoDetectIdentifier,
     HostDevicePoolSchema,
     HostDevicePoolType,
+    PciAddressIdentifier,
     VendorDeviceIdIdentifier,
 )
 from lisa.util import LisaException
@@ -30,7 +31,7 @@ class BaseDevicePool:
 
     def auto_detect_passthrough_nics(
         self,
-        count: int = 1,
+        count: int = 0,
         require_link_up: bool = False,
         vendor_id: str = "",
         device_id: str = "",
@@ -88,16 +89,52 @@ class BaseDevicePool:
                         vendor_id=vendor_id,
                         device_id=device_id,
                     )
-                elif isinstance(devices, dict):
-                    bdf_list = devices.get("pci_bdf", [])
-                    assert bdf_list, "Key not found: 'pci_bdf'"
-                    pci_addr_list: List[str] = cast(List[str], bdf_list)
-
-                    # Create pool from the list of PCI addresses
-                    self.create_device_pool_from_pci_addresses(
-                        pool_type=config.type,
-                        pci_addr_list=pci_addr_list,
+                elif isinstance(devices, (dict, PciAddressIdentifier)):
+                    # dataclass_json deserializes Union variants as plain dicts,
+                    # so both PciAddressIdentifier and AutoDetectIdentifier arrive
+                    # here as dicts. Distinguish by key presence.
+                    devices_dict = (
+                        devices
+                        if isinstance(devices, dict)
+                        else {"pci_bdf": devices.pci_bdf}
                     )
+                    if "pci_bdf" in devices_dict:
+                        bdf_list = devices_dict.get("pci_bdf", [])
+                        assert (
+                            bdf_list
+                        ), "Key 'pci_bdf' is present but the list is empty"
+                        pci_addr_list: List[str] = cast(List[str], bdf_list)
+                        self.create_device_pool_from_pci_addresses(
+                            pool_type=config.type,
+                            pci_addr_list=pci_addr_list,
+                        )
+                    elif "enabled" in devices_dict or "count" in devices_dict:
+                        # Treat as AutoDetectIdentifier fields
+                        auto_config = AutoDetectIdentifier(
+                            enabled=devices_dict.get("enabled", True),
+                            count=devices_dict.get("count", 0),  # 0 = detect all
+                            vendor_id=devices_dict.get("vendor_id", ""),
+                            device_id=devices_dict.get("device_id", ""),
+                        )
+                        if auto_config.enabled:
+                            detected_bdfs = self.auto_detect_passthrough_nics(
+                                count=auto_config.count,
+                                vendor_id=auto_config.vendor_id,
+                                device_id=auto_config.device_id,
+                            )
+                            self.create_device_pool_from_pci_addresses(
+                                pool_type=config.type,
+                                pci_addr_list=detected_bdfs,
+                            )
+                        else:
+                            raise LisaException(
+                                "Auto-detect is disabled but no devices specified"
+                            )
+                    else:
+                        raise LisaException(
+                            f"Unrecognised device dict for pool '{config.type}': "
+                            f"{devices_dict}"
+                        )
                 elif isinstance(devices, AutoDetectIdentifier):
                     # Auto-detect suitable NICs
                     auto_config: AutoDetectIdentifier = devices

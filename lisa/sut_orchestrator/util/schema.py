@@ -27,14 +27,17 @@ class PciAddressIdentifier:
 @dataclass_json()
 @dataclass
 class AutoDetectIdentifier:
-    # Auto-detect suitable NICs for passthrough
+    # Auto-detect suitable NICs for passthrough.
     # When enabled, LISA will automatically select NICs that:
-    # - Have IOMMU group support
-    # - Are SR-IOV capable
-    # - Are not the default route interface
+    # - Have an IOMMU group (required for VFIO passthrough)
+    # - Are not the default route interface (management NIC)
     # - Have link up (mandatory)
+    # SR-IOV capability is NOT required — physical NICs are passed through
+    # directly and do not need to support virtual functions.
     enabled: bool = True
-    count: int = 1  # Number of NICs to detect
+    # Number of NICs to detect. 0 (default) means detect ALL suitable NICs so
+    # the pool is fully populated and can satisfy any number of concurrent nodes.
+    count: int = 0
     vendor_id: str = ""  # Optional: filter by vendor ID
     device_id: str = ""  # Optional: filter by device ID
 
