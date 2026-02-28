@@ -3,7 +3,7 @@
 
 import os
 import time
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import List, Optional, Tuple
 
 from assertpy import assert_that
@@ -28,7 +28,8 @@ from lisa.util import create_timer
     category="functional",
     description="""
     This test suite validates TCP congestion control behavior.
-    Current coverage focuses on BBR3-specific functionality (only for kernels that are built with BBR3 support)
+    Current coverage focuses on BBR3-specific functionality
+    (only for kernels that are built with BBR3 support).
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
@@ -267,7 +268,7 @@ class CongestionControlSuite(TestSuite):
         Check if bbr3 is available in the kernel config. If not, then skip the test.
 
         If available, ensure that if it's a module then it's loaded, and ensure it's
-        listed in the available congestion control algorithms. 
+        listed in the available congestion control algorithms.
         If any of these steps fail, the overall test case is a failure.
         Returns (available_algorithms, loaded_by_test)
         """
@@ -325,7 +326,7 @@ class CongestionControlSuite(TestSuite):
         if active_algo == self._BBR3:
             return
 
-        # Sometimes modprobe can fail to remove the module on the first try due to lingering references.
+        # Sometimes modprobe can fail on first remove due to lingering references.
         modprobe = node.tools[Modprobe]
         last_error: Optional[AssertionError] = None
         for _ in range(5):
@@ -366,7 +367,7 @@ class CongestionControlSuite(TestSuite):
     def _read_socket_congestion_algorithm(
         self,
         node: Node,
-        output_path: Path,
+        output_path: PurePath,
         timeout: int = 5,
         poll_interval: float = 0.2,
     ) -> str:

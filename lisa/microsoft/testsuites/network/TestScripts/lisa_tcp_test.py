@@ -51,7 +51,11 @@ def create_tcp_server_client(port: int, algo_output_path: str = "") -> None:
     client.connect((LOCALHOST, port))
 
     if algo_output_path:
-        algo = client.getsockopt(socket.IPPROTO_TCP, socket.TCP_CONGESTION, 64)
+        algo = client.getsockopt(
+            socket.IPPROTO_TCP,
+            socket.TCP_CONGESTION,  # type: ignore[attr-defined]
+            64,
+        )
         with open(algo_output_path, "w", encoding="utf-8") as algo_file:
             algo_file.write(algo.decode().strip("\x00"))
 
