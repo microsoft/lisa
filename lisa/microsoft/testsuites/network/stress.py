@@ -264,6 +264,13 @@ class Stress(TestSuite):
         ),
     )
     def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
+        for node in environment.nodes.list():
+            node.execute("dnf update -y", sudo=True)
+            node.reboot()
+            os_release = node.execute(
+                cmd="cat /etc/os-release", no_error_log=True, timeout=60
+            )
+            print(f"os release after dnf update and reboot: {os_release}")
         initialize_nic_info(environment)
         sriov_basic_test(environment)
         for _ in range(10):
@@ -294,6 +301,13 @@ class Stress(TestSuite):
     def stress_sriov_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
+        for node in environment.nodes.list():
+            node.execute("dnf update -y", sudo=True)
+            node.reboot()
+            os_release = node.execute(
+                cmd="cat /etc/os-release", no_error_log=True, timeout=60
+            )
+            print(f"os release after dnf update and reboot: {os_release}")
         initialize_nic_info(environment)
         sriov_basic_test(environment)
         for _ in range(10):
@@ -325,6 +339,13 @@ class Stress(TestSuite):
     def stress_sriov_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
+        for node in environment.nodes.list():
+            node.execute("dnf update -y", sudo=True)
+            node.reboot()
+            os_release = node.execute(
+                cmd="cat /etc/os-release", no_error_log=True, timeout=60
+            )
+            print(f"os release after dnf update and reboot: {os_release}")
         initialize_nic_info(environment)
         sriov_basic_test(environment)
         for _ in range(10):
