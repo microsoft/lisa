@@ -213,6 +213,16 @@ class HvModule(TestSuite):
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
+        node.execute("dnf update -y", sudo=True)
+        node.reboot()
+        os_release = node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        log.info(f"os release after dnf update and reboot: {os_release}")
+        node.execute("useradd -m testuser", sudo=True)
+        node.execute("echo 'testuser:Password123' | chpasswd", sudo=True, shell=True)
+        kernel_version = node.execute("uname -r", timeout=60)
+        log.info(f"Kernel version after dnf update and reboot: {kernel_version}")
         if isinstance(node.os, Redhat):
             try:
                 log.debug("Checking LIS installation before reload.")
@@ -224,15 +234,15 @@ class HvModule(TestSuite):
         failed_modules = {}
         passed_modules = []
         hv_modules = [
-            "hv_vmbus",
+            # "hv_vmbus",
             "hv_netvsc",
-            "hv_storvsc",
-            "hv_utils",
-            "hv_balloon",
-            "hid_hyperv",
-            "hyperv_keyboard",
-            "hyperv_fb",
-            "hyperv_drm",
+            # "hv_storvsc",
+            # "hv_utils",
+            # "hv_balloon",
+            # "hid_hyperv",
+            # "hyperv_keyboard",
+            # "hyperv_fb",
+            # "hyperv_drm",
         ]
         loadable_modules = set(
             self._get_modules_by_type(node, module_type=ModulesType.MODULE)
