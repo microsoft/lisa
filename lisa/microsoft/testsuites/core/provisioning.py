@@ -77,6 +77,12 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        node.execute("dnf update -y", sudo=True)
+        node.reboot()
+        os_release = node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        log.info(f"os release after dnf update and reboot: {os_release}")
         self._smoke_test(log, node, log_path, "smoke_test")
 
     @TestCaseMetadata(
@@ -364,6 +370,12 @@ class Provisioning(TestSuite):
         ),
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        node.execute("dnf update -y", sudo=True)
+        node.reboot()
+        os_release = node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        log.info(f"os release after dnf update and reboot: {os_release}")
         reboot_times = []
         try:
             for i in range(100):

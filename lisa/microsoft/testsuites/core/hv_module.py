@@ -213,6 +213,14 @@ class HvModule(TestSuite):
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
+        node.execute("dnf update -y", sudo=True)
+        node.reboot()
+        os_release = node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        log.info(f"os release after dnf update and reboot: {os_release}")
+        kernel_version = node.execute("uname -r", timeout=60)
+        log.info(f"Kernel version after dnf update and reboot: {kernel_version}")
         if isinstance(node.os, Redhat):
             try:
                 log.debug("Checking LIS installation before reload.")
