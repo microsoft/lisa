@@ -17,7 +17,8 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import BSD, Windows
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import Cat, KernelConfig, Modprobe, Rm, Ss, Sysctl
 from lisa.util import create_timer
 
@@ -27,10 +28,11 @@ from lisa.util import create_timer
     category="functional",
     description="""
     This test suite validates TCP congestion control behavior.
-    Current coverage focuses on BBR3-specific functionality.
+    Current coverage focuses on BBR3-specific functionality (only for kernels that are built with BBR3 support)
     """,
     requirement=simple_requirement(
-        supported_os=[CBLMariner],
+        supported_platform_type=[AZURE, READY, HYPERV],
+        unsupported_os=[BSD, Windows],
     ),
 )
 class CongestionControlSuite(TestSuite):
