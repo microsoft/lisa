@@ -21,7 +21,7 @@ from lisa import (
     create_timer,
     simple_requirement,
 )
-from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Windows
+from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Ubuntu, Windows
 from lisa.tools import (
     Cat,
     Chmod,
@@ -109,6 +109,19 @@ class TimeSync(TestSuite):
         priority=2,
     )
     def verify_timesync_ptp(self, node: Node) -> None:
+        # On Ubuntu >= 19.10 and Red Hat Enterprise Linux >= 8.x, chrony
+        # is configured to use a PTP source clock. Older Linux releases use the
+        # Network Time Protocol daemon (ntpd), which doesn't support PTP sources.
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#chrony
+        # Skip test for older OS versions that don't support PTP properly
+        if (
+            isinstance(node.os, Ubuntu) and node.os.information.version < "19.10.0"
+        ) or (isinstance(node.os, Redhat) and node.os.information.version < "8.0.0"):
+            raise SkippedException(
+                f"PTP time sync is not supported on {node.os.name} "
+                f"{node.os.information.version}. Requires Ubuntu 19.10+ or RHEL 8.0+."
+            )
+
         # 1. PTP time source is available on Azure guests (newer versions of Linux).
         dmesg = node.tools[Dmesg]
         assert_that(dmesg.get_output()).contains(self.ptp_registered_msg)
