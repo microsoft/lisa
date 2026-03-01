@@ -394,9 +394,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return search_space.choose_value_countspace(count_space, count_space)
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
-        self._configure_nodes(environment, log)
-
         try:
+            self._configure_nodes(environment, log)
             self._create_nodes(environment, log)
             self._fill_nodes_metadata(environment, log)
             self._expand_nodes_os_partition(environment, log)

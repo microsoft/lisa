@@ -412,6 +412,67 @@ class LibvirtDevicePool(BaseDevicePool):
             if not detect_all and len(suitable_bdfs) >= count:
                 break
 
+        # Second pass: scan /sys/bus/pci/drivers/vfio-pci/ for NIC-class devices.
+        #
+        # This handles two distinct cases:
+        #
+        # 1. pvIOMMU / MSHV + Cloud Hypervisor (SR-IOV VF passthrough):
+        #    In this setup the host is a Hyper-V parent partition.  SR-IOV VFs
+        #    are bound to vfio-pci from boot by the infrastructure so that
+        #    Cloud Hypervisor can assign them to guest VMs.  These VFs have NO
+        #    network driver, so they never appear in /sys/class/net and the loop
+        #    above finds nothing.  Scanning the vfio-pci driver directory is the
+        #    PRIMARY detection path for this environment.
+        #
+        # 2. Interrupted previous run (any platform):
+        #    If a prior run was killed mid-flight, some NICs may still be bound
+        #    to vfio-pci as leftovers.  libvirt (managed="yes") will rebind them
+        #    on next VM start, so including them is safe.
+        #
+        # In both cases we restrict to PCI class 0x02xxxx (Network controller /
+        # Ethernet), which covers all common NIC VFs (Mellanox ConnectX, Intel
+        # ixgbe, etc.) while excluding GPUs, storage, and other device types.
+        vfio_driver_path = "/sys/bus/pci/drivers/vfio-pci"
+        try:
+            vfio_result = self.host_node.execute(
+                f"ls -1 {vfio_driver_path}",
+                shell=True,
+                sudo=True,
+            )
+            for entry in vfio_result.stdout.splitlines():
+                entry = entry.strip()
+                if not bdf_pattern.match(entry):
+                    # Skip non-BDF entries (e.g. "bind", "new_id", symlinks)
+                    continue
+                bdf = entry
+                if bdf in suitable_bdfs:
+                    continue
+
+                # Only include NIC-class devices (PCI class 0x02xxxx = Network)
+                class_path = f"/sys/bus/pci/devices/{bdf}/class"
+                try:
+                    pci_class = cat.read(class_path, sudo=True).strip()
+                except Exception:
+                    continue
+                if not pci_class.startswith("0x02"):
+                    continue
+
+                # Require an IOMMU group (needed for VFIO passthrough)
+                iommu_group_path = f"/sys/bus/pci/devices/{bdf}/iommu_group"
+                if not ls.path_exists(iommu_group_path, sudo=True):
+                    continue
+
+                self._log.info(
+                    f"Found vfio-pci-bound NIC {bdf} (not in /sys/class/net): "
+                    "eligible for passthrough pool (pvIOMMU/MSHV VF or leftover)."
+                )
+                suitable_bdfs.append(bdf)
+
+                if not detect_all and len(suitable_bdfs) >= count:
+                    break
+        except Exception as e:
+            self._log.debug(f"Could not scan vfio-pci driver dir: {e}")
+
         if not suitable_bdfs:
             raise LisaException(
                 "No suitable NICs found for passthrough. Checked criteria: "
