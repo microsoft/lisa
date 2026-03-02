@@ -44,7 +44,6 @@ class CongestionControlSuite(TestSuite):
     _BBR3_CONFIG = "CONFIG_TCP_CONG_BBR3"
     _TCP_SCRIPT = "lisa_tcp_test.py"
     _TCP_ALGO_OUTPUT = "lisa_tcp_algo.txt"
-    _INVALID_ALGO = "lisa_invalid_cc_algorithm"
     _PORT_RANGE_START = 34567
     _PORT_RANGE_END = 34667
 
