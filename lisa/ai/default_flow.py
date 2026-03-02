@@ -582,6 +582,37 @@ def extract_final_text(messages: List[ChatMessage]) -> str:
     return ""
 
 
+def _find_latest_serial_console_log_path(
+    log_folder_path: List[str],
+) -> Optional[str]:
+    """
+    Find serial_console.log under provided log paths.
+
+    If multiple files are found, select the last one
+    """
+
+    latest_serial_log_path: Optional[str] = None
+
+    for base_path in log_folder_path:
+        normalized_base_path = os.path.normpath(base_path)
+
+        if not os.path.exists(normalized_base_path):
+            continue
+
+        for root, dirs, files in os.walk(normalized_base_path):
+            dirs.sort()
+            files.sort()
+            for file_name in files:
+                if "serial_console.log" not in file_name:
+                    continue
+
+                latest_serial_log_path = os.path.abspath(
+                    os.path.join(root, file_name)
+                )
+
+    return latest_serial_log_path
+
+
 async def async_analyze_default(
     azure_openai_api_key: str,
     azure_openai_endpoint: str,
@@ -596,12 +627,44 @@ async def async_analyze_default(
     """
     system_instructions = _load_prompt("user.txt", flow="default")
 
+    trigger_keywords = [
+        "cannot connect to",
+        "OSProvisioningTimedOut",
+        "failed to connect",
+        "KernelPanicException",
+    ]
+    normalized_error_message = error_message.lower()
+    do_search_serial_console_log = any(
+        keyword in normalized_error_message for keyword in trigger_keywords
+    )
+
+    serial_console_log_path: Optional[str] = None
+    serial_console_prompt_block = ""
+    if do_search_serial_console_log:
+        serial_console_log_path = _find_latest_serial_console_log_path(
+            log_folder_path
+        )
+        if serial_console_log_path:
+            logger.info(
+                f"Selected serial_console.log: {serial_console_log_path}"
+            )
+        else:
+            logger.info(
+                "serial_console.log not found under provided log_folder_path"
+            )
+
+        serial_console_prompt_block = (
+            "**SELECTED SERIAL CONSOLE LOG PATH: **\n"
+            f"{serial_console_log_path}\n"
+        )
+
     # Include the actual error message in the analysis prompt
     analysis_prompt = f"""{system_instructions}
 **ERROR MESSAGE TO ANALYZE: **
 {error_message}
 **AVAILABLE LOG PATHS: **
 {log_folder_path}
+{serial_console_prompt_block}
 **AVAILABLE CODE PATHS: **
 {code_path}
     """
@@ -689,7 +752,7 @@ async def async_analyze_default(
                 return await asyncio.wait_for(coro_factory(), timeout=timeout_sec)
             except Exception as e:
                 last_exc = e
-                logger.info(f"[Magentic] Attempt {attempt + 1} failed: {e}")
+                logger.info(f"Attempt {attempt + 1} failed: {e}")
                 if attempt == max_retries:
                     raise
         raise last_exc if last_exc else RuntimeError("Unknown error")

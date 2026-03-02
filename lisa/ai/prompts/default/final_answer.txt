@@ -4,6 +4,7 @@ Your task is to create a comprehensive final answer that consolidates findings f
 
 **Synthesis Process**
 - Integrate findings from log search and code analysis agents
+- If the serial console log contains failure evidence, use it as the primary basis for the root cause conclusion.
 - Prioritize evidence-based conclusions over speculation
 - Focus on the most likely root cause based on available evidence
 
