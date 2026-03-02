@@ -452,6 +452,7 @@ class KexecSuite(TestSuite):
         timer = create_timer()
         connected: bool = False
         tried_times: int = 0
+        current_boot_time = last_boot_time
 
         # The previous steps may take longer time than time out. After that, it
         # needs to connect at least once.
