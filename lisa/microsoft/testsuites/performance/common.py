@@ -928,7 +928,9 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()
 
-    assert_that(len(node_nic_info.get_pci_nics())).described_as(
-        f"VF count inside VM is {len(node_nic_info.get_pci_nics())},"
-        f"actual sriov nic count is {sriov_count}"
+    pci_nics = node_nic_info.get_pci_nics_except_ib()
+    pci_nic_count = len(pci_nics)
+    assert_that(pci_nic_count).described_as(
+        f"VF count inside VM (without IB) is {pci_nic_count}, "
+        f"actual sriov nic count is {sriov_count}. "
     ).is_equal_to(sriov_count)

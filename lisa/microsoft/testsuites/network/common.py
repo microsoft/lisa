@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Dict, List, cast
+from typing import Dict, List, Tuple, cast
 
 from assertpy import assert_that
 from retry import retry
@@ -53,9 +53,11 @@ def initialize_nic_info(
                 f"inside vm, it should equal to {interface_info.ip_addr}."
             ).is_true()
         if is_sriov:
-            assert_that(len(nics_info.get_device_slots())).described_as(
-                f"VF count inside VM is {len(set(nics_info.get_device_slots()))}, "
-                f"actual sriov nic count is {sriov_count}"
+            pci_nic_count = len(nics_info.get_pci_nics_except_ib())
+            assert_that(pci_nic_count).described_as(
+                f"Ethernet VF count inside VM (without IB) is {pci_nic_count}, "
+                f"actual sriov nic count is {sriov_count}. "
+                f"Total PCI NICs: {nics_info.get_pci_nics()}"
             ).is_equal_to(sriov_count)
         vm_nics[node.name] = nics_info.nics
 
@@ -70,12 +72,14 @@ def sriov_basic_test(environment: Environment) -> None:
         devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
-        if len(devices_slots) != len(set(node.nics.get_device_slots())):
+        ethernet_device_slots = set(node.nics.get_device_slots_except_ib())
+        if len(devices_slots) != len(ethernet_device_slots):
             node.nics.reload()
+            ethernet_device_slots = set(node.nics.get_device_slots_except_ib())
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
-        ).is_length(len(set(node.nics.get_device_slots())))
+        ).is_length(len(ethernet_device_slots))
 
         # 2. Check module of sriov network device is loaded.
         for module_name in node.nics.get_used_modules(["hv_netvsc"]):
@@ -172,7 +176,7 @@ def _find_matching_dest_nic(
     source_nic_info: NicInfo,
     vm_nics: Dict[str, Dict[str, NicInfo]],
     dest_node: RemoteNode,
-) -> tuple[str, int]:
+) -> Tuple[str, int]:
     """Find destination NIC on same subnet as source.
     Returns (nic_name, skipped_count)."""
     skipped_infiniband = 0
@@ -198,7 +202,7 @@ def _setup_nic_monitoring(
     remove_module: bool,
     turn_off_lower: bool,
     source_node: RemoteNode,
-) -> tuple[str, str, str, str]:
+) -> Tuple[str, str, str, str]:
     """Setup NIC monitoring based on configuration.
     Returns (source_nic, dest_nic, source_pci_nic, dest_pci_nic)."""
     source_synthetic_nic = source_nic_info.name
