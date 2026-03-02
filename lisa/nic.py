@@ -237,7 +237,7 @@ class Nics(InitializableMixin):
 
     def get_device_slots(self) -> List[str]:
         return [x.pci_slot for x in self.nics.values() if x.pci_slot]
-    
+
     def get_device_slots_except_ib(self) -> List[str]:
         """Get PCI slots for NICs, excluding InfiniBand (ib*) interfaces."""
         slots = []
@@ -436,7 +436,7 @@ class Nics(InitializableMixin):
         readlink = self._node.tools[Readlink]
         full_dev_path = readlink.get_target(f"/sys/class/net/{nic_name}/device")
         uuid = os.path.basename(full_dev_path)
-        self._node.log.debug(f"{nic_name} UUID:{uuid}")
+        self._node.log.debug(f"{nic_name} UUID: {uuid}")
         return uuid
 
     def _get_nic_uuids(self) -> None:

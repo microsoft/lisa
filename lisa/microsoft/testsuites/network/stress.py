@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.network.common import (
@@ -80,7 +80,7 @@ class Stress(TestSuite):
         ).is_not_empty()
         client_nic_info = client_nic_info_list[0]
         isinstance(client_nic_info, NicInfo)
-        matched_server_nic_info: NicInfo = None
+        matched_server_nic_info: Optional[NicInfo] = None
         for _, server_nic_info in vm_nics[server_node.name].items():
             # Skip InfiniBand and NICs without IP addresses
             if not server_nic_info.ip_addr:

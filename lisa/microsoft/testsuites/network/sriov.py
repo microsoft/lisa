@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.network.common import (
@@ -837,7 +837,7 @@ class Sriov(TestSuite):
                     assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
                     ).is_equal_to(client_thread_count)
-                matched_server_nic_info: NicInfo = None
+                matched_server_nic_info: Optional[NicInfo] = None
                 for _, server_nic_info in vm_nics[server_node.name].items():
                     # Skip NICs without IP addresses (IB, enslaved VFs, etc.)
                     if not server_nic_info.ip_addr:
