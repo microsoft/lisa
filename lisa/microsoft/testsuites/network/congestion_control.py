@@ -395,10 +395,8 @@ class CongestionControlSuite(TestSuite):
         while timer.elapsed(stop=False) < timeout:
             ss = node.tools[Ss]
             if expected_state == Ss.ConnState.NONE:
-                connection_exists = ss.connection_exists(
-                    port=port, state=Ss.ConnState.ESTAB.value, sport=True
-                )
-                if not connection_exists:
+                port_in_use = ss.port_in_use(port=port, sport=True)
+                if not port_in_use:
                     return True
             else:
                 connection_exists = ss.connection_exists(
