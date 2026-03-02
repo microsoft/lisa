@@ -28,17 +28,29 @@ class SwapOn(Tool):
     def command(self) -> str:
         return "swapon"
 
+    @property
+    def can_install(self) -> bool:
+        return False
+
 
 class SwapOff(Tool):
     @property
     def command(self) -> str:
         return "swapoff"
 
+    @property
+    def can_install(self) -> bool:
+        return False
+
 
 class MkSwap(Tool):
     @property
     def command(self) -> str:
         return "mkswap"
+
+    @property
+    def can_install(self) -> bool:
+        return False
 
 
 class Swap(Tool):
@@ -136,6 +148,10 @@ class SwapInfoBSD(Swap):
     @property
     def command(self) -> str:
         return "swapinfo"
+
+    @property
+    def can_install(self) -> bool:
+        return False
 
     def is_swap_enabled(self) -> bool:
         entries = find_patterns_in_lines(self.run("-k").stdout, [self._SWAP_ENTRIES])
