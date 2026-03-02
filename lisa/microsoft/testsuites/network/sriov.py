@@ -559,8 +559,16 @@ class Sriov(TestSuite):
         client_ethtool = client_node.tools[Ethtool]
         vm_nics = initialize_nic_info(environment)
 
+        # Filter out InfiniBand interfaces — they use RDMA, not Ethernet SR-IOV,
+        # and do not support scatter-gather or synthetic/VF pairing operations.
+        client_nics = {
+            name: nic
+            for name, nic in vm_nics[client_node.name].items()
+            if not (nic.name and nic.name.startswith("ib"))
+        }
+
         # skip test if scatter-gather can't be updated
-        for client_nic_info in vm_nics[client_node.name].values():
+        for client_nic_info in client_nics.values():
             device_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.name, True
             )
@@ -597,6 +605,13 @@ class Sriov(TestSuite):
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
+        # Re-filter after re-initialization
+        client_nics = {
+            name: nic
+            for name, nic in vm_nics[client_node.name].items()
+            if not (nic.name and nic.name.startswith("ib"))
+        }
+
         # get the enabled features after disable and enable VF
         # make sure there is not any change
         device_enabled_features_after = client_ethtool.get_all_device_enabled_features(
@@ -608,7 +623,7 @@ class Sriov(TestSuite):
 
         # set on for scatter-gather feature for synthetic nic
         # verify vf scatter-gather feature has value 'on'
-        for client_nic_info in vm_nics[client_node.name].values():
+        for client_nic_info in client_nics.values():
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.name, True
             )
@@ -622,7 +637,7 @@ class Sriov(TestSuite):
 
         # set off for scatter-gather feature for synthetic nic
         # verify vf scatter-gather feature has value 'off'
-        for client_nic_info in vm_nics[client_node.name].values():
+        for client_nic_info in client_nics.values():
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.name, False
             )
@@ -639,8 +654,15 @@ class Sriov(TestSuite):
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
+        # Re-filter after re-initialization
+        client_nics = {
+            name: nic
+            for name, nic in vm_nics[client_node.name].items()
+            if not (nic.name and nic.name.startswith("ib"))
+        }
+
         # check VF's scatter-gather feature keep consistent with previous status
-        for client_nic_info in vm_nics[client_node.name].values():
+        for client_nic_info in client_nics.values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
             )
@@ -654,8 +676,15 @@ class Sriov(TestSuite):
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
+        # Re-filter after re-initialization
+        client_nics = {
+            name: nic
+            for name, nic in vm_nics[client_node.name].items()
+            if not (nic.name and nic.name.startswith("ib"))
+        }
+
         # check VF's scatter-gather feature keep consistent with previous status
-        for client_nic_info in vm_nics[client_node.name].values():
+        for client_nic_info in client_nics.values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
             )
@@ -669,8 +698,15 @@ class Sriov(TestSuite):
             # check VF still paired with synthetic nic
             vm_nics = initialize_nic_info(environment)
 
+            # Re-filter after re-initialization
+            client_nics = {
+                name: nic
+                for name, nic in vm_nics[client_node.name].items()
+                if not (nic.name and nic.name.startswith("ib"))
+            }
+
             # check VF's scatter-gather feature keep consistent with previous status
-            for client_nic_info in vm_nics[client_node.name].values():
+            for client_nic_info in client_nics.values():
                 device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                     client_nic_info.pci_device_name, True
                 )
