@@ -5,6 +5,8 @@ from enum import Enum
 from time import sleep
 from typing import Optional, Type
 
+from semver import VersionInfo
+
 from lisa.executable import ExecutableResult, Tool
 from lisa.tools.dmesg import Dmesg
 from lisa.tools.journalctl import Journalctl
@@ -124,6 +126,11 @@ class ServiceInternal(Tool):
 class Systemctl(Tool):
     __STATE_PATTERN = re.compile(r"^(\s+)State:(\s+)(?P<state>.*)", re.M)
     __NOT_FOUND = re.compile(r"not found", re.M)
+    __pattern_systemd_version = re.compile(
+        r"systemd\s+(?P<major>\d+)"
+        r"(?:\.(?P<minor>\d+))?"
+        r"(?:\s+\((?P<rpm_major>\d+)-(?P<rpm_minor>\d+))?"
+    )
 
     @property
     def command(self) -> str:
@@ -132,6 +139,43 @@ class Systemctl(Tool):
     @property
     def can_install(self) -> bool:
         return False
+
+    def get_version(self) -> VersionInfo:
+        """
+        Get systemd version.
+
+        Supported formats:
+          systemd 255 (255-25.azl3)        -> 255.25
+          systemd 255.4 (255.4-1ubuntu8)  -> 255.4
+        """
+        result = self.run(
+            "--version",
+            force_run=True,
+            no_error_log=True,
+            no_info_log=True,
+            sudo=True,
+            shell=True,
+        )
+        result.assert_exit_code(message=result.stderr)
+
+        first_line = result.stdout.splitlines()[0]
+
+        matched = self.__pattern_systemd_version.search(first_line)
+        if not matched:
+            raise LisaException(f"No matched systemd version found in: {first_line}")
+
+        # Prefer RPM-style version if present: (255-25.azl3)
+        if matched.group("rpm_major") and matched.group("rpm_minor"):
+            major = int(matched.group("rpm_major"))
+            minor = int(matched.group("rpm_minor"))
+            patch = 0
+        else:
+            major = int(matched.group("major"))
+            minor = int(matched.group("minor") or 0)
+            patch = 0
+
+        self._log.info(f"systemd version is {major}.{minor}.{patch}")
+        return VersionInfo(major, minor, patch)
 
     def stop_service(self, name: str) -> None:
         if self._check_service_running(name):
