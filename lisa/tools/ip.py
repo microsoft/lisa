@@ -17,10 +17,19 @@ from lisa.util import LisaException, find_group_in_lines, find_patterns_in_lines
 
 
 class IpInfo:
-    def __init__(self, nic_name: str, mac_addr: str, ip_addr: str):
+    # subnet mask assumes /24, *this is only a convention from the deployment templates for LISA.*
+    # if subnet configurations change in the future, this will also need to change.
+    def __init__(
+        self, nic_name: str, mac_addr: str, ip_addr: str, subnet_mask: str = "24"
+    ) -> None:
         self.nic_name = nic_name
         self.mac_addr = mac_addr
         self.ip_addr = ip_addr
+        self.subnet = (
+            ipaddress.ip_network(f"{ip_addr}/{subnet_mask}", strict=False)
+            if all([ip_addr, subnet_mask])
+            else None
+        )
 
 
 class Ip(Tool):
@@ -302,6 +311,7 @@ class Ip(Tool):
                     nic_name=matched["name"],
                     mac_addr=matched["mac"],
                     ip_addr=matched["ip_addr"],
+                    subnet_mask=matched["subnet_mask"],
                 )
             )
         return found_nics
