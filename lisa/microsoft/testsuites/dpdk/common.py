@@ -472,3 +472,41 @@ DPDK_PPS_THRESHOLD = 1_200_000
 class DpdkGradeMetric(str, Enum):
     PPS = "pps"
     BPS = "bps"
+
+
+class DpdkMpRole(str, Enum):
+    # dpdk multiprocessing allows numerous secondary processes to
+    # share a single primary context. Testpmd and other apps allow this
+    # to occur fairly transparently, but require it to be declared
+    # at start time. The primary process has a proc_id of '0'
+    # This is unfortunate, since it's the nice python default for
+    # integer arguments.
+    #
+    # Use this enum to differentiate between primary and secondary
+    # multiple process context types. There is no single process
+    # context type, because this argument will be passed as Optional.
+    # So DpdkMpRole is either None or PRIMARY | SECONDARY
+
+    PRIMARY_PROCESS = "primary"
+    SECONDARY_PROCESS = "secondary"
+
+
+class TestpmdForwardMode(str, Enum):
+    # dpdk multiprocessing allows numerous secondary processes to
+    # share a single primary context. Testpmd and other apps allow this
+    # to occur fairly transparently, but require it to be declared
+    # at start time. The primary process has a proc_id of '0'
+    # This is unfortunate, since it's the nice python default for
+    # integer arguments.
+    #
+    # txonly  : generate and transmit packets without validating received
+    #           traffic (useful for pure transmit/throughput tests).
+    # rxonly  : receive and count packets without transmitting (useful for
+    #           pure receive/throughput or loss measurement).
+    # 5tswap  : swap the 5‑tuple fields between source and destination for
+    #           each packet (IP src/dst, L4 src/dst ports, and protocol),
+    #           exercising header rewrite paths.
+
+    TX_ONLY = "txonly"
+    RXONLY = "rxonly"
+    FIVE_TUPLE_SWAP = "5tswap"

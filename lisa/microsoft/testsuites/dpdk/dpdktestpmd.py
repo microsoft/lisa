@@ -3,12 +3,13 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, List, Optional, Tuple, Type
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
     Downloader,
+    DpdkMpRole,
     GitDownloader,
     Installer,
     OsPackageDependencies,
@@ -549,6 +550,10 @@ class DpdkTestpmd(Tool):
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
+        mp_role: Optional[DpdkMpRole] = None,
+        num_procs: int = 0,
+        proc_id: int = 0,
+        core_list: Optional[str] = None,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -560,11 +565,20 @@ class DpdkTestpmd(Tool):
         #   --forward-mode=txonly \
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
+        #   --proc-id <mp process id, 0 is primary process>
+
+        if mp_role:
+            mp_args = self._generate_mp_arguments(
+                mp_role=mp_role, num_procs=num_procs, proc_id=proc_id
+            )
+        else:
+            mp_args = ""
 
         # pick amount of queues for tx/rx (txq/rxq flag)
         # our tests use equal amounts for rx and tx
+
         if multiple_queues:
-            if self.is_mana and mode == "txonly":
+            if self.is_mana and mode in ["rxonly", "5tswap"]:
                 queues = 8
             else:
                 queues = 4
@@ -604,14 +618,18 @@ class DpdkTestpmd(Tool):
         forwarding_cores = max_core_index - service_cores
 
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        if core_list:
+            core_list = f"-l {core_list}"
+        else:
+            core_list = f"-l 1-{max_core_index}"
+
         if extra_args:
             extra_args = extra_args.strip()
         else:
             extra_args = ""
         # mana pmd needs tx/rx descriptors declared.
         if self.is_mana:
-            extra_args += f" --txd={txd} --rxd={txd} --stats 2"
+            extra_args += f" --txd={txd} --rxd={txd} "
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 
@@ -662,8 +680,10 @@ class DpdkTestpmd(Tool):
         nic_includes = " ".join(nic_include_infos)
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            f"{nic_includes} {debug_logging} --proc-type=auto "
+            f"-- --forward-mode={mode} "
+            f"-a --stats-period 4 --nb-cores={forwarding_cores} "
+            f"{mp_args} {extra_args}"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -902,6 +922,41 @@ class DpdkTestpmd(Tool):
                 self._dpdk_version_info = pkgconfig.get_package_version(
                     self._dpdk_lib_name
                 )
+
+    def _generate_mp_arguments(
+        self, mp_role: DpdkMpRole, num_procs: int, proc_id: int
+    ) -> str:
+        # Check and set multi_process arguments for testpmd.
+        mp_arguments = ""
+
+        # IFF testpmd is being invoked with multiple processes,
+        # we must check that:
+        #  primary process has a proc-id of 0
+        #  proc-id < num procs
+        #  num_procs > 1
+        # Otherwise we can omit all of these arguments
+
+        assert_that(num_procs).described_as(
+            "Test bug: dpdk mp context requires num_procs arg > 0"
+        ).is_greater_than(1)
+
+        if mp_role == DpdkMpRole.PRIMARY_PROCESS:
+            mp_arguments = f"--num-procs={num_procs} --proc-id 0"
+        elif mp_role == DpdkMpRole.SECONDARY_PROCESS:
+            # check the caller has provided a proc_id that makes sense,
+            # this would indicate a bug in the test case itself.
+            assert_that(proc_id).described_as(
+                "Test bug: dpdk proc-id argument must be > 0 for secondary process"
+            ).is_greater_than(0)
+
+            assert_that(proc_id).described_as(
+                (
+                    f"Test bug: dpdk proc-id argument ({proc_id}) "
+                    "must be < num_procs argument ({num_procs})."
+                )
+            ).is_less_than(num_procs)
+            mp_arguments = f"--num-procs={num_procs} --proc-id {proc_id}"
+        return mp_arguments
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
