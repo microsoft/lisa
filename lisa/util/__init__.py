@@ -1110,7 +1110,22 @@ def to_bool(value: Union[str, bool, int]) -> bool:
 
 @retry(tries=10, delay=0.5)  # type: ignore
 def get_public_ip() -> str:
-    response = requests.get("https://api.ipify.org/", timeout=5)
-    result = response.text
-    ipaddress.ip_address(result)
-    return str(result)
+    # Try multiple public IP detection services in case one is blocked
+    # or unreachable from the current network.
+    ip_services = [
+        "https://api.ipify.org/",
+        "https://ifconfig.me/ip",
+        "https://icanhazip.com/",
+        "https://checkip.amazonaws.com/",
+    ]
+    last_error: Optional[Exception] = None
+    for service_url in ip_services:
+        try:
+            response = requests.get(service_url, timeout=5)
+            result = response.text.strip()
+            ipaddress.ip_address(result)
+            return str(result)
+        except Exception as e:
+            last_error = e
+            continue
+    raise last_error  # type: ignore

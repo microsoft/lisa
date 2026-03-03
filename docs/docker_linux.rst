@@ -21,11 +21,11 @@ Step 1: Download the script
 
 .. code:: bash
 
-   curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-container.sh -o quick-container.sh
+   curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-container.sh -o quick-container.sh
    chmod +x quick-container.sh
 
-If you have already cloned the LISA repository, the script is at the repository
-root and you can skip this step.
+If you have already cloned the LISA repository, the script is at
+``installers/quick-container.sh`` and you can skip this step.
 
 Step 2: Install Docker (if needed)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

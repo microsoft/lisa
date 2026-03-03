@@ -3,11 +3,47 @@
 This guide provides installation instructions for Microsoft LISA on both Windows and Linux platforms.
 
 ## Table of Contents
+- [Docker (Recommended)](#docker-recommended)
 - [Prerequisites](#prerequisites)
 - [Windows Installation](#windows-installation)
 - [Linux Installation](#linux-installation)
 - [Verification](#verification)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Docker (Recommended)
+
+The fastest way to get started — no local Python or dependency setup required.
+
+### Quick Start
+
+```bash
+docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r lisa/examples/runbook/hello_world.yml
+```
+
+### Run with Azure Subscription
+
+**Linux:**
+```bash
+export TOKEN=$(az account get-access-token --query accessToken -o tsv)
+curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-container.sh -o quick-container.sh
+chmod +x quick-container.sh
+sudo bash quick-container.sh -r lisa/microsoft/runbook/azure.yml \
+    --subscription-id YOUR_SUBSCRIPTION_ID \
+    --token "$TOKEN"
+```
+
+**Windows (PowerShell):**
+```powershell
+$token = az account get-access-token --query accessToken -o tsv
+.\quick-container.ps1 -Runbook lisa/microsoft/runbook/azure.yml `
+    -SubscriptionId YOUR_SUBSCRIPTION_ID -Token $token
+```
+
+For detailed Docker usage, see:
+- [Docker on Linux](docs/docker_linux.rst)
+- [Docker on Windows](docs/docker_windows.rst)
 
 ---
 
@@ -40,13 +76,13 @@ The quick install script automatically downloads and installs everything you nee
 2. **Download and run the installation script directly:**
    ```powershell
    # Download and run the script in one command
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.ps1" -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
+   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
    ```
 
    Or download the script manually first:
    ```powershell
    # Download the script
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.ps1" -OutFile "quick-install.ps1"
+   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "quick-install.ps1"
    
    # Run the installation script
    .\quick-install.ps1
@@ -115,13 +151,13 @@ The quick install script automatically downloads and installs everything you nee
 
 ```bash
 # Download and run the script in one command
-curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.sh | bash
 ```
 
 Or download the script manually first:
 ```bash
 # Download the script
-curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.sh -o quick-install.sh
+curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.sh -o quick-install.sh
 
 # Make it executable and run
 chmod +x quick-install.sh
