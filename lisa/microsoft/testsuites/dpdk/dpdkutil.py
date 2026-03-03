@@ -1,3 +1,4 @@
+import ipaddress
 import itertools
 import re
 import time
@@ -7,7 +8,6 @@ from enum import Enum
 from functools import partial
 from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Union
-import ipaddress
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
