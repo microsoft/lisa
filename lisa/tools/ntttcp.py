@@ -309,6 +309,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        show_tcp_retrans: bool = False,
     ) -> Process:
         cmd = (
             f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
@@ -321,6 +322,8 @@ class Ntttcp(Tool):
             cmd += f" --show-dev-interrupts {dev_differentiator} "
         if run_as_daemon:
             cmd += " -D "
+        if show_tcp_retrans:
+            cmd += " --show-tcp-retrans "
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
