@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.40.2.10011",
-      "templateHash": "1821201376234486735"
+      "version": "0.41.2.15936",
+      "templateHash": "3674176336733772196"
     }
   },
   "functions": [
@@ -554,11 +554,6 @@
   "variables": {
     "copy": [
       {
-        "name": "shared_subnet_names",
-        "count": "[length(range(0, parameters('subnet_count')))]",
-        "input": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('shared_subnet_names')], 0), '10.0.0.0', format('e{0}-10.{1}.{2}.0', parameters('resource_group_index'), variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('shared_subnet_names')]))]"
-      },
-      {
         "name": "ip_tags",
         "count": "[length(objectKeys(parameters('ip_service_tags')))]",
         "input": {
@@ -567,10 +562,10 @@
         }
       }
     ],
-    "vnet_id": "[if(variables('use_existing_vnet'), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks', parameters('virtual_network_name')), resourceId('Microsoft.Network/virtualNetworks', parameters('virtual_network_name')))]",
     "node_count": "[length(parameters('nodes'))]",
     "availability_set_name_value": "lisa-availabilitySet",
-    "wrapped_resource_group_index": "[mod(parameters('resource_group_index'), 256)]",
+    "rg_index_mod_256": "[mod(parameters('resource_group_index'), 256)]",
+    "rg_index_div_256": "[div(parameters('resource_group_index'), 256)]",
     "use_existing_vnet": "[not(empty(parameters('virtual_network_resource_group')))]",
     "availability_set_tags": "[parameters('availability_options').availability_set_tags]",
     "availability_set_properties": "[parameters('availability_options').availability_set_properties]",
@@ -583,27 +578,40 @@
     "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]"
   },
   "resources": {
-    "shared_vnet_subnets": {
-      "copy": {
-        "name": "shared_vnet_subnets",
-        "count": "[length(range(0, parameters('subnet_count')))]"
-      },
-      "condition": "[and(variables('use_existing_vnet'), greater(range(0, parameters('subnet_count'))[copyIndex()], 0))]",
-      "type": "Microsoft.Network/virtualNetworks/subnets",
-      "apiVersion": "2024-05-01",
-      "name": "[format('{0}/{1}', parameters('virtual_network_name'), variables('shared_subnet_names')[range(0, parameters('subnet_count'))[copyIndex()]])]",
+    "orchestrator_vnet": {
+      "condition": "[variables('use_existing_vnet')]",
+      "existing": true,
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2024-01-01",
+      "resourceGroup": "[parameters('virtual_network_resource_group')]",
+      "name": "[parameters('virtual_network_name')]"
+    },
+    "peering": {
+      "condition": "[variables('use_existing_vnet')]",
+      "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}/{1}', format('test-vnet-{0}', parameters('resource_group_index')), format('vnet-peering-e{0}', parameters('resource_group_index')))]",
       "properties": {
-        "addressPrefix": "[format('10.{0}.{1}.0/24', variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex()])]"
+        "allowVirtualNetworkAccess": true,
+        "localSubnetNames": [
+          "default"
+        ],
+        "peerCompleteVnets": false,
+        "remoteSubnetNames": [
+          "default"
+        ],
+        "remoteVirtualNetwork": {
+          "id": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('virtual_network_resource_group')), 'Microsoft.Network/virtualNetworks', parameters('virtual_network_name'))]"
+        }
       },
       "dependsOn": [
-        "virtual_network_name_resource"
+        "virtual_network"
       ]
     },
-    "virtual_network_name_resource": {
-      "condition": "[not(variables('use_existing_vnet'))]",
+    "virtual_network": {
       "type": "Microsoft.Network/virtualNetworks",
       "apiVersion": "2024-05-01",
-      "name": "[parameters('virtual_network_name')]",
+      "name": "[format('test-vnet-{0}', parameters('resource_group_index'))]",
       "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
       "properties": {
@@ -612,19 +620,19 @@
             "name": "subnets",
             "count": "[length(range(0, parameters('subnet_count')))]",
             "input": {
-              "name": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '10.0.0.0', format('e{0}-10.{1}.{2}.0', parameters('resource_group_index'), variables('wrapped_resource_group_index'), range(0, parameters('subnet_count'))[copyIndex('subnets')]))]",
+              "name": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), 'default', format('test-subnet-{0}', range(0, parameters('subnet_count'))[copyIndex('subnets')]))]",
               "properties": {
-                "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/{2}', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), '0', variables('wrapped_resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')], if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), 16, 24))), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}:{1}::/64', if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), range(0, parameters('subnet_count'))[copyIndex('subnets')], variables('wrapped_resource_group_index')), range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
+                "addressPrefix": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), format('10.{0}.{1}.0/24', variables('rg_index_div_256'), variables('rg_index_mod_256')), format('192.168.{0}.0/24', sub(range(0, parameters('subnet_count'))[copyIndex('subnets')], 1)))]",
                 "defaultOutboundAccess": "[parameters('enable_vm_nat')]",
                 "networkSecurityGroup": {
-                  "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg', toLower(parameters('virtual_network_name'))))]"
+                  "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('lisa-test-nsg-{0}', parameters('resource_group_index')))]"
                 }
               }
             }
           }
         ],
         "addressSpace": {
-          "addressPrefixes": "[concat(createArray('10.0.0.0/8'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
+          "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/24', variables('rg_index_div_256'), variables('rg_index_mod_256')), '192.168.0.0/16'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
         }
       },
       "dependsOn": [
@@ -634,73 +642,22 @@
     "nsg": {
       "type": "Microsoft.Network/networkSecurityGroups",
       "apiVersion": "2024-05-01",
-      "name": "[format('{0}-nsg', toLower(parameters('virtual_network_name')))]",
+      "name": "[format('lisa-test-nsg-{0}', parameters('resource_group_index'))]",
       "location": "[parameters('location')]",
       "properties": {
         "securityRules": [
           {
             "name": "LISASSH",
             "properties": {
-              "priority": 100,
-              "direction": "Inbound",
-              "access": "Allow",
+              "description": "Allows nested VM SSH traffic",
               "protocol": "Tcp",
               "sourcePortRange": "*",
-              "destinationPortRange": "22",
+              "destinationPortRange": "60020-60030",
+              "destinationAddressPrefix": "*",
               "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
-              "destinationAddressPrefix": "*"
-            }
-          },
-          {
-            "name": "AllowAgentPool",
-            "properties": {
+              "access": "Allow",
               "priority": 101,
-              "direction": "Inbound",
-              "access": "Allow",
-              "protocol": "Tcp",
-              "sourceAddressPrefix": "1ESResourceManager",
-              "sourcePortRange": "*",
-              "destinationAddressPrefix": "*",
-              "destinationPortRange": "22"
-            }
-          },
-          {
-            "name": "AllowCorpNetPublic",
-            "properties": {
-              "priority": 102,
-              "direction": "Inbound",
-              "access": "Allow",
-              "protocol": "Tcp",
-              "sourceAddressPrefix": "CorpNetPublic",
-              "sourcePortRange": "*",
-              "destinationAddressPrefix": "*",
-              "destinationPortRange": "*"
-            }
-          },
-          {
-            "name": "VirtualNetworkIn",
-            "properties": {
-              "priority": 103,
-              "direction": "Inbound",
-              "access": "Allow",
-              "protocol": "*",
-              "sourceAddressPrefix": "VirtualNetwork",
-              "sourcePortRange": "*",
-              "destinationAddressPrefix": "*",
-              "destinationPortRange": "*"
-            }
-          },
-          {
-            "name": "AllowManagedVPN",
-            "properties": {
-              "priority": 104,
-              "direction": "Inbound",
-              "access": "Allow",
-              "protocol": "*",
-              "sourceAddressPrefixes": ["20.120.143.192/28","20.241.227.160/28","20.31.68.160/28","20.198.165.176/28","20.83.242.194/32"],
-              "sourcePortRange": "*",
-              "destinationAddressPrefix": "*",
-              "destinationPortRange": "*"
+              "direction": "Inbound"
             }
           },
           {
@@ -948,7 +905,7 @@
         "nodes_disk",
         "nodes_image",
         "nodes_nics",
-        "virtual_network_name_resource"
+        "virtual_network"
       ]
     },
     "nodes_nics": {
@@ -975,7 +932,7 @@
             "value": "[parameters('location')]"
           },
           "vnet_id": {
-            "value": "[variables('vnet_id')]"
+            "value": "[resourceId('Microsoft.Network/virtualNetworks', format('test-vnet-{0}', parameters('resource_group_index')))]"
           },
           "resource_group_index": {
             "value": "[parameters('resource_group_index')]"
@@ -1000,8 +957,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "2629862527207444319"
+              "version": "0.41.2.15936",
+              "templateHash": "7649300423127023996"
             }
           },
           "functions": [
@@ -1039,7 +996,7 @@
                   ],
                   "output": {
                     "type": "string",
-                    "value": "[if(equals(parameters('nic_index'), 0), '10.0.0.0', format('e{0}-10.{1}.{2}.0', parameters('resource_group_index'), mod(parameters('resource_group_index'), 256), parameters('nic_index')))]"
+                    "value": "[if(equals(parameters('nic_index'), 0), 'default', format('test-subnet-{0}', parameters('nic_index')))]"
                   }
                 }
               }
@@ -1100,8 +1057,86 @@
       "dependsOn": [
         "[format('nodes_public_ip[{0}]', range(0, variables('node_count'))[copyIndex()])]",
         "[format('nodes_public_ip_ipv6[{0}]', range(0, variables('node_count'))[copyIndex()])]",
-        "shared_vnet_subnets",
-        "virtual_network_name_resource"
+        "virtual_network"
+      ]
+    },
+    "remotePeering": {
+      "condition": "[variables('use_existing_vnet')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "remote-peering-deployment",
+      "resourceGroup": "[parameters('virtual_network_resource_group')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "remoteVnetName": {
+            "value": "[parameters('virtual_network_name')]"
+          },
+          "localVnetId": {
+            "value": "[resourceId('Microsoft.Network/virtualNetworks', format('test-vnet-{0}', parameters('resource_group_index')))]"
+          },
+          "resource_group_index": {
+            "value": "[parameters('resource_group_index')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "4298084375997684263"
+            }
+          },
+          "parameters": {
+            "remoteVnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing remote virtual network to peer with"
+              }
+            },
+            "localVnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "ID of the local VNet"
+              }
+            },
+            "resource_group_index": {
+              "type": "int",
+              "metadata": {
+                "description": "resource group index (for unique naming)"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+              "apiVersion": "2023-11-01",
+              "name": "[format('{0}/{1}', parameters('remoteVnetName'), format('vnet-peering-e{0}', parameters('resource_group_index')))]",
+              "properties": {
+                "allowVirtualNetworkAccess": true,
+                "localSubnetNames": [
+                  "default"
+                ],
+                "peerCompleteVnets": false,
+                "remoteSubnetNames": [
+                  "default"
+                ],
+                "remoteVirtualNetwork": {
+                  "id": "[parameters('localVnetId')]"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "peering",
+        "virtual_network"
       ]
     }
   }
