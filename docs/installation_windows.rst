@@ -23,7 +23,7 @@ For a quick and automated installation, you can use the provided PowerShell inst
 .. code:: powershell
 
    # Download and run the script
-   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.ps1" -OutFile "quick-install.ps1"
+   Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "quick-install.ps1"
    .\quick-install.ps1
 
 Or run directly (requires execution policy adjustment):
@@ -31,7 +31,7 @@ Or run directly (requires execution policy adjustment):
 .. code:: powershell
 
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-   iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.ps1'))
+   iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1'))
 
 This script will:
 
