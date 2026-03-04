@@ -27,6 +27,7 @@ class Docker(Tool):
 
     @retry(tries=10, delay=5)  # type: ignore
     def build_image(self, image_name: str, dockerfile: str) -> None:
+        # alpine image build need to specify '--network host'
         # Use absolute paths for both the Dockerfile and build context instead of
         # relying on cwd= (which maps to WSL's --cd flag and fails with ENOENT
         # when running under sudo in WSL2).
