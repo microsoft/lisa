@@ -125,15 +125,26 @@ class Docker(Tool):
         # No init system service found (e.g. WSL2 without systemd where docker.io
         # only ships a systemd unit, not a SysV init script).
         # Fall back to launching dockerd directly as a background daemon.
+        # First check if dockerd is already running to avoid launching a duplicate
+        # (WSL may shut down between test cases, killing the previous instance).
+        socket_ok = self.node.execute(
+            "test -S /var/run/docker.sock && docker info > /dev/null 2>&1",
+            sudo=True,
+            shell=True,
+        )
+        if socket_ok.exit_code == 0:
+            self._log.debug("dockerd is already running, skipping start")
+            return
+
         self._log.debug("No service found for docker/podman, starting dockerd directly")
         self.node.execute(
             "dockerd > /tmp/dockerd.log 2>&1 &",
             sudo=True,
             shell=True,
         )
-        # Wait up to 10 seconds for the Docker socket to become available.
+        # Wait up to 15 seconds for the Docker socket to become available.
         self.node.execute(
-            "for i in $(seq 1 10); do"
+            "for i in $(seq 1 15); do"
             " [ -S /var/run/docker.sock ] && break; sleep 1; done",
             sudo=True,
             shell=True,

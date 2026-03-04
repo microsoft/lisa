@@ -207,6 +207,11 @@ class DockerTestSuite(TestSuite):
             docker_tool = node.tools[Docker]
         except UnsupportedDistroException as e:
             raise SkippedException(e)
+
+        # Ensure daemon is running: the tool is cached after first install, so
+        # start() is not called automatically for subsequent test cases.
+        # WSL may have shut down between tests, killing the dockerd process.
+        docker_tool.start()
         self._verify_docker_engine(node)
         docker_tool.remove_image(docker_image_name)
         return docker_tool
