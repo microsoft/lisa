@@ -318,19 +318,18 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   location: location
   properties: {
     securityRules: [
-      {
-          name: 'LISASSH'
-          properties: {
-              description: 'Allows nested VM SSH traffic'
-              protocol: 'Tcp'
-              sourcePortRange: '*'
-              destinationPortRange: '60020-60030'
-              destinationAddressPrefix: '*'
-              sourceAddressPrefixes: source_address_prefixes
-              access: 'Allow'
-              priority: 101
-              direction: 'Inbound'
-          }
+       {
+        name: 'LISASSH'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '22'
+          sourceAddressPrefixes: source_address_prefixes
+          destinationAddressPrefix: '*'
+        }
       }
       {
           name: 'LISAKVMSSH'
