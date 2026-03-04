@@ -35,48 +35,42 @@ class AzureCVMAttestationTests(Tool):
         config: str,
         log_path: Path,
     ) -> None:
-        failure_msg = "CVM platform attestation report generation failed"
-
         config_path = self.attestation_dir / config
 
         command_option = f"--c {config_path}"
-        command = self.run(
+        command_result = self.run(
             command_option,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=failure_msg,
             cwd=self.attestation_dir,
             shell=True,
             sudo=True,
             force_run=True,
         )
 
-        output: str = command.stdout
+        output: str = command_result.stdout
         self._save_attestation_report(output, log_path=log_path)
 
-        is_valid = "Attested Platform Successfully" in output
+        success_message = "Attested Platform Successfully"
+        is_valid = command_result.exit_code == 0 and success_message in output
 
         assert_that(
             is_valid,
             "The CVM platform attestation test failed",
         ).is_true()
 
-        failure_msg = "CVM guest attestation report generation failed"
-
         command_option = f"--c {config_path} --t GUEST"
-        command = self.run(
+        command_result = self.run(
             command_option,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=failure_msg,
             cwd=self.attestation_dir,
             shell=True,
             sudo=True,
             force_run=True,
         )
 
-        output = command.stdout
+        output = command_result.stdout
         self._save_attestation_report(output, log_path=log_path)
 
-        is_valid = "Attested Guest Successfully" in output
+        success_message = "Attested Guest Successfully"
+        is_valid = command_result.exit_code == 0 and success_message in output
 
         assert_that(
             is_valid,
