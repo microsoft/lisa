@@ -131,13 +131,13 @@ from .common import (
     get_primary_ip_addresses,
     get_resource_management_client,
     get_static_access_token,
-    get_virtual_networks,
-    remove_vnet_peerings,
     get_storage_account_name,
     get_vhd_details,
+    get_virtual_networks,
     get_vm,
     global_credential_access_lock,
     load_location_info_from_file,
+    remove_vnet_peerings,
     save_console_log,
     wait_operation,
 )
@@ -703,8 +703,8 @@ class AzurePlatform(Platform):
                 delete_operation = self._rm_client.resource_groups.begin_delete(
                     resource_group_name
                 )
-            if self._azure_runbook.virtual_network_resource_group:
-                remove_vnet_peerings(self._platform, resource_group_name)
+                if self._azure_runbook.virtual_network_resource_group:
+                    remove_vnet_peerings(self._platform, resource_group_name)
             except Exception as e:
                 log.debug(f"exception on delete resource group: {e}")
             if delete_operation and self._azure_runbook.wait_delete:
