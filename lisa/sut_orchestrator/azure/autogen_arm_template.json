@@ -652,7 +652,7 @@
               "description": "Allows nested VM SSH traffic",
               "protocol": "Tcp",
               "sourcePortRange": "*",
-              "destinationPortRange": "60020-60030",
+              "destinationPortRange": "22",
               "destinationAddressPrefix": "*",
               "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
               "access": "Allow",
