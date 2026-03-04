@@ -1712,9 +1712,14 @@ def get_virtual_networks(
     return virtual_network_dict
 
 
-def remove_vnet_peerings(platform: "AzurePlatform", resource_group_name: str) -> None:
+def remove_vnet_peerings(
+    platform: "AzurePlatform", resource_group_name: str, environment_id: int
+) -> None:
     # delete both the vnet peering for a resource group and the corresponding link
     # in the remote group.
+    # peerings for test resources in our vnet sharing scheme will only be
+    # peered with one remote VM vnet for orchestration; so we only need to find
+    # one corresponding peering on the remote side.
     network_client = get_network_client(platform)
     vnets = network_client.virtual_networks.list(
         resource_group_name=resource_group_name
@@ -1724,25 +1729,20 @@ def remove_vnet_peerings(platform: "AzurePlatform", resource_group_name: str) ->
             resource_group_name, name=vnet.name
         )
         for peering in peerings:
+            # remove the local peerings
             network_client.virtual_network_peerings.begin_delete(
                 resource_group_name, vnet.name, peering.name
             ).wait()
-
-            if not delete_op.done():
-                platform._log.debug(
-                    f"Delete peering operation failed for peering: {peering.name}"
-                )
-
-            remote_peering = self._rm_client.get(peering.remote_virtual_network)
-            remote_peering = network_client.virtual_network_peerings.begin_delete(
-                resource_group_name,
+            # remove the remote peering
+            network_client.virtual_network_peerings.begin_delete(
+                peering.remote_virtual_network.split("/")[4],
                 peering.remote_virtual_network.split("/")[-1],
-                peering.name,
+                f"vnet-peering-e{environment_id}",
             ).wait()
-        for subnet in vnet.subnets:
-            network_client.subnets.begin_delete(
-                resource_group_name, vnet.name, subnet.name
-            ).wait()
+        # for subnet in vnet.subnets:
+        #     network_client.subnets.begin_delete(
+        #         resource_group_name, vnet.name, subnet.name
+        #     ).wait()
 
 
 def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
