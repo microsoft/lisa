@@ -90,16 +90,15 @@ class ServiceInternal(Tool):
 
     def _check_service_exists(self, name: str) -> bool:
         cmd_result = self.run(f"{name} status", shell=True, sudo=True, force_run=True)
-        if "unrecognized service" in cmd_result.stdout:
+        combined = cmd_result.stdout + cmd_result.stderr
+        if "unrecognized service" in combined:
             return False
         return True
 
     def _check_service_running(self, name: str) -> bool:
         cmd_result = self.run(f"{name} status", shell=True, sudo=True, force_run=True)
-        return (
-            "unrecognized service" not in cmd_result.stdout
-            and 0 == cmd_result.exit_code
-        )
+        combined = cmd_result.stdout + cmd_result.stderr
+        return "unrecognized service" not in combined and 0 == cmd_result.exit_code
 
     def _is_service_inactive(self, name: str) -> bool:
         cmd_result = self.run(f"{name} status", shell=True, sudo=True, force_run=True)
@@ -115,6 +114,15 @@ class ServiceInternal(Tool):
         # optionally ignore exit code if it matches our expected non-zero value
 
         _check_error_codes(cmd_result, ignore_exit_code)
+
+    def enable_service(self, name: str) -> None:
+        # SysV init (service command) does not support enable natively.
+        # Best-effort: try update-rc.d (Debian/Ubuntu) then chkconfig (RHEL).
+        result = self.node.execute(
+            f"update-rc.d {name} defaults", sudo=True, shell=True
+        )
+        if result.exit_code != 0:
+            self.node.execute(f"chkconfig {name} on", sudo=True, shell=True)
 
     def is_service_running(self, name: str) -> bool:
         cmd_result = self.run(f"{name} status", shell=True, sudo=True, force_run=True)
