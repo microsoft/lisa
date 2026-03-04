@@ -1263,6 +1263,7 @@ class AzureArmParameter:
     create_public_address: bool = True
     source_address_prefixes: List[str] = field(default_factory=list)
     resource_group_index: Optional[int] = None
+    subnet_prefix: str = field(default="")
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1710,6 +1711,26 @@ def get_virtual_networks(
         ]
     return virtual_network_dict
 
+def remove_vnet_peering(platform: "AzurePlatform", resource_group_name:str)-> None:
+    # delete both the vnet peering for a resource group and the corresponding link
+    # in the remote group.
+    network_client = get_network_client(platform)
+    vnets = network_client.virtual_networks.list(
+            resource_group_name=resource_group_name
+        )
+    for vnet in vnets:
+        peerings = network_client.virtual_network_peerings.get(resource_group_name, name=vnet.name)
+        for peering in peerings:
+            network_client.virtual_network_peerings.begin_delete(resource_group_name, vnet.name, peering.name).wait()
+            
+            if not delete_op.done():
+                platform._log.debug(f"Delete peering operation failed for peering: {peering.name}")
+            
+            remote_peering = self._rm_client.get(id: peering.remote_virtual_network)
+            remote_peering = network_client.virtual_network_peerings.begin_delete(resource_group_name, peering.remote_virtual_network.split('/')[-1], peering.name).wait()
+        for subnet in vnet.subnets:
+            network_client.subnets.begin_delete(resource_group_name, vnet.name, subnet.name).wait()
+        
 
 def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
     return NetworkManagementClient(

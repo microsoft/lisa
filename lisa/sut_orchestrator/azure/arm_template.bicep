@@ -22,6 +22,9 @@ param shared_resource_group_name string
 @description('created subnet count')
 param subnet_count int
 
+@description('user supplied subnet prefix (incompatible with virtual_network_resource_group)')
+param subnet_prefix string
+
 @description('index of the test resource group for shared vnet subnet mapping')
 param resource_group_index int
 
@@ -295,15 +298,15 @@ resource virtual_network 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   location: location
   properties: {
     addressSpace: {
-      addressPrefixes: concat(
+      addressPrefixes: empty(subnet_prefix) ? (concat(
         ['10.${rg_index_div_256}.${rg_index_mod_256}.0/24', '192.168.0.0/16' ],
         use_ipv6 ? ['2001:db8::/32'] : []
-      )
-    }
+      )) : [ subnet_prefix ]
+    } 
     subnets:  [ for i in range(0,subnet_count): {
-        name: i==0 ? 'default' : 'test-subnet-${i}'
+        name: empty(subnet_prefix) ? (i==0 ? 'default' : 'test-subnet-${i}') : subnet_prefix
         properties: { 
-        addressPrefix: i==0 ? '10.${rg_index_div_256}.${rg_index_mod_256}.0/24' : '192.168.${i-1}.0/24' 
+        addressPrefix: empty(subnet_prefix) ? (i==0 ? '10.${rg_index_div_256}.${rg_index_mod_256}.0/24' : '192.168.${i-1}.0/24' ) : subnet_prefix
         defaultOutboundAccess: enable_vm_nat
         networkSecurityGroup:{
           id: nsg.id
