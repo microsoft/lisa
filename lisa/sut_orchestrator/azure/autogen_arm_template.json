@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "3674176336733772196"
+      "templateHash": "4261739258007286340"
     }
   },
   "functions": [
@@ -649,15 +649,14 @@
           {
             "name": "LISASSH",
             "properties": {
-              "description": "Allows nested VM SSH traffic",
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
               "protocol": "Tcp",
               "sourcePortRange": "*",
               "destinationPortRange": "22",
-              "destinationAddressPrefix": "*",
               "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
-              "access": "Allow",
-              "priority": 101,
-              "direction": "Inbound"
+              "destinationAddressPrefix": "*"
             }
           },
           {
