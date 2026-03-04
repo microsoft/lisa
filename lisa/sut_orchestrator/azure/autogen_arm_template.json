@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "4261739258007286340"
+      "templateHash": "8018757189124818305"
     }
   },
   "functions": [
@@ -463,6 +463,12 @@
         "description": "created subnet count"
       }
     },
+    "subnet_prefix": {
+      "type": "string",
+      "metadata": {
+        "description": "user supplied subnet prefix (incompatible with virtual_network_resource_group)"
+      }
+    },
     "resource_group_index": {
       "type": "int",
       "metadata": {
@@ -620,9 +626,9 @@
             "name": "subnets",
             "count": "[length(range(0, parameters('subnet_count')))]",
             "input": {
-              "name": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), 'default', format('test-subnet-{0}', range(0, parameters('subnet_count'))[copyIndex('subnets')]))]",
+              "name": "[if(empty(parameters('subnet_prefix')), if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), 'default', format('test-subnet-{0}', range(0, parameters('subnet_count'))[copyIndex('subnets')])), parameters('subnet_prefix'))]",
               "properties": {
-                "addressPrefix": "[if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), format('10.{0}.{1}.0/24', variables('rg_index_div_256'), variables('rg_index_mod_256')), format('192.168.{0}.0/24', sub(range(0, parameters('subnet_count'))[copyIndex('subnets')], 1)))]",
+                "addressPrefix": "[if(empty(parameters('subnet_prefix')), if(equals(range(0, parameters('subnet_count'))[copyIndex('subnets')], 0), format('10.{0}.{1}.0/24', variables('rg_index_div_256'), variables('rg_index_mod_256')), format('192.168.{0}.0/24', sub(range(0, parameters('subnet_count'))[copyIndex('subnets')], 1))), parameters('subnet_prefix'))]",
                 "defaultOutboundAccess": "[parameters('enable_vm_nat')]",
                 "networkSecurityGroup": {
                   "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('lisa-test-nsg-{0}', parameters('resource_group_index')))]"
@@ -632,7 +638,7 @@
           }
         ],
         "addressSpace": {
-          "addressPrefixes": "[concat(createArray(format('10.{0}.{1}.0/24', variables('rg_index_div_256'), variables('rg_index_mod_256')), '192.168.0.0/16'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
+          "addressPrefixes": "[if(empty(parameters('subnet_prefix')), concat(createArray(format('10.{0}.{1}.0/24', variables('rg_index_div_256'), variables('rg_index_mod_256')), '192.168.0.0/16'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray())), createArray(parameters('subnet_prefix')))]"
         }
       },
       "dependsOn": [

@@ -131,6 +131,8 @@ from .common import (
     get_primary_ip_addresses,
     get_resource_management_client,
     get_static_access_token,
+    get_virtual_networks,
+    remove_vnet_peerings,
     get_storage_account_name,
     get_vhd_details,
     get_vm,
@@ -309,6 +311,7 @@ class AzurePlatformSchema:
     )
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     tags: Optional[Dict[str, Any]] = field(default=None)
+    subnet_prefix: Optional[str] = field(default=None)
     use_public_address: bool = field(default=True)
     create_public_address: bool = field(default=True)
     use_ipv6: bool = field(default=False)
@@ -700,6 +703,8 @@ class AzurePlatform(Platform):
                 delete_operation = self._rm_client.resource_groups.begin_delete(
                     resource_group_name
                 )
+            if self._azure_runbook.virtual_network_resource_group:
+                remove_vnet_peerings(self._platform, resource_group_name)
             except Exception as e:
                 log.debug(f"exception on delete resource group: {e}")
             if delete_operation and self._azure_runbook.wait_delete:
@@ -1219,6 +1224,16 @@ class AzurePlatform(Platform):
         arm_parameters.virtual_network_name = (
             self._azure_runbook.virtual_network_name or AZURE_VIRTUAL_NETWORK_NAME
         )
+        arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix or ""
+        if (
+            arm_parameters.subnet_prefix
+            and arm_parameters.virtual_network_resource_group
+        ):
+            log.warn(
+                "subnet_prefix and virtual_network_resource_group runbook options "
+                "may introduce unexpected failures due to network peering "
+                "address prefix collisions."
+            )
         arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
 
         is_windows: bool = False
@@ -1695,7 +1710,7 @@ class AzurePlatform(Platform):
             plugin_manager.hook.azure_deploy_failed(error_message=error_message)
             raise LisaException(error_message)
 
-    @retry(DeploymentActiveException, tries=5, delay=30, jitter=(0, 10))
+    @retry(DeploymentActiveException, tries=5, delay=30, jitter=(0, 10))  # type: ignore
     def _deploy(
         self,
         location: str,

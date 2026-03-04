@@ -45,14 +45,14 @@ variable:
     value: ""
   - name: virtual_network_name
     value: ""
-  - name: subnet_prefix
-    value: ""
   - name: use_public_address
     value: true
   - name: create_public_address
     value: true
   - name: resource_group_tags
     value: null
+  - name: subnet_prefix
+    value: ""
     # Example usage:
     # resource_group_tags:
     #   Environment: Testing
