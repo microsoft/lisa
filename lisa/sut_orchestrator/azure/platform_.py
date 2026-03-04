@@ -68,6 +68,7 @@ from lisa.sut_orchestrator import platform_utils
 from lisa.tools import Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
+    DeploymentActiveException,
     KernelPanicException,
     LisaException,
     LisaTimeoutException,
@@ -103,7 +104,6 @@ from .. import AZURE
 from . import features
 from .common import (
     AZURE_SHARED_RG_NAME,
-    AZURE_SUBNET_PREFIX,
     AZURE_VIRTUAL_NETWORK_NAME,
     SAS_URL_PATTERN,
     AzureArmParameter,
@@ -322,7 +322,6 @@ class AzurePlatformSchema:
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
-    subnet_prefix: str = field(default=AZURE_SUBNET_PREFIX)
 
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
@@ -1247,6 +1246,9 @@ class AzurePlatform(Platform):
         arm_parameters.vm_tags["lisa_username"] = local().tools[Whoami].get_username()
         arm_parameters.vm_tags["lisa_hostname"] = local().tools[Hostname].get_hostname()
 
+        # pass the rg id to the arm template
+        arm_parameters.resource_group_index = int(environment.id)
+
         nodes_parameters: List[AzureNodeArmParameter] = []
         features_settings: Dict[str, schema.FeatureSettings] = {}
 
@@ -1268,11 +1270,13 @@ class AzurePlatform(Platform):
             azure_node_runbook = self._create_node_runbook(
                 len(nodes_parameters), node_space, log, resource_group_name
             )
+
             # save parsed runbook back, for example, the version of marketplace may be
             # parsed from latest to a specified version.
             node.capability.set_extended_runbook(azure_node_runbook)
 
             node_arm_parameters = self._create_node_arm_parameters(node.capability, log)
+
             nodes_parameters.append(node_arm_parameters)
 
             arm_parameters.is_ultradisk = any(
@@ -1691,6 +1695,7 @@ class AzurePlatform(Platform):
             plugin_manager.hook.azure_deploy_failed(error_message=error_message)
             raise LisaException(error_message)
 
+    @retry(DeploymentActiveException, tries=5, delay=30, jitter=(0, 10))
     def _deploy(
         self,
         location: str,
@@ -1775,6 +1780,8 @@ class AzurePlatform(Platform):
                     f"provisioning failed for an internal error, try to run case. "
                     f"Exception: {error_message}"
                 )
+            elif "DeploymentActive" in error_message:
+                raise DeploymentActiveException(e)
             else:
                 try:
                     self._save_console_log_and_check_panic(
