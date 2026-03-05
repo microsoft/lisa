@@ -71,7 +71,8 @@ class DevicePassthroughFunctionalTests(TestSuite):
         lspci = node.tools[Lspci]
         platform = cast("CloudHypervisorPlatform", environment.platform)
         pool_vendor_device_map: Dict[str, Dict[str, str]] = {}
-        assert platform.platform_runbook.device_pools, "Device pool can't be empty"
+        if not platform.platform_runbook.device_pools:
+            raise SkippedException("device_pools is not configured in the runbook")
 
         from lisa.sut_orchestrator.util.schema import (
             PciAddressIdentifier,
