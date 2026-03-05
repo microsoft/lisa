@@ -812,8 +812,7 @@ class Ntttcp(Tool):
                 " service or the config file location is incorrect."
             )
         if need_reboot:
-            self._log.debug("TasksMax set to 122880, reboot disabled - changes will take effect on next reboot")
-            # self.node.reboot()  # Reboot disabled to avoid VM downtime
+            self.node.reboot()
 
 
 class BSDNtttcp(Ntttcp):
