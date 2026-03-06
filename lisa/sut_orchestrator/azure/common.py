@@ -112,7 +112,6 @@ if TYPE_CHECKING:
 
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 AZURE_VIRTUAL_NETWORK_NAME = "lisa-virtualNetwork"
-AZURE_SUBNET_PREFIX = "lisa-subnet-"
 
 NIC_NAME_PATTERN = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
 PATTERN_PUBLIC_IP_NAME = re.compile(
@@ -1262,13 +1261,14 @@ class AzureArmParameter:
 
     virtual_network_resource_group: str = ""
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
-    subnet_prefix: str = AZURE_SUBNET_PREFIX
     is_ultradisk: bool = False
     is_data_disk_with_vhd: bool = False
     use_ipv6: bool = False
     enable_vm_nat: bool = False
     create_public_address: bool = True
     source_address_prefixes: List[str] = field(default_factory=list)
+    resource_group_index: Optional[int] = None
+    subnet_prefix: str = field(default="")
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1715,6 +1715,39 @@ def get_virtual_networks(
             x.id for x in virtual_network.subnets
         ]
     return virtual_network_dict
+
+
+def remove_vnet_peerings(
+    platform: "AzurePlatform", resource_group_name: str, environment_id: int
+) -> None:
+    # delete both the vnet peering for a resource group and the corresponding link
+    # in the remote group.
+    # peerings for test resources in our vnet sharing scheme will only be
+    # peered with one remote VM vnet for orchestration; so we only need to find
+    # one corresponding peering on the remote side.
+    network_client = get_network_client(platform)
+    vnets = network_client.virtual_networks.list(
+        resource_group_name=resource_group_name
+    )
+    for vnet in vnets:
+        peerings = network_client.virtual_network_peerings.get(
+            resource_group_name, name=vnet.name
+        )
+        for peering in peerings:
+            # remove the local peerings
+            network_client.virtual_network_peerings.begin_delete(
+                resource_group_name, vnet.name, peering.name
+            ).wait()
+            # remove the remote peering
+            network_client.virtual_network_peerings.begin_delete(
+                peering.remote_virtual_network.split("/")[4],
+                peering.remote_virtual_network.split("/")[-1],
+                f"vnet-peering-e{environment_id}",
+            ).wait()
+        # for subnet in vnet.subnets:
+        #     network_client.subnets.begin_delete(
+        #         resource_group_name, vnet.name, subnet.name
+        #     ).wait()
 
 
 def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
