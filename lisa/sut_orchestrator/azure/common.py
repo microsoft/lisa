@@ -30,6 +30,7 @@ import requests
 from assertpy import assert_that
 from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.exceptions import ResourceExistsError
+from azure.core.pipeline.policies import RetryMode
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -484,63 +485,67 @@ class SharedImageGallerySchema(AzureImageSchema):
 
     def query_platform(self, platform: "AzurePlatform") -> GalleryImage:
         assert self.resource_group_name, "'resource_group_name' must not be 'None'"
-        compute_client = get_compute_client(
+        with get_compute_client(
             platform, subscription_id=self.subscription_id
-        )
-        sig = compute_client.gallery_images.get(
-            resource_group_name=self.resource_group_name,
-            gallery_name=self.image_gallery,
-            gallery_image_name=self.image_definition,
-        )
+        ) as compute_client:
+            sig = compute_client.gallery_images.get(
+                resource_group_name=self.resource_group_name,
+                gallery_name=self.image_gallery,
+                gallery_image_name=self.image_definition,
+            )
         assert isinstance(sig, GalleryImage), f"actual: {type(sig)}"
         return sig
 
     def resolve_version(self, platform: "AzurePlatform") -> None:
-        compute_client = get_compute_client(
+        with get_compute_client(
             platform, subscription_id=self.subscription_id
-        )
-        if not self.resource_group_name:
-            # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
-            # galleries/xxxx
-            rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
-            galleries = compute_client.galleries.list()
-            for gallery in galleries:
-                if gallery.name and gallery.name.lower() == self.image_gallery:
-                    assert gallery.id, "'gallery.id' must not be 'None'"
-                    self.resource_group_name = get_matched_str(gallery.id, rg_pattern)
-                    break
-        if not self.resource_group_name:
-            raise LisaException(f"did not find matched gallery {self.image_gallery}")
+        ) as compute_client:
+            if not self.resource_group_name:
+                # /subscriptions/xxxx/resourceGroups/xxxx/providers/
+                # Microsoft.Compute/galleries/xxxx
+                rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
+                galleries = compute_client.galleries.list()
+                for gallery in galleries:
+                    if gallery.name and gallery.name.lower() == self.image_gallery:
+                        assert gallery.id, "'gallery.id' must not be 'None'"
+                        self.resource_group_name = get_matched_str(
+                            gallery.id, rg_pattern
+                        )
+                        break
+            if not self.resource_group_name:
+                raise LisaException(
+                    f"did not find matched gallery {self.image_gallery}"
+                )
 
-        if self.image_version.lower() == "latest":
-            gallery_images = (
-                compute_client.gallery_image_versions.list_by_gallery_image(
-                    resource_group_name=self.resource_group_name,
-                    gallery_name=self.image_gallery,
-                    gallery_image_name=self.image_definition,
+            if self.image_version.lower() == "latest":
+                gallery_images = (
+                    compute_client.gallery_image_versions.list_by_gallery_image(
+                        resource_group_name=self.resource_group_name,
+                        gallery_name=self.image_gallery,
+                        gallery_image_name=self.image_definition,
+                    )
                 )
-            )
-            time: Optional[datetime] = None
-            for image in gallery_images:
-                assert image, "'image' must not be 'None'"
-                assert image.name, "'image.name' must not be 'None'"
-                gallery_image = compute_client.gallery_image_versions.get(
-                    resource_group_name=self.resource_group_name,
-                    gallery_name=self.image_gallery,
-                    gallery_image_name=self.image_definition,
-                    gallery_image_version_name=image.name,
-                    expand="ReplicationStatus",
-                )
-                if not time:
-                    time = gallery_image.publishing_profile.published_date
+                time: Optional[datetime] = None
+                for image in gallery_images:
                     assert image, "'image' must not be 'None'"
                     assert image.name, "'image.name' must not be 'None'"
-                    self.image_version = image.name
-                elif gallery_image.publishing_profile.published_date > time:
-                    time = gallery_image.publishing_profile.published_date
-                    assert image, "'image' must not be 'None'"
-                    assert image.name, "'image.name' must not be 'None'"
-                    self.image_version = image.name
+                    gallery_image = compute_client.gallery_image_versions.get(
+                        resource_group_name=self.resource_group_name,
+                        gallery_name=self.image_gallery,
+                        gallery_image_name=self.image_definition,
+                        gallery_image_version_name=image.name,
+                        expand="ReplicationStatus",
+                    )
+                    if not time:
+                        time = gallery_image.publishing_profile.published_date
+                        assert image, "'image' must not be 'None'"
+                        assert image.name, "'image.name' must not be 'None'"
+                        self.image_version = image.name
+                    elif gallery_image.publishing_profile.published_date > time:
+                        time = gallery_image.publishing_profile.published_date
+                        assert image, "'image' must not be 'None'"
+                        assert image.name, "'image.name' must not be 'None'"
+                        self.image_version = image.name
 
     def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
         self.resolve_version(platform)
@@ -600,12 +605,12 @@ class CommunityGalleryImageSchema(AzureImageSchema):
         )
 
     def query_platform(self, platform: "AzurePlatform") -> CommunityGalleryImage:
-        compute_client = get_compute_client(platform)
-        cgi = compute_client.community_gallery_images.get(
-            location=self.location,
-            public_gallery_name=self.image_gallery,
-            gallery_image_name=self.image_definition,
-        )
+        with get_compute_client(platform) as compute_client:
+            cgi = compute_client.community_gallery_images.get(
+                location=self.location,
+                public_gallery_name=self.image_gallery,
+                gallery_image_name=self.image_definition,
+            )
         assert isinstance(cgi, CommunityGalleryImage), f"actual: {type(cgi)}"
         return cgi
 
@@ -615,33 +620,33 @@ class CommunityGalleryImageSchema(AzureImageSchema):
         return _get_image_tags(cgi_info)
 
     def resolve_version(self, platform: "AzurePlatform") -> None:
-        compute_client = get_compute_client(platform)
-        if self.image_version.lower() == "latest":
-            community_gallery_images_list = (
-                compute_client.community_gallery_image_versions.list(
-                    location=self.location,
-                    public_gallery_name=self.image_gallery,
-                    gallery_image_name=self.image_definition,
-                )
-            )
-            time: Optional[datetime] = None
-            for image in community_gallery_images_list:
-                assert image, "'image' must not be 'None'"
-                assert image.name, "'image.name' must not be 'None'"
-                community_gallery_image_version = (
-                    compute_client.community_gallery_image_versions.get(
+        with get_compute_client(platform) as compute_client:
+            if self.image_version.lower() == "latest":
+                community_gallery_images_list = (
+                    compute_client.community_gallery_image_versions.list(
                         location=self.location,
                         public_gallery_name=self.image_gallery,
                         gallery_image_name=self.image_definition,
-                        gallery_image_version_name=image.name,
                     )
                 )
-                if not time:
-                    time = community_gallery_image_version.published_date
-                    self.image_version = image.name
-                elif community_gallery_image_version.published_date > time:
-                    time = community_gallery_image_version.published_date
-                    self.image_version = image.name
+                time: Optional[datetime] = None
+                for image in community_gallery_images_list:
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
+                    community_gallery_image_version = (
+                        compute_client.community_gallery_image_versions.get(
+                            location=self.location,
+                            public_gallery_name=self.image_gallery,
+                            gallery_image_name=self.image_definition,
+                            gallery_image_version_name=image.name,
+                        )
+                    )
+                    if not time:
+                        time = community_gallery_image_version.published_date
+                        self.image_version = image.name
+                    elif community_gallery_image_version.published_date > time:
+                        time = community_gallery_image_version.published_date
+                        self.image_version = image.name
 
 
 @dataclass_json()
@@ -1276,6 +1281,29 @@ class AzureArmParameter:
         add_secret(self.admin_key_data)
 
 
+def _azure_sdk_retry_kwargs(
+    retry_total: int = 10,
+    retry_backoff_factor: float = 1.0,
+    retry_backoff_max: int = 30,
+    retry_on_status_codes: Optional[List[int]] = None,
+) -> Dict[str, Any]:
+    """Return standard retry kwargs accepted by all Azure SDK clients.
+
+    These are passed as **kwargs to Azure management / data-plane client
+    constructors and configure the built-in ``RetryPolicy`` so that
+    transient HTTP errors (429, 5xx, plus any additional status codes
+    listed in *retry_on_status_codes*) are retried transparently without
+    the need for ad-hoc ``@retry`` decorators.
+    """
+    return {
+        "retry_total": retry_total,
+        "retry_backoff_factor": retry_backoff_factor,
+        "retry_backoff_max": retry_backoff_max,
+        "retry_mode": RetryMode.Exponential,
+        "retry_on_status_codes": retry_on_status_codes or [404, 409],
+    }
+
+
 def get_compute_client(
     platform: "AzurePlatform",
     api_version: Optional[str] = None,
@@ -1289,6 +1317,7 @@ def get_compute_client(
         api_version=api_version,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        **_azure_sdk_retry_kwargs(),
     )
 
 
@@ -1364,69 +1393,75 @@ def create_update_private_endpoints(
     Raises:
         LisaException: If unable to retrieve IP address from the endpoint
     """
-    network = get_network_client(platform)
-    status = "Approved"
-    description = "Auto-Approved"
+    with get_network_client(platform) as network:
+        status = "Approved"
+        description = "Auto-Approved"
 
-    # Check if private endpoint already exists
-    try:
-        existing_pe = network.private_endpoints.get(
+        # Check if private endpoint already exists
+        try:
+            existing_pe = network.private_endpoints.get(
+                resource_group_name=resource_group_name,
+                private_endpoint_name=private_endpoint_name,
+            )
+            log.debug(f"found existing private endpoint: {private_endpoint_name}")
+            # Return IP from existing endpoint if available
+            ip_address = _get_private_endpoint_ip(
+                network, resource_group_name, existing_pe, log
+            )
+            if ip_address:
+                return (ip_address, False)  # Endpoint existed, not created by us
+            log.debug("Could not get IP from existing endpoint, will recreate...")
+        except Exception:
+            log.debug(
+                f"private endpoint {private_endpoint_name} not found, creating..."
+            )
+
+        private_endpoint = network.private_endpoints.begin_create_or_update(
+            resource_group_name=resource_group_name,
+            private_endpoint_name=private_endpoint_name,
+            parameters=PrivateEndpoint(
+                location=location,
+                subnet=Subnet(id=subnet_id),
+                private_link_service_connections=[
+                    PrivateLinkServiceConnection(
+                        name=private_endpoint_name,
+                        private_link_service_id=private_link_service_id,
+                        group_ids=group_ids,
+                        private_link_service_connection_state=(
+                            PrivateLinkServiceConnectionState(
+                                status=status, description=description
+                            )
+                        ),
+                    )
+                ],
+            ),
+        )
+        log.debug(f"create private endpoints: {private_endpoint_name}")
+        result = private_endpoint.result()
+
+        # Try to get IP from the creation result
+        ip_address = _get_private_endpoint_ip(
+            network, resource_group_name, result, log
+        )
+        if ip_address:
+            return (ip_address, True)  # Endpoint was created by us
+
+        # DNS configs may not be immediately available, fetch endpoint again
+        log.debug("IP not in result, fetching endpoint again...")
+        result = network.private_endpoints.get(
             resource_group_name=resource_group_name,
             private_endpoint_name=private_endpoint_name,
         )
-        log.debug(f"found existing private endpoint: {private_endpoint_name}")
-        # Return IP from existing endpoint if available
+
         ip_address = _get_private_endpoint_ip(
-            network, resource_group_name, existing_pe, log
+            network, resource_group_name, result, log
         )
         if ip_address:
-            return (ip_address, False)  # Endpoint existed, not created by us
-        log.debug("Could not get IP from existing endpoint, will recreate...")
-    except Exception:
-        log.debug(f"private endpoint {private_endpoint_name} not found, creating...")
+            return (ip_address, True)  # Endpoint was created by us
 
-    private_endpoint = network.private_endpoints.begin_create_or_update(
-        resource_group_name=resource_group_name,
-        private_endpoint_name=private_endpoint_name,
-        parameters=PrivateEndpoint(
-            location=location,
-            subnet=Subnet(id=subnet_id),
-            private_link_service_connections=[
-                PrivateLinkServiceConnection(
-                    name=private_endpoint_name,
-                    private_link_service_id=private_link_service_id,
-                    group_ids=group_ids,
-                    private_link_service_connection_state=(
-                        PrivateLinkServiceConnectionState(
-                            status=status, description=description
-                        )
-                    ),
-                )
-            ],
-        ),
-    )
-    log.debug(f"create private endpoints: {private_endpoint_name}")
-    result = private_endpoint.result()
-
-    # Try to get IP from the creation result
-    ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
-    if ip_address:
-        return (ip_address, True)  # Endpoint was created by us
-
-    # DNS configs may not be immediately available, fetch endpoint again
-    log.debug("IP not in result, fetching endpoint again...")
-    result = network.private_endpoints.get(
-        resource_group_name=resource_group_name,
-        private_endpoint_name=private_endpoint_name,
-    )
-
-    ip_address = _get_private_endpoint_ip(network, resource_group_name, result, log)
-    if ip_address:
-        return (ip_address, True)  # Endpoint was created by us
-
-    raise LisaException(
-        f"Failed to get IP address from private endpoint {private_endpoint_name}"
-    )
+        raise LisaException(
+            f"Failed to get IP address from private endpoint {private_endpoint_name}"
+        )
 
 
 def delete_private_endpoints(
@@ -1441,20 +1476,20 @@ def delete_private_endpoints(
     Args:
         private_endpoint_name: Name of the private endpoint to delete.
     """
-    network = get_network_client(platform)
-    try:
-        network.private_endpoints.get(
-            resource_group_name=resource_group_name,
-            private_endpoint_name=private_endpoint_name,
-        )
-        log.debug(f"found private endpoints: {private_endpoint_name}")
-        network.private_endpoints.begin_delete(
-            resource_group_name=resource_group_name,
-            private_endpoint_name=private_endpoint_name,
-        )
-        log.debug(f"delete private endpoints: {private_endpoint_name}")
-    except Exception:
-        log.debug(f"not find private endpoints: {private_endpoint_name}")
+    with get_network_client(platform) as network:
+        try:
+            network.private_endpoints.get(
+                resource_group_name=resource_group_name,
+                private_endpoint_name=private_endpoint_name,
+            )
+            log.debug(f"found private endpoints: {private_endpoint_name}")
+            network.private_endpoints.begin_delete(
+                resource_group_name=resource_group_name,
+                private_endpoint_name=private_endpoint_name,
+            )
+            log.debug(f"delete private endpoints: {private_endpoint_name}")
+        except Exception:
+            log.debug(f"not find private endpoints: {private_endpoint_name}")
 
 
 def get_private_dns_management_client(
@@ -1465,6 +1500,7 @@ def get_private_dns_management_client(
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        **_azure_sdk_retry_kwargs(),
     )
 
 
@@ -1473,20 +1509,20 @@ def create_update_private_zones(
     resource_group_name: str,
     log: Logger,
 ) -> Any:
-    private_dns_client = get_private_dns_management_client(platform)
-    private_zone_name = "privatelink"
-    private_zone_location = "global"
-    private_zone_name = ".".join(
-        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
-    )
-    private_zones = private_dns_client.private_zones.begin_create_or_update(
-        resource_group_name=resource_group_name,
-        private_zone_name=private_zone_name,
-        parameters=PrivateZone(location=private_zone_location),  # or Private
-    )
-    log.debug(f"create private zone: {private_zone_name}")
-    result = private_zones.result()
-    return result.id
+    with get_private_dns_management_client(platform) as private_dns_client:
+        private_zone_name = "privatelink"
+        private_zone_location = "global"
+        private_zone_name = ".".join(
+            [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+        )
+        private_zones = private_dns_client.private_zones.begin_create_or_update(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+            parameters=PrivateZone(location=private_zone_location),  # or Private
+        )
+        log.debug(f"create private zone: {private_zone_name}")
+        result = private_zones.result()
+        return result.id
 
 
 def delete_private_zones(
@@ -1494,35 +1530,35 @@ def delete_private_zones(
     resource_group_name: str,
     log: Logger,
 ) -> None:
-    private_dns_client = get_private_dns_management_client(platform)
-    private_zone_name = "privatelink"
-    private_zone_name = ".".join(
-        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
-    )
-    try:
-        private_dns_client.private_zones.get(
-            resource_group_name=resource_group_name,
-            private_zone_name=private_zone_name,
+    with get_private_dns_management_client(platform) as private_dns_client:
+        private_zone_name = "privatelink"
+        private_zone_name = ".".join(
+            [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
         )
-        log.debug(f"found private zone: {private_zone_name}")
-        timer = create_timer()
-        while timer.elapsed(False) < 60:
-            try:
-                private_dns_client.private_zones.begin_delete(
-                    resource_group_name=resource_group_name,
-                    private_zone_name=private_zone_name,
-                )
-                log.debug(f"delete private zone: {private_zone_name}")
-                break
-            except Exception as e:
-                if (
-                    "Can not delete resource before nested resources are deleted"
-                    in str(e)
-                ):
-                    sleep(1)
-                    continue
-    except Exception:
-        log.debug(f"not find private zone: {private_zone_name}")
+        try:
+            private_dns_client.private_zones.get(
+                resource_group_name=resource_group_name,
+                private_zone_name=private_zone_name,
+            )
+            log.debug(f"found private zone: {private_zone_name}")
+            timer = create_timer()
+            while timer.elapsed(False) < 60:
+                try:
+                    private_dns_client.private_zones.begin_delete(
+                        resource_group_name=resource_group_name,
+                        private_zone_name=private_zone_name,
+                    )
+                    log.debug(f"delete private zone: {private_zone_name}")
+                    break
+                except Exception as e:
+                    if (
+                        "Can not delete resource before nested resources are deleted"
+                        in str(e)
+                    ):
+                        sleep(1)
+                        continue
+        except Exception:
+            log.debug(f"not find private zone: {private_zone_name}")
 
 
 def create_update_record_sets(
@@ -1531,21 +1567,23 @@ def create_update_record_sets(
     ipv4_address: str,
     log: Logger,
 ) -> None:
-    private_dns_client = get_private_dns_management_client(platform)
-    private_zone_name = "privatelink"
-    relative_record_set_name = "privatelink"
-    record_type = "A"
-    private_zone_name = ".".join(
-        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
-    )
-    private_dns_client.record_sets.create_or_update(
-        resource_group_name=resource_group_name,
-        private_zone_name=private_zone_name,
-        relative_record_set_name=relative_record_set_name,
-        record_type=record_type,
-        parameters=RecordSet(ttl=10, a_records=[ARecord(ipv4_address=ipv4_address)]),
-    )
-    log.debug(f"create record sets: {relative_record_set_name}")
+    with get_private_dns_management_client(platform) as private_dns_client:
+        private_zone_name = "privatelink"
+        relative_record_set_name = "privatelink"
+        record_type = "A"
+        private_zone_name = ".".join(
+            [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+        )
+        private_dns_client.record_sets.create_or_update(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+            relative_record_set_name=relative_record_set_name,
+            record_type=record_type,
+            parameters=RecordSet(
+                ttl=10, a_records=[ARecord(ipv4_address=ipv4_address)]
+            ),
+        )
+        log.debug(f"create record sets: {relative_record_set_name}")
 
 
 def delete_record_sets(
@@ -1553,30 +1591,30 @@ def delete_record_sets(
     resource_group_name: str,
     log: Logger,
 ) -> None:
-    private_dns_client = get_private_dns_management_client(platform)
-    private_zone_name = "privatelink"
-    relative_record_set_name = "privatelink"
-    record_type = "A"
-    private_zone_name = ".".join(
-        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
-    )
-    try:
-        private_dns_client.record_sets.get(
-            resource_group_name=resource_group_name,
-            private_zone_name=private_zone_name,
-            relative_record_set_name=relative_record_set_name,
-            record_type=record_type,
+    with get_private_dns_management_client(platform) as private_dns_client:
+        private_zone_name = "privatelink"
+        relative_record_set_name = "privatelink"
+        record_type = "A"
+        private_zone_name = ".".join(
+            [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
         )
-        log.debug(f"found record sets: {relative_record_set_name}")
-        private_dns_client.record_sets.delete(
-            resource_group_name=resource_group_name,
-            private_zone_name=private_zone_name,
-            relative_record_set_name=relative_record_set_name,
-            record_type=record_type,
-        )
-        log.debug(f"delete record sets: {relative_record_set_name}")
-    except Exception:
-        log.debug(f"not find record sets: {relative_record_set_name}")
+        try:
+            private_dns_client.record_sets.get(
+                resource_group_name=resource_group_name,
+                private_zone_name=private_zone_name,
+                relative_record_set_name=relative_record_set_name,
+                record_type=record_type,
+            )
+            log.debug(f"found record sets: {relative_record_set_name}")
+            private_dns_client.record_sets.delete(
+                resource_group_name=resource_group_name,
+                private_zone_name=private_zone_name,
+                relative_record_set_name=relative_record_set_name,
+                record_type=record_type,
+            )
+            log.debug(f"delete record sets: {relative_record_set_name}")
+        except Exception:
+            log.debug(f"not find record sets: {relative_record_set_name}")
 
 
 def create_update_virtual_network_links(
@@ -1585,25 +1623,25 @@ def create_update_virtual_network_links(
     virtual_network_resource_id: str,
     log: Logger,
 ) -> None:
-    private_dns_client = get_private_dns_management_client(platform)
-    private_zone_name = "privatelink"
-    virtual_network_link_name = "vnetlink"
-    registration_enabled = False
-    virtual_network_link_location = "global"
-    private_zone_name = ".".join(
-        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
-    )
-    private_dns_client.virtual_network_links.begin_create_or_update(
-        resource_group_name=resource_group_name,
-        private_zone_name=private_zone_name,
-        virtual_network_link_name=virtual_network_link_name,
-        parameters=VirtualNetworkLink(
-            registration_enabled=registration_enabled,
-            location=virtual_network_link_location,
-            virtual_network=SubResource(id=virtual_network_resource_id),
-        ),
-    )
-    log.debug(f"create virtual network link: {virtual_network_link_name}")
+    with get_private_dns_management_client(platform) as private_dns_client:
+        private_zone_name = "privatelink"
+        virtual_network_link_name = "vnetlink"
+        registration_enabled = False
+        virtual_network_link_location = "global"
+        private_zone_name = ".".join(
+            [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+        )
+        private_dns_client.virtual_network_links.begin_create_or_update(
+            resource_group_name=resource_group_name,
+            private_zone_name=private_zone_name,
+            virtual_network_link_name=virtual_network_link_name,
+            parameters=VirtualNetworkLink(
+                registration_enabled=registration_enabled,
+                location=virtual_network_link_location,
+                virtual_network=SubResource(id=virtual_network_resource_id),
+            ),
+        )
+        log.debug(f"create virtual network link: {virtual_network_link_name}")
 
 
 def delete_virtual_network_links(
@@ -1611,27 +1649,27 @@ def delete_virtual_network_links(
     resource_group_name: str,
     log: Logger,
 ) -> None:
-    private_dns_client = get_private_dns_management_client(platform)
-    private_zone_name = "privatelink"
-    virtual_network_link_name = "vnetlink"
-    private_zone_name = ".".join(
-        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
-    )
-    try:
-        private_dns_client.virtual_network_links.get(
-            resource_group_name=resource_group_name,
-            private_zone_name=private_zone_name,
-            virtual_network_link_name=virtual_network_link_name,
+    with get_private_dns_management_client(platform) as private_dns_client:
+        private_zone_name = "privatelink"
+        virtual_network_link_name = "vnetlink"
+        private_zone_name = ".".join(
+            [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
         )
-        log.debug(f"find virtual network link: {virtual_network_link_name}")
-        private_dns_client.virtual_network_links.begin_delete(
-            resource_group_name=resource_group_name,
-            private_zone_name=private_zone_name,
-            virtual_network_link_name=virtual_network_link_name,
-        )
-        log.debug(f"delete virtual network link: {virtual_network_link_name}")
-    except Exception:
-        log.debug(f"not find virtual network link: {virtual_network_link_name}")
+        try:
+            private_dns_client.virtual_network_links.get(
+                resource_group_name=resource_group_name,
+                private_zone_name=private_zone_name,
+                virtual_network_link_name=virtual_network_link_name,
+            )
+            log.debug(f"find virtual network link: {virtual_network_link_name}")
+            private_dns_client.virtual_network_links.begin_delete(
+                resource_group_name=resource_group_name,
+                private_zone_name=private_zone_name,
+                virtual_network_link_name=virtual_network_link_name,
+            )
+            log.debug(f"delete virtual network link: {virtual_network_link_name}")
+        except Exception:
+            log.debug(f"not find virtual network link: {virtual_network_link_name}")
 
 
 def create_update_private_dns_zone_groups(
@@ -1647,28 +1685,28 @@ def create_update_private_dns_zone_groups(
     Args:
         private_endpoint_name: Name of the private endpoint to associate with.
     """
-    network_client = get_network_client(platform)
-    private_dns_zone_group_name = "default"
-    private_dns_zone_name = "privatelink"
-    private_dns_zone_name = ".".join(
-        [private_dns_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
-    )
-    # network_client.private_dns_zone_groups.delete()
-    network_client.private_dns_zone_groups.begin_create_or_update(
-        resource_group_name=resource_group_name,
-        private_dns_zone_group_name=private_dns_zone_group_name,
-        private_endpoint_name=private_endpoint_name,
-        parameters=PrivateDnsZoneGroup(
-            name=private_dns_zone_group_name,
-            private_dns_zone_configs=[
-                PrivateDnsZoneConfig(
-                    name=private_dns_zone_name,
-                    private_dns_zone_id=private_dns_zone_id,
-                )
-            ],
-        ),
-    )
-    log.debug(f"create private dns zone group: {private_dns_zone_group_name}")
+    with get_network_client(platform) as network_client:
+        private_dns_zone_group_name = "default"
+        private_dns_zone_name = "privatelink"
+        private_dns_zone_name = ".".join(
+            [private_dns_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+        )
+        # network_client.private_dns_zone_groups.delete()
+        network_client.private_dns_zone_groups.begin_create_or_update(
+            resource_group_name=resource_group_name,
+            private_dns_zone_group_name=private_dns_zone_group_name,
+            private_endpoint_name=private_endpoint_name,
+            parameters=PrivateDnsZoneGroup(
+                name=private_dns_zone_group_name,
+                private_dns_zone_configs=[
+                    PrivateDnsZoneConfig(
+                        name=private_dns_zone_name,
+                        private_dns_zone_id=private_dns_zone_id,
+                    )
+                ],
+            ),
+        )
+        log.debug(f"create private dns zone group: {private_dns_zone_group_name}")
 
 
 def delete_private_dns_zone_groups(
@@ -1683,38 +1721,42 @@ def delete_private_dns_zone_groups(
     Args:
         private_endpoint_name: Name of the private endpoint associated with the group.
     """
-    network_client = get_network_client(platform)
-    private_dns_zone_group_name = "default"
-    try:
-        network_client.private_dns_zone_groups.get(
-            resource_group_name=resource_group_name,
-            private_endpoint_name=private_endpoint_name,
-            private_dns_zone_group_name=private_dns_zone_group_name,
-        )
-        log.debug(f"found private dns zone group: {private_dns_zone_group_name}")
-        network_client.private_dns_zone_groups.begin_delete(
-            resource_group_name=resource_group_name,
-            private_endpoint_name=private_endpoint_name,
-            private_dns_zone_group_name=private_dns_zone_group_name,
-        )
-        log.debug(f"delete private dns zone group: {private_dns_zone_group_name}")
-    except Exception:
-        log.debug(f"not find private dns zone group: {private_dns_zone_group_name}")
+    with get_network_client(platform) as network_client:
+        private_dns_zone_group_name = "default"
+        try:
+            network_client.private_dns_zone_groups.get(
+                resource_group_name=resource_group_name,
+                private_endpoint_name=private_endpoint_name,
+                private_dns_zone_group_name=private_dns_zone_group_name,
+            )
+            log.debug(f"found private dns zone group: {private_dns_zone_group_name}")
+            network_client.private_dns_zone_groups.begin_delete(
+                resource_group_name=resource_group_name,
+                private_endpoint_name=private_endpoint_name,
+                private_dns_zone_group_name=private_dns_zone_group_name,
+            )
+            log.debug(
+                f"delete private dns zone group: {private_dns_zone_group_name}"
+            )
+        except Exception:
+            log.debug(
+                f"not find private dns zone group: {private_dns_zone_group_name}"
+            )
 
 
 def get_virtual_networks(
     platform: "AzurePlatform", resource_group_name: str
 ) -> Dict[str, List[str]]:
-    network_client = get_network_client(platform)
-    virtual_networks_list = network_client.virtual_networks.list(
-        resource_group_name=resource_group_name
-    )
-    virtual_network_dict: Dict[str, List[str]] = {}
-    for virtual_network in virtual_networks_list:
-        virtual_network_dict[virtual_network.id] = [
-            x.id for x in virtual_network.subnets
-        ]
-    return virtual_network_dict
+    with get_network_client(platform) as network_client:
+        virtual_networks_list = network_client.virtual_networks.list(
+            resource_group_name=resource_group_name
+        )
+        virtual_network_dict: Dict[str, List[str]] = {}
+        for virtual_network in virtual_networks_list:
+            virtual_network_dict[virtual_network.id] = [
+                x.id for x in virtual_network.subnets
+            ]
+        return virtual_network_dict
 
 
 def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
@@ -1723,6 +1765,7 @@ def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        **_azure_sdk_retry_kwargs(),
     )
 
 
@@ -1734,6 +1777,7 @@ def get_storage_client(
         subscription_id=subscription_id,
         base_url=cloud.endpoints.resource_manager,
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
+        **_azure_sdk_retry_kwargs(),
     )
 
 
@@ -1745,6 +1789,7 @@ def get_resource_management_client(
         subscription_id=subscription_id,
         base_url=cloud.endpoints.resource_manager,
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
+        **_azure_sdk_retry_kwargs(),
     )
 
 
@@ -1759,6 +1804,7 @@ def get_managed_service_identity_client(
         subscription_id=subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        **_azure_sdk_retry_kwargs(),
     )
 
 
@@ -1778,6 +1824,7 @@ def get_marketplace_ordering_client(
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        **_azure_sdk_retry_kwargs(),
     )
 
 
@@ -1827,11 +1874,11 @@ def get_storage_credential(
     return a shared key credential. This credential doesn't need extra
      permissions to access blobs.
     """
-    storage_client = get_storage_client(credential, subscription_id, cloud)
-    key = storage_client.storage_accounts.list_keys(
-        account_name=account_name, resource_group_name=resource_group_name
-    ).keys[0]
-    return {"account_name": account_name, "account_key": key.value}
+    with get_storage_client(credential, subscription_id, cloud) as storage_client:
+        key = storage_client.storage_accounts.list_keys(
+            account_name=account_name, resource_group_name=resource_group_name
+        ).keys[0]
+        return {"account_name": account_name, "account_key": key.value}
 
 
 def generate_user_delegation_sas_token(
@@ -1845,29 +1892,29 @@ def generate_user_delegation_sas_token(
     expired_hours: int = 1,
     platform: Optional["AzurePlatform"] = None,
 ) -> Any:
-    blob_service_client = get_blob_service_client(
+    with get_blob_service_client(
         cloud=cloud,
         credential=credential,
         account_name=account_name,
         connection_string=connection_string,
         platform=platform,
-    )
-    start_time = datetime.now(timezone.utc)
-    expiry_time = start_time + timedelta(hours=expired_hours)
-    user_delegation_key = blob_service_client.get_user_delegation_key(
-        start_time, expiry_time
-    )
-    assert account_name, "account_name is required"
-    sas_token = generate_blob_sas(
-        account_name=account_name,
-        container_name=container_name,
-        blob_name=blob_name,
-        user_delegation_key=user_delegation_key,
-        permission=BlobSasPermissions(read=True, write=writable),
-        expiry=expiry_time,
-        start=start_time,
-    )
-    return sas_token
+    ) as blob_service_client:
+        start_time = datetime.now(timezone.utc)
+        expiry_time = start_time + timedelta(hours=expired_hours)
+        user_delegation_key = blob_service_client.get_user_delegation_key(
+            start_time, expiry_time
+        )
+        assert account_name, "account_name is required"
+        sas_token = generate_blob_sas(
+            account_name=account_name,
+            container_name=container_name,
+            blob_name=blob_name,
+            user_delegation_key=user_delegation_key,
+            permission=BlobSasPermissions(read=True, write=writable),
+            expiry=expiry_time,
+            start=start_time,
+        )
+        return sas_token
 
 
 def get_blob_service_client(
@@ -1880,10 +1927,11 @@ def get_blob_service_client(
     """
     Create a Azure Storage container if it does not exist.
     """
+    retry_kwargs = _azure_sdk_retry_kwargs()
     blob_service_client: BlobServiceClient
     if connection_string:
         blob_service_client = BlobServiceClient.from_connection_string(
-            connection_string
+            connection_string, **retry_kwargs
         )
     else:
         assert (
@@ -1896,6 +1944,7 @@ def get_blob_service_client(
         blob_service_client = BlobServiceClient(
             f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
             credential,
+            **retry_kwargs,
         )
     return blob_service_client
 
@@ -1916,20 +1965,20 @@ def get_or_create_storage_container(
         credential = get_static_access_token(
             platform._azure_runbook.azure_storage_access_token
         )
-    blob_service_client = get_blob_service_client(
+    with get_blob_service_client(
         cloud=cloud,
         credential=credential,
         account_name=account_name,
         connection_string=connection_string,
         platform=platform,
-    )
-    container_client = blob_service_client.get_container_client(container_name)
-    if not container_client.exists():
-        if allow_create:
-            container_client.create_container()
-        else:
-            raise LisaException(f"container {container_name} does not exist.")
-    return container_client
+    ) as blob_service_client:
+        container_client = blob_service_client.get_container_client(container_name)
+        if not container_client.exists():
+            if allow_create:
+                container_client.create_container()
+            else:
+                raise LisaException(f"container {container_name} does not exist.")
+        return container_client
 
 
 def check_or_create_storage_account(
@@ -1952,31 +2001,31 @@ def check_or_create_storage_account(
     # is too big, Azure may not able to delete deployment script on time. so there
     # will be error like below
     # Creating the deployment 'name' would exceed the quota of '800'.
-    storage_client = get_storage_client(credential, subscription_id, cloud)
-    with _global_storage_account_check_create_lock:
-        try:
-            storage_client.storage_accounts.get_properties(
-                account_name=account_name,
-                resource_group_name=resource_group_name,
-            )
-            log.debug(f"found storage account: {account_name}")
-        except Exception:
-            log.debug(f"creating storage account: {account_name}")
-            parameters = StorageAccountCreateParameters(
-                sku=Sku(name=sku),
-                kind=kind,
-                location=location,
-                enable_https_traffic_only=enable_https_traffic_only,
-                allow_shared_key_access=allow_shared_key_access,
-                allow_blob_public_access=allow_blob_public_access,
-                minimum_tls_version=minimum_tls_version,
-            )
-            operation = storage_client.storage_accounts.begin_create(
-                resource_group_name=resource_group_name,
-                account_name=account_name,
-                parameters=parameters,
-            )
-            wait_operation(operation)
+    with get_storage_client(credential, subscription_id, cloud) as storage_client:
+        with _global_storage_account_check_create_lock:
+            try:
+                storage_client.storage_accounts.get_properties(
+                    account_name=account_name,
+                    resource_group_name=resource_group_name,
+                )
+                log.debug(f"found storage account: {account_name}")
+            except Exception:
+                log.debug(f"creating storage account: {account_name}")
+                parameters = StorageAccountCreateParameters(
+                    sku=Sku(name=sku),
+                    kind=kind,
+                    location=location,
+                    enable_https_traffic_only=enable_https_traffic_only,
+                    allow_shared_key_access=allow_shared_key_access,
+                    allow_blob_public_access=allow_blob_public_access,
+                    minimum_tls_version=minimum_tls_version,
+                )
+                operation = storage_client.storage_accounts.begin_create(
+                    resource_group_name=resource_group_name,
+                    account_name=account_name,
+                    parameters=parameters,
+                )
+                wait_operation(operation)
 
 
 def delete_storage_account(
@@ -1987,20 +2036,20 @@ def delete_storage_account(
     resource_group_name: str,
     log: Logger,
 ) -> None:
-    storage_client = get_storage_client(credential, subscription_id, cloud)
-    try:
-        storage_client.storage_accounts.get_properties(
-            account_name=account_name,
-            resource_group_name=resource_group_name,
-        )
-        log.debug(f"found storage account: {account_name}")
-        storage_client.storage_accounts.delete(
-            account_name=account_name,
-            resource_group_name=resource_group_name,
-        )
-        log.debug(f"delete storage account: {account_name}")
-    except Exception:
-        log.debug(f"not find storage account: {account_name}")
+    with get_storage_client(credential, subscription_id, cloud) as storage_client:
+        try:
+            storage_client.storage_accounts.get_properties(
+                account_name=account_name,
+                resource_group_name=resource_group_name,
+            )
+            log.debug(f"found storage account: {account_name}")
+            storage_client.storage_accounts.delete(
+                account_name=account_name,
+                resource_group_name=resource_group_name,
+            )
+            log.debug(f"delete storage account: {account_name}")
+        except Exception:
+            log.debug(f"not find storage account: {account_name}")
 
 
 def check_or_create_resource_group(
@@ -2229,6 +2278,7 @@ def get_share_service_client(
     share_service_client = ShareServiceClient(
         f"https://{account_name}.file.{cloud.suffixes.storage_endpoint}",
         shared_key_credential,
+        **_azure_sdk_retry_kwargs(),
     )
     return share_service_client
 
@@ -2263,15 +2313,15 @@ def list_file_shares(
         List of file share names, or empty list if enumeration fails
     """
     try:
-        share_service_client = get_share_service_client(
+        with get_share_service_client(
             credential,
             subscription_id,
             cloud,
             account_name,
             resource_group_name,
-        )
-        all_shares = list(share_service_client.list_shares())
-        return [share.name for share in all_shares]
+        ) as share_service_client:
+            all_shares = list(share_service_client.list_shares())
+            return [share.name for share in all_shares]
     except Exception as e:
         log.debug(f"Failed to list file shares in {account_name}: {e}")
         return []
@@ -2312,68 +2362,73 @@ def get_or_create_file_share(
     """
     # For NFS, use ARM API because NFS storage accounts don't allow shared key access
     if protocols.upper() == "NFS":
-        storage_client = get_storage_client(credential, subscription_id, cloud)
-        # Check if share exists using ARM API
-        try:
-            storage_client.file_shares.get(
-                resource_group_name=resource_group_name,
-                account_name=account_name,
-                share_name=file_share_name,
-            )
-            log.debug(f"file share {file_share_name} already exists")
-        except Exception:
-            # Share doesn't exist, create it
-            log.debug(
-                f"creating file share {file_share_name} with protocols {protocols}"
-            )
-            from azure.mgmt.storage.models import FileShare
+        with get_storage_client(credential, subscription_id, cloud) as storage_client:
+            # Check if share exists using ARM API
+            try:
+                storage_client.file_shares.get(
+                    resource_group_name=resource_group_name,
+                    account_name=account_name,
+                    share_name=file_share_name,
+                )
+                log.debug(f"file share {file_share_name} already exists")
+            except Exception:
+                # Share doesn't exist, create it
+                log.debug(
+                    f"creating file share {file_share_name} with protocols {protocols}"
+                )
+                from azure.mgmt.storage.models import FileShare
 
-            file_share = FileShare(
-                enabled_protocols=protocols,
-                share_quota=quota_in_gb,
-            )
-            storage_client.file_shares.create(
-                resource_group_name=resource_group_name,
-                account_name=account_name,
-                share_name=file_share_name,
-                file_share=file_share,
-            )
-        # Build the file share URL
-        storage_endpoint = cloud.suffixes.storage_endpoint
-        return f"//{account_name}.file.{storage_endpoint}/{file_share_name}"
+                file_share = FileShare(
+                    enabled_protocols=protocols,
+                    share_quota=quota_in_gb,
+                )
+                storage_client.file_shares.create(
+                    resource_group_name=resource_group_name,
+                    account_name=account_name,
+                    share_name=file_share_name,
+                    file_share=file_share,
+                )
+            # Build the file share URL
+            storage_endpoint = cloud.suffixes.storage_endpoint
+            return f"//{account_name}.file.{storage_endpoint}/{file_share_name}"
     else:
         # For SMB, use data plane API (ShareServiceClient)
-        share_service_client = get_share_service_client(
+        with get_share_service_client(
             credential,
             subscription_id,
             cloud,
             account_name,
             resource_group_name,
-        )
-        all_shares = list(share_service_client.list_shares())
-        if file_share_name not in (x.name for x in all_shares):
-            log.debug(
-                f"creating file share {file_share_name} with protocols {protocols}"
-            )
-            # Build kwargs for create_share - only include PV2 params if specified
-            create_kwargs: Dict[str, Any] = {
-                "protocols": protocols,
-                "quota": quota_in_gb,
-            }
-            # PV2-specific parameters (requires API version 2025-01-05+)
-            # These are only valid for PV2 storage accounts (PremiumV2_*, StandardV2_*)
-            if provisioned_iops is not None:
-                create_kwargs["provisioned_iops"] = provisioned_iops
-                log.debug(f"  provisioned_iops: {provisioned_iops}")
-            if provisioned_bandwidth_mibps is not None:
-                create_kwargs[
-                    "provisioned_bandwidth_mibps"
-                ] = provisioned_bandwidth_mibps
+        ) as share_service_client:
+            all_shares = list(share_service_client.list_shares())
+            if file_share_name not in (x.name for x in all_shares):
                 log.debug(
-                    f"  provisioned_bandwidth_mibps: {provisioned_bandwidth_mibps}"
+                    f"creating file share {file_share_name}"
+                    f" with protocols {protocols}"
                 )
-            share_service_client.create_share(file_share_name, **create_kwargs)
-        return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
+                # Build kwargs for create_share - only include PV2 params if specified
+                create_kwargs: Dict[str, Any] = {
+                    "protocols": protocols,
+                    "quota": quota_in_gb,
+                }
+                # PV2-specific parameters (requires API version 2025-01-05+)
+                # These are only valid for PV2 storage accounts
+                # (PremiumV2_*, StandardV2_*)
+                if provisioned_iops is not None:
+                    create_kwargs["provisioned_iops"] = provisioned_iops
+                    log.debug(f"  provisioned_iops: {provisioned_iops}")
+                if provisioned_bandwidth_mibps is not None:
+                    create_kwargs[
+                        "provisioned_bandwidth_mibps"
+                    ] = provisioned_bandwidth_mibps
+                    log.debug(
+                        f"  provisioned_bandwidth_mibps:"
+                        f" {provisioned_bandwidth_mibps}"
+                    )
+                share_service_client.create_share(file_share_name, **create_kwargs)
+            return str(
+                "//" + share_service_client.primary_hostname + "/" + file_share_name
+            )
 
 
 def delete_file_share(
@@ -2398,22 +2453,22 @@ def delete_file_share(
     log.debug(f"deleting file share {file_share_name}")
     if protocols.upper() == "NFS":
         # Use ARM API for NFS
-        storage_client = get_storage_client(credential, subscription_id, cloud)
-        storage_client.file_shares.delete(
-            resource_group_name=resource_group_name,
-            account_name=account_name,
-            share_name=file_share_name,
-        )
+        with get_storage_client(credential, subscription_id, cloud) as storage_client:
+            storage_client.file_shares.delete(
+                resource_group_name=resource_group_name,
+                account_name=account_name,
+                share_name=file_share_name,
+            )
     else:
         # Use data plane API for SMB
-        share_service_client = get_share_service_client(
+        with get_share_service_client(
             credential,
             subscription_id,
             cloud,
             account_name,
             resource_group_name,
-        )
-        share_service_client.delete_share(file_share_name)
+        ) as share_service_client:
+            share_service_client.delete_share(file_share_name)
 
 
 def save_console_log(
@@ -2424,17 +2479,17 @@ def save_console_log(
     saved_path: Optional[Path],
     screenshot_file_name: str = "serial_console",
 ) -> bytes:
-    compute_client = get_compute_client(platform)
-    with global_credential_access_lock:
-        try:
-            diagnostic_data = (
-                compute_client.virtual_machines.retrieve_boot_diagnostics_data(
-                    resource_group_name=resource_group_name, vm_name=vm_name
+    with get_compute_client(platform) as compute_client:
+        with global_credential_access_lock:
+            try:
+                diagnostic_data = (
+                    compute_client.virtual_machines.retrieve_boot_diagnostics_data(
+                        resource_group_name=resource_group_name, vm_name=vm_name
+                    )
                 )
-            )
-        except ResourceExistsError as e:
-            log.debug(f"fail to get serial console log. {e}")
-            return b""
+            except ResourceExistsError as e:
+                log.debug(f"fail to get serial console log. {e}")
+                return b""
     if saved_path:
         screenshot_raw_name = saved_path / f"{screenshot_file_name}.bmp"
         screenshot_response = requests.get(
@@ -2488,12 +2543,12 @@ def load_environment(
         environment_runbook.nodes_raw = []
 
     vms_map: Dict[str, VirtualMachine] = {}
-    compute_client = get_compute_client(platform)
-    vms = compute_client.virtual_machines.list(resource_group_name)
-    for vm in vms:
-        node_schema = schema.RemoteNode(name=vm.name)
-        environment_runbook.nodes_raw.append(node_schema)
-        vms_map[vm.name] = vm
+    with get_compute_client(platform) as compute_client:
+        vms = compute_client.virtual_machines.list(resource_group_name)
+        for vm in vms:
+            node_schema = schema.RemoteNode(name=vm.name)
+            environment_runbook.nodes_raw.append(node_schema)
+            vms_map[vm.name] = vm
 
     environments = load_environments(
         schema.EnvironmentRoot(environments=[environment_runbook])
@@ -2550,11 +2605,10 @@ def load_environment(
 
 def get_vm(platform: "AzurePlatform", node: Node) -> Any:
     context = node.get_context(NodeContext)
-    compute_client = get_compute_client(platform=platform)
-    vm = compute_client.virtual_machines.get(
-        context.resource_group_name, context.vm_name
-    )
-
+    with get_compute_client(platform=platform) as compute_client:
+        vm = compute_client.virtual_machines.get(
+            context.resource_group_name, context.vm_name
+        )
     return vm
 
 
@@ -2564,52 +2618,63 @@ def get_primary_ip_addresses(
     resource_group_name: str,
     vm: VirtualMachine,
 ) -> Tuple[str, str]:
-    network_client = get_network_client(platform)
-
-    assert vm.network_profile, "no network profile found"
-    assert isinstance(
-        vm.network_profile.network_interfaces, List
-    ), f"actual: {type(vm.network_profile.network_interfaces)}"
-    nic_index = 0
-    use_ipv6 = platform._azure_runbook.use_ipv6
-    create_public_address = platform._azure_runbook.create_public_address
-    for network_interface in vm.network_profile.network_interfaces:
+    with get_network_client(platform) as network_client:
+        assert vm.network_profile, "no network profile found"
         assert isinstance(
-            network_interface.id, str
-        ), f"actual: {type(network_interface.id)}"
-        nic_name = get_matched_str(network_interface.id, NIC_NAME_PATTERN)
-        nic = network_client.network_interfaces.get(resource_group_name, nic_name)
-        if nic.primary:
-            if use_ipv6:
-                nic_index = 1
+            vm.network_profile.network_interfaces, List
+        ), f"actual: {type(vm.network_profile.network_interfaces)}"
+        nic_index = 0
+        use_ipv6 = platform._azure_runbook.use_ipv6
+        create_public_address = platform._azure_runbook.create_public_address
+        for network_interface in vm.network_profile.network_interfaces:
+            assert isinstance(
+                network_interface.id, str
+            ), f"actual: {type(network_interface.id)}"
+            nic_name = get_matched_str(network_interface.id, NIC_NAME_PATTERN)
+            nic = network_client.network_interfaces.get(
+                resource_group_name, nic_name
+            )
+            if nic.primary:
+                if use_ipv6:
+                    nic_index = 1
 
-            ip_config = nic.ip_configurations[nic_index]
-            if use_ipv6 and ip_config.private_ip_address_version != IpProtocol.ipv6:
-                raise LisaException(f"private address is not IPv6 in nic {nic.name}")
-            private_ip = ip_config.private_ip_address
-
-            if create_public_address:
-                if not ip_config.public_ip_address:
-                    raise LisaException(f"no public address found in nic {nic.name}")
-                public_ip_name = get_matched_str(
-                    ip_config.public_ip_address.id,
-                    PATTERN_PUBLIC_IP_NAME,
-                )
-                public_ip_address = network_client.public_ip_addresses.get(
-                    resource_group_name,
-                    public_ip_name,
-                )
+                ip_config = nic.ip_configurations[nic_index]
                 if (
                     use_ipv6
-                    and public_ip_address.public_ip_address_version != IpProtocol.ipv6
+                    and ip_config.private_ip_address_version != IpProtocol.ipv6
                 ):
-                    raise LisaException(f"public address is not IPv6 in nic {nic.name}")
+                    raise LisaException(
+                        f"private address is not IPv6 in nic {nic.name}"
+                    )
+                private_ip = ip_config.private_ip_address
 
-                return public_ip_address.ip_address, private_ip
-            else:
-                return "", private_ip
+                if create_public_address:
+                    if not ip_config.public_ip_address:
+                        raise LisaException(
+                            f"no public address found in nic {nic.name}"
+                        )
+                    public_ip_name = get_matched_str(
+                        ip_config.public_ip_address.id,
+                        PATTERN_PUBLIC_IP_NAME,
+                    )
+                    public_ip_address = network_client.public_ip_addresses.get(
+                        resource_group_name,
+                        public_ip_name,
+                    )
+                    if (
+                        use_ipv6
+                        and public_ip_address.public_ip_address_version
+                        != IpProtocol.ipv6
+                    ):
+                        raise LisaException(
+                            f"public address is not IPv6 in nic {nic.name}"
+                        )
 
-    raise LisaException(f"fail to find primary nic for vm {vm.name}")
+                    return public_ip_address.ip_address, private_ip
+                else:
+                    return "", private_ip
+
+        raise LisaException(f"fail to find primary nic for vm {vm.name}")
 
 
 # find resource based on type name from resources section in arm template
@@ -2676,21 +2741,23 @@ def find_storage_account(
     """
     # Check cache first
     if subscription_id not in _storage_account_cache:
-        storage_client = get_storage_client(
+        with get_storage_client(
             platform.credential, subscription_id, platform.cloud
-        )
-        # sometimes it will fail for below reason if list storage accounts like this way
-        # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
-        # failure - Message: Resource provider 'Microsoft.Storage' failed to return
-        # collection response for type 'storageAccounts'.
+        ) as storage_client:
+            # sometimes it will fail for below reason if list storage accounts like
+            # this way
+            # [x for x in storage_client.storage_accounts.list()
+            #  if x.name == sc_name]
+            # failure - Message: Resource provider 'Microsoft.Storage' failed to
+            # return collection response for type 'storageAccounts'.
 
-        # storage_client.storage_accounts.list() returns a paged iterator, which
-        # triggers additional API calls during iteration. Frequent or concurrent
-        # iterations can exceed Azure's request limits, resulting in throttling
-        # errors. To mitigate this, we cache the full list of storage accounts.
-        _storage_account_cache[subscription_id] = list(
-            storage_client.storage_accounts.list()
-        )
+            # storage_client.storage_accounts.list() returns a paged iterator, which
+            # triggers additional API calls during iteration. Frequent or concurrent
+            # iterations can exceed Azure's request limits, resulting in throttling
+            # errors. To mitigate this, we cache the full list of storage accounts.
+            _storage_account_cache[subscription_id] = list(
+                storage_client.storage_accounts.list()
+            )
 
     # Search in cached list
     for sc in _storage_account_cache[subscription_id]:
@@ -2847,29 +2914,29 @@ def check_or_create_gallery(
     gallery_location: str = "",
     gallery_description: str = "",
 ) -> Any:
-    try:
-        # get gallery
-        compute_client = get_compute_client(platform)
-        gallery = compute_client.galleries.get(
-            resource_group_name=gallery_resource_group_name,
-            gallery_name=gallery_name,
-        )
-    except Exception as ex:
-        # create the gallery if specified gallery name doesn't exist
-        if "ResourceNotFound" in str(ex):
-            gallery_post_body = {
-                "location": gallery_location,
-                "description": gallery_description,
-            }
-            operation = compute_client.galleries.begin_create_or_update(
-                gallery_resource_group_name,
-                gallery_name,
-                gallery_post_body,
+    with get_compute_client(platform) as compute_client:
+        try:
+            # get gallery
+            gallery = compute_client.galleries.get(
+                resource_group_name=gallery_resource_group_name,
+                gallery_name=gallery_name,
             )
-            gallery = wait_operation(operation)
-        else:
-            raise LisaException(ex)
-    return gallery
+        except Exception as ex:
+            # create the gallery if specified gallery name doesn't exist
+            if "ResourceNotFound" in str(ex):
+                gallery_post_body = {
+                    "location": gallery_location,
+                    "description": gallery_description,
+                }
+                operation = compute_client.galleries.begin_create_or_update(
+                    gallery_resource_group_name,
+                    gallery_name,
+                    gallery_post_body,
+                )
+                gallery = wait_operation(operation)
+            else:
+                raise LisaException(ex)
+        return gallery
 
 
 def check_or_create_gallery_image(
@@ -2887,53 +2954,53 @@ def check_or_create_gallery_image(
     gallery_image_architecture: str,
     gallery_image_features: Dict[str, Any],
 ) -> None:
-    try:
-        compute_client = get_compute_client(platform)
-        compute_client.gallery_images.get(
-            gallery_resource_group_name,
-            gallery_name,
-            gallery_image_name,
-        )
-    except Exception as ex:
-        # create the gallery image if specified gallery name doesn't exist
-        if "ResourceNotFound" in str(ex):
-            image_post_body: Dict[str, Any] = {}
-            image_post_body = {
-                "location": gallery_image_location,
-                "os_type": gallery_image_ostype,
-                "os_state": gallery_image_osstate,
-                "hyper_v_generation": f"V{gallery_image_hyperv_generation}",
-                "architecture": gallery_image_architecture,
-                "identifier": {
-                    "publisher": gallery_image_publisher,
-                    "offer": gallery_image_offer,
-                    "sku": gallery_image_sku,
-                },
-                "features": [
-                    {
-                        "name": "DiskControllerTypes",
-                        "value": "SCSI,NVMe",
-                    },
-                ],
-            }
-
-            if gallery_image_features:
-                image_post_body["features"] = [
-                    {
-                        "name": key,
-                        "value": value,
-                    }
-                    for (key, value) in gallery_image_features.items()
-                ]
-            operation = compute_client.gallery_images.begin_create_or_update(
+    with get_compute_client(platform) as compute_client:
+        try:
+            compute_client.gallery_images.get(
                 gallery_resource_group_name,
                 gallery_name,
                 gallery_image_name,
-                image_post_body,
             )
-            wait_operation(operation)
-        else:
-            raise LisaException(ex)
+        except Exception as ex:
+            # create the gallery image if specified gallery name doesn't exist
+            if "ResourceNotFound" in str(ex):
+                image_post_body: Dict[str, Any] = {}
+                image_post_body = {
+                    "location": gallery_image_location,
+                    "os_type": gallery_image_ostype,
+                    "os_state": gallery_image_osstate,
+                    "hyper_v_generation": f"V{gallery_image_hyperv_generation}",
+                    "architecture": gallery_image_architecture,
+                    "identifier": {
+                        "publisher": gallery_image_publisher,
+                        "offer": gallery_image_offer,
+                        "sku": gallery_image_sku,
+                    },
+                    "features": [
+                        {
+                            "name": "DiskControllerTypes",
+                            "value": "SCSI,NVMe",
+                        },
+                    ],
+                }
+
+                if gallery_image_features:
+                    image_post_body["features"] = [
+                        {
+                            "name": key,
+                            "value": value,
+                        }
+                        for (key, value) in gallery_image_features.items()
+                    ]
+                operation = compute_client.gallery_images.begin_create_or_update(
+                    gallery_resource_group_name,
+                    gallery_name,
+                    gallery_image_name,
+                    image_post_body,
+                )
+                wait_operation(operation)
+            else:
+                raise LisaException(ex)
 
 
 def check_or_create_gallery_image_version(
@@ -2951,54 +3018,56 @@ def check_or_create_gallery_image_version(
     vhd_storage_account_name: str,
     gallery_image_target_regions: List[str],
 ) -> None:
-    try:
-        compute_client = get_compute_client(platform)
-        compute_client.gallery_image_versions.get(
-            gallery_resource_group_name,
-            gallery_name,
-            gallery_image_name,
-            gallery_image_version,
-        )
-    except Exception as ex:
-        # create the gallery if specified gallery name doesn't exist
-        if "ResourceNotFound" in str(ex):
-            target_regions: List[Dict[str, str]] = []
-            for target_region in gallery_image_target_regions:
-                target_regions.append(
-                    {
-                        "name": target_region,
-                        "regional_replica_count": str(regional_replica_count),
-                        "storage_account_type": storage_account_type,
-                    }
-                )
-            image_version_post_body = {
-                "location": gallery_image_location,
-                "publishing_profile": {"target_regions": target_regions},
-                "storageProfile": {
-                    "osDiskImage": {
-                        "hostCaching": host_caching_type,
-                        "source": {
-                            "uri": vhd_path,
-                            "storageAccountId": (
-                                f"/subscriptions/{platform.subscription_id}/"
-                                f"resourceGroups/{vhd_resource_group_name}"
-                                "/providers/Microsoft.Storage/storageAccounts/"
-                                f"{vhd_storage_account_name}"
-                            ),
-                        },
-                    },
-                },
-            }
-            operation = compute_client.gallery_image_versions.begin_create_or_update(
+    with get_compute_client(platform) as compute_client:
+        try:
+            compute_client.gallery_image_versions.get(
                 gallery_resource_group_name,
                 gallery_name,
                 gallery_image_name,
                 gallery_image_version,
-                image_version_post_body,
             )
-            wait_operation(operation)
-        else:
-            raise LisaException(ex)
+        except Exception as ex:
+            # create the gallery if specified gallery name doesn't exist
+            if "ResourceNotFound" in str(ex):
+                target_regions: List[Dict[str, str]] = []
+                for target_region in gallery_image_target_regions:
+                    target_regions.append(
+                        {
+                            "name": target_region,
+                            "regional_replica_count": str(regional_replica_count),
+                            "storage_account_type": storage_account_type,
+                        }
+                    )
+                image_version_post_body = {
+                    "location": gallery_image_location,
+                    "publishing_profile": {"target_regions": target_regions},
+                    "storageProfile": {
+                        "osDiskImage": {
+                            "hostCaching": host_caching_type,
+                            "source": {
+                                "uri": vhd_path,
+                                "storageAccountId": (
+                                    f"/subscriptions/{platform.subscription_id}/"
+                                    f"resourceGroups/{vhd_resource_group_name}"
+                                    "/providers/Microsoft.Storage/storageAccounts/"
+                                    f"{vhd_storage_account_name}"
+                                ),
+                            },
+                        },
+                    },
+                }
+                operation = (
+                    compute_client.gallery_image_versions.begin_create_or_update(
+                        gallery_resource_group_name,
+                        gallery_name,
+                        gallery_image_name,
+                        gallery_image_version,
+                        image_version_post_body,
+                    )
+                )
+                wait_operation(operation)
+            else:
+                raise LisaException(ex)
 
 
 def check_blob_exist(
@@ -3218,7 +3287,7 @@ def get_certificate_client(
         get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
         or platform.credential
     )
-    return CertificateClient(vault_url, credential)
+    return CertificateClient(vault_url, credential, **_azure_sdk_retry_kwargs())
 
 
 def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
@@ -3226,20 +3295,23 @@ def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient
         get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
         or platform.credential
     )
-    return SecretClient(vault_url, credential)
+    return SecretClient(vault_url, credential, **_azure_sdk_retry_kwargs())
 
 
 def get_key_vault_management_client(
     platform: "AzurePlatform",
 ) -> KeyVaultManagementClient:
-    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
+    return KeyVaultManagementClient(
+        platform.credential,
+        platform.subscription_id,
+        **_azure_sdk_retry_kwargs(),
+    )
 
 
 def get_tenant_id(credential: Any) -> Any:
     # Initialize the Subscription client
-    subscription_client = SubscriptionClient(credential)
-    # Get the subscription
-    subscription = next(subscription_client.subscriptions.list())
+    with SubscriptionClient(credential, **_azure_sdk_retry_kwargs()) as client:
+        subscription = next(client.subscriptions.list())
     return subscription.tenant_id
 
 
@@ -3273,29 +3345,28 @@ def get_resource_group_name() -> str:
 def get_managed_identity_object_id(
     platform: "AzurePlatform", resource_group_name: str, vm_name: str
 ) -> str:
-    compute_client = get_compute_client(
+    with get_compute_client(
         platform, subscription_id=platform.subscription_id
-    )
+    ) as compute_client:
+        vm_identity = compute_client.virtual_machines.get(
+            resource_group_name, vm_name
+        ).identity
 
-    vm_identity = compute_client.virtual_machines.get(
-        resource_group_name, vm_name
-    ).identity
+        user_assigned_identity_resource_id = ""
+        # Check if the VM has user-assigned managed identity
+        if vm_identity and vm_identity.type == "UserAssigned":
+            user_assigned_identity_id = vm_identity.user_assigned_identities
+            if user_assigned_identity_id:
+                # Iterate over user-assigned identities
+                for _, identity_value in user_assigned_identity_id.items():
+                    user_assigned_identity_resource_id = identity_value.principal_id
+                if user_assigned_identity_resource_id:
+                    return user_assigned_identity_resource_id
 
-    user_assigned_identity_resource_id = ""
-    # Check if the VM has user-assigned managed identity
-    if vm_identity and vm_identity.type == "UserAssigned":
-        user_assigned_identity_id = vm_identity.user_assigned_identities
-        if user_assigned_identity_id:
-            # Iterate over user-assigned identities
-            for _, identity_value in user_assigned_identity_id.items():
-                user_assigned_identity_resource_id = identity_value.principal_id
-            if user_assigned_identity_resource_id:
-                return user_assigned_identity_resource_id
-
-    # Check if the VM has system-assigned managed identity
-    if vm_identity and vm_identity.type == "SystemAssigned":
-        return str(vm_identity.principal_id)
-    return ""
+        # Check if the VM has system-assigned managed identity
+        if vm_identity and vm_identity.type == "SystemAssigned":
+            return str(vm_identity.principal_id)
+        return ""
 
 
 def get_identity_id(
@@ -3355,25 +3426,26 @@ def add_system_assign_identity(
     location: str,
     log: Logger,
 ) -> Any:
-    compute_client = get_compute_client(platform)
-    params_identity = {"type": "SystemAssigned"}
-    params_create = {"location": location, "identity": params_identity}
+    with get_compute_client(platform) as compute_client:
+        params_identity = {"type": "SystemAssigned"}
+        params_create = {"location": location, "identity": params_identity}
 
-    vm_poller = compute_client.virtual_machines.begin_update(
-        resource_group_name,
-        vm_name,
-        params_create,
-    )
-    vm_result = vm_poller.result()
-    object_id_vm = vm_result.identity.principal_id
-    log.debug(f"VM object ID assigned: {object_id_vm}")
-
-    if not object_id_vm:
-        raise ValueError(
-            "Cannot retrieve managed identity after set system assigned identity on vm"
+        vm_poller = compute_client.virtual_machines.begin_update(
+            resource_group_name,
+            vm_name,
+            params_create,
         )
+        vm_result = vm_poller.result()
+        object_id_vm = vm_result.identity.principal_id
+        log.debug(f"VM object ID assigned: {object_id_vm}")
 
-    return object_id_vm
+        if not object_id_vm:
+            raise ValueError(
+                "Cannot retrieve managed identity after set system assigned"
+                " identity on vm"
+            )
+
+        return object_id_vm
 
 
 def add_user_assign_identity(
@@ -3383,18 +3455,18 @@ def add_user_assign_identity(
     identify_id: str,
     log: Logger,
 ) -> None:
-    compute_client = get_compute_client(platform)
-    identity: Dict[str, Any] = {identify_id: {}}
-    params_identity = {"type": "UserAssigned", "userAssignedIdentities": identity}
-    params_create = {"identity": params_identity}
+    with get_compute_client(platform) as compute_client:
+        identity: Dict[str, Any] = {identify_id: {}}
+        params_identity = {"type": "UserAssigned", "userAssignedIdentities": identity}
+        params_create = {"identity": params_identity}
 
-    operation = compute_client.virtual_machines.begin_update(
-        resource_group_name,
-        vm_name,
-        params_create,
-    )
-    wait_operation(operation)
-    log.debug(f"{identify_id} is assigned to vm {vm_name} successfully")
+        operation = compute_client.virtual_machines.begin_update(
+            resource_group_name,
+            vm_name,
+            params_create,
+        )
+        wait_operation(operation)
+        log.debug(f"{identify_id} is assigned to vm {vm_name} successfully")
 
 
 def add_tag_for_vm(
@@ -3404,18 +3476,18 @@ def add_tag_for_vm(
     tag: Dict[str, str],
     log: Logger,
 ) -> None:
-    compute_client = get_compute_client(platform)
-    vm = compute_client.virtual_machines.get(resource_group_name, vm_name)
-    vm.tags.update(tag)
-    params = {"tags": vm.tags}
+    with get_compute_client(platform) as compute_client:
+        vm = compute_client.virtual_machines.get(resource_group_name, vm_name)
+        vm.tags.update(tag)
+        params = {"tags": vm.tags}
 
-    operation = compute_client.virtual_machines.begin_update(
-        resource_group_name,
-        vm_name,
-        params,
-    )
-    wait_operation(operation)
-    log.debug(f"tag: {tag} has been added in {vm_name} successfully")
+        operation = compute_client.virtual_machines.begin_update(
+            resource_group_name,
+            vm_name,
+            params,
+        )
+        wait_operation(operation)
+        log.debug(f"tag: {tag} has been added in {vm_name} successfully")
 
 
 def get_matching_key_vault_name(
@@ -3428,14 +3500,14 @@ def get_matching_key_vault_name(
     Get the name of a Key Vault that exists in a specific region and resource group
     and matches the given pattern.
     """
-    key_vault_client = get_key_vault_management_client(platform)
-    key_vaults = key_vault_client.vaults.list_by_resource_group(resource_group)
+    with get_key_vault_management_client(platform) as key_vault_client:
+        key_vaults = key_vault_client.vaults.list_by_resource_group(resource_group)
 
-    for vault in key_vaults:
-        if vault.location == location:
-            if re.fullmatch(pattern, vault.name):
-                return vault.name
-    return None
+        for vault in key_vaults:
+            if vault.location == location:
+                if re.fullmatch(pattern, vault.name):
+                    return vault.name
+        return None
 
 
 def create_keyvault(
@@ -3445,16 +3517,15 @@ def create_keyvault(
     resource_group_name: str,
     vault_properties: VaultProperties,
 ) -> Any:
-    keyvault_client = get_key_vault_management_client(platform)
+    with get_key_vault_management_client(platform) as keyvault_client:
+        parameters = VaultCreateOrUpdateParameters(
+            location=location, properties=vault_properties
+        )
+        keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+            resource_group_name, vault_name, parameters
+        )
 
-    parameters = VaultCreateOrUpdateParameters(
-        location=location, properties=vault_properties
-    )
-    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
-        resource_group_name, vault_name, parameters
-    )
-
-    return keyvault_poller.result()
+        return keyvault_poller.result()
 
 
 def assign_access_policy(
@@ -3464,69 +3535,67 @@ def assign_access_policy(
     object_id: str,
     vault_name: str,
 ) -> Any:
-    keyvault_client = get_key_vault_management_client(platform)
+    with get_key_vault_management_client(platform) as keyvault_client:
+        permissions = Permissions(keys=["all"], secrets=["all"], certificates=["all"])
+        # Fetch the current policies and add the new policy
+        vault = keyvault_client.vaults.get(resource_group_name, vault_name)
+        current_policies = vault.properties.access_policies
+        new_policy = AccessPolicyEntry(
+            tenant_id=tenant_id,
+            object_id=object_id,
+            permissions=permissions,
+        )
+        current_policies.append(new_policy)
 
-    permissions = Permissions(keys=["all"], secrets=["all"], certificates=["all"])
-    # Fetch the current policies and add the new policy
-    vault = keyvault_client.vaults.get(resource_group_name, vault_name)
-    current_policies = vault.properties.access_policies
-    new_policy = AccessPolicyEntry(
-        tenant_id=tenant_id,
-        object_id=object_id,
-        permissions=permissions,
-    )
-    current_policies.append(new_policy)
+        # Update the vault with the new policies
+        vault.properties.access_policies = current_policies
+        keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+            resource_group_name, vault_name, vault
+        )
 
-    # Update the vault with the new policies
-    vault.properties.access_policies = current_policies
-    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
-        resource_group_name, vault_name, vault
-    )
-
-    return keyvault_poller.result()
+        return keyvault_poller.result()
 
 
-@retry(tries=5, delay=1)  # type: ignore
 def create_certificate(
     platform: "AzurePlatform",
     vault_url: str,
     cert_name: str,
     log: Logger,
 ) -> str:
-    certificate_client = get_certificate_client(vault_url, platform)
-    secret_client = get_secret_client(vault_url, platform)
+    with get_certificate_client(vault_url, platform) as certificate_client, \
+            get_secret_client(vault_url, platform) as secret_client:
+        cert_policy = CertificatePolicy.get_default()
 
-    cert_policy = CertificatePolicy.get_default()
-
-    # Create certificate
-    create_certificate_result = certificate_client.begin_create_certificate(
-        cert_name, policy=cert_policy
-    )
-    log.debug(
-        f"Certificate '{cert_name}' has been created. "
-        f"Result: {create_certificate_result}"
-    )
-    certificate_client.update_certificate_properties(
-        certificate_name=cert_name, enabled=True
-    )
-
-    secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
-    if secret_id:
-        # Example: "https://example.vault.azure.net/secrets/Cert-123/SomeVersion"
-        # Expected match for 'cert_url':
-        # "https://example.vault.azure.net/secrets/Cert-123"
-        match = re.match(
-            r"(?P<cert_url>https://.+?/secrets/.+?)(?:/[^/]+)?$", secret_id
+        # Create certificate
+        create_certificate_result = certificate_client.begin_create_certificate(
+            cert_name, policy=cert_policy
         )
-        if match:
-            secret_url_without_version = match.group("cert_url")
-            return secret_url_without_version
-        else:
-            raise LisaException(
-                f"Failed to parse the URL pattern of secret ID: '{secret_id}'."
+        log.debug(
+            f"Certificate '{cert_name}' has been created. "
+            f"Result: {create_certificate_result}"
+        )
+        certificate_client.update_certificate_properties(
+            certificate_name=cert_name, enabled=True
+        )
+
+        secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
+        if secret_id:
+            # Example:
+            #   "https://example.vault.azure.net/secrets/Cert-123/SomeVersion"
+            # Expected match for 'cert_url':
+            #   "https://example.vault.azure.net/secrets/Cert-123"
+            match = re.match(
+                r"(?P<cert_url>https://.+?/secrets/.+?)(?:/[^/]+)?$", secret_id
             )
-    else:
-        raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
+            if match:
+                secret_url_without_version = match.group("cert_url")
+                return secret_url_without_version
+            else:
+                raise LisaException(
+                    f"Failed to parse the URL pattern of secret ID: '{secret_id}'."
+                )
+        else:
+            raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
 
 
 def check_certificate_existence(
@@ -3536,82 +3605,84 @@ def check_certificate_existence(
         get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
         or platform.credential
     )
-    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    with CertificateClient(
+        vault_url=vault_url, credential=credential
+    ) as certificate_client:
+        try:
+            certificate = certificate_client.get_certificate(cert_name)
+            log.debug(f"Cert found '{certificate.name}'")
+            return True
+        except Exception as e:
+            if "not found" in str(e).lower():
+                log.debug(f"Certificate '{cert_name}' does not exist.")
+                return False
+            else:
+                # Directly raise an exception without logging an error
+                raise LisaException(
+                    f"Unexpected error checking certificate '{cert_name}': {e}"
+                )
 
-    try:
-        certificate = certificate_client.get_certificate(cert_name)
-        log.debug(f"Cert found '{certificate.name}'")
-        return True
-    except Exception as e:
-        if "not found" in str(e).lower():
-            log.debug(f"Certificate '{cert_name}' does not exist.")
-            return False
-        else:
-            # Directly raise an exception without logging an error
-            raise LisaException(
-                f"Unexpected error checking certificate '{cert_name}': {e}"
-            )
 
-
-@retry(tries=10, delay=1)  # type: ignore
 def rotate_certificate(
     platform: "AzurePlatform",
     vault_url: str,
     cert_name: str,
     log: Logger,
 ) -> None:
-    certificate_client = get_certificate_client(vault_url, platform)
+    with get_certificate_client(vault_url, platform) as certificate_client:
+        # Retrieve the old version of the certificate
+        if not certificate_client.get_certificate(cert_name):
+            error_message = (
+                f"Failed to retrieve old version of certificate: {cert_name}"
+            )
+            raise LisaException(error_message)
 
-    # Retrieve the old version of the certificate
-    if not certificate_client.get_certificate(cert_name):
-        error_message = f"Failed to retrieve old version of certificate: {cert_name}"
-        raise LisaException(error_message)
+        cert_policy = CertificatePolicy.get_default()
 
-    cert_policy = CertificatePolicy.get_default()
-
-    # Create only the specified certificate
-    # Create certificate
-    create_certificate_poller = certificate_client.begin_create_certificate(
-        cert_name, policy=cert_policy
-    )
-    create_certificate_result = create_certificate_poller.result()
-
-    # Handle possible None value
-    if (
-        isinstance(create_certificate_result, KeyVaultCertificate)
-        and hasattr(create_certificate_result, "properties")
-        and create_certificate_result.properties
-    ):
-        new_certificate_version = create_certificate_result.properties.version
-        log.debug(
-            f"New version of certificate '{cert_name}': {new_certificate_version}. "
-            "Certificate rotated."
+        # Create only the specified certificate
+        # Create certificate
+        create_certificate_poller = certificate_client.begin_create_certificate(
+            cert_name, policy=cert_policy
         )
-    else:
-        error_message = "Failed to retrieve properties from create certificate result."
-        raise LisaException(error_message)
+        create_certificate_result = create_certificate_poller.result()
 
-    certificate_client.update_certificate_properties(
-        certificate_name=cert_name, enabled=True
-    )
+        # Handle possible None value
+        if (
+            isinstance(create_certificate_result, KeyVaultCertificate)
+            and hasattr(create_certificate_result, "properties")
+            and create_certificate_result.properties
+        ):
+            new_certificate_version = create_certificate_result.properties.version
+            log.debug(
+                f"New version of certificate '{cert_name}':"
+                f" {new_certificate_version}. "
+                "Certificate rotated."
+            )
+        else:
+            error_message = (
+                "Failed to retrieve properties from create certificate result."
+            )
+            raise LisaException(error_message)
+
+        certificate_client.update_certificate_properties(
+            certificate_name=cert_name, enabled=True
+        )
 
 
-@retry(tries=10, delay=1)  # type: ignore
 def delete_certificate(
     platform: "AzurePlatform",
     vault_url: str,
     cert_name: str,
     log: Logger,
 ) -> bool:
-    certificate_client = get_certificate_client(vault_url, platform)
-
-    try:
-        certificate_client.begin_delete_certificate(cert_name)
-        log.debug(f"Certificate {cert_name} deleted successfully.")
-        return True
-    except Exception:
-        error_message = f"Failed to delete certificate: {cert_name}"
-        raise LisaException(error_message)
+    with get_certificate_client(vault_url, platform) as certificate_client:
+        try:
+            certificate_client.begin_delete_certificate(cert_name)
+            log.debug(f"Certificate {cert_name} deleted successfully.")
+            return True
+        except Exception:
+            error_message = f"Failed to delete certificate: {cert_name}"
+            raise LisaException(error_message)
 
 
 def is_cloud_init_enabled(node: Node) -> bool:

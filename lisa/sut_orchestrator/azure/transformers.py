@@ -193,7 +193,6 @@ class VhdTransformer(Transformer):
         self, platform: AzurePlatform, virtual_machine: Any
     ) -> Dict[str, str]:
         runbook: VhdTransformerSchema = self.runbook
-        compute_client = get_compute_client(platform)
 
         # generate sas url from os disk, so it can be copied.
         self._log.debug("generating sas url...")
@@ -205,17 +204,18 @@ class VhdTransformer(Transformer):
             is not None
         )
 
-        operation = compute_client.disks.begin_grant_access(
-            resource_group_name=runbook.resource_group_name,
-            disk_name=os_disk_name,
-            grant_access_data=GrantAccessData(
-                access="Read",
-                duration_in_seconds=86400,
-                get_secure_vm_guest_state_sas=has_vmgs,
-            ),
-        )
-        wait_operation(operation)
-        result = operation.result()
+        with get_compute_client(platform) as compute_client:
+            operation = compute_client.disks.begin_grant_access(
+                resource_group_name=runbook.resource_group_name,
+                disk_name=os_disk_name,
+                grant_access_data=GrantAccessData(
+                    access="Read",
+                    duration_in_seconds=86400,
+                    get_secure_vm_guest_state_sas=has_vmgs,
+                ),
+            )
+            wait_operation(operation)
+            result = operation.result()
         sas_url = result.access_sas
         vmgs_sas_url = result.security_data_access_sas or ""
         assert sas_url, "cannot get sas_url from os disk"
@@ -324,13 +324,13 @@ class VhdTransformer(Transformer):
 
         self._log.debug("restoring vm...")
         # release the vhd export lock, so it can be started back
-        compute_client = get_compute_client(platform)
         os_disk_name = virtual_machine.storage_profile.os_disk.name
-        operation = compute_client.disks.begin_revoke_access(
-            resource_group_name=runbook.resource_group_name,
-            disk_name=os_disk_name,
-        )
-        wait_operation(operation)
+        with get_compute_client(platform) as compute_client:
+            operation = compute_client.disks.begin_revoke_access(
+                resource_group_name=runbook.resource_group_name,
+                disk_name=os_disk_name,
+            )
+            wait_operation(operation)
 
         if runbook.restore:
             start_stop = node.features[StartStop]

@@ -74,34 +74,34 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         assert environment.platform
         platform: AzurePlatform = environment.platform  # type: ignore
         assert isinstance(platform, AzurePlatform)
-        client = get_compute_client(platform)
-        attempts = 0
-        max_attempts = 450
-        while attempts < max_attempts:
-            response = client.restore_points.get(
-                resource_group_name=resource_group_name,
-                restore_point_collection_name=restore_point_collection,
-                restore_point_name=restore_point,
-                expand=None,
-            )
-            if response.provisioning_state == "Succeeded":
-                log.info(f"restore point {restore_point} created")
-                consistency_mode = response.consistency_mode
-                log.info(f"consistency mode is {consistency_mode}")
-                if (
-                    "FileSystemConsistent" in consistency_mode
-                    or "ApplicationConsistent" in consistency_mode
-                ):
-                    return
+        with get_compute_client(platform) as client:
+            attempts = 0
+            max_attempts = 450
+            while attempts < max_attempts:
+                response = client.restore_points.get(
+                    resource_group_name=resource_group_name,
+                    restore_point_collection_name=restore_point_collection,
+                    restore_point_name=restore_point,
+                    expand=None,
+                )
+                if response.provisioning_state == "Succeeded":
+                    log.info(f"restore point {restore_point} created")
+                    consistency_mode = response.consistency_mode
+                    log.info(f"consistency mode is {consistency_mode}")
+                    if (
+                        "FileSystemConsistent" in consistency_mode
+                        or "ApplicationConsistent" in consistency_mode
+                    ):
+                        return
+                    else:
+                        raise ValueError(
+                            "Restore point consistency mode is not "
+                            "FileSystemConsistent or ApplicationConsistent"
+                        )
                 else:
-                    raise ValueError(
-                        "Restore point consistency mode is not "
-                        "FileSystemConsistent or ApplicationConsistent"
-                    )
-            else:
-                log.info(f"rp status is {response.provisioning_state}")
-                attempts += 1
-                time.sleep(2)
+                    log.info(f"rp status is {response.provisioning_state}")
+                    attempts += 1
+                    time.sleep(2)
         raise ValueError(
             "Restore point provisioning status not Succeeded "
             "after multiple attempts."
@@ -219,56 +219,58 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         assert isinstance(platform, AzurePlatform)
         sub_id = platform.subscription_id
         # creating restore point collection
-        client = get_compute_client(platform)
-        response = client.restore_point_collections.create_or_update(
-            resource_group_name=resource_group_name,
-            restore_point_collection_name=restore_point_collection,
-            parameters={
-                "location": location,
-                "properties": {
-                    "source": {
-                        "id": f"/subscriptions/{sub_id}/resourceGroups/"
-                        f"{resource_group_name}/providers/Microsoft.Compute/"
-                        f"virtualMachines/{vm_name}"
-                    }
+        with get_compute_client(platform) as client:
+            response = client.restore_point_collections.create_or_update(
+                resource_group_name=resource_group_name,
+                restore_point_collection_name=restore_point_collection,
+                parameters={
+                    "location": location,
+                    "properties": {
+                        "source": {
+                            "id": f"/subscriptions/{sub_id}/resourceGroups/"
+                            f"{resource_group_name}/providers/Microsoft.Compute/"
+                            f"virtualMachines/{vm_name}"
+                        }
+                    },
                 },
-            },
-        )
-        log.info("restore point collection created")
-        rpc_status = response.provisioning_state
-        assert_that(rpc_status, "RPC creation failed").is_equal_to("Succeeded")
-        count = 0
-        for _ in range(10):
-            try:
-                # create a restore point for the VM
-                restore_point = "rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-                response = client.restore_points.begin_create(
-                    resource_group_name=resource_group_name,
-                    restore_point_collection_name=restore_point_collection,
-                    restore_point_name=restore_point,
-                    parameters={},
-                )
-                wait_operation(response, time_out=600)
-                # check the status of rp and validate the result.
-                self.get_restore_point(
-                    log,
-                    environment,
-                    resource_group_name,
-                    restore_point_collection,
-                    restore_point,
-                )
-                break
-            except Exception as e:
-                # Changes were made to the Virtual Machine, while the operation
-                # 'Create Restore Point' was in progress.
-                # Code: Conflict message is sometimes seen while rp creation
-                if "Changes were made to the Virtual Machine" in str(e):
-                    # so we will be retrying it after some time
-                    pass
-                else:
-                    raise e
-            time.sleep(1)
-            count += 1
+            )
+            log.info("restore point collection created")
+            rpc_status = response.provisioning_state
+            assert_that(rpc_status, "RPC creation failed").is_equal_to("Succeeded")
+            count = 0
+            for _ in range(10):
+                try:
+                    # create a restore point for the VM
+                    restore_point = "rp_" + datetime.now().strftime(
+                        "%Y-%m-%d-%H-%M-%S"
+                    )
+                    response = client.restore_points.begin_create(
+                        resource_group_name=resource_group_name,
+                        restore_point_collection_name=restore_point_collection,
+                        restore_point_name=restore_point,
+                        parameters={},
+                    )
+                    wait_operation(response, time_out=600)
+                    # check the status of rp and validate the result.
+                    self.get_restore_point(
+                        log,
+                        environment,
+                        resource_group_name,
+                        restore_point_collection,
+                        restore_point,
+                    )
+                    break
+                except Exception as e:
+                    # Changes were made to the Virtual Machine, while the
+                    # operation 'Create Restore Point' was in progress.
+                    # Code: Conflict message is sometimes seen while rp
+                    # creation so we will be retrying it after some time
+                    if "Changes were made to the Virtual Machine" in str(e):
+                        pass
+                    else:
+                        raise e
+                time.sleep(1)
+                count += 1
         assert_that(count, "Restore point creation failed.").is_less_than(10)
 
     def _find_extension_dir(self, node: Node) -> str:

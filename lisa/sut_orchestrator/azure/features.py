@@ -205,29 +205,33 @@ class StartStop(AzureFeatureMixin, features.StartStop):
     def _execute(self, wait: bool, operator: str, **kwargs: Any) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         # The latest version may not be deployed to server side, use specified version.
-        compute_client = get_compute_client(platform, api_version="2021-07-01")
-        operator_method = getattr(compute_client.virtual_machines, operator)
-        operation = operator_method(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._vm_name,
-            **kwargs,
-        )
-        if wait:
-            wait_operation(operation, failure_identity="Start/Stop")
+        with get_compute_client(platform, api_version="2021-07-01") as compute_client:
+            operator_method = getattr(compute_client.virtual_machines, operator)
+            operation = operator_method(
+                resource_group_name=self._resource_group_name,
+                vm_name=self._vm_name,
+                **kwargs,
+            )
+            if wait:
+                wait_operation(operation, failure_identity="Start/Stop")
 
     def get_status(self) -> VMStatus:
         try:
             platform: AzurePlatform = self._platform  # type: ignore
-            compute_client = get_compute_client(platform)
-            status = (
-                compute_client.virtual_machines.get(
-                    self._resource_group_name, self._vm_name, expand="instanceView"
+            with get_compute_client(platform) as compute_client:
+                status = (
+                    compute_client.virtual_machines.get(
+                        self._resource_group_name,
+                        self._vm_name,
+                        expand="instanceView",
+                    )
+                    .instance_view.statuses[1]
+                    .display_status
                 )
-                .instance_view.statuses[1]
-                .display_status
-            )
             assert isinstance(status, str), f"actual: {type(status)}"
-            assert self.azure_vm_status_map.get(status) is not None, "unknown vm status"
+            assert self.azure_vm_status_map.get(status) is not None, (
+                "unknown vm status"
+            )
             return cast(VMStatus, self.azure_vm_status_map.get(status))
         except Exception as e:
             raise LisaException(f"fail to get status of vm {self._vm_name}") from e
@@ -889,43 +893,43 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         try:
             # Get platform instance
             platform: AzurePlatform = self._platform  # type: ignore
-            network_client = get_network_client(platform)
+            with get_network_client(platform) as network_client:
+                # Set up first hop routing rule
+                address_prefix = em_first_hop if em_first_hop else subnet_mask
 
-            # Set up first hop routing rule
-            address_prefix = em_first_hop if em_first_hop else subnet_mask
+                # Get existing route table
+                route_table = network_client.route_tables.get(
+                    resource_group_name=self._resource_group_name,
+                    route_table_name=route_table_name,
+                )
 
-            # Get existing route table
-            route_table = network_client.route_tables.get(
-                resource_group_name=self._resource_group_name,
-                route_table_name=route_table_name,
-            )
+                # Create new route
+                new_route = {
+                    "name": f"{route_name}-route",
+                    "properties": {
+                        "addressPrefix": address_prefix,
+                        "nextHopType": next_hop_type,
+                        "nextHopIpAddress": dest_hop,
+                    },
+                }
 
-            # Create new route
-            new_route = {
-                "name": f"{route_name}-route",
-                "properties": {
-                    "addressPrefix": address_prefix,
-                    "nextHopType": next_hop_type,
-                    "nextHopIpAddress": dest_hop,
-                },
-            }
+                # Add new route to existing routes
+                if not route_table.routes:
+                    route_table.routes = []
+                route_table.routes.append(new_route)
 
-            # Add new route to existing routes
-            if not route_table.routes:
-                route_table.routes = []
-            route_table.routes.append(new_route)
+                # Update route table
+                result = network_client.route_tables.begin_create_or_update(
+                    resource_group_name=self._resource_group_name,
+                    route_table_name=route_table_name,
+                    parameters=route_table,
+                ).result()
 
-            # Update route table
-            result = network_client.route_tables.begin_create_or_update(
-                resource_group_name=self._resource_group_name,
-                route_table_name=route_table_name,
-                parameters=route_table,
-            ).result()
-
-            self._log.info(
-                f'Added route "{route_name}" to route table "{route_table_name}"'
-                f' with result: "{result}"'
-            )
+                self._log.info(
+                    f'Added route "{route_name}" to route table'
+                    f' "{route_table_name}"'
+                    f' with result: "{result}"'
+                )
 
         except Exception as e:
             raise LisaException(
@@ -934,91 +938,98 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(azure_platform)
-        vm = get_vm(azure_platform, self._node)
-        for nic in vm.network_profile.network_interfaces:
-            # get nic name from nic id
-            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
-            # /Microsoft.Network/networkInterfaces/[nicname]
-            nic_name = nic.id.split("/")[-1]
-            updated_nic = network_client.network_interfaces.get(
-                self._resource_group_name, nic_name
-            )
-            # Since the VM nic and the Azure NIC names won't always match,
-            # allow selection by private_ip_address to resolve a NIC in the VM
-            # to an azure network interface resource.
-            if private_ip_addr and not any(
-                [
-                    x.private_ip_address == private_ip_addr
-                    for x in updated_nic.ip_configurations
-                ]
-            ):
-                # if ip is provided, skip resource which don't match.
-                self._log.debug(f"Skipping enable ip forwarding on nic {nic_name}...")
-                continue
-            if updated_nic.enable_ip_forwarding == enable:
-                self._log.debug(
-                    f"network interface {nic_name}'s ip forwarding default "
-                    f"status [{updated_nic.enable_ip_forwarding}] is "
-                    f"consistent with set status [{enable}], no need to update."
-                )
-            else:
-                self._log.debug(
-                    f"network interface {nic_name}'s ip forwarding default "
-                    f"status [{updated_nic.enable_ip_forwarding}], "
-                    f"now set its status into [{enable}]."
-                )
-                updated_nic.enable_ip_forwarding = enable
-                network_client.network_interfaces.begin_create_or_update(
-                    self._resource_group_name, updated_nic.name, updated_nic
-                )
+        with get_network_client(azure_platform) as network_client:
+            vm = get_vm(azure_platform, self._node)
+            for nic in vm.network_profile.network_interfaces:
+                # get nic name from nic id
+                # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+                # /Microsoft.Network/networkInterfaces/[nicname]
+                nic_name = nic.id.split("/")[-1]
                 updated_nic = network_client.network_interfaces.get(
                     self._resource_group_name, nic_name
                 )
-                assert_that(updated_nic.enable_ip_forwarding).described_as(
-                    f"fail to set network interface {nic_name}'s ip forwarding "
-                    f"into status [{enable}]"
-                ).is_equal_to(enable)
+                # Since the VM nic and the Azure NIC names won't always match,
+                # allow selection by private_ip_address to resolve a NIC in the VM
+                # to an azure network interface resource.
+                if private_ip_addr and not any(
+                    [
+                        x.private_ip_address == private_ip_addr
+                        for x in updated_nic.ip_configurations
+                    ]
+                ):
+                    # if ip is provided, skip resource which don't match.
+                    self._log.debug(
+                        f"Skipping enable ip forwarding on nic {nic_name}..."
+                    )
+                    continue
+                if updated_nic.enable_ip_forwarding == enable:
+                    self._log.debug(
+                        f"network interface {nic_name}'s ip forwarding default "
+                        f"status [{updated_nic.enable_ip_forwarding}] is "
+                        f"consistent with set status [{enable}], no need to update."
+                    )
+                else:
+                    self._log.debug(
+                        f"network interface {nic_name}'s ip forwarding default "
+                        f"status [{updated_nic.enable_ip_forwarding}], "
+                        f"now set its status into [{enable}]."
+                    )
+                    updated_nic.enable_ip_forwarding = enable
+                    network_client.network_interfaces.begin_create_or_update(
+                        self._resource_group_name, updated_nic.name, updated_nic
+                    )
+                    updated_nic = network_client.network_interfaces.get(
+                        self._resource_group_name, nic_name
+                    )
+                    assert_that(updated_nic.enable_ip_forwarding).described_as(
+                        f"fail to set network interface {nic_name}'s ip forwarding "
+                        f"into status [{enable}]"
+                    ).is_equal_to(enable)
 
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(azure_platform)
-        vm = get_vm(azure_platform, self._node)
-        status_changed = False
-        for nic in vm.network_profile.network_interfaces:
-            # get nic name from nic id
-            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
-            # /Microsoft.Network/networkInterfaces/[nicname]
-            nic_name = nic.id.split("/")[-1]
-            updated_nic = network_client.network_interfaces.get(
-                self._resource_group_name, nic_name
-            )
-            if updated_nic.enable_accelerated_networking == enable:
-                self._log.debug(
-                    f"network interface {nic_name}'s accelerated networking default "
-                    f"status [{updated_nic.enable_accelerated_networking}] is "
-                    f"consistent with set status [{enable}], no need to update."
-                )
-            else:
-                self._log.debug(
-                    f"network interface {nic_name}'s accelerated networking default "
-                    f"status [{updated_nic.enable_accelerated_networking}], "
-                    f"now set its status into [{enable}]."
-                )
-                updated_nic.enable_accelerated_networking = enable
-                network_client.network_interfaces.begin_create_or_update(
-                    self._resource_group_name, updated_nic.name, updated_nic
-                )
+        with get_network_client(azure_platform) as network_client:
+            vm = get_vm(azure_platform, self._node)
+            status_changed = False
+            for nic in vm.network_profile.network_interfaces:
+                # get nic name from nic id
+                # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+                # /Microsoft.Network/networkInterfaces/[nicname]
+                nic_name = nic.id.split("/")[-1]
                 updated_nic = network_client.network_interfaces.get(
                     self._resource_group_name, nic_name
                 )
-                assert_that(updated_nic.enable_accelerated_networking).described_as(
-                    f"fail to set network interface {nic_name}'s accelerated "
-                    f"networking into status [{enable}]"
-                ).is_equal_to(enable)
-                status_changed = True
+                if updated_nic.enable_accelerated_networking == enable:
+                    self._log.debug(
+                        f"network interface {nic_name}'s accelerated networking"
+                        f" default "
+                        f"status [{updated_nic.enable_accelerated_networking}] is "
+                        f"consistent with set status [{enable}],"
+                        f" no need to update."
+                    )
+                else:
+                    self._log.debug(
+                        f"network interface {nic_name}'s accelerated networking"
+                        f" default "
+                        f"status [{updated_nic.enable_accelerated_networking}], "
+                        f"now set its status into [{enable}]."
+                    )
+                    updated_nic.enable_accelerated_networking = enable
+                    network_client.network_interfaces.begin_create_or_update(
+                        self._resource_group_name, updated_nic.name, updated_nic
+                    )
+                    updated_nic = network_client.network_interfaces.get(
+                        self._resource_group_name, nic_name
+                    )
+                    assert_that(
+                        updated_nic.enable_accelerated_networking
+                    ).described_as(
+                        f"fail to set network interface {nic_name}'s accelerated "
+                        f"networking into status [{enable}]"
+                    ).is_equal_to(enable)
+                    status_changed = True
 
         # wait settings effective
         if wait and status_changed:
@@ -1026,19 +1037,18 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(azure_platform)
-        sriov_enabled: bool = False
-        vm = get_vm(azure_platform, self._node)
-        nic = self._get_primary(vm.network_profile.network_interfaces)
-        assert nic.id, "'nic.id' must not be 'None'"
-        nic_name = nic.id.split("/")[-1]
-        primary_nic = network_client.network_interfaces.get(
-            self._resource_group_name, nic_name
-        )
-        sriov_enabled = primary_nic.enable_accelerated_networking
-        return sriov_enabled
+        with get_network_client(azure_platform) as network_client:
+            sriov_enabled: bool = False
+            vm = get_vm(azure_platform, self._node)
+            nic = self._get_primary(vm.network_profile.network_interfaces)
+            assert nic.id, "'nic.id' must not be 'None'"
+            nic_name = nic.id.split("/")[-1]
+            primary_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            sriov_enabled = primary_nic.enable_accelerated_networking
+            return sriov_enabled
 
-    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
     def _update_vm_nics(
         self,
         compute_client: Any,
@@ -1061,76 +1071,93 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         if 0 == extra_nic_count:
             return
         azure_platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(azure_platform)
-        compute_client = get_compute_client(azure_platform)
-        vm = get_vm(azure_platform, self._node)
-        current_nic_count = len(vm.network_profile.network_interfaces)
-        nic_count_after_add_extra = extra_nic_count + current_nic_count
-        assert (
-            self._node.capability.network_interface
-            and self._node.capability.network_interface.max_nic_count
-        )
-        assert isinstance(
-            self._node.capability.network_interface.max_nic_count, int
-        ), f"actual: {type(self._node.capability.network_interface.max_nic_count)}"
-        node_capability_nic_count = (
-            self._node.capability.network_interface.max_nic_count
-        )
-        if nic_count_after_add_extra > node_capability_nic_count:
-            raise LisaException(
-                f"nic count after add extra nics is {nic_count_after_add_extra},"
-                f" it exceeds the vm size's capability {node_capability_nic_count}."
+        with get_network_client(azure_platform) as network_client, \
+                get_compute_client(azure_platform) as compute_client:
+            vm = get_vm(azure_platform, self._node)
+            current_nic_count = len(vm.network_profile.network_interfaces)
+            nic_count_after_add_extra = extra_nic_count + current_nic_count
+            assert (
+                self._node.capability.network_interface
+                and self._node.capability.network_interface.max_nic_count
             )
-        nic = self._get_primary(vm.network_profile.network_interfaces)
-        assert nic.id, "'nic.id' must not be 'None'"
-        nic_name = nic.id.split("/")[-1]
-        primary_nic = network_client.network_interfaces.get(
-            self._resource_group_name, nic_name
-        )
-
-        startstop = self._node.features[StartStop]
-        startstop.stop()
-
-        network_interfaces_section = []
-        index = 0
-        while index < current_nic_count + extra_nic_count - 1:
-            extra_nic_name = f"{self._node.name}-extra-{index}"
-            self._log.debug(f"start to create the nic {extra_nic_name}.")
-            params = {
-                "location": vm.location,
-                "enable_accelerated_networking": enable_accelerated_networking,
-                "ip_configurations": [
-                    {
-                        "name": extra_nic_name,
-                        "subnet": {"id": primary_nic.ip_configurations[0].subnet.id},
-                        "primary": False,
-                    }
-                ],
-            }
-            network_client.network_interfaces.begin_create_or_update(
-                resource_group_name=self._resource_group_name,
-                network_interface_name=extra_nic_name,
-                parameters=params,
+            assert isinstance(
+                self._node.capability.network_interface.max_nic_count, int
+            ), (
+                f"actual:"
+                f" {type(self._node.capability.network_interface.max_nic_count)}"
             )
-            self._log.debug(f"create the nic {extra_nic_name} successfully.")
-            extra_nic = network_client.network_interfaces.get(
-                network_interface_name=extra_nic_name,
-                resource_group_name=self._resource_group_name,
+            node_capability_nic_count = (
+                self._node.capability.network_interface.max_nic_count
+            )
+            if nic_count_after_add_extra > node_capability_nic_count:
+                raise LisaException(
+                    f"nic count after add extra nics is"
+                    f" {nic_count_after_add_extra},"
+                    f" it exceeds the vm size's capability"
+                    f" {node_capability_nic_count}."
+                )
+            nic = self._get_primary(vm.network_profile.network_interfaces)
+            assert nic.id, "'nic.id' must not be 'None'"
+            nic_name = nic.id.split("/")[-1]
+            primary_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
             )
 
-            network_interfaces_section.append({"id": extra_nic.id, "primary": False})
-            index += 1
-        network_interfaces_section.append({"id": primary_nic.id, "primary": True})
+            startstop = self._node.features[StartStop]
+            startstop.stop()
 
-        self._log.debug(f"start to attach the nics into VM {self._node.name}.")
-        self._update_vm_nics(
-            compute_client,
-            self._resource_group_name,
-            self._node.name,
-            network_interfaces_section,
-        )
-        self._log.debug(f"attach the nics into VM {self._node.name} successfully.")
-        startstop.start()
+            network_interfaces_section = []
+            index = 0
+            while index < current_nic_count + extra_nic_count - 1:
+                extra_nic_name = f"{self._node.name}-extra-{index}"
+                self._log.debug(f"start to create the nic {extra_nic_name}.")
+                params = {
+                    "location": vm.location,
+                    "enable_accelerated_networking": enable_accelerated_networking,
+                    "ip_configurations": [
+                        {
+                            "name": extra_nic_name,
+                            "subnet": {
+                                "id": primary_nic.ip_configurations[0].subnet.id
+                            },
+                            "primary": False,
+                        }
+                    ],
+                }
+                network_client.network_interfaces.begin_create_or_update(
+                    resource_group_name=self._resource_group_name,
+                    network_interface_name=extra_nic_name,
+                    parameters=params,
+                )
+                self._log.debug(
+                    f"create the nic {extra_nic_name} successfully."
+                )
+                extra_nic = network_client.network_interfaces.get(
+                    network_interface_name=extra_nic_name,
+                    resource_group_name=self._resource_group_name,
+                )
+
+                network_interfaces_section.append(
+                    {"id": extra_nic.id, "primary": False}
+                )
+                index += 1
+            network_interfaces_section.append(
+                {"id": primary_nic.id, "primary": True}
+            )
+
+            self._log.debug(
+                f"start to attach the nics into VM {self._node.name}."
+            )
+            self._update_vm_nics(
+                compute_client,
+                self._resource_group_name,
+                self._node.name,
+                network_interfaces_section,
+            )
+            self._log.debug(
+                f"attach the nics into VM {self._node.name} successfully."
+            )
+            startstop.start()
 
     def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
         return len(
@@ -1143,32 +1170,35 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def remove_extra_nics(self) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(azure_platform)
-        compute_client = get_compute_client(azure_platform)
-        vm = get_vm(azure_platform, self._node)
-        if len(vm.network_profile.network_interfaces) == 1:
-            self._log.debug("No existed extra nics can be disassociated.")
-            return
-        nic = self._get_primary(vm.network_profile.network_interfaces)
-        assert nic.id, "'nic.id' must not be 'None'"
-        nic_name = nic.id.split("/")[-1]
-        primary_nic = network_client.network_interfaces.get(
-            self._resource_group_name, nic_name
-        )
-        network_interfaces_section = []
-        network_interfaces_section.append({"id": primary_nic.id, "primary": True})
-        startstop = self._node.features[StartStop]
-        startstop.stop()
-        self._update_vm_nics(
-            compute_client,
-            self._resource_group_name,
-            self._node.name,
-            network_interfaces_section,
-        )
-        self._log.debug(
-            f"Only associated nic {primary_nic.id} into VM {self._node.name}."
-        )
-        startstop.start()
+        with get_network_client(azure_platform) as network_client, \
+                get_compute_client(azure_platform) as compute_client:
+            vm = get_vm(azure_platform, self._node)
+            if len(vm.network_profile.network_interfaces) == 1:
+                self._log.debug("No existed extra nics can be disassociated.")
+                return
+            nic = self._get_primary(vm.network_profile.network_interfaces)
+            assert nic.id, "'nic.id' must not be 'None'"
+            nic_name = nic.id.split("/")[-1]
+            primary_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            network_interfaces_section = []
+            network_interfaces_section.append(
+                {"id": primary_nic.id, "primary": True}
+            )
+            startstop = self._node.features[StartStop]
+            startstop.stop()
+            self._update_vm_nics(
+                compute_client,
+                self._resource_group_name,
+                self._node.name,
+                network_interfaces_section,
+            )
+            self._log.debug(
+                f"Only associated nic {primary_nic.id}"
+                f" into VM {self._node.name}."
+            )
+            startstop.start()
 
     def reload_module(self) -> None:
         modprobe_tool = self._node.tools[Modprobe]
@@ -1177,7 +1207,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     # Subroutine for applying route table to subnet.
     # We don't want to retry the entire routine if we
     # catch an exception in this section.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_update_subnet(
         self,
         virtual_network_name: str,
@@ -1186,67 +1215,72 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         route_table: RouteTable,
     ) -> bool:
         platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(platform)
-        subnet_az = network_client.subnets.get(
-            resource_group_name=self._resource_group_name,
-            virtual_network_name=virtual_network_name,
-            subnet_name=subnet_name,
-        )
-        # Check the subnet address prefixes to find the desired subnet
-        # must handle the case where there is a single address prefix
-        # or an array of prefixes. These use distinct property names for some reason
-        if subnet_az.address_prefix is not None:
-            # single prefix is easy, save for later
-            az_subnet = subnet_az.address_prefix
-        # otherwise, check the prefixes in the array if it exists.
-        elif subnet_az.address_prefix is None and subnet_az.address_prefixes:
-            az_subnet = ""
-            # check subnet address prefixes if there are more than one
-            for subnet in subnet_az.address_prefixes:
-                self._log.debug(f"Checking address prefixes: {subnet} == {subnet_mask}")
-                if subnet == subnet_mask:
-                    az_subnet = subnet
-            # if we could not find any, warn and return.
-            if not az_subnet:
-                self._log.debug(
-                    "Warning: could not find subnet to update in vnet "
-                    f"{virtual_network_name} skipping updates. "
-                    "Checked subnet prefixes: " + " ".join(subnet_az.address_prefixes)
-                )
-                return False
-        # Else, this is a weird situation where a virtual network has no subnets.
-        # warn and return. It's unexpected, but we check every vnet in the RG.
-        # so it's possible there's just another one that contains the subnet we want.
-        # so just warn and return to the higher function to keep checking.
-        else:
-            self._log.debug(
-                "Warning: found a virtual network "
-                f"{virtual_network_name}"
-                " with no subnets."
-            )
-            return False
-        # finally, apply the routing table if we have a matching subnet
-        self._log.debug(f"Checking subnet: {az_subnet} == {subnet_mask}")
-        if az_subnet == subnet_mask:
-            subnet_az.route_table = route_table
-            result = network_client.subnets.begin_create_or_update(
+        with get_network_client(platform) as network_client:
+            subnet_az = network_client.subnets.get(
                 resource_group_name=self._resource_group_name,
                 virtual_network_name=virtual_network_name,
                 subnet_name=subnet_name,
-                subnet_parameters=subnet_az,
-            ).result()
-            # log the subnets we're finding along the way...
-            self._log.info(
-                f'Assigned routing table "{route_table}" to subnet: "{subnet_az}"'
-                f' with result: "{result}"'
             )
-            return True
-        return False
+            # Check the subnet address prefixes to find the desired subnet
+            # must handle the case where there is a single address prefix
+            # or an array of prefixes. These use distinct property names
+            # for some reason
+            if subnet_az.address_prefix is not None:
+                # single prefix is easy, save for later
+                az_subnet = subnet_az.address_prefix
+            # otherwise, check the prefixes in the array if it exists.
+            elif subnet_az.address_prefix is None and subnet_az.address_prefixes:
+                az_subnet = ""
+                # check subnet address prefixes if there are more than one
+                for subnet in subnet_az.address_prefixes:
+                    self._log.debug(
+                        f"Checking address prefixes: {subnet} == {subnet_mask}"
+                    )
+                    if subnet == subnet_mask:
+                        az_subnet = subnet
+                # if we could not find any, warn and return.
+                if not az_subnet:
+                    self._log.debug(
+                        "Warning: could not find subnet to update in vnet "
+                        f"{virtual_network_name} skipping updates. "
+                        "Checked subnet prefixes: "
+                        + " ".join(subnet_az.address_prefixes)
+                    )
+                    return False
+            # Else, this is a weird situation where a virtual network has
+            # no subnets. warn and return. It's unexpected, but we check
+            # every vnet in the RG. so it's possible there's just another
+            # one that contains the subnet we want.
+            # so just warn and return to the higher function to keep checking.
+            else:
+                self._log.debug(
+                    "Warning: found a virtual network "
+                    f"{virtual_network_name}"
+                    " with no subnets."
+                )
+                return False
+            # finally, apply the routing table if we have a matching subnet
+            self._log.debug(f"Checking subnet: {az_subnet} == {subnet_mask}")
+            if az_subnet == subnet_mask:
+                subnet_az.route_table = route_table
+                result = network_client.subnets.begin_create_or_update(
+                    resource_group_name=self._resource_group_name,
+                    virtual_network_name=virtual_network_name,
+                    subnet_name=subnet_name,
+                    subnet_parameters=subnet_az,
+                ).result()
+                # log the subnets we're finding along the way...
+                self._log.info(
+                    f'Assigned routing table "{route_table}" to'
+                    f' subnet: "{subnet_az}"'
+                    f' with result: "{result}"'
+                )
+                return True
+            return False
 
     # Subroutine to create the route table,
     # seperated because the create/apply process has multiple potential timeouts.
     # We don't want to restart the entire process if one step fails.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
     def _do_create_route_table(
         self,
         em_first_hop: str,
@@ -1257,50 +1291,54 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         dest_hop: str,
     ) -> RouteTable:
         platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(platform)
-        vm = get_vm(platform, self._node)
+        with get_network_client(platform) as network_client:
+            vm = get_vm(platform, self._node)
 
-        # Set up first hop routing rule.
-        # If no exact match first hop is provided:
-        # assume the rule is to be applied to all traffic on the subnet.
-        # Otherwise allow an arbitrary 'first hop' address
-        if not em_first_hop:
-            address_prefix = subnet_mask
-        else:
-            address_prefix = em_first_hop
+            # Set up first hop routing rule.
+            # If no exact match first hop is provided:
+            # assume the rule is to be applied to all traffic on the subnet.
+            # Otherwise allow an arbitrary 'first hop' address
+            if not em_first_hop:
+                address_prefix = subnet_mask
+            else:
+                address_prefix = em_first_hop
 
-        # NOTE: Next Hop Types
-        # 'None' is for dropping all traffic
-        # 'VirtualAppliance' is common for sending all traffic on a subnet
-        # to a VM (or NetVirtualApplicate aka NVA ) to filter it before forarding.
-        # There are other next hop types, see:
-        # https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#user-defined
+            # NOTE: Next Hop Types
+            # 'None' is for dropping all traffic
+            # 'VirtualAppliance' is common for sending all traffic on a subnet
+            # to a VM (or NetVirtualApplicate aka NVA) to filter it before
+            # forarding.
+            # There are other next hop types, see:
+            # https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#user-defined
 
-        # Step 1: Create the routing table entry, it will be assigned to a subnet later.
-        route_table_name = f"{nic_name}-{route_name}-route_table"
-        route_table: RouteTable = network_client.route_tables.begin_create_or_update(
-            resource_group_name=self._resource_group_name,
-            route_table_name=f"{nic_name}-{route_name}-route_table",
-            parameters={
-                "location": vm.location,
-                "properties": {
-                    "disableBgpRoutePropagation": False,
-                    "routes": [
-                        {
-                            "name": route_table_name,
-                            "properties": {
-                                "addressPrefix": address_prefix,
-                                "nextHopType": next_hop_type,
-                                "nextHopIpAddress": dest_hop,
-                            },
+            # Step 1: Create the routing table entry, it will be assigned to
+            # a subnet later.
+            route_table_name = f"{nic_name}-{route_name}-route_table"
+            route_table: RouteTable = (
+                network_client.route_tables.begin_create_or_update(
+                    resource_group_name=self._resource_group_name,
+                    route_table_name=f"{nic_name}-{route_name}-route_table",
+                    parameters={
+                        "location": vm.location,
+                        "properties": {
+                            "disableBgpRoutePropagation": False,
+                            "routes": [
+                                {
+                                    "name": route_table_name,
+                                    "properties": {
+                                        "addressPrefix": address_prefix,
+                                        "nextHopType": next_hop_type,
+                                        "nextHopIpAddress": dest_hop,
+                                    },
+                                },
+                            ],
                         },
-                    ],
-                },
-            },
-        ).result()
-        self._log.debug(f"Created routing table:{route_table}")
+                    },
+                ).result()
+            )
+            self._log.debug(f"Created routing table:{route_table}")
 
-        return route_table
+            return route_table
 
     @retry(tries=60, delay=10)  # type: ignore
     def _check_sriov_enabled(
@@ -1321,20 +1359,20 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def _get_all_nics(self) -> Any:
         azure_platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(azure_platform)
-        vm = get_vm(azure_platform, self._node)
-        all_nics = []
-        for nic in vm.network_profile.network_interfaces:
-            # get nic name from nic id
-            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
-            # /Microsoft.Network/networkInterfaces/[nicname]
-            nic_name = nic.id.split("/")[-1]
-            all_nics.append(
-                network_client.network_interfaces.get(
-                    self._resource_group_name, nic_name
+        with get_network_client(azure_platform) as network_client:
+            vm = get_vm(azure_platform, self._node)
+            all_nics = []
+            for nic in vm.network_profile.network_interfaces:
+                # get nic name from nic id
+                # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+                # /Microsoft.Network/networkInterfaces/[nicname]
+                nic_name = nic.id.split("/")[-1]
+                all_nics.append(
+                    network_client.network_interfaces.get(
+                        self._resource_group_name, nic_name
+                    )
                 )
-            )
-        return all_nics
+            return all_nics
 
     def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
         interfaces_info_list: List[IpInfo] = []
@@ -2050,95 +2088,96 @@ class Disk(AzureFeatureMixin, features.Disk):
         assert isinstance(self._node.capability.disk.data_disk_count, int)
         current_disk_count = self._node.capability.disk.data_disk_count
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
+        with get_compute_client(platform) as compute_client:
+            node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
 
-        # create managed disk
-        managed_disks = []
-        for i in range(count):
-            name = f"lisa_data_disk_{i + current_disk_count}_{self._node.name}"
-            async_disk_update = compute_client.disks.begin_create_or_update(
+            # create managed disk
+            managed_disks = []
+            for i in range(count):
+                name = f"lisa_data_disk_{i + current_disk_count}_{self._node.name}"
+                async_disk_update = compute_client.disks.begin_create_or_update(
+                    self._resource_group_name,
+                    name,
+                    {
+                        "location": node_context.location,
+                        "disk_size_gb": size_in_gb,
+                        "sku": {"name": disk_sku},
+                        "creation_data": {"create_option": DiskCreateOption.empty},
+                    },
+                )
+                managed_disks.append(async_disk_update.result())
+
+            # attach managed disk
+            azure_platform: AzurePlatform = self._platform  # type: ignore
+            vm = get_vm(azure_platform, self._node)
+            for i, managed_disk in enumerate(managed_disks):
+                if lun != -1:
+                    lun_temp = lun
+                else:
+                    lun_temp = i + current_disk_count
+                self._log.debug(
+                    f"attaching disk {managed_disk.name} at lun #{lun_temp}"
+                )
+                vm.storage_profile.data_disks.append(
+                    {
+                        "lun": lun_temp,
+                        "name": managed_disk.name,
+                        "create_option": DiskCreateOptionTypes.attach,
+                        "managed_disk": {"id": managed_disk.id},
+                    }
+                )
+
+            # update vm
+            async_vm_update = compute_client.virtual_machines.begin_create_or_update(
                 self._resource_group_name,
-                name,
-                {
-                    "location": node_context.location,
-                    "disk_size_gb": size_in_gb,
-                    "sku": {"name": disk_sku},
-                    "creation_data": {"create_option": DiskCreateOption.empty},
-                },
+                vm.name,
+                vm,
             )
-            managed_disks.append(async_disk_update.result())
+            async_vm_update.wait()
 
-        # attach managed disk
-        azure_platform: AzurePlatform = self._platform  # type: ignore
-        vm = get_vm(azure_platform, self._node)
-        for i, managed_disk in enumerate(managed_disks):
-            if lun != -1:
-                lun_temp = lun
-            else:
-                lun_temp = i + current_disk_count
-            self._log.debug(f"attaching disk {managed_disk.name} at lun #{lun_temp}")
-            vm.storage_profile.data_disks.append(
-                {
-                    "lun": lun_temp,
-                    "name": managed_disk.name,
-                    "create_option": DiskCreateOptionTypes.attach,
-                    "managed_disk": {"id": managed_disk.id},
-                }
-            )
+            # update data disk count
+            add_disk_names = [managed_disk.name for managed_disk in managed_disks]
+            self.disks += add_disk_names
+            self._node.capability.disk.data_disk_count += len(managed_disks)
 
-        # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
-
-        # update data disk count
-        add_disk_names = [managed_disk.name for managed_disk in managed_disks]
-        self.disks += add_disk_names
-        self._node.capability.disk.data_disk_count += len(managed_disks)
-
-        return add_disk_names
+            return add_disk_names
 
     def remove_data_disk(self, names: Optional[List[str]] = None) -> None:
         assert self._node.capability.disk
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
+        with get_compute_client(platform) as compute_client:
+            # if names is None, remove all data disks
+            if names is None:
+                names = self.disks
 
-        # if names is None, remove all data disks
-        if names is None:
-            names = self.disks
+            # detach managed disk
+            azure_platform: AzurePlatform = self._platform  # type: ignore
+            vm = get_vm(azure_platform, self._node)
 
-        # detach managed disk
-        azure_platform: AzurePlatform = self._platform  # type: ignore
-        vm = get_vm(azure_platform, self._node)
+            # remove managed disk
+            data_disks = vm.storage_profile.data_disks
+            data_disks[:] = [disk for disk in data_disks if disk.name not in names]
 
-        # remove managed disk
-        data_disks = vm.storage_profile.data_disks
-        data_disks[:] = [disk for disk in data_disks if disk.name not in names]
-
-        # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
-
-        # delete managed disk
-        for name in names:
-            async_disk_delete = compute_client.disks.begin_delete(
-                self._resource_group_name, name
+            # update vm
+            async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+                self._resource_group_name,
+                vm.name,
+                vm,
             )
-            async_disk_delete.wait()
+            async_vm_update.wait()
 
-        # update data disk count
-        assert isinstance(self._node.capability.disk.data_disk_count, int)
-        self.disks = [name for name in self.disks if name not in names]
-        self._node.capability.disk.data_disk_count -= len(names)
-        self._node.close()
+            # delete managed disk
+            for name in names:
+                async_disk_delete = compute_client.disks.begin_delete(
+                    self._resource_group_name, name
+                )
+                async_disk_delete.wait()
+
+            # update data disk count
+            assert isinstance(self._node.capability.disk.data_disk_count, int)
+            self.disks = [name for name in self.disks if name not in names]
+            self._node.capability.disk.data_disk_count -= len(names)
+            self._node.close()
 
     # verify that resource disk is mounted
     # function returns successfully if disk matching mount point is present.
@@ -2287,7 +2326,6 @@ class Resize(AzureFeatureMixin, features.Resize):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
-    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
     def _update_vm_size(
         self,
         compute_client: Any,
@@ -2306,24 +2344,24 @@ class Resize(AzureFeatureMixin, features.Resize):
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[schema.NodeSpace, str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        node_context = get_node_context(self._node)
-        origin_vm_size, new_vm_size_info = self._select_vm_size(resize_action)
+        with get_compute_client(platform) as compute_client:
+            node_context = get_node_context(self._node)
+            origin_vm_size, new_vm_size_info = self._select_vm_size(resize_action)
 
-        # Creating parameter for VM Operations API call
-        hardware_profile = HardwareProfile(vm_size=new_vm_size_info.vm_size)
-        vm_update = VirtualMachineUpdate(hardware_profile=hardware_profile)
+            # Creating parameter for VM Operations API call
+            hardware_profile = HardwareProfile(vm_size=new_vm_size_info.vm_size)
+            vm_update = VirtualMachineUpdate(hardware_profile=hardware_profile)
 
-        # Resizing with new Vm Size
-        lro_poller = self._update_vm_size(
-            compute_client,
-            node_context.resource_group_name,
-            node_context.vm_name,
-            vm_update,
-        )
+            # Resizing with new Vm Size
+            lro_poller = self._update_vm_size(
+                compute_client,
+                node_context.resource_group_name,
+                node_context.vm_name,
+                vm_update,
+            )
 
-        # Waiting for the Long Running Operation to finish
-        wait_operation(lro_poller, time_out=1200)
+            # Waiting for the Long Running Operation to finish
+            wait_operation(lro_poller, time_out=1200)
 
         self._node.close()
         new_capability = copy.deepcopy(new_vm_size_info.capability)
@@ -2471,14 +2509,14 @@ class Resize(AzureFeatureMixin, features.Resize):
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[str, "AzureCapability"]:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        node_context = get_node_context(self._node)
-        node_runbook = self._node.capability.get_extended_runbook(AzureNodeSchema)
+        with get_compute_client(platform) as compute_client:
+            node_context = get_node_context(self._node)
+            node_runbook = self._node.capability.get_extended_runbook(AzureNodeSchema)
 
-        # Get list of vm sizes that the current resource group can use
-        available_sizes = compute_client.virtual_machines.list_available_sizes(
-            node_context.resource_group_name, node_context.vm_name
-        )
+            # Get list of vm sizes that the current resource group can use
+            available_sizes = compute_client.virtual_machines.list_available_sizes(
+                node_context.resource_group_name, node_context.vm_name
+            )
         # Get list of vm sizes available in the current location
         location_info = platform.get_location_info(node_runbook.location, self._log)
         capabilities = [value for _, value in location_info.capabilities.items()]
@@ -3330,14 +3368,14 @@ class AzureExtension(AzureFeatureMixin, Feature):
         name: str = "",
     ) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        extension = compute_client.virtual_machine_extensions.get(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._vm_name,
-            vm_extension_name=name,
-            expand="instanceView",
-        )
-        return extension
+        with get_compute_client(platform) as compute_client:
+            extension = compute_client.virtual_machine_extensions.get(
+                resource_group_name=self._resource_group_name,
+                vm_name=self._vm_name,
+                vm_extension_name=name,
+                expand="instanceView",
+            )
+            return extension
 
     def create_or_update(
         self,
@@ -3355,69 +3393,74 @@ class AzureExtension(AzureFeatureMixin, Feature):
         timeout: int = 60 * 25,
     ) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        if not name:
-            name = f"ext-{generate_random_chars()}"
+        with get_compute_client(platform) as compute_client:
+            if not name:
+                name = f"ext-{generate_random_chars()}"
 
-        extension_parameters = VirtualMachineExtension(
-            tags=tags,
-            name=name,
-            location=self._location,
-            force_update_tag=force_update_tag,
-            publisher=publisher,
-            auto_upgrade_minor_version=auto_upgrade_minor_version,
-            type_properties_type=type_,
-            type_handler_version=type_handler_version,
-            enable_automatic_upgrade=enable_automatic_upgrade,
-            settings=settings,
-            protected_settings=protected_settings,
-            suppress_failures=suppress_failures,
-        )
-
-        if protected_settings:
-            add_secret(
-                str(extension_parameters.protected_settings),
-                sub="***REDACTED***",
+            extension_parameters = VirtualMachineExtension(
+                tags=tags,
+                name=name,
+                location=self._location,
+                force_update_tag=force_update_tag,
+                publisher=publisher,
+                auto_upgrade_minor_version=auto_upgrade_minor_version,
+                type_properties_type=type_,
+                type_handler_version=type_handler_version,
+                enable_automatic_upgrade=enable_automatic_upgrade,
+                settings=settings,
+                protected_settings=protected_settings,
+                suppress_failures=suppress_failures,
             )
 
-        self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
-
-        operations = compute_client.virtual_machine_extensions.begin_create_or_update(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._vm_name,
-            vm_extension_name=name,
-            extension_parameters=extension_parameters,
-        )
-
-        interval = 10
-        timer = create_timer()
-        while timeout >= timer.elapsed(False):
-            extension = self.get(name=name)
-            provisioning_state = str(extension.provisioning_state)
-
-            if provisioning_state.lower() in ["failed", "succeeded"]:
-                self._log.debug(
-                    f"Extension '{name}' provision status is '{provisioning_state}'."
-                    " Exiting loop."
+            if protected_settings:
+                add_secret(
+                    str(extension_parameters.protected_settings),
+                    sub="***REDACTED***",
                 )
-                break
 
             self._log.debug(
-                f"Extension '{name}' is still '{provisioning_state}'."
-                f" Waiting {interval} seconds..."
-            )
-            time.sleep(interval)
-        if timeout < timer.elapsed():
-            raise LisaTimeoutException(
-                f"Azure operation failed: timeout after {timeout} seconds."
+                f"extension_parameters: {extension_parameters.as_dict()}"
             )
 
-        result = operations.result()
-        result_dict = result.as_dict() if result else None
-        if result_dict:
-            result_dict["provisioning_state"] = provisioning_state
+            operations = (
+                compute_client.virtual_machine_extensions.begin_create_or_update(
+                    resource_group_name=self._resource_group_name,
+                    vm_name=self._vm_name,
+                    vm_extension_name=name,
+                    extension_parameters=extension_parameters,
+                )
+            )
 
-        return result_dict
+            interval = 10
+            timer = create_timer()
+            while timeout >= timer.elapsed(False):
+                extension = self.get(name=name)
+                provisioning_state = str(extension.provisioning_state)
+
+                if provisioning_state.lower() in ["failed", "succeeded"]:
+                    self._log.debug(
+                        f"Extension '{name}' provision status is"
+                        f" '{provisioning_state}'."
+                        " Exiting loop."
+                    )
+                    break
+
+                self._log.debug(
+                    f"Extension '{name}' is still '{provisioning_state}'."
+                    f" Waiting {interval} seconds..."
+                )
+                time.sleep(interval)
+            if timeout < timer.elapsed():
+                raise LisaTimeoutException(
+                    f"Azure operation failed: timeout after {timeout} seconds."
+                )
+
+            result = operations.result()
+            result_dict = result.as_dict() if result else None
+            if result_dict:
+                result_dict["provisioning_state"] = provisioning_state
+
+            return result_dict
 
     def delete(
         self,
@@ -3426,64 +3469,67 @@ class AzureExtension(AzureFeatureMixin, Feature):
         ignore_not_found: bool = False,
     ) -> bool:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        self._log.debug(f"uninstall extension: {name}")
-        try:
-            operation = compute_client.virtual_machine_extensions.begin_delete(
-                resource_group_name=self._resource_group_name,
-                vm_name=self._vm_name,
-                vm_extension_name=name,
-            )
-            # no return for this operation
-            wait_operation(operation, timeout)
-            return True
-        except HttpResponseError as e:
-            error_message = str(e)
-            if "was not found" in error_message:
-                if ignore_not_found:
-                    self._log.info(
-                        f"Extension '{name}' not installed, ignoring deletion."
-                    )
-                    return False
+        with get_compute_client(platform) as compute_client:
+            self._log.debug(f"uninstall extension: {name}")
+            try:
+                operation = compute_client.virtual_machine_extensions.begin_delete(
+                    resource_group_name=self._resource_group_name,
+                    vm_name=self._vm_name,
+                    vm_extension_name=name,
+                )
+                # no return for this operation
+                wait_operation(operation, timeout)
+                return True
+            except HttpResponseError as e:
+                error_message = str(e)
+                if "was not found" in error_message:
+                    if ignore_not_found:
+                        self._log.info(
+                            f"Extension '{name}' not installed,"
+                            " ignoring deletion."
+                        )
+                        return False
+                    else:
+                        raise LisaException(
+                            f"Extension '{name}' not found. Cannot delete "
+                            "non-existent extension."
+                        ) from e
                 else:
                     raise LisaException(
-                        f"Extension '{name}' not found. Cannot delete "
-                        "non-existent extension."
+                        "Unexpected error occurred while deleting extension "
+                        f"'{name}': {error_message}"
                     ) from e
-            else:
-                raise LisaException(
-                    "Unexpected error occurred while deleting extension "
-                    f"'{name}': {error_message}"
-                ) from e
 
     def list_all(self) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        self._log.debug(f"list all extensions in rg: {self._resource_group_name}")
+        with get_compute_client(platform) as compute_client:
+            self._log.debug(
+                f"list all extensions in rg: {self._resource_group_name}"
+            )
 
-        return_list = compute_client.virtual_machine_extensions.list(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._vm_name,
-        )
-        return return_list.value
+            return_list = compute_client.virtual_machine_extensions.list(
+                resource_group_name=self._resource_group_name,
+                vm_name=self._vm_name,
+            )
+            return return_list.value
 
     def check_exist(self, name: str) -> bool:
         platform: AzurePlatform = self._platform  # type: ignore
-        compute_client = get_compute_client(platform)
-        try:
-            compute_client.virtual_machine_extensions.get(
-                resource_group_name=self._resource_group_name,
-                vm_name=self._vm_name,
-                vm_extension_name=name,
-            )
-            self._log.debug(f"the extension {name} has been installed")
-            return True
-        except Exception as ex:
-            if find_patterns_in_lines(str(ex), [self.RESOURCE_NOT_FOUND]):
-                self._log.debug(f"not found the extension {name}")
-                return False
-            else:
-                raise ex
+        with get_compute_client(platform) as compute_client:
+            try:
+                compute_client.virtual_machine_extensions.get(
+                    resource_group_name=self._resource_group_name,
+                    vm_name=self._vm_name,
+                    vm_extension_name=name,
+                )
+                self._log.debug(f"the extension {name} has been installed")
+                return True
+            except Exception as ex:
+                if find_patterns_in_lines(str(ex), [self.RESOURCE_NOT_FOUND]):
+                    self._log.debug(f"not found the extension {name}")
+                    return False
+                else:
+                    raise ex
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -3899,17 +3945,21 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             Tuple of (storage_account_name, was_reused)
         """
         platform: AzurePlatform = self._platform  # type: ignore
-        storage_client = get_storage_client(
+        with get_storage_client(
             platform.credential, platform.subscription_id, platform.cloud
-        )
-        storage_accounts = storage_client.storage_accounts.list_by_resource_group(
-            self._resource_group_name
-        )
+        ) as storage_client:
+            storage_accounts = (
+                storage_client.storage_accounts.list_by_resource_group(
+                    self._resource_group_name
+                )
+            )
 
-        for account in storage_accounts:
-            if account.name.startswith(prefix):
-                self._log.debug(f"Reusing existing storage account: {account.name}")
-                return (account.name, True)
+            for account in storage_accounts:
+                if account.name.startswith(prefix):
+                    self._log.debug(
+                        f"Reusing existing storage account: {account.name}"
+                    )
+                    return (account.name, True)
 
         # No existing account found, generate new name
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)

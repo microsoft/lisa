@@ -604,7 +604,6 @@ class AzurePlatform(Platform):
         return is_success
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        assert self._rm_client
         assert self._azure_runbook
 
         environment_context = get_environment_context(environment=environment)
@@ -686,23 +685,25 @@ class AzurePlatform(Platform):
                 f"as it's a dry run."
             )
         else:
-            assert self._rm_client
-            az_rg_exists = self._rm_client.resource_groups.check_existence(
-                resource_group_name
-            )
-            if not az_rg_exists:
-                return
-            log.info(
-                f"deleting resource group: {resource_group_name}, "
-                f"wait: {self._azure_runbook.wait_delete}"
-            )
-            delete_operation: Any = None
-            try:
-                delete_operation = self._rm_client.resource_groups.begin_delete(
+            with get_resource_management_client(
+                self.credential, self.subscription_id, self.cloud
+            ) as rm_client:
+                az_rg_exists = rm_client.resource_groups.check_existence(
                     resource_group_name
                 )
-            except Exception as e:
-                log.debug(f"exception on delete resource group: {e}")
+                if not az_rg_exists:
+                    return
+                log.info(
+                    f"deleting resource group: {resource_group_name}, "
+                    f"wait: {self._azure_runbook.wait_delete}"
+                )
+                delete_operation: Any = None
+                try:
+                    delete_operation = rm_client.resource_groups.begin_delete(
+                        resource_group_name
+                    )
+                except Exception as e:
+                    log.debug(f"exception on delete resource group: {e}")
             if delete_operation and self._azure_runbook.wait_delete:
                 wait_operation(
                     delete_operation, failure_identity="delete resource group"
@@ -717,24 +718,28 @@ class AzurePlatform(Platform):
         log: Logger,
         check_serial_console: bool = False,
     ) -> None:
-        compute_client = get_compute_client(self)
-        vms = compute_client.virtual_machines.list(resource_group_name)
-        saved_path = environment.log_path / f"{get_datetime_path()}_serial_log"
-        saved_path.mkdir(parents=True, exist_ok=True)
-        for vm in vms:
-            log_response_content = save_console_log(
-                resource_group_name,
-                vm.name,
-                self,
-                log,
-                saved_path,
-                screenshot_file_name=f"{vm.name}_serial_console",
-            )
-            log_file_name = saved_path / f"{vm.name}_serial_console.log"
-            log_file_name.write_bytes(log_response_content)
-            if check_serial_console is True:
-                check_panic(log_response_content.decode("utf-8"), "provision", log)
-                check_rootfs_failure(log_response_content.decode("utf-8"), log)
+        with get_compute_client(self) as compute_client:
+            vms = compute_client.virtual_machines.list(resource_group_name)
+            saved_path = environment.log_path / f"{get_datetime_path()}_serial_log"
+            saved_path.mkdir(parents=True, exist_ok=True)
+            for vm in vms:
+                log_response_content = save_console_log(
+                    resource_group_name,
+                    vm.name,
+                    self,
+                    log,
+                    saved_path,
+                    screenshot_file_name=f"{vm.name}_serial_console",
+                )
+                log_file_name = saved_path / f"{vm.name}_serial_console.log"
+                log_file_name.write_bytes(log_response_content)
+                if check_serial_console is True:
+                    check_panic(
+                        log_response_content.decode("utf-8"), "provision", log
+                    )
+                    check_rootfs_failure(
+                        log_response_content.decode("utf-8"), log
+                    )
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
         platform_runbook = cast(schema.Platform, self.runbook)
@@ -996,10 +1001,6 @@ class AzurePlatform(Platform):
             azure_runbook.resource_group_tags,
         )
 
-        self._rm_client = get_resource_management_client(
-            self.credential, self.subscription_id, self.cloud
-        )
-
     def _get_ip_addresses(self) -> List[str]:
         if self._cached_ip_address:
             return self._cached_ip_address
@@ -1136,41 +1137,42 @@ class AzurePlatform(Platform):
         else:
             log.debug(f"{key}: no cache found")
         if should_refresh:
-            compute_client = get_compute_client(self)
+            with get_compute_client(self) as compute_client:
+                log.debug(f"{key}: querying")
+                all_skus: Dict[str, AzureCapability] = dict()
+                paged_skus = compute_client.resource_skus.list(
+                    filter=f"location eq '{location}'"
+                ).by_page()
+                for skus in paged_skus:
+                    for sku_obj in skus:
+                        try:
+                            if sku_obj.resource_type == "virtualMachines":
+                                if sku_obj.restrictions and any(
+                                    restriction.type == "Location"
+                                    for restriction in sku_obj.restrictions
+                                ):
+                                    # restricted on this location
+                                    continue
+                                resource_sku = sku_obj.as_dict()
+                                capability = self._resource_sku_to_capability(
+                                    location, sku_obj, self._log
+                                )
 
-            log.debug(f"{key}: querying")
-            all_skus: Dict[str, AzureCapability] = dict()
-            paged_skus = compute_client.resource_skus.list(
-                filter=f"location eq '{location}'"
-            ).by_page()
-            for skus in paged_skus:
-                for sku_obj in skus:
-                    try:
-                        if sku_obj.resource_type == "virtualMachines":
-                            if sku_obj.restrictions and any(
-                                restriction.type == "Location"
-                                for restriction in sku_obj.restrictions
-                            ):
-                                # restricted on this location
-                                continue
-                            resource_sku = sku_obj.as_dict()
-                            capability = self._resource_sku_to_capability(
-                                location, sku_obj, self._log
-                            )
-
-                            # estimate vm cost for priority
-                            assert isinstance(capability.core_count, int)
-                            assert isinstance(capability.gpu_count, int)
-                            azure_capability = AzureCapability(
-                                location=location,
-                                vm_size=sku_obj.name,
-                                capability=capability,
-                                resource_sku=resource_sku,
-                            )
-                            all_skus[azure_capability.vm_size] = azure_capability
-                    except Exception as e:
-                        log.error(f"unknown sku: {sku_obj}")
-                        raise e
+                                # estimate vm cost for priority
+                                assert isinstance(capability.core_count, int)
+                                assert isinstance(capability.gpu_count, int)
+                                azure_capability = AzureCapability(
+                                    location=location,
+                                    vm_size=sku_obj.name,
+                                    capability=capability,
+                                    resource_sku=resource_sku,
+                                )
+                                all_skus[azure_capability.vm_size] = (
+                                    azure_capability
+                                )
+                        except Exception as e:
+                            log.error(f"unknown sku: {sku_obj}")
+                            raise e
             plugin_manager.hook.azure_update_vm_capabilities(
                 location=location, capabilities=all_skus
             )
@@ -1663,7 +1665,6 @@ class AzurePlatform(Platform):
 
         return arm_parameters
 
-    @retry(exceptions=ResourceNotFoundError, tries=5, delay=2)  # type: ignore
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
     ) -> None:
@@ -1671,10 +1672,13 @@ class AzurePlatform(Platform):
 
         validate_operation: Any = None
         try:
-            with global_credential_access_lock:
-                validate_operation = self._rm_client.deployments.begin_validate(
-                    **deployment_parameters
-                )
+            with get_resource_management_client(
+                self.credential, self.subscription_id, self.cloud
+            ) as rm_client:
+                with global_credential_access_lock:
+                    validate_operation = rm_client.deployments.begin_validate(
+                        **deployment_parameters
+                    )
             wait_operation(validate_operation, failure_identity="validation")
         except Exception as e:
             error_messages: List[str] = [str(e)]
@@ -1714,84 +1718,91 @@ class AzurePlatform(Platform):
 
         log.info(f"resource group '{resource_group_name}' deployment is in progress...")
         deployment_operation: Any = None
-        deployments = self._rm_client.deployments
-        try:
-            deployment_operation = deployments.begin_create_or_update(
-                **deployment_parameters
-            )
-            timer = create_timer()
-            while timer.elapsed(False) < self._azure_runbook.provisioning_timeout:
-                try:
-                    wait_operation(
-                        deployment_operation, time_out=300, failure_identity="deploy"
-                    )
-                except LisaTimeoutException:
-                    # Capture logs and continue retrying
+        with get_resource_management_client(
+            self.credential, self.subscription_id, self.cloud
+        ) as rm_client:
+            deployments = rm_client.deployments
+            try:
+                deployment_operation = deployments.begin_create_or_update(
+                    **deployment_parameters
+                )
+                timer = create_timer()
+                while (
+                    timer.elapsed(False) < self._azure_runbook.provisioning_timeout
+                ):
+                    try:
+                        wait_operation(
+                            deployment_operation,
+                            time_out=300,
+                            failure_identity="deploy",
+                        )
+                    except LisaTimeoutException:
+                        # Capture logs and continue retrying
+                        self._save_console_log_and_check_panic(
+                            resource_group_name, environment, log, False
+                        )
+                        continue
+                    break
+                # Check if we exited the loop due to timeout
+                if (
+                    timer.elapsed(False)
+                    >= self._azure_runbook.provisioning_timeout
+                ):
                     self._save_console_log_and_check_panic(
                         resource_group_name, environment, log, False
                     )
-                    continue
-                break
-            # Check if we exited the loop due to timeout
-            if timer.elapsed(False) >= self._azure_runbook.provisioning_timeout:
-                self._save_console_log_and_check_panic(
-                    resource_group_name, environment, log, False
-                )
-                raise LisaException(
-                    f"Deployment timeout: Azure did not respond in "
-                    f"{self._azure_runbook.provisioning_timeout // 60} minutes "
-                    f"(usual response is 50 minutes)."
-                )
-        except HttpResponseError as e:
-            # Some errors happens underlying, so there is no detail errors from API.
-            # For example,
-            # azure.core.exceptions.HttpResponseError:
-            #    Operation returned an invalid status 'OK'
-            assert e.error, f"HttpResponseError: {e}"
-
-            error_message = "\n".join(self._parse_detail_errors(e.error))
-            if (
-                self._azure_runbook.ignore_provisioning_error
-                and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
-            ):
-                # Provisioning timeout causes by waagent is not ready.
-                # In smoke test, it still can verify some information.
-                # Eat information here, to run test case any way.
-                #
-                # It may cause other cases fail on assumptions. In this case, we can
-                # define a flag in config, to mark this exception is ignorable or not.
-                log.error(
-                    f"provisioning time out, try to run case. "
-                    f"Exception: {error_message}"
-                )
-            elif self._azure_runbook.ignore_provisioning_error and get_matched_str(
-                error_message, AZURE_INTERNAL_ERROR_PATTERN
-            ):
-                # Similar situation with OSProvisioningTimedOut
-                # Some OSProvisioningInternalError caused by it doesn't support
-                # SSH key authentication
-                # e.g. hpe hpestoreoncevsa hpestoreoncevsa-3187 3.18.7
-                # After passthrough this exception,
-                # actually the 22 port of this VM is open.
-                log.error(
-                    f"provisioning failed for an internal error, try to run case. "
-                    f"Exception: {error_message}"
-                )
-            else:
-                try:
-                    self._save_console_log_and_check_panic(
-                        resource_group_name, environment, log, True
+                    raise LisaException(
+                        f"Deployment timeout: Azure did not respond in "
+                        f"{self._azure_runbook.provisioning_timeout // 60}"
+                        f" minutes "
+                        f"(usual response is 50 minutes)."
                     )
-                except (KernelPanicException, RootFsMountFailedException) as ex:
-                    if (
-                        "OSProvisioningTimedOut: OS Provisioning for VM"
-                        in error_message
-                    ):
-                        error_message = (
-                            f"OSProvisioningTimedOut: {type(ex).__name__}: {ex}"
+            except HttpResponseError as e:
+                # Some errors happens underlying, so there is no detail errors
+                # from API. For example,
+                # azure.core.exceptions.HttpResponseError:
+                #    Operation returned an invalid status 'OK'
+                assert e.error, f"HttpResponseError: {e}"
+
+                error_message = "\n".join(self._parse_detail_errors(e.error))
+                if (
+                    self._azure_runbook.ignore_provisioning_error
+                    and "OSProvisioningTimedOut: OS Provisioning for VM"
+                    in error_message
+                ):
+                    log.error(
+                        f"provisioning time out, try to run case. "
+                        f"Exception: {error_message}"
+                    )
+                elif self._azure_runbook.ignore_provisioning_error and (
+                    get_matched_str(error_message, AZURE_INTERNAL_ERROR_PATTERN)
+                ):
+                    log.error(
+                        f"provisioning failed for an internal error, "
+                        f"try to run case. "
+                        f"Exception: {error_message}"
+                    )
+                else:
+                    try:
+                        self._save_console_log_and_check_panic(
+                            resource_group_name, environment, log, True
                         )
-                plugin_manager.hook.azure_deploy_failed(error_message=error_message)
-                raise LisaException(error_message)
+                    except (
+                        KernelPanicException,
+                        RootFsMountFailedException,
+                    ) as ex:
+                        if (
+                            "OSProvisioningTimedOut: OS Provisioning for VM"
+                            in error_message
+                        ):
+                            error_message = (
+                                f"OSProvisioningTimedOut: "
+                                f"{type(ex).__name__}: {ex}"
+                            )
+                    plugin_manager.hook.azure_deploy_failed(
+                        error_message=error_message
+                    )
+                    raise LisaException(error_message)
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.
@@ -1816,14 +1827,13 @@ class AzurePlatform(Platform):
     def _load_vms(
         self, resource_group_name: str, log: Logger
     ) -> Dict[str, VirtualMachine]:
-        compute_client = get_compute_client(self)
-
-        log.debug(f"listing vm in resource group {resource_group_name}")
-        vms_map: Dict[str, VirtualMachine] = {}
-        vms = compute_client.virtual_machines.list(resource_group_name)
-        for vm in vms:
-            vms_map[vm.name] = vm
-            log.debug(f"  found vm {vm.name}")
+        with get_compute_client(self) as compute_client:
+            log.debug(f"listing vm in resource group {resource_group_name}")
+            vms_map: Dict[str, VirtualMachine] = {}
+            vms = compute_client.virtual_machines.list(resource_group_name)
+            for vm in vms:
+                vms_map[vm.name] = vm
+                log.debug(f"  found vm {vm.name}")
         if not vms_map:
             raise LisaException(
                 "deployment succeeded, but VM not found in 5 minutes "
@@ -2209,29 +2219,37 @@ class AzurePlatform(Platform):
         new_marketplace = copy.copy(marketplace)
         # latest doesn't work, it needs a specified version.
         if marketplace.version.lower() == "latest":
-            compute_client = get_compute_client(self)
-            with global_credential_access_lock:
-                try:
-                    versioned_images = compute_client.virtual_machine_images.list(
-                        location=location,
-                        publisher_name=marketplace.publisher,
-                        offer=marketplace.offer,
-                        skus=marketplace.sku,
-                    )
-                    if 0 == len(versioned_images):
-                        self._log.debug(
-                            f"cannot find any version of image {marketplace.publisher} "
-                            f"{marketplace.offer} {marketplace.sku} in {location}"
+            with get_compute_client(self) as compute_client:
+                with global_credential_access_lock:
+                    try:
+                        versioned_images = (
+                            compute_client.virtual_machine_images.list(
+                                location=location,
+                                publisher_name=marketplace.publisher,
+                                offer=marketplace.offer,
+                                skus=marketplace.sku,
+                            )
                         )
-                    else:
-                        # use the same sort approach as Az CLI.
-                        versioned_images.sort(key=lambda x: parse(x.name), reverse=True)
-                        new_marketplace.version = versioned_images[0].name
-                except ResourceNotFoundError as e:
-                    self._log.debug(
-                        f"Cannot find any version of image {marketplace.publisher} "
-                        f"{marketplace.offer} {marketplace.sku} in {location}:\n {e}"
-                    )
+                        if 0 == len(versioned_images):
+                            self._log.debug(
+                                f"cannot find any version of image "
+                                f"{marketplace.publisher} "
+                                f"{marketplace.offer} {marketplace.sku} "
+                                f"in {location}"
+                            )
+                        else:
+                            # use the same sort approach as Az CLI.
+                            versioned_images.sort(
+                                key=lambda x: parse(x.name), reverse=True
+                            )
+                            new_marketplace.version = versioned_images[0].name
+                    except ResourceNotFoundError as e:
+                        self._log.debug(
+                            f"Cannot find any version of image "
+                            f"{marketplace.publisher} "
+                            f"{marketplace.offer} {marketplace.sku} "
+                            f"in {location}:\n {e}"
+                        )
 
         return new_marketplace
 
@@ -2253,29 +2271,31 @@ class AzurePlatform(Platform):
         plan: Optional[AzureVmPurchasePlanSchema] = None
 
         # if there is a plan, it may need to accept term.
-        marketplace_client = get_marketplace_ordering_client(self)
-        term: Optional[AgreementTerms] = None
-        try:
-            with global_credential_access_lock:
-                term = marketplace_client.marketplace_agreements.get(
+        with get_marketplace_ordering_client(self) as marketplace_client:
+            term: Optional[AgreementTerms] = None
+            try:
+                with global_credential_access_lock:
+                    term = marketplace_client.marketplace_agreements.get(
+                        offer_type="virtualmachine",
+                        publisher_id=marketplace.publisher,
+                        offer_id=marketplace.offer,
+                        plan_id=plan_name,
+                    )
+            except Exception as e:
+                raise LisaException(
+                    f"error on getting marketplace agreement: {e}"
+                )
+
+            assert term
+            if term.accepted is False:
+                term.accepted = True
+                marketplace_client.marketplace_agreements.create(
                     offer_type="virtualmachine",
                     publisher_id=marketplace.publisher,
                     offer_id=marketplace.offer,
                     plan_id=plan_name,
+                    parameters=term,
                 )
-        except Exception as e:
-            raise LisaException(f"error on getting marketplace agreement: {e}")
-
-        assert term
-        if term.accepted is False:
-            term.accepted = True
-            marketplace_client.marketplace_agreements.create(
-                offer_type="virtualmachine",
-                publisher_id=marketplace.publisher,
-                offer_id=marketplace.offer,
-                plan_id=plan_name,
-                parameters=term,
-            )
         plan = AzureVmPurchasePlanSchema(
             name=plan_name,
             product=plan_product,
@@ -2484,24 +2504,24 @@ class AzurePlatform(Platform):
         # resolve "latest" to specified version
         marketplace = self._resolve_marketplace_image(location, marketplace)
 
-        compute_client = get_compute_client(self)
-        assert isinstance(marketplace, AzureVmMarketplaceSchema)
-        image_info = None
-        with global_credential_access_lock:
-            try:
-                image_info = compute_client.virtual_machine_images.get(
-                    location=location,
-                    publisher_name=marketplace.publisher,
-                    offer=marketplace.offer,
-                    skus=marketplace.sku,
-                    version=marketplace.version,
-                )
-            except HttpResponseError as e:
-                # Code: ImageVersionDeprecated
-                if "ImageVersionDeprecated" in str(e):
-                    raise e
-                self._log.debug(f"Could not find image info:\n {e}")
-        return image_info
+        with get_compute_client(self) as compute_client:
+            assert isinstance(marketplace, AzureVmMarketplaceSchema)
+            image_info = None
+            with global_credential_access_lock:
+                try:
+                    image_info = compute_client.virtual_machine_images.get(
+                        location=location,
+                        publisher_name=marketplace.publisher,
+                        offer=marketplace.offer,
+                        skus=marketplace.sku,
+                        version=marketplace.version,
+                    )
+                except HttpResponseError as e:
+                    # Code: ImageVersionDeprecated
+                    if "ImageVersionDeprecated" in str(e):
+                        raise e
+                    self._log.debug(f"Could not find image info:\n {e}")
+            return image_info
 
     def _get_location_key(self, location: str) -> str:
         return f"{self.subscription_id}_{location}"
@@ -2549,13 +2569,15 @@ class AzurePlatform(Platform):
             parameters=[parameters],
         )
 
-        compute_client = get_compute_client(self)
-        operation = compute_client.virtual_machines.begin_run_command(
-            resource_group_name=context.resource_group_name,
-            vm_name=context.vm_name,
-            parameters=command,
-        )
-        result = wait_operation(operation=operation, failure_identity="enable ssh")
+        with get_compute_client(self) as compute_client:
+            operation = compute_client.virtual_machines.begin_run_command(
+                resource_group_name=context.resource_group_name,
+                vm_name=context.vm_name,
+                parameters=command,
+            )
+            result = wait_operation(
+                operation=operation, failure_identity="enable ssh"
+            )
         log.debug("SSH script result:")
         log.dump_json(logging.DEBUG, result)
 
@@ -2592,49 +2614,49 @@ class AzurePlatform(Platform):
     def _get_sig_version(
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
-        compute_client = get_compute_client(
+        with get_compute_client(
             self, subscription_id=shared_image.subscription_id
-        )
-        sig_version = compute_client.gallery_image_versions.get(
-            resource_group_name=shared_image.resource_group_name,
-            gallery_name=shared_image.image_gallery,
-            gallery_image_name=shared_image.image_definition,
-            gallery_image_version_name=shared_image.image_version,
-            expand="ReplicationStatus",
-        )
-        assert isinstance(
-            sig_version, GalleryImageVersion
-        ), f"actual: {type(sig_version)}"
-        return sig_version
+        ) as compute_client:
+            sig_version = compute_client.gallery_image_versions.get(
+                resource_group_name=shared_image.resource_group_name,
+                gallery_name=shared_image.image_gallery,
+                gallery_image_name=shared_image.image_definition,
+                gallery_image_version_name=shared_image.image_version,
+                expand="ReplicationStatus",
+            )
+            assert isinstance(
+                sig_version, GalleryImageVersion
+            ), f"actual: {type(sig_version)}"
+            return sig_version
 
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_cgi_version(
         self, community_gallery_image: CommunityGalleryImageSchema
     ) -> CommunityGalleryImageVersion:
-        compute_client = get_compute_client(self)
-        cgi_version = compute_client.community_gallery_image_versions.get(
-            location=community_gallery_image.location,
-            public_gallery_name=community_gallery_image.image_gallery,
-            gallery_image_name=community_gallery_image.image_definition,
-            gallery_image_version_name=community_gallery_image.image_version,
-        )
-        assert isinstance(
-            cgi_version, CommunityGalleryImageVersion
-        ), f"actual: {type(cgi_version)}"
-        return cgi_version
+        with get_compute_client(self) as compute_client:
+            cgi_version = compute_client.community_gallery_image_versions.get(
+                location=community_gallery_image.location,
+                public_gallery_name=community_gallery_image.image_gallery,
+                gallery_image_name=community_gallery_image.image_definition,
+                gallery_image_version_name=community_gallery_image.image_version,
+            )
+            assert isinstance(
+                cgi_version, CommunityGalleryImageVersion
+            ), f"actual: {type(cgi_version)}"
+            return cgi_version
 
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_cgi(
         self, community_gallery_image: CommunityGalleryImageSchema
     ) -> CommunityGalleryImage:
-        compute_client = get_compute_client(self)
-        cgi = compute_client.community_gallery_images.get(
-            location=community_gallery_image.location,
-            public_gallery_name=community_gallery_image.image_gallery,
-            gallery_image_name=community_gallery_image.image_definition,
-        )
-        assert isinstance(cgi, CommunityGalleryImage), f"actual: {type(cgi)}"
-        return cgi
+        with get_compute_client(self) as compute_client:
+            cgi = compute_client.community_gallery_images.get(
+                location=community_gallery_image.location,
+                public_gallery_name=community_gallery_image.image_gallery,
+                gallery_image_name=community_gallery_image.image_definition,
+            )
+            assert isinstance(cgi, CommunityGalleryImage), f"actual: {type(cgi)}"
+            return cgi
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_version(shared_image)
@@ -2925,10 +2947,12 @@ class AzurePlatform(Platform):
         """
         result: Dict[str, Tuple[int, int]] = dict()
 
-        client = get_compute_client(self)
-        usages = client.usage.list(location=location)
-        # named map
-        quotas_map: Dict[str, Any] = {value.name.value: value for value in usages}
+        with get_compute_client(self) as client:
+            usages = client.usage.list(location=location)
+            # named map
+            quotas_map: Dict[str, Any] = {
+                value.name.value: value for value in usages
+            }
 
         # This method signature is used to generate cache. If pass in the log
         # object, it makes the cache doesn't work. So create a logger in the

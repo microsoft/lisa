@@ -30,6 +30,7 @@ from lisa.sut_orchestrator.azure.common import (
     add_user_assign_identity,
     get_managed_service_identity_client,
     get_node_context,
+    get_resource_management_client,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -84,9 +85,6 @@ class AzSecPack(TestSuite):
         assert environment, "fail to get environment from testresult"
         platform = environment.platform
         assert isinstance(platform, AzurePlatform)
-        rm_client = platform._rm_client
-        assert rm_client
-        msi_client = get_managed_service_identity_client(platform)
 
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
@@ -101,23 +99,29 @@ class AzSecPack(TestSuite):
         # For Public cloud, the specific location is "eastus".
         # Note: The resource group name can't be changed.
         autoconfig_rg_name = "AzSecPackAutoConfigRG"
-        autoconfig_rg_exists = rm_client.resource_groups.check_existence(
-            autoconfig_rg_name
-        )
-        if not autoconfig_rg_exists:
-            params = {"location": "eastus"}
-            rm_client.resource_groups.create_or_update(autoconfig_rg_name, params)
-            log.info(f"{autoconfig_rg_name} is created successfully")
-        else:
-            log.info(f"{autoconfig_rg_name} is already existed")
+        with get_resource_management_client(
+            platform.credential, platform.subscription_id, platform.cloud
+        ) as rm_client:
+            autoconfig_rg_exists = rm_client.resource_groups.check_existence(
+                autoconfig_rg_name
+            )
+            if not autoconfig_rg_exists:
+                params = {"location": "eastus"}
+                rm_client.resource_groups.create_or_update(
+                    autoconfig_rg_name, params
+                )
+                log.info(f"{autoconfig_rg_name} is created successfully")
+            else:
+                log.info(f"{autoconfig_rg_name} is already existed")
 
         # Create a user assigned managed identity
         msi_name = f"AzSecPackAutoConfigUA-{location}"
-        msi = msi_client.user_assigned_identities.create_or_update(
-            resource_group_name=autoconfig_rg_name,
-            resource_name=msi_name,
-            parameters={"location": location},
-        )
+        with get_managed_service_identity_client(platform) as msi_client:
+            msi = msi_client.user_assigned_identities.create_or_update(
+                resource_group_name=autoconfig_rg_name,
+                resource_name=msi_name,
+                parameters={"location": location},
+            )
         log.info(f"{msi.id} is created successfully")
 
         # Assign the user assigned managed identity to the VM

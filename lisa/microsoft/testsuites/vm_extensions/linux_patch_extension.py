@@ -121,12 +121,11 @@ def _set_up_vm(node: Node, environment: Environment) -> Any:
     assert environment.platform, "platform shouldn't be None."
     platform: AzurePlatform = environment.platform  # type: ignore
     assert isinstance(platform, AzurePlatform), platform_msg
-    compute_client = get_compute_client(platform)
     node_context = get_node_context(node)
     resource_group_name = node_context.resource_group_name
     vm_name = node_context.vm_name
 
-    return compute_client, resource_group_name, vm_name
+    return platform, resource_group_name, vm_name
 
 
 def _verify_vm_agent_running(node: Node, log: Logger) -> None:
@@ -346,15 +345,16 @@ class LinuxPatchExtensionBVT(TestSuite):
     def verify_vm_assess_patches(
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
-        compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
+        platform, resource_group_name, vm_name = _set_up_vm(node, environment)
 
         # Check if the OS is supported and the VM agent is running
         _verify_supported_images_and_vm_agent(node, log)
 
         # Verify the assessment patches
-        _assert_assessment_patch(
-            node, log, compute_client, resource_group_name, vm_name
-        )
+        with get_compute_client(platform) as compute_client:
+            _assert_assessment_patch(
+                node, log, compute_client, resource_group_name, vm_name
+            )
 
     @TestCaseMetadata(
         description="""
@@ -369,7 +369,7 @@ class LinuxPatchExtensionBVT(TestSuite):
     def verify_vm_install_patches(
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
-        compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
+        platform, resource_group_name, vm_name = _set_up_vm(node, environment)
         install_patches_input = {
             "maximumDuration": "PT4H",
             "rebootSetting": "IfRequired",
@@ -382,18 +382,19 @@ class LinuxPatchExtensionBVT(TestSuite):
         # Check if the OS is supported and the VM agent is running
         _verify_supported_images_and_vm_agent(node, log)
 
-        # Verify the assessment patches
-        _assert_assessment_patch(
-            node, log, compute_client, resource_group_name, vm_name
-        )
+        with get_compute_client(platform) as compute_client:
+            # Verify the assessment patches
+            _assert_assessment_patch(
+                node, log, compute_client, resource_group_name, vm_name
+            )
 
-        # Verify the installation patches
-        _assert_installation_patch(
-            node,
-            log,
-            compute_client,
-            resource_group_name,
-            vm_name,
-            self.TIMEOUT,
-            install_patches_input,
-        )
+            # Verify the installation patches
+            _assert_installation_patch(
+                node,
+                log,
+                compute_client,
+                resource_group_name,
+                vm_name,
+                self.TIMEOUT,
+                install_patches_input,
+            )
