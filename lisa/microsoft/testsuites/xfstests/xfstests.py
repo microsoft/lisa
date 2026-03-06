@@ -472,12 +472,6 @@ class XfstestsParallelRunner:
                     run_id=exec_result.run_id,
                     xfstests_path=worker_path,
                 )
-                status = "PASSED" if final_result.success else "FAILED"
-                self.log.info(
-                    f"Worker {exec_result.run_id}: {status} - "
-                    f"{final_result.total_count} tests, "
-                    f"{final_result.fail_count} failed"
-                )
                 final_results.append(final_result)
             except Exception as e:
                 self.log.error(f"[{exec_result.run_id}] Result collection failed: {e}")
