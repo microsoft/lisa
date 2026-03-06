@@ -20,6 +20,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union,
 
 import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+from azure.core.pipeline.policies import RetryPolicy
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
     CommunityGalleryImage,
@@ -38,6 +39,7 @@ from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentMode,
     DeploymentProperties,
+    ResourceManagementClient,
 )
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
@@ -598,7 +600,7 @@ class AzurePlatform(Platform):
                 )
 
         # resolve Latest to specified version
-        if is_success:
+        if is_success and environment.runbook.nodes_requirement:
             self._resolve_marketplace_image_version(
                 environment.runbook.nodes_requirement
             )
@@ -606,7 +608,6 @@ class AzurePlatform(Platform):
         return is_success
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        assert self._rm_client
         assert self._azure_runbook
 
         environment_context = get_environment_context(environment=environment)
@@ -662,6 +663,7 @@ class AzurePlatform(Platform):
                     self._validate_template(deployment_parameters, log)
                     time = create_timer()
                     self._deploy(location, deployment_parameters, log, environment)
+
                     environment_context.provision_time = time.elapsed()
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
@@ -673,46 +675,55 @@ class AzurePlatform(Platform):
         resource_group_name = environment_context.resource_group_name
         # the resource group name is empty when it is not deployed for some reasons,
         # like capability doesn't meet case requirement.
-        if not resource_group_name:
-            return
-        assert self._azure_runbook
-
-        if not environment_context.resource_group_is_specified:
-            log.info(
-                f"skipped to delete resource group: {resource_group_name}, "
-                f"as it's specified in runbook."
-            )
-        elif self._azure_runbook.dry_run:
-            log.info(
-                f"skipped to delete resource group: {resource_group_name}, "
-                f"as it's a dry run."
-            )
-        else:
-            assert self._rm_client
-            az_rg_exists = self._rm_client.resource_groups.check_existence(
-                resource_group_name
-            )
-            if not az_rg_exists:
+        with get_resource_management_client(
+            self.credential, self.subscription_id, self.cloud
+        ) as client:
+            if not resource_group_name:
                 return
-            log.info(
-                f"deleting resource group: {resource_group_name}, "
-                f"wait: {self._azure_runbook.wait_delete}"
-            )
-            delete_operation: Any = None
-            try:
-                delete_operation = self._rm_client.resource_groups.begin_delete(
-                    resource_group_name
+            assert self._azure_runbook
+
+            if not environment_context.resource_group_is_specified:
+                log.info(
+                    f"skipped to delete resource group: {resource_group_name}, "
+                    f"as it's specified in runbook."
                 )
-                if self._azure_runbook.virtual_network_resource_group:
-                    remove_vnet_peerings(self._platform, resource_group_name)
-            except Exception as e:
-                log.debug(f"exception on delete resource group: {e}")
-            if delete_operation and self._azure_runbook.wait_delete:
-                wait_operation(
-                    delete_operation, failure_identity="delete resource group"
+            elif self._azure_runbook.dry_run:
+                log.info(
+                    f"skipped to delete resource group: {resource_group_name}, "
+                    f"as it's a dry run."
                 )
             else:
-                log.debug("not wait deleting")
+                assert client
+                az_rg_exists = client.resource_groups.check_existence(
+                    resource_group_name
+                )
+                if not az_rg_exists:
+                    return
+                log.info(
+                    f"deleting resource group: {resource_group_name}, "
+                    f"wait: {self._azure_runbook.wait_delete}"
+                )
+                delete_operation: Any = None
+                try:
+                    if self._azure_runbook.virtual_network_resource_group:
+                        remove_vnet_peerings(self, resource_group_name, environment.id)
+                except Exception as e:
+                    log.debug(
+                        "Could not delete the vnet peerings for rg: {resource_group_name}"
+                    )
+                try:
+                    delete_operation = client.resource_groups.begin_delete(
+                        resource_group_name
+                    )
+
+                except Exception as e:
+                    log.debug(f"exception on delete resource group: {e}")
+                if delete_operation and self._azure_runbook.wait_delete:
+                    wait_operation(
+                        delete_operation, failure_identity="delete resource group"
+                    )
+                else:
+                    log.debug("not wait deleting")
 
     def _save_console_log_and_check_panic(
         self,
@@ -1000,7 +1011,12 @@ class AzurePlatform(Platform):
             azure_runbook.resource_group_tags,
         )
 
-        self._rm_client = get_resource_management_client(
+        # self._rm_client = get_resource_management_client(
+        #     self.credential, self.subscription_id, self.cloud
+        # )
+
+    def get_resource_management_client(self) -> ResourceManagementClient:
+        return get_resource_management_client(
             self.credential, self.subscription_id, self.cloud
         )
 
@@ -1688,11 +1704,14 @@ class AzurePlatform(Platform):
 
         validate_operation: Any = None
         try:
-            with global_credential_access_lock:
-                validate_operation = self._rm_client.deployments.begin_validate(
-                    **deployment_parameters
-                )
-            wait_operation(validate_operation, failure_identity="validation")
+            with get_resource_management_client(
+                self.credential, self.subscription_id, self.cloud
+            ) as client:
+                with global_credential_access_lock:
+                    validate_operation = client.deployments.begin_validate(
+                        **deployment_parameters
+                    )
+                wait_operation(validate_operation, failure_identity="validation")
         except Exception as e:
             error_messages: List[str] = [str(e)]
 
@@ -1710,7 +1729,6 @@ class AzurePlatform(Platform):
             plugin_manager.hook.azure_deploy_failed(error_message=error_message)
             raise LisaException(error_message)
 
-    @retry(DeploymentActiveException, tries=5, delay=30, jitter=(0, 10))  # type: ignore
     def _deploy(
         self,
         location: str,
@@ -1732,86 +1750,92 @@ class AzurePlatform(Platform):
 
         log.info(f"resource group '{resource_group_name}' deployment is in progress...")
         deployment_operation: Any = None
-        deployments = self._rm_client.deployments
-        try:
-            deployment_operation = deployments.begin_create_or_update(
-                **deployment_parameters
-            )
-            timer = create_timer()
-            while timer.elapsed(False) < self._azure_runbook.provisioning_timeout:
-                try:
-                    wait_operation(
-                        deployment_operation, time_out=300, failure_identity="deploy"
-                    )
-                except LisaTimeoutException:
-                    # Capture logs and continue retrying
+        with get_resource_management_client(
+            self.credential, self.subscription_id, self.cloud
+        ) as client:
+            deployments = client.deployments
+            try:
+                deployment_operation = deployments.begin_create_or_update(
+                    **deployment_parameters
+                )
+                timer = create_timer()
+                while timer.elapsed(False) < self._azure_runbook.provisioning_timeout:
+                    try:
+                        wait_operation(
+                            deployment_operation,
+                            time_out=300,
+                            failure_identity="deploy",
+                        )
+                    except LisaTimeoutException:
+                        # Capture logs and continue retrying
+                        self._save_console_log_and_check_panic(
+                            resource_group_name, environment, log, False
+                        )
+                        continue
+                    break
+                # Check if we exited the loop due to timeout
+                if timer.elapsed(False) >= self._azure_runbook.provisioning_timeout:
                     self._save_console_log_and_check_panic(
                         resource_group_name, environment, log, False
                     )
-                    continue
-                break
-            # Check if we exited the loop due to timeout
-            if timer.elapsed(False) >= self._azure_runbook.provisioning_timeout:
-                self._save_console_log_and_check_panic(
-                    resource_group_name, environment, log, False
-                )
-                raise LisaException(
-                    f"Deployment timeout: Azure did not respond in "
-                    f"{self._azure_runbook.provisioning_timeout // 60} minutes "
-                    f"(usual response is 50 minutes)."
-                )
-        except HttpResponseError as e:
-            # Some errors happens underlying, so there is no detail errors from API.
-            # For example,
-            # azure.core.exceptions.HttpResponseError:
-            #    Operation returned an invalid status 'OK'
-            assert e.error, f"HttpResponseError: {e}"
-
-            error_message = "\n".join(self._parse_detail_errors(e.error))
-            if (
-                self._azure_runbook.ignore_provisioning_error
-                and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
-            ):
-                # Provisioning timeout causes by waagent is not ready.
-                # In smoke test, it still can verify some information.
-                # Eat information here, to run test case any way.
-                #
-                # It may cause other cases fail on assumptions. In this case, we can
-                # define a flag in config, to mark this exception is ignorable or not.
-                log.error(
-                    f"provisioning time out, try to run case. "
-                    f"Exception: {error_message}"
-                )
-            elif self._azure_runbook.ignore_provisioning_error and get_matched_str(
-                error_message, AZURE_INTERNAL_ERROR_PATTERN
-            ):
-                # Similar situation with OSProvisioningTimedOut
-                # Some OSProvisioningInternalError caused by it doesn't support
-                # SSH key authentication
-                # e.g. hpe hpestoreoncevsa hpestoreoncevsa-3187 3.18.7
-                # After passthrough this exception,
-                # actually the 22 port of this VM is open.
-                log.error(
-                    f"provisioning failed for an internal error, try to run case. "
-                    f"Exception: {error_message}"
-                )
-            elif "DeploymentActive" in error_message:
-                raise DeploymentActiveException(e)
-            else:
-                try:
-                    self._save_console_log_and_check_panic(
-                        resource_group_name, environment, log, True
+                    raise LisaException(
+                        f"Deployment timeout: Azure did not respond in "
+                        f"{self._azure_runbook.provisioning_timeout // 60} minutes "
+                        f"(usual response is 50 minutes)."
                     )
-                except (KernelPanicException, RootFsMountFailedException) as ex:
-                    if (
-                        "OSProvisioningTimedOut: OS Provisioning for VM"
-                        in error_message
-                    ):
-                        error_message = (
-                            f"OSProvisioningTimedOut: {type(ex).__name__}: {ex}"
+            except HttpResponseError as e:
+                # Some errors happens underlying, so there is no detail errors from API.
+                # For example,
+                # azure.core.exceptions.HttpResponseError:
+                #    Operation returned an invalid status 'OK'
+                assert e.error, f"HttpResponseError: {e}"
+
+                error_message = "\n".join(self._parse_detail_errors(e.error))
+                if (
+                    self._azure_runbook.ignore_provisioning_error
+                    and "OSProvisioningTimedOut: OS Provisioning for VM"
+                    in error_message
+                ):
+                    # Provisioning timeout causes by waagent is not ready.
+                    # In smoke test, it still can verify some information.
+                    # Eat information here, to run test case any way.
+                    #
+                    # It may cause other cases fail on assumptions. In this case, we can
+                    # define a flag in config, to mark this exception is ignorable or not.
+                    log.error(
+                        f"provisioning time out, try to run case. "
+                        f"Exception: {error_message}"
+                    )
+                elif self._azure_runbook.ignore_provisioning_error and get_matched_str(
+                    error_message, AZURE_INTERNAL_ERROR_PATTERN
+                ):
+                    # Similar situation with OSProvisioningTimedOut
+                    # Some OSProvisioningInternalError caused by it doesn't support
+                    # SSH key authentication
+                    # e.g. hpe hpestoreoncevsa hpestoreoncevsa-3187 3.18.7
+                    # After passthrough this exception,
+                    # actually the 22 port of this VM is open.
+                    log.error(
+                        f"provisioning failed for an internal error, try to run case. "
+                        f"Exception: {error_message}"
+                    )
+                elif "DeploymentActive" in error_message:
+                    raise DeploymentActiveException(e)
+                else:
+                    try:
+                        self._save_console_log_and_check_panic(
+                            resource_group_name, environment, log, True
                         )
-                plugin_manager.hook.azure_deploy_failed(error_message=error_message)
-                raise LisaException(error_message)
+                    except (KernelPanicException, RootFsMountFailedException) as ex:
+                        if (
+                            "OSProvisioningTimedOut: OS Provisioning for VM"
+                            in error_message
+                        ):
+                            error_message = (
+                                f"OSProvisioningTimedOut: {type(ex).__name__}: {ex}"
+                            )
+                    plugin_manager.hook.azure_deploy_failed(error_message=error_message)
+                    raise LisaException(error_message)
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.

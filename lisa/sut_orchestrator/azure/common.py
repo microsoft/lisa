@@ -30,6 +30,7 @@ import requests
 from assertpy import assert_that
 from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.exceptions import ResourceExistsError
+from azure.core.pipeline.policies import RetryPolicy
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -178,6 +179,13 @@ PURCHASE_PLAN_KEYS = ["name", "product", "publisher"]
 
 # IMDS is a REST API that's available at a well-known, non-routable IP address (169.254.169.254). # noqa: E501
 METADATA_ENDPOINT = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+
+RETRY_POLICY = RetryPolicy(
+    retry_total=20,  # Maximum number of retry attempts
+    retry_backoff_factor=0.5,  # Base backoff time in seconds
+    retry_backoff_max=120,  # Maximum backoff time in seconds
+    retry_on_status_codes=[429, 500, 502, 503, 504],  # HTTP status codes to retry
+)
 
 
 @dataclass
@@ -1718,36 +1726,38 @@ def get_virtual_networks(
 
 
 def remove_vnet_peerings(
-    platform: "AzurePlatform", resource_group_name: str, environment_id: int
+    platform: "AzurePlatform", resource_group_name: str, environment_id: str
 ) -> None:
     # delete both the vnet peering for a resource group and the corresponding link
     # in the remote group.
     # peerings for test resources in our vnet sharing scheme will only be
     # peered with one remote VM vnet for orchestration; so we only need to find
     # one corresponding peering on the remote side.
-    network_client = get_network_client(platform)
-    vnets = network_client.virtual_networks.list(
-        resource_group_name=resource_group_name
-    )
-    for vnet in vnets:
-        peerings = network_client.virtual_network_peerings.get(
-            resource_group_name, name=vnet.name
+
+    with get_network_client(platform) as network_client:
+        vnets = network_client.virtual_networks.list(
+            resource_group_name=resource_group_name
         )
-        for peering in peerings:
-            # remove the local peerings
-            network_client.virtual_network_peerings.begin_delete(
-                resource_group_name, vnet.name, peering.name
-            ).wait()
-            # remove the remote peering
-            network_client.virtual_network_peerings.begin_delete(
-                peering.remote_virtual_network.split("/")[4],
-                peering.remote_virtual_network.split("/")[-1],
-                f"vnet-peering-e{environment_id}",
-            ).wait()
-        # for subnet in vnet.subnets:
-        #     network_client.subnets.begin_delete(
-        #         resource_group_name, vnet.name, subnet.name
-        #     ).wait()
+        for vnet in vnets:
+            peerings = network_client.virtual_network_peerings.get(
+                resource_group_name, name=vnet.name
+            )
+            for peering in peerings:
+                # remove the local peerings
+                network_client.virtual_network_peerings.begin_delete(
+                    resource_group_name, vnet.name, peering.name
+                ).wait()
+                # remove the remote peering
+                network_client.virtual_network_peerings.begin_delete(
+                    peering.remote_virtual_network.split("/")[4],
+                    peering.remote_virtual_network.split("/")[-1],
+                    f"vnet-peering-e{environment_id}",
+                ).wait()
+
+            # for subnet in vnet.subnets:
+            #     network_client.subnets.begin_delete(
+            #         resource_group_name, vnet.name, subnet.name
+            #     ).wait()
 
 
 def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
@@ -1756,6 +1766,7 @@ def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=RETRY_POLICY,
     )
 
 
@@ -1778,6 +1789,7 @@ def get_resource_management_client(
         subscription_id=subscription_id,
         base_url=cloud.endpoints.resource_manager,
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=RETRY_POLICY,
     )
 
 
