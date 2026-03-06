@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.network.common import (
@@ -811,6 +811,9 @@ class Sriov(TestSuite):
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
             if client_nic_info.is_pci_module_enabled:
+                # Skip InfiniBand interfaces — they use RDMA, not Ethernet SR-IOV
+                if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                    continue
                 # 2. Get initial interrupts sum per irq and cpu number on client node.
                 # only collect 'Completion Queue Interrupts' irqs
                 initial_pci_interrupts_by_irqs = (
@@ -834,8 +837,13 @@ class Sriov(TestSuite):
                     assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
                     ).is_equal_to(client_thread_count)
-                matched_server_nic_info: NicInfo
+                matched_server_nic_info: Optional[NicInfo] = None
                 for _, server_nic_info in vm_nics[server_node.name].items():
+                    # Skip NICs without IP addresses (IB, enslaved VFs, etc.)
+                    if not server_nic_info.ip_addr:
+                        continue
+                    if server_nic_info.name and server_nic_info.name.startswith("ib"):
+                        continue
                     if (
                         server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
                         == client_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]

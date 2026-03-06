@@ -635,8 +635,10 @@ class Provisioning(TestSuite):
             else:
                 pci_nic_check = True
         if pci_nic_check:
-            log.info(f"check_sriov: PCI nic count {len(node_nic_info.get_pci_nics())}")
-            assert_that(len(node_nic_info.get_pci_nics())).described_as(
-                f"VF count inside VM is {len(node_nic_info.get_pci_nics())}, "
-                f"actual sriov nic count is {sriov_count}"
+            pci_nics = node_nic_info.get_pci_nics_except_ib()
+            pci_nic_count = len(pci_nics)
+            log.info(f"check_sriov: PCI nic count (without IB) {pci_nic_count}")
+            assert_that(pci_nic_count).described_as(
+                f"VF count inside VM (without IB) is {pci_nic_count}, "
+                f"actual sriov nic count is {sriov_count}. "
             ).is_equal_to(sriov_count)
