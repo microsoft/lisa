@@ -149,6 +149,8 @@ class XfstestsRunResult:
     success: bool = True
     fail_count: int = 0
     total_count: int = 0
+    skipped_count: int = 0
+    expunged_count: int = 0
     fail_cases: List[str] = field(default_factory=list)
     fail_info: str = ""
     run_id: str = ""
@@ -502,28 +504,38 @@ class XfstestsParallelRunner:
         """
         total_passed = 0
         total_failed = 0
+        total_skipped = 0
+        total_expunged = 0
         any_failures = False
 
         for worker_result in worker_results:
+            skipped = worker_result.skipped_count + worker_result.expunged_count
+            total_skipped += worker_result.skipped_count
+            total_expunged += worker_result.expunged_count
             if worker_result.success:
                 self.log.info(
                     f"Worker {worker_result.run_id}: PASSED "
-                    f"({worker_result.total_count} tests)"
+                    f"({worker_result.total_count} tests, "
+                    f"{skipped} skipped, "
+                    f"{worker_result.expunged_count} expunged)"
                 )
                 total_passed += worker_result.total_count
             else:
                 self.log.error(
                     f"Worker {worker_result.run_id}: FAILED "
                     f"({worker_result.fail_count}/{worker_result.total_count} "
-                    f"tests failed)"
+                    f"tests failed, {skipped} skipped, "
+                    f"{worker_result.expunged_count} expunged)"
                 )
                 total_passed += worker_result.total_count - worker_result.fail_count
                 total_failed += worker_result.fail_count
                 any_failures = True
 
+        total_skipped_all = total_skipped + total_expunged
         self.log.info(
             f"Parallel xfstests summary: {total_passed} passed, "
-            f"{total_failed} failed across {len(worker_results)} workers"
+            f"{total_failed} failed, {total_skipped_all} skipped "
+            f"({total_expunged} expunged) across {len(worker_results)} workers"
         )
 
         # Raise if any worker failed and raise_on_failure is True
@@ -731,6 +743,9 @@ class Xfstests(Tool):
         r"([\w\W]*?)Not run: (?P<not_run_cases>.*)",
         re.MULTILINE,
     )
+    # Example:
+    # generic/001	[expunged]
+    __expunged_case_pattern = re.compile(r"(?P<case>[\w/]+)\s+\[expunged\]")
 
     @property
     def command(self) -> str:
@@ -1322,6 +1337,96 @@ class Xfstests(Tool):
             echo = self.node.tools[Echo]
             echo.write_to_file(content, exclude_file_path, append=False)
 
+    def _parse_xfstests_cases(
+        self, raw_message: str, test_section: str
+    ) -> Optional[tuple[List[str], set[str], set[str], List[str]]]:
+        """Parse the Ran/Not run/Failures lines from xfstests output.
+
+        Returns a (pass_cases, not_run_cases, fail_cases, expunged_cases)
+        tuple, or None if no recognizable test output was produced (setup
+        failure), in which case the caller should skip subtest notifications.
+        """
+        all_cases_match = self.__all_cases_pattern.match(raw_message)
+        if not all_cases_match:
+            # No "Ran:" line in the output. Either all selected tests were
+            # expunged/skipped (not a failure), or xfstests failed during
+            # setup (e.g., scratch device busy, mkfs failed).
+            all_pass_match = self.__all_pass_pattern.match(raw_message)
+            if all_pass_match and all_pass_match.group("pass_count") == "0":
+                # All selected tests were expunged (or none were selected to
+                # run). Report them as EXPUNGED rather than failing the run.
+                expunged_cases = self.__expunged_case_pattern.findall(raw_message)
+                if not expunged_cases:
+                    self._log.info("No cases were selected to run")
+                return [], set(), set(), expunged_cases
+            # Genuine setup failure: no recognizable test output was
+            # produced. Log a warning and skip sending notifications for
+            # this section instead of marking the run as failed.
+            self._log.warning(
+                f"No test cases found in xfstests output for "
+                f"'{test_section}'. This may indicate a setup failure "
+                f"(e.g., scratch device busy). "
+                f"Skipping subtest notifications."
+            )
+            return None
+
+        all_cases = (all_cases_match.group("all_cases")).split()
+        not_run_cases: List[str] = []
+        not_run_match = self.__not_run_cases_pattern.match(raw_message)
+        if not_run_match:
+            not_run_cases = (not_run_match.group("not_run_cases")).split()
+        fail_cases: List[str] = []
+        fail_match = self.__fail_cases_pattern.match(raw_message)
+        if fail_match:
+            fail_cases = (fail_match.group("fail_cases")).split()
+        not_run_cases_set = set(not_run_cases)
+        fail_cases_set = set(fail_cases)
+        pass_cases = [
+            x
+            for x in all_cases
+            if x not in not_run_cases_set and x not in fail_cases_set
+            # expunged cases aren't part of all_cases, so no need to filter
+        ]
+        return pass_cases, not_run_cases_set, fail_cases_set, []
+
+    def _send_case_result_message(
+        self,
+        test_result: "TestResult",
+        result: XfstestsResult,
+        test_section: str,
+        data_disk: str,
+        raw_message: str,
+        xfstests_path: Optional[PurePath],
+    ) -> None:
+        info: Dict[str, Any] = {"information": {}}
+        if test_section:
+            info["information"]["test_section"] = test_section
+        if data_disk:
+            info["information"]["data_disk"] = data_disk
+        info["information"]["test_details"] = str(
+            self.create_xfstest_stack_info(
+                result.name,
+                test_section,
+                str(result.status.name),
+                xfstests_path=xfstests_path,
+            )
+        )
+        # Only PASSED tests prefix their message with a duration (e.g. "39s");
+        # FAILED/SKIPPED messages carry no duration, so default to 0.0.
+        subtest_duration: float = 0.0
+        duration_match = re.match(r"^(\d+)s", result.message)
+        if duration_match:
+            subtest_duration = float(duration_match.group(1))
+
+        send_sub_test_result_message(
+            test_result=test_result,
+            test_case_name=result.name,
+            test_status=result.status,
+            test_message=result.message,
+            other_fields=info,
+            subtest_duration=subtest_duration,
+        )
+
     def create_send_subtest_msg(
         self,
         test_result: "TestResult",
@@ -1329,107 +1434,53 @@ class Xfstests(Tool):
         test_section: str,
         data_disk: str,
         xfstests_path: Optional[PurePath] = None,
+        run_result: Optional["XfstestsRunResult"] = None,
     ) -> None:
         """
         About:This method is internal to LISA and is not intended for direct calls.
         This method will create and send subtest results to the test result object.
-        Parmaeters:
+        Parameters:
         test_result: The test result object to which the subtest results will be sent
         raw_message: The raw message from the xfstests output
         test_section: The test group name used for testing
         data_disk: The data disk used for testing. ( method is partially implemented )
         xfstests_path: Optional custom xfstests directory path. Used for parallel
             worker execution. If not provided, uses get_xfstests_path().
+        run_result: Optional XfstestsRunResult to populate skipped/expunged counts.
         """
-        all_cases_match = self.__all_cases_pattern.match(raw_message)
-        if not all_cases_match:
-            # No tests were run (e.g., xfstests failed during setup).
-            # This can happen when scratch device is busy, mkfs fails, etc.
-            # Log a warning and skip sending notifications for this section.
-            self._log.warning(
-                f"No test cases found in xfstests output for '{test_section}'. "
-                f"This may indicate a setup failure (e.g., scratch device busy). "
-                f"Skipping subtest notifications."
-            )
+        parsed_cases = self._parse_xfstests_cases(raw_message, test_section)
+        if parsed_cases is None:
             return
-        all_cases = (all_cases_match.group("all_cases")).split()
-        not_run_cases: List[str] = []
-        fail_cases: List[str] = []
-        not_run_match = self.__not_run_cases_pattern.match(raw_message)
-        if not_run_match:
-            not_run_cases = (not_run_match.group("not_run_cases")).split()
-        fail_match = self.__fail_cases_pattern.match(raw_message)
-        if fail_match:
-            fail_cases = (fail_match.group("fail_cases")).split()
-        pass_cases = [
-            x for x in all_cases if x not in not_run_cases and x not in fail_cases
-        ]
-        results: List[XfstestsResult] = []
-        for case in fail_cases:
-            results.append(
-                XfstestsResult(
-                    name=case,
-                    status=TestStatus.FAILED,
-                    message=self.extract_case_content(case, raw_message),
-                )
-            )
-        for case in pass_cases:
-            results.append(
-                XfstestsResult(
-                    name=case,
-                    status=TestStatus.PASSED,
-                    message=self.extract_case_content(case, raw_message),
-                )
-            )
-        for case in not_run_cases:
-            results.append(
-                XfstestsResult(
-                    name=case,
-                    status=TestStatus.SKIPPED,
-                    message=self.extract_case_content(case, raw_message),
-                )
-            )
-        for result in results:
-            # create test result message
-            info: Dict[str, Any] = {}
-            info["information"] = {}
-            if test_section:
-                info["information"]["test_section"] = test_section
-            if data_disk:
-                info["information"]["data_disk"] = data_disk
-            info["information"]["test_details"] = str(
-                self.create_xfstest_stack_info(
-                    result.name,
-                    test_section,
-                    str(result.status.name),
-                    xfstests_path=xfstests_path,
-                )
-            )
-            # Parse actual test duration from xfstests output (e.g., "46s", "302s")
-            # The message format starts with duration for PASSED tests.
-            # For FAILED/SKIPPED tests, xfstests doesn't report duration, set to 0.0
-            #
-            # Example raw message format:
-            # Case: Parse actual test duration from xfstests output
-            # (e.g., "46s", "302s")
-            # Raw xfstests output format from check command:
-            #   PASSED:  "generic/001    39s"        → message="39s"
-            #   FAILED:  "generic/615    _check_dmesg: ..."  → message="_check_dmesg:"
-            #   SKIPPED: "generic/010    [not run] reason"   → message="reason"
-            # Only PASSED tests have duration in message; FAILED/SKIPPED set to 0.0
-            subtest_duration: float = 0.0
-            duration_match = re.match(r"^(\d+)s", result.message)
-            if duration_match:
-                subtest_duration = float(duration_match.group(1))
+        pass_cases, not_run_cases, fail_cases, expunged_cases = parsed_cases
 
-            send_sub_test_result_message(
-                test_result=test_result,
-                test_case_name=result.name,
-                test_status=result.status,
-                test_message=result.message,
-                other_fields=info,
-                subtest_duration=subtest_duration,
-            )
+        # Populate skipped/expunged counts on run_result if provided
+        if run_result is not None:
+            run_result.skipped_count = len(not_run_cases)
+            run_result.expunged_count = len(expunged_cases)
+
+        # Order matters: fail -> pass -> not_run -> expunged is the emission
+        # sequence consumers expect.
+        cases_by_status = [
+            (fail_cases, TestStatus.FAILED),
+            (pass_cases, TestStatus.PASSED),
+            (not_run_cases, TestStatus.SKIPPED),
+            (expunged_cases, TestStatus.EXPUNGED),
+        ]
+        for cases, status in cases_by_status:
+            for case in cases:
+                result = XfstestsResult(
+                    name=case,
+                    status=status,
+                    message=self.extract_case_content(case, raw_message),
+                )
+                self._send_case_result_message(
+                    test_result,
+                    result,
+                    test_section,
+                    data_disk,
+                    raw_message,
+                    xfstests_path,
+                )
 
     def _file_exists_with_timeout(self, path: PurePath, timeout: int = 60) -> bool:
         """
@@ -1523,6 +1574,7 @@ class Xfstests(Tool):
                     test_section=test_section,
                     data_disk=data_disk,
                     xfstests_path=working_path,
+                    run_result=run_result,
                 )
 
             # Use _file_exists_with_timeout instead of shell.exists() to avoid
