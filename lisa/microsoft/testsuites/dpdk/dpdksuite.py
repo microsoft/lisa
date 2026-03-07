@@ -17,6 +17,7 @@ from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
+    TestpmdForwardMode,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
@@ -543,7 +544,7 @@ class Dpdk(TestSuite):
         test_nic = node.nics.get_secondary_nic()
         testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly")
         kit_cmd_pairs = {
-            test_kit: testpmd_cmd,
+            test_kit: [testpmd_cmd],
         }
 
         run_testpmd_concurrent(
@@ -855,7 +856,7 @@ class Dpdk(TestSuite):
         # allow configuring for different platforms
         mtu_size = 4000
         try:
-            snd, rcv = verify_dpdk_send_receive_multi_txrx_queue(
+            verify_dpdk_send_receive_multi_txrx_queue(
                 environment,
                 log,
                 variables,
@@ -1073,6 +1074,44 @@ class Dpdk(TestSuite):
                 Pmd.NETVSC,
                 HugePageSize.HUGE_1GB,
                 result=result,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a sender/receiver 5-tuple-swap forwarding setup
+             for direct netvsc pmd setup.
+            Sender sends the packets, receiver receives them.
+            We check the traffic received matches the amount sent
+             and received by the forwarder.
+            Test uses 1GB hugepages.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=32,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_testpmd_5tswap_gb_hugepages_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_1GB,
+                result=result,
+                receiver_mode=TestpmdForwardMode.FIVE_TUPLE_SWAP,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
