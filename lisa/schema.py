@@ -1672,6 +1672,8 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
 
     # no/False: means to delete the environment regardless case fail or pass
     # yes/always/True: means to keep the environment regardless case fail or pass
+    # nothing: same as no, and also delete LISA-deployed VM resources in a
+    #   user-specified resource group (Azure)
     keep_environment: Optional[Union[str, bool]] = constants.ENVIRONMENT_KEEP_NO
 
     # platform can specify a default environment requirement
@@ -1706,6 +1708,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
             constants.ENVIRONMENT_KEEP_ALWAYS,
             constants.ENVIRONMENT_KEEP_FAILED,
             constants.ENVIRONMENT_KEEP_NO,
+            constants.ENVIRONMENT_KEEP_NOTHING,
         ]
         assert isinstance(self.keep_environment, str), (
             f"keep_environment should be {allow_list} or bool, "
