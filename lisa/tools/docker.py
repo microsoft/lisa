@@ -120,7 +120,12 @@ class Docker(Tool):
         for service_name in ["docker", "podman", "io.podman.socket"]:
             if service.check_service_exists(service_name):
                 service.enable_service(service_name)
-                service.restart_service(service_name)
+                # Only restart if the service is not already running.
+                # On some Linux distros, restarting an already-active service
+                # returns a non-zero exit code, causing test failures when
+                # start() is called more than once.
+                if not service.check_service_status(service_name):
+                    service.restart_service(service_name)
                 return
 
         # No init system service found (e.g. WSL2 without systemd where docker.io
