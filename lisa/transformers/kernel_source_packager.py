@@ -421,6 +421,18 @@ class RepoWorktree(BaseLocation):
 
         git.worktree_prune(cwd=code_path)
 
+    def _is_tag(
+        self,
+        target_path: PurePath,
+        ref: str,
+    ) -> bool:
+        result = self._node.execute(
+            f"git tag -l {ref}",
+            shell=True,
+            cwd=target_path,
+        )
+        return bool(result.stdout.strip())
+
     def _checkout_target_ref(
         self,
         target_path: PurePath,
@@ -428,6 +440,18 @@ class RepoWorktree(BaseLocation):
         remote: str,
     ) -> None:
         git = self._node.tools[Git]
+
+        # Tags are not namespaced under remotes (there is no remote/tag-name).
+        # Detect tags and use the ref directly instead of remote/ref.
+        is_tag = self._is_tag(target_path, target_ref)
+        if is_tag:
+            remote_ref = target_ref
+            self._log.debug(
+                f"'{target_ref}' is a tag, using it directly instead of "
+                f"'{remote}/{target_ref}'."
+            )
+        else:
+            remote_ref = f"{remote}/{target_ref}"
 
         # Checkout and update the target ref, with force-checkout fallback.
         expected_local_branch_name = f"{remote}-{target_ref}"
@@ -450,7 +474,8 @@ class RepoWorktree(BaseLocation):
                     cwd=target_path,
                     expected_exit_code=0,
                 )
-                git.pull(cwd=target_path)
+                if not is_tag:
+                    git.pull(cwd=target_path)
             elif target_ref in local_branches:
                 self._log.debug("Pulling upstream in an existing branch.")
                 self._node.execute(
@@ -459,11 +484,12 @@ class RepoWorktree(BaseLocation):
                     cwd=target_path,
                     expected_exit_code=0,
                 )
-                git.pull(cwd=target_path)
+                if not is_tag:
+                    git.pull(cwd=target_path)
             else:
                 self._log.debug("Checking out a new branch synced with remote.")
                 self._node.execute(
-                    f"git checkout -b {remote}-{target_ref} {remote}/{target_ref}",
+                    f"git checkout -b {expected_local_branch_name} {remote_ref}",
                     shell=True,
                     cwd=target_path,
                     expected_exit_code=0,
@@ -476,7 +502,7 @@ class RepoWorktree(BaseLocation):
         except Exception:
             self._log.debug("Checking out a new branch force synced with remote")
             self._node.execute(
-                f"git checkout -B {expected_local_branch_name} {remote}/{target_ref}",
+                f"git checkout -B {expected_local_branch_name} {remote_ref}",
                 shell=True,
                 cwd=target_path,
                 expected_exit_code=0,
@@ -536,9 +562,12 @@ class RepoWorktree(BaseLocation):
                 self._log.info(f"adding remote {remote} for {runbook.worktree_repo}")
                 git.remote_add(cwd=code_path, name=remote, url=runbook.worktree_repo)
 
-        git.fetch(
+        self._node.execute(
+            f"git fetch -p {remote} --force --tags",
+            shell=True,
+            no_info_log=False,
             cwd=code_path,
-            remote=remote,
+            expected_exit_code=0,
         )
 
         target_path = code_path
