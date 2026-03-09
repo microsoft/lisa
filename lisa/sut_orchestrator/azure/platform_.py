@@ -2714,13 +2714,14 @@ class AzurePlatform(Platform):
     def _get_meet_capabilities(
         self, item: Any
     ) -> Iterable[Union[schema.NodeSpace, bool]]:
-        requirement, candidates = item
+        requirement, candidates = item[0], item[1]
 
         # assertion for type checks
         assert isinstance(requirement, schema.NodeSpace)
         assert isinstance(candidates, list)
 
         # filter allowed vm sizes
+        unmet_reasons: List[str] = []
         for azure_cap in candidates:
             check_result = requirement.check(azure_cap.capability)
             if check_result.result:
@@ -2728,6 +2729,18 @@ class AzurePlatform(Platform):
                     requirement, azure_cap, azure_cap.location
                 )
                 yield min_cap
+            else:
+                # Collect unique reasons from the first failing candidate to
+                # surface a meaningful skip message instead of a generic one.
+                if not unmet_reasons:
+                    unmet_reasons.extend(check_result.reasons)
+
+        # Store unmet reasons back into the item list so the caller can
+        # retrieve them after the generator is exhausted.
+        if len(item) == 2:
+            item.append(unmet_reasons)
+        elif len(item) > 2:
+            item[2] = unmet_reasons
 
         return False
 
@@ -2812,7 +2825,31 @@ class AzurePlatform(Platform):
             found = False
 
         if not found:
-            error = f"no available quota found on '{location}'."
+            # Collect unmet requirement reasons that were stored by
+            # _get_meet_capabilities during its iteration. These explain
+            # exactly which test-case requirements were not satisfied by
+            # any candidate VM size, replacing the previously generic
+            # "no available quota found" message.
+            unmet_reasons: List[str] = []
+            for item in awaitable_candidates:
+                if len(item) > 2 and item[2]:
+                    unmet_reasons.extend(item[2])
+            if unmet_reasons:
+                # De-duplicate while preserving order.
+                seen: Set[str] = set()
+                unique_reasons: List[str] = []
+                for r in unmet_reasons:
+                    if r not in seen:
+                        seen.add(r)
+                        unique_reasons.append(r)
+                error = "Requirement mismatch: " + "; ".join(unique_reasons)
+            else:
+                error = (
+                    f"Test skipped on '{location}' for an unknown reason. "
+                    "This could be due to insufficient quota, unmet hardware "
+                    "requirements, or other undiagnosed causes. "
+                    "Manual investigation may be required."
+                )
 
         return results, error
 
