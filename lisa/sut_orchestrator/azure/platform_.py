@@ -749,13 +749,13 @@ class AzurePlatform(Platform):
                 try:
                     self._delete_nodes_resources(environment, log)
                 except Exception as e:
-                    log.warning(
+                    log.info(
                         f"error during per-resource cleanup in "
                         f"{resource_group_name}: {e}"
                     )
             else:
                 log.info(
-                    f"skipped to delete resource group: {resource_group_name}, "
+                    f"Skipped to delete resource group: {resource_group_name}, "
                     f"as it's specified in runbook. Skipped per-resource "
                     f"cleanup because LISA reused pre-existing resources "
                     f"(deploy is false)."
@@ -824,7 +824,7 @@ class AzurePlatform(Platform):
                 )
                 wait_operation(operation, failure_identity=f"delete VM {vm_name}")
             except Exception as e:
-                log.warning(f"error deleting VM {vm_name}: {e}")
+                log.info(f"error deleting VM {vm_name}: {e}")
                 # If VM deletion fails, skip dependent resource cleanup
                 continue
 
@@ -881,7 +881,7 @@ class AzurePlatform(Platform):
                 nic = network_client.network_interfaces.get(
                     resource_group_name, nic_name
                 )
-                for ip_config in nic.ip_configurations:
+                for ip_config in nic.ip_configurations or []:
                     if ip_config.public_ip_address and ip_config.public_ip_address.id:
                         pip_name = get_matched_str(
                             ip_config.public_ip_address.id,
