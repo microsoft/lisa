@@ -128,7 +128,6 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
 
         bpf_src = "/tmp/lwt_test.c"
         bpf_obj = "/tmp/lwt_test.o"
-        pinned_prog = "/sys/fs/bpf/lwt_test"
         dummy_if = "lwtbpf0"
         test_route = "198.51.100.0/24"
 
@@ -186,7 +185,6 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
         finally:
             # Cleanup
             ip.run(f"route del {test_route}", sudo=True, force_run=True)
-            rm.remove_file(pinned_prog, sudo=True)
             rm.remove_file(bpf_src, sudo=True)
             rm.remove_file(bpf_obj, sudo=True)
             if ip.nic_exists(dummy_if):
