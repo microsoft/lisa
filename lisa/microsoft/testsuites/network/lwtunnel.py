@@ -157,11 +157,7 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
             # Create dummy interface
             if ip.nic_exists(dummy_if):
                 ip.delete_interface(dummy_if)
-            result = ip.run(f"link add {dummy_if} type dummy", sudo=True)
-            if result.exit_code != 0:
-                raise SkippedException(
-                    f"Cannot create dummy interface: {result.stderr}"
-                )
+            ip.create_virtual_interface(name=dummy_if, type_="dummy")
             ip.up(dummy_if)
             ip.add_ipv4_address(dummy_if, "192.0.2.1/24", persist=False)
 
