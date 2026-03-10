@@ -141,14 +141,16 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
                 sudo=True,
             )
 
-            # Compile BPF program
+            # Compile BPF program — clang and headers are already verified,
+            # so a failure here is a real problem, not a missing prerequisite.
             compile_result = node.execute(
                 f"clang -O2 -target bpf -c {bpf_src} -o {bpf_obj}",
                 sudo=True,
             )
-            if compile_result.exit_code != 0:
-                error_output = compile_result.stderr or compile_result.stdout
-                raise SkippedException(f"Failed to compile BPF program: {error_output}")
+            error_output = compile_result.stderr or compile_result.stdout
+            assert_that(compile_result.exit_code).described_as(
+                f"BPF program compilation failed: {error_output}"
+            ).is_equal_to(0)
 
             node.log.info("BPF program compiled successfully")
 
