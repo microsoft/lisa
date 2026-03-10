@@ -34,12 +34,15 @@ from azure.mgmt.compute.models import (
     VirtualMachineImage,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms
-from azure.mgmt.resource import FeatureClient, SubscriptionClient
+from azure.mgmt.resource import (
+    FeatureClient,
+    SubscriptionClient,
+    ResourceManagementClient,
+)
 from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentMode,
     DeploymentProperties,
-    ResourceManagementClient,
 )
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
@@ -662,7 +665,25 @@ class AzurePlatform(Platform):
                 if self._azure_runbook.deploy:
                     self._validate_template(deployment_parameters, log)
                     time = create_timer()
-                    self._deploy(location, deployment_parameters, log, environment)
+                    retries = 10
+                    while True:
+                        try:
+                            self._deploy(
+                                location, deployment_parameters, log, environment
+                            )
+                            break
+                        except DeploymentActiveException:
+                            retries -= 1
+                            if retries <= 0:
+                                raise LisaException(
+                                    "Deployment is active after retrying 10 times, "
+                                    "please check the deployment status in Azure Portal."
+                                )
+                            log.warning(
+                                "Deployment is active, retry after 10 seconds..."
+                            )
+                            time.sleep(10)
+                            continue
 
                     environment_context.provision_time = time.elapsed()
                 # Even skipped deploy, try best to initialize nodes
@@ -707,15 +728,14 @@ class AzurePlatform(Platform):
                 try:
                     if self._azure_runbook.virtual_network_resource_group:
                         remove_vnet_peerings(self, resource_group_name, environment.id)
-                except Exception as e:
+                except HttpResponseError as e:
                     log.debug(
-                        "Could not delete the vnet peerings for rg: {resource_group_name}"
+                        f"Could not delete the vnet peerings for rg: {resource_group_name}"
                     )
                 try:
                     delete_operation = client.resource_groups.begin_delete(
                         resource_group_name
                     )
-
                 except Exception as e:
                     log.debug(f"exception on delete resource group: {e}")
                 if delete_operation and self._azure_runbook.wait_delete:

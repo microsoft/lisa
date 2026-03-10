@@ -180,12 +180,26 @@ PURCHASE_PLAN_KEYS = ["name", "product", "publisher"]
 # IMDS is a REST API that's available at a well-known, non-routable IP address (169.254.169.254). # noqa: E501
 METADATA_ENDPOINT = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
 
-RETRY_POLICY = RetryPolicy(
-    retry_total=20,  # Maximum number of retry attempts
-    retry_backoff_factor=0.5,  # Base backoff time in seconds
-    retry_backoff_max=120,  # Maximum backoff time in seconds
-    retry_on_status_codes=[429, 500, 502, 503, 504],  # HTTP status codes to retry
-)
+
+def create_client_retry_policy(timeout: int = 120):  # type: ignore
+    return RetryPolicy(
+        retry_total=10,  # Maximum number of retry attempts
+        retry_backoff_factor=0.5,  # Base backoff time in seconds
+        retry_backoff_max=20,  # Maximum backoff time in seconds
+        jitter=0.15,  # Random jitter factor to avoid thundering herd problem
+        retry_on_status_codes=[
+            400,
+            403,
+            404,
+            409,
+            429,
+            500,
+            502,
+            503,
+            504,
+        ],  # HTTP status codes to retry
+        timeout=timeout,
+    )
 
 
 @dataclass
@@ -1297,6 +1311,7 @@ def get_compute_client(
         api_version=api_version,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=create_client_retry_policy(),
     )
 
 
@@ -1766,7 +1781,7 @@ def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
-        retry_policy=RETRY_POLICY,
+        retry_policy=create_client_retry_policy(),
     )
 
 
@@ -1778,6 +1793,7 @@ def get_storage_client(
         subscription_id=subscription_id,
         base_url=cloud.endpoints.resource_manager,
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=create_client_retry_policy(),
     )
 
 
@@ -1789,7 +1805,7 @@ def get_resource_management_client(
         subscription_id=subscription_id,
         base_url=cloud.endpoints.resource_manager,
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
-        retry_policy=RETRY_POLICY,
+        retry_policy=create_client_retry_policy(),
     )
 
 
@@ -1804,6 +1820,7 @@ def get_managed_service_identity_client(
         subscription_id=subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=create_client_retry_policy(),
     )
 
 
@@ -1823,6 +1840,7 @@ def get_marketplace_ordering_client(
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=create_client_retry_policy(timeout=30),
     )
 
 
