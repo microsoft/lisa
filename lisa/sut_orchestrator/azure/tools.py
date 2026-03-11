@@ -109,7 +109,7 @@ class Waagent(Tool):
         #    isolation (missing 'distro' module, deprecated platform APIs)
         # 2. The legacy 'setup.py install' works but requires compatible setuptools
         downgrade_result = self.node.execute(
-            f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall",
+            f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall --break-system-packages",
             sudo=True,
         )
 
@@ -119,13 +119,21 @@ class Waagent(Tool):
             )
             # Fallback: try pip install with --no-build-isolation to avoid
             # downloading latest setuptools in isolated environment
-            self.node.execute(
-                f"{python_cmd} -m pip install --no-build-isolation .",
+            # Try with --break-system-packages first (needed for PEP 668),
+            # fall back without it for older pip versions.
+            fallback_result = self.node.execute(
+                f"{python_cmd} -m pip install --no-build-isolation --break-system-packages .",
                 sudo=True,
                 cwd=self.node.working_path.joinpath("WALinuxAgent"),
-                expected_exit_code=0,
-                expected_exit_code_failure_message="Failed to install waagent",
             )
+            if fallback_result.exit_code != 0:
+                self.node.execute(
+                    f"{python_cmd} -m pip install --no-build-isolation .",
+                    sudo=True,
+                    cwd=self.node.working_path.joinpath("WALinuxAgent"),
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="Failed to install waagent",
+                )
         else:
             self.node.execute(
                 f"{python_cmd} setup.py install --force",
