@@ -2,11 +2,11 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Dict, List, Match, Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Union
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import UnsupportedDistroException
+from lisa.util import LisaException, UnsupportedDistroException
 
 
 class Tpm2Pcrread(Tool):
@@ -71,6 +71,7 @@ class Tpm2Pcrread(Tool):
                 7 : 0x00000000...00000003
         """
         pcr_list = self._get_pcr_list(pcrs)
+        algorithm = algorithm.lower()
         if len(pcr_list) == 0:
             pcrs_arg = "all"
         else:
@@ -88,14 +89,21 @@ class Tpm2Pcrread(Tool):
         output = cmd_result.stdout
 
         m = self._split_hash_and_pcrs_regex.search(output)
-        assert isinstance(m, Match)
+        if not m:
+            raise LisaException(
+                "Failed to parse tpm2_pcrread output."
+                f" stdout: {output}"
+                f" stderr: {cmd_result.stderr}"
+            )
         hash_alg = m.group("hash")
         pcrs_info = m.group("pcrs")
 
-        assert hash_alg == algorithm, (
-            "tpm2_pcrread output does not contain the"
-            f" requested algorithm '{algorithm}'"
-        )
+        if hash_alg != algorithm:
+            raise LisaException(
+                f"tpm2_pcrread output contains '{hash_alg}'"
+                f" instead of requested '{algorithm}'."
+                f" stdout: {output}"
+            )
 
         result: Dict[int, str] = {}
         for m in self._split_pcr_index_and_value_regex.finditer(pcrs_info):
