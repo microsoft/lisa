@@ -385,8 +385,8 @@ def perf_ntttcp(  # noqa: C901
         else:
             need_reboot = False
         if need_reboot:
-            client_sriov_count = len(client.nics.get_pci_nics())
-            server_sriov_count = len(server.nics.get_pci_nics())
+            client_sriov_count = len(client.nics.get_pci_nics_except_ib())
+            server_sriov_count = len(server.nics.get_pci_nics_except_ib())
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
