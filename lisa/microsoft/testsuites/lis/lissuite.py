@@ -49,7 +49,7 @@ class Lis(TestSuite):
             3. For each rhel version (5,6,7), it downloads the header file and compares
              the LIS version in the header file with the LIS version installed
         """,
-        priority=2,
+        priority=5,
     )
     def verify_lis_driver_version(self, node: Node, log: Logger) -> None:
         cat = node.tools[Cat]
@@ -103,7 +103,7 @@ class Lis(TestSuite):
             1. Test leaves "bare minimum" size available for LIS install and checks if
              LIS installation is successful.
         """,
-        priority=2,
+        priority=5,
     )
     def verify_lis_preinstall_disk_size_positive(self, node: Node, log: Logger) -> None:
         self._verify_lis_preinstall_disk_size(node, log)
@@ -118,7 +118,7 @@ class Lis(TestSuite):
             1. Test leaves "non installable" size on disk and checks if ./install.sh
              script skips the installation of not.
         """,
-        priority=2,
+        priority=5,
     )
     def verify_lis_preinstall_disk_size_negative(self, node: Node, log: Logger) -> None:
         self._verify_lis_preinstall_disk_size(node, log, test_type="negative")

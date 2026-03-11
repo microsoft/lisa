@@ -3,6 +3,20 @@
 You are helping the user install Microsoft LISA (Linux Integration Services Automation).
 Detect the user's operating system and follow the appropriate installation method below.
 
+## Docker (Recommended, Fastest)
+
+No local Python or dependency setup required.
+
+```bash
+docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r lisa/examples/runbook/hello_world.yml
+```
+
+For running with Azure subscription, use the quick-container scripts:
+- **Linux**: `quick-container.sh` — see `docs/docker_linux.rst`
+- **Windows**: `quick-container.ps1` — see `docs/docker_windows.rst`
+
+---
+
 ## Windows Installation
 
 Run the PowerShell quick install script:
@@ -49,7 +63,7 @@ Run the PowerShell quick install script:
 ### Remote installation (no local repo)
 
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.ps1" -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
 ```
 
 ---
@@ -59,13 +73,13 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/qu
 Run the bash quick install script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.sh | bash
 ```
 
 Or download and run with options:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.sh -o quick-install.sh
+curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.sh -o quick-install.sh
 chmod +x quick-install.sh
 ./quick-install.sh [OPTIONS]
 ```
@@ -120,14 +134,6 @@ chmod +x quick-install.sh
 - Fedora
 - SUSE / openSUSE
 - Azure Linux (CBL-Mariner)
-
----
-
-## Docker Installation
-
-```bash
-docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r lisa/examples/runbook/hello_world.yml
-```
 
 ---
 

@@ -152,9 +152,14 @@ _global_sas_vhd_copy_lock = Lock()
 global_credential_access_lock = Lock()
 # if user uses lisa for the first time in parallel, there will be a possibility
 # to create the same storage account at the same time.
-# add a lock to prevent it happens.
+# add a lock to prevent it from happening.
 _global_storage_account_check_create_lock = Lock()
 _global_download_blob_lock = Lock()
+# If it is the first time to run LISA, there will be a possibility to create the
+# same lisa shared resource group at the same time. Add a lock to prevent it from
+# happening.
+_global_resource_group_creation_lock = Lock()
+_global_resource_group_locks: Dict[str, Lock] = {}
 
 MARKETPLACE_IMAGE_KEYS = ["publisher", "offer", "sku", "version"]
 SIG_IMAGE_KEYS = [
@@ -2008,16 +2013,29 @@ def check_or_create_resource_group(
     managed_by: str = "",
     resource_group_tags: Optional[Dict[str, str]] = None,
 ) -> None:
+    rg_creation_key = f"{subscription_id}|{resource_group_name.lower()}"
+    with _global_resource_group_creation_lock:
+        rg_lock = _global_resource_group_locks.get(rg_creation_key)
+        if rg_lock is None:
+            rg_lock = Lock()
+            _global_resource_group_locks[rg_creation_key] = rg_lock
+
     with get_resource_management_client(
         credential, subscription_id, cloud
     ) as rm_client:
-        with global_credential_access_lock:
-            az_shared_rg_exists = rm_client.resource_groups.check_existence(
-                resource_group_name
-            )
-        if not az_shared_rg_exists:
-            log.info(f"Creating Resource group: '{resource_group_name}'")
 
+        def _check_existence() -> bool:
+            with global_credential_access_lock:
+                return (
+                    rm_client.resource_groups.check_existence(resource_group_name)
+                    is True
+                )
+
+        with rg_lock:
+            if _check_existence():
+                return
+
+            log.info(f"Creating Resource group: '{resource_group_name}'")
             rg_properties: Dict[str, Any] = {"location": location}
             if resource_group_tags:
                 rg_properties["tags"] = resource_group_tags
@@ -2030,9 +2048,9 @@ def check_or_create_resource_group(
                     resource_group_name,
                     rg_properties,
                 )
+
             check_till_timeout(
-                lambda: rm_client.resource_groups.check_existence(resource_group_name)
-                is True,
+                lambda: _check_existence() is True,
                 timeout_message=f"wait for {resource_group_name} created",
             )
 

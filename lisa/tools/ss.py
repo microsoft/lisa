@@ -95,6 +95,23 @@ class Ss(Tool):
 
         return True
 
+    def port_in_use(self, port: int, sport: bool = True) -> bool:
+        """
+        Check if any TCP socket currently uses the specified local/source port.
+
+        This check does not depend on a specific state (e.g. ESTAB/LISTEN).
+        """
+        port_filter = f"sport = {port}" if sport else f"dport = {port}"
+        result = self.run(
+            f"-tan {port_filter}",
+            shell=True,
+            force_run=True,
+            expected_exit_code=0,
+        )
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        # "ss -tan" always prints a header line. Additional lines indicate sockets.
+        return len(lines) > 1
+
     def kill_connection(
         self,
         port: int,

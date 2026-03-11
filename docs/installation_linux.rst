@@ -30,7 +30,7 @@ For a quick and automated installation, you can use the provided installation sc
 
 .. code:: bash
 
-   curl -sSL https://raw.githubusercontent.com/microsoft/lisa/main/quick-install.sh | bash
+   curl -sSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.sh | bash
 
 This script will:
 

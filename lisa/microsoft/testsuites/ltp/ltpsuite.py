@@ -118,6 +118,10 @@ class LtpTestsuite(TestSuite):
     ) -> None:
         test_list = test_str.split(",") if test_str else []
         skip_test_str = variables.get("ltp_skip_test", "")
+        skip_test_file = variables.get(
+            "ltp_skip_test_file",
+            "",
+        )
         source_file = variables.get("ltp_source_file", "")
         git_tag = variables.get("ltp_tests_git_tag", "")
         run_timeout = int(variables.get("ltp_run_timeout", 12000))
@@ -152,9 +156,10 @@ class LtpTestsuite(TestSuite):
         )
         ltp.run_test(
             result,
-            test_list,
-            skip_test_list,
-            log_path,
+            ltp_tests=test_list,
+            skip_tests=skip_test_list,
+            log_path=log_path,
+            user_input_skip_file=skip_test_file,
             block_device=block_device,
             ltp_run_timeout=run_timeout,
         )

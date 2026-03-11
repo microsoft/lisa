@@ -28,11 +28,17 @@ class Docker(Tool):
     @retry(tries=10, delay=5)  # type: ignore
     def build_image(self, image_name: str, dockerfile: str) -> None:
         # alpine image build need to specify '--network host'
+        # Use absolute paths for both the Dockerfile and build context instead of
+        # relying on cwd= (which maps to WSL's --cd flag and fails with ENOENT
+        # when running under sudo in WSL2).
+        working_path = self.node.working_path
         self.run(
-            f"build -t {image_name} -f {dockerfile} . --network host",
+            f"build -t {image_name}"
+            f" -f {working_path}/{dockerfile}"
+            f" {working_path}"
+            f" --network host",
             shell=True,
             sudo=True,
-            cwd=self.node.working_path,
             force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Docker image build failed.",
@@ -114,8 +120,41 @@ class Docker(Tool):
         for service_name in ["docker", "podman", "io.podman.socket"]:
             if service.check_service_exists(service_name):
                 service.enable_service(service_name)
-                service.restart_service(service_name)
-                break
+                # Only restart if the service is not already running.
+                # On some Linux distros, restarting an already-active service
+                # returns a non-zero exit code, causing test failures when
+                # start() is called more than once.
+                if not service.check_service_status(service_name):
+                    service.restart_service(service_name)
+                return
+
+        # No init system service found (e.g. WSL2 without systemd where docker.io
+        # only ships a systemd unit, not a SysV init script).
+        # Fall back to launching dockerd directly as a background daemon.
+        # First check if dockerd is already running to avoid launching a duplicate
+        # (WSL may shut down between test cases, killing the previous instance).
+        socket_ok = self.node.execute(
+            "test -S /var/run/docker.sock && docker info > /dev/null 2>&1",
+            sudo=True,
+            shell=True,
+        )
+        if socket_ok.exit_code == 0:
+            self._log.debug("dockerd is already running, skipping start")
+            return
+
+        self._log.debug("No service found for docker/podman, starting dockerd directly")
+        self.node.execute(
+            "dockerd > /tmp/dockerd.log 2>&1 &",
+            sudo=True,
+            shell=True,
+        )
+        # Wait up to 15 seconds for the Docker socket to become available.
+        self.node.execute(
+            "for i in $(seq 1 15); do"
+            " [ -S /var/run/docker.sock ] && break; sleep 1; done",
+            sudo=True,
+            shell=True,
+        )
 
     def _check_exists(self) -> bool:
         if super()._check_exists():

@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, CentOs, Redhat, Windows
-from lisa.tools import Docker, DockerCompose
+from lisa.tools import Docker, DockerCompose, Mkdir
 from lisa.util import SkippedException, UnsupportedDistroException, get_matched_str
 
 
@@ -151,6 +151,9 @@ class DockerTestSuite(TestSuite):
 
     def _copy_to_node(self, node: Node, filename: str) -> None:
         file_path = Path(os.path.dirname(__file__)) / "TestScripts" / filename
+        # Ensure working_path exists (may be missing in WSL environments where
+        # the directory is not auto-created during connection setup).
+        node.tools[Mkdir].create_directory(str(node.working_path), sudo=True)
         if not node.shell.exists(node.working_path / filename):
             node.shell.copy(file_path, node.working_path / filename)
 
@@ -204,6 +207,11 @@ class DockerTestSuite(TestSuite):
             docker_tool = node.tools[Docker]
         except UnsupportedDistroException as e:
             raise SkippedException(e)
+
+        # Ensure daemon is running: the tool is cached after first install, so
+        # start() is not called automatically for subsequent test cases.
+        # WSL may have shut down between tests, killing the dockerd process.
+        docker_tool.start()
         self._verify_docker_engine(node)
         docker_tool.remove_image(docker_image_name)
         return docker_tool

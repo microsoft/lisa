@@ -57,7 +57,7 @@ class InetDiagSuite(TestSuite):
 
         for port in range(self._PORT_RANGE_START, self._PORT_RANGE_END):
             # Check if port is already in use
-            if not ss.connection_exists(port=port, sport=True):
+            if not ss.port_in_use(port=port, sport=True):
                 node.log.debug(f"Found available port: {port}")
                 return port
 
