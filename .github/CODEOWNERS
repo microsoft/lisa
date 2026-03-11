@@ -1,5 +1,10 @@
 # See https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners
 # Rules specify who should review changes in different paths
+# Note: GitHub uses last-match-wins precedence, so the catch-all rule must come
+# before more specific rules to allow path-specific owners to take effect.
+
+# All other files in the repository are reviewed by default reviewers
+* @LiliDeng @johnsongeorge-w
 
 # The following paths are reviewed by the main reviewers
 /lisa/sut_orchestrator/libvirt/       @anirudhrb @vyadavmsft @pupacha
@@ -8,6 +13,3 @@
 /lisa/ai/  @lubaihua33
 /lisa/sut_orchestrator/hyperv/  @anirudhrb @SRIKKANTH
 /lisa/microsoft/testsuites/xfstests/  @shekharsorot
-
-# All other files in the repository are reviewed by default reviewers
-* @LiliDeng @johnsongeorge-w
