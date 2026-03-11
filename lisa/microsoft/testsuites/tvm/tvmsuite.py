@@ -41,9 +41,11 @@ class TvmTest(TestSuite):
         This case tests the image is compatible with Secure Boot.
 
         Steps:
-            1. Enable repository azurecore from https://packages.microsoft.com/repos.
-            2. Install package azure-security.
-            3. Check image Secure Boot compatibility from output of sbinfo.
+            1. Enable repository azurecore and install
+               azure-security, then run sbinfo to check Secure
+               Boot compatibility (skipped on ARM64).
+            2. Install mokutil and verify Secure Boot is enabled
+               via mokutil --sb-state.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -142,10 +144,17 @@ class TvmTest(TestSuite):
         node.log.info("Reading TPM PCR0-7 values to verify Measured Boot is active.")
         pcr_values = tpm2_pcrread.read(pcrs=pcr_indices)
 
+        # Ensure all requested PCR indices were successfully read.
+        missing_pcrs = [i for i in pcr_indices if i not in pcr_values]
+        if missing_pcrs:
+            raise LisaException(
+                f"Failed to read TPM PCR values for indices {missing_pcrs}: "
+                "cannot reliably determine Measured Boot status."
+            )
         # A sha256 all-zero hash indicates the PCR has not been
         # extended, meaning no boot measurement was recorded.
         zero_hash = "0x" + "0" * 64
-        all_zero = all(pcr_values.get(i, zero_hash) == zero_hash for i in pcr_indices)
+        all_zero = all(pcr_values[i] == zero_hash for i in pcr_indices)
         if all_zero:
             raise LisaException("Measured Boot is not active: PCR0-7 are all zeros.")
 
