@@ -996,6 +996,20 @@ class Debian(Linux):
         if timeout < timer.elapsed():
             raise LisaTimeoutException("timeout to wait previous dpkg process stop.")
 
+        # Remove packages stuck in "reinst-required" state whose archive is
+        # missing (e.g. azsec-bpftrace on KernelCI images).
+        audit_result = self._node.execute("dpkg --audit", sudo=True, no_info_log=True)
+        if audit_result.stdout.strip():
+            self._log.debug(
+                f"Found packages needing repair: {audit_result.stdout.strip()}"
+            )
+            self._node.execute(
+                "dpkg --remove --force-remove-reinstreq "
+                "$(dpkg -l | grep ^.HR | awk '{print $2}') 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            )
+
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
         repo_list_str = self._node.execute("apt-get update", sudo=True).stdout
