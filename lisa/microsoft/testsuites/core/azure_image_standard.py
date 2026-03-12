@@ -350,7 +350,9 @@ class AzureImageStandard(TestSuite):
         2. Verify that `Defaults targetpw` should be disabled, if present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_default_targetpw(self, node: Node) -> None:
         sudoers_out = (
@@ -460,7 +462,9 @@ class AzureImageStandard(TestSuite):
         2. Verify that networking is enabled in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_network_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -534,7 +538,9 @@ class AzureImageStandard(TestSuite):
         "ONBOOT=yes" is present in network file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -592,7 +598,9 @@ class AzureImageStandard(TestSuite):
         files are not present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_udev_rules_moved(self, node: Node) -> None:
         if isinstance(node.os, CoreOs):
@@ -628,7 +636,9 @@ class AzureImageStandard(TestSuite):
         2. Verify that DHCLIENT_SET_HOSTNAME="no" is present in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_dhcp_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Suse):
@@ -749,7 +759,9 @@ class AzureImageStandard(TestSuite):
         1. Verify the repository configuration depending on the distro type.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_repository_installed(self, node: Node) -> None:  # noqa: C901
         assert isinstance(node.os, Posix)
@@ -1010,7 +1022,9 @@ class AzureImageStandard(TestSuite):
             3.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
         if isinstance(node.os, CBLMariner):
@@ -1124,7 +1138,9 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         use_new_environment=True,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
         remote_node = cast(RemoteNode, node)
@@ -1321,7 +1337,9 @@ class AzureImageStandard(TestSuite):
         3. Fail the case if the key of any user existing.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_no_pre_exist_users(self, node: Node) -> None:
         key_pattern = re.compile(

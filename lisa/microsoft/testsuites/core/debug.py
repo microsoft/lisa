@@ -44,7 +44,9 @@ class KernelDebug(TestSuite):
 
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV, QEMU]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_enable_kprobe(self, node: Node) -> None:
         if not node.tools[KernelConfig].is_enabled("CONFIG_KPROBE_EVENTS"):
