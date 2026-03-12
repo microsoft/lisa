@@ -12,3 +12,8 @@
 /lisa/microsoft/testsuites/gpu/  @paxue @umfranci @LiliDeng @johnsongeorge-w
 /lisa/microsoft/testsuites/ltp/  @paxue @LiliDeng @johnsongeorge-w
 /lisa/microsoft/testsuites/performance/  @lubaihua33 @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/storage/dmcache.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/network/xfrm.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/network/inet_diag.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/core/sched_core.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/bpf/  @rlmenge @LiliDeng @johnsongeorge-w
