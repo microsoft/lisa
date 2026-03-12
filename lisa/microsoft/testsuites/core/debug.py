@@ -12,7 +12,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, QEMU, READY
 from lisa.tools import Cat, Echo, KernelConfig, Mount
 from lisa.tools.mkfs import FileSystem
 
@@ -44,7 +44,9 @@ class KernelDebug(TestSuite):
 
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_enable_kprobe(self, node: Node) -> None:
         if not node.tools[KernelConfig].is_enabled("CONFIG_KPROBE_EVENTS"):

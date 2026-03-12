@@ -39,7 +39,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, QEMU, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import (
@@ -350,7 +350,9 @@ class AzureImageStandard(TestSuite):
         2. Verify that `Defaults targetpw` should be disabled, if present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_default_targetpw(self, node: Node) -> None:
         sudoers_out = (
@@ -372,7 +374,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV], unsupported_os=[BSD]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU], unsupported_os=[BSD]
         ),
     )
     def verify_grub(self, node: Node) -> None:
@@ -460,7 +462,9 @@ class AzureImageStandard(TestSuite):
         2. Verify that networking is enabled in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_network_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -534,7 +538,9 @@ class AzureImageStandard(TestSuite):
         "ONBOOT=yes" is present in network file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -592,7 +598,9 @@ class AzureImageStandard(TestSuite):
         files are not present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_udev_rules_moved(self, node: Node) -> None:
         if isinstance(node.os, CoreOs):
@@ -628,7 +636,9 @@ class AzureImageStandard(TestSuite):
         2. Verify that DHCLIENT_SET_HOSTNAME="no" is present in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_dhcp_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Suse):
@@ -749,7 +759,9 @@ class AzureImageStandard(TestSuite):
         1. Verify the repository configuration depending on the distro type.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_repository_installed(self, node: Node) -> None:  # noqa: C901
         assert isinstance(node.os, Posix)
@@ -1010,7 +1022,9 @@ class AzureImageStandard(TestSuite):
             3.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
         if isinstance(node.os, CBLMariner):
@@ -1124,7 +1138,9 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         use_new_environment=True,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
         remote_node = cast(RemoteNode, node)
@@ -1321,7 +1337,9 @@ class AzureImageStandard(TestSuite):
         3. Fail the case if the key of any user existing.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+        ),
     )
     def verify_no_pre_exist_users(self, node: Node) -> None:
         key_pattern = re.compile(
@@ -1544,7 +1562,7 @@ class AzureImageStandard(TestSuite):
            otherwise pass.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
     )
     def verify_python_version(self, node: Node) -> None:
         minimum_version = Version("3.9")
@@ -1574,7 +1592,7 @@ class AzureImageStandard(TestSuite):
         and not the versions having extended support, otherwise pass.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
     )
     def verify_openssl_version(self, node: Node) -> None:
         minimum_version = Version("3.0.0")
@@ -1599,7 +1617,7 @@ class AzureImageStandard(TestSuite):
         3. Fail the test if the architecture is not 64-bit.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
     )
     def verify_azure_64bit_os(self, node: Node) -> None:
         uname_tool = node.tools[Uname]
@@ -1609,8 +1627,9 @@ class AzureImageStandard(TestSuite):
             # "Architecture .* is not supported" is the failure triage pattern. Please
             # be careful when changing this string.
             raise LisaException(
-                f"Architecture '{arch.value}' is not supported. Azure only supports "
-                f"64-bit architectures: {', '.join(str(a.value) for a in arch_64bit)}."
+                f"Architecture '{arch.value}' is not supported."
+                f" Only 64-bit architectures are supported:"
+                f" {', '.join(str(a.value) for a in arch_64bit)}."
             )
 
     @TestCaseMetadata(
@@ -1634,7 +1653,7 @@ class AzureImageStandard(TestSuite):
         3. Pass if OMI is not installed or the version is secure.
                 """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
     )
     def verify_omi_version(self, node: Node) -> None:
         minimum_secure_version = Version("1.6.8.1")
@@ -1708,7 +1727,7 @@ class AzureImageStandard(TestSuite):
         5. Pass the case if no swap partition is found on the OS disk.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
     )
     def verify_no_swap_on_osdisk(self, node: Node) -> None:
         swap_tool = node.tools[Swap]
