@@ -6,7 +6,6 @@ Test suite for validating Linux Lightweight Tunnel (LWTUNNEL) functionality.
 from __future__ import annotations
 
 from logging import Logger
-from pathlib import PurePath
 from typing import Any, cast
 
 from assertpy import assert_that
@@ -137,7 +136,7 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
             # preserving the double quotes in section attributes)
             tee.write_to_file(
                 self._BPF_PROG_SRC,
-                PurePath(bpf_src),
+                node.get_pure_path(bpf_src),
                 sudo=True,
             )
 
