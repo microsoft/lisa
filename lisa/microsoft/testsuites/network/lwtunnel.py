@@ -94,10 +94,6 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
             )
 
         linux_os = cast(Linux, node.os)
-        ip = node.tools[Ip]
-        tee = node.tools[Tee]
-        ls = node.tools[Ls]
-        rm = node.tools[Rm]
 
         # Check/install clang for BPF compilation
         clang_result = node.execute("command -v clang", shell=True)
@@ -111,6 +107,7 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
                 raise SkippedException("clang not available for BPF compile")
 
         # Ensure kernel headers are available for linux/bpf.h
+        ls = node.tools[Ls]
         if not ls.path_exists("/usr/include/linux/bpf.h", sudo=True):
             for pkg in [
                 "kernel-headers",
@@ -130,6 +127,10 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
         bpf_obj = "/tmp/lwt_test.o"
         dummy_if = "lwtbpf0"
         test_route = "198.51.100.0/24"
+
+        ip = node.tools[Ip]
+        rm = node.tools[Rm]
+        tee = node.tools[Tee]
 
         try:
             # Write BPF source file (Tee uses single quotes,
