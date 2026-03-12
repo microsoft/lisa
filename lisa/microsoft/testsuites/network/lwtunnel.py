@@ -137,14 +137,12 @@ char _license[] __attribute__((section("license"), used)) = "GPL";
             tee.write_to_file(
                 self._BPF_PROG_SRC,
                 node.get_pure_path(bpf_src),
-                sudo=True,
             )
 
             # Compile BPF program — clang and headers are already verified,
             # so a failure here is a real problem, not a missing prerequisite.
             compile_result = node.execute(
                 f"clang -O2 -target bpf -c {bpf_src} -o {bpf_obj}",
-                sudo=True,
             )
             error_output = compile_result.stderr or compile_result.stdout
             assert_that(compile_result.exit_code).described_as(
