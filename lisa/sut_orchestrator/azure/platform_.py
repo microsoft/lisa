@@ -16,7 +16,7 @@ from difflib import SequenceMatcher
 from functools import lru_cache, partial
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
 import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
@@ -166,6 +166,80 @@ VM_SIZE_FALLBACK_PATTERNS = [
     # Catch-all for any remaining VM sizes
     re.compile(r".*"),
 ]
+
+# VM sizes that have been retired by Azure and must not be deployed.
+# Add newly retired sizes here as they are announced.
+RETIRED_VM_SIZES: FrozenSet[str] = frozenset(
+    {
+        # Basic A-series (retired August 31, 2024)
+        "Basic_A0",
+        "Basic_A1",
+        "Basic_A2",
+        "Basic_A3",
+        "Basic_A4",
+        # Standard A-series v1 (retired August 31, 2024)
+        "Standard_A0",
+        "Standard_A1",
+        "Standard_A2",
+        "Standard_A3",
+        "Standard_A4",
+        "Standard_A5",
+        "Standard_A6",
+        "Standard_A7",
+        "Standard_A8",
+        "Standard_A9",
+        "Standard_A10",
+        "Standard_A11",
+        # D-series v1 (retired)
+        "Standard_D1",
+        "Standard_D2",
+        "Standard_D3",
+        "Standard_D4",
+        "Standard_D11",
+        "Standard_D12",
+        "Standard_D13",
+        "Standard_D14",
+        # DS-series v1 (retired)
+        "Standard_DS1",
+        "Standard_DS2",
+        "Standard_DS3",
+        "Standard_DS4",
+        "Standard_DS11",
+        "Standard_DS12",
+        "Standard_DS13",
+        "Standard_DS14",
+        # G-series (retired)
+        "Standard_G1",
+        "Standard_G2",
+        "Standard_G3",
+        "Standard_G4",
+        "Standard_G5",
+        "Standard_GS1",
+        "Standard_GS2",
+        "Standard_GS3",
+        "Standard_GS4",
+        "Standard_GS5",
+        # NC series v1 (retired September 6, 2023)
+        "Standard_NC6",
+        "Standard_NC12",
+        "Standard_NC24",
+        "Standard_NC24r",
+        # NV series v1 (retired September 6, 2023)
+        "Standard_NV6",
+        "Standard_NV12",
+        "Standard_NV24",
+        # H-series v1 (retired August 31, 2022)
+        "Standard_H8",
+        "Standard_H16",
+        "Standard_H8m",
+        "Standard_H16m",
+        "Standard_H16r",
+        "Standard_H16mr",
+        # Isolated VM series(retired 02/28/2022)
+        "Standard_E64i_v3",
+        "Standard_E64is_v3"
+    }
+)
 
 LOCATIONS = [
     "westus3",
@@ -356,6 +430,16 @@ class AzurePlatformSchema:
 
     # Enable logging of MANA driver/device information in test results
     log_mana_information: bool = field(default=False)
+
+    # VM sizes to block from deployment in addition to RETIRED_VM_SIZES.
+    # Useful for temporarily blocking sizes that are known to be problematic
+    # or have been retired but are not yet in the hardcoded list.
+    # Example in runbook:
+    #   azure:
+    #     blocked_vm_sizes:
+    #       - Standard_NV6
+    #       - Standard_NC24
+    blocked_vm_sizes: List[str] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
@@ -2838,6 +2922,28 @@ class AzurePlatform(Platform):
         else:
             location_info = self.get_location_info(location, log)
             allowed_vm_sizes = [key for key, _ in location_info.capabilities.items()]
+
+        # Filter out retired and explicitly blocked VM sizes.
+        azure_runbook: AzurePlatformSchema = self.runbook.get_extended_runbook(
+            AzurePlatformSchema
+        )
+        extra_blocked: FrozenSet[str] = frozenset(
+            s.strip() for s in azure_runbook.blocked_vm_sizes
+        )
+        all_blocked = RETIRED_VM_SIZES | extra_blocked
+
+        retired_requested = [s for s in allowed_vm_sizes if s in all_blocked]
+        if retired_requested and node_runbook.vm_size:
+            # An explicit vm_size request targeted a blocked size — hard error.
+            raise LisaException(
+                f"VM size(s) {retired_requested} are retired or blocked "
+                "and cannot be deployed. Please choose a supported VM size."
+            )
+        if retired_requested:
+            log.debug(
+                f"Filtered out retired/blocked VM sizes: {retired_requested}"
+            )
+        allowed_vm_sizes = [s for s in allowed_vm_sizes if s not in all_blocked]
 
         # build the capability of vm sizes. The information is useful to
         # check quota.
