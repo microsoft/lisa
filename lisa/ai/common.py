@@ -11,6 +11,9 @@ AGENT_TEMPERATURE = 0.1
 AGENT_TOP_P = 0.6
 AGENT_MAX_TOKENS = 8000
 
+# Default timeout (in seconds) for AI agent operations.
+AGENT_TIMEOUT = 120
+
 
 def get_current_directory() -> str:
     """Get the working directory for the log analyzer."""
