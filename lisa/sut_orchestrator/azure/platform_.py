@@ -169,72 +169,11 @@ VM_SIZE_FALLBACK_PATTERNS = [
 
 # VM sizes that have been retired by Azure and must not be deployed.
 # Add newly retired sizes here as they are announced.
+# Refer Link: 
+# 1. https://learn.microsoft.com/en-us/azure/virtual-machines/isolation
+# 2. https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list
 RETIRED_VM_SIZES: FrozenSet[str] = frozenset(
     {
-        # Basic A-series (retired August 31, 2024)
-        "Basic_A0",
-        "Basic_A1",
-        "Basic_A2",
-        "Basic_A3",
-        "Basic_A4",
-        # Standard A-series v1 (retired August 31, 2024)
-        "Standard_A0",
-        "Standard_A1",
-        "Standard_A2",
-        "Standard_A3",
-        "Standard_A4",
-        "Standard_A5",
-        "Standard_A6",
-        "Standard_A7",
-        "Standard_A8",
-        "Standard_A9",
-        "Standard_A10",
-        "Standard_A11",
-        # D-series v1 (retired)
-        "Standard_D1",
-        "Standard_D2",
-        "Standard_D3",
-        "Standard_D4",
-        "Standard_D11",
-        "Standard_D12",
-        "Standard_D13",
-        "Standard_D14",
-        # DS-series v1 (retired)
-        "Standard_DS1",
-        "Standard_DS2",
-        "Standard_DS3",
-        "Standard_DS4",
-        "Standard_DS11",
-        "Standard_DS12",
-        "Standard_DS13",
-        "Standard_DS14",
-        # G-series (retired)
-        "Standard_G1",
-        "Standard_G2",
-        "Standard_G3",
-        "Standard_G4",
-        "Standard_G5",
-        "Standard_GS1",
-        "Standard_GS2",
-        "Standard_GS3",
-        "Standard_GS4",
-        "Standard_GS5",
-        # NC series v1 (retired September 6, 2023)
-        "Standard_NC6",
-        "Standard_NC12",
-        "Standard_NC24",
-        "Standard_NC24r",
-        # NV series v1 (retired September 6, 2023)
-        "Standard_NV6",
-        "Standard_NV12",
-        "Standard_NV24",
-        # H-series v1 (retired August 31, 2022)
-        "Standard_H8",
-        "Standard_H16",
-        "Standard_H8m",
-        "Standard_H16m",
-        "Standard_H16r",
-        "Standard_H16mr",
         # Isolated VM series(retired 02/28/2022)
         "Standard_E64i_v3",
         "Standard_E64is_v3"
