@@ -22,6 +22,12 @@ param shared_resource_group_name string
 @description('created subnet count')
 param subnet_count int
 
+@description('user supplied subnet prefix (incompatible with virtual_network_resource_group)')
+param subnet_prefix string
+
+@description('index of the test resource group for shared vnet subnet mapping')
+param resource_group_index int
+
 @description('options for availability sets, zones, and VMSS')
 param availability_options object
 
@@ -30,9 +36,6 @@ param virtual_network_resource_group string
 
 @description('the name of vnet')
 param virtual_network_name string
-
-@description('the prefix of the subnets')
-param subnet_prefix string
 
 @description('tags of virtual machine')
 param vm_tags object
@@ -64,10 +67,13 @@ param source_address_prefixes array
 @description('Generate public IP address for each node')
 param create_public_address bool
 
-var vnet_id = virtual_network_name_resource.id
+
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
-var existing_subnet_ref = (empty(virtual_network_resource_group) ? '' : resourceId(virtual_network_resource_group, 'Microsoft.Network/virtualNetworks/subnets', virtual_network_name, subnet_prefix))
+var rg_index_mod_256 = resource_group_index % 256
+var rg_index_div_256 = resource_group_index / 256
+var use_existing_vnet = !empty(virtual_network_resource_group)
+//var shared_subnet_names = [for nic_index in range(0, subnet_count): nic_index==0 ? 'default' : 'test-subnet-${nic_index}']
 var availability_set_tags = availability_options.availability_set_tags
 var availability_set_properties = availability_options.availability_set_properties
 var availability_zones = availability_options.availability_zones
@@ -224,15 +230,15 @@ func getAvailabilitySetId(availability_set_name string) object => {
   id: resourceId('Microsoft.Compute/availabilitySets', availability_set_name)
 }
 
+
 module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): {
   name: '${nodes[i].name}-nics'
   params: {
     vmName: nodes[i].name
     nic_count: nodes[i].nic_count
     location: location
-    vnet_id: vnet_id
-    subnet_prefix: subnet_prefix
-    existing_subnet_ref: existing_subnet_ref
+    vnet_id: virtual_network.id
+    resource_group_index: resource_group_index
     enable_sriov: nodes[i].enable_sriov
     tags: tags
     use_ipv6: use_ipv6
@@ -244,42 +250,78 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
   ]
 }]
 
-resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-05-01' = if (empty(virtual_network_resource_group)) {
+resource orchestrator_vnet 'Microsoft.Network/virtualNetworks@2024-01-01' existing = if (use_existing_vnet) {
+  scope: resourceGroup(virtual_network_resource_group)
   name: virtual_network_name
+}
+
+
+// If there is already a vnet, LISA only needs to create the test nic subnets. 10.0.0.0/24 must already exist.
+// This deployment should generate an exception at runtime if two environments have overlapping address spaces;
+// this is expected and will happen if the environment id mod 256 rolls over while an old environment is still active. This should be rare, but will work out so long as:
+// LISA must catch this exception and retry the deployment after a timeout period to allow the old environment to be cleaned up. 
+// LISA must remove old subnets when an environment is not needed anymore.
+// This will ensure no collisions occur where one test in a subnet can disturb another in the same subnet.
+
+module remotePeering 'remote-peering.bicep' = if (use_existing_vnet) {
+  name: 'remote-peering-deployment'
+  scope: resourceGroup(virtual_network_resource_group)
+  dependsOn: [
+    peering
+  ]
+  params: {
+    remoteVnetName: virtual_network_name
+    localVnetId: virtual_network.id
+    resource_group_index: resource_group_index
+  }
+}
+
+resource peering 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2023-11-01' = if (use_existing_vnet) {
+        name: 'vnet-peering-e${resource_group_index}'
+        parent: virtual_network
+        properties: {
+          allowVirtualNetworkAccess: true
+          localSubnetNames: [ 'default' ]
+          peerCompleteVnets: false
+          remoteSubnetNames:['default']
+          remoteVirtualNetwork: { 
+            id: orchestrator_vnet.id 
+          }
+          //remoteVirtualNetwork: orchestrator_vnet // reference to the orchestrator vnet
+        }
+  }
+
+
+resource virtual_network 'Microsoft.Network/virtualNetworks@2024-05-01' = {
+  name: 'test-vnet-${resource_group_index}'
   tags: tags
   location: location
   properties: {
     addressSpace: {
-      addressPrefixes: concat(
-        ['10.0.0.0/16'],
+      addressPrefixes: empty(subnet_prefix) ? (concat(
+        ['10.${rg_index_div_256}.${rg_index_mod_256}.0/24', '192.168.0.0/16' ],
         use_ipv6 ? ['2001:db8::/32'] : []
-      )
-    }
-    subnets: [for j in range(0, subnet_count): {
-      name: '${subnet_prefix}${j}'
-      properties: {
-        addressPrefixes: concat(
-          ['10.0.${j}.0/24'],
-          use_ipv6 ? ['2001:db8:${j}::/64'] : []
-        )
+      )) : [ subnet_prefix ]
+    } 
+    subnets:  [ for i in range(0,subnet_count): {
+        name: empty(subnet_prefix) ? (i==0 ? 'default' : 'test-subnet-${i}') : subnet_prefix
+        properties: { 
+        addressPrefix: empty(subnet_prefix) ? (i==0 ? '10.${rg_index_div_256}.${rg_index_mod_256}.0/24' : '192.168.${i-1}.0/24' ) : subnet_prefix
         defaultOutboundAccess: enable_vm_nat
-        networkSecurityGroup: {
-          id: resourceId('Microsoft.Network/networkSecurityGroups', '${toLower(virtual_network_name)}-nsg')
+        networkSecurityGroup:{
+          id: nsg.id
         }
-      }
+        }
     }]
   }
-  dependsOn: [
-    nsg
-  ]
 }
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
-  name: '${toLower(virtual_network_name)}-nsg'
+  name: 'lisa-test-nsg-${resource_group_index}'
   location: location
   properties: {
     securityRules: [
-      {
+       {
         name: 'LISASSH'
         properties: {
           priority: 100
@@ -491,7 +533,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     availability_set
     nodes_image
     nodes_nics
-    virtual_network_name_resource
+    virtual_network
     nodes_disk
     nodes_data_disks_with_vhds
   ]

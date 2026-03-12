@@ -235,14 +235,35 @@ deployment.
   created and the resulting virtual network name will be
   `<virtual_network_name>`.  If `virtual_network_resource_group` is provided,
   an existing virtual network, with the name equal to `virtual_network_name`,
-  will be used.
+  will be used. `virtual_network_resource_group` does not change the behavior for 
+  test resource group creation. Instead, the subnets in the test RGs vnet will be 
+  peered to a subnet within the RG `virtual_network_resource_group`. Peering requires 
+  the subnets and vnet have no address space collisions; a default schema
+  assuming a remote subnet named 'default' with the address space 10.255.255.0/24 is used
+  to allow a large number of test resource groups to be created without collisions.
+  Virtual networks in the test environments will set the default subnet prefix of:
+    10.$(environment_id/256).$(environment_id%256).0/24; any additional subnets will use the prefix
+    192.168.${nic_index}.0/24.
+   This scheme allows for 0xFFFE test environments with up to 256 nics per VM; however, 
+   Azure will likely restrict these numbers to something smaller than the maximum. 
+   LISA does not remove the subnet peerings from the remote vnet in `virtual_network_resource_group`.
+   The total number of test environments will be limited based on the allowed active subnet peerings per vnet.
+   This complex behavior is intended to enable testing without exposing a public IP address;
+   since a VM in `virtual_network_resource_group` will be able to access the test environments
+   via SSH on the private network. This assumes an automated deployment of this orchestrator resource group,
+   VM and virtual network with the expected default values. '`<virtual_network_name>` and `<subnet_prefix>` are respected.
+   Note that usage of `<subnet_prefix>` with `virtual_network_resource_group` will likely result in address space 
+   collisions and failed deployments. Similarly; use of `<resource_group_name>` with this option will likely
+   result in failed test resource deployments.
 * **subnet_prefix**. Specify the desired subnet prefix.  If
   `virtual_network_resource_group` is not provided, a virtual network and
   subnet will be created and the resulting subnets will look like
-  `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If
-  `virtual_network_resource_group` is provided, an existing virtual network and
-  subnet, with the name equal to `subnet_prefix`, will be used.
-* **use_public_address**. True means to connect to the Azure VMs with their
+  `<subnet_profile>0`, `<subnet_profile>1`, and so on.
+   The '`<subnet_prefix>` option will likely conflict with the use of `<virtual_network_resource_group>`.
+   LISA will warn of this configuration but allow it's use, see notes for `<virtual_network_resource_group>`
+   for more details.
+  
+  * **use_public_address**. True means to connect to the Azure VMs with their
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
   addresses.
