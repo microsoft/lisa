@@ -1627,8 +1627,9 @@ class AzureImageStandard(TestSuite):
             # "Architecture .* is not supported" is the failure triage pattern. Please
             # be careful when changing this string.
             raise LisaException(
-                f"Architecture '{arch.value}' is not supported. Azure only supports "
-                f"64-bit architectures: {', '.join(str(a.value) for a in arch_64bit)}."
+                f"Architecture '{arch.value}' is not supported."
+                f" Only 64-bit architectures are supported:"
+                f" {', '.join(str(a.value) for a in arch_64bit)}."
             )
 
     @TestCaseMetadata(
