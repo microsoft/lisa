@@ -7,6 +7,7 @@ This guide provides installation instructions for Microsoft LISA on both Windows
 - [Prerequisites](#prerequisites)
 - [Windows Installation](#windows-installation)
 - [Linux Installation](#linux-installation)
+- [Default Installation Paths](#default-installation-paths)
 - [Verification](#verification)
 - [Troubleshooting](#troubleshooting)
 
@@ -250,6 +251,74 @@ chmod +x quick-install.sh
    ```
 
 2. **Follow steps 2-6 from Ubuntu/Debian** section above
+
+---
+
+## Default Installation Paths
+
+When using the quick install scripts, LISA is cloned and installed to a default directory based on your platform. You can override this with the `--install-path` (Linux) or `-InstallPath` (Windows) parameter.
+
+| Platform | Default Path                   | Example                          |
+|----------|-------------------------------|----------------------------------|
+| Linux    | `~/lisa`                       | `/home/username/lisa`            |
+| Windows  | `%USERPROFILE%\lisa`           | `C:\Users\username\lisa`         |
+
+### Linux Default Path
+
+The default installation directory on Linux is `~/lisa` (i.e., `$HOME/lisa`):
+
+```bash
+# Default location after running quick-install.sh
+~/lisa
+
+# Equivalent full path
+$HOME/lisa
+# e.g., /home/username/lisa
+```
+
+To run LISA from the default installation path:
+```bash
+cd ~/lisa
+lisa -r your-runbook.yml
+```
+
+If you used the virtual environment option, the LISA binary will be at:
+```bash
+~/lisa/venv/bin/lisa
+```
+
+### Windows Default Path
+
+The default installation directory on Windows is `%USERPROFILE%\lisa` (i.e., `$env:USERPROFILE\lisa`):
+
+```powershell
+# Default location after running quick-install.ps1
+%USERPROFILE%\lisa
+
+# Equivalent PowerShell path
+$env:USERPROFILE\lisa
+# e.g., C:\Users\username\lisa
+```
+
+To run LISA from the default installation path:
+```powershell
+cd "$env:USERPROFILE\lisa"
+lisa -r your-runbook.yml
+```
+
+### Specifying a Custom Path
+
+Both quick install scripts accept a custom installation path:
+
+```bash
+# Linux: override default ~/lisa
+./quick-install.sh --install-path /opt/lisa
+```
+
+```powershell
+# Windows: override default %USERPROFILE%\lisa
+.\quick-install.ps1 -InstallPath "C:\MyTools\lisa"
+```
 
 ---
 
