@@ -283,7 +283,24 @@ class Nvmecli(Tool):
 
         for nvme_device in nvme_devices or []:
             # Legacy schema (flat fields):
-            _add(nvme_device.get("DevicePath"), nvme_device.get("NameSpace"))
+            device_path = nvme_device.get("DevicePath")
+            namespace_id = nvme_device.get("NameSpace")
+            
+            # Some older nvme-cli versions (e.g., 1.8.x on RHEL 7) emit
+            # DevicePath but omit the NameSpace field entirely.
+            # Derive the namespace ID from the DevicePath if missing.
+            if device_path and namespace_id is None:
+                # e.g., "/dev/nvme0n1" → "1", "/dev/nvme0n17" → "17"
+                ns_match = re.search(r"n(\d+)$", device_path)
+                if ns_match:
+                    namespace_id = int(ns_match.group(1))
+                    self._log.debug(
+                        f"NameSpace field missing in nvme-cli JSON for "
+                        f"{device_path}. Derived namespace_id={namespace_id} "
+                        f"from device path. nvme-cli version may be < 2.0."
+                    )
+
+            _add(device_path, namespace_id)
 
             # New schema: Subsystems → Controllers → Namespaces
             for subsystem in nvme_device.get("Subsystems") or []:
