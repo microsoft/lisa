@@ -1268,7 +1268,6 @@ class AzureArmParameter:
     use_ipv6: bool = False
     enable_vm_nat: bool = False
     create_public_address: bool = True
-    source_address_prefixes: List[str] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)

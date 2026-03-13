@@ -318,7 +318,6 @@ class AzurePlatformSchema:
     # will be retired. It's recommended to disable outbound access to
     # enforce explicit connectivity rules.
     enable_vm_nat: bool = field(default=False)
-    source_address_prefixes: Optional[Union[str, List[str]]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -379,7 +378,6 @@ class AzurePlatformSchema:
                 "use_public_address",
                 "use_ipv6",
                 "enable_vm_nat",
-                "source_address_prefixes",
                 "create_public_address",
             ],
         )
@@ -999,37 +997,6 @@ class AzurePlatform(Platform):
         self._rm_client = get_resource_management_client(
             self.credential, self.subscription_id, self.cloud
         )
-
-    def _get_ip_addresses(self) -> List[str]:
-        if self._cached_ip_address:
-            return self._cached_ip_address
-
-        prefixes = self._azure_runbook.source_address_prefixes
-        result: List[str] = []
-
-        if prefixes:
-            if isinstance(prefixes, str):
-                try:
-                    parsed = ast.literal_eval(prefixes)
-                    if isinstance(parsed, list):
-                        result = parsed
-                    else:
-                        result = prefixes.split(",")
-                except (ValueError, SyntaxError):
-                    result = prefixes.split(",")
-            elif isinstance(prefixes, list):
-                result = prefixes
-            else:
-                raise LisaException(
-                    f"Invalid type for source_address_prefixes: {type(prefixes)}"
-                )
-
-            self._cached_ip_address = [
-                p.strip() for p in result if isinstance(p, str) and p.strip()
-            ]
-        else:
-            self._cached_ip_address = [get_public_ip()]
-        return self._cached_ip_address
 
     def _initialize_credential(self) -> None:
         azure_runbook = self._azure_runbook
