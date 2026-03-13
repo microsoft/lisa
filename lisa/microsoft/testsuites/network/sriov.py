@@ -814,6 +814,9 @@ class Sriov(TestSuite):
                 # Skip InfiniBand interfaces — they use RDMA, not Ethernet SR-IOV
                 if client_nic_info.name and client_nic_info.name.startswith("ib"):
                     continue
+                # Skip PCI-backed NICs that do not have an IP address (e.g., enslaved VFs)
+                if not client_nic_info.ip_addr:
+                    continue
                 # 2. Get initial interrupts sum per irq and cpu number on client node.
                 # only collect 'Completion Queue Interrupts' irqs
                 initial_pci_interrupts_by_irqs = (
