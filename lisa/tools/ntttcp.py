@@ -813,11 +813,11 @@ class Ntttcp(Tool):
             self.node.reboot()
             # Wait 2 seconds after reboot
             time.sleep(2)
-            # Set rxringparam to 2048 after reboot
-            self._log.debug("Setting rxringparam to 2048")
+            # Set rxringparam to 2048 after reboot on eth0 and eth1
+            self._log.debug("Setting rxringparam to 2048 on eth0 and eth1")
             ethtool = self.node.tools[Ethtool]
-            device_list = ethtool.get_device_list()
-            for device in device_list:
+            # Set on both eth0 and eth1 (covers master and slave interfaces)
+            for device in ["eth0", "eth1"]:
                 try:
                     # Get current ring buffer settings to preserve tx value
                     current_settings = ethtool.get_device_ring_buffer_settings(device)
