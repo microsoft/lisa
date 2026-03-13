@@ -996,6 +996,43 @@ class Debian(Linux):
         if timeout < timer.elapsed():
             raise LisaTimeoutException("timeout to wait previous dpkg process stop.")
 
+        # Remove packages stuck in "reinst-required" state whose archive is
+        # missing (e.g. azsec-bpftrace on KernelCI images).
+        audit_result = self._node.execute("dpkg --audit", sudo=True, no_info_log=True)
+        if audit_result.stdout.strip():
+            self._log.debug(
+                f"Found packages needing repair: {audit_result.stdout.strip()}"
+            )
+            # Find packages stuck in "reinst-required" state:
+            # match any dpkg entry whose error flag (3rd column) is 'R'.
+            reinst_packages_result = self._node.execute(
+                "dpkg -l | grep '^..R' | awk '{print $2}'",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+            )
+            reinst_packages = [
+                pkg for pkg in reinst_packages_result.stdout.splitlines() if pkg.strip()
+            ]
+            if reinst_packages:
+                packages_arg = " ".join(reinst_packages)
+                remove_cmd = f"dpkg --remove --force-remove-reinstreq {packages_arg}"
+                remove_result = self._node.execute(
+                    remove_cmd,
+                    sudo=True,
+                    shell=True,
+                    no_info_log=True,
+                )
+                self._log.debug(
+                    f"dpkg repair removal result: exit_code={remove_result.exit_code}, "
+                    f"stdout={remove_result.stdout!r}, "
+                    f"stderr={remove_result.stderr!r}"
+                )
+            else:
+                self._log.debug(
+                    "No 'reinst-required' packages found to remove after audit."
+                )
+
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
         repo_list_str = self._node.execute("apt-get update", sudo=True).stdout
