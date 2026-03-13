@@ -11,8 +11,6 @@ from dataclasses_json import dataclass_json
 
 from lisa import constants, messages, notifier, schema
 from lisa.messages import MetricRelativity, TestResultMessage, TestStatus
-from lisa.util import plugin_manager
-from lisa.util.logger import get_logger
 
 
 @dataclass_json()
@@ -192,14 +190,11 @@ class MetricCriteria:
 class PerfEvaluation(notifier.Notifier):
     def __init__(self, runbook: schema.TypedSchema) -> None:
         super().__init__(runbook)
-        self._log = get_logger("notifier", self.__class__.__name__)
         self._criteria: Dict[str, Any] = {}
         self._evaluation_results: List[Dict[str, Any]] = []
         self._output_path: Optional[Path] = None
         self._failed_metrics: Dict[str, List[Dict[str, Any]]] = {}
-        self._pending_messages: Dict[Any, List[messages.UnifiedPerfMessage]] = {}
         self._perf_runs_cache: Dict[Any, List[messages.UnifiedPerfMessage]] = {}
-        plugin_manager.register(self)
 
     @classmethod
     def type_name(cls) -> str:
@@ -697,8 +692,6 @@ class PerfEvaluation(notifier.Notifier):
     def _received_message(self, message: messages.MessageBase) -> None:
         if isinstance(message, messages.UnifiedPerfMessage):
             self._collect_or_evaluate_message(message)
-        elif isinstance(message, messages.TestResultMessage):
-            self._evaluate_pending_messages_for_test(message.name)
 
     def _collect_or_evaluate_message(
         self, perf_message: messages.UnifiedPerfMessage
@@ -737,25 +730,6 @@ class PerfEvaluation(notifier.Notifier):
             )
         elif statistics_times <= 1:
             self._evaluate_performance_message(perf_message)
-
-    def _evaluate_pending_messages_for_test(self, test_case_name: str) -> None:
-        keys_to_process = [
-            key for key in self._pending_messages.keys() if key[1] == test_case_name
-        ]
-        for message_key in keys_to_process:
-            messages_list = self._pending_messages[message_key]
-            if messages_list:
-                vm_size = message_key[2]
-                stats_config = self.get_statistics_config(test_case_name, vm_size)
-                statistics_type = stats_config.get("statistics_type", "average")
-                self._log.debug(
-                    f"Test {test_case_name} completed with "
-                    f"{len(messages_list)} pending messages, evaluating..."
-                )
-                self._aggregate_and_evaluate(
-                    message_key, messages_list, statistics_type
-                )
-            del self._pending_messages[message_key]
 
     def _aggregate_and_evaluate(
         self,
