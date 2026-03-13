@@ -1003,9 +1003,10 @@ class Debian(Linux):
             self._log.debug(
                 f"Found packages needing repair: {audit_result.stdout.strip()}"
             )
-            # Find packages stuck in "reinst-required" state (status code "HR").
+            # Find packages stuck in "reinst-required" state:
+            # match any dpkg entry whose error flag (3rd column) is 'R'.
             reinst_packages_result = self._node.execute(
-                "dpkg -l | grep '^.HR' | awk '{print $2}'",
+                "dpkg -l | grep '^..R' | awk '{print $2}'",
                 sudo=True,
                 shell=True,
                 no_info_log=True,
