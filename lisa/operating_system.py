@@ -1011,15 +1011,11 @@ class Debian(Linux):
                 no_info_log=True,
             )
             reinst_packages = [
-                pkg
-                for pkg in reinst_packages_result.stdout.splitlines()
-                if pkg.strip()
+                pkg for pkg in reinst_packages_result.stdout.splitlines() if pkg.strip()
             ]
             if reinst_packages:
                 packages_arg = " ".join(reinst_packages)
-                remove_cmd = (
-                    f"dpkg --remove --force-remove-reinstreq {packages_arg}"
-                )
+                remove_cmd = f"dpkg --remove --force-remove-reinstreq {packages_arg}"
                 remove_result = self._node.execute(
                     remove_cmd,
                     sudo=True,
