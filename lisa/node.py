@@ -43,7 +43,12 @@ from lisa.util import (
 from lisa.util.constants import PATH_REMOTE_ROOT
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import run_in_parallel
-from lisa.util.process import ExecutableResult, Process, process_command
+from lisa.util.process import (
+    SUDO_PASSWORD_PROMPTS,
+    ExecutableResult,
+    Process,
+    process_command,
+)
 from lisa.util.shell import LocalShell, Shell, SshShell, WslShell
 
 T = TypeVar("T")
@@ -53,12 +58,7 @@ __local_node: Optional[Node] = None
 class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixin):
     _factory: Optional[subclasses.Factory[Node]] = None
 
-    # [sudo] password for
-    # Password:
-    _sudo_password_prompts: List[str] = [
-        "[sudo] password for",
-        "Password:",
-    ]
+    _sudo_password_prompts: List[str] = SUDO_PASSWORD_PROMPTS
 
     def __init__(
         self,

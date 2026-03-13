@@ -29,6 +29,13 @@ from lisa.util import (
 from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
 from lisa.util.shell import Shell, SshShell
 
+# Prompt strings that sudo writes when it requires a password.
+# Shared with lisa.node (which imports this list) so changes stay in sync.
+SUDO_PASSWORD_PROMPTS: List[str] = [
+    "[sudo] password for",
+    "Password:",
+]
+
 # [sudo] password for lisatest: \r\nsudo: timed out reading password
 # Password: \r\nsudo: timed out reading password
 TIMEOUT_READING_PASSWORD_PATTERNS = [
@@ -359,7 +366,7 @@ class Process:
                 self._stdout_writer.flush()
                 self._stderr_writer.flush()
                 buffer_content = self.log_buffer.getvalue()
-                for prompt in ["Password:", "[sudo] password for"]:
+                for prompt in SUDO_PASSWORD_PROMPTS:
                     if prompt in buffer_content:
                         prompt_found = True
                         break
