@@ -1713,7 +1713,7 @@ def get_virtual_networks(
 
 
 def remove_vnet_peerings(
-    platform: "AzurePlatform", resource_group_name: str, environment_id: int
+    platform: "AzurePlatform", resource_group_name: str, environment_id: str
 ) -> None:
     # delete both the vnet peering for a resource group and the corresponding link
     # in the remote group.
@@ -1725,24 +1725,22 @@ def remove_vnet_peerings(
         resource_group_name=resource_group_name
     )
     for vnet in vnets:
-        peerings = network_client.virtual_network_peerings.get(
-            resource_group_name, name=vnet.name
-        )
-        for peering in peerings:
+        for peering in vnet.virtual_network_peerings:
             # remove the local peerings
             network_client.virtual_network_peerings.begin_delete(
                 resource_group_name, vnet.name, peering.name
             ).wait()
             # remove the remote peering
             network_client.virtual_network_peerings.begin_delete(
-                peering.remote_virtual_network.split("/")[4],
-                peering.remote_virtual_network.split("/")[-1],
+                peering.remote_virtual_network.id.split("/")[4],
+                peering.remote_virtual_network.id.split("/")[-1],
                 f"vnet-peering-e{environment_id}",
             ).wait()
-        # for subnet in vnet.subnets:
-        #     network_client.subnets.begin_delete(
-        #         resource_group_name, vnet.name, subnet.name
-        #     ).wait()
+
+            # for subnet in vnet.subnets:
+            #     network_client.subnets.begin_delete(
+            #         resource_group_name, vnet.name, subnet.name
+            #     ).wait()
 
 
 def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:

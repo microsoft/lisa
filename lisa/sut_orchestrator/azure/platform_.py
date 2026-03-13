@@ -33,7 +33,11 @@ from azure.mgmt.compute.models import (
     VirtualMachineImage,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms
-from azure.mgmt.resource import FeatureClient, SubscriptionClient
+from azure.mgmt.resource import (
+    FeatureClient,
+    ResourceManagementClient,
+    SubscriptionClient,
+)
 from azure.mgmt.resource.resources.models import (
     Deployment,
     DeploymentMode,
@@ -704,7 +708,7 @@ class AzurePlatform(Platform):
                     resource_group_name
                 )
                 if self._azure_runbook.virtual_network_resource_group:
-                    remove_vnet_peerings(self._platform, resource_group_name)
+                    remove_vnet_peerings(self, resource_group_name, environment.id)
             except Exception as e:
                 log.debug(f"exception on delete resource group: {e}")
             if delete_operation and self._azure_runbook.wait_delete:
