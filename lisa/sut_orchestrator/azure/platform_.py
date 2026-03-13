@@ -1360,7 +1360,6 @@ class AzurePlatform(Platform):
                 "the use_public_address must be set to False."
             )
             self._azure_runbook.use_public_address = False
-        arm_parameters.source_address_prefixes = self._get_ip_addresses()
 
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
