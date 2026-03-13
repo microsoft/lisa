@@ -813,23 +813,21 @@ class Ntttcp(Tool):
             self.node.reboot()
             # Wait 2 seconds after reboot
             time.sleep(2)
-            # Set rxringparam to 2048 after reboot on eth0 and eth1
-            self._log.debug("Setting rxringparam to 2048 on eth0 and eth1")
+            # Set rxringparam to 2048 after reboot on eth1
+            self._log.debug("Setting rxringparam to 2048 on eth1")
             ethtool = self.node.tools[Ethtool]
-            # Set on both eth0 and eth1 (covers master and slave interfaces)
-            for device in ["eth0", "eth1"]:
-                try:
-                    # Get current ring buffer settings to preserve tx value
-                    current_settings = ethtool.get_device_ring_buffer_settings(device)
-                    current_tx = int(current_settings.current_ring_buffer_settings["TX"])
-                    ethtool.change_device_ring_buffer_settings(
-                        interface=device, rx=2048, tx=current_tx
-                    )
-                    self._log.debug(f"Successfully set rxringparam to 2048 for {device}")
-                except Exception as e:
-                    self._log.warning(
-                        f"Failed to set rxringparam for {device}: {e}"
-                    )
+            try:
+                # Get current ring buffer settings to preserve tx value
+                current_settings = ethtool.get_device_ring_buffer_settings("eth1")
+                current_tx = int(current_settings.current_ring_buffer_settings["TX"])
+                ethtool.change_device_ring_buffer_settings(
+                    interface="eth1", rx=2048, tx=current_tx
+                )
+                self._log.debug("Successfully set rxringparam to 2048 for eth1")
+            except Exception as e:
+                self._log.warning(
+                    f"Failed to set rxringparam for eth1: {e}"
+                )
 
 
 class BSDNtttcp(Ntttcp):
