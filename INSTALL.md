@@ -70,7 +70,7 @@ For detailed Docker usage, see:
 
 ### Option 1: Quick Install (Recommended)
 
-The quick install script automatically downloads and installs everything you need.
+The quick install script automatically downloads and installs everything you need, including Python and Git.
 
 1. **Open PowerShell as Administrator**
 
@@ -104,7 +104,27 @@ The quick install script automatically downloads and installs everything you nee
    .\quick-install.ps1 -Branch "develop"
    ```
 
-### Option 2: Manual Installation
+### Option 2: Simple Install (Python and Git already installed)
+
+If Python 3.8+ and Git are already installed, use `install.ps1` to clone and set up LISA directly:
+
+```powershell
+# Download and run install.ps1
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/install.ps1" -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
+```
+
+Or with optional parameters:
+```powershell
+# Specify custom installation path (default: $env:USERPROFILE\lisa)
+.\install.ps1 -InstallPath "C:\MyTools\lisa"
+
+# Install from a different branch
+.\install.ps1 -Branch "develop"
+```
+
+LISA will be cloned to `$env:USERPROFILE\lisa` by default.
+
+### Option 3: Manual Installation
 
 1. **Install Python**
    - Download Python 3.11+ from [python.org](https://www.python.org/downloads/)
@@ -125,10 +145,10 @@ The quick install script automatically downloads and installs everything you nee
    pip install --user --upgrade nox toml wheel
    ```
 
-5. **Clone LISA repository**
+5. **Clone LISA repository** (default path: `$env:USERPROFILE\lisa`)
    ```powershell
-   git clone https://github.com/microsoft/lisa.git
-   cd lisa
+   git clone https://github.com/microsoft/lisa.git "$env:USERPROFILE\lisa"
+   cd "$env:USERPROFILE\lisa"
    ```
 
 6. **Install LISA with Azure extensions**
