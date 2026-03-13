@@ -116,6 +116,16 @@ class Waagent(Tool):
 
         if downgrade_result.exit_code != 0:
             self._log.debug(
+                "setuptools downgrade with --break-system-packages failed, "
+                "retrying without it (older pip may not support the flag)"
+            )
+            downgrade_result = self.node.execute(
+                f"{python_cmd} -m pip install 'setuptools<71' --force-reinstall",
+                sudo=True,
+            )
+
+        if downgrade_result.exit_code != 0:
+            self._log.debug(
                 "Failed to downgrade setuptools, trying pip install instead"
             )
             # Fallback: try pip install with --no-build-isolation to avoid
