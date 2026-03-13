@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.36.177.2456",
-      "templateHash": "18099469189437246926"
+      "version": "0.41.2.15936",
+      "templateHash": "194473662753675126"
     }
   },
   "functions": [
@@ -538,12 +538,6 @@
         "description": "whether to enable network outbound access"
       }
     },
-    "source_address_prefixes": {
-      "type": "array",
-      "metadata": {
-        "description": "The source IP address prefixes allowed in NSG"
-      }
-    },
     "create_public_address": {
       "type": "bool",
       "metadata": {
@@ -826,7 +820,7 @@
         "count": "[length(range(0, variables('node_count')))]"
       },
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
+      "apiVersion": "2025-04-01",
       "name": "[format('{0}-nics', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -872,8 +866,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.36.177.2456",
-              "templateHash": "15654609969338604205"
+              "version": "0.41.2.15936",
+              "templateHash": "2282563054596282747"
             }
           },
           "functions": [

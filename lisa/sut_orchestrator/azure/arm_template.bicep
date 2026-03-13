@@ -58,9 +58,6 @@ param use_ipv6 bool = false
 @description('whether to enable network outbound access')
 param enable_vm_nat bool
 
-@description('The source IP address prefixes allowed in NSG')
-param source_address_prefixes array
-
 @description('Generate public IP address for each node')
 param create_public_address bool
 
@@ -263,64 +260,8 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
           use_ipv6 ? ['2001:db8:${j}::/64'] : []
         )
         defaultOutboundAccess: enable_vm_nat
-        networkSecurityGroup: {
-          id: resourceId('Microsoft.Network/networkSecurityGroups', '${toLower(virtual_network_name)}-nsg')
-        }
       }
     }]
-  }
-  dependsOn: [
-    nsg
-  ]
-}
-
-resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
-  name: '${toLower(virtual_network_name)}-nsg'
-  location: location
-  properties: {
-    securityRules: [
-      {
-        name: 'LISASSH'
-        properties: {
-          priority: 100
-          direction: 'Inbound'
-          access: 'Allow'
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '22'
-          sourceAddressPrefixes: source_address_prefixes
-          destinationAddressPrefix: '*'
-        }
-      }
-      {
-          name: 'LISAKVMSSH'
-          properties: {
-              description: 'Allows nested VM SSH traffic'
-              protocol: 'Tcp'
-              sourcePortRange: '*'
-              destinationPortRange: '60020-60030'
-              destinationAddressPrefix: '*'
-              sourceAddressPrefixes: source_address_prefixes
-              access: 'Allow'
-              priority: 206
-              direction: 'Inbound'
-          }
-      }
-      {
-        name: 'LISALIBVIRTSSH'
-        properties: {
-            description: 'Allows SSH traffic to Libvirt Platform Guests'
-            protocol: 'Tcp'
-            sourcePortRange: '*'
-            destinationPortRange: '49152-49352'
-            destinationAddressPrefix: '*'
-            sourceAddressPrefixes: source_address_prefixes
-            access: 'Allow'
-            priority: 208
-            direction: 'Inbound'
-        }
-      }
-    ]
   }
 }
 
