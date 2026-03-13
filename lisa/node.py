@@ -164,6 +164,18 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         # Further test: try running 'ls' with sudo /bin/sh
         process = self._execute("ls", shell=True, sudo=True, no_info_log=True)
+
+        # Check for a password prompt early (within 2 seconds) to avoid
+        # waiting the full timeout when sudo just needs a password.
+        for prompt in self._sudo_password_prompts:
+            if process.wait_output(prompt, timeout=2, error_on_missing=False):
+                self.log.debug(
+                    "sudo requires a password (detected prompt during probe). "
+                    "sudo is available; password handling will follow."
+                )
+                process.kill()
+                return True
+
         result = process.wait_result(timeout=10, raise_on_timeout=False)
         if result.exit_code != 0:
             # e.g. raw error: "user is not allowed to execute '/bin/sh -c ...'"
@@ -173,6 +185,15 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     " that restrict the use of sudo in combination with /bin/sh."
                 )
                 return False
+            # Also check stdout for password prompts in case they appeared
+            # after the early check window (e.g. slow connection).
+            for prompt in self._sudo_password_prompts:
+                if prompt in result.stdout:
+                    self.log.debug(
+                        "sudo requires a password (detected prompt in output). "
+                        "sudo is available; password handling will follow."
+                    )
+                    return True
 
         return True
 
