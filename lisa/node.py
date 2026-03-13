@@ -185,10 +185,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     " that restrict the use of sudo in combination with /bin/sh."
                 )
                 return False
-            # Also check stdout for password prompts in case they appeared
-            # after the early check window (e.g. slow connection).
+            # Also check output for password prompts in case they appeared
+            # after the early check window (e.g. slow connection). The sudo
+            # prompt is typically written to stderr, so include both streams.
+            combined_output = (result.stdout or "") + (result.stderr or "")
             for prompt in self._sudo_password_prompts:
-                if prompt in result.stdout:
+                if prompt in combined_output:
                     self.log.debug(
                         "sudo requires a password (detected prompt in output). "
                         "sudo is available; password handling will follow."
