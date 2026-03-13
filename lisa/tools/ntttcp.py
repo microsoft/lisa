@@ -16,7 +16,7 @@ from lisa.messages import (
     send_unified_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner
-from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
+from lisa.tools import Ethtool, Firewall, Gcc, Git, Lscpu, Make, Sed
 from lisa.tools.taskset import TaskSet
 from lisa.util import LisaException, constants
 from lisa.util.process import ExecutableResult, Process
@@ -811,6 +811,25 @@ class Ntttcp(Tool):
         if need_reboot:
             self._log.debug("reboot vm to make sure TasksMax change take effect")
             self.node.reboot()
+            # Wait 2 seconds after reboot
+            time.sleep(2)
+            # Set rxringparam to 2048 after reboot
+            self._log.debug("Setting rxringparam to 2048")
+            ethtool = self.node.tools[Ethtool]
+            device_list = ethtool.get_device_list()
+            for device in device_list:
+                try:
+                    # Get current ring buffer settings to preserve tx value
+                    current_settings = ethtool.get_device_ring_buffer_settings(device)
+                    current_tx = int(current_settings.current_ring_buffer_settings["TX"])
+                    ethtool.change_device_ring_buffer_settings(
+                        interface=device, rx=2048, tx=current_tx
+                    )
+                    self._log.debug(f"Successfully set rxringparam to 2048 for {device}")
+                except Exception as e:
+                    self._log.warning(
+                        f"Failed to set rxringparam for {device}: {e}"
+                    )
 
 
 class BSDNtttcp(Ntttcp):
