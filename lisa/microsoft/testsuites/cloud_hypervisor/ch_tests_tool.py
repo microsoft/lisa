@@ -3,7 +3,10 @@
 import json
 import os
 import re
+import shlex
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
 
@@ -140,6 +143,326 @@ class CloudHypervisorTests(Tool):
     def _sanitize_name(self, s: str) -> str:
         """Sanitize names for filenames: keep alphanumeric, dot, dash, underscore."""
         return re.sub(r"[^A-Za-z0-9_.-]", "_", s)
+
+    def _read_int_from_path(self, path: str) -> int:
+        result = self.node.execute(
+            f"cat {shlex.quote(path)}",
+            shell=True,
+        )
+        if result.exit_code != 0:
+            return 0
+
+        try:
+            return int(result.stdout.strip())
+        except ValueError:
+            self._log.debug(
+                f"Failed to parse integer from '{path}': {result.stdout.strip()}"
+            )
+            return 0
+
+    def _determine_hugepage_allocation_mode(
+        self,
+        requested_pages: int,
+        before_allocated: int,
+        after_allocated: int,
+        fallback_used: bool,
+    ) -> str:
+        if before_allocated >= requested_pages:
+            return "preexisting_pool"
+        if fallback_used:
+            return "compaction/fallback"
+        if after_allocated >= requested_pages and after_allocated > before_allocated:
+            return "fresh_allocation"
+        return "compaction/fallback"
+
+    def _log_command_output(self, label: str, command: str) -> None:
+        result = self.node.execute(
+            command,
+            shell=True,
+            sudo=True,
+        )
+        output = result.stdout.strip()
+        if not output:
+            output = result.stderr.strip() or "<empty>"
+        self._log.info(
+            f"[debug] {label} (exit_code={result.exit_code}):\n{output}"
+        )
+
+    def _log_hugepage_post_setup_state(
+        self,
+        requested_pages: int,
+        page_size: str,
+        hugepage_path: str,
+        before_allocated: int,
+        before_free: int,
+        after_allocated: int,
+        after_free: int,
+        fallback_used: bool,
+    ) -> None:
+        allocation_mode = self._determine_hugepage_allocation_mode(
+            requested_pages=requested_pages,
+            before_allocated=before_allocated,
+            after_allocated=after_allocated,
+            fallback_used=fallback_used,
+        )
+        delta_allocated = after_allocated - before_allocated
+        delta_free = after_free - before_free
+
+        self._log.info(
+            "[debug] hugepage_allocation_result: "
+            f"mode={allocation_mode},requested={requested_pages},"
+            f"size={page_size},node={self._numa_node},"
+            f"path={hugepage_path},before_allocated={before_allocated},"
+            f"after_allocated={after_allocated},delta_allocated={delta_allocated},"
+            f"before_free={before_free},after_free={after_free},"
+            f"delta_free={delta_free},fallback_used={fallback_used}"
+        )
+
+        self._log_command_output(
+            "hugepage_meminfo",
+            "cat /proc/meminfo | egrep 'Huge|MemFree|MemAvailable' || true",
+        )
+        self._log_command_output(
+            "hugepage_per_node_counts",
+            "bash -lc \"grep -H . "
+            "/sys/devices/system/node/node*/hugepages/hugepages-*/"
+            "{nr_hugepages,free_hugepages} || true\"",
+        )
+        self._log_command_output(
+            "hugepage_buddyinfo",
+            "cat /proc/buddyinfo || true",
+        )
+
+    def _get_remote_debug_snapshot_dir(self) -> PurePath:
+        return self.repo_root / "debug_snapshots"
+
+    def _get_local_debug_snapshot_dir(self, log_path: Path) -> Path:
+        snapshot_dir = log_path / "debug_snapshots"
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        return snapshot_dir
+
+    def _copy_remote_debug_artifact(self, remote: PurePath, local: Path) -> None:
+        try:
+            local.parent.mkdir(parents=True, exist_ok=True)
+            self.node.shell.copy_back(remote, local)
+            self._log.debug(f"Successfully copied back debug artifact: {remote}")
+        except Exception as e:
+            self._log.debug(f"copy_back skipped for {remote}: {e}")
+
+    def _append_phase_timing(
+        self,
+        log_path: Path,
+        phase: str,
+        start_time: float,
+        end_time: float,
+    ) -> None:
+        phase_file = log_path / "phase_timings.log"
+        elapsed = end_time - start_time
+        start_utc = datetime.fromtimestamp(start_time, tz=timezone.utc).isoformat()
+        end_utc = datetime.fromtimestamp(end_time, tz=timezone.utc).isoformat()
+
+        if not phase_file.exists():
+            with open(phase_file, "w", encoding="utf-8") as f:
+                f.write("phase,start_utc,end_utc,elapsed_s\n")
+
+        with open(phase_file, "a", encoding="utf-8") as f:
+            f.write(f"{phase},{start_utc},{end_utc},{elapsed:.6f}\n")
+
+        self._log.info(f"[debug] phase={phase} elapsed_s={elapsed:.6f}")
+
+    def _dump_debug_snapshot(self, log_path: Path, stage: str) -> None:
+        safe_stage = self._sanitize_name(stage)
+        remote_dir = self._get_remote_debug_snapshot_dir()
+        remote_out = remote_dir / f"{safe_stage}.log"
+        local_out = self._get_local_debug_snapshot_dir(log_path) / f"{safe_stage}.log"
+
+        commands = [
+            "date -Ins",
+            "uname -a",
+            "uptime",
+            "lscpu || true",
+            "numactl --hardware || true",
+            "nproc || true",
+            "taskset -pc $$ || true",
+            "cat /proc/cmdline || true",
+            "cat /proc/interrupts || true",
+            "cat /proc/softirqs || true",
+            "cat /proc/schedstat || true",
+            "cat /proc/pressure/cpu || true",
+            "cat /proc/pressure/memory || true",
+            "cat /proc/pressure/io || true",
+            "grep -H . /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor || true",
+            "cat /sys/devices/system/cpu/intel_pstate/status || true",
+            "cat /sys/kernel/mm/transparent_hugepage/enabled || true",
+            "cat /sys/kernel/mm/transparent_hugepage/defrag || true",
+            "grep -H . /sys/devices/system/node/node*/cpulist || true",
+            "grep -H . /sys/devices/system/node/node*/meminfo || true",
+            (
+                "grep -H . "
+                "/sys/devices/system/node/node*/hugepages/hugepages-*/nr_hugepages "
+                "|| true"
+            ),
+            (
+                "grep -H . "
+                "/sys/devices/system/node/node*/hugepages/hugepages-*/free_hugepages "
+                "|| true"
+            ),
+            "cat /proc/buddyinfo || true",
+            "cat /proc/meminfo | egrep 'Huge|AnonHuge|MemFree|MemAvailable' || true",
+            (
+                "ps -eo pid=,ppid=,comm=,args= --sort=pid | "
+                "while read -r pid_col ppid_col comm_col args_col; do "
+                'if [ "$comm_col" = "cloud-hyperviso" ] || '
+                '[ "$comm_col" = "cloud-hypervisor" ]; then '
+                'echo "$pid_col $ppid_col $comm_col $args_col"; fi; '
+                "done || true"
+            ),
+            (
+                "ps -eo pid,ppid,psr,pcpu,pmem,comm,args --sort=pid "
+                "| grep -E 'cloud-hypervisor|numactl|hypervisor' || true"
+            ),
+        ]
+
+        script_lines = [
+            "set -x",
+            f"mkdir -p {shlex.quote(str(remote_dir))}",
+            "(",
+        ]
+        for cmd in commands:
+            script_lines.append(f'echo "\\n===== CMD: {cmd} ====="')
+            script_lines.append(cmd)
+        script_lines.append(f") > {shlex.quote(str(remote_out))} 2>&1")
+
+        try:
+            self._log.info(f"[debug] capturing host snapshot: {stage}")
+            self.node.execute(
+                "\n".join(script_lines),
+                shell=True,
+                sudo=True,
+                timeout=180,
+            )
+            self._copy_remote_debug_artifact(remote_out, local_out)
+        except Exception as e:
+            self._log.debug(f"[debug] snapshot collection failed at stage={stage}: {e}")
+
+    def _dump_ch_process_snapshot(
+        self,
+        log_path: Path,
+        stage: str,
+        test_name: Optional[str] = None,
+    ) -> None:
+        safe_stage = self._sanitize_name(stage)
+        remote_dir = self._get_remote_debug_snapshot_dir()
+        remote_out = remote_dir / f"{safe_stage}_ch_process.log"
+        local_out = (
+            self._get_local_debug_snapshot_dir(log_path)
+            / f"{safe_stage}_ch_process.log"
+        )
+        remote_pid_file = (
+            remote_dir / f"{test_name}_cloud_hypervisor.pid" if test_name else None
+        )
+        remote_pid_history_file = (
+            remote_dir / f"{test_name}_cloud_hypervisor_pid_history.log"
+            if test_name
+            else None
+        )
+        remote_runner_pid_file = (
+            remote_dir / f"{test_name}_runner.pid" if test_name else None
+        )
+
+        script = "\n".join(
+            [
+                "set -x",
+                f"mkdir -p {shlex.quote(str(remote_dir))}",
+                (
+                    f'CH_PID_FILE={shlex.quote(str(remote_pid_file))}'
+                    if remote_pid_file
+                    else 'CH_PID_FILE=""'
+                ),
+                (
+                    f'CH_PID_HISTORY_FILE={shlex.quote(str(remote_pid_history_file))}'
+                    if remote_pid_history_file
+                    else 'CH_PID_HISTORY_FILE=""'
+                ),
+                (
+                    f'RUNNER_PID_FILE={shlex.quote(str(remote_runner_pid_file))}'
+                    if remote_runner_pid_file
+                    else 'RUNNER_PID_FILE=""'
+                ),
+                'CH_PID=""',
+                (
+                    'if [ -n "$CH_PID_FILE" ] && [ -s "$CH_PID_FILE" ]; then '
+                    'CH_PID=$(cat "$CH_PID_FILE" 2>/dev/null || true); fi'
+                ),
+                "(",
+                'echo "===== date ====="',
+                "date -Ins",
+                'echo "===== cloud-hypervisor exact ps ====="',
+                (
+                    "ps -eo pid=,ppid=,comm=,args= --sort=pid | "
+                    "while read -r pid_col ppid_col comm_col args_col; do "
+                    'if [ "$comm_col" = "cloud-hyperviso" ] || '
+                    '[ "$comm_col" = "cloud-hypervisor" ]; then '
+                    'echo "$pid_col $ppid_col $comm_col $args_col"; fi; '
+                    "done || true"
+                ),
+                'echo "===== pid files ====="',
+                'echo "RUNNER_PID_FILE=$RUNNER_PID_FILE"',
+                (
+                    'if [ -n "$RUNNER_PID_FILE" ] && [ -s "$RUNNER_PID_FILE" ]; '
+                    'then echo "RUNNER_PID=$(cat \"$RUNNER_PID_FILE\" 2>/dev/null)"; '
+                    'else echo "RUNNER_PID=unavailable"; fi'
+                ),
+                'echo "CH_PID_FILE=$CH_PID_FILE"',
+                (
+                    'if [ -n "$CH_PID_FILE" ] && [ -s "$CH_PID_FILE" ]; '
+                    'then echo "LAST_KNOWN_CH_PID=$(cat \"$CH_PID_FILE\" '
+                    '2>/dev/null)"; else echo "LAST_KNOWN_CH_PID=unavailable"; fi'
+                ),
+                'echo "CH_PID_HISTORY_FILE=$CH_PID_HISTORY_FILE"',
+                (
+                    'if [ -n "$CH_PID_HISTORY_FILE" ] && '
+                    '[ -f "$CH_PID_HISTORY_FILE" ]; then '
+                    'cat "$CH_PID_HISTORY_FILE"; else echo "unavailable"; fi'
+                ),
+                'echo "CH_PID=$CH_PID"',
+                'if [ -n "$CH_PID" ] && kill -0 "$CH_PID" 2>/dev/null; then',
+                'echo "===== ps ====="',
+                'ps -p "$CH_PID" -o pid,ppid,psr,pcpu,pmem,etime,stat,comm,args || true',
+                'echo "===== cmdline ====="',
+                'tr "\\0" " " < /proc/"$CH_PID"/cmdline || true',
+                'echo',
+                'echo "===== taskset ====="',
+                'taskset -pc "$CH_PID" || true',
+                'echo "===== status ====="',
+                'cat /proc/"$CH_PID"/status || true',
+                'echo "===== sched ====="',
+                'cat /proc/"$CH_PID"/sched || true',
+                'echo "===== schedstat ====="',
+                'cat /proc/"$CH_PID"/schedstat || true',
+                'echo "===== cpus_allowed ====="',
+                'grep Cpus_allowed_list /proc/"$CH_PID"/status || true',
+                'echo "===== mems_allowed ====="',
+                'grep Mems_allowed_list /proc/"$CH_PID"/status || true',
+                'echo "===== numa_maps ====="',
+                'head -200 /proc/"$CH_PID"/numa_maps || true',
+                'echo "===== smaps_rollup ====="',
+                'cat /proc/"$CH_PID"/smaps_rollup || true',
+                "else",
+                f'echo "cloud-hypervisor pid not running at stage {safe_stage}"',
+                "fi",
+                f") > {shlex.quote(str(remote_out))} 2>&1",
+            ]
+        )
+
+        try:
+            self._log.info(f"[debug] capturing CH process snapshot: {stage}")
+            self.node.execute(script, shell=True, sudo=True, timeout=180)
+            self._copy_remote_debug_artifact(remote_out, local_out)
+        except Exception as e:
+            self._log.debug(
+                f"[debug] CH process snapshot collection failed at stage={stage}: {e}"
+            )
 
     def _prepare_subtests(
         self,
@@ -425,8 +748,20 @@ class CloudHypervisorTests(Tool):
         # Metrics tests always use perf-stable setup
         if not self._host_setup_done:
             self._initialize_perf_stable_profile()
+            self._dump_debug_snapshot(log_path, "00_before_host_perf_setup")
+
+            host_setup_start = time.time()
             # One-time host setup (CPU, THP, irqbalance, storage, network)
             self._setup_host_perf_policies()
+            host_setup_end = time.time()
+            self._append_phase_timing(
+                log_path,
+                "host_perf_setup",
+                host_setup_start,
+                host_setup_end,
+            )
+            self._dump_debug_snapshot(log_path, "01_after_host_perf_setup")
+
             self._setup_storage_hygiene()
             self._setup_network_hygiene()
             # Best-effort settle phase to reduce variance from background services.
@@ -436,7 +771,20 @@ class CloudHypervisorTests(Tool):
                 self._settle_system()
             if self.perf_stable_enabled:
                 self._read_back_and_log_host_state()
+                self._dump_debug_snapshot(log_path, "02_before_warmup")
+                warmup_start = time.time()
                 self._run_warmup()
+                warmup_end = time.time()
+                self._append_phase_timing(
+                    log_path,
+                    "warmup",
+                    warmup_start,
+                    warmup_end,
+                )
+                self._log.info(
+                    f"[debug] warmup_elapsed_s={warmup_end - warmup_start:.6f}"
+                )
+                self._dump_debug_snapshot(log_path, "03_after_warmup")
             self._host_setup_done = True
         failed_testcases: List[str] = []
 
@@ -544,6 +892,13 @@ class CloudHypervisorTests(Tool):
             if self.perf_stable_enabled:
                 numa_cmd = self._get_numa_prefix()
 
+            self._log.info(f"[debug] test_name={test_name}")
+            self._log.info(f"[debug] timeout={cmd_timeout}")
+            self._log.info(f"[debug] numa_cmd='{numa_cmd}'")
+            self._log.info(f"[debug] cmd_args={cmd_args}")
+            self._dump_debug_snapshot(log_path, f"{test_name}_04_before_ch_launch")
+            boot_metric_start = time.time()
+
             try:
                 result = self._run_with_enhanced_diagnostics(
                     cmd_args=cmd_args,
@@ -551,9 +906,32 @@ class CloudHypervisorTests(Tool):
                     log_path=log_path,
                     test_name=test_name,
                     numa_cmd=numa_cmd,
+                    enable_boot_debug=True,
                 )
             finally:
+                boot_metric_end = time.time()
+                self._append_phase_timing(
+                    log_path,
+                    f"{test_name}.boot_metric",
+                    boot_metric_start,
+                    boot_metric_end,
+                )
+                self._dump_debug_snapshot(log_path, f"{test_name}_06_after_metric")
+                self._dump_ch_process_snapshot(
+                    log_path,
+                    f"{test_name}_07_after_metric",
+                    test_name=test_name,
+                )
+                cleanup_start = time.time()
                 self._copy_back_artifacts(log_path, test_name)
+                self._dump_debug_snapshot(log_path, f"{test_name}_08_after_cleanup")
+                cleanup_end = time.time()
+                self._append_phase_timing(
+                    log_path,
+                    f"{test_name}.cleanup",
+                    cleanup_start,
+                    cleanup_end,
+                )
 
             status, metrics, trace = self._process_metrics_result(
                 result, testcase, log_path, test_name
@@ -938,6 +1316,7 @@ class CloudHypervisorTests(Tool):
         log_path: Path,
         test_name: str = "ch_test",
         numa_cmd: str = "",
+        enable_boot_debug: bool = False,
     ) -> Any:
         """
         Run Cloud Hypervisor tests with enhanced Rust diagnostics, core dumps,
@@ -970,6 +1349,159 @@ class CloudHypervisorTests(Tool):
 
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
+        boot_debug_prelude = ""
+        boot_debug_before_launch = ""
+        boot_debug_after_launch = ""
+        boot_debug_after_wait = ""
+        boot_debug_cleanup_start = ""
+        boot_debug_cleanup_end = ""
+        if enable_boot_debug:
+            boot_debug_prelude = f"""
+debug_snapshot_dir="debug_snapshots"
+phase_file="$debug_snapshot_dir/{test_name}_phase_markers.log"
+ch_pid_file="$debug_snapshot_dir/{test_name}_cloud_hypervisor.pid"
+ch_pid_history_file="$debug_snapshot_dir/{test_name}_cloud_hypervisor_pid_history.log"
+runner_pid_file="$debug_snapshot_dir/{test_name}_runner.pid"
+mkdir -p "$debug_snapshot_dir"
+rm -f "$phase_file" "$ch_pid_file" "$ch_pid_history_file" "$runner_pid_file"
+last_recorded_ch_pid=""
+log_phase() {{
+  phase_name="$1"
+  echo "${{phase_name}},$(date -Ins)" >> "$phase_file"
+}}
+get_parent_pid() {{
+    target_pid="$1"
+    ps -o ppid= -p "$target_pid" 2>/dev/null | tr -d ' '
+}}
+is_descendant_of() {{
+    candidate_pid="$1"
+    ancestor_pid="$2"
+    while [ -n "$candidate_pid" ] && [ "$candidate_pid" != "1" ]; do
+        if [ "$candidate_pid" = "$ancestor_pid" ]; then
+            return 0
+        fi
+        candidate_pid="$(get_parent_pid "$candidate_pid")"
+    done
+    return 1
+}}
+find_ch_pid_in_tree() {{
+    runner_pid="$1"
+    best_pid=""
+    while read -r candidate_pid candidate_comm; do
+        [ -n "$candidate_pid" ] || continue
+        if [ "$candidate_comm" = "cloud-hyperviso" ] || \
+             [ "$candidate_comm" = "cloud-hypervisor" ]; then
+            if is_descendant_of "$candidate_pid" "$runner_pid"; then
+                best_pid="$candidate_pid"
+            fi
+        fi
+    done < <(ps -eo pid=,comm=)
+    echo "$best_pid"
+}}
+record_ch_pid() {{
+    runner_pid="$1"
+    current_ch_pid="$(find_ch_pid_in_tree "$runner_pid")"
+    if [ -n "$current_ch_pid" ]; then
+        echo "$current_ch_pid" > "$ch_pid_file"
+        echo "$runner_pid" > "$runner_pid_file"
+        if [ "$current_ch_pid" != "$last_recorded_ch_pid" ]; then
+            ch_ppid="$(get_parent_pid "$current_ch_pid")"
+            ch_cmdline="$(tr '\\0' ' ' < /proc/"$current_ch_pid"/cmdline 2>/dev/null || \
+                ps -p "$current_ch_pid" -o args= 2>/dev/null || true)"
+            echo "$(date -Ins),ch_pid=$current_ch_pid,ppid=${{ch_ppid:-unknown}},cmdline=${{ch_cmdline:-unknown}}" >> "$ch_pid_history_file"
+            last_recorded_ch_pid="$current_ch_pid"
+        fi
+    fi
+    echo "$current_ch_pid"
+}}
+track_ch_pid() {{
+    runner_pid="$1"
+    while kill -0 "$runner_pid" 2>/dev/null; do
+        record_ch_pid "$runner_pid" >/dev/null || true
+        sleep 1
+    done
+}}
+dump_ch_process_snapshot() {{
+  stage="$1"
+    runner_pid="$2"
+  out="$debug_snapshot_dir/{test_name}_${{stage}}_ch_process.log"
+    target_pid="$(record_ch_pid "$runner_pid")"
+    if [ -z "$target_pid" ] && [ -s "$ch_pid_file" ]; then
+        target_pid="$(cat "$ch_pid_file" 2>/dev/null || true)"
+    fi
+  {{
+    echo "===== date ====="
+    date -Ins
+        echo "===== cloud-hypervisor exact ps ====="
+        ps -eo pid=,ppid=,comm=,args= --sort=pid | while read -r pid_col ppid_col comm_col args_col; do
+            if [ "$comm_col" = "cloud-hyperviso" ] || \
+                 [ "$comm_col" = "cloud-hypervisor" ]; then
+                echo "$pid_col $ppid_col $comm_col $args_col"
+            fi
+        done || true
+        echo "RUNNER_PID=$runner_pid"
+        echo "CH_PID_FILE=$ch_pid_file"
+        if [ -s "$runner_pid_file" ]; then
+            echo "RUNNER_PID_FILE_CONTENT=$(cat "$runner_pid_file" 2>/dev/null)"
+        fi
+        if [ -s "$ch_pid_file" ]; then
+            echo "LAST_KNOWN_CH_PID=$(cat "$ch_pid_file" 2>/dev/null)"
+        else
+            echo "LAST_KNOWN_CH_PID=unavailable"
+        fi
+        echo "===== ch pid history ====="
+        cat "$ch_pid_history_file" 2>/dev/null || true
+    echo "CH_PID=$target_pid"
+    if [ -n "$target_pid" ] && kill -0 "$target_pid" 2>/dev/null; then
+      echo "===== ps ====="
+      ps -p "$target_pid" -o pid,ppid,psr,pcpu,pmem,etime,stat,comm,args || true
+            echo "===== cmdline ====="
+            tr '\\0' ' ' < /proc/"$target_pid"/cmdline || true
+            echo
+      echo "===== taskset ====="
+      taskset -pc "$target_pid" || true
+      echo "===== status ====="
+      cat /proc/"$target_pid"/status || true
+      echo "===== sched ====="
+      cat /proc/"$target_pid"/sched || true
+      echo "===== schedstat ====="
+      cat /proc/"$target_pid"/schedstat || true
+      echo "===== cpus_allowed ====="
+      grep Cpus_allowed_list /proc/"$target_pid"/status || true
+      echo "===== mems_allowed ====="
+      grep Mems_allowed_list /proc/"$target_pid"/status || true
+      echo "===== numa_maps ====="
+      head -200 /proc/"$target_pid"/numa_maps || true
+      echo "===== smaps_rollup ====="
+      cat /proc/"$target_pid"/smaps_rollup || true
+    else
+      echo "cloud-hypervisor pid not running at stage $stage"
+    fi
+  }} > "$out" 2>&1
+}}
+"""
+            boot_debug_before_launch = 'log_phase "ch_launch_start"\n'
+            boot_debug_after_launch = (
+                'echo "$pid" > "$runner_pid_file"\n'
+                'track_ch_pid "$pid" &\n'
+                'ch_pid_tracker_pid=$!\n'
+                'record_ch_pid "$pid" >/dev/null || true\n'
+                'log_phase "ch_launch_end"\n'
+                'log_phase "boot_metric_start"\n'
+                'dump_ch_process_snapshot "05_after_ch_launch" "$pid" || true\n'
+            )
+            boot_debug_after_wait = (
+                'record_ch_pid "$pid" >/dev/null || true\n'
+                'log_phase "boot_metric_end"\n'
+            )
+            boot_debug_cleanup_start = 'log_phase "cleanup_start"\n'
+            boot_debug_cleanup_end = 'log_phase "cleanup_end"\n'
+
+        self._log.info(f"[debug] _run_with_enhanced_diagnostics test_name={test_name}")
+        self._log.info(f"[debug] _run_with_enhanced_diagnostics timeout={timeout}")
+        self._log.info(f"[debug] _run_with_enhanced_diagnostics numa_cmd='{numa_cmd}'")
+        self._log.info(f"[debug] _run_with_enhanced_diagnostics cmd_args={cmd_args}")
+
         full_cmd = f"""bash -lc '
 set -o pipefail
 
@@ -992,6 +1524,7 @@ live_bt_file="{test_name}_live_bt.txt"
 core_bt_file="{test_name}_core_bt.txt"
 
 rm -f "$log_file" "$live_bt_file" "$core_bt_file"
+{boot_debug_prelude}
 
 # Apply NUMA binding to test process (perf-stable profile)
 numa_prefix="{numa_cmd}"
@@ -1001,13 +1534,16 @@ fi
 
 # Capture BOTH stdout and stderr into the main log
 # This makes watchdog log-growth detection reliable and captures all diagnostics
+{boot_debug_before_launch}
 if command -v stdbuf >/dev/null; then
     ( stdbuf -oL -eL $numa_prefix scripts/dev_cli.sh {cmd_args} 2>&1 \
             | tee -a "$log_file" ) &
 else
     ( $numa_prefix scripts/dev_cli.sh {cmd_args} 2>&1 | tee -a "$log_file" ) &
 fi
+ch_pid_tracker_pid=""
 pid=$!
+{boot_debug_after_launch}
 
 # background watchdog that dumps stacks on inactivity
 idle=0
@@ -1125,15 +1661,17 @@ done &
 
 watchdog_pid=$!
 
-# trap to always stop watchdog
-trap "kill $watchdog_pid 2>/dev/null || true" EXIT
+# trap to always stop watchdog and CH pid tracker
+trap "kill $watchdog_pid 2>/dev/null || true; kill $ch_pid_tracker_pid 2>/dev/null || true" EXIT
 
 # wait for tests
 wait $pid
 ec=$?
+{boot_debug_after_wait}{boot_debug_cleanup_start}
 
 # stop watchdog
 kill $watchdog_pid 2>/dev/null || true
+kill $ch_pid_tracker_pid 2>/dev/null || true
 
 # on failure, try to symbolize a core dump
 if [ $ec -ne 0 ]; then
@@ -1194,6 +1732,7 @@ else
   echo "[artifacts] core_bt_file missing: $PWD/$core_bt_file"
 fi
 
+{boot_debug_cleanup_end}
 exit $ec
 '"""
 
@@ -1248,6 +1787,21 @@ exit $ec
                 self._log.debug(f"Successfully copied back artifact: {name}")
             except Exception as e:
                 self._log.debug(f"copy_back skipped for {remote}: {e}")
+
+        debug_snapshot_dir = self._get_local_debug_snapshot_dir(log_path)
+        remote_debug_dir = self._get_remote_debug_snapshot_dir()
+        debug_artifacts = [
+            f"{test_name}_phase_markers.log",
+            f"{test_name}_05_after_ch_launch_ch_process.log",
+            f"{test_name}_cloud_hypervisor.pid",
+            f"{test_name}_cloud_hypervisor_pid_history.log",
+            f"{test_name}_runner.pid",
+        ]
+        for name in debug_artifacts:
+            self._copy_remote_debug_artifact(
+                remote_debug_dir / name,
+                debug_snapshot_dir / name,
+            )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         tool_path = self.get_tool_path(use_global=True)
@@ -1771,9 +2325,15 @@ exit $ec
             f"/sys/devices/system/node/node{self._numa_node}/"
             f"hugepages/hugepages-1048576kB/nr_hugepages"
         )
+        hugepage_1g_free_path = hugepage_1g_path.replace(
+            "nr_hugepages", "free_hugepages"
+        )
         hugepage_2m_path = (
             f"/sys/devices/system/node/node{self._numa_node}/"
             f"hugepages/hugepages-2048kB/nr_hugepages"
+        )
+        hugepage_2m_free_path = hugepage_2m_path.replace(
+            "nr_hugepages", "free_hugepages"
         )
 
         # Check if 1GB hugepages are available
@@ -1783,46 +2343,78 @@ exit $ec
         )
 
         if result.exit_code == 0:
+            requested_pages = 16
+            before_allocated = self._read_int_from_path(hugepage_1g_path)
+            before_free = self._read_int_from_path(hugepage_1g_free_path)
+
             # Try 1GB hugepages (16GB total)
             self.node.execute(
-                f"echo 16 | sudo tee {hugepage_1g_path} || true",
+                f"echo {requested_pages} | sudo tee {hugepage_1g_path} || true",
                 shell=True,
                 sudo=True,
             )
             # Verify allocation
-            verify = self.node.execute(
-                f"cat {hugepage_1g_path}",
-                shell=True,
-            )
-            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
-            if allocated >= 16:
+            allocated = self._read_int_from_path(hugepage_1g_path)
+            free_pages = self._read_int_from_path(hugepage_1g_free_path)
+            if allocated >= requested_pages:
                 self._log.debug(f"Reserved 16GB (1GB pages) on node{self._numa_node}")
             else:
                 self._log.debug(
                     f"Only {allocated}GB (1GB pages) allocated (requested 16GB)"
                 )
+            self._log.info(
+                "[debug] hugepage_setup: "
+                f"requested={requested_pages},size=1G,node={self._numa_node},"
+                f"allocated={allocated},free={free_pages},fallback_used=False"
+            )
+            self._log_hugepage_post_setup_state(
+                requested_pages=requested_pages,
+                page_size="1G",
+                hugepage_path=hugepage_1g_path,
+                before_allocated=before_allocated,
+                before_free=before_free,
+                after_allocated=allocated,
+                after_free=free_pages,
+                fallback_used=False,
+            )
         else:
+            requested_pages = 8192
+            before_allocated = self._read_int_from_path(hugepage_2m_path)
+            before_free = self._read_int_from_path(hugepage_2m_free_path)
+
             # Fallback to 2MB hugepages (8192 pages = 16GB)
             self.node.execute(
-                f"echo 8192 | sudo tee {hugepage_2m_path} || true",
+                f"echo {requested_pages} | sudo tee {hugepage_2m_path} || true",
                 shell=True,
                 sudo=True,
             )
             # Verify allocation
-            verify = self.node.execute(
-                f"cat {hugepage_2m_path}",
-                shell=True,
-            )
-            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
+            allocated = self._read_int_from_path(hugepage_2m_path)
+            free_pages = self._read_int_from_path(hugepage_2m_free_path)
             # Convert 2MiB pages to GiB
             allocated_gib = allocated * 2 / 1024
-            if allocated >= 8192:
+            if allocated >= requested_pages:
                 self._log.debug(f"Reserved 16GB (2MB pages) on node{self._numa_node}")
             else:
                 self._log.debug(
                     f"Only {allocated_gib:.2f} GiB (2MiB pages) allocated "
                     f"(requested 16 GiB)"
                 )
+            self._log.info(
+                "[debug] hugepage_setup: "
+                f"requested={requested_pages},size=2M,node={self._numa_node},"
+                f"allocated={allocated},free={free_pages},fallback_used=True"
+            )
+            self._log_hugepage_post_setup_state(
+                requested_pages=requested_pages,
+                page_size="2M",
+                hugepage_path=hugepage_2m_path,
+                before_allocated=before_allocated,
+                before_free=before_free,
+                after_allocated=allocated,
+                after_free=free_pages,
+                fallback_used=True,
+            )
 
         # Export NUMA node for CH launcher
         os.environ["CH_NUMA_NODE"] = str(self._numa_node)
@@ -2268,7 +2860,15 @@ exit $ec
             )
 
         # Strict NUMA binding: pin both CPU and memory to selected node
-        return f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
+        prefix = (
+            f"numactl --cpunodebind={self._numa_node} "
+            f"--membind={self._numa_node}"
+        )
+        self._log.info(
+            f"[debug] perf_stable_enabled={self.perf_stable_enabled}, "
+            f"_numa_node={self._numa_node}, numa_prefix='{prefix}'"
+        )
+        return prefix
 
 
 def extract_jsons(input_string: str) -> List[Any]:
