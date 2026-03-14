@@ -16,7 +16,19 @@ from difflib import SequenceMatcher
 from functools import lru_cache, partial
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple, Type, Union, cast
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
@@ -169,14 +181,14 @@ VM_SIZE_FALLBACK_PATTERNS = [
 
 # VM sizes that have been retired by Azure and must not be deployed.
 # Add newly retired sizes here as they are announced.
-# Refer Link: 
+# Refer Link:
 # 1. https://learn.microsoft.com/en-us/azure/virtual-machines/isolation
-# 2. https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list
+# 2. https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list # noqa: E501
 RETIRED_VM_SIZES: FrozenSet[str] = frozenset(
     {
         # Isolated VM series(retired 02/28/2022)
         "Standard_E64i_v3",
-        "Standard_E64is_v3"
+        "Standard_E64is_v3",
     }
 )
 
@@ -2879,9 +2891,7 @@ class AzurePlatform(Platform):
                 "and cannot be deployed. Please choose a supported VM size."
             )
         if retired_requested:
-            log.debug(
-                f"Filtered out retired/blocked VM sizes: {retired_requested}"
-            )
+            log.debug(f"Filtered out retired/blocked VM sizes: {retired_requested}")
         allowed_vm_sizes = [s for s in allowed_vm_sizes if s not in all_blocked]
 
         # build the capability of vm sizes. The information is useful to
