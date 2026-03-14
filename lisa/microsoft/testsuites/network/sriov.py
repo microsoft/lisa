@@ -47,6 +47,7 @@ from lisa.tools import (
     InterruptInspector,
     Iperf3,
     Journalctl,
+    Kill,
     Lscpu,
     Service,
 )
@@ -761,7 +762,12 @@ class Sriov(TestSuite):
             err_msg += "\nPotential issues running iperf3, check logs for details."
 
         irqbalance.kill()
-        result = irqbalance.wait_result()
+        # The kill() above sends SIGKILL to the spur-tracked process (the
+        # sudo/sh wrapper), but irqbalance itself is a child that can survive
+        # as an orphan.  Explicitly kill it by name to ensure it is gone
+        # before waiting for the result, so wait_result() does not time out.
+        server_node.tools[Kill].by_name("irqbalance", ignore_not_exist=True)
+        result = irqbalance.wait_result(raise_on_timeout=False)
         assert re.search(
             "Selecting irq [0-9]+ for rebalancing",
             result.stdout,
