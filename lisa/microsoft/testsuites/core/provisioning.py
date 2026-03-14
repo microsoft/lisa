@@ -37,7 +37,8 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.features.security_profile import CvmDisabled
-from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci
+from lisa.operating_system import CBLMariner, Redhat, Ubuntu
+from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci, Uname
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -397,7 +398,7 @@ class Provisioning(TestSuite):
         2. Reboot the system to apply the kernel parameter
         3. Run smoke test to verify system functionality
         4. Verify the system is responsive after reboot
-        
+
         TODO: This test is currently unsupported on CVM because modifying boot
         parameters in CVM requires rebuilding, which needs access to kernel image,
         modules, and initramfs all unbundled. With just UEFI image, more research
@@ -416,6 +417,21 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_swiotlb_force(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
+        if not isinstance(node.os, (Ubuntu, Redhat, CBLMariner)):
+            raise SkippedException(
+                f"CVM is currently supported on Ubuntu, RHEL and Azure Linux only, "
+                f"skipping for {node.os.name}."
+            )
+
+        # swiotlb=force is critical for CVM (Confidential Computing VMs) and
+        # is reliably supported from kernel 5.15 onwards. Skip older kernels.
+        uname_result = node.tools[Uname].get_linux_information()
+        if uname_result.kernel_version < "5.15.0":
+            raise SkippedException(
+                f"swiotlb=force validation requires kernel >= 5.15, "
+                f"current kernel is {uname_result.kernel_version_raw}."
+            )
+
         # Check if CONFIG_SWIOTLB is available in kernel configuration
         kernel_config = node.tools[KernelConfig]
         if not kernel_config.is_enabled("CONFIG_SWIOTLB"):
