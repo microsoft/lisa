@@ -188,7 +188,7 @@ def set_cpu_state(node: Node, cpu: str, online: bool = False) -> bool:
     if online:
         state = CPUState.ONLINE
     node.tools[Echo].write_to_file(
-        state, node.get_pure_path(file_path), sudo=True, timeout=120
+        state, node.get_pure_path(file_path), sudo=True, timeout=300
     )
     result = node.tools[Cat].read(file_path, force_run=True, sudo=True)
     return result == state
