@@ -53,7 +53,7 @@ def initialize_nic_info(
                 f"inside vm, it should equal to {interface_info.ip_addr}."
             ).is_true()
         if is_sriov:
-            pci_nic_count = len(nics_info.get_pci_nics_except_ib())
+            pci_nic_count = len(nics_info.get_pci_nics(exclude_ib=True))
             assert_that(pci_nic_count).described_as(
                 f"Ethernet VF count inside VM (without IB) is {pci_nic_count}, "
                 f"actual sriov nic count is {sriov_count}. "
@@ -72,10 +72,10 @@ def sriov_basic_test(environment: Environment) -> None:
         devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
-        ethernet_device_slots = set(node.nics.get_device_slots_except_ib())
+        ethernet_device_slots = set(node.nics.get_device_slots(exclude_ib=True))
         if len(devices_slots) != len(ethernet_device_slots):
             node.nics.reload()
-            ethernet_device_slots = set(node.nics.get_device_slots_except_ib())
+            ethernet_device_slots = set(node.nics.get_device_slots(exclude_ib=True))
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
@@ -92,7 +92,7 @@ def sriov_basic_test(environment: Environment) -> None:
 def _validate_and_skip_nic(nic_info: NicInfo, nic_name: str, node: RemoteNode) -> bool:
     """Validate NIC and return True if it should be skipped."""
     # Skip InfiniBand interfaces as they use RDMA, not standard Ethernet
-    if nic_info.name and nic_info.name.startswith("ib"):
+    if nic_info.is_infiniband:
         node.log.debug(f"Skipping InfiniBand interface {nic_info.name} on {node.name}")
         return True
 

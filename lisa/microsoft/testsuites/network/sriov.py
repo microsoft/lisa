@@ -812,7 +812,10 @@ class Sriov(TestSuite):
         for _, client_nic_info in vm_nics[client_node.name].items():
             if client_nic_info.is_pci_module_enabled:
                 # Skip InfiniBand interfaces — they use RDMA, not Ethernet SR-IOV
-                if client_nic_info.name and client_nic_info.name.startswith("ib"):
+                if client_nic_info.is_infiniband:
+                    continue
+                # Skip NICs without IP addresses (enslaved VFs, etc.)
+                if not client_nic_info.ip_addr:
                     continue
                 # Skip PCI-backed NICs that do not have an IP address (e.g., enslaved VFs)
                 if not client_nic_info.ip_addr:
@@ -845,7 +848,7 @@ class Sriov(TestSuite):
                     # Skip NICs without IP addresses (IB, enslaved VFs, etc.)
                     if not server_nic_info.ip_addr:
                         continue
-                    if server_nic_info.name and server_nic_info.name.startswith("ib"):
+                    if server_nic_info.is_infiniband:
                         continue
                     if (
                         server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]

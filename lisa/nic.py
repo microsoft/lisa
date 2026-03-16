@@ -44,6 +44,7 @@ class NicInfo:
         self.pci_slot = pci_slot
         self.dev_uuid = ""
         self.module_name = ""
+        self.is_infiniband: bool = False
         if driver_sysfs_path is None:
             self.driver_sysfs_path = PurePosixPath("")
         else:
@@ -185,26 +186,16 @@ class Nics(InitializableMixin):
         self._node.log.debug(f"Found synthetic devices: {synthetic_devices}")
         return synthetic_devices
 
-    def get_pci_nics_except_ib(self) -> List[str]:
-        """
-        Get NIC names for PCI-associated NICs, excluding InfiniBand (ib*)
-        """
-        pci_nics = []
-        for nic in self.nics.values():
-            nic_name = nic.lower if nic.lower else nic.name
-            if nic_name and nic_name.startswith("ib"):
-                continue
-            if nic.name and nic.name.startswith("ib"):
-                continue
-            if nic.is_pci_only_nic:
-                pci_nics.append(nic.name)
-            elif nic.lower:
-                pci_nics.append(nic.lower)
-        return pci_nics
+    def get_pci_nics(self, exclude_ib: bool = False) -> List[str]:
+        """Get NIC names for PCI-associated NICs.
 
-    def get_pci_nics(self) -> List[str]:
+        Args:
+            exclude_ib: If True, exclude InfiniBand NICs
+        """
         pci_nics = []
         for nic in self.nics.values():
+            if exclude_ib and nic.is_infiniband:
+                continue
             if nic.is_pci_only_nic:
                 pci_nics.append(nic.name)
             elif nic.lower:
@@ -235,22 +226,17 @@ class Nics(InitializableMixin):
                 used_module_list.remove(item)
         return used_module_list
 
-    def get_device_slots(self) -> List[str]:
-        return [x.pci_slot for x in self.nics.values() if x.pci_slot]
+    def get_device_slots(self, exclude_ib: bool = False) -> List[str]:
+        """Get PCI slots for NICs.
 
-    def get_device_slots_except_ib(self) -> List[str]:
-        """Get PCI slots for NICs, excluding InfiniBand (ib*) interfaces."""
-        slots = []
-        for nic in self.nics.values():
-            if not nic.pci_slot:
-                continue
-            nic_name = nic.lower if nic.lower else nic.name
-            if nic_name and nic_name.startswith("ib"):
-                continue
-            if nic.name and nic.name.startswith("ib"):
-                continue
-            slots.append(nic.pci_slot)
-        return slots
+        Args:
+            exclude_ib: If True, exclude InfiniBand NICs
+        """
+        return [
+            x.pci_slot
+            for x in self.nics.values()
+            if x.pci_slot and not (exclude_ib and x.is_infiniband)
+        ]
 
     def _get_nics_driver(self) -> None:
         for nic in [x.name for x in self.nics.values()]:
@@ -406,9 +392,77 @@ class Nics(InitializableMixin):
         self._nic_names = self._get_nic_names()
         self._load_nics()
         self._get_nics_driver()
+        self._set_nics_infiniband_type()
         self.load_nics_info()
         self._get_nic_uuids()
         self._get_default_nic()
+
+    def _set_nics_infiniband_type(self) -> None:
+        """Detect InfiniBand NICs using sysfs ARP hardware type (ARPHRD_INFINIBAND=32).
+
+        The kernel reports each network interface's hardware type via
+        /sys/class/net/<name>/type. Value 32 corresponds to ARPHRD_INFINIBAND
+        from linux/if_arp.h. This is authoritative and does not rely on
+        interface naming conventions.
+
+        As a secondary check, NICs whose PCI slot maps to an InfiniBand
+        controller (lspci controller_id 0207) are also marked.
+        """
+        # Primary: sysfs ARP hardware type (reviewer's requested approach)
+        cat = self._node.tools[Cat]
+        for nic in self.nics.values():
+            try:
+                type_str = cat.read(
+                    f"/sys/class/net/{nic.name}/type",
+                    force_run=True,
+                    sudo=True,
+                ).strip()
+                if type_str == "32":
+                    nic.is_infiniband = True
+                    self._node.log.debug(
+                        f"NIC {nic.name} is InfiniBand "
+                        f"(sysfs type=32, ARPHRD_INFINIBAND)"
+                    )
+            except Exception:
+                pass
+
+            # Also check the lower/VF device if it has a different name
+            if nic.lower and not nic.is_infiniband:
+                try:
+                    type_str = cat.read(
+                        f"/sys/class/net/{nic.lower}/type",
+                        force_run=True,
+                        sudo=True,
+                    ).strip()
+                    if type_str == "32":
+                        nic.is_infiniband = True
+                        self._node.log.debug(
+                            f"NIC {nic.name} (lower {nic.lower}) is InfiniBand "
+                            f"(sysfs type=32, ARPHRD_INFINIBAND)"
+                        )
+                except Exception:
+                    pass
+
+        # Secondary: cross-check with lspci controller_id 0207
+        # This catches NICs that might not have sysfs type readable
+        # but whose PCI device is an InfiniBand controller.
+        lspci = self._node.tools[Lspci]
+        try:
+            ib_slots = set(
+                lspci.get_device_names_by_type(
+                    constants.DEVICE_TYPE_INFINIBAND, force_run=False
+                )
+            )
+            if ib_slots:
+                for nic in self.nics.values():
+                    if not nic.is_infiniband and nic.pci_slot in ib_slots:
+                        nic.is_infiniband = True
+                        self._node.log.debug(
+                            f"NIC {nic.name} is InfiniBand "
+                            f"(PCI slot {nic.pci_slot} has controller_id 0207)"
+                        )
+        except Exception:
+            pass
 
     def _get_nic_names(self) -> List[str]:
         # identify all of the nics on the device, excluding tunnels and loopbacks etc.

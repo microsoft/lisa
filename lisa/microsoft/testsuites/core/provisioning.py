@@ -635,7 +635,7 @@ class Provisioning(TestSuite):
             else:
                 pci_nic_check = True
         if pci_nic_check:
-            pci_nics = node_nic_info.get_pci_nics_except_ib()
+            pci_nics = node_nic_info.get_pci_nics(exclude_ib=True)
             pci_nic_count = len(pci_nics)
             log.info(f"check_sriov: PCI nic count (without IB) {pci_nic_count}")
             assert_that(pci_nic_count).described_as(

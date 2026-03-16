@@ -85,7 +85,7 @@ class Stress(TestSuite):
             # Skip InfiniBand and NICs without IP addresses
             if not server_nic_info.ip_addr:
                 continue
-            if server_nic_info.name and server_nic_info.name.startswith("ib"):
+            if server_nic_info.is_infiniband:
                 continue
             if (
                 server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
