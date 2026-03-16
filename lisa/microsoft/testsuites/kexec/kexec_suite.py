@@ -394,9 +394,10 @@ class KexecSuite(TestSuite):
         log.info(f"Appending cmdline marker: {kexec_marker}")
 
         lockdown = self._is_lockdown_enabled(node, log)
-        # -s uses kexec_file_load syscall (allowed under lockdown)
         # -l uses kexec_load syscall (blocked under lockdown)
-        load_flag = "-s" if lockdown else "-l"
+        # -s -l uses kexec_file_load syscall for load-only (allowed under lockdown)
+        # Note: -s without -l would load AND execute immediately, causing a reboot
+        load_flag = "-s -l" if lockdown else "-l"
         log.info(f"Using kexec {load_flag} (lockdown={'active' if lockdown else 'off'})")
 
         kexec_cmd = (
@@ -409,7 +410,7 @@ class KexecSuite(TestSuite):
 
         if result.exit_code != 0:
             # Try the other flag as fallback
-            fallback_flag = "-s" if load_flag == "-l" else "-l"
+            fallback_flag = "-s -l" if load_flag == "-l" else "-l"
             log.info(
                 f"kexec {load_flag} failed (exit={result.exit_code}), "
                 f"retrying with kexec {fallback_flag}"
@@ -419,15 +420,24 @@ class KexecSuite(TestSuite):
                 f"--initrd={shlex.quote(initrd_path)} "
                 f"--command-line={shlex.quote(new_cmdline)}"
             )
-            result = node.execute(kexec_cmd, sudo=True, shell=True)
+            try:
+                result = node.execute(kexec_cmd, sudo=True, shell=True)
+            except Exception as e:
+                log.info(f"kexec {fallback_flag} also failed with exception: {e}")
+                result = None
 
-        if result.exit_code != 0:
-            node.execute("kexec -u || true", sudo=True, shell=True, no_error_log=True)
-            error_detail = (
-                f"Exit code: {result.exit_code}\n"
-                f"Stdout: {result.stdout}\n"
-                f"Stderr: {result.stderr}"
+        if result is None or result.exit_code != 0:
+            node.execute(
+                "kexec -u || true", sudo=True, shell=True, no_error_log=True
             )
+            if result is not None:
+                error_detail = (
+                    f"Exit code: {result.exit_code}\n"
+                    f"Stdout: {result.stdout}\n"
+                    f"Stderr: {result.stderr}"
+                )
+            else:
+                error_detail = "Fallback kexec command raised an exception"
             if lockdown:
                 raise SkippedException(
                     f"kexec blocked by kernel lockdown=integrity. "
