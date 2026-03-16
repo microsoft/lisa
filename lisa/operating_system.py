@@ -2410,9 +2410,10 @@ class Suse(Linux):
         elif install_result.exit_code == 0:
             self._log.debug(f"{packages} is/are installed successfully.")
         else:
-            self._log.debug(
-                f"{packages} is/are installed."
-                " A system reboot or package manager restart might be required."
+            raise LisaException(
+                f"Failed to install {packages}. "
+                f"Unexpected exit_code: {install_result.exit_code}, "
+                f"stderr: {install_result.stderr}"
             )
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
