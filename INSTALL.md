@@ -166,7 +166,7 @@ chmod +x quick-install.sh
 ./quick-install.sh
 ```
 
-The default install path: `~/lisa`. You can use the `--install-path` parameter to change it.
+The default install path is `~/lisa`. You can use the `--install-path` parameter to change it.
 
 **Optional parameters:**
 ```bash
