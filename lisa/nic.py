@@ -423,8 +423,10 @@ class Nics(InitializableMixin):
                         f"NIC {nic.name} is InfiniBand "
                         f"(sysfs type=32, ARPHRD_INFINIBAND)"
                     )
-            except Exception:
-                pass
+            except Exception as ex:
+                self._node.log.debug(
+                    f"Could not read sysfs type for NIC {nic.name}: {ex}"
+                )
 
             # Also check the lower/VF device if it has a different name
             if nic.lower and not nic.is_infiniband:
@@ -440,8 +442,10 @@ class Nics(InitializableMixin):
                             f"NIC {nic.name} (lower {nic.lower}) is InfiniBand "
                             f"(sysfs type=32, ARPHRD_INFINIBAND)"
                         )
-                except Exception:
-                    pass
+                except Exception as ex:
+                    self._node.log.debug(
+                        f"Could not read sysfs type for lower NIC {nic.lower}: {ex}"
+                    )
 
         # Secondary: cross-check with lspci controller_id 0207
         # This catches NICs that might not have sysfs type readable
@@ -461,8 +465,10 @@ class Nics(InitializableMixin):
                             f"NIC {nic.name} is InfiniBand "
                             f"(PCI slot {nic.pci_slot} has controller_id 0207)"
                         )
-        except Exception:
-            pass
+        except Exception as ex:
+            self._node.log.debug(
+                f"Failed to resolve InfiniBand devices via lspci: {ex}"
+            )
 
     def _get_nic_names(self) -> List[str]:
         # identify all of the nics on the device, excluding tunnels and loopbacks etc.
