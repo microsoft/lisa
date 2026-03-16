@@ -811,14 +811,8 @@ class Sriov(TestSuite):
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
             if client_nic_info.is_pci_module_enabled:
-                # Skip InfiniBand interfaces — they use RDMA, not Ethernet SR-IOV
-                if client_nic_info.is_infiniband:
-                    continue
-                # Skip NICs without IP addresses (enslaved VFs, etc.)
-                if not client_nic_info.ip_addr:
-                    continue
-                # Skip PCI-backed NICs that do not have an IP address (e.g., enslaved VFs)
-                if not client_nic_info.ip_addr:
+                # Skip InfiniBand and NICs without IP (enslaved VFs, etc.)
+                if client_nic_info.is_infiniband or not client_nic_info.ip_addr:
                     continue
                 # 2. Get initial interrupts sum per irq and cpu number on client node.
                 # only collect 'Completion Queue Interrupts' irqs
