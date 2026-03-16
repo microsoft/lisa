@@ -981,9 +981,7 @@ class Debian(Linux):
         timer = create_timer()
         while timeout > timer.elapsed(False):
             # fix the dpkg, in case it's broken.
-            self._node.execute(
-                "dpkg --force-all --configure -a", sudo=True
-            )
+            self._node.execute("dpkg --force-all --configure -a", sudo=True)
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
             if pidof_result.exit_code == 1:
                 # no dpkg process running, safe to exit and attempt repair.
