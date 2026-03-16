@@ -207,10 +207,11 @@ class KexecSuite(TestSuite):
             sudo=True,
         )
 
-        # Check for CONFIG_KEXEC=y (required for kexec -l which we use)
-        # Note: CONFIG_KEXEC_FILE=y is different and requires signed kernels
         if "CONFIG_KEXEC=y" in config_result.stdout:
-            log.debug("Kernel config confirms kexec support")
+            log.debug("Kernel config confirms kexec support (CONFIG_KEXEC)")
+            return
+        if "CONFIG_KEXEC_FILE=y" in config_result.stdout:
+            log.debug("Kernel config confirms kexec support (CONFIG_KEXEC_FILE)")
             return
 
         # Fallback: check for kexec sysfs file (proves kernel support)
@@ -339,6 +340,32 @@ class KexecSuite(TestSuite):
 
         return kernel_path, initrd_path
 
+    def _is_lockdown_enabled(self, node: RemoteNode, log: Logger) -> bool:
+        """
+        Check if kernel lockdown is active (integrity or confidentiality mode).
+
+        When lockdown is enabled, kexec_load syscall (kexec -l) is blocked.
+        Must use kexec_file_load syscall (kexec -s) instead.
+        """
+        lockdown_result = node.execute(
+            "cat /sys/kernel/security/lockdown 2>/dev/null",
+            shell=True, sudo=True, no_error_log=True,
+        )
+        if lockdown_result.exit_code == 0:
+            output = lockdown_result.stdout.strip()
+            # Format: "none [integrity] confidentiality" — brackets show active
+            if "[integrity]" in output or "[confidentiality]" in output:
+                log.info(f"Kernel lockdown active: {output}")
+                return True
+
+        # Also check cmdline for lockdown= parameter
+        cmdline = node.tools[Cat].read("/proc/cmdline", sudo=True).strip()
+        if "lockdown=integrity" in cmdline or "lockdown=confidentiality" in cmdline:
+            log.info("Kernel lockdown detected from cmdline")
+            return True
+
+        return False
+
     def _load_kexec_image(
         self,
         node: RemoteNode,
@@ -351,8 +378,9 @@ class KexecSuite(TestSuite):
         """
         Load kexec image into kernel memory.
 
-        Uses kexec -l to prepare the new kernel for execution.
-        Appends a unique cmdline nonce to prove kexec reboot occurred.
+        Uses kexec -s (kexec_file_load syscall) when kernel lockdown is active,
+        otherwise uses kexec -l (kexec_load syscall). The -s variant verifies
+        kernel signatures and is permitted under lockdown=integrity.
         """
         log.info(f"Loading kexec image: {kernel_path}")
 
@@ -365,18 +393,34 @@ class KexecSuite(TestSuite):
         new_cmdline = f"{cmdline} {kexec_marker}"
         log.info(f"Appending cmdline marker: {kexec_marker}")
 
-        # Build kexec load command with properly escaped paths and cmdline
-        # Use shlex.quote to safely escape all arguments for shell
+        lockdown = self._is_lockdown_enabled(node, log)
+        # -s uses kexec_file_load syscall (allowed under lockdown)
+        # -l uses kexec_load syscall (blocked under lockdown)
+        load_flag = "-s" if lockdown else "-l"
+        log.info(f"Using kexec {load_flag} (lockdown={'active' if lockdown else 'off'})")
+
         kexec_cmd = (
-            f"kexec -l {shlex.quote(kernel_path)} "
+            f"kexec {load_flag} {shlex.quote(kernel_path)} "
             f"--initrd={shlex.quote(initrd_path)} "
             f"--command-line={shlex.quote(new_cmdline)}"
         )
 
         result = node.execute(kexec_cmd, sudo=True, shell=True)
 
+        if result.exit_code != 0 and load_flag == "-l":
+            # Fallback: try -s in case lockdown was enabled at runtime
+            log.info(
+                f"kexec -l failed (exit={result.exit_code}), "
+                "retrying with kexec -s"
+            )
+            kexec_cmd = (
+                f"kexec -s {shlex.quote(kernel_path)} "
+                f"--initrd={shlex.quote(initrd_path)} "
+                f"--command-line={shlex.quote(new_cmdline)}"
+            )
+            result = node.execute(kexec_cmd, sudo=True, shell=True)
+
         if result.exit_code != 0:
-            # Cleanup on failure
             node.execute("kexec -u || true", sudo=True, shell=True, no_error_log=True)
             raise RuntimeError(
                 f"Failed to load kexec image. Exit code: {result.exit_code}\n"
