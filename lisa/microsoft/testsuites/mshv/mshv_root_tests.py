@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 import time
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Any, Dict
 
 from assertpy import assert_that
@@ -18,21 +18,17 @@ from lisa import (
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
 from lisa.tools import (
-    Cat,
-    Cp,
     Dmesg,
     KdumpCheck,
     KernelConfig,
     Ls,
     Reboot,
-    RemoteCopy,
     Sed,
     Service,
     Stat,
-    Tar,
     Timeout,
 )
-from lisa.util import LisaException, SkippedException, find_group_in_lines
+from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
 
@@ -117,15 +113,9 @@ class MshvHostTestSuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will
-        1. replace FRE bins with CHK bins and reboot the VM
-           a. FRE is default free hv version binary, something similar to release binary
-           b. CHK is debug binary where extra debug options are available along with
-              some testing feature available like crash
+        1. Remove lockdown=integrity from grub config and reboot the VM
         2. Configure kdump and reboot VM
         3. Generate Crash with hvdbg syscall and verify dump
-
-        The test expects the directory containing MSHV CHK binaries tar to be passed
-        in the mshv_chk_bin / mshv_chk_loader testcase variables.
         """,
         priority=2,
     )
@@ -133,7 +123,6 @@ class MshvHostTestSuite(TestSuite):
         self,
         log: Logger,
         node: Node,
-        variables: Dict[str, Any],
         log_path: Path,
     ) -> None:
         # sysfs entry used to trigger crash
@@ -141,81 +130,22 @@ class MshvHostTestSuite(TestSuite):
         # sysfs entry expect 0x4856434f5245 value to trigger crash from hv
         mshv_crash_command = f"echo 0x4856434f5245 > {mshv_debug_sysfs}"
 
-        chkbinpath = variables.get("mshv_chk_bin", "")
-        chkloaderpath = variables.get("mshv_chk_loader", "")
-        log.debug(f"mshv_chk_bin: {chkbinpath}, mshv_chk_loader: {chkloaderpath}")
-
-        if not chkbinpath or not chkloaderpath:
-            raise SkippedException(
-                "Requires a path to MSHV binaries to be passed. "
-                "Please set mshv_chk_bin and mshv_chk_loader testcase variable."
-            )
         if not isinstance(node.os, CBLMariner):
             raise SkippedException(
                 f"Testcase only support CBLMariner. Found: {node.os}"
             )
 
         # Check if /dev/mshv is present to make sure node is running with
-        # mshv kernel. hvdb sysfs entry will be present only with mshv kernel.
+        # mshv kernel. hvdbg sysfs entry will be present only with mshv kernel.
         mshv = node.tools[Ls].path_exists("/dev/mshv", sudo=True)
         if not mshv:
             raise SkippedException(
-                "File not found: /dev/mshv. Only CBLMariner build with"
+                "File not found: /dev/mshv. Only builds with"
                 " MSHV kernel will have this file present."
             )
 
         try:
-            # Copy and Extract CHK tar on node
             grub_config_file = "/boot/grub2/grub.cfg"
-            chk_bin_dir = "chk_bin"
-            chk_bin_remote_dir = f"/tmp/{chk_bin_dir}/"
-            chk_bin_tar_file = PurePath(chkbinpath).name
-            chk_bin_extract_dir = f"/tmp/{chk_bin_dir}_extract"
-
-            chk_loader_dir = "chk_loader"
-            chk_loader_remote_dir = f"/tmp/{chk_loader_dir}/"
-            chk_loader_tar_file = PurePath(chkloaderpath).name
-            chk_loader_extract_dir = f"/tmp/{chk_loader_dir}_extract"
-
-            # Copy artifacts on to the node
-            remote_cp = node.tools[RemoteCopy]
-            remote_cp.copy_to_remote(
-                src=PurePath(chkbinpath),
-                dest=PurePath(chk_bin_remote_dir),
-            )
-            remote_cp.copy_to_remote(
-                src=PurePath(chkloaderpath),
-                dest=PurePath(chk_loader_remote_dir),
-            )
-
-            tar = node.tools[Tar]
-            tar.extract(
-                file=f"{chk_bin_remote_dir}/{chk_bin_tar_file}",
-                dest_dir=chk_bin_extract_dir,
-                gzip=True,
-                sudo=True,
-            )
-            tar.extract(
-                file=f"{chk_loader_remote_dir}/{chk_loader_tar_file}",
-                dest_dir=chk_loader_extract_dir,
-                gzip=True,
-                sudo=True,
-            )
-
-            # Copy CHK bins into test machine
-            copy_tool = node.tools[Cp]
-            copy_tool.copy(
-                src=PurePath(chk_bin_extract_dir) / "Windows" / "System32",
-                dest=PurePath("/boot/efi/Windows"),
-                sudo=True,
-                recur=True,
-            )
-            path = PurePath(chk_loader_extract_dir) / "boot" / "efi" / "lxhvloader.dll"
-            copy_tool.copy(
-                src=path,
-                dest=PurePath("/boot/efi"),
-                sudo=True,
-            )
 
             # Remove kernel lockdown from grub config
             node.tools[Sed].substitute(
@@ -224,31 +154,6 @@ class MshvHostTestSuite(TestSuite):
                 file=grub_config_file,
                 sudo=True,
             )
-
-            # Add MSHV debug option in chainloader
-            # This is to load hv binaries with debug mode enabled
-            hv_debug_option = "LXHVLOADER_DEBUG=TRUE"
-            grub_config = node.tools[Cat].read(
-                file=grub_config_file,
-                force_run=True,
-                sudo=True,
-            )
-            regex = re.compile(r"(?P<chainloader_cfg>.*chainloader.*)")
-            loader_grub_data = find_group_in_lines(
-                lines=grub_config,
-                pattern=regex,
-                single_line=False,
-            )
-            chainloader_config = loader_grub_data.get("chainloader_cfg", "").strip()
-            err_msg = f"Cannot get chainloader config, got {chainloader_config}"
-            assert chainloader_config, err_msg
-            if hv_debug_option not in chainloader_config:
-                node.tools[Sed].substitute(
-                    regexp="MSHV_SEV_SNP=TRUE",
-                    replacement=f"MSHV_SEV_SNP=TRUE {hv_debug_option}",
-                    file=grub_config_file,
-                    sudo=True,
-                )
 
             node.tools[Reboot].reboot_and_check_panic(log_path)
 
