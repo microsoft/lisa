@@ -380,3 +380,10 @@ class AzSecPack(TestSuite):
                             node.os, "AzSecPack doesn't support this Distro version."
                         )
                     )
+                return
+
+        raise SkippedException(
+            UnsupportedDistroException(
+                node.os, "AzSecPack doesn't support this distro."
+            )
+        )
