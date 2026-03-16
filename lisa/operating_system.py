@@ -981,12 +981,12 @@ class Debian(Linux):
         timer = create_timer()
         while timeout > timer.elapsed(False):
             # fix the dpkg, in case it's broken.
-            dpkg_result = self._node.execute(
+            self._node.execute(
                 "dpkg --force-all --configure -a", sudo=True
             )
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
-            if dpkg_result.exit_code == 0 and pidof_result.exit_code == 1:
-                # not found dpkg process, it's ok to exit.
+            if pidof_result.exit_code == 1:
+                # no dpkg process running, safe to exit and attempt repair.
                 break
             if is_first_time:
                 is_first_time = False
@@ -1027,6 +1027,16 @@ class Debian(Linux):
                     f"dpkg repair removal result: exit_code={remove_result.exit_code}, "
                     f"stdout={remove_result.stdout!r}, "
                     f"stderr={remove_result.stderr!r}"
+                )
+                # After removing reinst-required packages, re-run configure
+                # to bring dpkg to a clean state.
+                final_dpkg_result = self._node.execute(
+                    "dpkg --force-all --configure -a",
+                    sudo=True,
+                )
+                self._log.debug(
+                    "final dpkg configure result after repair: "
+                    f"exit_code={final_dpkg_result.exit_code}"
                 )
             else:
                 self._log.debug(
