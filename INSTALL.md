@@ -88,7 +88,7 @@ The quick install script automatically downloads and installs everything you nee
    .\quick-install.ps1
    ```
 
-   The default install path: `$env:USERPROFILE\lisa`. You can use `-InstallPath` parameter to change it.
+   The default install path is `$env:USERPROFILE\lisa`. You can use the `-InstallPath` parameter to change it.
 
 3. **Optional parameters:**
    ```powershell
