@@ -86,6 +86,7 @@ class CloudHypervisorTests(Tool):
     iops_block_size_kb = ""
 
     cmd_path: PurePath
+    vdpa_script_path: PurePath
     repo_root: PurePath
 
     # Perf-stable profile: Enforces reproducible performance testing environment
@@ -172,8 +173,18 @@ class CloudHypervisorTests(Tool):
         if isinstance(self.node.os, CBLMariner) and hypervisor == "mshv":
             # Install dependency to create VDPA Devices
             self.node.os.install_packages(["iproute", "iproute-devel"])
-            # Load VDPA kernel module and create devices
-            self._configure_vdpa_devices(self.node)
+            if self.node.shell.exists(self.vdpa_script_path):
+                self.node.execute(
+                    str(self.vdpa_script_path),
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Failed to configure VDPA devices"
+                    ),
+                )
+            else:
+                self._configure_vdpa_devices(self.node)
 
     def _handle_test_failure_with_diagnostics(
         self,
@@ -1253,6 +1264,7 @@ exit $ec
         tool_path = self.get_tool_path(use_global=True)
         self.repo_root = tool_path / "cloud-hypervisor"
         self.cmd_path = self.repo_root / "scripts" / "dev_cli.sh"
+        self.vdpa_script_path = self.repo_root / "scripts" / "prepare_vdpa.sh"
 
         # Pass through MIGRATABLE_VERSION from pipeline environment if set
         if "MIGRATABLE_VERSION" in os.environ:
