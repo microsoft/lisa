@@ -1034,7 +1034,9 @@ class Debian(Linux):
                 )
                 self._log.debug(
                     "final dpkg configure result after repair: "
-                    f"exit_code={final_dpkg_result.exit_code}"
+                    f"exit_code={final_dpkg_result.exit_code}, "
+                    f"stdout={final_dpkg_result.stdout!r}, "
+                    f"stderr={final_dpkg_result.stderr!r}"
                 )
             else:
                 self._log.debug(
