@@ -2884,34 +2884,17 @@ class AzurePlatform(Platform):
         all_blocked = RETIRED_VM_SIZES | extra_blocked
 
         retired_requested = [s for s in allowed_vm_sizes if s in all_blocked]
-        unblocked_vm_sizes = [s for s in allowed_vm_sizes if s not in all_blocked]
+        allowed_vm_sizes = [s for s in allowed_vm_sizes if s not in all_blocked]
 
-        if node_runbook.vm_size:
-            # For explicit vm_size requests, only fail if all requested sizes
-            # are retired/blocked. This allows runbooks to specify fallback
-            # sizes (e.g. "Standard_F8s_v2,Standard_D8s_v5") where some SKUs
-            # may become unavailable over time.
-            if retired_requested:
-                log.debug(
-                    f"Filtered out retired/blocked VM sizes from explicit request: "
-                    f"{retired_requested}"
-                )
-            if not unblocked_vm_sizes and retired_requested:
-                # All explicitly requested sizes are blocked — hard error.
-                raise LisaException(
+        if retired_requested:
+            log.debug(
+                f"Filtered out retired/blocked VM sizes: {retired_requested}"
+            )
+            if node_runbook.vm_size and not allowed_vm_sizes:
+                raise SkippedException(
                     f"VM size(s) {retired_requested} are retired or blocked "
                     "and cannot be deployed. Please choose a supported VM size."
                 )
-            allowed_vm_sizes = unblocked_vm_sizes
-        else:
-            # When no explicit vm_size is provided, silently filter out
-            # retired/blocked sizes from the location-wide list.
-            if retired_requested:
-                log.debug(
-                    f"Filtered out retired/blocked VM sizes from location list: "
-                    f"{retired_requested}"
-                )
-            allowed_vm_sizes = unblocked_vm_sizes
 
         # build the capability of vm sizes. The information is useful to
         # check quota.
