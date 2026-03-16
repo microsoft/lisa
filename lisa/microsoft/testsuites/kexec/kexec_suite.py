@@ -18,7 +18,7 @@ from lisa import (
 )
 from lisa.base_tools import Cat, Uname
 from lisa.operating_system import Posix
-from lisa.tools import Ls, Who
+from lisa.tools import Ls
 from lisa.util import LisaException, SkippedException, create_timer
 
 
@@ -137,13 +137,12 @@ class KexecSuite(TestSuite):
         # Trigger kexec reboot
         method = "systemctl kexec" if use_systemctl else "kexec -e"
         log.info(f"Triggering kexec reboot via {method}...")
-        # Get boot time before triggering reboot
-        last_boot_time = self._get_last_boot_time(node)
+        before_boot_id = before_state["boot_id"]
         self._trigger_kexec_reboot(node, log, use_systemctl=use_systemctl)
 
         # Reconnect + validation
         log.info("Waiting for system to come back up...")
-        self._wait_for_reconnect(node, log, last_boot_time)
+        self._wait_for_reconnect(node, log, before_boot_id)
 
         after_state = self._record_state(node, log, force_run=True)
         log.info(
@@ -428,31 +427,20 @@ class KexecSuite(TestSuite):
         # Give the system a moment to start shutting down
         time.sleep(5)
 
-    def _get_last_boot_time(self, node: RemoteNode) -> Any:
-        """
-        Get last boot time using Who tool (with Uptime fallback).
-        Matches Reboot tool's _get_last_boot_time implementation.
-        """
-        try:
-            last_boot_time = node.tools[Who].last_boot()
-        except Exception:
-            # Fallback to uptime if who fails
-            from lisa.tools import Uptime
-
-            last_boot_time = node.tools[Uptime].since_time()
-        return last_boot_time
-
     def _wait_for_reconnect(
-        self, node: RemoteNode, log: Logger, last_boot_time: Any
+        self, node: RemoteNode, log: Logger, before_boot_id: str
     ) -> None:
         """
         Wait for system to reboot and reconnect.
-        Uses Reboot tool's pattern: close connection and retry until boot time changes.
+        Retry connections until the node reports a different boot_id.
+
+        Use boot_id instead of who -b because who -b only has minute resolution,
+        which can falsely time out when kexec reboots occur within the same minute.
         """
         timer = create_timer()
         connected: bool = False
         tried_times: int = 0
-        current_boot_time = last_boot_time
+        current_boot_id = before_boot_id
 
         # The previous steps may take longer time than time out. After that, it
         # needs to connect at least once.
@@ -460,7 +448,15 @@ class KexecSuite(TestSuite):
             tried_times += 1
             try:
                 node.close()
-                current_boot_time = self._get_last_boot_time(node)
+                current_boot_id = (
+                    node.tools[Cat]
+                    .read(
+                        "/proc/sys/kernel/random/boot_id",
+                        sudo=True,
+                        force_run=True,
+                    )
+                    .strip()
+                )
                 connected = True
             except FunctionTimedOut as e:
                 # The FunctionTimedOut must be caught separated, or the process
@@ -469,13 +465,13 @@ class KexecSuite(TestSuite):
             except Exception as e:
                 # error is ignorable, as ssh may be closed suddenly.
                 log.debug(f"ignorable ssh exception: {e}")
-            log.debug(f"reconnected with uptime: {current_boot_time}")
-            if last_boot_time < current_boot_time:
+            log.debug(f"reconnected with boot_id: {current_boot_id}")
+            if current_boot_id and current_boot_id != before_boot_id:
                 break
 
             time.sleep(self.RECONNECT_INTERVAL)
 
-        if last_boot_time == current_boot_time:
+        if before_boot_id == current_boot_id:
             if connected:
                 raise LisaException(
                     "timeout to wait reboot, the node may not perform reboot."
