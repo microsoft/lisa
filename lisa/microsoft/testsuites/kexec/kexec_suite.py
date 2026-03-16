@@ -407,14 +407,15 @@ class KexecSuite(TestSuite):
 
         result = node.execute(kexec_cmd, sudo=True, shell=True)
 
-        if result.exit_code != 0 and load_flag == "-l":
-            # Fallback: try -s in case lockdown was enabled at runtime
+        if result.exit_code != 0:
+            # Try the other flag as fallback
+            fallback_flag = "-s" if load_flag == "-l" else "-l"
             log.info(
-                f"kexec -l failed (exit={result.exit_code}), "
-                "retrying with kexec -s"
+                f"kexec {load_flag} failed (exit={result.exit_code}), "
+                f"retrying with kexec {fallback_flag}"
             )
             kexec_cmd = (
-                f"kexec -s {shlex.quote(kernel_path)} "
+                f"kexec {fallback_flag} {shlex.quote(kernel_path)} "
                 f"--initrd={shlex.quote(initrd_path)} "
                 f"--command-line={shlex.quote(new_cmdline)}"
             )
@@ -422,11 +423,19 @@ class KexecSuite(TestSuite):
 
         if result.exit_code != 0:
             node.execute("kexec -u || true", sudo=True, shell=True, no_error_log=True)
-            raise RuntimeError(
-                f"Failed to load kexec image. Exit code: {result.exit_code}\n"
+            error_detail = (
+                f"Exit code: {result.exit_code}\n"
                 f"Stdout: {result.stdout}\n"
                 f"Stderr: {result.stderr}"
             )
+            if lockdown:
+                raise SkippedException(
+                    f"kexec blocked by kernel lockdown=integrity. "
+                    f"Both kexec_load (-l) and kexec_file_load (-s) failed. "
+                    f"The kernel may not be signed with a trusted key. "
+                    f"{error_detail}"
+                )
+            raise RuntimeError(f"Failed to load kexec image. {error_detail}")
 
         log.info("Kexec image loaded successfully")
 
