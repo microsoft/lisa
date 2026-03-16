@@ -181,7 +181,7 @@ VM_SIZE_FALLBACK_PATTERNS = [
 
 # VM sizes that have been retired by Azure and must not be deployed.
 # Add newly retired sizes here as they are announced.
-# Refer Link:
+# Reference links:
 # 1. https://learn.microsoft.com/en-us/azure/virtual-machines/isolation
 # 2. https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list # noqa: E501
 RETIRED_VM_SIZES: FrozenSet[str] = frozenset(
