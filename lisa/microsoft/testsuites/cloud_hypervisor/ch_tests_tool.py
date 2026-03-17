@@ -1716,7 +1716,6 @@ exit $ec
         - C-states → ≤ C1E (Intel, best-effort AMD)
         - THP → never (host), madvise (guest)
         - irqbalance → ON
-        - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
 
         Note: numactl is installed by this method when perf_stable_enabled=True
         """
@@ -1765,64 +1764,6 @@ exit $ec
             shell=True,
             sudo=True,
         )
-
-        # Reserve hugepages (try 1GB first, fallback to 2MB)
-        hugepage_1g_path = (
-            f"/sys/devices/system/node/node{self._numa_node}/"
-            f"hugepages/hugepages-1048576kB/nr_hugepages"
-        )
-        hugepage_2m_path = (
-            f"/sys/devices/system/node/node{self._numa_node}/"
-            f"hugepages/hugepages-2048kB/nr_hugepages"
-        )
-
-        # Check if 1GB hugepages are available
-        result = self.node.execute(
-            f"[ -f {hugepage_1g_path} ]",
-            shell=True,
-        )
-
-        if result.exit_code == 0:
-            # Try 1GB hugepages (16GB total)
-            self.node.execute(
-                f"echo 16 | sudo tee {hugepage_1g_path} || true",
-                shell=True,
-                sudo=True,
-            )
-            # Verify allocation
-            verify = self.node.execute(
-                f"cat {hugepage_1g_path}",
-                shell=True,
-            )
-            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
-            if allocated >= 16:
-                self._log.debug(f"Reserved 16GB (1GB pages) on node{self._numa_node}")
-            else:
-                self._log.debug(
-                    f"Only {allocated}GB (1GB pages) allocated (requested 16GB)"
-                )
-        else:
-            # Fallback to 2MB hugepages (8192 pages = 16GB)
-            self.node.execute(
-                f"echo 8192 | sudo tee {hugepage_2m_path} || true",
-                shell=True,
-                sudo=True,
-            )
-            # Verify allocation
-            verify = self.node.execute(
-                f"cat {hugepage_2m_path}",
-                shell=True,
-            )
-            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
-            # Convert 2MiB pages to GiB
-            allocated_gib = allocated * 2 / 1024
-            if allocated >= 8192:
-                self._log.debug(f"Reserved 16GB (2MB pages) on node{self._numa_node}")
-            else:
-                self._log.debug(
-                    f"Only {allocated_gib:.2f} GiB (2MiB pages) allocated "
-                    f"(requested 16 GiB)"
-                )
 
         # Export NUMA node for CH launcher
         os.environ["CH_NUMA_NODE"] = str(self._numa_node)
