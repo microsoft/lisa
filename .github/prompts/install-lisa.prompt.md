@@ -26,7 +26,8 @@ Run the PowerShell quick install script:
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -UseBasicParsing -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
 ```
 
-   Or download the script manually first:
+Or download the script manually first:
+
 ```powershell
 # Download the script
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -UseBasicParsing -OutFile "quick-install.ps1"
