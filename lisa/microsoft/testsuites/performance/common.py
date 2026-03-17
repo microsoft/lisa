@@ -386,8 +386,8 @@ def perf_ntttcp(  # noqa: C901
         else:
             need_reboot = False
         if need_reboot:
-            client_sriov_count = len(client.nics.get_pci_nics())
-            server_sriov_count = len(server.nics.get_pci_nics())
+            client_sriov_count = len(client.nics.get_pci_nics(exclude_ib=True))
+            server_sriov_count = len(server.nics.get_pci_nics(exclude_ib=True))
         client_ntttcp.setup_system(udp_mode, set_task_max)
         # skip_server_task_max: don't reboot the baremetal host (NIC DHCP state lost).
         server_ntttcp.setup_system(udp_mode, set_task_max and not skip_server_task_max)
@@ -930,7 +930,9 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()
 
-    assert_that(len(node_nic_info.get_pci_nics())).described_as(
-        f"VF count inside VM is {len(node_nic_info.get_pci_nics())},"
-        f"actual sriov nic count is {sriov_count}"
+    pci_nics = node_nic_info.get_pci_nics(exclude_ib=True)
+    pci_nic_count = len(pci_nics)
+    assert_that(pci_nic_count).described_as(
+        f"VF count inside VM (without IB) is {pci_nic_count}, "
+        f"actual sriov nic count is {sriov_count}. "
     ).is_equal_to(sriov_count)

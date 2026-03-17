@@ -412,7 +412,7 @@ class Lspci(Tool):
         """
         Extract PCI slot information from a device path.
         """
-        pci_slot = get_matched_str(device_path, PATTERN_PCI_SLOT)
+        pci_slot = get_matched_str(device_path, PATTERN_PCI_SLOT, first_match=False)
         return pci_slot if pci_slot else None
 
 
