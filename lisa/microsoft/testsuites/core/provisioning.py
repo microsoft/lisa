@@ -77,6 +77,18 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        node.execute("dnf install kernel-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("dnf install kernel-core-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("dnf install kernel-modules-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("dnf install kernel-modules-core-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("grubby --set-default=/boot/vmlinuz-5.14.0-611.36.1.el9_7.x86_64", sudo=True)
+        node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        node.execute("uname -r", sudo=True)
         self._smoke_test(log, node, log_path, "smoke_test")
 
     @TestCaseMetadata(
@@ -364,17 +376,29 @@ class Provisioning(TestSuite):
         ),
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        node.execute("dnf install kernel-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("dnf install kernel-core-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("dnf install kernel-modules-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("dnf install kernel-modules-core-5.14.0-611.36.1.el9_7 -y", sudo=True)
+        node.execute("grubby --set-default=/boot/vmlinuz-5.14.0-611.36.1.el9_7.x86_64", sudo=True)
+        node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        node.execute("uname -r", sudo=True)
         reboot_times = []
         try:
-            for i in range(100):
+            for i in range(1000):
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
                 reboot_times.append((i + 1, elapsed))
-                log.debug(f"Reboot iterations {i + 1}/100 completed in {elapsed:.2f}s")
+                log.debug(f"Reboot iterations {i + 1}/1000 completed in {elapsed:.2f}s")
         except PassedException as e:
             raise LisaException(e)
         finally:
             times = [time for _, time in reboot_times if isinstance(time, (int, float))]
-            log.info(f"completed {i + 1}/100 iterations;summary:")
+            log.info(f"completed {i + 1}/1000 iterations;summary:")
             log.info(f"Min reboot time: {min(times):.2f}s")
             log.info(f"Max reboot time: {max(times):.2f}s")
             log.info(f"Average reboot time: {mean(times):.2f}s")
