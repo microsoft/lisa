@@ -29,6 +29,13 @@ from lisa.util import (
 from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
 from lisa.util.shell import Shell, SshShell
 
+# Prompt strings that sudo writes when it requires a password.
+# Shared with lisa.node (which imports this list) so changes stay in sync.
+SUDO_PASSWORD_PROMPTS: List[str] = [
+    "[sudo] password for",
+    "Password:",
+]
+
 # [sudo] password for lisatest: \r\nsudo: timed out reading password
 # Password: \r\nsudo: timed out reading password
 TIMEOUT_READING_PASSWORD_PATTERNS = [
@@ -341,18 +348,46 @@ class Process:
             and isinstance(self._shell, SshShell)
             and self._shell.is_sudo_required_password
         ):
+            if not self._shell.connection_info.password:
+                raise RequireUserPasswordException(
+                    "Running commands with sudo requires user's password,"
+                    " but no password is provided."
+                )
+
+            # Wait for the actual password prompt before sending the password.
+            # Newer sudo versions (e.g. 1.9.17+) flush the terminal input
+            # buffer (tcflush) before reading, so any password sent before
+            # the prompt appears is silently discarded.
+            prompt_found = False
             timer = create_timer()
-            while self.is_running():
-                time.sleep(0.01)
-                if timer.elapsed(False) > 0.5:
-                    if not self._shell.connection_info.password:
-                        raise RequireUserPasswordException(
-                            "Running commands with sudo requires user's password,"
-                            " but no password is provided."
-                        )
-                    self.input(f"{self._shell.connection_info.password}\n", False)
-                    self._log.debug("The user's password is input")
+            while self.is_running() and timer.elapsed(False) < 10:
+                # Flush writers to push partial lines (like "Password:"
+                # without a trailing newline) into the log buffer.
+                self._stdout_writer.flush()
+                self._stderr_writer.flush()
+                buffer_content = self.log_buffer.getvalue()
+                for prompt in SUDO_PASSWORD_PROMPTS:
+                    if prompt in buffer_content:
+                        prompt_found = True
+                        break
+                if prompt_found:
                     break
+                time.sleep(0.1)
+
+            if not prompt_found:
+                if not self.is_running():
+                    # Process exited without prompting — no password needed.
+                    return
+                self._log.debug(
+                    "Password prompt not detected within timeout, "
+                    "sending password as fallback."
+                )
+
+            # Brief delay after prompt detection to ensure sudo is fully
+            # ready to read from the terminal.
+            time.sleep(0.1)
+            self.input(f"{self._shell.connection_info.password}\n", False)
+            self._log.debug("The user's password is input")
 
     def input(self, content: str, is_log_input: bool = True) -> None:
         assert self._process, "The process object is None, the process may end."
