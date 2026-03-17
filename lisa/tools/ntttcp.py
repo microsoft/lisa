@@ -15,7 +15,7 @@ from lisa.messages import (
     create_perf_message,
     send_unified_perf_message,
 )
-from lisa.operating_system import BSD, CBLMariner
+from lisa.operating_system import BSD, CBLMariner, Ubuntu
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
 from lisa.tools.taskset import TaskSet
 from lisa.util import LisaException, constants
@@ -770,6 +770,12 @@ class Ntttcp(Tool):
                     "zlib-devel",
                 ]
             )
+        elif (
+            isinstance(self.node.os, Ubuntu)
+            and self.node.os.information.version >= "25.10.0"
+        ):
+            self.node.os.install_packages(["build-essential"])
+
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
