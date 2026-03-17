@@ -1400,7 +1400,7 @@ class Xfstesting(TestSuite):
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
-        priority=5,
+        priority=4,
     )
     def verify_azure_file_share_nfsv4(
         self, log: Logger, log_path: Path, result: TestResult

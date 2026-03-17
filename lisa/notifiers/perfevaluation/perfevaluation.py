@@ -4,7 +4,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 import yaml
 from dataclasses_json import dataclass_json
@@ -199,6 +199,13 @@ class PerfEvaluation(notifier.Notifier):
         self._failed_metrics: Dict[str, List[Dict[str, Any]]] = {}
         self._pending_messages: Dict[Any, List[messages.UnifiedPerfMessage]] = {}
         self._perf_runs_cache: Dict[Any, List[messages.UnifiedPerfMessage]] = {}
+        self._az_cap_cache: Dict[str, Any] = {}
+        # key: (test_case_name, vmsize, base_metric_name)
+        # base_metric_name = metric name with _conn_N suffix stripped
+        self._bw_peak_tracker: Dict[
+            Tuple[str, str, str],
+            Dict[str, Any],
+        ] = {}
         plugin_manager.register(self)
 
     @classmethod
@@ -756,6 +763,7 @@ class PerfEvaluation(notifier.Notifier):
                     message_key, messages_list, statistics_type
                 )
             del self._pending_messages[message_key]
+        self._finalize_bw_peak_checks(test_case_name)
 
     def _aggregate_and_evaluate(
         self,
@@ -821,6 +829,25 @@ class PerfEvaluation(notifier.Notifier):
             f"[PerfEvaluate] Evaluating {test_case_name}.{metric_name} "
             f"value={actual_value} (VM: {vm_size})"
         )
+        # Step 1: if this is a throughput metric and SKU bandwidth is available,
+        # use the peak-based check exclusively — skip perf_criteria entirely.
+        _THROUGHPUT_PREFIXES = (
+            "throughput_in_gbps",
+            "tx_throughput_in_gbps",
+            "rx_throughput_in_gbps",
+        )
+        if (
+            any(metric_name.startswith(p) for p in _THROUGHPUT_PREFIXES)
+            and perf_message.metric_relativity == messages.MetricRelativity.HigherIsBetter
+        ):
+            bw_spec = self._lookup_az_max_bandwidth(
+                perf_message.location, perf_message.vmsize or ""
+            )
+            if bw_spec is not None:
+                self._update_bw_peak(perf_message, metric_name, actual_value, bw_spec)
+                return
+
+        # Step 2: fall back to perf_criteria.yml
         metric_criteria = self._get_criteria_for_test(
             test_case_name, vm_size, metric_name
         )
@@ -892,6 +919,196 @@ class PerfEvaluation(notifier.Notifier):
             evaluation_result["evaluation_message"] = msg
             self._log.debug(f"{msg} {unit_info} (VM: {vm_size}, value: {actual_value})")
         self._evaluation_results.append(evaluation_result)
+
+    def _base_metric_name(self, metric_name: str) -> str:
+        """Strip _conn_N (and optional _buffer_N) suffix to get the base metric."""
+        return re.sub(r"_conn_\d+(_buffer_\d+)?$", "", metric_name)
+
+    def _update_bw_peak(
+        self,
+        perf_message: messages.UnifiedPerfMessage,
+        metric_name: str,
+        value: float,
+        sku_bw: float,
+    ) -> None:
+        """Track bandwidth peak and check for drops (only for HigherIsBetter metrics).
+
+        Logic:
+        - value > sku_bw: log info only, no fail, and do NOT store as peak —
+          values above spec are anomalies/outliers and must not become the
+          drop-check baseline.
+        - Once any normal (<=sku_bw) conn reaches >= 80% of sku_bw, peak_reached
+          is set to True.
+        - After peak_reached, every subsequent normal value is checked:
+          value < peak_value * 0.97 → FAIL (3% drop from the observed peak).
+          Reference is peak_value (the highest normal reading seen so far),
+          NOT sku_bw, so the threshold tracks real VM behaviour.
+        """
+        test_case_name = perf_message.test_case_name
+        vm_size = perf_message.vmsize or "unknown"
+        base = self._base_metric_name(metric_name)
+        tracker_key: Tuple[str, str, str] = (test_case_name, vm_size, base)
+
+        if tracker_key not in self._bw_peak_tracker:
+            self._bw_peak_tracker[tracker_key] = {
+                "sku_bw": sku_bw,
+                "peak_value": 0.0,
+                "peak_reached": False,
+                "last_msg": perf_message,
+            }
+        state = self._bw_peak_tracker[tracker_key]
+        state["last_msg"] = perf_message
+
+        # If value exceeds SKU BW: log only, skip peak update and drop check.
+        # These readings are anomalous-high and must not inflate the baseline.
+        if value > sku_bw:
+            self._log.info(
+                f"[BwPeak] {test_case_name}.{metric_name} (VM: {vm_size}): "
+                f"value {value:.3f} Gbps exceeds SKU max {sku_bw:.3f} Gbps "
+                f"(HigherIsBetter — logging only, not used as peak reference)"
+            )
+            return
+
+        # Snapshot whether peak was already reached before this value
+        was_peak_reached = state["peak_reached"]
+
+        # Update running maximum with normal (<=sku_bw) readings only
+        if value > state["peak_value"]:
+            state["peak_value"] = value
+
+        # Mark peak reached once a normal value >= 80% of SKU bandwidth
+        if not state["peak_reached"] and state["peak_value"] >= sku_bw * 0.8:
+            state["peak_reached"] = True
+            self._log.info(
+                f"[BwPeak] Peak reached for {test_case_name}.{base} "
+                f"(VM: {vm_size}): {state['peak_value']:.3f} Gbps "
+                f">= {sku_bw * 0.8:.3f} Gbps (80% of {sku_bw} Gbps)"
+            )
+
+        # After peak is established, compare against the observed peak_value.
+        # Using peak_value (not sku_bw) means the threshold tracks actual VM
+        # performance; a stable ~33 Gbps cluster won't falsely fail because
+        # the SKU spec says 35 Gbps.
+        if was_peak_reached and value < state["peak_value"] * 0.97:
+            drop_pct = (1 - value / state["peak_value"]) * 100
+            eval_msg = (
+                f"\u2717 {metric_name}: {value:.3f} Gbps dropped {drop_pct:.1f}% "
+                f"from observed peak {state['peak_value']:.3f} Gbps (allowed: within 3%)"
+            )
+            self._log.info(
+                f"[BwPeak] Drop detected {test_case_name}.{metric_name} "
+                f"(VM: {vm_size}): {eval_msg}"
+            )
+            result: Dict[str, Any] = {
+                "timestamp": str(perf_message.time) if perf_message.time else "",
+                "test_case_name": test_case_name,
+                "metric_name": metric_name,
+                "metric_value": value,
+                "metric_unit": perf_message.metric_unit,
+                "metric_relativity": (
+                    perf_message.metric_relativity.value
+                    if perf_message.metric_relativity
+                    else "NA"
+                ),
+                "tool": perf_message.tool,
+                "platform": perf_message.platform,
+                "vmsize": perf_message.vmsize,
+                "role": perf_message.role,
+                "criteria_defined": True,
+                "criteria_met": False,
+                "evaluation_message": eval_msg,
+            }
+            self._evaluation_results.append(result)
+            failed: Dict[str, Any] = {
+                "metric_name": metric_name,
+                "actual_value": value,
+                "unit": perf_message.metric_unit,
+                "evaluation_message": eval_msg,
+                "vm_size": vm_size,
+            }
+            self._failed_metrics.setdefault(test_case_name, []).append(failed)
+
+    def _finalize_bw_peak_checks(self, test_case_name: str) -> None:
+        """Emit one PASS/FAIL result per base metric verifying peak >= 80% of SKU bw."""
+        for tracker_key, state in self._bw_peak_tracker.items():
+            tc, vm_size, base_metric = tracker_key
+            if tc != test_case_name:
+                continue
+            sku_bw = state["sku_bw"]
+            peak_value = state["peak_value"]
+            required = sku_bw * 0.8
+            criteria_met = peak_value >= required
+            if criteria_met:
+                eval_msg = (
+                    f"\u221a {base_metric}: peak {peak_value:.3f} Gbps "
+                    f">= {required:.3f} Gbps (80% of {sku_bw} Gbps)"
+                )
+            else:
+                eval_msg = (
+                    f"\u2717 {base_metric}: peak {peak_value:.3f} Gbps "
+                    f"< {required:.3f} Gbps (80% of {sku_bw} Gbps) \u2014 "
+                    f"never reached expected bandwidth"
+                )
+            last_msg = state["last_msg"]
+            peak_result: Dict[str, Any] = {
+                "timestamp": str(last_msg.time) if last_msg.time else "",
+                "test_case_name": tc,
+                "metric_name": f"{base_metric}__peak_check",
+                "metric_value": peak_value,
+                "metric_unit": "Gbps",
+                "metric_relativity": "HigherIsBetter",
+                "tool": last_msg.tool,
+                "platform": last_msg.platform,
+                "vmsize": last_msg.vmsize,
+                "role": last_msg.role,
+                "criteria_defined": True,
+                "criteria_met": criteria_met,
+                "evaluation_message": eval_msg,
+            }
+            self._evaluation_results.append(peak_result)
+            self._log.info(f"[BwPeak] {eval_msg}")
+            if not criteria_met:
+                failed_peak: Dict[str, Any] = {
+                    "metric_name": f"{base_metric}__peak_check",
+                    "actual_value": peak_value,
+                    "unit": "Gbps",
+                    "evaluation_message": eval_msg,
+                    "vm_size": vm_size,
+                }
+                self._failed_metrics.setdefault(tc, []).append(failed_peak)
+
+    def _lookup_az_max_bandwidth(
+        self, location: str, vmsize: str
+    ) -> Optional[float]:
+        """Read MaxNetworkBandwidthGbps from the Azure SKU cache file.
+
+        Results are cached in memory so the file is only read once per location.
+        Nothing is sent as a message, so nothing ends up in the database.
+        """
+        if not location or not vmsize:
+            return None
+        if location not in self._az_cap_cache:
+            cache_path = Path("C:\\Users\\lildeng\\Downloads\\azure_locations_westus2.json")
+            # constants.CACHE_PATH / f"azure_locations_{location}.json"
+            if not cache_path.exists():
+                self._az_cap_cache[location] = {}
+            else:
+                try:
+                    with open(cache_path, "r", encoding="utf-8") as f:
+                        self._az_cap_cache[location] = json.load(f)
+                except Exception:
+                    self._az_cap_cache[location] = {}
+        caps = (
+            self._az_cap_cache[location]
+            .get("capabilities", {})
+            .get(vmsize, {})
+            .get("resource_sku", {})
+            .get("capabilities", [])
+        )
+        for cap in caps:
+            if cap.get("name") == "MaxNetworkBandwidthGbps":
+                return float(cap["value"])
+        return None
 
     def finalize(self) -> None:
         if not self._evaluation_results:

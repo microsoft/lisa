@@ -174,6 +174,13 @@ class CloudHypervisorTests(Tool):
             self.node.os.install_packages(["iproute", "iproute-devel"])
             # Load VDPA kernel module and create devices
             self._configure_vdpa_devices(self.node)
+            self.node.execute(
+                self.vdpa_script_path,
+                sudo=True,
+                shell=True, 
+                expected_exit_code=0, 
+                expected_exit_code_failure_message="Failed to configure VDPA devices"
+            )
 
     def _handle_test_failure_with_diagnostics(
         self,
