@@ -11,7 +11,7 @@ from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure import common, platform_
-from lisa.util import LisaException, NotMeetRequirementException, constants
+from lisa.util import LisaException, NotMeetRequirementException, SkippedException, constants
 from lisa.util.logger import get_logger
 
 
@@ -391,6 +391,58 @@ class AzurePrepareTestCase(TestCase):
                     f"{matched_pattern_index} but expected pattern "
                     f"{expected_pattern_index}",
                 )
+
+    def test_blocked_vm_size_filtered_from_candidates(self) -> None:
+        # Verify that a VM size listed in blocked_vm_sizes is excluded from
+        # auto-selected candidates during environment preparation.
+        azure_runbook = self._platform.runbook.get_extended_runbook(
+            platform_.AzurePlatformSchema
+        )
+        azure_runbook.blocked_vm_sizes = ["Standard_DS2_v2"]
+
+        env = self.load_environment(node_req_count=1)
+        actual_result = self._platform._prepare_environment(env, self._log)
+        self.assertTrue(actual_result)
+        assert env.runbook.nodes_requirement
+        node_runbook = env.runbook.nodes_requirement[0].get_extended_runbook(
+            common.AzureNodeSchema, AZURE
+        )
+        self.assertNotEqual(
+            "",
+            node_runbook.vm_size,
+            "An alternative VM size should have been selected after filtering.",
+        )
+        self.assertNotEqual(
+            "Standard_DS2_v2",
+            node_runbook.vm_size,
+            "Blocked VM size Standard_DS2_v2 should not be selected as a candidate.",
+        )
+
+    def test_explicitly_requested_blocked_vm_size_raises_skip(self) -> None:
+        # Verify that explicitly requesting a blocked vm_size raises SkippedException.
+        azure_runbook = self._platform.runbook.get_extended_runbook(
+            platform_.AzurePlatformSchema
+        )
+        azure_runbook.blocked_vm_sizes = ["Standard_DS2_v2"]
+
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="westus3", vm_size="Standard_DS2_v2")
+        with self.assertRaises(SkippedException):
+            self._platform._prepare_environment(env, self._log)
+
+    def test_retired_vm_size_raises_skip(self) -> None:
+        # Verify that explicitly requesting a VM size from RETIRED_VM_SIZES
+        # raises SkippedException without any extra configuration.
+        # Standard_E64i_v3 is a known retired size that is always present in
+        # RETIRED_VM_SIZES.
+        retired_size = "Standard_E64i_v3"
+        assert retired_size in platform_.RETIRED_VM_SIZES, (
+            f"{retired_size} must be in RETIRED_VM_SIZES for this test to be valid"
+        )
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="westus3", vm_size=retired_size)
+        with self.assertRaises(SkippedException):
+            self._platform._prepare_environment(env, self._log)
 
     def verify_exists_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
