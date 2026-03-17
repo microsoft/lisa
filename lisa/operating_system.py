@@ -981,12 +981,10 @@ class Debian(Linux):
         timer = create_timer()
         while timeout > timer.elapsed(False):
             # fix the dpkg, in case it's broken.
-            dpkg_result = self._node.execute(
-                "dpkg --force-all --configure -a", sudo=True
-            )
+            self._node.execute("dpkg --force-all --configure -a", sudo=True)
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
-            if dpkg_result.exit_code == 0 and pidof_result.exit_code == 1:
-                # not found dpkg process, it's ok to exit.
+            if pidof_result.exit_code == 1:
+                # no dpkg process running, safe to exit and attempt repair.
                 break
             if is_first_time:
                 is_first_time = False
@@ -995,6 +993,55 @@ class Debian(Linux):
 
         if timeout < timer.elapsed():
             raise LisaTimeoutException("timeout to wait previous dpkg process stop.")
+
+        # Remove packages stuck in "reinst-required" state whose archive is
+        # missing (e.g. azsec-bpftrace on KernelCI images).
+        audit_result = self._node.execute("dpkg --audit", sudo=True, no_info_log=True)
+        if audit_result.stdout.strip():
+            self._log.debug(
+                f"Found packages needing repair: {audit_result.stdout.strip()}"
+            )
+            # Find packages stuck in "reinst-required" state:
+            # match any dpkg entry whose error flag (3rd column) is 'R'.
+            reinst_packages_result = self._node.execute(
+                "dpkg -l | grep '^..R' | awk '{print $2}'",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+            )
+            reinst_packages = [
+                pkg for pkg in reinst_packages_result.stdout.splitlines() if pkg.strip()
+            ]
+            if reinst_packages:
+                packages_arg = " ".join(reinst_packages)
+                remove_cmd = f"dpkg --remove --force-remove-reinstreq {packages_arg}"
+                remove_result = self._node.execute(
+                    remove_cmd,
+                    sudo=True,
+                    shell=True,
+                    no_info_log=True,
+                )
+                self._log.debug(
+                    f"dpkg repair removal result: exit_code={remove_result.exit_code}, "
+                    f"stdout={remove_result.stdout!r}, "
+                    f"stderr={remove_result.stderr!r}"
+                )
+                # After removing reinst-required packages, re-run configure
+                # to bring dpkg to a clean state.
+                final_dpkg_result = self._node.execute(
+                    "dpkg --force-all --configure -a",
+                    sudo=True,
+                )
+                self._log.debug(
+                    "final dpkg configure result after repair: "
+                    f"exit_code={final_dpkg_result.exit_code}, "
+                    f"stdout={final_dpkg_result.stdout!r}, "
+                    f"stderr={final_dpkg_result.stderr!r}"
+                )
+            else:
+                self._log.debug(
+                    "No 'reinst-required' packages found to remove after audit."
+                )
 
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
