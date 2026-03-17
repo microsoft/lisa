@@ -144,37 +144,6 @@ class CloudHypervisorTests(Tool):
         """Sanitize names for filenames: keep alphanumeric, dot, dash, underscore."""
         return re.sub(r"[^A-Za-z0-9_.-]", "_", s)
 
-    def _read_int_from_path(self, path: str) -> int:
-        result = self.node.execute(
-            f"cat {shlex.quote(path)}",
-            shell=True,
-        )
-        if result.exit_code != 0:
-            return 0
-
-        try:
-            return int(result.stdout.strip())
-        except ValueError:
-            self._log.debug(
-                f"Failed to parse integer from '{path}': {result.stdout.strip()}"
-            )
-            return 0
-
-    def _determine_hugepage_allocation_mode(
-        self,
-        requested_pages: int,
-        before_allocated: int,
-        after_allocated: int,
-        fallback_used: bool,
-    ) -> str:
-        if before_allocated >= requested_pages:
-            return "preexisting_pool"
-        if fallback_used:
-            return "compaction/fallback"
-        if after_allocated >= requested_pages and after_allocated > before_allocated:
-            return "fresh_allocation"
-        return "compaction/fallback"
-
     def _log_command_output(self, label: str, command: str) -> None:
         result = self.node.execute(
             command,
@@ -186,51 +155,6 @@ class CloudHypervisorTests(Tool):
             output = result.stderr.strip() or "<empty>"
         self._log.info(
             f"[debug] {label} (exit_code={result.exit_code}):\n{output}"
-        )
-
-    def _log_hugepage_post_setup_state(
-        self,
-        requested_pages: int,
-        page_size: str,
-        hugepage_path: str,
-        before_allocated: int,
-        before_free: int,
-        after_allocated: int,
-        after_free: int,
-        fallback_used: bool,
-    ) -> None:
-        allocation_mode = self._determine_hugepage_allocation_mode(
-            requested_pages=requested_pages,
-            before_allocated=before_allocated,
-            after_allocated=after_allocated,
-            fallback_used=fallback_used,
-        )
-        delta_allocated = after_allocated - before_allocated
-        delta_free = after_free - before_free
-
-        self._log.info(
-            "[debug] hugepage_allocation_result: "
-            f"mode={allocation_mode},requested={requested_pages},"
-            f"size={page_size},node={self._numa_node},"
-            f"path={hugepage_path},before_allocated={before_allocated},"
-            f"after_allocated={after_allocated},delta_allocated={delta_allocated},"
-            f"before_free={before_free},after_free={after_free},"
-            f"delta_free={delta_free},fallback_used={fallback_used}"
-        )
-
-        self._log_command_output(
-            "hugepage_meminfo",
-            "cat /proc/meminfo | egrep 'Huge|MemFree|MemAvailable' || true",
-        )
-        self._log_command_output(
-            "hugepage_per_node_counts",
-            "bash -lc \"grep -H . "
-            "/sys/devices/system/node/node*/hugepages/hugepages-*/"
-            "{nr_hugepages,free_hugepages} || true\"",
-        )
-        self._log_command_output(
-            "hugepage_buddyinfo",
-            "cat /proc/buddyinfo || true",
         )
 
     def _get_remote_debug_snapshot_dir(self) -> PurePath:
@@ -2320,101 +2244,31 @@ exit $ec
             sudo=True,
         )
 
-        # Reserve hugepages (try 1GB first, fallback to 2MB)
-        hugepage_1g_path = (
-            f"/sys/devices/system/node/node{self._numa_node}/"
-            f"hugepages/hugepages-1048576kB/nr_hugepages"
+        # Phase 1 experiment: keep perf-stable tuning intact but do not modify
+        # host hugepage pools from LISA. This isolates hugepage effects from the
+        # rest of the perf-stable controls.
+        self._log.info(
+            "[debug] hugepage_setup: skipped_lisa_hugepage_manipulation=True,"
+            f"node={self._numa_node}"
         )
-        hugepage_1g_free_path = hugepage_1g_path.replace(
-            "nr_hugepages", "free_hugepages"
+        self._log.info(
+            "[debug] hugepage_allocation_result: "
+            f"mode=lisa_manipulation_disabled,node={self._numa_node}"
         )
-        hugepage_2m_path = (
-            f"/sys/devices/system/node/node{self._numa_node}/"
-            f"hugepages/hugepages-2048kB/nr_hugepages"
+        self._log_command_output(
+            "hugepage_meminfo",
+            "cat /proc/meminfo | egrep 'Huge|MemFree|MemAvailable' || true",
         )
-        hugepage_2m_free_path = hugepage_2m_path.replace(
-            "nr_hugepages", "free_hugepages"
+        self._log_command_output(
+            "hugepage_per_node_counts",
+            "bash -lc \"grep -H . "
+            "/sys/devices/system/node/node*/hugepages/hugepages-*/"
+            "{nr_hugepages,free_hugepages} || true\"",
         )
-
-        # Check if 1GB hugepages are available
-        result = self.node.execute(
-            f"[ -f {hugepage_1g_path} ]",
-            shell=True,
+        self._log_command_output(
+            "hugepage_buddyinfo",
+            "cat /proc/buddyinfo || true",
         )
-
-        if result.exit_code == 0:
-            requested_pages = 16
-            before_allocated = self._read_int_from_path(hugepage_1g_path)
-            before_free = self._read_int_from_path(hugepage_1g_free_path)
-
-            # Try 1GB hugepages (16GB total)
-            self.node.execute(
-                f"echo {requested_pages} | sudo tee {hugepage_1g_path} || true",
-                shell=True,
-                sudo=True,
-            )
-            # Verify allocation
-            allocated = self._read_int_from_path(hugepage_1g_path)
-            free_pages = self._read_int_from_path(hugepage_1g_free_path)
-            if allocated >= requested_pages:
-                self._log.debug(f"Reserved 16GB (1GB pages) on node{self._numa_node}")
-            else:
-                self._log.debug(
-                    f"Only {allocated}GB (1GB pages) allocated (requested 16GB)"
-                )
-            self._log.info(
-                "[debug] hugepage_setup: "
-                f"requested={requested_pages},size=1G,node={self._numa_node},"
-                f"allocated={allocated},free={free_pages},fallback_used=False"
-            )
-            self._log_hugepage_post_setup_state(
-                requested_pages=requested_pages,
-                page_size="1G",
-                hugepage_path=hugepage_1g_path,
-                before_allocated=before_allocated,
-                before_free=before_free,
-                after_allocated=allocated,
-                after_free=free_pages,
-                fallback_used=False,
-            )
-        else:
-            requested_pages = 8192
-            before_allocated = self._read_int_from_path(hugepage_2m_path)
-            before_free = self._read_int_from_path(hugepage_2m_free_path)
-
-            # Fallback to 2MB hugepages (8192 pages = 16GB)
-            self.node.execute(
-                f"echo {requested_pages} | sudo tee {hugepage_2m_path} || true",
-                shell=True,
-                sudo=True,
-            )
-            # Verify allocation
-            allocated = self._read_int_from_path(hugepage_2m_path)
-            free_pages = self._read_int_from_path(hugepage_2m_free_path)
-            # Convert 2MiB pages to GiB
-            allocated_gib = allocated * 2 / 1024
-            if allocated >= requested_pages:
-                self._log.debug(f"Reserved 16GB (2MB pages) on node{self._numa_node}")
-            else:
-                self._log.debug(
-                    f"Only {allocated_gib:.2f} GiB (2MiB pages) allocated "
-                    f"(requested 16 GiB)"
-                )
-            self._log.info(
-                "[debug] hugepage_setup: "
-                f"requested={requested_pages},size=2M,node={self._numa_node},"
-                f"allocated={allocated},free={free_pages},fallback_used=True"
-            )
-            self._log_hugepage_post_setup_state(
-                requested_pages=requested_pages,
-                page_size="2M",
-                hugepage_path=hugepage_2m_path,
-                before_allocated=before_allocated,
-                before_free=before_free,
-                after_allocated=allocated,
-                after_free=free_pages,
-                fallback_used=True,
-            )
 
         # Export NUMA node for CH launcher
         os.environ["CH_NUMA_NODE"] = str(self._numa_node)
