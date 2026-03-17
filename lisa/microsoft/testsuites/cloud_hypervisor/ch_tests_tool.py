@@ -1426,7 +1426,7 @@ dump_ch_process_snapshot() {{
         self._log.info(f"[debug] _run_with_enhanced_diagnostics numa_cmd='{numa_cmd}'")
         self._log.info(f"[debug] _run_with_enhanced_diagnostics cmd_args={cmd_args}")
 
-        full_cmd = f"""bash -lc '
+        script_body = f"""
 set -o pipefail
 
 # enable core dumps (best-effort)
@@ -1658,7 +1658,8 @@ fi
 
 {boot_debug_cleanup_end}
 exit $ec
-'"""
+        """
+        full_cmd = f"bash -lc {shlex.quote(script_body)}"
 
         # Best-effort install gdb if not available
         try:
