@@ -1845,7 +1845,7 @@ def run_dpdk_symmetric_mp(
                 "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
                 delta_only=True,
             )  # relying on compiler defaults here, not great.
-
+            sleep(1)
             # turn SRIOV on
             node.features[NetworkInterface].switch_sriov(
                 enable=True, wait=False, reset_connections=False

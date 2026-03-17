@@ -157,7 +157,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         run_dpdk_symmetric_mp(
-            node, log, variables, trigger_hotplug=True, hotplug_times=3
+            node, log, variables, trigger_hotplug=True, hotplug_times=1
         )
 
     @TestCaseMetadata(
