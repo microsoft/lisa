@@ -23,13 +23,13 @@ Run the PowerShell quick install script:
 
 ```powershell
 # Download and run the script in one command
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -UseBasicParsing -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
 ```
 
    Or download the script manually first:
 ```powershell
 # Download the script
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "quick-install.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -UseBasicParsing -OutFile "quick-install.ps1"
 
 # Run the installation script
 .\quick-install.ps1
