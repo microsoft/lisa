@@ -492,12 +492,7 @@ class DpdkMpRole(str, Enum):
 
 
 class TestpmdForwardMode(str, Enum):
-    # dpdk multiprocessing allows numerous secondary processes to
-    # share a single primary context. Testpmd and other apps allow this
-    # to occur fairly transparently, but require it to be declared
-    # at start time. The primary process has a proc_id of '0'
-    # This is unfortunate, since it's the nice python default for
-    # integer arguments.
+    # Forwarding modes for the testpmd application.
     #
     # txonly  : generate and transmit packets without validating received
     #           traffic (useful for pure transmit/throughput tests).

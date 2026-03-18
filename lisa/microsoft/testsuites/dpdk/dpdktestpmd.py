@@ -937,7 +937,7 @@ class DpdkTestpmd(Tool):
         # Otherwise we can omit all of these arguments
 
         assert_that(num_procs).described_as(
-            "Test bug: dpdk mp context requires num_procs arg > 0"
+            "Test bug: dpdk mp context requires num_procs arg > 1"
         ).is_greater_than(1)
 
         if mp_role == DpdkMpRole.PRIMARY_PROCESS:
