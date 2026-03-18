@@ -499,17 +499,16 @@ class CloudHypervisorTests(Tool):
 
     def _prepare_metrics_subtests(
         self, hypervisor: str, only: Optional[List[str]], skip: Optional[List[str]]
-    ) -> Set[str]:
+    ) -> List[str]:
         """Prepare subtests for metrics testing."""
         subtests = self._list_perf_metrics_tests(hypervisor=hypervisor)
 
         if only is not None:
-            if not skip:
-                skip = []
-            # Add everything except 'only' to skip list
-            skip += list(subtests.difference(only))
+            only_set = set(only)
+            subtests = [testcase for testcase in subtests if testcase in only_set]
         if skip is not None:
-            subtests.difference_update(skip)
+            skip_set = set(skip)
+            subtests = [testcase for testcase in subtests if testcase not in skip_set]
 
         self._log.debug(f"Final Subtests list to run: {subtests}")
         return subtests
@@ -1435,7 +1434,7 @@ exit $ec
 
         return results
 
-    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> Set[str]:
+    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
         tests_list = []
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
@@ -1461,7 +1460,7 @@ exit $ec
         tests_list = [match[0] for match in pattern.findall(stdout)]
 
         self._log.debug(f"Testcases found: {tests_list}")
-        return set(tests_list)
+        return tests_list
 
     def _process_perf_metric_test_result(self, output: str) -> str:
         # Sample Output
