@@ -71,12 +71,6 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/in
 3. **Checks/installs Git** — uses winget or direct download
 4. **Clones and installs LISA** — clones the repo and runs `pip install --editable .[azure]`
 
-### Remote installation (no local repo)
-
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
-```
-
 ---
 
 ## Linux Installation
