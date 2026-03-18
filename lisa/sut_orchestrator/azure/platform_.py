@@ -2887,9 +2887,7 @@ class AzurePlatform(Platform):
         allowed_vm_sizes = [s for s in allowed_vm_sizes if s not in all_blocked]
 
         if blocked_sizes_found:
-            log.debug(
-                f"Filtered out retired/blocked VM sizes: {blocked_sizes_found}"
-            )
+            log.debug(f"Filtered out retired/blocked VM sizes: {blocked_sizes_found}")
             if node_runbook.vm_size and not allowed_vm_sizes:
                 raise SkippedException(
                     f"VM size(s) {blocked_sizes_found} are retired or blocked "
