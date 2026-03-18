@@ -22,6 +22,17 @@ For running with Azure subscription, use the quick-container scripts:
 Run the PowerShell quick install script:
 
 ```powershell
+# Download and run the script in one command
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -UseBasicParsing -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
+```
+
+Or download the script manually first:
+
+```powershell
+# Download the script
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -UseBasicParsing -OutFile "quick-install.ps1"
+
+# Run the installation script
 .\quick-install.ps1
 ```
 
@@ -59,12 +70,6 @@ Run the PowerShell quick install script:
 2. **Installs Python dependencies** — pip, nox, toml, wheel
 3. **Checks/installs Git** — uses winget or direct download
 4. **Clones and installs LISA** — clones the repo and runs `pip install --editable .[azure]`
-
-### Remote installation (no local repo)
-
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/microsoft/lisa/main/installers/quick-install.ps1" -OutFile "$env:TEMP\quick-install.ps1"; & "$env:TEMP\quick-install.ps1"
-```
 
 ---
 

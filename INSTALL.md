@@ -88,6 +88,8 @@ The quick install script automatically downloads and installs everything you nee
    .\quick-install.ps1
    ```
 
+   The default install path is `$env:USERPROFILE\lisa`. You can use the `-InstallPath` parameter to change it.
+
 3. **Optional parameters:**
    ```powershell
    # Specify Python version (default: 3.12)
@@ -163,6 +165,8 @@ curl -fsSL https://raw.githubusercontent.com/microsoft/lisa/main/installers/quic
 chmod +x quick-install.sh
 ./quick-install.sh
 ```
+
+The default install path is `~/lisa`. You can use the `--install-path` parameter to change it.
 
 **Optional parameters:**
 ```bash
