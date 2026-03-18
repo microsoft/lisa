@@ -481,7 +481,8 @@ class NvidiaCudaDriver(GpuDriver):
 
             assert isinstance(self.node.os, Ubuntu), "Ubuntu installation expected"
 
-            # Install CUDA keyring
+            # Install CUDA keyring from NVIDIA repository
+            # https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/
             cuda_keyring_url = (
                 f"{self.NVIDIA_CUDA_REPO_BASE_URL}/"
                 f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
