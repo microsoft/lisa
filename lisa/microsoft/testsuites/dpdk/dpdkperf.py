@@ -168,7 +168,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test(Pmd.FAILSAFE, result, log, variables)
+        self._run_dpdk_testpmd_perf_test(Pmd.FAILSAFE, result, log, variables)
 
     @TestCaseMetadata(
         description="""
@@ -189,7 +189,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test(Pmd.NETVSC, result, log, variables)
+        self._run_dpdk_testpmd_perf_test(Pmd.NETVSC, result, log, variables)
 
     @TestCaseMetadata(
         description="""
@@ -211,12 +211,12 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test(
+        self._run_dpdk_testpmd_perf_test(
             Pmd.FAILSAFE,
             result,
             log,
             variables,
-            use_queues=True,
+            multiple_queues=True,
         )
 
     @TestCaseMetadata(
@@ -238,12 +238,12 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test(
+        self._run_dpdk_testpmd_perf_test(
             Pmd.NETVSC,
             result,
             log,
             variables,
-            use_queues=True,
+            multiple_queues=True,
         )
 
     @TestCaseMetadata(
@@ -280,13 +280,14 @@ class DpdkPerformance(TestSuite):
             is_perf_test=True,
         )
 
-    def _run_dpdk_perf_test(
+    def _run_dpdk_testpmd_perf_test(
         self,
         pmd: Pmd,
         test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
-        use_queues: bool = False,
+        multiple_queues: bool = False,
+        hugepage_size: HugePageSize = HugePageSize.HUGE_2MB,
     ) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
@@ -294,23 +295,15 @@ class DpdkPerformance(TestSuite):
         # run build + validation to populate results
         self._validate_core_counts_are_equal(test_result)
         try:
-            if use_queues:
-                send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
-                    environment,
-                    log,
-                    variables,
-                    pmd,
-                    result=test_result,
-                )
-            else:
-                send_kit, receive_kit = verify_dpdk_send_receive(
-                    environment,
-                    log,
-                    variables,
-                    pmd,
-                    HugePageSize.HUGE_2MB,
-                    result=test_result,
-                )
+            send_kit, receive_kit = verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                pmd,
+                multiple_queues=multiple_queues,
+                hugepage_size=hugepage_size,
+                result=test_result,
+            )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
 
