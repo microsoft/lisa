@@ -503,5 +503,5 @@ class TestpmdForwardMode(str, Enum):
     #           exercising header rewrite paths.
 
     TX_ONLY = "txonly"
-    RXONLY = "rxonly"
+    RX_ONLY = "rxonly"
     FIVE_TUPLE_SWAP = "5tswap"

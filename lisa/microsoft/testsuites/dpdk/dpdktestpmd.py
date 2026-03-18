@@ -952,7 +952,7 @@ class DpdkTestpmd(Tool):
             assert_that(proc_id).described_as(
                 (
                     f"Test bug: dpdk proc-id argument ({proc_id}) "
-                    "must be < num_procs argument ({num_procs})."
+                    f"must be < num_procs argument ({num_procs})."
                 )
             ).is_less_than(num_procs)
             mp_arguments = f"--num-procs={num_procs} --proc-id {proc_id}"
