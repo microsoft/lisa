@@ -818,6 +818,10 @@ def verify_dpdk_send_receive(
             multiple_queues=multiple_queues,
             set_mtu=set_mtu,
         )
+    else:
+        raise LisaException(
+            f"Unsupported TestpmdForwardMode for receiver: {receiver_mode}"
+        )
     receive_timeout = kill_timeout + 10
     receiver_processes: List[Process] = []
     sender_processes: List[Process] = []
