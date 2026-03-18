@@ -289,7 +289,7 @@ class Nvmecli(Tool):
             # Some older nvme-cli versions (e.g., 1.8.x on RHEL 7) emit
             # DevicePath but omit the NameSpace field entirely.
             # Derive the namespace ID from the DevicePath if missing.
-            if device_path and namespace_id is None:
+            if isinstance(device_path, str) and device_path and namespace_id is None:
                 # e.g., "/dev/nvme0n1" → "1", "/dev/nvme0n17" → "17"
                 ns_match = re.search(r"n(\d+)$", device_path)
                 if ns_match:
