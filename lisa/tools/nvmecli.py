@@ -354,14 +354,20 @@ class Nvmecli(Tool):
         for nvme_device in nvme_devices or []:
             # Legacy schema (flat fields):
             device_path = nvme_device.get("DevicePath")
-            model = nvme_device.get("ModelNumber", "")
+            raw_model = nvme_device.get("ModelNumber", "")
+            model = raw_model.strip() if isinstance(raw_model, str) else ""
             if isinstance(device_path, str) and device_path.startswith("/dev/"):
-                device_models[device_path] = model.strip()
+                device_models[device_path] = model
 
             # New schema: Subsystems → Controllers → Namespaces
             for subsystem in nvme_device.get("Subsystems") or []:
                 for controller in (subsystem or {}).get("Controllers") or []:
-                    ctrl_model = (controller or {}).get("ModelNumber", "").strip()
+                    raw_ctrl_model = (controller or {}).get("ModelNumber", "")
+                    ctrl_model = (
+                        raw_ctrl_model.strip()
+                        if isinstance(raw_ctrl_model, str)
+                        else ""
+                    )
                     for namespace in (controller or {}).get("Namespaces") or []:
                         namespace_name = namespace.get("NameSpace")
                         if isinstance(namespace_name, str) and namespace_name:

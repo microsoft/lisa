@@ -171,7 +171,7 @@ class Nvme(Feature):
                     # the "Accelerator" model. E.g., disk="/dev/nvme0"
                     # matches keys "/dev/nvme0n1", "/dev/nvme0n2", etc.
                     for ns_path, ns_model in device_models.items():
-                        if ns_path.startswith(disk) and ns_model:
+                        if ns_path.startswith(f"{disk}n") and ns_model:
                             if "nvme accelerator" in ns_model.lower():
                                 return True
                     return False
