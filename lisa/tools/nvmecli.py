@@ -285,7 +285,7 @@ class Nvmecli(Tool):
             # Legacy schema (flat fields):
             device_path = nvme_device.get("DevicePath")
             namespace_id = nvme_device.get("NameSpace")
-            
+
             # Some older nvme-cli versions (e.g., 1.8.x on RHEL 7) emit
             # DevicePath but omit the NameSpace field entirely.
             # Derive the namespace ID from the DevicePath if missing.
@@ -324,7 +324,7 @@ class Nvmecli(Tool):
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
         device_paths_namespace_ids_map = self.get_devices(force_run=force_run)
         return [{path: nsid} for path, nsid in device_paths_namespace_ids_map.items()]
-    
+
     def get_device_models(self, force_run: bool = False) -> Dict[str, str]:
         """
         Return a mapping of NVMe device paths to their model names.
