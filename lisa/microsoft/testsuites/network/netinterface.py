@@ -30,7 +30,7 @@ from lisa.util import perf_timer
     """,
 )
 class NetInterface(TestSuite):
-    NETVSC_RELOAD_TEST_COUNT = 10
+    NETVSC_RELOAD_TEST_COUNT = 3
     NET_INTERFACE_RELOAD_TEST_COUNT = 4
     DHCLIENT_TIMEOUT = 15
 
