@@ -484,7 +484,7 @@ class NvidiaCudaDriver(GpuDriver):
             # Install CUDA keyring
             cuda_keyring_url = (
                 f"{self.NVIDIA_CUDA_REPO_BASE_URL}/"
-                f"ubuntu{release}/x86_64/cuda-keyring_1.1-1_all.deb"
+                f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
             )
             self.node.os.install_package_from_url(
                 cuda_keyring_url,
