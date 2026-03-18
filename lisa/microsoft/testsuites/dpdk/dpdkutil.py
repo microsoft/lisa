@@ -770,7 +770,7 @@ def verify_dpdk_send_receive(
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
-    receiver_mode: TestpmdForwardMode = TestpmdForwardMode.RXONLY,
+    receiver_mode: TestpmdForwardMode = TestpmdForwardMode.RX_ONLY,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -800,7 +800,7 @@ def verify_dpdk_send_receive(
     # annotate test result before starting
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
-    if receiver_mode == TestpmdForwardMode.RXONLY:
+    if receiver_mode == TestpmdForwardMode.RX_ONLY:
         kit_cmd_pairs = generate_send_receive_run_info(
             pmd,
             sender,
