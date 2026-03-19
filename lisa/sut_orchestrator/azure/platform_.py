@@ -16,7 +16,19 @@ from difflib import SequenceMatcher
 from functools import lru_cache, partial
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
@@ -166,6 +178,19 @@ VM_SIZE_FALLBACK_PATTERNS = [
     # Catch-all for any remaining VM sizes
     re.compile(r".*"),
 ]
+
+# VM sizes that have been retired by Azure and must not be deployed.
+# Add newly retired sizes here as they are announced.
+# Reference links:
+# 1. https://learn.microsoft.com/en-us/azure/virtual-machines/isolation
+# 2. https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list # noqa: E501
+RETIRED_VM_SIZES: FrozenSet[str] = frozenset(
+    {
+        # Isolated VM series(retired 02/28/2022)
+        "Standard_E64i_v3",
+        "Standard_E64is_v3",
+    }
+)
 
 LOCATIONS = [
     "westus3",
@@ -356,6 +381,16 @@ class AzurePlatformSchema:
 
     # Enable logging of MANA driver/device information in test results
     log_mana_information: bool = field(default=False)
+
+    # VM sizes to block from deployment in addition to RETIRED_VM_SIZES.
+    # Useful for temporarily blocking sizes that are known to be problematic
+    # or have been retired but are not yet in the hardcoded list.
+    # Example in runbook:
+    #   azure:
+    #     blocked_vm_sizes:
+    #       - Standard_NV6
+    #       - Standard_NC24
+    blocked_vm_sizes: List[str] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
@@ -2875,6 +2910,26 @@ class AzurePlatform(Platform):
         else:
             location_info = self.get_location_info(location, log)
             allowed_vm_sizes = [key for key, _ in location_info.capabilities.items()]
+
+        # Filter out retired and explicitly blocked VM sizes.
+        azure_runbook: AzurePlatformSchema = self.runbook.get_extended_runbook(
+            AzurePlatformSchema
+        )
+        extra_blocked: FrozenSet[str] = frozenset(
+            s.strip() for s in azure_runbook.blocked_vm_sizes
+        )
+        all_blocked = RETIRED_VM_SIZES | extra_blocked
+
+        blocked_sizes_found = [s for s in allowed_vm_sizes if s in all_blocked]
+        allowed_vm_sizes = [s for s in allowed_vm_sizes if s not in all_blocked]
+
+        if blocked_sizes_found:
+            log.debug(f"Filtered out retired/blocked VM sizes: {blocked_sizes_found}")
+            if node_runbook.vm_size and not allowed_vm_sizes:
+                raise SkippedException(
+                    f"VM size(s) {blocked_sizes_found} are retired or blocked "
+                    "and cannot be deployed. Please choose a supported VM size."
+                )
 
         # build the capability of vm sizes. The information is useful to
         # check quota.
