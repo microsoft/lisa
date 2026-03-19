@@ -110,6 +110,18 @@ class NetworkSettings(TestSuite):
         except UnsupportedOperationException as e:
             raise SkippedException(e)
 
+        # The netvsc driver rounds buffer sizes up to PAGE_SIZE, so the
+        # actual section count can differ from the requested value.  On
+        # systems with 64 KiB pages (common on ARM64) the delta can be
+        # much larger than the old hard-coded ±5.  Compute a tolerance
+        # based on the real page size: ceil(PAGE_SIZE / section_size).
+        NETVSC_RECV_SECTION_SIZE = 1728
+        NETVSC_SEND_SECTION_SIZE = 6144
+        page_size = int(node.execute("getconf PAGE_SIZE", shell=True).stdout)
+        # ceil division: -(-a // b) == ceil(a / b)
+        rx_tolerance = -(-page_size // NETVSC_RECV_SECTION_SIZE)
+        tx_tolerance = -(-page_size // NETVSC_SEND_SECTION_SIZE)
+
         for interface_settings in devices_settings:
             interface = interface_settings.device_name
             original_rx = int(interface_settings.current_ring_buffer_settings["RX"])
@@ -144,7 +156,7 @@ class NetworkSettings(TestSuite):
                 interface, expected_rx, expected_tx
             )
 
-            # The buffer size gets rounded up per PAGE_size
+            # The buffer size gets rounded up per PAGE_SIZE
             # so the expected_rx and expected_tx can vary in a range
             #  /* Get receive buffer area. */
             # buf_size = device_info->recv_sections * device_info->recv_section_size;
@@ -156,11 +168,15 @@ class NetworkSettings(TestSuite):
             assert_that(
                 int(actual_settings.current_ring_buffer_settings["RX"]),
                 "Changing RX Ringbuffer setting didn't succeed",
-            ).is_between(expected_rx - 5, expected_rx + 5)
+            ).is_between(
+                expected_rx - rx_tolerance, expected_rx + rx_tolerance
+            )
             assert_that(
                 int(actual_settings.current_ring_buffer_settings["TX"]),
                 "Changing TX Ringbuffer setting didn't succeed",
-            ).is_between(expected_tx - 5, expected_rx + 5)
+            ).is_between(
+                expected_tx - tx_tolerance, expected_tx + tx_tolerance
+            )
 
             # Revert the settings back to original values
             reverted_settings = ethtool.change_device_ring_buffer_settings(
