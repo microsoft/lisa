@@ -656,8 +656,10 @@ class KdumpDebian(KdumpBase):
             if arch == "x86_64":
                 return "512M"
             else:
-                # Use the default crash kernel size
-                return ""
+                # Explicitly set crashkernel for arm64 instead of relying on
+                # distro defaults, which may not be configured in grub on
+                # some Debian ARM64 images.
+                return "512M"
 
     def _get_crashkernel_cfg_file(self) -> str:
         return "/etc/default/grub.d/kdump-tools.cfg"
