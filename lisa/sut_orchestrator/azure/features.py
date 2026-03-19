@@ -62,7 +62,7 @@ from lisa.features.security_profile import (
 )
 from lisa.features.startstop import VMStatus
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, CBLMariner, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod, decode_set_space_by_type
 from lisa.secret import add_secret
 from lisa.tools import (
@@ -652,7 +652,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         supported_versions: Dict[Any, List[str]] = {
             Redhat: ["7.9", "8.2"],
             Ubuntu: ["20.04", "22.04", "24.04"],
-            CentOs: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
         }
         release = self._node.os.information.release
         if release not in supported_versions.get(type(self._node.os), []):
@@ -661,11 +660,20 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             self._node.os.handle_rhui_issue()
         extension = self._node.features[AzureExtension]
         try:
+            # type_handler_version 1.8 is the latest version at the time of this change.
+            # Below is the command to check available versions in Azure.
+            # az vm extension image list `
+            #   --publisher Microsoft.HpcCompute `
+            #   --name NvidiaGpuDriverLinux `
+            #   --location westus2 `
+            #   -o table
+
             result = extension.create_or_update(
                 type_="NvidiaGpuDriverLinux",
                 publisher="Microsoft.HpcCompute",
                 auto_upgrade_minor_version=True,
                 settings={},
+                type_handler_version="1.8",
             )
         except Exception as e:
             if (
