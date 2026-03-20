@@ -1019,10 +1019,10 @@ while kill -0 $pid 2>/dev/null; do
     echo "[watchdog] No log growth for ${{idle_secs}}s; dumping live stacks" \\
       | tee -a "$log_file"
     echo "[watchdog] pstree / ps snapshot" | tee -a "$log_file"
-    pstree -ap 2>/dev/null | head -200 | tee -a "$log_file" || true
-    ps -eo pid,ppid,stat,etime,cmd | head -200 | tee -a "$log_file" || true
+    pstree -ap 2>/dev/null | head -200 | tee -a "$log_file" > /dev/null || true
+    ps -eo pid,ppid,stat,etime,cmd | head -200 | tee -a "$log_file" > /dev/null || true
     ps -eL -o pid,tid,ppid,stat,etime,comm,cmd | head -200 \\
-      | tee -a "$log_file" || true
+      | tee -a "$log_file" > /dev/null || true
 
     # Find a good target: prefer the integration test binary; otherwise a child
     # of the cargo/dev_cli process; otherwise fall back to the main pid.
@@ -1047,12 +1047,12 @@ while kill -0 $pid 2>/dev/null; do
     core_out="core.integration-$(date +%s)"
     echo "[watchdog] Generating core: $core_out" | tee -a "$log_file"
     if command -v gcore >/dev/null 2>&1; then
-      sudo gcore -o "$core_out" "$tpid" 2>&1 | tee -a "$log_file" || true
+      sudo gcore -o "$core_out" "$tpid" 2>&1 | tee -a "$log_file" > /dev/null || true
     else
       sudo gdb -batch -p "$tpid" \\
         -ex "set pagination off" \\
         -ex "generate-core-file $core_out" \\
-        -ex "detach" -ex "quit" 2>&1 | tee -a "$log_file" || true
+        -ex "detach" -ex "quit" 2>&1 | tee -a "$log_file" > /dev/null || true
     fi
 
     # Write live backtrace to BOTH main log and side file
@@ -1065,7 +1065,7 @@ while kill -0 $pid 2>/dev/null; do
         " echo n/a)";
       echo "[watchdog] comm(parent)=$(cat /proc/$pid/comm 2>/dev/null ||" \\
         " echo n/a)";
-    }} 2>/dev/null | tee -a "$log_file" || true
+    }} 2>/dev/null | tee -a "$log_file" > /dev/null || true
     sudo gdb -batch -p "$tpid" \\
       -ex "set pagination off" \\
       -ex "set print elements 0" \\
