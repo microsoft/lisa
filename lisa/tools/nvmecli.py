@@ -363,7 +363,7 @@ class Nvmecli(Tool):
 
         try:
             nvme_devices = json.loads(nvme_list.stdout)["Devices"]
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, TypeError):
             return {}
 
         device_models: Dict[str, str] = {}
