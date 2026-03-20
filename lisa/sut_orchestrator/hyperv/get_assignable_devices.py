@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 # Refer: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/deploy/deploying-graphics-devices-using-dda  # noqa E501
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
 from lisa.tools import PowerShell
@@ -49,6 +49,113 @@ class HypervAssignableDevices:
                 result.friendly_name = rec["friendly_name"]
                 devices.append(result)
         return devices
+
+    def get_assignable_devices_by_location_paths(
+        self,
+        location_paths: List[str],
+    ) -> List[DeviceAddressSchema]:
+        requested_paths = {path.strip() for path in location_paths if path.strip()}
+        if not requested_paths:
+            return []
+
+        output = self.__get_present_pci_devices_with_location_paths()
+
+        devices: List[DeviceAddressSchema] = []
+        matched_paths = set()
+        for rec in output:
+            device_id = str(rec.get("InstanceId", "")).strip()
+            if not device_id:
+                continue
+
+            available_paths = self.__normalize_location_paths(
+                rec.get("LocationPaths", rec.get("LocationPath"))
+            )
+            if not available_paths:
+                continue
+
+            matching_paths = requested_paths.intersection(available_paths)
+            if not matching_paths:
+                continue
+
+            matched_paths.update(matching_paths)
+            current_path = next(
+                path for path in available_paths if path in matching_paths
+            )
+            result = self.__get_dda_properties(device_id=device_id)
+            if not result:
+                raise LisaException(
+                    f"Device at location path '{current_path}' is present but "
+                    "is not assignable by Hyper-V DDA"
+                )
+
+            result.friendly_name = str(rec.get("FriendlyName", "") or "").strip()
+            devices.append(result)
+
+        missing_paths = requested_paths.difference(matched_paths)
+        if missing_paths:
+            raise LisaException(
+                "Could not find PCI device(s) for Hyper-V location path(s): "
+                f"{', '.join(sorted(missing_paths))}"
+            )
+
+        return devices
+
+    def __get_present_pci_devices_with_location_paths(self) -> List[Dict[str, Any]]:
+        cmd = (
+            "Get-PnpDevice -PresentOnly | "
+            "Where-Object {$_.InstanceId -like 'PCI\\*'} | "
+            "ForEach-Object { "
+            "$locationPaths = $null; "
+            "try { "
+            "$locationPaths = (Get-PnpDeviceProperty -InstanceId $_.InstanceId "
+            "'DEVPKEY_Device_LocationPaths' -ErrorAction Stop).Data; "
+            "} catch { } "
+            "$locationPath = $null; "
+            "if ($locationPaths -is [System.Array]) { "
+            "$locationPath = $locationPaths | Select-Object -First 1; "
+            "} else { "
+            "$locationPath = $locationPaths; "
+            "} "
+            "[PSCustomObject]@{ "
+            "FriendlyName = $_.FriendlyName; "
+            "InstanceId = $_.InstanceId; "
+            "LocationPath = $locationPath; "
+            "LocationPaths = $locationPaths "
+            "} "
+            "}"
+        )
+        output = self.pwsh.run_cmdlet(
+            cmdlet=cmd,
+            sudo=True,
+            force_run=True,
+            output_json=True,
+        )
+
+        if not output:
+            raise LisaException("No present PCI devices were found on the Hyper-V host")
+
+        if not isinstance(output, list):
+            output = [output]
+
+        result: List[Dict[str, Any]] = []
+        for rec in output:
+            if not isinstance(rec, dict):
+                continue
+
+            location_paths = self.__normalize_location_paths(
+                rec.get("LocationPaths", rec.get("LocationPath"))
+            )
+
+            result.append(
+                {
+                    "FriendlyName": str(rec.get("FriendlyName", "") or "").strip(),
+                    "InstanceId": str(rec.get("InstanceId", "") or "").strip(),
+                    "LocationPath": self.__get_first_location_path(location_paths),
+                    "LocationPaths": location_paths,
+                }
+            )
+
+        return result
 
     def __get_devices_by_vendor_device_id(
         self,
@@ -107,6 +214,25 @@ class HypervAssignableDevices:
             force_run=True,
         )
         return str(output.strip())
+
+    def __get_first_location_path(self, raw_location_path: Any) -> str:
+        location_paths = self.__normalize_location_paths(raw_location_path)
+        return location_paths[0] if location_paths else ""
+
+    def __normalize_location_paths(self, raw_location_paths: Any) -> List[str]:
+        if raw_location_paths is None:
+            return []
+
+        if isinstance(raw_location_paths, list):
+            location_paths = raw_location_paths
+        else:
+            location_paths = str(raw_location_paths).splitlines()
+
+        return [
+            location_path
+            for location_path in (str(entry).strip() for entry in location_paths)
+            if location_path
+        ]
 
     def __load_pnp_allocated_resources(self) -> List[Dict[str, str]]:
         # Command output result (just 2 device properties)
@@ -190,7 +316,7 @@ class HypervAssignableDevices:
                 result.append(extract_val)
         return result
 
-    def __get_mmio_end_address(self, start_addr: str) -> Optional[str]:
+    def __get_mmio_end_address(self, start_addr: int) -> Optional[str]:
         # MemoryType   Name                  Status
         # ----------   ----                  ------
         # WindowDecode 0xE1800000-0xE1BFFFFF OK
@@ -204,16 +330,17 @@ class HypervAssignableDevices:
             sudo=True,
             force_run=True,
         )
+        mmio_pattern = re.compile(r"(?P<start>0x[0-9A-Fa-f]+)-(?P<end>0x[0-9A-Fa-f]+)")
         end_addr_rec = None
         for rec in device_mem_addr.splitlines():
             rec = rec.strip()
-            if rec.find(start_addr) >= 0:
-                addr = rec.split("-")
-                start_addr_rec = addr[0].split()[-1]
-                end_addr_rec = addr[1].split()[0].strip()
+            match = mmio_pattern.search(rec)
+            if not match:
+                continue
 
-                err = "MMIO Starting address not matching"
-                assert start_addr == start_addr_rec, err
+            start_addr_rec = int(match.group("start"), 16)
+            if start_addr == start_addr_rec:
+                end_addr_rec = match.group("end")
                 break
         return end_addr_rec
 
@@ -224,73 +351,117 @@ class HypervAssignableDevices:
         """
         self.log.debug(f"PCI InstanceId: {device_id}")
 
+        if self.__requires_reserved_memory_region(device_id):
+            return None
+
+        if not self.__has_acs_compatible_up_hierarchy(device_id):
+            return None
+
+        if not self.__is_supported_device_type(device_id):
+            return None
+
+        location_path = self.__get_location_path(device_id)
+        if self.__is_device_disabled(device_id):
+            return None
+
+        allocated_resources = self.__get_allocated_resources(device_id)
+        if not self.__has_assignable_interrupts(allocated_resources):
+            return None
+
+        mmio_total = self.__get_total_mmio_in_mb(device_id, allocated_resources)
+        if mmio_total is None:
+            self.log.debug("It has no MMIO space")
+        elif mmio_total:
+            self.log.debug(f"Device '{device_id}', Total MMIO = {mmio_total}MB ")
+
+        device = DeviceAddressSchema()
+        device.location_path = location_path
+        device.instance_id = device_id
+        return device
+
+    def __requires_reserved_memory_region(self, device_id: str) -> bool:
         rmrr = self.__get_pnp_device_property(
             device_id=device_id,
             property_name=self.PKEY_REQUIRES_RESERVED_MEMORY_REGION,
-        )
-        rmrr = rmrr.strip()
+        ).strip()
         if rmrr != "False":
             self.log.debug(
                 "BIOS requires that this device remain attached to BIOS-owned memory."
                 "Not assignable."
             )
-            return None
+            return True
+        return False
 
+    def __has_acs_compatible_up_hierarchy(self, device_id: str) -> bool:
         acs_up = self.__get_pnp_device_property(
             device_id=device_id,
             property_name=self.PKEY_ACS_COMPATIBLE_UP_HIERARCHY,
-        )
-        acs_up = acs_up.strip()
+        ).strip()
         if acs_up == self.PROP_ACS_COMPATIBLE_UP_HIERARCHY_NOT_SUPPORTED:
             self.log.debug(
                 "Traffic from this device may be redirected to other devices in "
                 "the system. Not assignable."
             )
-            return None
+            return False
+        return True
 
+    def __is_supported_device_type(self, device_id: str) -> bool:
         dev_type = self.__get_pnp_device_property(
-            device_id=device_id, property_name=self.PKEY_DEVICE_TYPE
-        )
-        dev_type = dev_type.strip()
+            device_id=device_id,
+            property_name=self.PKEY_DEVICE_TYPE,
+        ).strip()
         if dev_type == self.PROP_DEVICE_TYPE_PCI_EXPRESS_ENDPOINT:
             self.log.debug("Express Endpoint -- more secure.")
-        else:
-            if dev_type == (
-                self.PROP_DEVICE_TYPE_PCI_EXPRESS_ROOT_COMPLEX_INTEGRATED_ENDPOINT
-            ):
-                self.log.debug("Embedded Endpoint -- less secure.")
-            elif dev_type == self.PROP_DEVICE_TYPE_PCI_EXPRESS_LEGACY_ENDPOINT:
-                dev_base_class = self.__get_pnp_device_property(
-                    device_id=device_id,
-                    property_name=self.PKEY_BASE_CLASS,
-                )
-                dev_base_class = dev_base_class.strip()
-                if dev_base_class == self.PROP_BASE_CLASS_DISPLAY_CTRL:
-                    self.log.debug("Legacy Express Endpoint -- graphics controller.")
-                else:
-                    self.log.debug("Legacy, non-VGA PCI device. Not assignable.")
-                    return None
-            else:
-                if dev_type == self.PROP_DEVICE_TYPE_PCI_EXPRESS_TREATED_AS_PCI:
-                    self.log.debug(
-                        "BIOS kept control of PCI Express for this device. "
-                        "Not assignable."
-                    )
-                else:
-                    self.log.debug(
-                        "Old-style PCI device, switch port, etc. " "Not assignable."
-                    )
-                return None
+            return True
 
-        # Get the device location path
-        location_path = self.__get_pnp_device_property(
+        if (
+            dev_type
+            == self.PROP_DEVICE_TYPE_PCI_EXPRESS_ROOT_COMPLEX_INTEGRATED_ENDPOINT
+        ):
+            self.log.debug("Embedded Endpoint -- less secure.")
+            return True
+
+        if dev_type == self.PROP_DEVICE_TYPE_PCI_EXPRESS_LEGACY_ENDPOINT:
+            return self.__is_legacy_display_controller(device_id)
+
+        if dev_type == self.PROP_DEVICE_TYPE_PCI_EXPRESS_TREATED_AS_PCI:
+            self.log.debug(
+                "BIOS kept control of PCI Express for this device. " "Not assignable."
+            )
+        else:
+            self.log.debug("Old-style PCI device, switch port, etc. Not assignable.")
+        return False
+
+    def __is_legacy_display_controller(self, device_id: str) -> bool:
+        dev_base_class = self.__get_pnp_device_property(
+            device_id=device_id,
+            property_name=self.PKEY_BASE_CLASS,
+        ).strip()
+        if dev_base_class == self.PROP_BASE_CLASS_DISPLAY_CTRL:
+            self.log.debug("Legacy Express Endpoint -- graphics controller.")
+            return True
+
+        self.log.debug("Legacy, non-VGA PCI device. Not assignable.")
+        return False
+
+    def __get_location_path(self, device_id: str) -> str:
+        location_path_output = self.__get_pnp_device_property(
             device_id=device_id,
             property_name="DEVPKEY_Device_LocationPaths",
-        )
-        location_path = location_path.strip().splitlines()[0]
-        self.log.debug(f"Device locationpath: {location_path}")
-        assert location_path.find("PCI") == 0, "Location path is wrong"
+        ).strip()
+        location_paths = location_path_output.splitlines()
+        if not location_paths:
+            raise LisaException(f"Location path is empty for device '{device_id}'")
 
+        location_path = location_paths[0]
+        self.log.debug(f"Device locationpath: {location_path}")
+        if not location_path.startswith("PCI"):
+            raise LisaException(
+                f"Location path is wrong for device '{device_id}': {location_path}"
+            )
+        return location_path
+
+    def __is_device_disabled(self, device_id: str) -> bool:
         cmd = (
             "(Get-PnpDevice -PresentOnly -InstanceId "
             f"'{device_id}').ConfigManagerErrorCode"
@@ -299,64 +470,81 @@ class HypervAssignableDevices:
             cmdlet=cmd,
             force_run=True,
             sudo=True,
-        )
-        conf_mng_err_code = conf_mng_err_code.strip()
+        ).strip()
         self.log.debug(f"ConfigManagerErrorCode: {conf_mng_err_code}")
-        if conf_mng_err_code == "CM_PROB_DISABLED":
+        if conf_mng_err_code.upper() in {"22", "CM_PROB_DISABLED"}:
             self.log.debug(
                 "Device is Disabled, unable to check resource requirements, "
                 "it may be assignable."
             )
             self.log.debug("Enable the device and rerun this script to confirm.")
+            return True
+        return False
+
+    def __get_allocated_resources(self, device_id: str) -> List[Dict[str, str]]:
+        escaped_device_id = device_id.replace("\\", "\\\\")
+        return [
+            resource
+            for resource in self.pnp_allocated_resources
+            if resource["Dependent"].find(escaped_device_id) >= 0
+        ]
+
+    def __has_assignable_interrupts(
+        self,
+        allocated_resources: List[Dict[str, str]],
+    ) -> bool:
+        if not allocated_resources:
+            self.log.debug("It has no interrupts at all -- assignment can work.")
+            return True
+
+        msi_assignments = [
+            resource
+            for resource in allocated_resources
+            if resource["Antecedent"].find("IRQNumber=42949") >= 0
+        ]
+        if not msi_assignments:
+            self.log.debug(
+                "All of the interrupts are line-based, no assignment can work."
+            )
+            return False
+
+        self.log.debug("Its interrupts are message-based, assignment can work.")
+        return True
+
+    def __get_total_mmio_in_mb(
+        self,
+        device_id: str,
+        allocated_resources: List[Dict[str, str]],
+    ) -> Optional[int]:
+        mmio_assignments = [
+            resource
+            for resource in allocated_resources
+            if resource["__RELPATH"].find("Win32_DeviceMemoryAddres") >= 0
+        ]
+        if not mmio_assignments:
             return None
 
-        irq_assignements = [
-            i
-            for i in self.pnp_allocated_resources
-            if i["Dependent"].find(device_id.replace("\\", "\\\\")) >= 0
-        ]
-        if irq_assignements:
-            msi_assignments = [
-                i
-                for i in self.pnp_allocated_resources
-                if i["Antecedent"].find("IRQNumber=42949") >= 0
-            ]
-            if not msi_assignments:
-                self.log.debug(
-                    "All of the interrupts are line-based, no assignment can work."
-                )
-                return None
-            else:
-                self.log.debug("Its interrupts are message-based, assignment can work.")
-        else:
-            self.log.debug("It has no interrupts at all -- assignment can work.")
-
-        mmio_assignments = [
-            i
-            for i in self.pnp_allocated_resources
-            if i["Dependent"].find(device_id.replace("\\", "\\\\")) >= 0
-            and i["__RELPATH"].find("Win32_DeviceMemoryAddres") >= 0
-        ]
         mmio_total = 0
-        if mmio_assignments:
-            for rec in mmio_assignments:
-                antecedent_val = rec["Antecedent"]
-                addresses = antecedent_val.split('"')
-                assert len(addresses) >= 2, "Antecedent: Can't get MMIO Start Address"
-                start_address = hex(int(addresses[1].strip())).upper()
-                start_address_hex = start_address.replace("X", "x")
-                end_address = self.__get_mmio_end_address(start_address_hex)
-                assert end_address, "Can not get MMIO End Address"
+        for resource in mmio_assignments:
+            mmio_total += self.__get_mmio_size(device_id, resource["Antecedent"])
 
-                mmio = int(end_address, 16) - int(start_address, 16)
-                mmio_total += mmio
-            if mmio_total:
-                mmio_total = round(mmio_total / (1024 * 1024))
-                self.log.debug(f"Device '{device_id}', Total MMIO = {mmio_total}MB ")
-        else:
-            self.log.debug("It has no MMIO space")
+        return round(mmio_total / (1024 * 1024))
 
-        device = DeviceAddressSchema()
-        device.location_path = location_path
-        device.instance_id = device_id
-        return device
+    def __get_mmio_size(self, device_id: str, antecedent_val: str) -> int:
+        addresses = antecedent_val.split('"')
+        if len(addresses) < 2:
+            raise LisaException(
+                "Antecedent does not contain a valid MMIO start address: "
+                f"{antecedent_val}"
+            )
+
+        start_address = int(addresses[1].strip())
+        end_address = self.__get_mmio_end_address(start_address)
+        if not end_address:
+            raise LisaException(
+                "Cannot get MMIO end address for device "
+                f"'{device_id}' and start address "
+                f"0x{start_address:016X}"
+            )
+
+        return int(end_address, 16) - start_address
