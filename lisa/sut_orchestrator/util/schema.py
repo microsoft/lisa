@@ -24,14 +24,23 @@ class PciAddressIdentifier:
     pci_bdf: List[str] = field(default_factory=list)
 
 
+@dataclass_json()
+@dataclass
+class DeviceLocationPathIdentifier:
+    # List of Hyper-V DDA location paths like PCIROOT(20)#PCI(0300)#PCI(0000)
+    location_path: List[str] = field(default_factory=list)
+
+
 # Configuration options for device-passthrough for the VM.
 @dataclass_json()
 @dataclass
 class HostDevicePoolSchema:
     type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
-    devices: Union[List[VendorDeviceIdIdentifier], PciAddressIdentifier] = field(
-        default_factory=lambda: cast(List[VendorDeviceIdIdentifier], [])
-    )
+    devices: Union[
+        List[VendorDeviceIdIdentifier],
+        PciAddressIdentifier,
+        DeviceLocationPathIdentifier,
+    ] = field(default_factory=lambda: cast(List[VendorDeviceIdIdentifier], []))
 
 
 @dataclass_json()
