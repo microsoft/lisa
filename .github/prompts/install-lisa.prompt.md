@@ -181,4 +181,4 @@ lisa --help
   - Ubuntu/Debian: `sudo apt-get install -y python3-dev build-essential libssl-dev libffi-dev`
   - RHEL/CentOS: `sudo dnf install -y python3-devel gcc openssl-devel libffi-devel`
 
-For detailed documentation, see `INSTALL.md` in the repository root.
+For detailed documentation, see `installers/INSTALL.md` in the repository.
