@@ -1,0 +1,54 @@
+name: Optional Tests - Cancel Cleanup
+
+on:
+  workflow_run:
+    workflows:
+      - Optional Tests - AI Test Case Selection
+    types:
+      - completed
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  cleanup-cancelled-run:
+    if: >-
+      github.event.workflow_run.conclusion == 'cancelled' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve PR number
+        id: pr
+        run: |
+          PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "No PR number found from workflow_run payload, skipping cleanup"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Cleanup target PR: $PR_NUMBER"
+
+      - name: Azure Login (OIDC)
+        if: steps.pr.outputs.skip != 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Cleanup Azure resources for cancelled run
+        if: steps.pr.outputs.skip != 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        run: |
+          echo "Cancelled run detected. Cleaning Azure resources for PR #${PR_NUMBER}..."
+          PREFIX="lisa-ai-pr-${PR_NUMBER}"
+          for rg in $(az group list --query "[?starts_with(name, '${PREFIX}')].name" -o tsv); do
+            echo "Deleting resource group: $rg"
+            az group delete --name "$rg" --yes --no-wait
+          done
+          echo "Cleanup initiated"
