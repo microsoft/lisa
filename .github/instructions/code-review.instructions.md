@@ -68,20 +68,74 @@ Request Changes if any Critical or Major issue exists. Approve only if none rema
 - Magic numbers controlling test behavior (loop counts, timeouts, thresholds) MUST have inline comments. Flag any uncommented magic number.
 - If the PR reduces iteration counts, removes tests, lowers retries, or narrows scope → flag: "This change reduces test coverage. Please provide justification."
 - Catch specific exceptions, not bare `except:` or `except Exception`.
-- Exception messages must include context (iteration count, resource name).
-- Use `assert_that()` from LISA, not bare `assert`.
+- Exception messages must include **what happened** AND **how to resolve/investigate**. Bad: `"VM size not found"`. Good: `"VM size [X] not found in location [Y]. Verify the size is available in this region."`.
+- Use `assert_that()` from assertpy, not bare `assert`.
 - Tests creating Azure resources must clean them up.
 - Flag `keep_environment: yes` without justification.
 - Use `node.log` or `log`, not `print()`.
+- **No `time.sleep()`**. Use bounded waits: `check_till_timeout()`, `retry_without_exceptions()`, or the `retry` decorator. Bare `sleep()` causes flaky or slow tests.
+- **Type hints mandatory** on all test method parameters and return types. At minimum `node: Node` and `-> None`. Flag missing type hints.
+- **Prefer f-strings** over `%` formatting or `.format()`.
+- **Path handling**: Use `node.get_pure_path()` for cross-OS path compatibility. Flag hardcoded `/` or `\\` path separators in node commands.
+
+---
+
+## Assertions
+
+- Put the **actual value** in `assert_that(actual)`, not the expected value.
+- Add `.described_as("business context")` to every assertion that isn't self-explanatory. The description should explain **why** this check matters, not repeat the code.
+- Prefer **native matchers** over manual manipulation: `assert_that(items).is_length(6)` not `assert_that(len(items)).is_equal_to(6)`.
+- Use **collection assertions**: `.contains()`, `.is_subset_of()`, `.does_not_contain()` instead of manual loops.
+- Do not repeat already-checked conditions. One precise assertion is better than redundant chains.
 
 ---
 
 ## LISA Conventions
 
-- Tests follow AAA pattern: Arrange → Act → Assert.
-- Every test method has `@TestCaseMetadata` with `description`, `priority`, `requirement`.
+### Test Structure
+- **One test class per file.** Class name PascalCase, describes the feature (not a scenario). Inherits `TestSuite`.
+- **Method naming**: Prefix with `verify_` or `test_`. Name describes the scenario being validated.
+- **File location**: `lisa/microsoft/testsuites/<feature_area>/<test_name>.py`. Filename in snake_case.
+- Tests follow **AAA pattern**: Arrange → Act → Assert. Keep sections clearly separated.
+
+### Metadata
+- Every test class has `@TestSuiteMetadata` with `area`, `category`, `description`. Flag if any field is missing.
+- Every test method has `@TestCaseMetadata` with `description`, `priority`, `requirement`. Flag if any field is missing.
+- `requirement` should use `simple_requirement(supported_os=..., unsupported_os=..., supported_features=..., supported_platform_type=...)`. Flag custom selection logic that duplicates what `simple_requirement` already provides.
+
+### Tools, Features, and Extensions
 - Use LISA tools from `lisa/tools/` instead of raw `node.execute()` when a tool exists.
 - Use LISA features from `lisa/features/` for platform capabilities.
+- Features used via `node.features[X]` must be declared in the test's `requirement=simple_requirement(supported_features=[X])`. Flag undeclared feature usage.
+- Prefer Python tool implementations over bash scripts. Flag new `.sh` scripts when a Tool class would be more appropriate.
+
+### Skip vs Fail
+- **`SkippedException`** for unmet preconditions (wrong OS, missing hardware, feature unavailable). This is NOT a failure.
+- **Assertion failure** or **`LisaException`** for actual test logic failures. Do not use `SkippedException` to hide real failures.
+
+### Cleanup and Node State
+- Use `after_case()` for guaranteed cleanup. Use `try/finally` for inline cleanup.
+- Call `node.mark_dirty()` if the test modifies: kernel parameters, drivers loaded/unloaded, network config, or requires reboot. Flag tests that appear to modify system state without `mark_dirty()`.
+- **Cost awareness**: VMs cost money. Flag tests that deploy extra resources without cleanup, or that use `use_new_environment=True` without justification.
+
+---
+
+## Logging
+
+- **INFO**: High-level progress milestones, reads like a story. Even a passing run should make sense from INFO alone.
+- **DEBUG**: Command output, parsed values, intermediate state. Used for troubleshooting.
+- **WARNING**: Avoid unless truly needed. Most warnings should be INFO or ERROR.
+- **ERROR**: Only for real problems. A passing test run should have zero ERROR lines. Flag excessive ERROR logging in normal paths.
+- Each log line should be **unique and searchable** in the codebase. Include context like node name, iteration count, or resource ID. Bad: `"received signal"`. Good: `"received stop signal in lisa_runner"`.
+- Logging is **not a substitute for assertions**. If a condition matters, assert it; don't just log it.
+
+---
+
+## Naming Conventions
+
+- Follow PEP 8: `snake_case` for functions/variables, `CamelCase` for classes, `UPPER_SNAKE_CASE` for constants.
+- Avoid `import as` renaming unless there is a genuine name conflict. Use the module as namespace instead (e.g., `schema.Node`).
+- Flag inconsistent naming that deviates from surrounding code.
 
 ---
 
