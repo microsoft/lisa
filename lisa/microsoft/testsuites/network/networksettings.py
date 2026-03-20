@@ -135,8 +135,12 @@ class NetworkSettings(TestSuite):
             # Send Buffer, TX
             # NETVSC_SEND_BUFFER_DEFAULT =  (1024 * 1024 * 1)
             # NETVSC_SEND_SECTION_SIZE = 6144
-            original_rxbuffer = round((original_rx * 1728) / (1024 * 1024))
-            original_txbuffer = round((original_tx * 6144) / (1024 * 1024))
+            original_rxbuffer = round(
+                (original_rx * NETVSC_RECV_SECTION_SIZE) / (1024 * 1024)
+            )
+            original_txbuffer = round(
+                (original_tx * NETVSC_SEND_SECTION_SIZE) / (1024 * 1024)
+            )
 
             rxbuffer = (
                 (original_rxbuffer - 2)
@@ -150,8 +154,8 @@ class NetworkSettings(TestSuite):
                 else (original_txbuffer + 2)
             )
 
-            expected_rx = int((rxbuffer * 1024 * 1024) / 1728)
-            expected_tx = int((txbuffer * 1024 * 1024) / 6144)
+            expected_rx = int((rxbuffer * 1024 * 1024) / NETVSC_RECV_SECTION_SIZE)
+            expected_tx = int((txbuffer * 1024 * 1024) / NETVSC_SEND_SECTION_SIZE)
             actual_settings = ethtool.change_device_ring_buffer_settings(
                 interface, expected_rx, expected_tx
             )
