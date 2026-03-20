@@ -119,7 +119,14 @@ class NetworkSettings(TestSuite):
         # systems with 64 KiB pages (common on ARM64) the delta can be
         # much larger than the old hard-coded ±5.  Compute a tolerance
         # based on the real page size: ceil(PAGE_SIZE / section_size).
-        page_size = int(node.execute("getconf PAGE_SIZE", shell=True).stdout)
+        page_size_result = node.execute(
+            "getconf PAGE_SIZE",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to determine PAGE_SIZE using 'getconf PAGE_SIZE'"
+            ),
+        )
+        page_size = int(page_size_result.stdout.strip())
         # ceil division: -(-a // b) == ceil(a / b)
         rx_tolerance = -(-page_size // NETVSC_RECV_SECTION_SIZE)
         tx_tolerance = -(-page_size // NETVSC_SEND_SECTION_SIZE)
