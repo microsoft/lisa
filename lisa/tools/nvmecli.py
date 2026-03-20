@@ -256,6 +256,23 @@ class Nvmecli(Tool):
         # ]
         # }
         # get nvme devices information ignoring stderror
+        #
+        # Sample nvme list output where NameSpace field is
+        # missing but DevicePath is present:
+        # /home/lisa# nvme list -o json 2>/dev/null
+        # "Devices" : [
+        #   {
+        #     "DevicePath" : "/dev/nvme0n1",
+        #     "Firmware" : "v1.00000",
+        #     "Index" : 0,
+        #     "ModelNumber" : "MSFT NVMe Accelerator v1.0",
+        #     "ProductName" : "Non-Volatile memory controller: Microsoft Corporation Device 0x00a9",  # noqa: E501
+        #     "SerialNumber" : "SN: 00000",
+        #     "UsedBytes" : 68719476736,
+        #     "MaximumLBA" : 134217728,
+        #     "PhysicalSize" : 68719476736,
+        #     "SectorSize" : 512
+        #   }
         nvme_list = self.run(
             "list -o json 2>/dev/null",
             shell=True,
