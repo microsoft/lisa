@@ -26,7 +26,7 @@ from lisa.environment import Environment, Node
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR
 from lisa.testsuite import TestResult
-from lisa.tools import Dhclient, Kill, Sysctl
+from lisa.tools import Dhclient, Kill, PowerShell, Sysctl
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
@@ -615,9 +615,9 @@ class NetworkPerformance(TestSuite):
             node, mgmt_iface, iface_info_raw
         )
 
-        node.log.info(f"[passthrough-nic] GUEST iface={interface_name!r}")
+        node.log.debug(f"[passthrough-nic] GUEST iface={interface_name!r}")
         if host_node is not None and host_nic_name:
-            host_node.log.info(
+            host_node.log.debug(
                 f"[passthrough-nic] HOST nic={host_nic_name!r} BDF={device_bdf!r}"
             )
 
@@ -1016,6 +1016,15 @@ class NetworkPerformance(TestSuite):
             private_key_file=private_key,
         )
         server.internal_address = ip
+
+        server.initialize()
+
+        if isinstance(server.os, Windows):
+            raise SkippedException(
+                "Host/guest passthrough performance tests require a Linux "
+                "baremetal host; Windows baremetal hosts are not supported."
+            )
+
         # Track baremetal host for cleanup.
         if server not in self._baremetal_hosts:
             self._baremetal_hosts.append(server)
@@ -1058,11 +1067,49 @@ class NetworkPerformance(TestSuite):
             all_nodes.extend(self._baremetal_hosts)
 
         def do_process_cleanup(process: str, node: Node) -> None:
-            kill = node.tools[Kill]
-            kill.by_name(process, ignore_not_exist=True)
+            try:
+                if isinstance(node.os, Windows):
+                    escaped_process = process.replace("'", "''")
+                    node.tools[PowerShell].run_cmdlet(
+                        cmdlet=(
+                            f"$p = Get-Process -Name '{escaped_process}' "
+                            "-ErrorAction SilentlyContinue; "
+                            "if ($p) { $p | Stop-Process -Force "
+                            "-ErrorAction SilentlyContinue }"
+                        ),
+                        fail_on_error=False,
+                    )
+                    return
+
+                kill = node.tools[Kill]
+                kill.by_name(process, ignore_not_exist=True)
+            except LisaException as identifier_error:
+                log.debug(
+                    f"Skipping Kill tool-based cleanup for '{process}' on "
+                    f"node '{node.name}': {identifier_error}"
+                )
+                if isinstance(node.os, Windows):
+                    return
+
+                node.execute(
+                    cmd=(
+                        f"pids=$(pidof {process} 2>/dev/null || true); "
+                        '[ -z "$pids" ] || kill -9 $pids || true'
+                    ),
+                    shell=True,
+                    sudo=True,
+                )
 
         def do_sysctl_cleanup(node: Node) -> None:
-            node.tools[Sysctl].reset()
+            if isinstance(node.os, Windows):
+                return
+
+            try:
+                node.tools[Sysctl].reset()
+            except LisaException as sysctl_error:
+                log.debug(
+                    f"Skipping sysctl cleanup on node '{node.name}': " f"{sysctl_error}"
+                )
 
         cleanup_tasks: List[Callable[[], None]] = []
         for process in ["lagscope", "netperf", "netserver", "ntttcp", "iperf3"]:
