@@ -4,13 +4,18 @@
 import re
 import xml.etree.ElementTree as ET  # noqa: N817
 from itertools import combinations
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Set, cast
 
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
 from lisa.tools import Ls, Lspci, Modprobe
-from lisa.util import LisaException, ResourceAwaitableException, find_group_in_lines
+from lisa.util import (
+    LisaException,
+    ResourceAwaitableException,
+    constants,
+    find_group_in_lines,
+)
 
 from .context import DevicePassthroughContext, NodeContext
 from .schema import (
@@ -146,7 +151,6 @@ class LibvirtDevicePool(BaseDevicePool):
             shell=True,
         )
         stdout = result.stdout.strip()
-        assert len(stdout.splitlines()) == 1
         pci_address_pattern = re.compile(
             r"/(?P<root>[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F])/"
             r"(?P<id>[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F])/"
@@ -169,10 +173,12 @@ class LibvirtDevicePool(BaseDevicePool):
             iommu_grp = self._get_device_iommu_group(device)
             return [iommu_grp]
         else:
-            raise LisaException(
-                f"Can't find pci address of for: {interface_name}, "
-                f"stdout for command: {stdout}"
+            self.host_node.log.debug(
+                f"Primary interface '{interface_name}' is not backed by a PCI "
+                f"device on the libvirt host; skipping primary NIC IOMMU "
+                f"exclusion. Sysfs lookup output: {stdout or '<empty>'}"
             )
+            return []
 
     def create_device_pool(
         self,
@@ -195,10 +201,19 @@ class LibvirtDevicePool(BaseDevicePool):
         pci_addr_list: List[str],
     ) -> None:
         self.available_host_devices[pool_type] = {}
-        for bdf in pci_addr_list:
-            domain, bus, slot, fn = self._parse_pci_address_str(bdf)
+        requested_bdfs = [bdf.strip() for bdf in pci_addr_list]
+        iommu_device_paths = self._get_iommu_group_device_paths()
+        allow_single_candidate_fallback = len(requested_bdfs) == 1
+        for requested_bdf in requested_bdfs:
+            resolved_bdf = self._resolve_requested_pci_address(
+                pool_type,
+                requested_bdf,
+                iommu_device_paths=iommu_device_paths,
+                allow_single_candidate_fallback=allow_single_candidate_fallback,
+            )
+            domain, bus, slot, fn = self._parse_pci_address_str(resolved_bdf)
             device = self._get_pci_address_instance(domain, bus, slot, fn)
-            iommu_group = self._get_device_iommu_group(device)
+            iommu_group = self._get_device_iommu_group(device, iommu_device_paths)
 
             # Strip the pool-key prefix to get the raw numeric id for sysfs.
             sysfs_iommu_group = (
@@ -213,9 +228,100 @@ class LibvirtDevicePool(BaseDevicePool):
                 i.strip().split("/")[-1]
                 for i in self.host_node.tools[Ls].list(iommu_path)
             ]
-            bdf_list.append(bdf.strip())
+            if resolved_bdf not in bdf_list:
+                bdf_list.append(resolved_bdf)
 
             self._create_pool(pool_type, bdf_list)
+
+    def resolve_requested_pci_address(
+        self,
+        pool_type: HostDevicePoolType,
+        requested_bdf: str,
+    ) -> str:
+        return self._resolve_requested_pci_address(pool_type, requested_bdf)
+
+    def _resolve_requested_pci_address(
+        self,
+        pool_type: HostDevicePoolType,
+        requested_bdf: str,
+        iommu_device_paths: Optional[List[str]] = None,
+        allow_single_candidate_fallback: bool = True,
+    ) -> str:
+        if iommu_device_paths is None:
+            iommu_device_paths = self._get_iommu_group_device_paths()
+        available_iommu_devices = [
+            line.strip().split("/")[-1] for line in iommu_device_paths if line.strip()
+        ]
+
+        if requested_bdf in available_iommu_devices:
+            return requested_bdf
+
+        candidates = self._get_passthrough_device_candidates(
+            pool_type, iommu_device_paths
+        )
+        if len(candidates) == 1 and allow_single_candidate_fallback:
+            resolved_bdf = candidates[0]
+            self.host_node.log.debug(
+                f"Requested PCI address '{requested_bdf}' was not found on the "
+                f"libvirt host; using the only available passthrough candidate "
+                f"'{resolved_bdf}' for pool type '{pool_type.value}'."
+            )
+            return resolved_bdf
+
+        if len(candidates) == 1:
+            raise LisaException(
+                f"Requested PCI address '{requested_bdf}' was not found on the "
+                f"libvirt host. Only one passthrough candidate '{candidates[0]}' "
+                f"is available for pool type '{pool_type.value}', but fallback "
+                "is disabled because multiple 'pci_bdf' values were configured "
+                "for this pool. Specify the nested or visible PCI BDFs "
+                "explicitly so each requested device maps unambiguously."
+            )
+
+        raise LisaException(
+            f"Requested PCI address '{requested_bdf}' was not found on the "
+            f"libvirt host. The PCI BDF inside L1 may differ from the original "
+            f"host BDF. Available passthrough candidates for pool type "
+            f"'{pool_type.value}': {', '.join(sorted(candidates)) or 'none'}. "
+            f"Available IOMMU devices: "
+            f"{', '.join(sorted(available_iommu_devices)) or 'none'}"
+        )
+
+    def _get_passthrough_device_candidates(
+        self,
+        pool_type: HostDevicePoolType,
+        iommu_device_paths: Optional[List[str]] = None,
+    ) -> List[str]:
+        lspci = self.host_node.tools[Lspci]
+        if pool_type == HostDevicePoolType.PCI_NIC:
+            pool_devices = lspci.get_devices_by_type(
+                constants.DEVICE_TYPE_SRIOV, force_run=True
+            )
+        elif pool_type == HostDevicePoolType.PCI_GPU:
+            pool_devices = lspci.get_gpu_devices(force_run=True)
+        else:
+            return []
+
+        primary_nic_iommu: Set[str] = (
+            set(self.get_primary_nic_id())
+            if pool_type == HostDevicePoolType.PCI_NIC
+            else set()
+        )
+        candidates: List[str] = []
+        for pool_device in pool_devices:
+            domain, bus, slot, fn = self._parse_pci_address_str(pool_device.slot)
+            device = self._get_pci_address_instance(domain, bus, slot, fn)
+            try:
+                iommu_group = self._get_device_iommu_group(device, iommu_device_paths)
+            except LisaException:
+                continue
+
+            if iommu_group in primary_nic_iommu:
+                continue
+
+            candidates.append(pool_device.slot)
+
+        return candidates
 
     def _create_pool(
         self,
@@ -379,9 +485,7 @@ class LibvirtDevicePool(BaseDevicePool):
             device_context.device_list = devices
             node_context.passthrough_devices.append(device_context)
 
-    def _get_device_iommu_group(self, device: DeviceAddressSchema) -> str:
-        iommu_pattern = re.compile(r"/sys/kernel/iommu_groups/(?P<id>\d+)/devices/.*")
-        device_id = self._get_pci_address_str(device)
+    def _get_iommu_group_device_paths(self) -> List[str]:
         command = "find /sys/kernel/iommu_groups/ -type l"
         err = "Command failed to list IOMMU Groups"
         result = self.host_node.execute(
@@ -391,9 +495,20 @@ class LibvirtDevicePool(BaseDevicePool):
             expected_exit_code=0,
             expected_exit_code_failure_message=err,
         )
+        return [line.strip() for line in result.stdout.strip().splitlines() if line]
+
+    def _get_device_iommu_group(
+        self,
+        device: DeviceAddressSchema,
+        iommu_device_paths: Optional[List[str]] = None,
+    ) -> str:
+        iommu_pattern = re.compile(r"/sys/kernel/iommu_groups/(?P<id>\d+)/devices/.*")
+        device_id = self._get_pci_address_str(device)
+        if iommu_device_paths is None:
+            iommu_device_paths = self._get_iommu_group_device_paths()
 
         iommu_grp = ""
-        for line in result.stdout.strip().splitlines():
+        for line in iommu_device_paths:
             if line.find(device_id) >= 0:
                 iommu_grp_res = find_group_in_lines(
                     lines=line,
@@ -401,5 +516,16 @@ class LibvirtDevicePool(BaseDevicePool):
                 )
                 iommu_grp = iommu_grp_res.get("id", "")
                 break
-        assert iommu_grp, f"Can not get IOMMU group for device: {device}"
+
+        if not iommu_grp:
+            available_iommu_devices = [
+                line.strip().split("/")[-1] for line in iommu_device_paths if line
+            ]
+            raise LisaException(
+                f"Can not get IOMMU group for device: {device}. Requested PCI "
+                f"address '{device_id}' was not found under "
+                "/sys/kernel/iommu_groups. Available IOMMU devices: "
+                f"{', '.join(sorted(available_iommu_devices)) or 'none'}"
+            )
+
         return f"iommu_grp_{iommu_grp}"
