@@ -493,6 +493,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
+    nodes_data_disks
     nodes_data_disks_with_vhds
   ]
 }]
