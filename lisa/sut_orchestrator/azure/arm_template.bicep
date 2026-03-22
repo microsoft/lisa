@@ -46,8 +46,8 @@ param data_disks array
 @description('whether to use ultra disk')
 param is_ultradisk bool = false
 
-@description('whether to use data disk with vhd')
-param is_data_disk_with_vhd bool = false
+
+
 
 @description('IP Service Tags')
 param ip_service_tags object
@@ -140,7 +140,7 @@ func getAttachDisk(disk object, diskName string, index int) object => {
   }
 }
 
-func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS' || (!empty(dataDisk.vhd_details) && (!empty(dataDisk.vhd_details.vhd_uri))))
+func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS')
 ? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 : getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
@@ -431,25 +431,25 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   }
 ]
 
-// Create managed disks from data VHD URIs
-resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
-  for i in range(0, (length(data_disks) * node_count)): if (is_data_disk_with_vhd && !is_ultradisk) {
-    name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
-    location: location
-    tags: tags
-    properties: {
-      creationData: {
-        createOption: data_disks[(i % length(data_disks))].create_option
-        storageAccountId: resourceId(data_disks[(i % length(data_disks))].vhd_details.storage_resource_group_name, 'Microsoft.Storage/storageAccounts', data_disks[(i % length(data_disks))].vhd_details.storage_account_name)
-        sourceUri: data_disks[(i % length(data_disks))].vhd_details.vhd_uri
-      }
-    }
-    sku: {
-      name: data_disks[(i % length(data_disks))].type
-    }
-    zones: (use_availability_zones ? availability_zones : null)
-  }
-]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in range(0, node_count): {
   name: nodes[i].name
@@ -493,6 +493,6 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
-    nodes_data_disks_with_vhds
+
   ]
 }]
