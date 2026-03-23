@@ -65,6 +65,7 @@ from lisa.util import (
     is recommended. It needs adding resoure tag for AzSecPack, creating and assigning
     UserAssigned Managed Identity AzSecPack AutoConfig to the ARM resources.
     """,
+    tags=["VM Extension Cases"],
 )
 class AzSecPack(TestSuite):
     @TestCaseMetadata(

@@ -22,6 +22,7 @@ from lisa.util import SkippedException, UnsupportedDistroException
     description="""
     This test is a BVT for MDM MetricsExtension
     """,
+    tags=["VM Extension Cases"],
 )
 class MetricsExtension(TestSuite):
     @TestCaseMetadata(
