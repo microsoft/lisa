@@ -638,6 +638,49 @@ class AzurePlatform(Platform):
 
         return is_success
 
+    def _use_attach_disk_in_template(self, template: Any) -> None:
+        """
+        Modify the ARM template to use getAttachDisk for data disks instead of
+        getCreateDisk. This is called when data disks are pre-created as separate
+        resources (ultra disks or VHD-imported disks) and need to be attached.
+
+        We do this in Python rather than using an ARM if() expression because ARM
+        evaluates both branches of if() during template validation, causing
+        InvalidTemplate errors when getAttachDisk references disk resources that
+        have condition=false.
+        """
+        vm_resource = template.get("resources", {}).get("nodes_vms")
+        if not vm_resource:
+            return
+
+        # 1. Swap the dataDisks copy input to use getAttachDisk
+        storage_profile = vm_resource["properties"]["storageProfile"]
+        for copy_block in storage_profile.get("copy", []):
+            if copy_block["name"] == "dataDisks":
+                # Replace getCreateDisk with getAttachDisk, adding
+                # resourceGroup().id as the 4th parameter
+                node_name_expr = (
+                    "parameters('nodes')"
+                    "[range(0, variables('node_count'))[copyIndex()]].name"
+                )
+                copy_block["input"] = (
+                    "[__bicep.getAttachDisk("
+                    f"parameters('data_disks')[copyIndex('dataDisks')], "
+                    f"format('{{0}}-data-disk-{{1}}', {node_name_expr}, "
+                    f"copyIndex('dataDisks')), "
+                    f"copyIndex('dataDisks'), "
+                    f"resourceGroup().id)]"
+                )
+                break
+
+        # 2. Add dependsOn for the pre-created disk resources
+        depends_on = vm_resource.get("dependsOn", [])
+        if "nodes_data_disks" not in depends_on:
+            depends_on.append("nodes_data_disks")
+        if "nodes_data_disks_with_vhds" not in depends_on:
+            depends_on.append("nodes_data_disks_with_vhds")
+        vm_resource["dependsOn"] = depends_on
+
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         assert self._rm_client
         assert self._azure_runbook
@@ -1403,6 +1446,16 @@ class AzurePlatform(Platform):
         plugin_manager.hook.azure_update_arm_template(
             template=template, environment=environment
         )
+
+        # For ultra disks or data disks with VHDs, the disks are pre-created
+        # as separate resources (nodes_data_disks or nodes_data_disks_with_vhds)
+        # and must be attached to the VM rather than created inline.
+        # We swap the dataDisks expression and add dependsOn entries in Python
+        # to avoid ARM's if() both-branch evaluation issue, which causes
+        # InvalidTemplate errors when getAttachDisk references are validated
+        # even when the condition routes to getCreateDisk.
+        if arm_parameters.is_ultradisk or arm_parameters.is_data_disk_with_vhd:
+            self._use_attach_disk_in_template(template)
 
         # change deployment for each feature.
         # Order of execution is guaranteed to match

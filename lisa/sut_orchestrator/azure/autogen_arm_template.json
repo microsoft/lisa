@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "1354887248460352382"
+      "templateHash": "14548176190126113253"
     }
   },
   "functions": [
@@ -178,30 +178,6 @@
                 "id": "[format('{0}/providers/Microsoft.Compute/disks/{1}', parameters('resourceGroupId'), parameters('diskName'))]"
               }
             }
-          }
-        },
-        "getDataDisk": {
-          "parameters": [
-            {
-              "type": "string",
-              "name": "nodeName"
-            },
-            {
-              "type": "object",
-              "name": "dataDisk"
-            },
-            {
-              "type": "int",
-              "name": "index"
-            },
-            {
-              "type": "string",
-              "name": "resourceGroupId"
-            }
-          ],
-          "output": {
-            "type": "object",
-            "value": "[if(or(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), and(not(empty(parameters('dataDisk').vhd_details)), not(empty(parameters('dataDisk').vhd_details.vhd_uri)))), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index'), parameters('resourceGroupId')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
           }
         },
         "getOsDiskSharedGallery": {
@@ -843,7 +819,7 @@
             {
               "name": "dataDisks",
               "count": "[length(parameters('data_disks'))]",
-              "input": "[__bicep.getDataDisk(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, parameters('data_disks')[copyIndex('dataDisks')], copyIndex('dataDisks'), resourceGroup().id)]"
+              "input": "[__bicep.getCreateDisk(parameters('data_disks')[copyIndex('dataDisks')], format('{0}-data-disk-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, copyIndex('dataDisks')), copyIndex('dataDisks'))]"
             }
           ],
           "imageReference": "[__bicep.getImageReference(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
@@ -877,8 +853,6 @@
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]",
       "dependsOn": [
         "availability_set",
-        "nodes_data_disks",
-        "nodes_data_disks_with_vhds",
         "nodes_disk",
         "nodes_image",
         "nodes_nics",

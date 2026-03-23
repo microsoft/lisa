@@ -139,10 +139,6 @@ func getAttachDisk(disk object, diskName string, index int, resourceGroupId stri
   }
 }
 
-func getDataDisk(nodeName string, dataDisk object, index int, resourceGroupId string) object => (dataDisk.type == 'UltraSSD_LRS' || (!empty(dataDisk.vhd_details) && (!empty(dataDisk.vhd_details.vhd_uri))))
-? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index, resourceGroupId)
-: getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
-
 func getOsDiskSharedGallery(shared_gallery object) object => {
   id: resourceId(shared_gallery.subscription_id, empty(shared_gallery.resource_group_name) ? 'None' : shared_gallery.resource_group_name, 'Microsoft.Compute/galleries/images/versions', shared_gallery.image_gallery, shared_gallery.image_definition, shared_gallery.image_version)
 }
@@ -465,7 +461,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
       imageReference: getImageReference(nodes[i])
       osDisk:  getVMOsDisk(nodes[i])
       diskControllerType: (nodes[i].disk_controller_type == 'SCSI') ? null : nodes[i].disk_controller_type
-      dataDisks: [for (item, j) in data_disks: getDataDisk(nodes[i].name, item, j, resourceGroup().id)]
+      dataDisks: [for (item, j) in data_disks: getCreateDisk(item, '${nodes[i].name}-data-disk-${j}', j)]
     }
     networkProfile: {
       networkInterfaces: [for j in range(0, nodes[i].nic_count): {
@@ -492,7 +488,5 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
-    nodes_data_disks
-    nodes_data_disks_with_vhds
   ]
 }]
