@@ -121,7 +121,6 @@ func getEphemeralOSImage(node object) object => {
 }
 
 func getCreateDisk(disk object, diskName string, index int) object => {
-  name: diskName
   createOption: disk.create_option
   caching: disk.caching_type
   diskSizeGB: disk.size

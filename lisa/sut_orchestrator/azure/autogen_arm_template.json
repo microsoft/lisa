@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "2068116323457905924"
+      "templateHash": "1354887248460352382"
     }
   },
   "functions": [
@@ -139,7 +139,6 @@
           "output": {
             "type": "object",
             "value": {
-              "name": "[parameters('diskName')]",
               "createOption": "[parameters('disk').create_option]",
               "caching": "[parameters('disk').caching_type]",
               "diskSizeGB": "[parameters('disk').size]",
