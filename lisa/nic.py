@@ -679,7 +679,11 @@ class Nics(InitializableMixin):
 
     def unload_module(self, module_name: str) -> List[str]:
         modprobe = self._node.tools[Modprobe]
-        module_list = self._device_module_map[module_name].drivers
+        module_list = [
+            m
+            for m in self._device_module_map[module_name].drivers
+            if modprobe.module_exists(m)
+        ]
         modprobe.remove(module_list)
         return module_list
 
