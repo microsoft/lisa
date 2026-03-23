@@ -116,16 +116,18 @@ class Docker(Tool):
         # for rhel 8, the service name may be podman (newer podman package)
         # may be io.podman.socket (older podman package)
         # remain ones use docker service
-        # once detect one existing service, enable and restart it, then exit the loop
+        # once detect one existing service, enable and start it, then exit the loop
         for service_name in ["docker", "podman", "io.podman.socket"]:
             if service.check_service_exists(service_name):
+                # Check if already running to make this method idempotent
+                # and avoid triggering systemd rate-limiting from repeated restarts
+                if service.check_service_status(service_name):
+                    self._log.debug(f"{service_name} is already running, skipping start")
+                    return
                 service.enable_service(service_name)
-                # Only restart if the service is not already running.
-                # On some Linux distros, restarting an already-active service
-                # returns a non-zero exit code, causing test failures when
-                # start() is called more than once.
-                if not service.check_service_status(service_name):
-                    service.restart_service(service_name)
+                # Use start_service instead of restart_service to avoid
+                # unnecessary restarts when service is stopped
+                service.start_service(service_name)
                 return
 
         # No init system service found (e.g. WSL2 without systemd where docker.io
@@ -157,8 +159,8 @@ class Docker(Tool):
         )
 
     def _check_exists(self) -> bool:
-        if super()._check_exists():
-            self.start()
+        # Don't call start() here - _install() already handles it.
+        # Calling start() again can trigger systemd rate-limiting.
         return super()._check_exists()
 
     def _install(self) -> bool:
