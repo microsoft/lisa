@@ -1349,7 +1349,7 @@ exit $ec
         from lisa.sut_orchestrator.platform_utils import get_vmm_version
 
         try:
-            vmm_version = get_vmm_version(self.node)
+            vmm_version = get_vmm_version(self.node, refresh_unknown_cache=True)
             if vmm_version and vmm_version != "UNKNOWN":
                 self._log.info(f"Cloud-Hypervisor version detected: {vmm_version}")
                 # get_vmm_version() already caches the version in extended_resources

@@ -38,7 +38,7 @@ def _cache_vmm_version_in_node(node: Node, version: str) -> None:
     extended_resources[KEY_VMM_VERSION] = version
 
 
-def get_vmm_version(node: Node) -> str:
+def get_vmm_version(node: Node, refresh_unknown_cache: bool = False) -> str:
     """
     Detects cloud-hypervisor VMM version from cached value, local binary,
     or git repository.
@@ -61,8 +61,14 @@ def get_vmm_version(node: Node) -> str:
         if extended_resources and KEY_VMM_VERSION in extended_resources:
             cached_version = extended_resources.get(KEY_VMM_VERSION)
             if cached_version:
-                node.log.debug(f"Using cached VMM version: {cached_version}")
-                return str(cached_version)
+                cached_version_str = str(cached_version)
+                if cached_version_str.upper() != "UNKNOWN" or not refresh_unknown_cache:
+                    node.log.debug(f"Using cached VMM version: {cached_version_str}")
+                    return cached_version_str
+                node.log.debug(
+                    "Cached VMM version is UNKNOWN; retrying detection because "
+                    "refresh_unknown_cache=True"
+                )
 
         # If there is no cached value, only proceed with SSH-based detection
         # when the node is connected and running a POSIX-compatible OS.
@@ -81,6 +87,7 @@ def get_vmm_version(node: Node) -> str:
             match = re.search(VMM_VERSION_PATTERN, output.strip())
             if match:
                 result = match.group("ch_version")
+                _cache_vmm_version_in_node(node, result)
                 node.log.debug(
                     f"Successfully detected VMM version from local binary: {result}"
                 )
@@ -90,12 +97,10 @@ def get_vmm_version(node: Node) -> str:
         # For Docker-based tests where cloud-hypervisor is compiled from source
         node.log.debug("Local binary not found, trying git repository...")
 
-        # Construct path dynamically using node's working path
-        # CloudHypervisorTests tool clones repo to:
-        # <lisa_working_path>/tool/<tool_name>/cloud-hypervisor
-        git_repo_path = (
-            f"{node.get_pure_path(str(node.working_path))}/tool/"
-            "cloudhypervisortests/cloud-hypervisor"
+        # CloudHypervisorTests installs into the global tool cache via
+        global_working_root = node.get_working_path().parent.parent
+        git_repo_path = str(
+            global_working_root / "tool" / "cloudhypervisortests" / "cloud-hypervisor"
         )
         git_cmd = (
             f"cd {git_repo_path} 2>/dev/null && "
@@ -116,6 +121,7 @@ def get_vmm_version(node: Node) -> str:
             version_match = re.search(r"(?:msft/)?v?([\d.]+)", version_str)
             if version_match:
                 result = version_match.group(1)
+                _cache_vmm_version_in_node(node, result)
                 node.log.debug(
                     f"Successfully detected VMM version from git repository: {result}"
                 )
