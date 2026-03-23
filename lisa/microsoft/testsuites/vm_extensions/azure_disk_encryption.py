@@ -49,6 +49,8 @@ class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         node_arch = node.tools[Lscpu].get_architecture()
+        # ADE only supports x64 architecture. See supported VM configurations at:
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/disk-encryption-overview#supported-vms-and-operating-systems
         if node_arch != CpuArchitecture.X64:
             raise SkippedException(
                 UnsupportedCpuArchitectureException(arch=str(node_arch.value))
