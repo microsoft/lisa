@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import cast
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Posix
+from lisa.operating_system import CBLMariner, Debian, Posix
 from lisa.util.process import Process
 
 from .git import Git
@@ -104,6 +104,8 @@ class StressNg(Tool):
             self.node.os.install_packages(
                 ["gcc", "glibc-devel", "kernel-headers", "binutils", "make"]
             )
+        elif isinstance(self.node.os, Debian):
+            self.node.os.install_packages(["build-essential"])
 
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()

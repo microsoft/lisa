@@ -355,6 +355,7 @@ class Ltp(Tool):
                     "unzip",
                     "pkgconf",
                     "libc6-dev",
+                    "build-essential",
                 ]
             )
 

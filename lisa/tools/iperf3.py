@@ -17,7 +17,7 @@ from lisa.messages import (
     create_perf_message,
     send_unified_perf_message,
 )
-from lisa.operating_system import Posix
+from lisa.operating_system import Debian, Posix
 from lisa.tools import Cat
 from lisa.util import LisaException, check_till_timeout, constants, get_matched_str
 from lisa.util.perf_timer import create_timer
@@ -572,6 +572,8 @@ class Iperf3(Tool):
         firewall.stop()
 
     def _install_from_src(self) -> None:
+        if isinstance(self.node.os, Debian):
+            self.node.os.install_packages(["build-essential"])
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self._repo, tool_path)

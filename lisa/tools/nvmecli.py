@@ -5,7 +5,7 @@ import re
 from typing import Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import Debian, Posix
 from lisa.tools import Git, Make
 from lisa.util import LisaException, find_patterns_in_lines
 from lisa.util.process import ExecutableResult
@@ -44,7 +44,10 @@ class Nvmecli(Tool):
 
     def _install_from_src(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages([Git, Make, "pkg-config"])
+        packages = [Git, Make, "pkg-config"]
+        if isinstance(self.node.os, Debian):
+            packages.append("build-essential")  # type: ignore
+        posix_os.install_packages(packages)
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)

@@ -102,9 +102,10 @@ class Mdadm(Tool):
                 "zlib-devel",
                 "cmake",
             ]
+        elif isinstance(self.node.os, Debian):
+            package_list = ["build-essential"]
         elif (
             isinstance(self.node.os, Fedora)
-            or isinstance(self.node.os, Debian)
             or isinstance(self.node.os, Suse)
         ):
             # skip package installation, but no error is raised.

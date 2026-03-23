@@ -122,6 +122,7 @@ class DpdkNffGo(Tool):
                     "libibverbs-dev",
                     "libpcap-dev",
                     "libmnl-dev",
+                    "build-essential",
                 ]
             )
         else:

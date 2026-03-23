@@ -14,7 +14,7 @@ from lisa.util import SkippedException, UnsupportedDistroException
 
 
 class DpdkOvs(Tool):
-    ubuntu_packages = ["automake", "autoconf", "libtool", "libcap-ng-dev"]
+    ubuntu_packages = ["automake", "autoconf", "libtool", "libcap-ng-dev", "build-essential"]
     _version_regex = re.compile(
         r"v(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)"
     )

@@ -406,6 +406,7 @@ class Fio(Tool):
                 "bc",
                 "libaio-dev",
                 "zlib1g-dev",
+                "build-essential",
             ]
         elif isinstance(self.node.os, Suse):
             package_list = [

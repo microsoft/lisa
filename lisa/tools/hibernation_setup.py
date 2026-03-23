@@ -7,7 +7,7 @@ from typing import List, Type
 
 from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Debian
 from lisa.tools.journalctl import Journalctl
 from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
@@ -131,6 +131,8 @@ class HibernationSetup(Tool):
     def _install(self) -> bool:
         if isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
+        elif isinstance(self.node.os, Debian):
+            self.node.os.install_packages(["build-essential"])
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self._repo, tool_path)

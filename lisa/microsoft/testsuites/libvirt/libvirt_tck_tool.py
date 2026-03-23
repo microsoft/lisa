@@ -58,6 +58,7 @@ class LibvirtTck(Tool):
         "perl-XML-SAX",
         "qemu-kvm",
         "qemu-system-x86",
+        "build-essential",
     ]
 
     repo_root: PurePath

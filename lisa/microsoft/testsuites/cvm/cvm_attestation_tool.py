@@ -338,6 +338,8 @@ class NestedCVMAttestationTests(Tool):
         )
 
         git.clone(self.repo, Path(root_path))
+        if isinstance(self.node.os, Ubuntu):
+            self.node.os.install_packages(["build-essential"])
         make = self.node.tools[Make]
         make.make("", cwd=self.snp_report_tool_path)
 

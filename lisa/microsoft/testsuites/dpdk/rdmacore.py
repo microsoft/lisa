@@ -45,6 +45,7 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
                 "libelf-dev",
                 "python3-pip",
                 "libnuma-dev",
+                "build-essential",
             ],
             stop_on_match=True,
         ),

@@ -46,6 +46,7 @@ class KvmUnitTests(Tool):
         "binutils",
         "qemu-kvm",
         "qemu-system-x86",
+        "build-essential",
     ]
 
     @property
