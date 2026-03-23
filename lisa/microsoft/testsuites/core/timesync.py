@@ -22,6 +22,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Ubuntu, Windows
+from lisa.features.security_profile import CvmDisabled
 from lisa.tools import (
     Cat,
     Chmod,
@@ -322,6 +323,9 @@ class TimeSync(TestSuite):
              clock event, check current time clock event switch to 'lapic'.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_timesync_unbind_clockevent(self, node: Node) -> None:
         if node.shell.exists(PurePosixPath(self.current_clockevent)):
