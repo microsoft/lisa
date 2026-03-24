@@ -104,6 +104,9 @@ class ZramCompression(TestSuite):
             modprobe.load(module)
             node.log.info(f"Loaded kernel module: {module}")
 
+            # Ensure clean state: remove any existing zram device
+            modprobe.remove(["zram"], ignore_error=True)
+
             # Load zram with a single device
             modprobe.load("zram", parameters="num_devices=1")
             node.log.info("Loaded zram module with num_devices=1")
@@ -118,7 +121,7 @@ class ZramCompression(TestSuite):
 
             # Verify the active algorithm (marked with brackets)
             comp_output = node.tools[Cat].read(
-                str(self._COMP_ALGORITHM_PATH), sudo=True
+                str(self._COMP_ALGORITHM_PATH), force_run=True, sudo=True
             )
             assert_that(comp_output).described_as(
                 f"Expected '{algorithm}' to be active "
@@ -135,7 +138,9 @@ class ZramCompression(TestSuite):
             )
 
             # Verify disk size was applied
-            disksize = node.tools[Cat].read(str(self._DISKSIZE_PATH), sudo=True)
+            disksize = node.tools[Cat].read(
+                str(self._DISKSIZE_PATH), force_run=True, sudo=True
+            )
             assert_that(int(disksize.strip())).described_as(
                 "zram disk size should match requested value"
             ).is_equal_to(int(self._ZRAM_SIZE_BYTES))
