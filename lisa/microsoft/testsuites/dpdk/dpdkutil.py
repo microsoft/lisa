@@ -859,8 +859,13 @@ def verify_dpdk_send_receive(
     results[receiver] = receiver.testpmd.process_testpmd_output(
         receiver_processes[0].wait_result()
     )
-    # wait for the others
-    [x.wait_result() for x in sender_processes[1:] + receiver_processes[1:]]
+    # wait for the others and ensure they all exit successfully
+    for extra_proc in sender_processes[1:] + receiver_processes[1:]:
+        extra_result = extra_proc.wait_result()
+        assert_that(
+            extra_result.exit_code,
+            "All DPDK testpmd processes should exit successfully.",
+        ).is_equal_to(0)
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
