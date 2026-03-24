@@ -260,8 +260,13 @@ class Modprobe(Tool):
         #  | wc -l
         # in order to get the correct count of insmod commands executed.
 
-        module_path_raw = self.node.tools[Modinfo].get_filename(mod_name=mod_name)
-        module_file_base_name = os.path.basename(module_path_raw)
+        modinfo = self.node.tools[Modinfo]
+        if not modinfo.exists:
+            # If modinfo is not available, use module name directly for grep pattern
+            module_file_base_name = f"{mod_name}.ko"
+        else:
+            module_path_raw = modinfo.get_filename(mod_name=mod_name)
+            module_file_base_name = os.path.basename(module_path_raw)
 
         rmmod_count = int(
             self.node.execute(

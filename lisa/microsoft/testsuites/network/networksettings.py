@@ -748,6 +748,11 @@ class NetworkSettings(TestSuite):
 
         if not node.tools[KernelConfig].is_built_in("CONFIG_HYPERV_NET"):
             modinfo = node.tools[Modinfo]
+            if not modinfo.exists:
+                raise SkippedException(
+                    "modinfo command is not available on this system. "
+                    "Cannot check message level support without it."
+                )
             netvsc_module = modinfo.get_filename("hv_netvsc")
             # remove any escape character at the end of string
             netvsc_module = netvsc_module.strip()

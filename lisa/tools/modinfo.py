@@ -2,10 +2,13 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from lisa.executable import Tool
 from lisa.util import get_matched_str
+
+if TYPE_CHECKING:
+    from lisa.operating_system import Posix
 
 
 class Modinfo(Tool):
@@ -25,10 +28,22 @@ class Modinfo(Tool):
         return self._command
 
     def _check_exists(self) -> bool:
-        return True
+        # Check if modinfo command actually exists on the system
+        result = self.node.execute("which modinfo", shell=True, no_error_log=True)
+        return result.exit_code == 0
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "modinfo"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def install(self) -> bool:
+        posix_os: Posix = self.node.os  # type: ignore
+        # modinfo is part of kmod package on most distributions
+        posix_os.install_packages("kmod")
+        return self._check_exists()
 
     def get_info(
         self,
