@@ -3164,6 +3164,25 @@ class Nvme(AzureFeatureMixin, features.Nvme):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        resource_sku: Any = kwargs.get("resource_sku")
+        node_space: Any = kwargs.get("node_space")
+
+        assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
+        # add vm which support nested virtualization
+        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
+        if resource_sku.family.casefold() in [
+            "standardlsv2family",
+            "standardlsv3family",
+            "standardlasv3family",
+        ]:
+            # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
+            # NVMe disk count = vCPU / 8
+            nvme = features.NvmeSettings()
+            assert isinstance(
+                node_space.core_count, int
+            ), f"actual: {node_space.core_count}"
+            nvme.disk_count = int(node_space.core_count / 8)
+            return nvme
 
         if raw_capabilities:
             nvme_disk_size = raw_capabilities.get("NvmeDiskSizeInMiB", "0")
