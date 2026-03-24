@@ -137,7 +137,7 @@ class Dpdk(TestSuite):
     @TestCaseMetadata(
         description="""
             netvsc pmd version.
-            This test case checks dpdk symmetic mp app, plus an sriov hotplug.
+            This test case checks dpdk symmetric mp app, plus an sriov hotplug.
             More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
