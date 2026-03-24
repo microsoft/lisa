@@ -280,6 +280,28 @@ def generate_5tswap_run_info(
     else:
         maxmtu_int = 0
 
+    # Dynamically allocate cores for primary and secondary processes.
+    # We need non-overlapping core lists for each process.
+    # Use only cores from NUMA node 0 for better memory locality.
+    # Reserve core 0 for the OS, use remaining cores split between processes.
+    sender_lscpu = sender.node.tools[Lscpu]
+    sender_cpu_info = sender_lscpu.get_cpu_info()
+    # Get cores on NUMA node 0, excluding core 0 (reserved for OS)
+    sender_numa0_cores = sorted(
+        [cpu.cpu for cpu in sender_cpu_info if cpu.numa_node == 0 and cpu.cpu != 0]
+    )
+    # Split cores between primary (txonly) and secondary (rxonly) processes
+    # Use even-indexed cores for primary, odd-indexed for secondary
+    primary_cores = sender_numa0_cores[::2]  # every other core starting at index 0
+    secondary_cores = sender_numa0_cores[1::2]  # every other core starting at index 1
+
+    # similarly for receiver - use NUMA node 0 cores only
+    receiver_lscpu = receiver.node.tools[Lscpu]
+    receiver_cpu_info = receiver_lscpu.get_cpu_info()
+    receiver_available_cores = sorted(
+        [cpu.cpu for cpu in receiver_cpu_info if cpu.numa_node == 0 and cpu.cpu != 0]
+    )
+
     snd_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
         0,
@@ -292,7 +314,7 @@ def generate_5tswap_run_info(
         mp_role=DpdkMpRole.PRIMARY_PROCESS,
         num_procs=2,
         proc_id=0,
-        core_list=[3, 7, 11, 17, 21],
+        core_list=primary_cores,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
     )
     snd_mp_cmd = sender.testpmd.generate_testpmd_command(
@@ -307,7 +329,7 @@ def generate_5tswap_run_info(
         mp_role=DpdkMpRole.SECONDARY_PROCESS,
         num_procs=2,
         proc_id=1,
-        core_list=[1, 5, 9, 13, 19, 25, 29, 31],
+        core_list=secondary_cores,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         [rcv_nic],
@@ -318,7 +340,7 @@ def generate_5tswap_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
-        core_list=list(range(3, 31, 2)),
+        core_list=receiver_available_cores,
     )
 
     dpdk_kit_cmds = {
