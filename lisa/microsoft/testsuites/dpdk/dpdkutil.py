@@ -662,7 +662,7 @@ def start_testpmd_concurrent(
     for kit_and_commands in kits_and_commands:
         kit, commands = kit_and_commands
         for command in commands:
-            command_pairs_as_tuples += [(kit, command)]
+            command_pairs_as_tuples.append((kit, command))
 
     def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
         output[result[0]] = result[1]
