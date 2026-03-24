@@ -3192,11 +3192,11 @@ class Nvme(AzureFeatureMixin, features.Nvme):
         if raw_capabilities:
             nvme_disk_size = raw_capabilities.get("NvmeDiskSizeInMiB", "0")
             nvme_size_per_disk = raw_capabilities.get("NvmeSizePerDiskInMiB", "0")
-            nvme_disk_size_int = int(nvme_disk_size) if nvme_disk_size else 0
+            nvme_disk_size_int = int(nvme_disk_size) if nvme_disk_size.isdigit() else 0
             nvme_size_per_disk_int = (
-                int(nvme_size_per_disk) if nvme_size_per_disk else 0
+                int(nvme_size_per_disk) if nvme_size_per_disk.isdigit() else 0
             )
-            if nvme_disk_size_int != 0 and nvme_size_per_disk_int != 0:
+            if nvme_disk_size_int and nvme_size_per_disk_int:
                 nvme = features.NvmeSettings()
                 nvme.disk_count = nvme_disk_size_int // nvme_size_per_disk_int
                 return nvme
