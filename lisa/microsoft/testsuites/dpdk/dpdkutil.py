@@ -928,7 +928,14 @@ def verify_dpdk_send_receive(
         rcv_tx_pps = receiver.testpmd.get_mean_tx_pps()
 
         log.info(f"receiver rx-pps: {rcv_rx_pps}")
+        assert_that(rcv_rx_pps).described_as(
+            "receiver received no packets!"
+        ).is_not_zero()
         log.info(f"receiver tx-pps: {rcv_tx_pps}")
+        assert_that(rcv_tx_pps).described_as(
+            f"receiver forwarded no packets after receiving {rcv_rx_pps}"
+        ).is_not_zero()
+
         forwarded_over_received = abs(rcv_tx_pps / rcv_rx_pps)
         assert_that(forwarded_over_received).described_as(
             "receiver re-send pps was unexpectedly low!"
