@@ -179,7 +179,9 @@ class ZramCompression(TestSuite):
 
         finally:
             # Clean up: unmount, reset zram, unload modules
-            node.tools[Mount].umount("zram0", self._ZRAM_MOUNT_POINT, erase=False)
+            mount_tool = node.tools[Mount]
+            if mount_tool.check_mount_point_exist(self._ZRAM_MOUNT_POINT):
+                mount_tool.umount("zram0", self._ZRAM_MOUNT_POINT, erase=False)
             node.tools[Rm].remove_directory(self._ZRAM_MOUNT_POINT, sudo=True)
             node.tools[Echo].write_to_file("1", self._RESET_PATH, sudo=True)
             modprobe.remove(["zram"], ignore_error=True)
