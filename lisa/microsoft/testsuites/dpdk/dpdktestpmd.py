@@ -500,7 +500,8 @@ class DpdkTestpmd(Tool):
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             if pmd != Pmd.FAILSAFE:
                 raise SkippedException(
-                    f"Skipping non-failsafe tests on very old DPDK version {str(self.get_dpdk_version())}"
+                    "Skipping non-failsafe tests on very old DPDK version: "
+                    f"{str(self.get_dpdk_version())}"
                 )
             # use explicit net_failsafe for old versions before net_vdev_netvsc
             pmd_name = "net_failsafe"
@@ -513,7 +514,10 @@ class DpdkTestpmd(Tool):
                     f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}"'
                 )
             else:
-                return f"{include_flag} --vdev=net_vdev_netvsc{vdev_id},iface={node_nic.name}"
+                return (
+                    f"{include_flag} "
+                    f"--vdev=net_vdev_netvsc{vdev_id},iface={node_nic.name}"
+                )
         if pmd == Pmd.NETVSC:
             # mana can use vports where there is only one pci device
             # so can't use the easy mode there
@@ -619,7 +623,8 @@ class DpdkTestpmd(Tool):
             required_cores = forwarding_cores + service_cores
             assert_that(len(core_list)).described_as(
                 f"core_list has {len(core_list)} cores, but {required_cores} "
-                f"are required ({forwarding_cores} forwarding + {service_cores} service)"
+                f"are required ({forwarding_cores} "
+                f"forwarding + {service_cores} service)"
             ).is_greater_than_or_equal_to(required_cores)
             # override forwarding_cores with the actual count from core_list
             forwarding_cores = len(core_list) - service_cores
