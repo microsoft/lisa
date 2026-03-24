@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 # Refer: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/deploy/deploying-graphics-devices-using-dda  # noqa E501
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
@@ -12,11 +13,21 @@ from lisa.util.logger import Logger
 from .schema import DeviceAddressSchema
 
 
+@dataclass
+class _PciDeviceLocationRecord:
+    friendly_name: str
+    instance_id: str
+    location_paths: List[str]
+    config_manager_error_code: str = ""
+
+
 class HypervAssignableDevices:
     PKEY_DEVICE_TYPE = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  1"
     PKEY_BASE_CLASS = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  3"
     PKEY_REQUIRES_RESERVED_MEMORY_REGION = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  34"
     PKEY_ACS_COMPATIBLE_UP_HIERARCHY = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  31"
+    # Hyper-V reports MSI/MSI-X assignments with this synthetic IRQ marker.
+    MSI_IRQ_RESOURCE_MARKER = "IRQNumber=42949"
     PROP_DEVICE_TYPE_PCI_EXPRESS_ENDPOINT = "2"
     PROP_DEVICE_TYPE_PCI_EXPRESS_LEGACY_ENDPOINT = "3"
     PROP_DEVICE_TYPE_PCI_EXPRESS_ROOT_COMPLEX_INTEGRATED_ENDPOINT = "4"
@@ -63,24 +74,28 @@ class HypervAssignableDevices:
         devices: List[DeviceAddressSchema] = []
         matched_paths = set()
         for rec in output:
-            device_id = str(rec.get("InstanceId", "")).strip()
+            device_id = rec.instance_id
             if not device_id:
                 continue
 
-            available_paths = self.__normalize_location_paths(
-                rec.get("LocationPaths", rec.get("LocationPath"))
-            )
+            available_paths = rec.location_paths
             if not available_paths:
                 continue
 
-            matching_paths = requested_paths.intersection(available_paths)
+            matching_paths = [
+                path for path in available_paths if path in requested_paths
+            ]
             if not matching_paths:
                 continue
 
+            if len(matching_paths) > 1:
+                raise LisaException(
+                    f"Multiple requested Hyper-V location paths map to the same "
+                    f"device '{device_id}': {', '.join(matching_paths)}"
+                )
+
             matched_paths.update(matching_paths)
-            current_path = next(
-                path for path in available_paths if path in matching_paths
-            )
+            current_path = matching_paths[0]
             result = self.__get_dda_properties(device_id=device_id)
             if not result:
                 raise LisaException(
@@ -88,7 +103,8 @@ class HypervAssignableDevices:
                     "is not assignable by Hyper-V DDA"
                 )
 
-            result.friendly_name = str(rec.get("FriendlyName", "") or "").strip()
+            result.location_path = current_path
+            result.friendly_name = rec.friendly_name
             devices.append(result)
 
         missing_paths = requested_paths.difference(matched_paths)
@@ -100,30 +116,76 @@ class HypervAssignableDevices:
 
         return devices
 
-    def __get_present_pci_devices_with_location_paths(self) -> List[Dict[str, Any]]:
-        cmd = (
-            "Get-PnpDevice -PresentOnly | "
-            "Where-Object {$_.InstanceId -like 'PCI\\*'} | "
-            "ForEach-Object { "
-            "$locationPaths = $null; "
-            "try { "
-            "$locationPaths = (Get-PnpDeviceProperty -InstanceId $_.InstanceId "
-            "'DEVPKEY_Device_LocationPaths' -ErrorAction Stop).Data; "
-            "} catch { } "
-            "$locationPath = $null; "
-            "if ($locationPaths -is [System.Array]) { "
-            "$locationPath = $locationPaths | Select-Object -First 1; "
-            "} else { "
-            "$locationPath = $locationPaths; "
-            "} "
-            "[PSCustomObject]@{ "
-            "FriendlyName = $_.FriendlyName; "
-            "InstanceId = $_.InstanceId; "
-            "LocationPath = $locationPath; "
-            "LocationPaths = $locationPaths "
-            "} "
-            "}"
+    def get_pnp_devices_by_location_paths(
+        self,
+        location_paths: List[str],
+    ) -> Dict[str, _PciDeviceLocationRecord]:
+        requested_paths = {path.strip() for path in location_paths if path.strip()}
+        if not requested_paths:
+            return {}
+
+        matches: Dict[str, _PciDeviceLocationRecord] = {}
+        for rec in self.__get_present_pci_devices_with_location_paths():
+            for normalized_path in requested_paths.intersection(rec.location_paths):
+                if normalized_path in matches:
+                    raise LisaException(
+                        f"Multiple PnP devices matched Hyper-V location path "
+                        f"'{normalized_path}'"
+                    )
+
+                matches[normalized_path] = rec
+
+        return matches
+
+    def get_pnp_device_by_location_path(
+        self,
+        location_path: str,
+    ) -> Optional[_PciDeviceLocationRecord]:
+        normalized_path = location_path.strip()
+        if not normalized_path:
+            return None
+
+        return self.get_pnp_devices_by_location_paths([normalized_path]).get(
+            normalized_path
         )
+
+    def __get_present_pci_devices_with_location_paths(
+        self,
+    ) -> List[_PciDeviceLocationRecord]:
+        cmd = """
+Get-PnpDevice -PresentOnly |
+Where-Object {$_.InstanceId -like 'PCI\\*'} |
+ForEach-Object {
+    $instanceId = $_.InstanceId
+    $locationPaths = $null
+    try {
+        $locationPaths = (
+            Get-PnpDeviceProperty -InstanceId $instanceId
+                'DEVPKEY_Device_LocationPaths' -ErrorAction Stop
+        ).Data
+    } catch {
+        Write-Verbose (
+            "Failed to read DEVPKEY_Device_LocationPaths for device '{0}': {1}" -f
+                $instanceId, $_.Exception.Message
+        )
+    }
+
+    $locationPath = $null
+    if ($locationPaths -is [System.Array]) {
+        $locationPath = $locationPaths | Select-Object -First 1
+    } else {
+        $locationPath = $locationPaths
+    }
+
+    [PSCustomObject]@{
+        FriendlyName = $_.FriendlyName
+        InstanceId = $instanceId
+        LocationPath = $locationPath
+        LocationPaths = $locationPaths
+        ConfigManagerErrorCode = $_.ConfigManagerErrorCode
+    }
+}
+"""
         output = self.pwsh.run_cmdlet(
             cmdlet=cmd,
             sudo=True,
@@ -137,7 +199,7 @@ class HypervAssignableDevices:
         if not isinstance(output, list):
             output = [output]
 
-        result: List[Dict[str, Any]] = []
+        result: List[_PciDeviceLocationRecord] = []
         for rec in output:
             if not isinstance(rec, dict):
                 continue
@@ -147,12 +209,14 @@ class HypervAssignableDevices:
             )
 
             result.append(
-                {
-                    "FriendlyName": str(rec.get("FriendlyName", "") or "").strip(),
-                    "InstanceId": str(rec.get("InstanceId", "") or "").strip(),
-                    "LocationPath": self.__get_first_location_path(location_paths),
-                    "LocationPaths": location_paths,
-                }
+                _PciDeviceLocationRecord(
+                    friendly_name=str(rec.get("FriendlyName", "") or "").strip(),
+                    instance_id=str(rec.get("InstanceId", "") or "").strip(),
+                    location_paths=location_paths,
+                    config_manager_error_code=str(
+                        rec.get("ConfigManagerErrorCode", "") or ""
+                    ).strip(),
+                )
             )
 
         return result
@@ -214,10 +278,6 @@ class HypervAssignableDevices:
             force_run=True,
         )
         return str(output.strip())
-
-    def __get_first_location_path(self, raw_location_path: Any) -> str:
-        location_paths = self.__normalize_location_paths(raw_location_path)
-        return location_paths[0] if location_paths else ""
 
     def __normalize_location_paths(self, raw_location_paths: Any) -> List[str]:
         if raw_location_paths is None:
@@ -347,7 +407,7 @@ class HypervAssignableDevices:
     def __get_dda_properties(self, device_id: str) -> Optional[DeviceAddressSchema]:
         """
         Determine if a PCI device is assignable using Discrete Device Assignment (DDA)
-        If so, get DDA proerprties like locationpath, device-id, friendly name
+        If so, get DDA properties like locationpath, device-id, friendly name
         """
         self.log.debug(f"PCI InstanceId: {device_id}")
 
@@ -370,7 +430,7 @@ class HypervAssignableDevices:
 
         mmio_total = self.__get_total_mmio_in_mb(device_id, allocated_resources)
         if mmio_total is None:
-            self.log.debug("It has no MMIO space")
+            self.log.debug(f"Device '{device_id}' has no MMIO space")
         elif mmio_total:
             self.log.debug(f"Device '{device_id}', Total MMIO = {mmio_total}MB ")
 
@@ -426,7 +486,7 @@ class HypervAssignableDevices:
 
         if dev_type == self.PROP_DEVICE_TYPE_PCI_EXPRESS_TREATED_AS_PCI:
             self.log.debug(
-                "BIOS kept control of PCI Express for this device. " "Not assignable."
+                "BIOS kept control of PCI Express for this device. Not assignable."
             )
         else:
             self.log.debug("Old-style PCI device, switch port, etc. Not assignable.")
@@ -500,7 +560,7 @@ class HypervAssignableDevices:
         msi_assignments = [
             resource
             for resource in allocated_resources
-            if resource["Antecedent"].find("IRQNumber=42949") >= 0
+            if resource["Antecedent"].find(self.MSI_IRQ_RESOURCE_MARKER) >= 0
         ]
         if not msi_assignments:
             self.log.debug(
@@ -519,7 +579,7 @@ class HypervAssignableDevices:
         mmio_assignments = [
             resource
             for resource in allocated_resources
-            if resource["__RELPATH"].find("Win32_DeviceMemoryAddres") >= 0
+            if resource["__RELPATH"].find("Win32_DeviceMemoryAddress") >= 0
         ]
         if not mmio_assignments:
             return None
