@@ -292,7 +292,7 @@ def generate_5tswap_run_info(
         mp_role=DpdkMpRole.PRIMARY_PROCESS,
         num_procs=2,
         proc_id=0,
-        core_list="3,7,11,17,21",
+        core_list=[3, 7, 11, 17, 21],
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
     )
     snd_mp_cmd = sender.testpmd.generate_testpmd_command(
@@ -307,7 +307,7 @@ def generate_5tswap_run_info(
         mp_role=DpdkMpRole.SECONDARY_PROCESS,
         num_procs=2,
         proc_id=1,
-        core_list="1,5,9,13,19,25,29,31",
+        core_list=[1, 5, 9, 13, 19, 25, 29, 31],
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         [rcv_nic],
@@ -318,7 +318,7 @@ def generate_5tswap_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
-        core_list=",".join(map(str, (range(3, 31, 2)))),
+        core_list=list(range(3, 31, 2)),
     )
 
     dpdk_kit_cmds = {
@@ -372,7 +372,6 @@ def generate_testpmd_multiple_port_command(
     else:
         maxmtu_int = 0
     kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
-    receiver_includes: List[str] = []
     for i in range(len(senders)):
         # get the sender
         sender = senders[i]
@@ -397,12 +396,6 @@ def generate_testpmd_multiple_port_command(
         )
         # store this senders command
         kit_cmd_pairs[sender] = snd_cmd
-        # receiver needs multiple ports, so only generate the include.
-        receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i, pmd
-        )
-        # and save it
-        receiver_includes += [receiver_include]
 
     # and generate the command with multiple ports for the single receiver:
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
@@ -859,16 +852,19 @@ def verify_dpdk_send_receive(
     results[receiver] = receiver.testpmd.process_testpmd_output(
         receiver_processes[0].wait_result()
     )
-    # wait for the others and ensure they all exit successfully
-    for extra_proc in sender_processes[1:] + receiver_processes[1:]:
-        extra_result = extra_proc.wait_result()
-        assert_that(
-            extra_result.exit_code,
-            "All DPDK testpmd processes should exit successfully.",
-        ).is_equal_to(0)
+    # for 5tswap, we have a secondary sender process that receives packets
+    # store the output for later verification
+    sender_secondary_output = ""
+    if len(sender_processes) > 1:
+        sender_secondary_output = sender_processes[1].wait_result().stdout
+
+    # wait for other remaining processes
+    [x.wait_result() for x in sender_processes[2:] + receiver_processes[1:]]
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
+    if sender_secondary_output:
+        log.debug(f"\nSENDER_SECONDARY:\n{sender_secondary_output}")
     log.debug(f"\nRECEIVER:\n{results[receiver]}")
 
     rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
@@ -926,10 +922,29 @@ def verify_dpdk_send_receive(
         # check that amount of packets re-sent was close to amount received
         rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
         rcv_tx_pps = receiver.testpmd.get_mean_tx_pps()
+
+        log.info(f"receiver rx-pps: {rcv_rx_pps}")
+        log.info(f"receiver tx-pps: {rcv_tx_pps}")
         forwarded_over_received = abs(rcv_tx_pps / rcv_rx_pps)
         assert_that(forwarded_over_received).described_as(
             "receiver re-send pps was unexpectedly low!"
-        ).is_close_to(0.8, 0.2)
+        ).is_close_to(1.0, 0.2)
+
+        # verify sender secondary process (rxonly) received the forwarded packets
+        assert_that(sender_secondary_output).described_as(
+            "Sender secondary process output was empty"
+        ).is_not_empty()
+        snd_rx_pps = receiver.testpmd.get_mean_rx_pps()
+
+        log.info(f"sender secondary rx-pps: {snd_rx_pps}")
+        assert_that(snd_rx_pps).described_as(
+            "Sender secondary process did not receive forwarded packets"
+        ).is_greater_than(DPDK_PPS_THRESHOLD)
+
+        forwarded_over_received = abs(snd_rx_pps / rcv_tx_pps)
+        assert_that(forwarded_over_received).described_as(
+            "sender secondary process received pps was unexpectedly low!"
+        ).is_close_to(1.0, 0.25)
 
     return sender, receiver
 
