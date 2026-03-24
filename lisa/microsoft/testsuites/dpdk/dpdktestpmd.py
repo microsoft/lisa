@@ -548,7 +548,7 @@ class DpdkTestpmd(Tool):
         mp_role: Optional[DpdkMpRole] = None,
         num_procs: int = 0,
         proc_id: int = 0,
-        core_list: Optional[str] = None,
+        core_list: Optional[List[int]] = None,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -614,9 +614,18 @@ class DpdkTestpmd(Tool):
 
         # core range argument
         if core_list:
-            core_list = f"-l {core_list}"
+            # validate that the provided core list has enough cores
+            # for forwarding plus the service core(s)
+            required_cores = forwarding_cores + service_cores
+            assert_that(len(core_list)).described_as(
+                f"core_list has {len(core_list)} cores, but {required_cores} "
+                f"are required ({forwarding_cores} forwarding + {service_cores} service)"
+            ).is_greater_than_or_equal_to(required_cores)
+            # override forwarding_cores with the actual count from core_list
+            forwarding_cores = len(core_list) - service_cores
+            core_list_arg = f"-l {','.join(map(str, core_list))}"
         else:
-            core_list = f"-l 1-{max_core_index}"
+            core_list_arg = f"-l 1-{max_core_index}"
 
         if extra_args:
             extra_args = extra_args.strip()
@@ -674,7 +683,7 @@ class DpdkTestpmd(Tool):
         debug_logging = "--log-level netvsc,debug"
         nic_includes = " ".join(nic_include_infos)
         return (
-            f"{self._testpmd_install_path} {core_list} "
+            f"{self._testpmd_install_path} {core_list_arg} "
             f"{nic_includes} {debug_logging} --proc-type=auto "
             f"-- --forward-mode={mode} "
             f"-a --stats-period 4 --nb-cores={forwarding_cores} "
@@ -951,6 +960,10 @@ class DpdkTestpmd(Tool):
                 )
             ).is_less_than(num_procs)
             mp_arguments = f"--num-procs={num_procs} --proc-id {proc_id}"
+        else:
+            raise LisaException(
+                "Test bug: no mp arguments defined for " f"dpdk mp role: {str(mp_role)}"
+            )
         return mp_arguments
 
     def _determine_network_hardware(self) -> None:
