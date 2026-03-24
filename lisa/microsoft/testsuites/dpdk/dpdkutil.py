@@ -918,7 +918,11 @@ def verify_dpdk_send_receive(
     # annotate the amount of dropped packets on the receiver
     annotate_packet_drops(log, result, receiver)
 
-    if receiver_mode == TestpmdForwardMode.FIVE_TUPLE_SWAP:
+    # only implementing pps for 5tswap for now.
+    if (
+        receiver_mode == TestpmdForwardMode.FIVE_TUPLE_SWAP
+        and grading_metric == DpdkGradeMetric.PPS
+    ):
         # check that amount of packets re-sent was close to amount received
         rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
         rcv_tx_pps = receiver.testpmd.get_mean_tx_pps()
