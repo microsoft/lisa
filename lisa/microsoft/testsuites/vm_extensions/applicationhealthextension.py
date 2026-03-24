@@ -29,7 +29,7 @@ from lisa.util import SkippedException
     area="vm_extension",
     category="functional",
     description="Tests for the Application Health Extension (AHE) on Linux",
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
 )
 class ApplicationHealthExtension(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

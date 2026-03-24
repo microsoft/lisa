@@ -327,7 +327,7 @@ def _assert_installation_patch(
     area="vm_extension",
     category="functional",
     description="Test for Linux Patch Extension",
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_platform_type=[AZURE], unsupported_os=[BSD]
     ),

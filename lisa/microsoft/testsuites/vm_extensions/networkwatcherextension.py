@@ -28,7 +28,7 @@ from lisa.util import SkippedException
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Network Watcher VM Extension",
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
 )
 class NetworkWatcherExtension(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

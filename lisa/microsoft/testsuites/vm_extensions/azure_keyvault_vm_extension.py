@@ -70,7 +70,7 @@ def _check_system_status(node: Node, log: Logger) -> None:
     area="vm_extension",
     category="functional",
     description="BVT for Azure Key Vault Extension",
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(unsupported_os=[]),
 )
 class AzureKeyVaultExtensionBvt(TestSuite):
