@@ -3184,6 +3184,11 @@ class Nvme(AzureFeatureMixin, features.Nvme):
             nvme.disk_count = int(node_space.core_count / 8)
             return nvme
 
+        # For VM families not covered above, derive NVMe disk count directly
+        # from Azure SKU capabilities:
+        #   NvmeDiskSizeInMiB     - total NVMe storage capacity across all disks
+        #   NvmeSizePerDiskInMiB  - capacity of a single NVMe disk
+        # disk_count = NvmeDiskSizeInMiB // NvmeSizePerDiskInMiB
         if raw_capabilities:
             nvme_disk_size = raw_capabilities.get("NvmeDiskSizeInMiB", "0")
             nvme_size_per_disk = raw_capabilities.get("NvmeSizePerDiskInMiB", "0")
