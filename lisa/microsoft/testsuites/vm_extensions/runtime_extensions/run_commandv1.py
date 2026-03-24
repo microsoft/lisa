@@ -90,7 +90,7 @@ def _create_and_verify_extension_run(
     12. File uri (pointing to python script) and command in public settings
 
     """,
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],

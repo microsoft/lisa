@@ -30,7 +30,7 @@ from lisa.util import SkippedException
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Monitor Agent Linux VM Extension",
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
 )
 class AzureMonitorAgentLinuxExtension(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

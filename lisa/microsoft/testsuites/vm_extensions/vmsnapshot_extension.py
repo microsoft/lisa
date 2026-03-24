@@ -42,7 +42,7 @@ from lisa.tools.whoami import Whoami
     area="vm_extension",
     category="functional",
     description="Test for VMSnapshot extension",
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         unsupported_os=[], supported_features=[CvmDisabled()]
     ),

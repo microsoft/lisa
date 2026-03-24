@@ -80,51 +80,6 @@ def add_req(s: str, req: str) -> str:
     return s
 
 
-def _extract_call_value(param: Any) -> str:
-    """Extract value from an ast.Call node (requirement)."""
-    val = ""
-    for req in param.value.keywords:
-        val = req.arg
-        if isinstance(req.value, ast.Attribute):
-            val = f"{req.value.value.id}.{req.value.attr}"  # type: ignore
-        elif isinstance(req.value, ast.Constant):
-            val = f"{req.arg}={req.value.value}"
-        elif isinstance(req.value, ast.List):
-            for r in req.value.elts:
-                if isinstance(r, ast.Name):
-                    val = add_req(val, r.id)
-    return val
-
-
-def _extract_list_value(param: Any) -> str:
-    """Extract value from an ast.List node."""
-    items = []
-    for elt in param.value.elts:
-        if isinstance(elt, ast.Constant):
-            items.append(elt.value)
-        elif isinstance(elt, ast.Name):
-            items.append(elt.id)
-        else:
-            items.append(str(elt))
-    return ", ".join(items)
-
-
-def _extract_param_value(param: Any) -> str:
-    """Extract a single parameter value from a decorator keyword."""
-    if isinstance(param.value, ast.Call):
-        return _extract_call_value(param)
-    elif isinstance(param.value, ast.Constant):
-        return str(param.value.value)
-    elif isinstance(param.value, ast.Name):
-        return param.value.id
-    elif isinstance(param.value, ast.Attribute):
-        return f"{param.value.value.id}.{param.value.attr}"  # type: ignore
-    elif isinstance(param.value, ast.List):
-        return _extract_list_value(param)
-    else:
-        raise ValueError(f"param.value is unsupported type '{type(param.value)}'")
-
-
 def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
     """
     Main function to extract and format metadata
@@ -142,7 +97,35 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
 
         for deco in node.decorator_list:
             for param in deco.keywords:
-                metadata[param.arg] = _extract_param_value(param)
+                if isinstance(param.value, ast.Call):  # requirement
+                    for req in param.value.keywords:
+                        val = req.arg
+                        if isinstance(req.value, ast.Attribute):  # may be wrong
+                            val = (
+                                f"{req.value.value.id}.{req.value.attr}"  # type: ignore
+                            )
+                        elif isinstance(req.value, ast.Constant):
+                            val = f"{req.arg}={req.value.value}"
+                        elif isinstance(req.value, ast.List):
+                            for r in req.value.elts:
+                                if isinstance(r, ast.Name):
+                                    val = add_req(val, r.id)  # type: ignore
+
+                elif isinstance(param.value, ast.Constant):
+                    val = param.value.value
+
+                elif isinstance(param.value, ast.Name):
+                    val = param.value.id
+
+                elif isinstance(param.value, ast.Attribute):
+                    val = f"{param.value.value.id}.{param.value.attr}"  # type: ignore
+
+                else:
+                    raise ValueError(
+                        f"param.value is unsupported type '{type(param.value)}'"
+                    )
+
+                metadata[param.arg] = val  # type: ignore
         all_metadata.append(metadata)
     return all_metadata
 

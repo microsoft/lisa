@@ -44,7 +44,7 @@ UnsupportedVersionInfo = List[Dict[str, int]]
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Disk Encryption (ADE) extension",
-    tags=["VM Extension Cases"],
+    tags=["VM_Extension"],
 )
 class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
