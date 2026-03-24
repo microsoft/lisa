@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from lisa.node import RemoteNode
 from lisa.sut_orchestrator.hyperv.get_assignable_devices import HypervAssignableDevices
@@ -12,7 +12,7 @@ from lisa.sut_orchestrator.hyperv.schema import (
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
 from lisa.tools import HyperV, PowerShell
-from lisa.util import ResourceAwaitableException
+from lisa.util import LisaException, ResourceAwaitableException
 from lisa.util.logger import Logger
 
 from .context import DevicePassthroughContext, NodeContext
@@ -52,11 +52,146 @@ class HyperVDevicePool(BaseDevicePool):
             vendor_id=vendor_id,
             device_id=device_id,
         )
+        self._append_devices_to_pool(pool_type=pool_type, devices=devices)
+
+    def create_device_pool_from_pci_addresses(
+        self,
+        pool_type: HostDevicePoolType,
+        pci_addr_list: List[str],
+    ) -> None:
+        raise LisaException(
+            "Hyper-V device pools do not support 'pci_bdf'. Use vendor_id/"
+            "device_id matching or 'location_path' for DDA selection."
+        )
+
+    def create_device_pool_from_location_paths(
+        self,
+        pool_type: HostDevicePoolType,
+        location_paths: List[str],
+    ) -> None:
+        self._prepare_devices_on_host(location_paths)
+        hv_dev = HypervAssignableDevices(
+            host_node=self._server,
+            log=self.log,
+        )
+        devices = hv_dev.get_assignable_devices_by_location_paths(location_paths)
+        self._append_devices_to_pool(pool_type=pool_type, devices=devices)
+
+    def _prepare_devices_on_host(self, location_paths: List[str]) -> None:
+        for location_path in location_paths:
+            normalized_path = location_path.strip()
+            if not normalized_path:
+                continue
+
+            self._prepare_device_on_host(normalized_path)
+
+    def _prepare_device_on_host(self, location_path: str) -> None:
+        powershell = self._server.tools[PowerShell]
+
+        assigned_vm_names = self._get_assigned_vm_names(location_path)
+        if assigned_vm_names:
+            raise ResourceAwaitableException(
+                f"Hyper-V passthrough device '{location_path}' is currently "
+                f"assigned to VM(s): {', '.join(sorted(assigned_vm_names))}"
+            )
+
+        escaped_location_path = location_path.replace("'", "''")
+        mount_cmdlet = (
+            "Mount-VMHostAssignableDevice " f"-LocationPath '{escaped_location_path}'"
+        )
+        mount_process = powershell.run_cmdlet_async(
+            cmdlet=mount_cmdlet,
+            force_run=True,
+        )
+        mount_result = powershell.wait_result(
+            process=mount_process,
+            cmdlet=mount_cmdlet,
+            fail_on_error=False,
+        )
+
+        hv_dev = HypervAssignableDevices(
+            host_node=self._server,
+            log=self.log,
+        )
+        pnp_device = hv_dev.get_pnp_device_by_location_path(location_path)
+        if mount_result.exit_code != 0:
+            mount_output = mount_result.stdout.strip() or "<no output>"
+            if not pnp_device:
+                raise LisaException(
+                    f"Failed to mount Hyper-V assignable device at location path "
+                    f"'{location_path}'. Exit code: {mount_result.exit_code}. "
+                    f"Output: {mount_output}"
+                )
+
+            self.log.debug(
+                f"Mount-VMHostAssignableDevice returned exit code "
+                f"{mount_result.exit_code} for location path '{location_path}', "
+                f"but the device is still visible on the host. Output: "
+                f"{mount_output}"
+            )
+
+        if not pnp_device:
+            return
+
+        instance_id = str(pnp_device.get("InstanceId", "") or "").strip()
+        config_manager_error_code = str(
+            pnp_device.get("ConfigManagerErrorCode", "") or ""
+        ).strip()
+        if instance_id and self._is_pnp_device_disabled(config_manager_error_code):
+            self.log.info(
+                f"Enabling disabled host device '{instance_id}' for location "
+                f"path '{location_path}'"
+            )
+            escaped_instance_id = instance_id.replace("'", "''")
+            powershell.run_cmdlet(
+                cmdlet=(
+                    f"Enable-PnpDevice -InstanceId '{escaped_instance_id}' "
+                    "-Confirm:$false"
+                ),
+                force_run=True,
+            )
+
+    def _is_pnp_device_disabled(self, config_manager_error_code: Any) -> bool:
+        normalized_code = str(config_manager_error_code or "").strip().upper()
+        return normalized_code in {"22", "CM_PROB_DISABLED"}
+
+    def _get_assigned_vm_names(self, location_path: str) -> List[str]:
+        escaped_location_path = location_path.replace("'", "''")
+        powershell = self._server.tools[PowerShell]
+        stdout = powershell.run_cmdlet(
+            cmdlet=f"""
+$target = '{escaped_location_path}'
+Get-VM | ForEach-Object {{
+    $vmName = $_.Name
+    if (
+        Get-VMAssignableDevice -VMName $vmName -LocationPath $target
+            -ErrorAction SilentlyContinue
+    ) {{
+        Write-Output $vmName
+    }}
+}}
+""",
+            force_run=True,
+        )
+        return [line.strip() for line in stdout.splitlines() if line.strip()]
+
+    def _append_devices_to_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        devices: List[DeviceAddressSchema],
+    ) -> None:
         primary_nic_id_list = self.get_primary_nic_id()
         pool = self.available_host_devices.get(pool_type, [])
+        known_instance_ids = {device.instance_id for device in pool}
         for dev in devices:
-            if dev.instance_id not in primary_nic_id_list:
-                pool.append(dev)
+            if dev.instance_id in primary_nic_id_list:
+                continue
+
+            if dev.instance_id in known_instance_ids:
+                continue
+
+            pool.append(dev)
+            known_instance_ids.add(dev.instance_id)
         self.available_host_devices[pool_type] = pool
 
     def request_devices(
@@ -84,24 +219,28 @@ class HyperVDevicePool(BaseDevicePool):
     ) -> None:
         vm_name = node_context.vm_name
         devices_ctx = node_context.passthrough_devices
-        confing_commands = []
+        escaped_vm_name = vm_name.replace("'", "''")
+        config_commands: List[str] = []
         for ctx in devices_ctx:
             for device in ctx.device_list:
-                confing_commands.append(
+                escaped_location_path = device.location_path.replace("'", "''")
+                escaped_instance_id = device.instance_id.replace("'", "''")
+                config_commands.append(
                     f"Remove-VMAssignableDevice "
-                    f"-LocationPath '{device.location_path}' -VMName '{vm_name}'"
+                    f"-LocationPath '{escaped_location_path}' "
+                    f"-VMName '{escaped_vm_name}'"
                 )
-                confing_commands.append(
+                config_commands.append(
                     f"Mount-VMHostAssignableDevice -LocationPath "
-                    f"'{device.location_path}'"
+                    f"'{escaped_location_path}'"
                 )
-                confing_commands.append(
-                    f"Enable-PnpDevice -InstanceId '{device.instance_id}' "
+                config_commands.append(
+                    f"Enable-PnpDevice -InstanceId '{escaped_instance_id}' "
                     "-Confirm:$false"
                 )
 
         powershell = self._server.tools[PowerShell]
-        for cmd in confing_commands:
+        for cmd in config_commands:
             powershell.run_cmdlet(
                 cmdlet=cmd,
                 force_run=True,
@@ -114,48 +253,75 @@ class HyperVDevicePool(BaseDevicePool):
         # Get the NIC name via IP.
         # We will get vEthernet switch interface name, not actual NIC for baremetal
         cmd = (
-            "(Get-NetAdapter | Get-NetIPAddress | Where-Object "
-            f"{{$_.IPAddress -eq '{ip}'}}).InterfaceAlias"
+            "(Get-NetIPAddress | Where-Object "
+            f"{{$_.IPAddress -eq '{ip}'}} | "
+            "Select-Object -First 1 -ExpandProperty InterfaceAlias)"
         )
         interface_name = powershell.run_cmdlet(
             cmdlet=cmd,
             force_run=True,
-        )
+        ).strip()
+        if not interface_name:
+            raise LisaException(
+                f"Could not find a Hyper-V management interface for IP '{ip}'"
+            )
+        escaped_interface_name = interface_name.replace("'", "''")
 
         # Get the MAC for above interface
         cmd = (
             "(Get-NetAdapter | Where-Object "
-            f"{{$_.Name -eq '{interface_name}'}}).MacAddress"
+            f"{{$_.Name -eq '{escaped_interface_name}'}} | "
+            "Select-Object -First 1 -ExpandProperty MacAddress)"
         )
         mac_address = powershell.run_cmdlet(
             cmdlet=cmd,
             force_run=True,
-        )
+        ).strip()
+        if not mac_address:
+            raise LisaException(
+                "Could not resolve the MAC address for Hyper-V management "
+                f"interface '{interface_name}'"
+            )
 
         # Get all interfaces for above MAC Address
         cmd = (
             "(Get-NetAdapter | Where-Object "
-            f"{{$_.MacAddress -eq '{mac_address}'}}).Name"
+            f"{{$_.MacAddress -eq '{mac_address}'}} | "
+            "Select-Object -ExpandProperty Name)"
         )
         inf_names_str = powershell.run_cmdlet(
             cmdlet=cmd,
             force_run=True,
         )
         inf_names: List[str] = inf_names_str.strip().splitlines()
+        if not inf_names:
+            raise LisaException(
+                "Could not resolve Hyper-V adapters that share the MAC address "
+                f"'{mac_address}'"
+            )
 
         # Get device id for all above interface names we got
         pnp_device_id_list: List[str] = []
         for name in inf_names:
+            escaped_name = name.replace("'", "''")
             cmd = (
                 "(Get-NetAdapter | Where-Object "
-                f"{{$_.Name -eq '{name}'}}).PnPDeviceID"
+                f"{{$_.Name -eq '{escaped_name}'}} | "
+                "Select-Object -First 1 -ExpandProperty PnPDeviceID)"
             )
             interface_device_id = powershell.run_cmdlet(
                 cmdlet=cmd,
                 force_run=True,
             )
             interface_device_id = interface_device_id.strip()
-            pnp_device_id_list.append(interface_device_id)
+            if interface_device_id:
+                pnp_device_id_list.append(interface_device_id)
+
+        if not pnp_device_id_list:
+            raise LisaException(
+                "Could not resolve any PnP device IDs for the Hyper-V management "
+                f"interface '{interface_name}'"
+            )
 
         return pnp_device_id_list
 
@@ -163,6 +329,12 @@ class HyperVDevicePool(BaseDevicePool):
         self,
         device_configs: Optional[List[HostDevicePoolSchema]],
     ) -> None:
+        if not device_configs:
+            return
+
+        for pool_type in {config.type for config in device_configs}:
+            self.available_host_devices[pool_type] = []
+
         super().configure_device_passthrough_pool(
             device_configs=device_configs,
         )
@@ -173,22 +345,26 @@ class HyperVDevicePool(BaseDevicePool):
         devices: List[DeviceAddressSchema],
     ) -> None:
         # Assign the devices to the VM
-        confing_commands = []
+        escaped_vm_name = vm_name.replace("'", "''")
+        config_commands: List[str] = []
         for device in devices:
-            confing_commands.append(
-                f"Disable-PnpDevice -InstanceId '{device.instance_id}' -Confirm:$false"
+            escaped_instance_id = device.instance_id.replace("'", "''")
+            escaped_location_path = device.location_path.replace("'", "''")
+            config_commands.append(
+                f"Disable-PnpDevice -InstanceId '{escaped_instance_id}' "
+                "-Confirm:$false"
             )
-            confing_commands.append(
+            config_commands.append(
                 f"Dismount-VMHostAssignableDevice -Force "
-                f"-LocationPath '{device.location_path}'"
+                f"-LocationPath '{escaped_location_path}'"
             )
-            confing_commands.append(
-                f"Add-VMAssignableDevice -LocationPath '{device.location_path}' "
-                f"-VMName '{vm_name}'"
+            config_commands.append(
+                f"Add-VMAssignableDevice -LocationPath '{escaped_location_path}' "
+                f"-VMName '{escaped_vm_name}'"
             )
 
         powershell = self._server.tools[PowerShell]
-        for cmd in confing_commands:
+        for cmd in config_commands:
             powershell.run_cmdlet(
                 cmdlet=cmd,
                 force_run=True,
