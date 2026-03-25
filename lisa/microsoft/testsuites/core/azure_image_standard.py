@@ -56,6 +56,7 @@ from lisa.tools import (
     Stat,
     Swap,
 )
+from lisa.tools.efibootmgr import EfiBootMgr
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
@@ -1353,6 +1354,8 @@ class AzureImageStandard(TestSuite):
         # gets name from EUID which is 1000. Then the output is 'bitnami' rather than
         # the current user. So modified to get the admin user from node connection_info
         remote_node = cast(RemoteNode, node)
+        efi_boot_mgr = node.tools[EfiBootMgr]
+        efi_boot_mgr.get_boot_entries_by_kernel()
         current_user = str(remote_node.connection_info.get("username"))
         cat = node.tools[Cat]
         if isinstance(node.os, FreeBSD):
