@@ -876,18 +876,18 @@ def verify_dpdk_send_receive(
     )
     # for 5tswap, we have a secondary sender process that receives packets
     # store the output for later verification
-    sender_secondary_output = ""
-    if len(sender_processes) > 1:
-        sender_secondary_output = sender_processes[1].wait_result().stdout
 
     # wait for other remaining processes
-    [x.wait_result() for x in sender_processes[2:] + receiver_processes[1:]]
+    tx_secondary_results = [x.wait_result() for x in sender_processes[1:]]
+    rx_secondary_results = [x.wait_result() for x in receiver_processes[1:]]
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
-    if sender_secondary_output:
-        log.debug(f"\nSENDER_SECONDARY:\n{sender_secondary_output}")
+    for tx_secondary in tx_secondary_results:
+        log.debug(f"\nSENDER_SECONDARY:\n{tx_secondary.stdout}")
     log.debug(f"\nRECEIVER:\n{results[receiver]}")
+    for rx_secondary in rx_secondary_results:
+        log.debug(f"\nRECEIVER_SECONDARY:\n{rx_secondary.stdout}")
 
     rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
     snd_tx_pps = sender.testpmd.get_mean_tx_pps()
@@ -963,11 +963,17 @@ def verify_dpdk_send_receive(
             "receiver re-send pps was unexpectedly low!"
         ).is_close_to(1.0, 0.2)
 
+        assert_that(tx_secondary_results).described_as(
+            "Sender secondary process result is missing!"
+        ).is_not_empty()
         # verify sender secondary process (rxonly) received the forwarded packets
-        assert_that(sender_secondary_output).described_as(
+        assert_that(tx_secondary_results[0].stdout).described_as(
             "Sender secondary process output was empty"
         ).is_not_empty()
-        snd_rx_pps = receiver.testpmd.get_mean_rx_pps()
+        # process secondary result (will overwrite previous __last_run_output)
+        # which is fine.
+        sender.testpmd.process_testpmd_output(tx_secondary_results[0])
+        snd_rx_pps = sender.testpmd.get_mean_rx_pps()
 
         log.info(f"sender secondary rx-pps: {snd_rx_pps}")
         assert_that(snd_rx_pps).described_as(
