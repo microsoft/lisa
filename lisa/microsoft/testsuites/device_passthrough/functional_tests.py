@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import TYPE_CHECKING, Dict, cast
+from typing import TYPE_CHECKING, Any, Dict, List, cast
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.base_tools import Cat
@@ -12,6 +12,7 @@ from lisa.util import LisaException, SkippedException
 
 if TYPE_CHECKING:
     from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
+    from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 
 
 @TestSuiteMetadata(
@@ -94,16 +95,16 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 if not pool.devices.pci_bdf:
                     raise LisaException(f"Pool '{pool_type}' has no pci_bdf entries")
                 vendor_device_id = self._vendor_device_from_host_bdf(
-                    platform, pool.devices.pci_bdf[0]
+                    platform, pool.type, pool.devices.pci_bdf[0]
                 )
             elif isinstance(pool.devices, dict):
                 # dataclasses_json fallback: raw dict form from runbook.
                 if "pci_bdf" in pool.devices:
-                    bdf_list = pool.devices["pci_bdf"]
-                    if not bdf_list:
-                        raise LisaException(f"Pool '{pool_type}' pci_bdf list is empty")
+                    bdf_list = self._normalize_pci_bdf_list(
+                        pool.devices["pci_bdf"], pool_type
+                    )
                     vendor_device_id = self._vendor_device_from_host_bdf(
-                        platform, bdf_list[0]
+                        platform, pool.type, bdf_list[0]
                     )
                 elif "vendor_id" in pool.devices and "device_id" in pool.devices:
                     vendor_device_id = {
@@ -156,13 +157,43 @@ class DevicePassthroughFunctionalTests(TestSuite):
     @staticmethod
     def _vendor_device_from_host_bdf(
         platform: "CloudHypervisorPlatform",
+        pool_type: "HostDevicePoolType",
         bdf: str,
     ) -> Dict[str, str]:
         """Read vendor_id and device_id for a BDF from host sysfs."""
+        resolved_bdf = platform.device_pool.resolve_requested_pci_address(
+            pool_type, bdf.strip()
+        )
         cat = platform.host_node.tools[Cat]
-        vendor_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/vendor", sudo=True).strip()
-        device_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/device", sudo=True).strip()
+        vendor_raw = cat.read(
+            f"/sys/bus/pci/devices/{resolved_bdf}/vendor", sudo=True
+        ).strip()
+        device_raw = cat.read(
+            f"/sys/bus/pci/devices/{resolved_bdf}/device", sudo=True
+        ).strip()
         # Normalize to 4-digit lowercase hex used by lspci identifiers.
         vendor_id = vendor_raw.lower().replace("0x", "").zfill(4)
         device_id = device_raw.lower().replace("0x", "").zfill(4)
         return {"vendor_id": vendor_id, "device_id": device_id}
+
+    @staticmethod
+    def _normalize_pci_bdf_list(raw_value: Any, pool_type: str) -> List[str]:
+        if raw_value is None:
+            raise LisaException(f"Pool '{pool_type}' pci_bdf list is empty")
+
+        if isinstance(raw_value, str):
+            raw_values = [raw_value]
+        else:
+            try:
+                raw_values = list(raw_value)
+            except TypeError as identifier_error:
+                raise LisaException(
+                    f"Pool '{pool_type}' pci_bdf must be a string or iterable "
+                    "of strings"
+                ) from identifier_error
+
+        normalized_values = [value.strip() for value in raw_values if value.strip()]
+        if not normalized_values:
+            raise LisaException(f"Pool '{pool_type}' pci_bdf list is empty")
+
+        return normalized_values
