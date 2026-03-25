@@ -10,6 +10,7 @@ from assertpy.assertpy import assert_that
 from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
+from lisa import node
 from lisa.messages import KernelBuildMessage
 from lisa.node import Node
 from lisa.operating_system import Posix, Ubuntu
@@ -190,6 +191,24 @@ class KernelInstallerTransformer(DeploymentTransformer):
             ):
                 # set the boot entry to the installed kernel
                 efi_boot_mgr.set_boot_entry_to_new_kernel(boot_entries_before)
+
+                efi_files = node.execute(
+                    "ls -t /boot/efi/EFI/ubuntu/kernel.efi-*",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "fail to find kernel.efi file for kernel type "
+                        " linux-image-azure-fde"
+                    ),
+                )
+                for old_efi_file in efi_files.stdout.splitlines()[1:]:
+                    self._log.info(f"Removing old kernel efi file: {old_efi_file}")
+                    node.execute(
+                        f"rm -f {old_efi_file}",
+                        sudo=True,
+                        shell=True,
+                    )
 
             self._log.info("rebooting")
             node.reboot(time_out=900)
