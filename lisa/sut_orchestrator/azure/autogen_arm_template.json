@@ -121,35 +121,6 @@
             }
           }
         },
-        "getCreateDisk": {
-          "parameters": [
-            {
-              "type": "object",
-              "name": "disk"
-            },
-            {
-              "type": "string",
-              "name": "diskName"
-            },
-            {
-              "type": "int",
-              "name": "index"
-            }
-          ],
-          "output": {
-            "type": "object",
-            "value": {
-              "name": "[parameters('diskName')]",
-              "createOption": "[parameters('disk').create_option]",
-              "caching": "[parameters('disk').caching_type]",
-              "diskSizeGB": "[parameters('disk').size]",
-              "lun": "[parameters('index')]",
-              "managedDisk": {
-                "storageAccountType": "[parameters('disk').type]"
-              }
-            }
-          }
-        },
         "getAttachDisk": {
           "parameters": [
             {
@@ -169,12 +140,24 @@
             "type": "object",
             "value": {
               "lun": "[parameters('index')]",
-              "createOption": "attach",
+              "createOption": "Attach",
               "caching": "[parameters('disk').caching_type]",
               "managedDisk": {
                 "id": "[resourceId('Microsoft.Compute/disks', parameters('diskName'))]"
               }
             }
+          }
+        },
+        "isImportedDataDisk": {
+          "parameters": [
+            {
+              "type": "object",
+              "name": "dataDisk"
+            }
+          ],
+          "output": {
+            "type": "bool",
+            "value": "[equals(parameters('dataDisk').create_option, 'Import')]"
           }
         },
         "getDataDisk": {
@@ -194,7 +177,7 @@
           ],
           "output": {
             "type": "object",
-            "value": "[if(or(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), and(not(empty(parameters('dataDisk').vhd_details)), not(empty(parameters('dataDisk').vhd_details.vhd_uri)))), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
+            "value": "[__bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index'))]"
           }
         },
         "getOsDiskSharedGallery": {
@@ -796,7 +779,7 @@
         "name": "nodes_data_disks_with_vhds",
         "count": "[length(range(0, mul(length(parameters('data_disks')), variables('node_count'))))]"
       },
-      "condition": "[and(parameters('is_data_disk_with_vhd'), not(parameters('is_ultradisk')))]",
+      "condition": "[and(not(parameters('is_ultradisk')), __bicep.isImportedDataDisk(parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))]))]",
       "type": "Microsoft.Compute/disks",
       "apiVersion": "2022-03-02",
       "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
@@ -807,6 +790,28 @@
           "createOption": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].create_option]",
           "storageAccountId": "[resourceId(parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].vhd_details.storage_resource_group_name, 'Microsoft.Storage/storageAccounts', parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].vhd_details.storage_account_name)]",
           "sourceUri": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].vhd_details.vhd_uri]"
+        }
+      },
+      "sku": {
+        "name": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].type]"
+      },
+      "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
+    },
+    "nodes_managed_data_disks": {
+      "copy": {
+        "name": "nodes_managed_data_disks",
+        "count": "[length(range(0, mul(length(parameters('data_disks')), variables('node_count'))))]"
+      },
+      "condition": "[and(not(parameters('is_ultradisk')), not(__bicep.isImportedDataDisk(parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))])))]",
+      "type": "Microsoft.Compute/disks",
+      "apiVersion": "2022-03-02",
+      "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "diskSizeGB": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].size]",
+        "creationData": {
+          "createOption": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].create_option]"
         }
       },
       "sku": {
@@ -870,6 +875,8 @@
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]",
       "dependsOn": [
         "availability_set",
+        "nodes_data_disks",
+        "nodes_managed_data_disks",
         "nodes_data_disks_with_vhds",
         "nodes_disk",
         "nodes_image",

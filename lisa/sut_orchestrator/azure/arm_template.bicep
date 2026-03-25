@@ -120,29 +120,18 @@ func getEphemeralOSImage(node object) object => {
   diskSizeGB: node.osdisk_size_in_gb
 }
 
-func getCreateDisk(disk object, diskName string, index int) object => {
-  name: diskName
-  createOption: disk.create_option
-  caching: disk.caching_type
-  diskSizeGB: disk.size
-  lun: index
-  managedDisk: {
-      storageAccountType: disk.type
-  }
-}
-
 func getAttachDisk(disk object, diskName string, index int) object => {
   lun: index
-  createOption: 'attach'
+  createOption: 'Attach'
   caching: disk.caching_type
   managedDisk: {
       id: resourceId('Microsoft.Compute/disks', diskName)
   }
 }
 
-func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS' || (!empty(dataDisk.vhd_details) && (!empty(dataDisk.vhd_details.vhd_uri))))
-? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
-: getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
+func isImportedDataDisk(dataDisk object) bool => dataDisk.create_option == 'Import'
+
+func getDataDisk(nodeName string, dataDisk object, index int) object => getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
 func getOsDiskSharedGallery(shared_gallery object) object => {
   id: resourceId(shared_gallery.subscription_id, empty(shared_gallery.resource_group_name) ? 'None' : shared_gallery.resource_group_name, 'Microsoft.Compute/galleries/images/versions', shared_gallery.image_gallery, shared_gallery.image_definition, shared_gallery.image_version)
@@ -433,7 +422,7 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
 
 // Create managed disks from data VHD URIs
 resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
-  for i in range(0, (length(data_disks) * node_count)): if (is_data_disk_with_vhd && !is_ultradisk) {
+  for i in range(0, (length(data_disks) * node_count)): if (!is_ultradisk && isImportedDataDisk(data_disks[(i % length(data_disks))])) {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
     location: location
     tags: tags
@@ -442,6 +431,25 @@ resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
         createOption: data_disks[(i % length(data_disks))].create_option
         storageAccountId: resourceId(data_disks[(i % length(data_disks))].vhd_details.storage_resource_group_name, 'Microsoft.Storage/storageAccounts', data_disks[(i % length(data_disks))].vhd_details.storage_account_name)
         sourceUri: data_disks[(i % length(data_disks))].vhd_details.vhd_uri
+      }
+    }
+    sku: {
+      name: data_disks[(i % length(data_disks))].type
+    }
+    zones: (use_availability_zones ? availability_zones : null)
+  }
+]
+
+// Create regular managed data disks and attach them to the VMs.
+resource nodes_managed_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
+  for i in range(0, (length(data_disks) * node_count)): if (!is_ultradisk && !isImportedDataDisk(data_disks[(i % length(data_disks))])) {
+    name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
+    location: location
+    tags: tags
+    properties: {
+      diskSizeGB: data_disks[(i % length(data_disks))].size
+      creationData: {
+        createOption: data_disks[(i % length(data_disks))].create_option
       }
     }
     sku: {
@@ -493,6 +501,8 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
+    nodes_data_disks
     nodes_data_disks_with_vhds
+    nodes_managed_data_disks
   ]
 }]

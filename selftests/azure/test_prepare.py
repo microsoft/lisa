@@ -2,15 +2,17 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from unittest.case import TestCase
+from unittest.mock import patch
 
-from azure.mgmt.compute.models import ResourceSku  # type: ignore
+from azure.mgmt.compute.models import ResourceSku
 
 from lisa import schema, search_space
 from lisa.environment import Environment
 from lisa.sut_orchestrator import AZURE
-from lisa.sut_orchestrator.azure import common, platform_
+from lisa.sut_orchestrator.azure import common, features, platform_
 from lisa.util import LisaException, NotMeetRequirementException, constants
 from lisa.util.logger import get_logger
 
@@ -391,6 +393,78 @@ class AzurePrepareTestCase(TestCase):
                     f"{matched_pattern_index} but expected pattern "
                     f"{expected_pattern_index}",
                 )
+
+    def test_generate_data_disks_counts_imported_vhds_toward_total(self) -> None:
+        capability = schema.NodeSpace(
+            disk=features.AzureDiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_count=1,
+                data_disk_size=32,
+                data_disk_iops=500,
+                data_disk_throughput=60,
+                data_disk_caching_type=constants.DATADISK_CACHING_TYPE_NONE,
+                max_data_disk_count=8,
+            )
+        )
+        node: Any = SimpleNamespace(capability=capability)
+        arm_parameters = common.AzureNodeArmParameter(location="westus3")
+        arm_parameters.data_disk_type = features.get_azure_disk_type(
+            schema.DiskType.PremiumSSDLRS
+        )
+        arm_parameters.vhd = common.VhdSchema(
+            vhd_path="https://example.blob.core.windows.net/os/os.vhd",
+            data_vhd_paths=[
+                common.DataVhdPath(
+                    vhd_uri="https://example.blob.core.windows.net/data/disk-0.vhd"
+                )
+            ],
+        )
+
+        with patch(
+            "lisa.sut_orchestrator.azure.platform_.get_vhd_details",
+            return_value={
+                "account_name": "storageaccount",
+                "resource_group_name": "shared-rg",
+            },
+        ):
+            data_disks = self._platform._generate_data_disks(node, arm_parameters)
+
+        self.assertEqual(1, len(data_disks))
+        self.assertEqual(
+            common.DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_IMPORT,
+            data_disks[0].create_option,
+        )
+        self.assertIsNotNone(data_disks[0].vhd_details)
+        assert data_disks[0].vhd_details
+        self.assertEqual(
+            "https://example.blob.core.windows.net/data/disk-0.vhd",
+            data_disks[0].vhd_details.vhd_uri,
+        )
+
+    def test_arm_template_handles_imported_data_disks_per_entry(self) -> None:
+        template = self._platform._load_template()
+        bicep_functions = next(
+            function_namespace["members"]
+            for function_namespace in template["functions"]
+            if function_namespace["namespace"] == "__bicep"
+        )
+        resources = template["resources"]
+
+        self.assertIn(
+            "__bicep.getAttachDisk(parameters('dataDisk')",
+            bicep_functions["getDataDisk"]["output"]["value"],
+        )
+        self.assertNotIn("getCreateDisk", bicep_functions)
+        self.assertIn(
+            "__bicep.isImportedDataDisk(parameters('data_disks')",
+            resources["nodes_data_disks_with_vhds"]["condition"],
+        )
+        self.assertIn(
+            "not(__bicep.isImportedDataDisk(parameters('data_disks')",
+            resources["nodes_managed_data_disks"]["condition"],
+        )
+        self.assertIn("nodes_data_disks", resources["nodes_vms"]["dependsOn"])
+        self.assertIn("nodes_managed_data_disks", resources["nodes_vms"]["dependsOn"])
 
     def verify_exists_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
