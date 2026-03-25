@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from semver import VersionInfo
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix, Suse
+from lisa.operating_system import Posix
 from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
 
 
@@ -37,10 +37,11 @@ class Git(Tool):
         return True
 
     def _install(self) -> bool:
-        if isinstance(self.node.os, Suse):
-            self.node.os.install_packages("git-core")
-        elif isinstance(self.node.os, Posix):
-            self.node.os.install_packages([self])
+        if isinstance(self.node.os, Posix):
+            for pkg in ["git", "git-core"]:
+                if self.node.os.is_package_in_repo(pkg):
+                    self.node.os.install_packages(pkg)
+                    break
         else:
             raise LisaException(
                 "Doesn't support to install git in Windows. "

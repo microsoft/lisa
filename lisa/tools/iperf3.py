@@ -102,7 +102,10 @@ class Iperf3(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages("iperf3")
+        try:
+            posix_os.install_packages("iperf3")
+        except Exception as e:
+            self._log.debug(f"Failed to install iperf3 from package manager: {e}")
         install_from_src = False
         if self._check_exists():
             if "--logfile" not in self.help().stdout:
