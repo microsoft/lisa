@@ -152,12 +152,9 @@ class CloudHypervisorTestSuite(TestSuite):
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
         ref = variables.get("cloudhypervisor_ref", "")
-        # below variable expects a comma separated list of full testnames
-        include_list, exclude_list = get_test_list(
-            variables,
-            "ch_perf_tests_included",
-            "ch_perf_tests_excluded",
-        )
+        # Perf metrics supports substring filters. Pass values through as-is.
+        include_filter = variables.get("ch_perf_tests_included", "") or None
+        exclude_filter = variables.get("ch_perf_tests_excluded", "") or None
         subtest_timeout = variables.get("ch_perf_subtest_timeout", None)
         ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
         ch_tests.run_metrics_tests(
@@ -165,8 +162,8 @@ class CloudHypervisorTestSuite(TestSuite):
             hypervisor,
             log_path,
             ref,
-            include_list,
-            exclude_list,
+            include_filter,
+            exclude_filter,
             subtest_timeout,
         )
 
@@ -215,8 +212,6 @@ class CloudHypervisorTestSuite(TestSuite):
         use_pmem = variables.get("ch_tests_use_pmem", "")
         pmem_config = variables.get("ch_tests_pmem_config", "")
         disable_disk_cache = variables.get("ch_tests_disable_disk_cache", "")
-        mibps_block_size_kb = variables.get("ch_tests_mibps_block_size_kb", "")
-        iops_block_size_kb = variables.get("ch_tests_iops_block_size_kb", "")
 
         if not ms_access_token:
             raise SkippedException("Access Token is needed while using MS-CLH")
@@ -236,10 +231,6 @@ class CloudHypervisorTestSuite(TestSuite):
         if use_ms_bz_image == "YES":
             CloudHypervisorTests.use_ms_bz_image = use_ms_bz_image
 
-        if mibps_block_size_kb:
-            CloudHypervisorTests.mibps_block_size_kb = mibps_block_size_kb
-        if iops_block_size_kb:
-            CloudHypervisorTests.iops_block_size_kb = iops_block_size_kb
         if use_pmem:
             CloudHypervisorTests.use_pmem = use_pmem
             if pmem_config:
