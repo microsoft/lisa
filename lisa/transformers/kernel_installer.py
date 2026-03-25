@@ -215,6 +215,7 @@ class KernelInstallerTransformer(DeploymentTransformer):
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw
             self._log.info(f"kernel version after install: " f"{new_kernel_version}")
+            efi_boot_mgr.get_boot_entries_by_kernel()
             if runbook.check_kernel_version:
                 assert_that(
                     new_kernel_version.kernel_version_raw, "Kernel installation Failed"
