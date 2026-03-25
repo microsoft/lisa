@@ -270,6 +270,7 @@ class HvModule(TestSuite):
             # Capture and print the modprobe_reloader script output only for hv_netvsc
             if module == "hv_netvsc" and "nohup_log_file" in result:
                 nohup_log_file = result["nohup_log_file"]
+                pid_file = result.get("pid_file", "")
                 log.info(f"Capturing modprobe_reloader script output for {module}...")
                 cat_result = node.execute(
                     f"cat {nohup_log_file}",
@@ -282,12 +283,11 @@ class HvModule(TestSuite):
                             f"{'='*80}\n"
                             f"{cat_result.stdout}\n"
                             f"{'='*80}")
-                # Cleanup the log files after capturing
-                node.execute(
-                    f"rm -f {nohup_log_file} {result.get('pid_file', '')}",
-                    sudo=True,
-                    shell=True,
-                )
+                # Keep files on VM - log their locations for reference
+                log.info(f"Log files preserved on VM:")
+                log.info(f"  - Output log: {nohup_log_file}")
+                if pid_file:
+                    log.info(f"  - PID file: {pid_file}")
             if result["in_use_count"] > 0 or result["busy_count"] > 0:
                 # If the module is in use, it cannot be reloaded.
                 log.debug(f"Module {module} is in use so it cannot be reloaded")
