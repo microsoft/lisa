@@ -136,11 +136,11 @@ func getAttachDisk(disk object, diskName string, index int) object => {
   createOption: 'attach'
   caching: disk.caching_type
   managedDisk: {
-      id: resourceId('Microsoft.Compute/disks', diskName)
+      id: '${resourceGroup().id}/providers/Microsoft.Compute/disks/${diskName}'
   }
 }
 
-func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS' || (!empty(dataDisk.vhd_details) && (!empty(dataDisk.vhd_details.vhd_uri))))
+func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS' || (dataDisk.vhd_details != null && !empty(dataDisk.vhd_details) && (!empty(dataDisk.vhd_details.vhd_uri))))
 ? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 : getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
@@ -493,6 +493,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
+    nodes_data_disks
     nodes_data_disks_with_vhds
   ]
 }]
