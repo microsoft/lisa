@@ -411,8 +411,10 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   /*
     Create ultra data disks with setting iops and throughput, and attach them to the VMs.
     There is no way to use getCreateDisk with setting iops and throughput.
+    Use conditional count (0 when not ultra) instead of loop-level 'if' condition,
+    so ARM won't register resource names or evaluate body expressions when not needed.
   */
-  for i in range(0, (length(data_disks) * node_count)): if (is_ultradisk) {
+  for i in range(0, is_ultradisk ? (length(data_disks) * node_count) : 0): {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
     location: location
     tags: tags
@@ -432,8 +434,10 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
 ]
 
 // Create managed disks from data VHD URIs
+// Use conditional count so ARM won't evaluate body expressions (like resourceId on
+// null vhd_details) when not needed.
 resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
-  for i in range(0, (length(data_disks) * node_count)): if (is_data_disk_with_vhd && !is_ultradisk) {
+  for i in range(0, (is_data_disk_with_vhd && !is_ultradisk) ? (length(data_disks) * node_count) : 0): {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
     location: location
     tags: tags
