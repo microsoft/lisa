@@ -503,10 +503,45 @@ class CloudHypervisorTests(Tool):
             else:
                 self._metrics_disk_device = f"/dev/{disk_name}"
             self._log.info(
-                "[perf-stable] metrics disk device selected: "
+                "NUMA_LOG [perf-stable] metrics disk device selected: "
                 f"{self._metrics_disk_device}"
             )
+            self._log_host_storage_numa_context()
             self._save_kernel_logs(log_path)
+
+    def _log_host_storage_numa_context(self) -> None:
+        """Log host-side NUMA topology and storage locality before metrics start."""
+        device = self._metrics_disk_device.removeprefix("/dev/")
+        sysfs_queries = "echo 'NUMA_LOG metrics disk unavailable'; "
+        if device:
+            sysfs_queries = (
+                "echo 'NUMA_LOG -- metrics disk device'; "
+                f"echo 'NUMA_LOG {self._metrics_disk_device}'; "
+                "echo 'NUMA_LOG -- metrics disk numa node (/sys/class/block)'; "
+                f"cat /sys/class/block/{device}/device/numa_node 2>/dev/null || true; "
+                "echo 'NUMA_LOG -- metrics disk numa node (/sys/block)'; "
+                f"cat /sys/block/{device}/device/numa_node 2>/dev/null || true; "
+            )
+
+        cmd = (
+            "set -u; "
+            "echo 'NUMA_LOG === PERF-STABLE HOST STORAGE / NUMA CONTEXT ==='; "
+            "echo 'NUMA_LOG -- numactl --hardware'; "
+            "if command -v numactl >/dev/null 2>&1; then numactl --hardware || true; "
+            "else echo 'numactl unavailable'; fi; "
+            "echo 'NUMA_LOG -- lscpu'; "
+            "if command -v lscpu >/dev/null 2>&1; then lscpu || true; "
+            "else echo 'lscpu unavailable'; fi; "
+            f"{sysfs_queries}"
+            "echo 'NUMA_LOG -- ndctl numa nodes'; "
+            "find /sys/class/nd -name numa_node -print 2>/dev/null | "
+            "while read -r path; do echo \"NUMA_LOG path=$path\"; cat \"$path\"; done || true; "
+            "echo 'NUMA_LOG -- ndctl list -RN'; ndctl list -RN 2>/dev/null || true; "
+            "echo 'NUMA_LOG -- ndctl list -v'; ndctl list -v 2>/dev/null || true; "
+            "true"
+        )
+
+        self.node.execute(cmd, shell=True, sudo=True)
 
     def _prepare_metrics_subtests(
         self, hypervisor: str, only: Optional[List[str]], skip: Optional[List[str]]
@@ -1019,6 +1054,32 @@ else
 fi
 pid=$!
 
+capture_ch_process_placement() {{
+    max_wait=${{CH_PROCESS_SNAPSHOT_WAIT_SECS:-300}}
+    waited=0
+    echo "NUMA_LOG [perf-stable] waiting for cloud-hypervisor process snapshot" \
+        | tee -a "$log_file"
+    while [ "$waited" -lt "$max_wait" ]; do
+        ch_pid="$(pgrep -n -f cloud-hypervisor || true)"
+        if [ -n "$ch_pid" ]; then
+            echo "NUMA_LOG [perf-stable] cloud-hypervisor process snapshot pid=$ch_pid" \
+                | tee -a "$log_file"
+            pgrep -af cloud-hypervisor 2>/dev/null | tee -a "$log_file" || true
+            taskset -pc "$ch_pid" 2>&1 | tee -a "$log_file" || true
+            grep -E "Cpus_allowed_list|Mems_allowed_list" \
+                "/proc/$ch_pid/status" 2>&1 | tee -a "$log_file" || true
+            return
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    echo "NUMA_LOG [perf-stable] cloud-hypervisor process not observed within ${{max_wait}}s" \
+        | tee -a "$log_file"
+}}
+
+capture_ch_process_placement &
+ch_snapshot_pid=$!
+
 # background watchdog that dumps stacks on inactivity
 idle=0
 total_idle=0
@@ -1047,7 +1108,7 @@ while kill -0 $pid 2>/dev/null; do
 
     # Find a good target: prefer the integration test binary; otherwise a child
     # of the cargo/dev_cli process; otherwise fall back to the main pid.
-    tpid="$(pgrep -n -f 'target/.*/deps/integration-' || true)"
+    tpid="$(pgrep -n -f "target/.*/deps/integration-" || true)"
     if [ -z "$tpid" ]; then
       # newest child of $pid (often cargo test or the binary)
       tpid="$(pgrep -P "$pid" | tail -n1 || true)"
@@ -1118,7 +1179,7 @@ while kill -0 $pid 2>/dev/null; do
       | tee -a "$log_file"
 
     # Find target using same logic as watchdog
-    tpid="$(pgrep -n -f 'target/.*/deps/integration-' || true)"
+    tpid="$(pgrep -n -f "target/.*/deps/integration-" || true)"
     if [ -z "$tpid" ]; then
       tpid="$(pgrep -P "$pid" | tail -n1 || true)"
     fi
@@ -1136,7 +1197,7 @@ done &
 watchdog_pid=$!
 
 # trap to always stop watchdog
-trap "kill $watchdog_pid 2>/dev/null || true" EXIT
+trap "kill $watchdog_pid $ch_snapshot_pid 2>/dev/null || true" EXIT
 
 # wait for tests
 wait $pid
@@ -1144,6 +1205,7 @@ ec=$?
 
 # stop watchdog
 kill $watchdog_pid 2>/dev/null || true
+kill $ch_snapshot_pid 2>/dev/null || true
 
 # on failure, try to symbolize a core dump
 if [ $ec -ne 0 ]; then
