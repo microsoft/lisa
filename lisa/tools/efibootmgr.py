@@ -118,3 +118,23 @@ class EfiBootMgr(Tool):
         latest_kernel = next(iter(new_kernel_entries))
         latest_boot_entry = new_kernel_entries[latest_kernel]
         self.set_boot_entry(latest_boot_entry)
+        # Remove all except the latest boot entry
+        for boot_entry in boot_entries_now.values():
+            if boot_entry != latest_boot_entry:
+                self.delete_boot_entry(boot_entry)
+
+    def delete_boot_entry(self, boot_entry: str) -> None:
+        """
+        Delete the specified boot entry.
+        Args:
+            boot_entry: The boot entry number to delete (e.g., '0002')
+        """
+        self.run(
+            f"-b {boot_entry} -B",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to delete boot entry {boot_entry}"
+            ),
+        )
