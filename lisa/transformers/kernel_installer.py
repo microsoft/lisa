@@ -10,7 +10,6 @@ from assertpy.assertpy import assert_that
 from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
-from lisa import node
 from lisa.messages import KernelBuildMessage
 from lisa.node import Node
 from lisa.operating_system import Posix, Ubuntu
