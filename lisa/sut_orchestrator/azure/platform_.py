@@ -2414,6 +2414,7 @@ class AzurePlatform(Platform):
         azure_node_runbook: AzureNodeArmParameter,
     ) -> List[DataDiskSchema]:
         data_disks: List[DataDiskSchema] = []
+        imported_data_disk_count = 0
         assert node.capability.disk
 
         # Handle data VHD paths if provided
@@ -2447,6 +2448,7 @@ class AzurePlatform(Platform):
                             ),
                         )
                     )
+                    imported_data_disk_count += 1
 
         elif azure_node_runbook.marketplace:
             marketplace = self.get_image_info(
@@ -2477,7 +2479,11 @@ class AzurePlatform(Platform):
         assert isinstance(
             node.capability.disk.data_disk_count, int
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
-        for _ in range(node.capability.disk.data_disk_count):
+        remaining_empty_disk_count = max(
+            node.capability.disk.data_disk_count - imported_data_disk_count,
+            0,
+        )
+        for _ in range(remaining_empty_disk_count):
             assert isinstance(
                 node.capability.disk.data_disk_size, int
             ), f"actual: {type(node.capability.disk.data_disk_size)}"
