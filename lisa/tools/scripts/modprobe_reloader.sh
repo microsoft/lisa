@@ -30,9 +30,12 @@ if [ "$module_name" = "hv_netvsc" ]; then
   (
     j=1
     while [ $j -le "$times" ]; do
+      echo "[Iteration $j/$times] Starting reload for $module_name" >> "$log_file" 2>&1
       { modprobe -r $v "$module_name"; modprobe $v "$module_name"; } >> "$log_file" 2>&1
+      echo "[Iteration $j/$times] Completed reload for $module_name" >> "$log_file" 2>&1
       j=$((j + 1))
     done
+    echo "All $times iterations completed. Restoring network..." >> "$log_file" 2>&1
     sleep 1
     # shellcheck disable=SC2086,SC2129
     ip link set $interface down >> $log_file 2>&1
@@ -46,15 +49,19 @@ if [ "$module_name" = "hv_netvsc" ]; then
     service ssh status >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
     ip a >> $log_file 2>&1
+    echo "Network restoration complete." >> "$log_file" 2>&1
   ) &
   echo $! > "$pid_file"
 else
   (
     j=1
     while [ $j -le "$times" ]; do
+      echo "[Iteration $j/$times] Starting reload for $module_name" >> "$log_file" 2>&1
       { modprobe -r $v "$module_name"; modprobe $v "$module_name"; } >> "$log_file" 2>&1
+      echo "[Iteration $j/$times] Completed reload for $module_name" >> "$log_file" 2>&1
       j=$((j + 1))
     done
+    echo "All $times iterations completed for $module_name." >> "$log_file" 2>&1
   ) &
   echo $! > "$pid_file"
 fi

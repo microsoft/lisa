@@ -247,11 +247,15 @@ class HvModule(TestSuite):
             log.debug(f"Reloading {module} for {loop_count} times")
             modprobe = node.tools[Modprobe]
 
+            # Only capture logs for hv_netvsc, cleanup for others
+            cleanup_logs = (module != "hv_netvsc")
+
             result = modprobe.reload(
                 mod_name=module,
                 times=loop_count,
                 verbose=True,
                 timeout=1800,
+                cleanup_logs=cleanup_logs,
             )
             if not result:
                 failed_modules[
@@ -262,6 +266,28 @@ class HvModule(TestSuite):
                 log.info(f"Module {module} does not exist, skipping")
                 continue
             log.info(f"Reloading module {module} result: {result}")
+            
+            # Capture and print the modprobe_reloader script output only for hv_netvsc
+            if module == "hv_netvsc" and "nohup_log_file" in result:
+                nohup_log_file = result["nohup_log_file"]
+                log.info(f"Capturing modprobe_reloader script output for {module}...")
+                cat_result = node.execute(
+                    f"cat {nohup_log_file}",
+                    sudo=True,
+                    shell=True,
+                )
+                if cat_result.exit_code == 0 and cat_result.stdout:
+                    log.info(f"\n{'='*80}\n"
+                            f"Modprobe Reloader Output for {module}:\n"
+                            f"{'='*80}\n"
+                            f"{cat_result.stdout}\n"
+                            f"{'='*80}")
+                # Cleanup the log files after capturing
+                node.execute(
+                    f"rm -f {nohup_log_file} {result.get('pid_file', '')}",
+                    sudo=True,
+                    shell=True,
+                )
             if result["in_use_count"] > 0 or result["busy_count"] > 0:
                 # If the module is in use, it cannot be reloaded.
                 log.debug(f"Module {module} is in use so it cannot be reloaded")

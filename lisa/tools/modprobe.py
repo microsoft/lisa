@@ -309,6 +309,8 @@ class Modprobe(Tool):
             "insmod_count": insmod_count,
             "in_use_count": in_use_count,
             "busy_count": device_or_resource_busy_count,
+            "nohup_log_file": nohup_output_log_file_name,
+            "pid_file": loop_process_pid_file_name,
         }
 
     def load_by_file(
