@@ -2471,7 +2471,7 @@ class AzurePlatform(Platform):
                             0,
                             azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
-                            None,
+                            VhdDetails(),
                         )
                     )
         assert isinstance(
@@ -2495,7 +2495,7 @@ class AzurePlatform(Platform):
                     node.capability.disk.data_disk_throughput,
                     azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
-                    None,
+                    VhdDetails(),
                 )
             )
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
