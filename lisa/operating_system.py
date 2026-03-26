@@ -2291,6 +2291,13 @@ class Suse(Linux):
     )
     # Warning: There are no enabled repositories defined.
     _no_repo_defined = re.compile("There are no enabled repositories defined.", re.M)
+    _package_not_found = re.compile(
+        r"'(?P<package>[^']+)' not found in package names\. Trying capabilities\.",
+        re.M,
+    )
+    _provider_not_found = re.compile(
+        r"No provider of '(?P<package>[^']+)' found\.", re.M
+    )
 
     # 22.11.1-150600.3.9.1
     _suse_version_splitter_regex = re.compile(
@@ -2449,19 +2456,24 @@ class Suse(Linux):
                 command_with_force, shell=True, sudo=True, timeout=timeout
             )
 
-        if install_result.exit_code in (1, 4, 100):
-            raise LisaException(
-                f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
-                f"stdout: {install_result.stdout}, stderr: {install_result.stderr}"
-            )
-        elif install_result.exit_code == 0:
-            self._log.debug(f"{packages} is/are installed successfully.")
-        else:
-            raise LisaException(
-                f"Failed to install {packages}. "
-                f"Unexpected exit_code: {install_result.exit_code}, "
-                f"stdout: {install_result.stdout}, stderr: {install_result.stderr}"
-            )
+        missing_packages: List[str] = []
+        for line in install_result.stdout.splitlines():
+            package_not_found = get_matched_str(line, self._package_not_found)
+            if package_not_found:
+                missing_packages.append(package_not_found)
+                continue
+
+            provider_not_found = get_matched_str(line, self._provider_not_found)
+            if provider_not_found:
+                missing_packages.append(provider_not_found)
+
+        if missing_packages:
+            raise MissingPackagesException(sorted(set(missing_packages)))
+
+        install_result.assert_exit_code(
+            message=f"Failed to install package(s): {' '.join(packages)}",
+            include_output=True
+        )
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         command = "zypper --non-interactive --gpg-auto-import-keys update "
