@@ -38,7 +38,7 @@ def _cache_vmm_version_in_node(node: Node, version: str) -> None:
     extended_resources[KEY_VMM_VERSION] = version
 
 
-def get_vmm_version(node: Node, refresh_unknown_cache: bool = False) -> str:
+def get_vmm_version(node: Node) -> str:
     """
     Detects cloud-hypervisor VMM version from cached value, local binary,
     or git repository.
@@ -51,6 +51,14 @@ def get_vmm_version(node: Node, refresh_unknown_cache: bool = False) -> str:
     Returns the version string as reported by ``cloud-hypervisor --version`` after
     the ``cloud-hypervisor `` prefix (for example, ``"v41.0.0-41.0.120.g4ea35aaf"``
     or ``"48.0.235"``), or ``"UNKNOWN"`` if detection fails.
+
+    To force re-detection after a previous failure (e.g., when
+    cloud-hypervisor is installed after an initial detection attempt),
+    clear the cached value first::
+
+        extended_resources = getattr(node.capability, "extended_resources", None)
+        if extended_resources:
+            extended_resources.pop(KEY_VMM_VERSION, None)
     """
     result: str = "UNKNOWN"
     try:
@@ -62,13 +70,8 @@ def get_vmm_version(node: Node, refresh_unknown_cache: bool = False) -> str:
             cached_version = extended_resources.get(KEY_VMM_VERSION)
             if cached_version:
                 cached_version_str = str(cached_version)
-                if cached_version_str.upper() != "UNKNOWN" or not refresh_unknown_cache:
-                    node.log.debug(f"Using cached VMM version: {cached_version_str}")
-                    return cached_version_str
-                node.log.debug(
-                    "Cached VMM version is UNKNOWN; retrying detection because "
-                    "refresh_unknown_cache=True"
-                )
+                node.log.debug(f"Using cached VMM version: {cached_version_str}")
+                return cached_version_str
 
         # If there is no cached value, only proceed with SSH-based detection
         # when the node is connected and running a POSIX-compatible OS.
@@ -97,7 +100,10 @@ def get_vmm_version(node: Node, refresh_unknown_cache: bool = False) -> str:
         # For Docker-based tests where cloud-hypervisor is compiled from source
         node.log.debug("Local binary not found, trying git repository...")
 
-        # CloudHypervisorTests installs into the global tool cache via
+        # CloudHypervisorTests installs into the global tool cache rooted at
+        # node.get_working_path().parent.parent (the same hierarchy used by
+        # Tool.get_tool_path(use_global=True)), so reconstruct the git repository
+        # path from that global working root.
         global_working_root = node.get_working_path().parent.parent
         git_repo_path = str(
             global_working_root / "tool" / "cloudhypervisortests" / "cloud-hypervisor"
