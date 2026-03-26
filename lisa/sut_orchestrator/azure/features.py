@@ -202,16 +202,24 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
+    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
+    def _execute_vm_operation(
+        self,
+        operator_method: Any,
+        **kwargs: Any,
+    ) -> Any:
+        return operator_method(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            **kwargs,
+        )
+
     def _execute(self, wait: bool, operator: str, **kwargs: Any) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         # The latest version may not be deployed to server side, use specified version.
         compute_client = get_compute_client(platform, api_version="2021-07-01")
         operator_method = getattr(compute_client.virtual_machines, operator)
-        operation = operator_method(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._vm_name,
-            **kwargs,
-        )
+        operation = self._execute_vm_operation(operator_method, **kwargs)
         if wait:
             wait_operation(operation, failure_identity="Start/Stop")
 
