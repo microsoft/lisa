@@ -2291,10 +2291,12 @@ class Suse(Linux):
     )
     # Warning: There are no enabled repositories defined.
     _no_repo_defined = re.compile("There are no enabled repositories defined.", re.M)
+    # 'python3-pip' not found in package names. Trying capabilities.
     _package_not_found = re.compile(
         r"'(?P<package>[^']+)' not found in package names\. Trying capabilities\.",
         re.M,
     )
+    # No provider of 'python3-pip' found.
     _provider_not_found = re.compile(
         r"No provider of '(?P<package>[^']+)' found\.", re.M
     )
