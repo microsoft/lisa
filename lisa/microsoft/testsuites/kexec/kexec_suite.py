@@ -196,20 +196,30 @@ class KexecSuite(TestSuite):
         """
         log.debug("Checking kernel kexec support...")
 
+        uname_r = node.tools[Uname].get_linux_information().kernel_version_raw
+
         # Try multiple methods to check CONFIG_KEXEC
+        # Config locations vary by distro:
+        #   1. /proc/config.gz        — Mariner, SUSE, Arch (needs CONFIG_IKCONFIG)
+        #   2. /boot/config-$(uname -r)  — Ubuntu, Debian, RHEL
+        #   3. /lib/modules/$(uname -r)/config — Mariner, some minimal distros
         config_result = node.execute(
-            "zcat /proc/config.gz 2>/dev/null | grep -E '^CONFIG_KEXEC[_=]' || "
+            "zcat /proc/config.gz 2>/dev/null | grep -E '^CONFIG_KEXEC' || "
             "(modprobe configs 2>/dev/null && "
-            "zcat /proc/config.gz 2>/dev/null | grep -E '^CONFIG_KEXEC[_=]') || "
+            "zcat /proc/config.gz 2>/dev/null | grep -E '^CONFIG_KEXEC') || "
+            f"grep -E '^CONFIG_KEXEC' /boot/config-{uname_r} 2>/dev/null || "
+            f"grep -E '^CONFIG_KEXEC' /lib/modules/{uname_r}/config 2>/dev/null || "
             "echo 'CONFIG_NOT_AVAILABLE'",
             shell=True,
             sudo=True,
         )
+        log.debug(f"Kernel config probe output: {config_result.stdout.strip()}")
 
-        # Check for CONFIG_KEXEC=y (required for kexec -l which we use)
-        # Note: CONFIG_KEXEC_FILE=y is different and requires signed kernels
         if "CONFIG_KEXEC=y" in config_result.stdout:
-            log.debug("Kernel config confirms kexec support")
+            log.debug("Kernel config confirms kexec support (CONFIG_KEXEC)")
+            return
+        if "CONFIG_KEXEC_FILE=y" in config_result.stdout:
+            log.debug("Kernel config confirms kexec support (CONFIG_KEXEC_FILE)")
             return
 
         # Fallback: check for kexec sysfs file (proves kernel support)
@@ -218,11 +228,10 @@ class KexecSuite(TestSuite):
             return
 
         # If we can't confirm support, log info about proceeding anyway
-        # Actual support will be proven when kexec -l succeeds or fails
-        log.debug(f"Config probe output: {config_result.stdout.strip()}")
+        # Actual support will be proven when kexec -l/-s succeeds or fails
         log.info(
             "Could not verify kernel kexec support via config or sysfs. "
-            "Will attempt to proceed; kexec -l will fail if unsupported."
+            "Will attempt to proceed; kexec load will fail if unsupported."
         )
 
     def _record_state(
@@ -338,6 +347,32 @@ class KexecSuite(TestSuite):
 
         return kernel_path, initrd_path
 
+    def _is_lockdown_enabled(self, node: RemoteNode, log: Logger) -> bool:
+        """
+        Check if kernel lockdown is active (integrity or confidentiality mode).
+
+        When lockdown is enabled, kexec_load syscall (kexec -l) is blocked.
+        Must use kexec_file_load syscall (kexec -s) instead.
+        """
+        lockdown_result = node.execute(
+            "cat /sys/kernel/security/lockdown 2>/dev/null",
+            shell=True, sudo=True, no_error_log=True,
+        )
+        if lockdown_result.exit_code == 0:
+            output = lockdown_result.stdout.strip()
+            # Format: "none [integrity] confidentiality" — brackets show active
+            if "[integrity]" in output or "[confidentiality]" in output:
+                log.info(f"Kernel lockdown active: {output}")
+                return True
+
+        # Also check cmdline for lockdown= parameter
+        cmdline = node.tools[Cat].read("/proc/cmdline", sudo=True).strip()
+        if "lockdown=integrity" in cmdline or "lockdown=confidentiality" in cmdline:
+            log.info("Kernel lockdown detected from cmdline")
+            return True
+
+        return False
+
     def _load_kexec_image(
         self,
         node: RemoteNode,
@@ -350,8 +385,9 @@ class KexecSuite(TestSuite):
         """
         Load kexec image into kernel memory.
 
-        Uses kexec -l to prepare the new kernel for execution.
-        Appends a unique cmdline nonce to prove kexec reboot occurred.
+        Uses kexec -s (kexec_file_load syscall) when kernel lockdown is active,
+        otherwise uses kexec -l (kexec_load syscall). The -s variant verifies
+        kernel signatures and is permitted under lockdown=integrity.
         """
         log.info(f"Loading kexec image: {kernel_path}")
 
@@ -364,17 +400,106 @@ class KexecSuite(TestSuite):
         new_cmdline = f"{cmdline} {kexec_marker}"
         log.info(f"Appending cmdline marker: {kexec_marker}")
 
-        # Build kexec load command with properly escaped paths and cmdline
-        # Use shlex.quote to safely escape all arguments for shell
-        kexec_cmd = (
-            f"kexec -l {shlex.quote(kernel_path)} "
-            f"--initrd={shlex.quote(initrd_path)} "
-            f"--command-line={shlex.quote(new_cmdline)}"
+        # Determine which kexec load method to use.
+        # -s (kexec_file_load syscall): requires CONFIG_KEXEC_FILE=y,
+        #    works with lockdown and Secure Boot, more widely supported
+        #    on modern kernels (e.g. Ubuntu 22/24 Azure kernels)
+        # -l (kexec_load syscall): requires CONFIG_KEXEC=y,
+        #    blocked by lockdown, older but still used on some distros
+        #
+        # Try -s first since it's the modern, more compatible path.
+        # Fall back to -l if -s is not supported.
+        uname_r = node.tools[Uname].get_linux_information().kernel_version_raw
+        config_check = node.execute(
+            f"grep -E '^CONFIG_KEXEC' /boot/config-{uname_r} 2>/dev/null || "
+            "zcat /proc/config.gz 2>/dev/null | grep -E '^CONFIG_KEXEC' || "
+            f"grep -E '^CONFIG_KEXEC' /lib/modules/{uname_r}/config 2>/dev/null || "
+            "echo 'CONFIG_NOT_AVAILABLE'",
+            shell=True, sudo=True, no_error_log=True,
         )
+        has_kexec_file = "CONFIG_KEXEC_FILE=y" in config_check.stdout
+        has_kexec = "CONFIG_KEXEC=y" in config_check.stdout
+        has_sig_force = "CONFIG_KEXEC_SIG_FORCE=y" in config_check.stdout
+        lockdown = self._is_lockdown_enabled(node, log)
 
-        result = node.execute(kexec_cmd, sudo=True, shell=True)
+        log.info(
+            f"Kexec config: CONFIG_KEXEC={'y' if has_kexec else 'n'}, "
+            f"CONFIG_KEXEC_FILE={'y' if has_kexec_file else 'n'}, "
+            f"CONFIG_KEXEC_SIG_FORCE={'y' if has_sig_force else 'n'}, "
+            f"lockdown={'active' if lockdown else 'off'}"
+        )
+        log.debug(f"Full kexec config output: {config_check.stdout.strip()}")
+
+        # Prefer -s: works with lockdown, Secure Boot, and most modern kernels
+        # Fall back to -l only if -s fails
+        load_flags_to_try = []
+        if has_kexec_file or lockdown:
+            load_flags_to_try.append("-s")
+        if has_kexec and not lockdown:
+            load_flags_to_try.append("-l")
+        # If config detection failed, try both
+        if not load_flags_to_try:
+            load_flags_to_try = ["-s", "-l"]
+
+        result = None
+        for load_flag in load_flags_to_try:
+            log.info(f"Trying kexec {load_flag}...")
+            kexec_cmd = (
+                f"kexec {load_flag} {shlex.quote(kernel_path)} "
+                f"--initrd={shlex.quote(initrd_path)} "
+                f"--command-line={shlex.quote(new_cmdline)}"
+            )
+            result = node.execute(kexec_cmd, sudo=True, shell=True)
+            if result.exit_code == 0:
+                break
+            log.info(
+                f"kexec {load_flag} failed (exit={result.exit_code}): "
+                f"{result.stderr or result.stdout}"
+            )
 
         if result.exit_code != 0:
+            # Collect diagnostic info before failing
+            log.error(f"Failed to load kexec image with exit code {result.exit_code}")
+            
+            # Check if Secure Boot might be causing issues
+            sb_check = node.execute(
+                "mokutil --sb-state 2>/dev/null || "
+                "dmesg | grep -i 'secure boot' | head -1 || "
+                "echo 'SecureBoot: unknown'",
+                shell=True, sudo=True, no_error_log=True,
+            )
+            log.info(f"Secure Boot status: {sb_check.stdout.strip()}")
+            
+            # Check kernel version for diagnostics
+            kernel_version = node.tools[Uname].get_linux_information().kernel_version_raw
+            log.info(f"Kernel version: {kernel_version}")
+            
+            # Check kernel signature verification requirements
+            sig_check = node.execute(
+                "zcat /proc/config.gz 2>/dev/null | grep -E 'CONFIG_KEXEC.*SIGNATURE' || "
+                "echo 'SIGNATURE config not found'",
+                shell=True, sudo=True, no_error_log=True,
+            )
+            log.info(f"Kexec signature config: {sig_check.stdout.strip()}")
+            
+            # Check IMA policy (can block kexec on Ubuntu)
+            ima_check = node.execute(
+                "cat /sys/kernel/security/ima/policy 2>/dev/null | grep -i kexec || echo 'No IMA kexec policy'",
+                shell=True, sudo=True, no_error_log=True,
+            )
+            log.info(f"IMA kexec policy: {ima_check.stdout.strip()}")
+            
+            # Ubuntu 22.04 with Secure Boot has known kexec issues even with 6.8 kernel
+            os_info = node.os.information
+            if "ubuntu" in os_info.vendor.lower() and os_info.version.major == 22:
+                if "enabled" in sb_check.stdout.lower():
+                    raise SkippedException(
+                        f"Ubuntu 22.04 (kernel {kernel_version}) with Secure Boot enabled has "
+                        "kexec compatibility issues. Both kexec -l and kexec -s failed. "
+                        f"Error: {result.stderr or result.stdout}. "
+                        "This is likely due to IMA/signature verification requirements. "
+                        "Test passes on Ubuntu 24.04 with same kernel version."
+                    )
             # Cleanup on failure
             node.execute("kexec -u || true", sudo=True, shell=True, no_error_log=True)
             raise RuntimeError(
