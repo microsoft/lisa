@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Union
 
@@ -45,6 +46,7 @@ class OutputResults:
     generated_keywords_list: List[str] = field(default_factory=list)
     ground_truth_keywords_list: List[str] = field(default_factory=list)
     test_ids: List[Any] = field(default_factory=list)
+    processing_times: List[float] = field(default_factory=list)
 
 
 @dataclass
@@ -56,6 +58,7 @@ class EvaluationResult:
     ground_truth_keywords: str
     generated_summary: str
     ground_truth_summary: str
+    processing_time: float
 
 
 def _load_test_data() -> List[Dict[str, str]]:
@@ -363,6 +366,7 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Evaluatio
         item: Test case data containing path and error_message
         config: Configuration object
     """
+    start_time = time.time()
     log_folder_path = os.path.join(config.log_root_path, item["path"])
 
     error_message = item["error_message"]
@@ -411,12 +415,15 @@ def _process_single_test_case(item: Dict[str, Any], config: Config) -> Evaluatio
         api_key=config.azure_openai_api_key,
     )
 
+    processing_time = time.time() - start_time
+
     return EvaluationResult(
         similarity=similarity,
         generated_keywords=generated_keywords,
         ground_truth_keywords=ground_truth_keywords,
         generated_summary=generated_summary,
         ground_truth_summary=ground_truth_summary,
+        processing_time=processing_time,
     )
 
 
@@ -460,6 +467,7 @@ def _process_test_cases(
         results.generated_keywords_list.append(test_result.generated_keywords)
         results.ground_truth_keywords_list.append(test_result.ground_truth_keywords)
         results.test_ids.append(item["id"])
+        results.processing_times.append(test_result.processing_time)
 
     return results
 
@@ -474,17 +482,20 @@ def _output_detailed_results(results: OutputResults) -> None:
     similarities = results.similarities
     gen_list = results.generated_keywords_list
     gt_list = results.ground_truth_keywords_list
+    processing_times = results.processing_times
 
-    count = min(len(test_ids), len(similarities), len(gen_list), len(gt_list))
+    count = min(len(test_ids), len(similarities), len(gen_list), len(gt_list), len(processing_times))
     for index in range(count):
         test_id = test_ids[index]
         similarity = similarities[index]
         generated = gen_list[index]
         ground_truth = gt_list[index]
+        processing_time = processing_times[index]
         logger.info(f"Test case {index} (ID: {test_id}): ")
         logger.info(f"  Similarity: {similarity: .6f}")
         logger.info(f"  Generated keywords: {generated}")
         logger.info(f"  Ground truth keywords: {ground_truth}")
+        logger.info(f"  Processing time: {processing_time:.2f}s")
         logger.info("")
 
 
@@ -493,12 +504,29 @@ def _output_summary_statistics(results: OutputResults, config: Config) -> None:
     Output summary statistics for all test cases.
     """
     similarities = results.similarities
+    processing_times = results.processing_times
 
     logger.info("=== SUMMARY ===")
 
     # Individual similarities
     for index, similarity in enumerate(similarities):
         logger.info(f"Test case {index} Similarity: {similarity: .6f}")
+    # Individual processing times
+    for index, processing_time in enumerate(processing_times):
+        logger.info(f"Test case {index} Processing time(s): {processing_time:.2f}")
+
+    # Processing times statistics
+    if processing_times:
+        avg_time = sum(processing_times) / len(processing_times)
+        min_time = min(processing_times)
+        max_time = max(processing_times)
+        total_time = sum(processing_times)
+        logger.info(
+            f"Processing times - Average: {avg_time:.2f}s, "
+            f"Min: {min_time:.2f}s, "
+            f"Max: {max_time:.2f}s, "
+            f"Total: {total_time:.2f}s"
+        )
 
     logger.info(
         f"General deployment name: {config.general_deployment_name}, "
