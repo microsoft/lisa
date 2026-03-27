@@ -478,21 +478,6 @@ class Ltp(Tool):
         else:
             cur_ltp_path = self._clone_source(self.LTP_GIT_URL, top_src_dir)
 
-        # Workaround for AzL 4.0: create pkg-config cross-compilation symlink
-        # TODO: Fix this in Azl 4.0 Specs, DO NOT MERGE this workaround.
-        if (
-            isinstance(self.node.os, CBLMariner)
-            and self.node.os.information.version >= "4.0.0"
-        ):
-            self.node.execute(
-                "ln -sf /usr/bin/pkgconf"
-                " /usr/bin/$(rpm --eval"
-                " '%{_target_cpu}-%{_vendor}-%{_target_os}%{?_gnu}')"
-                "-pkg-config",
-                sudo=True,
-                shell=True,
-            )
-
         # better to install ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
         make = self.node.tools[Make]

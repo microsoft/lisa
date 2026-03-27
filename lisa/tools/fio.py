@@ -420,8 +420,6 @@ class Fio(Tool):
         elif isinstance(self.node.os, CBLMariner):
             package_list = [
                 "wget",
-                "build-essential",
-                "sysstat",
                 "blktrace",
                 "libaio",
                 "bc",
@@ -433,6 +431,9 @@ class Fio(Tool):
                 "glibc-devel",
                 "zlib-devel",
             ]
+            if self.node.os.information.version < "4.0.0":
+                # build-essential and sysstat not available on Azure Linux 4.0
+                package_list.extend(["build-essential", "sysstat"])
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."
