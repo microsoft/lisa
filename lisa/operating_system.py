@@ -2302,6 +2302,12 @@ class Suse(Linux):
     )
     _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
+    # zypper exit code 7: ZYPPER_EXIT_ERR_ZYPP — another zypper instance holds
+    # the system management lock.  This is transient and retryable.
+    _ZYPPER_EXIT_LOCK = 7
+    _ZYPPER_LOCK_MAX_RETRIES = 5
+    _ZYPPER_LOCK_RETRY_DELAY = 10  # seconds
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^SUSE|opensuse-leap$")
@@ -2353,7 +2359,17 @@ class Suse(Linux):
         if no_gpgcheck:
             cmd += " -G "
         cmd += f" {repo} {repo_name}"
-        cmd_result = self._node.execute(cmd=cmd, sudo=True)
+        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+            cmd_result = self._node.execute(cmd=cmd, sudo=True)
+            if cmd_result.exit_code == self._ZYPPER_EXIT_LOCK:
+                self._log.debug(
+                    f"zypper lock contention (exit code 7), "
+                    f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
+                )
+                self.wait_running_process("zypper")
+                time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
+                continue
+            break
         if "already exists. Please use another alias." not in cmd_result.stdout:
             cmd_result.assert_exit_code(0, f"fail to add repo {repo}")
         else:
@@ -2403,9 +2419,19 @@ class Suse(Linux):
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
         self.wait_running_process("zypper")
-        uninstall_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
-        )
+        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+            uninstall_result = self._node.execute(
+                command, shell=True, sudo=True, timeout=timeout
+            )
+            if uninstall_result.exit_code == self._ZYPPER_EXIT_LOCK:
+                self._log.debug(
+                    f"zypper lock contention (exit code 7), "
+                    f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
+                )
+                self.wait_running_process("zypper")
+                time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
+                continue
+            break
         uninstall_result.assert_exit_code(
             expected_exit_code=0,
             message=f"Could not uninstall package(s): {remove_packages}",
@@ -2426,9 +2452,19 @@ class Suse(Linux):
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
         self.wait_running_process("zypper")
-        install_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
-        )
+        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+            install_result = self._node.execute(
+                command, shell=True, sudo=True, timeout=timeout
+            )
+            if install_result.exit_code == self._ZYPPER_EXIT_LOCK:
+                self._log.debug(
+                    f"zypper lock contention (exit code 7), "
+                    f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
+                )
+                self.wait_running_process("zypper")
+                time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
+                continue
+            break
 
         # zypper exit codes that indicate dependency/resolution issues:
         # 1: ZYPPER_EXIT_ERR_BUG - Unexpected situation
