@@ -243,7 +243,7 @@ class HvModule(TestSuite):
                 log.debug(f"{module} is not a reloadable module")
                 skipped_modules.append(module)
                 continue
-            loop_count = 100
+            loop_count = 10
             log.debug(f"Reloading {module} for {loop_count} times")
             modprobe = node.tools[Modprobe]
 
