@@ -2068,7 +2068,7 @@ class CBLMariner(RPMDistro):
 
     def __init__(self, node: Any) -> None:
         super().__init__(node)
-        self._dnf_tool_name: str
+        self._dnf_tool_name: str = "dnf"
 
     def _initialize_package_installation(self) -> None:
         self.set_kill_user_processes()
