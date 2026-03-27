@@ -699,6 +699,18 @@ class Xfstests(Tool):
         "psmisc",
         "perl-CPAN",
     ]
+    # CBL Mariner 4.0 Dependencies
+    mariner_4_dep = [
+        "libattr-devel",
+        "binutils",
+        "kernel-headers",
+        "perl-CPAN",
+        "diffutils",
+        "btrfs-progs-devel",
+        "zlib-ng-compat-devel",
+        "libblkid-devel",
+        "libmount-devel",
+    ]
     # Regular expression for parsing xfstests output
     # Example:
     # Passed all 35 tests
@@ -941,7 +953,11 @@ class Xfstests(Tool):
         elif isinstance(self.node.os, Suse):
             package_list.extend(self.suse_dep)
         elif isinstance(self.node.os, CBLMariner):
-            package_list.extend(self.mariner_dep)
+            if self.node.os.information.version >= "4.0.0":
+                package_list.extend(self.fedora_dep)
+                package_list.extend(self.mariner_4_dep)
+            else:
+                package_list.extend(self.mariner_dep)
         else:
             raise LisaException(
                 f"Current distro {self.node.os.name} doesn't support xfstests."
