@@ -3163,25 +3163,23 @@ class Nvme(AzureFeatureMixin, features.Nvme):
     def create_setting(
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
-        resource_sku: Any = kwargs.get("resource_sku")
-        node_space: Any = kwargs.get("node_space")
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
 
-        assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
-        # add vm which support nested virtualization
-        # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family.casefold() in [
-            "standardlsv2family",
-            "standardlsv3family",
-            "standardlasv3family",
-        ]:
-            # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
-            # NVMe disk count = vCPU / 8
-            nvme = features.NvmeSettings()
-            assert isinstance(
-                node_space.core_count, int
-            ), f"actual: {node_space.core_count}"
-            nvme.disk_count = int(node_space.core_count / 8)
-            return nvme
+        # Derive NVMe disk count directly from Azure SKU capabilities:
+        #   NvmeDiskSizeInMiB     - total NVMe storage capacity across all disks
+        #   NvmeSizePerDiskInMiB  - capacity of a single NVMe disk
+        # disk_count = NvmeDiskSizeInMiB // NvmeSizePerDiskInMiB
+        if raw_capabilities:
+            nvme_disk_size = raw_capabilities.get("NvmeDiskSizeInMiB", "0")
+            nvme_size_per_disk = raw_capabilities.get("NvmeSizePerDiskInMiB", "0")
+            nvme_disk_size_int = int(nvme_disk_size) if nvme_disk_size.isdigit() else 0
+            nvme_size_per_disk_int = (
+                int(nvme_size_per_disk) if nvme_size_per_disk.isdigit() else 0
+            )
+            if nvme_disk_size_int and nvme_size_per_disk_int:
+                nvme = features.NvmeSettings()
+                nvme.disk_count = nvme_disk_size_int // nvme_size_per_disk_int
+                return nvme
 
         return None
 
