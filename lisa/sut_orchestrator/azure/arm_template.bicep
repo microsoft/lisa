@@ -434,7 +434,7 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
 // Create managed disks from data VHD URIs
 resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
   for i in range(0, (length(data_disks) * node_count)): if (is_data_disk_with_vhd && !is_ultradisk) {
-    name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
+    name: '${nodes[(i / length(data_disks))].name}-vhd-data-disk-${(i % length(data_disks))}'
     location: location
     tags: tags
     properties: {

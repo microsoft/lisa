@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.36.177.2456",
-      "templateHash": "18099469189437246926"
+      "templateHash": "8565676672428722469"
     }
   },
   "functions": [
@@ -799,7 +799,7 @@
       "condition": "[and(parameters('is_data_disk_with_vhd'), not(parameters('is_ultradisk')))]",
       "type": "Microsoft.Compute/disks",
       "apiVersion": "2022-03-02",
-      "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
+      "name": "[format('{0}-vhd-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
