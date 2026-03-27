@@ -168,7 +168,7 @@ class ZramCompression(TestSuite):
             ).is_equal_to(test_string)
 
             node.log.info(
-                f"zram with '{algorithm}' compression: " "write/read validation passed"
+                f"zram with '{algorithm}' compression: write/read validation passed"
             )
 
             # Verify the module is loaded in the kernel
