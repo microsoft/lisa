@@ -43,6 +43,7 @@ class CloudHypervisorTestResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
+    hung: bool = False
 
 
 class CloudHypervisorTests(Tool):
@@ -203,27 +204,29 @@ class CloudHypervisorTests(Tool):
             failure_msg += f" | {diagnostic_info}"
         fail(failure_msg)
 
+    def _summarize_test_list(self, test_list: List[str]) -> str:
+        if len(test_list) > 3:
+            return f"{test_list[:3]} and {len(test_list) - 3} more"
+        else:
+            return f"{test_list}"
+
     def _handle_timeout_failure(
         self,
         result: ExecutableResult,
         failures: List[str],
+        hung_tests: List[str],
         test_type: str,
         hypervisor: str,
         log_path: Path,
     ) -> None:
         """Handle timeout with failures."""
-        base_message = (
-            f"Timed out after {result.elapsed:.2f}s with failures: {failures[:3]}"
-        )
-        self._handle_test_failure_with_diagnostics(
-            base_message, result, test_type, hypervisor, log_path
-        )
+        hung_tests_summary = self._summarize_test_list(hung_tests)
+        failures_summary = self._summarize_test_list(failures)
 
-    def _handle_timeout_only(
-        self, result: ExecutableResult, test_type: str, hypervisor: str, log_path: Path
-    ) -> None:
-        """Handle pure timeout without test failures."""
-        base_message = f"Timed out after {result.elapsed:.2f}s"
+        base_message = (
+            f"Timed out after {result.elapsed:.2f}s with"
+            f"hung tests: {hung_tests_summary}, failures: {failures_summary}"
+        )
         self._handle_test_failure_with_diagnostics(
             base_message, result, test_type, hypervisor, log_path
         )
@@ -231,13 +234,19 @@ class CloudHypervisorTests(Tool):
     def _handle_test_failures(
         self,
         failures: List[str],
+        hung_tests: List[str],
         test_type: str,
         hypervisor: str,
         log_path: Path,
         result: ExecutableResult,
     ) -> None:
         """Handle test failures with diagnostic context."""
-        base_message = f"Unexpected failures: {failures[:3]}"
+        failures_summary = self._summarize_test_list(failures)
+        hung_tests_summary = self._summarize_test_list(hung_tests)
+        base_message = (
+            f"Unexpected failures: {failures_summary}, "
+            f"hung tests: {hung_tests_summary}"
+        )
         self._handle_test_failure_with_diagnostics(
             base_message, result, test_type, hypervisor, log_path
         )
@@ -323,7 +332,12 @@ class CloudHypervisorTests(Tool):
         """Process test results and handle various failure scenarios."""
         # Report subtest results and collect logs before doing any assertions.
         results = self._extract_test_results(result.stdout, log_path, subtests)
-        failures = [r.name for r in results if r.status == TestStatus.FAILED]
+        hung_tests = [r.name for r in results if r.hung]
+        failures = [
+            r.name
+            for r in results
+            if r.status == TestStatus.FAILED and r.name not in hung_tests
+        ]
 
         for r in results:
             send_sub_test_result_message(
@@ -343,16 +357,14 @@ class CloudHypervisorTests(Tool):
             test_name=test_name,
         )
 
-        has_failures = len(failures) > 0
-        if result.is_timeout and has_failures:
+        has_failures = len(failures) > 0 or len(hung_tests) > 0
+        if result.is_timeout:
             self._handle_timeout_failure(
-                result, failures, test_type, hypervisor, log_path
+                result, failures, hung_tests, test_type, hypervisor, log_path
             )
-        elif result.is_timeout:
-            self._handle_timeout_only(result, test_type, hypervisor, log_path)
         elif has_failures:
             self._handle_test_failures(
-                failures, test_type, hypervisor, log_path, result
+                failures, hung_tests, test_type, hypervisor, log_path, result
             )
         elif result.exit_code != 0:
             self._handle_exit_code_failure(result, test_type, hypervisor, log_path)
@@ -829,29 +841,6 @@ class CloudHypervisorTests(Tool):
             assert_msg = assertions[0].strip()[:100]
             diagnostic_messages.append(f"Assertion: {assert_msg}")
 
-        # Check for hung tests using "has been running" messages
-        # Note: Cargo test doesn't print "test foo ..." until the test completes,
-        # so we can't detect hung tests by comparing started vs finished.
-        # We rely on the "has been running for over X seconds" messages.
-        running_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
-        running_tests = re.findall(running_pattern, stdout)
-
-        if running_tests:
-            # Get list of tests that actually finished
-            finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
-            finished_matches = re.findall(finished_pattern, stdout)
-            finished_tests = [match[0] for match in finished_matches]
-
-            # Cross-check: only report tests marked as "running too long"
-            # that didn't actually finish (these are truly hung)
-            hung_tests = [t for t in running_tests if t not in finished_tests]
-
-            if hung_tests:
-                # Remove duplicates while preserving order
-                unique_hung_tests = list(dict.fromkeys(hung_tests))
-                tests_list = ", ".join(unique_hung_tests)
-                diagnostic_messages.append(f"Likely hung in: {tests_list}")
-
         return diagnostic_messages
 
     def _extract_file_diagnostics(self, log_path: Path, test_name: str) -> List[str]:
@@ -1040,10 +1029,10 @@ while kill -0 $pid 2>/dev/null; do
     echo "[watchdog] No log growth for ${{idle_secs}}s; dumping live stacks" \\
       | tee -a "$log_file"
     echo "[watchdog] pstree / ps snapshot" | tee -a "$log_file"
-    pstree -ap 2>/dev/null | head -200 | tee -a "$log_file" || true
-    ps -eo pid,ppid,stat,etime,cmd | head -200 | tee -a "$log_file" || true
+    pstree -ap 2>/dev/null | head -200 | tee -a "$log_file" > /dev/null || true
+    ps -eo pid,ppid,stat,etime,cmd | head -200 | tee -a "$log_file" > /dev/null || true
     ps -eL -o pid,tid,ppid,stat,etime,comm,cmd | head -200 \\
-      | tee -a "$log_file" || true
+      | tee -a "$log_file" > /dev/null || true
 
     # Find a good target: prefer the integration test binary; otherwise a child
     # of the cargo/dev_cli process; otherwise fall back to the main pid.
@@ -1068,12 +1057,12 @@ while kill -0 $pid 2>/dev/null; do
     core_out="core.integration-$(date +%s)"
     echo "[watchdog] Generating core: $core_out" | tee -a "$log_file"
     if command -v gcore >/dev/null 2>&1; then
-      sudo gcore -o "$core_out" "$tpid" 2>&1 | tee -a "$log_file" || true
+      sudo gcore -o "$core_out" "$tpid" 2>&1 | tee -a "$log_file" > /dev/null || true
     else
       sudo gdb -batch -p "$tpid" \\
         -ex "set pagination off" \\
         -ex "generate-core-file $core_out" \\
-        -ex "detach" -ex "quit" 2>&1 | tee -a "$log_file" || true
+        -ex "detach" -ex "quit" 2>&1 | tee -a "$log_file" > /dev/null || true
     fi
 
     # Write live backtrace to BOTH main log and side file
@@ -1086,7 +1075,7 @@ while kill -0 $pid 2>/dev/null; do
         " echo n/a)";
       echo "[watchdog] comm(parent)=$(cat /proc/$pid/comm 2>/dev/null ||" \\
         " echo n/a)";
-    }} 2>/dev/null | tee -a "$log_file" || true
+    }} 2>/dev/null | tee -a "$log_file" > /dev/null || true
     sudo gdb -batch -p "$tpid" \\
       -ex "set pagination off" \\
       -ex "set print elements 0" \\
@@ -1423,24 +1412,48 @@ exit $ec
 
             subtest_status[test_name] = status
 
+        # Detect hung tests: tests that cargo flagged as "has been running
+        # for over N seconds" but that never produced a final ok/FAILED result
+        # in the stdout. These are truly stuck tests.
+        hung_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
+        hung_candidates = re.findall(hung_pattern, output)
+
+        hung_test_names: Set[str] = set()
+        if hung_candidates:
+            finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
+            finished_matches = re.findall(finished_pattern, output)
+            finished_tests = {match[0].strip().lower() for match in finished_matches}
+
+            for name in hung_candidates:
+                normalized = name.strip()
+                if normalized not in finished_tests:
+                    hung_test_names.add(normalized)
+
+            # Mark hung tests as FAILED in subtest_status so they are
+            # reported correctly before subtest result messages are sent.
+            for name in hung_test_names:
+                if name in subtest_status:
+                    subtest_status[name] = TestStatus.FAILED
+
         messages = {
             TestStatus.QUEUED: "Subtest did not start",
-            TestStatus.RUNNING: "Subtest failed to finish - timed out",
         }
         for subtest in subtests:
+            hung = False
             status = subtest_status[subtest]
-            message = messages.get(status, "")
 
-            if status == TestStatus.RUNNING:
-                # Sub-test started running but didn't finish within the stipulated time.
-                # It should be treated as a failure.
-                status = TestStatus.FAILED
+            if subtest in hung_test_names:
+                message = "Subtest hung - no progress for extended period"
+                hung = True
+            else:
+                message = messages.get(status, "")
 
             results.append(
                 CloudHypervisorTestResult(
                     name=subtest,
                     status=status,
                     message=message,
+                    hung=hung,
                 )
             )
 
