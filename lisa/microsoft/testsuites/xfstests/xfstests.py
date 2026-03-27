@@ -1083,6 +1083,21 @@ class Xfstests(Tool):
                 file=str(code_path / "src" / "Makefile"),
             )
 
+        # Temporary Workaround to test xfs in Azurelinux 4.0
+        # DO NOT MERGE
+        if (
+            isinstance(self.node.os, CBLMariner)
+            and self.node.os.information.version >= "4.0.0"
+        ):
+            self.node.execute(
+                "ln -sf /usr/bin/pkgconf"
+                " /usr/bin/$(rpm --eval"
+                " '%{_target_cpu}-%{_vendor}-%{_target_os}%{?_gnu}')"
+                "-pkg-config",
+                sudo=True,
+                shell=True,
+            )
+
         # Regenerate configure script to fix PKG_CHECK_MODULES macro expansion issue.
         # The pre-generated configure script in xfstests-dev git repo may have
         # unexpanded PKG_CHECK_MODULES macros if it was generated without pkg-config.
