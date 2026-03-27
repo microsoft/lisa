@@ -175,7 +175,9 @@ class HyperVDevicePool(BaseDevicePool):
 $instanceId = '{escaped_instance_id}'
 $deadline = (Get-Date).AddSeconds({self.PNP_ENABLE_TIMEOUT_SECONDS})
 do {{
-    $device = Get-PnpDevice -PresentOnly -InstanceId $instanceId \
+    $device = Get-PnpDevice `
+        -PresentOnly `
+        -InstanceId $instanceId `
         -ErrorAction SilentlyContinue
     if ($null -ne $device) {{
         $code = "$($device.ConfigManagerErrorCode)".Trim()
@@ -187,7 +189,9 @@ do {{
     Start-Sleep -Seconds {self.PNP_ENABLE_POLL_INTERVAL_SECONDS}
 }} while ((Get-Date) -lt $deadline)
 
-$finalDevice = Get-PnpDevice -PresentOnly -InstanceId $instanceId \
+$finalDevice = Get-PnpDevice `
+    -PresentOnly `
+    -InstanceId $instanceId `
     -ErrorAction SilentlyContinue
 if ($null -eq $finalDevice) {{
     Write-Output 'device_not_present'
@@ -220,10 +224,11 @@ exit 1
 $target = '{escaped_location_path}'
 Get-VM | ForEach-Object {{
     $vmName = $_.Name
-    if (
-        Get-VMAssignableDevice -VMName $vmName -LocationPath $target
-            -ErrorAction SilentlyContinue
-    ) {{
+    $assignedDevice = Get-VMAssignableDevice `
+        -VMName $vmName `
+        -LocationPath $target `
+        -ErrorAction SilentlyContinue
+    if ($assignedDevice) {{
         Write-Output $vmName
     }}
 }}

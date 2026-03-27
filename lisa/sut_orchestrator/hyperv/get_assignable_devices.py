@@ -159,10 +159,11 @@ ForEach-Object {
     $instanceId = $_.InstanceId
     $locationPaths = $null
     try {
-        $locationPaths = (
-            Get-PnpDeviceProperty -InstanceId $instanceId
-                'DEVPKEY_Device_LocationPaths' -ErrorAction Stop
-        ).Data
+        $locationPathProperty = Get-PnpDeviceProperty `
+            -InstanceId $instanceId `
+            -KeyName 'DEVPKEY_Device_LocationPaths' `
+            -ErrorAction Stop
+        $locationPaths = $locationPathProperty.Data
     } catch {
         Write-Verbose (
             "Failed to read DEVPKEY_Device_LocationPaths for device '{0}': {1}" -f
