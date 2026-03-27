@@ -308,7 +308,7 @@ class Nvmecli(Tool):
             # Derive the namespace ID from the DevicePath if missing.
             if isinstance(device_path, str) and device_path and namespace_id is None:
                 # e.g., "/dev/nvme0n1" → "1", "/dev/nvme0n17" → "17"
-                ns_match = re.search(r"n(\d+)$", device_path)
+                ns_match = re.search(r"nvme\d+n(\d+)$", device_path)
                 if ns_match:
                     namespace_id = int(ns_match.group(1))
                     self._log.debug(

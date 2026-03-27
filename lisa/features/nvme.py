@@ -176,7 +176,8 @@ class Nvme(Feature):
                                 return True
                     return False
 
-                return [disk for disk in disk_list if not _is_remote(disk)]
+                disk_list[:] = [disk for disk in disk_list if not _is_remote(disk)]
+                return disk_list
 
             # Fallback if nvme-cli is not available or doesn't return device models.
             os_disk_nvme_device = self._get_os_disk_nvme_device()
