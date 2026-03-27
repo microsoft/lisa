@@ -1021,7 +1021,7 @@ while kill -0 $pid 2>/dev/null; do
   if [ "$size" -eq "$last_size" ]; then
     idle=$((idle + check_interval))
   else
-    total_idle=$((total_idle + idle))
+    total_idle=0
     idle=0
     last_size=$size
   fi
