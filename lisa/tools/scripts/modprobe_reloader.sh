@@ -6,8 +6,8 @@ pid_file="${2:-$HOME/modprobe_reloader.pid}"    # Default PID file path in the h
 module_name="${3:-hv_netvsc}"                   # Default module name
 times="${4:-1}"                                 # Default number of iterations
 verbose="${5:-true}"                            # Default verbosity (true)
-dhclient_command="${6:-dhclient}"               # Default DHCP client command
-interface="${7:-eth0}"                          # Default network interface
+# dhclient_command="${6:-dhclient}"               # Default DHCP client command
+interface="${6:-eth0}"                          # Default network interface
 
 
 
@@ -18,13 +18,13 @@ else
     v=""
 fi
 
-if [ "$dhclient_command" = "dhcpcd" ]; then
-    dhcp_stop_command="dhcpcd -k $interface"
-    dhcp_start_command="dhcpcd $interface"
-else
-    dhcp_stop_command="dhclient -r $interface"
-    dhcp_start_command="dhclient $interface"
-fi
+# if [ "$dhclient_command" = "dhcpcd" ]; then
+#     dhcp_stop_command="dhcpcd -k $interface"
+#     dhcp_start_command="dhcpcd $interface"
+# else
+#     dhcp_stop_command="dhclient -r $interface"
+#     dhcp_start_command="dhclient $interface"
+# fi
 
 if [ "$module_name" = "hv_netvsc" ]; then
   (
@@ -39,10 +39,10 @@ if [ "$module_name" = "hv_netvsc" ]; then
     # shellcheck disable=SC2086,SC2129
     ip link set $interface up >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
-    $dhcp_stop_command >> $log_file 2>&1
-    # shellcheck disable=SC2086,SC2129
-    $dhcp_start_command >> $log_file 2>&1
-    # shellcheck disable=SC2086,SC2129
+    # $dhcp_stop_command >> $log_file 2>&1
+    # # shellcheck disable=SC2086,SC2129
+    # $dhcp_start_command >> $log_file 2>&1
+    # # shellcheck disable=SC2086,SC2129
     service ssh status >> $log_file 2>&1
     # shellcheck disable=SC2086,SC2129
     ip a >> $log_file 2>&1

@@ -150,7 +150,7 @@ class Modprobe(Tool):
             return {"module_exists": False}
         if not self.is_module_loaded(mod_name, force_run=True):
             return {}
-        dhclient_command = self.node.tools[Dhclient].command
+        # dhclient_command = self.node.tools[Dhclient].command
 
         username = self.node.tools[Whoami].get_username()
         unique_id = uuid.uuid4()
@@ -188,7 +188,7 @@ class Modprobe(Tool):
 
         parameters = (
             f"{nohup_output_log_file_name} {loop_process_pid_file_name} "
-            f"{mod_name} {times} {verbose_flag} {dhclient_command} {interface}"
+            f"{mod_name} {times} {verbose_flag} {interface}"
         )
         self._log.debug(f"running with parameters: {parameters}")
         modprobe_reloader_script: CustomScript = self.node.tools[modprobe_reloader_tool]
