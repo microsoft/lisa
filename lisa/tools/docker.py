@@ -223,7 +223,11 @@ class Docker(Tool):
                     ["docker-ce", "docker-ce-cli", "containerd.io"]
                 )
         elif isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(["moby-engine", "moby-cli"])
+            if self.node.os.information.version >= "4.0.0":
+                # moby-cli not available on Azure Linux 4.0
+                self.node.os.install_packages(["moby-engine"])
+            else:
+                self.node.os.install_packages(["moby-engine", "moby-cli"])
         elif isinstance(self.node.os, Suse) or isinstance(self.node.os, Fedora):
             self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, BSD):
