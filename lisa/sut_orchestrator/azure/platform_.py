@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import re
+import subprocess
 import sys
 import threading
 from copy import deepcopy
@@ -236,6 +237,7 @@ KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
+KEY_LISA_SHA = "lisa_sha"
 ATTRIBUTE_FEATURES = "features"
 
 
@@ -517,9 +519,11 @@ class AzurePlatform(Platform):
             KEY_HARDWARE_PLATFORM: self._get_hardware_platform,
             platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
             platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
+            KEY_LISA_SHA: self._get_lisa_sha,
         }
 
         self._private_key_lock = threading.Lock()
+        self._lisa_sha_cache: Optional[str] = None
 
     @classmethod
     def type_name(cls) -> str:
@@ -868,6 +872,59 @@ class AzurePlatform(Platform):
             )
         except Exception as e:
             node.log.debug(f"error detecting MANA information: {e}")
+
+    def _get_lisa_sha(self, node: Node) -> str:
+        # The LISA SHA is a property of the local checkout, not the node.
+        # Cache it to avoid spawning a git process per node.
+        if self._lisa_sha_cache is not None:
+            return self._lisa_sha_cache
+
+        result: str = ""
+        try:
+            lisa_repo_path = Path(__file__).resolve().parent.parent.parent.parent
+            git_command = [
+                "git",
+                "-c",
+                f"safe.directory={str(lisa_repo_path)}",
+                "rev-parse",
+                "--short",
+                "HEAD",
+            ]
+            completed = subprocess.run(
+                git_command,
+                cwd=str(lisa_repo_path),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            result = completed.stdout.strip()
+        except FileNotFoundError as ex:
+            # git is not installed or not found in PATH
+            self._log.debug(
+                f"error on getting LISA SHA (FileNotFoundError): "
+                f"{type(ex).__name__}: {ex}"
+            )
+        except subprocess.TimeoutExpired as ex:
+            # git command timed out
+            self._log.debug(
+                f"error on getting LISA SHA (TimeoutExpired): "
+                f"{type(ex).__name__}: {ex}"
+            )
+        except subprocess.CalledProcessError as ex:
+            # git command failed (e.g., not a git repository)
+            self._log.debug(
+                f"error on getting LISA SHA (CalledProcessError): "
+                f"{type(ex).__name__}: {ex}"
+            )
+        except Exception as ex:
+            # unexpected error
+            self._log.debug(
+                f"unexpected error on getting LISA SHA ({type(ex).__name__}): {ex}"
+            )
+        self._lisa_sha_cache = result
+        return result
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
