@@ -227,8 +227,7 @@ class OperatingSystem:
     def name(self) -> str:
         return self.__class__.__name__
 
-    def capture_system_information(self, saved_path: Path) -> None:
-        ...
+    def capture_system_information(self, saved_path: Path) -> None: ...
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -738,8 +737,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         return package_name
 
 
-class BSD(Posix):
-    ...
+class BSD(Posix): ...
 
 
 class BMC(Posix):
@@ -760,8 +758,7 @@ class MacOS(Posix):
         return re.compile("^Darwin$")
 
 
-class Linux(Posix):
-    ...
+class Linux(Posix): ...
 
 
 class CoreOs(Linux):
@@ -1611,8 +1608,7 @@ class FreeBSD(BSD):
         )
 
 
-class OpenBSD(BSD):
-    ...
+class OpenBSD(BSD): ...
 
 
 @dataclass
@@ -2304,6 +2300,12 @@ class Suse(Linux):
 
     # zypper exit code 7: ZYPPER_EXIT_ERR_ZYPP — another zypper instance holds
     # the system management lock.  This is transient and retryable.
+    # Retries are tuned to balance resilience and test runtime:
+    # - In practice, zypper locks are typically released within a few seconds
+    #   once the competing process exits.
+    # - 5 attempts with a 10-second delay cap the worst-case wait at ~50s,
+    #   which is long enough for transient locks to clear without noticeably
+    #   extending overall LISA test runs.
     _ZYPPER_EXIT_LOCK = 7
     _ZYPPER_LOCK_MAX_RETRIES = 5
     _ZYPPER_LOCK_RETRY_DELAY = 10  # seconds
@@ -2359,17 +2361,9 @@ class Suse(Linux):
         if no_gpgcheck:
             cmd += " -G "
         cmd += f" {repo} {repo_name}"
-        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
-            cmd_result = self._node.execute(cmd=cmd, sudo=True)
-            if cmd_result.exit_code == self._ZYPPER_EXIT_LOCK:
-                self._log.debug(
-                    f"zypper lock contention (exit code 7), "
-                    f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
-                )
-                self.wait_running_process("zypper")
-                time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
-                continue
-            break
+        cmd_result = self._execute_zypper_with_lock_retry(
+            cmd, operation_name="add_repository", sudo=True
+        )
         if "already exists. Please use another alias." not in cmd_result.stdout:
             cmd_result.assert_exit_code(0, f"fail to add repo {repo}")
         else:
@@ -2385,6 +2379,46 @@ class Suse(Linux):
             repo="https://packages.microsoft.com/yumrepos/azurecore/",
             repo_name="packages-microsoft-com-azurecore",
         )
+
+    def _execute_zypper_with_lock_retry(
+        self,
+        cmd: str,
+        operation_name: str,
+        **execute_kwargs: Any,
+    ) -> ExecutableResult:
+        """Execute a zypper command, retrying on lock contention (exit code 7).
+
+        Args:
+            cmd: The zypper command string to execute.
+            operation_name: Human-readable label used in log/error messages.
+            **execute_kwargs: Additional keyword arguments forwarded to
+                ``node.execute`` (e.g. ``sudo``, ``shell``, ``timeout``).
+
+        Returns:
+            The ``ExecutableResult`` of the last successful (non-lock) execution.
+
+        Raises:
+            LisaException: If lock contention persists after all retries.
+        """
+        result: ExecutableResult
+        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+            result = self._node.execute(cmd, **execute_kwargs)
+            if result.exit_code != self._ZYPPER_EXIT_LOCK:
+                return result
+            self._log.debug(
+                f"zypper lock contention (exit code 7) during {operation_name}, "
+                f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
+            )
+            self.wait_running_process("zypper")
+            time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
+        if result.exit_code == self._ZYPPER_EXIT_LOCK:
+            raise LisaException(
+                f"zypper {operation_name} failed due to persistent lock contention "
+                f"(exit code 7) after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
+                f"with {self._ZYPPER_LOCK_RETRY_DELAY}s delay between retries. "
+                f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
+            )
+        return result
 
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
@@ -2419,19 +2453,13 @@ class Suse(Linux):
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
         self.wait_running_process("zypper")
-        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
-            uninstall_result = self._node.execute(
-                command, shell=True, sudo=True, timeout=timeout
-            )
-            if uninstall_result.exit_code == self._ZYPPER_EXIT_LOCK:
-                self._log.debug(
-                    f"zypper lock contention (exit code 7), "
-                    f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
-                )
-                self.wait_running_process("zypper")
-                time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
-                continue
-            break
+        uninstall_result = self._execute_zypper_with_lock_retry(
+            command,
+            operation_name="uninstall",
+            shell=True,
+            sudo=True,
+            timeout=timeout,
+        )
         uninstall_result.assert_exit_code(
             expected_exit_code=0,
             message=f"Could not uninstall package(s): {remove_packages}",
@@ -2452,19 +2480,13 @@ class Suse(Linux):
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
         self.wait_running_process("zypper")
-        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
-            install_result = self._node.execute(
-                command, shell=True, sudo=True, timeout=timeout
-            )
-            if install_result.exit_code == self._ZYPPER_EXIT_LOCK:
-                self._log.debug(
-                    f"zypper lock contention (exit code 7), "
-                    f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
-                )
-                self.wait_running_process("zypper")
-                time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
-                continue
-            break
+        install_result = self._execute_zypper_with_lock_retry(
+            command,
+            operation_name="install",
+            shell=True,
+            sudo=True,
+            timeout=timeout,
+        )
 
         # zypper exit codes that indicate dependency/resolution issues:
         # 1: ZYPPER_EXIT_ERR_BUG - Unexpected situation
