@@ -2437,13 +2437,15 @@ class AzurePlatform(Platform):
         core_count = node.capability.core_count
         original_disk_count = node.capability.disk.data_disk_count
         
-        # Cap disk count at 9 if core count exceeds 9
-        disk_count = min(core_count, 20)
+        # Use the pipeline-requested data_disk_count as the max cap.
+        # actual disk count = min(core_count, requested_disk_count)
+        disk_count = min(core_count, original_disk_count)
         
         # Log the change for debugging
         self._log.info(
             f"Modifying data disk count from {original_disk_count} to {disk_count} "
-            f"(core count: {core_count}, capped at 9 for VM size {azure_node_runbook.vm_size})"
+            f"(core count: {core_count}, pipeline requested: {original_disk_count} "
+            f"for VM size {azure_node_runbook.vm_size})"
         )
         
         for _ in range(disk_count):
