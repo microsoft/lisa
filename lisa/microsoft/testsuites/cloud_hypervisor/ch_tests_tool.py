@@ -106,6 +106,8 @@ class CloudHypervisorTests(Tool):
     perf_block_policy: str = "block_*_MiBps=buffered, block_*_IOPS=direct"
     perf_read_cache_policy: str = "hot"
     perf_mtu: int = 1500
+    perf_fixed_cpu_freq_khz: int = 2100000
+    perf_taskset_cpu_list: str = "0-7"
 
     # Reduce first-run variance by waiting for the guest OS to settle
     # (cloud-init/systemd background work) before running performance metrics.
@@ -561,10 +563,10 @@ class CloudHypervisorTests(Tool):
             safe_tc = self._sanitize_name(testcase)
             test_name = f"ch_metrics_{safe_tc}_{hypervisor}"
 
-            # Build NUMA prefix for perf-stable profile (metrics tests only)
-            numa_cmd = ""
+            # Build perf-stable launcher prefix for metrics tests only.
+            perf_cmd = ""
             if self.perf_stable_enabled:
-                numa_cmd = self._get_numa_prefix()
+                perf_cmd = self._get_perf_cmd_prefix()
 
             try:
                 result = self._run_with_enhanced_diagnostics(
@@ -572,7 +574,7 @@ class CloudHypervisorTests(Tool):
                     timeout=cmd_timeout,
                     log_path=log_path,
                     test_name=test_name,
-                    numa_cmd=numa_cmd,
+                    numa_cmd=perf_cmd,
                 )
             finally:
                 self._copy_back_artifacts(log_path, test_name)
@@ -614,13 +616,13 @@ class CloudHypervisorTests(Tool):
         # cold start effects (ARP/route cache, initial softirq scheduling).
         _ = testcase
         warmup_seconds = 8
-        numa_prefix = self._get_numa_prefix()
+        perf_prefix = self._get_perf_cmd_prefix()
 
         has_nc = self.node.execute("command -v nc", shell=True).exit_code == 0
         if has_nc:
             nc_sleep = self.NC_BIND_SLEEP_SECONDS
             warmup_cmd = (
-                f"{numa_prefix} bash -lc '"
+                f"{perf_prefix} bash -lc '"
                 "port=$((20000 + RANDOM % 20000)); "
                 'NC_FLAGS=""; '
                 'if nc -h 2>&1 | grep -q -- " -N"; then NC_FLAGS="-N"; '
@@ -643,7 +645,7 @@ class CloudHypervisorTests(Tool):
             )
         else:
             self.node.execute(
-                f"{numa_prefix} timeout {warmup_seconds} "
+                f"{perf_prefix} timeout {warmup_seconds} "
                 "ping -c 40 -i 0.02 127.0.0.1 || true",
                 shell=True,
                 sudo=True,
@@ -1738,6 +1740,8 @@ exit $ec
             "perf_block_policy": self.perf_block_policy,
             "perf_read_cache_policy": self.perf_read_cache_policy,
             "perf_mtu": self.perf_mtu,
+            "perf_fixed_cpu_freq_khz": self.perf_fixed_cpu_freq_khz,
+            "perf_taskset_cpu_list": self.perf_taskset_cpu_list,
         }
 
         self._log.info("=== PERF-STABLE PROFILE ENABLED ===")
@@ -1770,6 +1774,19 @@ exit $ec
             shell=True,
             sudo=True,
         )
+
+        # Fix CPU frequency min/max to reduce frequency scaling noise.
+        if self.perf_fixed_cpu_freq_khz > 0:
+            self.node.execute(
+                "for c in /sys/devices/system/cpu/cpu*/cpufreq; do "
+                '[ -d "$c" ] || continue; '
+                f"echo {self.perf_fixed_cpu_freq_khz} | sudo tee $c/scaling_min_freq "
+                "|| true; "
+                f"echo {self.perf_fixed_cpu_freq_khz} | sudo tee $c/scaling_max_freq "
+                "|| true; done",
+                shell=True,
+                sudo=True,
+            )
 
         # Turbo → off (Intel + AMD)
         # Intel: /sys/devices/system/cpu/intel_pstate/no_turbo
@@ -1819,9 +1836,16 @@ exit $ec
             "echo '-- cpu governor (cpu0)'; "
             "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null "
             "|| echo 'unavailable'; "
+            "echo '-- cpu freq min/max (cpu0)'; "
+            "minf=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq "
+            "2>/dev/null || echo 'unavailable'); "
+            "maxf=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq "
+            "2>/dev/null || echo 'unavailable'); "
+            'echo "min=$minf max=$maxf"; '
             "echo '-- intel turbo (no_turbo)'; "
             "cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null "
             "|| echo 'unavailable'; "
+            f"echo '-- taskset cpu list'; echo '{self.perf_taskset_cpu_list}'; "
             "echo '-- amd boost'; "
             "cat /sys/devices/system/cpu/cpufreq/boost 2>/dev/null "
             "|| echo 'unavailable'; "
@@ -2139,7 +2163,7 @@ exit $ec
         if warmup_seconds <= 0:
             return
 
-        numa_prefix = self._get_numa_prefix()
+        perf_prefix = self._get_perf_cmd_prefix()
 
         # 1. Storage warmup: O_DIRECT reads to wake queues on the actual
         # metrics disk device (pmem vs nvme). If missing, skip warmup.
@@ -2167,7 +2191,7 @@ exit $ec
             warmup_cmd = (
                 f'if [ -b "{device}" ]; then '
                 f'echo "storage warmup on {device}"; '
-                f'timeout {warmup_seconds} {numa_prefix} dd if="{device}" '
+                f'timeout {warmup_seconds} {perf_prefix} dd if="{device}" '
                 f"of=/dev/null bs=1M iflag=direct count=20480 status=none || true; "
                 f"else echo 'storage warmup skipped (missing device) {device}'; fi"
             )
@@ -2185,7 +2209,7 @@ exit $ec
 
             # Robust warmup: timeout-wrapped pipeline + nc flags for clean exit
             self.node.execute(
-                f"{numa_prefix} bash -c '"
+                f"{perf_prefix} bash -c '"
                 'NC_FLAGS=""; '
                 'if nc -h 2>&1 | grep -q -- " -N"; then NC_FLAGS="-N"; '
                 'elif nc -h 2>&1 | grep -q -- " -q"; then NC_FLAGS="-q 0"; fi; '
@@ -2205,7 +2229,7 @@ exit $ec
         else:
             # Fallback: ping loopback
             self.node.execute(
-                f"{numa_prefix} timeout {warmup_seconds} "
+                f"{perf_prefix} timeout {warmup_seconds} "
                 f"ping -c 1000 -i 0.025 127.0.0.1 || true",
                 shell=True,
                 sudo=True,
@@ -2214,7 +2238,7 @@ exit $ec
 
         # 3. CPU/Memory warmup: dd to warm caches and memory subsystem
         self.node.execute(
-            f"{numa_prefix} timeout {warmup_seconds} "
+            f"{perf_prefix} timeout {warmup_seconds} "
             f"dd if=/dev/zero of=/dev/null bs=1M count=20480 status=none || true",
             shell=True,
             sudo=True,
@@ -2248,6 +2272,40 @@ exit $ec
 
         # Strict NUMA binding: pin both CPU and memory to selected node
         return f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
+
+    def _get_perf_cmd_prefix(self) -> str:
+        """
+        Get the combined perf-stable launcher prefix.
+
+        Returns:
+            Command prefix composed of taskset and numactl when enabled.
+
+        Raises:
+            LisaException: If a required perf-stable launcher tool is unavailable.
+        """
+        if not self.perf_stable_enabled:
+            return ""
+
+        prefixes: List[str] = []
+
+        taskset_cpu_list = self.perf_taskset_cpu_list.strip()
+        if taskset_cpu_list:
+            result = self.node.execute("command -v taskset", shell=True)
+            if result.exit_code != 0:
+                raise LisaException(
+                    "taskset is not available but perf_taskset_cpu_list is set. "
+                    "Install util-linux or clear perf_taskset_cpu_list."
+                )
+            prefixes.append(f"taskset -c {taskset_cpu_list}")
+
+        numa_prefix = self._get_numa_prefix()
+        if numa_prefix:
+            prefixes.append(numa_prefix)
+
+        if not prefixes:
+            return ""
+
+        return " ".join(prefixes)
 
 
 def extract_jsons(input_string: str) -> List[Any]:
