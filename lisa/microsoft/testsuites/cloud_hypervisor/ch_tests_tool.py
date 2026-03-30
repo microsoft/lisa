@@ -1335,9 +1335,23 @@ exit $ec
         This is called automatically after the tool is installed, ensuring
         the version is available for platform information hooks.
         """
-        from lisa.sut_orchestrator.platform_utils import get_vmm_version
+        from lisa.sut_orchestrator.platform_utils import (
+            KEY_VMM_VERSION,
+            get_vmm_version,
+        )
 
         try:
+            # Clear any previously cached UNKNOWN so detection is retried now
+            # that cloud-hypervisor has been installed.
+            extended_resources = getattr(
+                self.node.capability, "extended_resources", None
+            )
+            if (
+                extended_resources
+                and str(extended_resources.get(KEY_VMM_VERSION, "")).upper()
+                == "UNKNOWN"
+            ):
+                extended_resources.pop(KEY_VMM_VERSION)
             vmm_version = get_vmm_version(self.node)
             if vmm_version and vmm_version != "UNKNOWN":
                 self._log.info(f"Cloud-Hypervisor version detected: {vmm_version}")
