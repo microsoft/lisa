@@ -983,7 +983,6 @@ echo "[env] CH_IDLE_SECS=${{CH_IDLE_SECS:-600}}"
 echo "[env] CH_HANG_KILL_SECS=${{CH_HANG_KILL_SECS:-1800}}"
 echo "[env] CH_CHECK_INTERVAL=${{CH_CHECK_INTERVAL:-30}}"
 echo "[env] MIGRATABLE_VERSION=${{MIGRATABLE_VERSION:-not_set}}"
-test -x scripts/dev_cli.sh || {{ echo "[error] scripts/dev_cli.sh missing"; exit 98; }}
 
 # repo-local artifact names so LISA will collect them
 log_file="{test_name}.log"
