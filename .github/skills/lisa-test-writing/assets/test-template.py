@@ -2,17 +2,10 @@
 # Copy and modify for your test scenario.
 # Location: lisa/microsoft/testsuites/<feature_area>/<test_name>.py
 
-from pathlib import Path
-from typing import Any, Dict
 
-from assertpy import assert_that
 
 from lisa import (
-    LisaException,
-    Logger,
     Node,
-    RemoteNode,
-    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
