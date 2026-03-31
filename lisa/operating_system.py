@@ -2291,6 +2291,10 @@ class Suse(Linux):
     )
     # Warning: There are no enabled repositories defined.
     _no_repo_defined = re.compile("There are no enabled repositories defined.", re.M)
+    _rpm_lock_pattern = re.compile(
+        r"\.rpm\.lock|transaction lock|resource temporarily unavailable",
+        re.I | re.M,
+    )
 
     # 22.11.1-150600.3.9.1
     _suse_version_splitter_regex = re.compile(
@@ -2380,14 +2384,48 @@ class Suse(Linux):
                 if service.is_service_inactive("guestregister"):
                     break
                 time.sleep(1)
-        output = self._node.execute(
-            "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
+        output = self._execute_zypper_with_lock_retry(
+            "zypper --non-interactive --gpg-auto-import-keys refresh",
+            timeout=600,
         ).stdout
         if self._no_repo_defined.search(output):
             raise RepoNotExistException(
                 self._node.os,
                 "There are no enabled repositories defined in this image.",
             )
+
+    def _is_rpm_lock_error(self, result: ExecutableResult) -> bool:
+        output = f"{result.stdout}\n{result.stderr}"
+        return bool(self._rpm_lock_pattern.search(output))
+
+    def _execute_zypper_with_lock_retry(
+        self,
+        command: str,
+        timeout: int,
+        retry_count: int = 12,
+        retry_delay: int = 5,
+    ) -> ExecutableResult:
+        for attempt in range(1, retry_count + 1):
+            self.wait_running_process("zypper")
+            result = self._node.execute(
+                command,
+                shell=True,
+                sudo=True,
+                timeout=timeout,
+            )
+            if not self._is_rpm_lock_error(result):
+                return result
+
+            if attempt == retry_count:
+                return result
+
+            self._log.debug(
+                "Detected temporary RPM lock while running zypper. "
+                f"Retrying in {retry_delay}s ({attempt}/{retry_count})."
+            )
+            time.sleep(retry_delay)
+
+        raise LisaException("zypper lock retry loop should always return a result")
 
     def _uninstall_packages(
         self,
@@ -2402,9 +2440,9 @@ class Suse(Linux):
             command += " --no-gpg-checks "
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
-        self.wait_running_process("zypper")
-        uninstall_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+        uninstall_result = self._execute_zypper_with_lock_retry(
+            command,
+            timeout=timeout,
         )
         uninstall_result.assert_exit_code(
             expected_exit_code=0,
@@ -2425,9 +2463,9 @@ class Suse(Linux):
         if not signed:
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
-        self.wait_running_process("zypper")
-        install_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+        install_result = self._execute_zypper_with_lock_retry(
+            command,
+            timeout=timeout,
         )
 
         # zypper exit codes that indicate dependency/resolution issues:
@@ -2445,8 +2483,9 @@ class Suse(Linux):
             if not signed:
                 command_with_force += " --no-gpg-checks "
             command_with_force += f" in --force-resolution {' '.join(packages)}"
-            install_result = self._node.execute(
-                command_with_force, shell=True, sudo=True, timeout=timeout
+            install_result = self._execute_zypper_with_lock_retry(
+                command_with_force,
+                timeout=timeout,
             )
 
         if install_result.exit_code in (1, 4, 100):
@@ -2467,7 +2506,7 @@ class Suse(Linux):
         command = "zypper --non-interactive --gpg-auto-import-keys update "
         if packages:
             command += " ".join(packages)
-        self._node.execute(command, sudo=True, timeout=3600)
+        self._execute_zypper_with_lock_retry(command, timeout=3600)
 
     def _package_exists(self, package: str) -> bool:
         command = f"zypper search --installed-only --match-exact {package}"
