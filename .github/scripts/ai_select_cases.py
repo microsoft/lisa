@@ -17,6 +17,7 @@ import ast
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Callable, Dict, List, Set, Tuple
@@ -244,6 +245,67 @@ def _extract_changed_new_lines(diff: str) -> Dict[str, Set[int]]:
     return changed_lines_by_file
 
 
+def _candidate_git_base_refs() -> Tuple[str, ...]:
+    refs: List[str] = []
+    for env_name in ("PR_BASE_REF", "GITHUB_BASE_REF"):
+        base_ref = os.environ.get(env_name, "").strip()
+        if not base_ref:
+            continue
+        refs.extend([f"origin/{base_ref}", base_ref])
+
+    refs.extend(["origin/main", "main"])
+    return tuple(dict.fromkeys(refs))
+
+
+def _load_git_diff_for_path(repo_root: Path, changed_path: str) -> str:
+    for base_ref in _candidate_git_base_refs():
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "diff",
+                    "--unified=0",
+                    f"{base_ref}...HEAD",
+                    "--",
+                    changed_path,
+                ],
+                cwd=repo_root,
+                capture_output=True,
+                check=True,
+                text=True,
+            )
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            continue
+
+        if result.stdout.strip():
+            return result.stdout
+
+    return ""
+
+
+def _changed_lines_for_file(
+    repo_root: Path,
+    changed_path: str,
+    changed_lines_by_file: Dict[str, Set[int]],
+) -> Set[int]:
+    changed_lines = changed_lines_by_file.get(changed_path, set())
+    if changed_lines:
+        return changed_lines
+
+    fallback_diff = _load_git_diff_for_path(repo_root, changed_path)
+    if not fallback_diff:
+        return set()
+
+    fallback_changed_lines = _extract_changed_new_lines(fallback_diff).get(
+        changed_path,
+        set(),
+    )
+    if fallback_changed_lines:
+        print(f"Recovered diff context from git for {changed_path}")
+
+    return fallback_changed_lines
+
+
 def _extract_changed_named_classes(
     repo_root: Path,
     changed_files: str,
@@ -269,7 +331,11 @@ def _extract_changed_named_classes(
         except SyntaxError:
             continue
 
-        changed_lines = changed_lines_by_file.get(changed_path, set())
+        changed_lines = _changed_lines_for_file(
+            repo_root,
+            changed_path,
+            changed_lines_by_file,
+        )
         for node in tree.body:
             if not isinstance(node, ast.ClassDef):
                 continue
