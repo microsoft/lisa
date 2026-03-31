@@ -1093,9 +1093,7 @@ def prefer_lightweight_cases(
     priority_map = {name: priority for _, _, name, priority, _, _ in all_cases}
 
     if not _has_perf_change_signal(changed_files, diff):
-        non_perf_cases = [
-            name for name in validated if not _is_perf_case(name)
-        ]
+        non_perf_cases = [name for name in validated if not _is_perf_case(name)]
         if non_perf_cases and len(non_perf_cases) < len(validated):
             removed_perf = [name for name in validated if _is_perf_case(name)]
             print(f"Removing perf cases without perf change signal: {removed_perf}")
