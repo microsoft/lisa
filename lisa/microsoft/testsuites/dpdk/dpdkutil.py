@@ -23,10 +23,10 @@ from microsoft.testsuites.dpdk.common import (
     TarDownloader,
     TestpmdForwardMode,
     check_dpdk_support,
+    get_dpdk_default_source_version,
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
-    get_dpdk_default_source_version,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
