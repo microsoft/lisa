@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Type, Union
+from typing import Any, List, Optional, Type, Union, cast
 from unittest.case import TestCase
 
 from dataclasses_json import dataclass_json
@@ -19,6 +19,7 @@ from lisa.environment import (
 )
 from lisa.feature import Feature
 from lisa.platform_ import Platform, load_platform
+from lisa.sut_orchestrator.openvmm.schema import OpenVmmGuestNodeSchema
 from lisa.util import ResourceAwaitableException, plugin_manager
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook as generate_env_runbook
@@ -159,6 +160,43 @@ class PlatformTestCase(TestCase):
             "enabled=True, _original_nodes_requirement=None)",
             str(cm.exception),
         )
+
+    def test_platform_guests_are_loaded_as_typed_guest_schemas(self) -> None:
+        runbook = schema.load_by_type(
+            schema.Platform,
+            {
+                constants.TYPE: constants.PLATFORM_MOCK,
+                "guest_enabled": True,
+                "guests": [
+                    {
+                        constants.TYPE: "openvmm",
+                        "use_parent_capability": False,
+                        "username": "root",
+                        "password": "guest-password",
+                        "boot_mode": "uefi",
+                        "uefi": {"firmware_path": "/var/tmp/MSVM.fd"},
+                        "disk_img": "/var/tmp/ubuntu.img",
+                        "network": {
+                            "mode": "tap",
+                            "address_mode": "discover",
+                            "tap_name": "tap0",
+                            "bridge_name": "ovmbr0",
+                            "tap_host_cidr": "10.0.0.1/24",
+                            "forward_ssh_port": True,
+                            "forwarded_port": 60022,
+                        },
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(1, len(runbook.guests))
+        guest = cast(OpenVmmGuestNodeSchema, runbook.guests[0])
+        self.assertIsInstance(guest, OpenVmmGuestNodeSchema)
+        self.assertFalse(guest.use_parent_capability)
+        self.assertEqual("uefi", guest.boot_mode)
+        self.assertEqual("discover", guest.network.address_mode)
+        self.assertEqual("ovmbr0", guest.network.bridge_name)
 
     def test_prepared_env_success(self) -> None:
         platform = generate_platform()

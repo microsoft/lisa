@@ -14,6 +14,8 @@ Run tests on different platforms
 
 -  `Run on Linux and QEMU <#run-on-linux-and-qemu>`__
 
+-  `Run on Linux and OpenVMM <#run-on-linux-and-openvmm>`__
+
 -  `Run on AWS <#run-on-aws>`__
 
 -  `Run on WSL <#run-on-wsl>`__
@@ -370,6 +372,70 @@ For CBL-Mariner:
    .. code:: bash
 
       ./lisa.sh  -r ./microsoft/runbook/qemu/CBL-Mariner.yml -v "admin_private_key_file:<private key file>" -v "qcow2:<qcow2 file>"
+
+Run on Linux and OpenVMM
+------------------------
+
+OpenVMM should be used as an L2 guest layer on top of an existing L1 host.
+OpenVMM is responsible only for guest lifecycle inside that host. The parent
+platform remains responsible for creating or connecting to the host node.
+
+The recommended flow is:
+
+1. Use a parent platform to create or connect to the L1 host.
+2. Use the ``openvmm_installer`` transformer in the
+   ``environment_connected`` phase to install OpenVMM on that host.
+3. Enable guest nodes and define an ``openvmm`` guest entry under the platform
+   ``guests`` list.
+
+OpenVMM itself is not tied to Azure. Any platform that can provide a connected
+Linux host node and supports guest-node orchestration can host OpenVMM guests.
+The checked-in sample currently uses Azure as one concrete host-platform
+example.
+
+Phase 1 guest support is intentionally narrow:
+
+1. Linux direct boot only.
+2. Classical host-side OpenVMM only. OpenHCL and paravisor flows are not included.
+3. A single guest NIC only.
+4. SSH reachability is expected either through a directly reachable guest IP or
+   through a host-side TCP forward.
+
+The recommended setup is a tap-backed guest NIC with an explicit guest IP and a
+forwarded host SSH port. A concrete Azure-hosted sample is available at
+:code:`lisa/microsoft/runbook/openvmm/openvmm-azure-smoke.yml`.
+
+Required guest inputs:
+
+* OpenVMM binary path on the host, or an installer transformer that builds it.
+* ELF kernel path for Linux direct boot.
+* Optional initrd path.
+* Guest disk image.
+* Guest SSH credential.
+* Kernel command line with a serial console, for example
+  :code:`console=ttyS0 root=/dev/vda2 rootfstype=ext4 rw`.
+* A tap device already configured on the host.
+* A guest IP address that the host can route to over that tap network.
+
+Run LISA with the Azure-hosted sample and override the host and guest values:
+
+.. code:: bash
+
+      ./lisa.sh -r ./lisa/microsoft/runbook/openvmm/openvmm-azure-smoke.yml \
+       -v "subscription_id:<azure subscription id>" \
+       -v "marketplace_image:<azure marketplace image>" \
+       -v "vm_size:<azure vm size>" \
+       -v "host_admin_private_key_file:<azure host private key>" \
+       -v "guest_admin_private_key_file:<guest private key>" \
+       -v "kernel_path:<guest kernel path>" \
+       -v "initrd_path:<guest initrd path>" \
+       -v "disk_img_path:<guest disk image path>" \
+       -v "guest_address:<guest ip on tap network>" \
+       -v "tap_name:<tap device name>" \
+       -v "forwarded_port:60022"
+
+If the kernel, initrd, or disk already live on the host, mark the
+matching variables so LISA does not copy them from the client machine.
 
 Run on AWS
 ------------

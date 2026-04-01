@@ -13,6 +13,10 @@ from lisa.notifier import _notifiers, flush_notifications, register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RunnerResult
 from lisa.runners.lisa_runner import LisaRunner
+from lisa.sut_orchestrator.openvmm.schema import (
+    OpenVmmGuestNodeSchema,
+    OpenVmmKernelSchema,
+)
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.util.parallel import Task
 from selftests import test_platform, test_testsuite
@@ -25,10 +29,19 @@ def generate_runner(
     times: int = 1,
     retry: int = 0,
     platform_schema: Optional[test_platform.MockPlatformSchema] = None,
+    guest_enabled: bool = False,
 ) -> LisaRunner:
     platform_runbook = schema.Platform(
         type=constants.PLATFORM_MOCK, admin_password="do-not-use"
     )
+    if guest_enabled:
+        platform_runbook.guest_enabled = True
+        platform_runbook.guests = [
+            OpenVmmGuestNodeSchema(
+                use_parent_capability=False,
+                kernel=OpenVmmKernelSchema(path="/var/tmp/vmlinuz"),
+            )
+        ]
     if platform_schema:
         platform_runbook.extended_schemas = {
             constants.PLATFORM_MOCK: platform_schema.to_dict()  # type:ignore
@@ -89,6 +102,60 @@ class RunnerTestCase(TestCase):
             expected_message=["", "", ""],
             test_results=test_results,
         )
+
+    def test_guest_enabled_deployed_environment_initializes_before_run(self) -> None:
+        test_testsuite.generate_cases_metadata()
+        runner = generate_runner(guest_enabled=True)
+        runner.initialize()
+
+        environment = runner.environments[0]
+        runner.platform.prepare_environment(environment)
+        runner.platform.deploy_environment(environment)
+
+        task = runner._dispatch_test_result(environment, [runner.test_results[0]])
+
+        assert task is not None
+        self.assertIsInstance(task, Task)
+        self.assertIn("_initialize_environment_task", str(task))
+
+    def test_guest_enabled_connected_environment_matches_deployed_tests(self) -> None:
+        test_testsuite.generate_cases_metadata()
+        runner = generate_runner(guest_enabled=True)
+        runner.initialize()
+
+        environment = runner.environments[0]
+        runner.platform.prepare_environment(environment)
+        runner.platform.deploy_environment(environment)
+        environment.status = EnvironmentStatus.Connected
+
+        runnable_results = runner._get_runnable_test_results(
+            test_results=runner.test_results,
+            environment_status=EnvironmentStatus.Connected,
+            environment=environment,
+        )
+
+        self.assertGreater(len(runnable_results), 0)
+
+    def test_guest_enabled_initialize_task_initializes_guest_nodes(self) -> None:
+        test_testsuite.generate_cases_metadata()
+        runner = generate_runner(guest_enabled=True)
+        runner.initialize()
+
+        environment = runner.environments[0]
+        runner.platform.prepare_environment(environment)
+        runner.platform.deploy_environment(environment)
+
+        guest_node = environment.get_guest_environment().default_node
+        initialized = {"called": False}
+
+        def fake_initialize() -> None:
+            initialized["called"] = True
+
+        guest_node.initialize = fake_initialize  # type: ignore[method-assign]
+
+        runner._initialize_environment_task(environment, [runner.test_results[0]])
+
+        self.assertTrue(initialized["called"])
 
     def test_merge_req(self) -> None:
         # each test case will create an environment candidate.

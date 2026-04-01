@@ -73,6 +73,9 @@ if platform.system() == "Linux":
     except ModuleNotFoundError as e:
         print(f"libvirt package is not installed. [{e}]")
 
+import lisa.sut_orchestrator.openvmm.node  # noqa: F401
+import lisa.sut_orchestrator.openvmm.transformers  # noqa: F401
+
 # Hyper-V platform
 import lisa.sut_orchestrator.hyperv.platform_  # noqa: F401
 
