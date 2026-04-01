@@ -19,6 +19,7 @@ from lisa import (
 )
 from lisa.base_tools.uname import Uname
 from lisa.features import Disk
+from lisa.features.security_profile import CvmDisabled
 from lisa.features.virtualization import HyperVHostType
 from lisa.operating_system import (
     BSD,
@@ -727,6 +728,9 @@ class AzureImageStandard(TestSuite):
         This test will check that kvp daemon is installed. This is an optional
         requirement for Debian based distros.
 
+        KVP daemon is not supported / disabled on CVMs (SNP/TDX) to restrict
+        host/guest interaction to minimize attack surface.
+
         Steps:
         1. Verify that list of running process matching name of kvp daemon
         has length greater than zero.
@@ -734,7 +738,7 @@ class AzureImageStandard(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_platform_type=[AZURE, READY, HYPERV],
-            supported_features=[HyperVHostType()],
+            supported_features=[HyperVHostType(), CvmDisabled()],
         ),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
