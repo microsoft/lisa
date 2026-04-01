@@ -3,7 +3,6 @@
 # Location: lisa/microsoft/testsuites/<feature_area>/<test_name>.py
 
 
-
 from lisa import (
     Node,
     TestCaseMetadata,
