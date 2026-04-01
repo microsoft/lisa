@@ -126,7 +126,7 @@ class Iptables(Tool):
         self.run("-P INPUT ACCEPT", shell=True, sudo=True, force_run=True)
         self.run("-P OUTPUT ACCEPT", shell=True, sudo=True, force_run=True)
         self.run("-P FORWARD ACCEPT", shell=True, sudo=True, force_run=True)
-        self.run("-P -F", shell=True, sudo=True, force_run=True)
+        self.run("-F", shell=True, sudo=True, force_run=True)
 
     def add_iptable_rules(
         self,

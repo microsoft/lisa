@@ -4,6 +4,7 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.case import TestCase
+from unittest.mock import MagicMock
 
 from azure.mgmt.compute.models import ResourceSku  # type: ignore
 
@@ -222,7 +223,6 @@ class AzurePrepareTestCase(TestCase):
             expected_cost=12,
             environment=env,
         )
-
     def test_partial_match(self) -> None:
         # the "A2" should match Standard_A2_v2, instead of Standard_A2m_v2. The
         # test data has two Standard_A2m_v2, so the test case can guarantee the
@@ -509,3 +509,46 @@ class AzurePrepareTestCase(TestCase):
                 self.assertLessEqual(0, node_cap.gpu_count)
 
         self.assertEqual(expected_cost, environment.cost)
+
+
+class AzurePlatformInfoTestCase(TestCase):
+    def setUp(self) -> None:
+        platform_runbook = schema.Platform()
+        self._platform = platform_.AzurePlatform(platform_runbook)
+        self._platform._azure_runbook = platform_.AzurePlatformSchema()
+
+    def test_get_node_information_skips_unsupported_security_profile(self) -> None:
+        node = MagicMock()
+        node.log = MagicMock()
+        node.is_connected = True
+        node.is_posix = True
+        node.capture_kernel_config = False
+        node.tools = {
+            platform_.Modinfo: MagicMock(get_version=MagicMock(return_value="")),
+            platform_.VmGeneration: MagicMock(
+                get_generation=MagicMock(return_value="2")
+            ),
+        }
+        node.features = MagicMock()
+        node.features.is_supported.return_value = False
+        node.capability.get_extended_runbook.return_value = None
+
+        information = self._platform._get_node_information(node)
+
+        self.assertEqual("2", information[platform_.KEY_VM_GENERATION])
+        self.assertNotIn("security_profile", information)
+
+    def test_get_kernel_and_wala_version_skip_unsupported_serial_console(self) -> None:
+        node = MagicMock()
+        node.log = MagicMock()
+        node.is_connected = False
+        node.is_posix = True
+        node.features = MagicMock()
+        node.features.is_supported.return_value = False
+
+        kernel_version = self._platform._get_kernel_version(node)
+        wala_version = self._platform._get_wala_version(node)
+
+        self.assertEqual("", kernel_version)
+        self.assertEqual("", wala_version)
+        node.features.__getitem__.assert_not_called()
