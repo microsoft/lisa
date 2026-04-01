@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Tuple, Type
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
+    DPDK_STABLE_GIT_REPO,
     DependencyInstaller,
     Downloader,
     DpdkMpRole,
@@ -20,6 +21,7 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_git_repo,
     is_url_for_tarball,
     unsupported_os_thrower,
+    get_dpdk_default_source_version,
 )
 from semver import VersionInfo
 
@@ -405,9 +407,16 @@ class DpdkTestpmd(Tool):
 
     @property
     def command(self) -> str:
-        if not self._testpmd_install_path:
-            return "testpmd"
-        return self._testpmd_install_path
+        # if dpdk is already installed, find the binary and check the version
+        if self.find_testpmd_binary(assert_on_fail=False):
+            pkgconfig = self.node.tools[Pkgconfig]
+            if pkgconfig.package_info_exists(self._dpdk_lib_name):
+                self._dpdk_version_info = pkgconfig.get_package_version(
+                    self._dpdk_lib_name
+                )
+            return self._testpmd_install_path
+        else:
+            return "dpdk-testpmd"
 
     _rte_target = "x86_64-native-linuxapp-gcc"
 
@@ -882,8 +891,11 @@ class DpdkTestpmd(Tool):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
-        self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        # this should be set by initialize_node_resources first,
+        # but we'll also set a default here to avoid issues if Testpmd
+        # is ever used without calling that function first.
+        self._dpdk_source = kwargs.pop("dpdk_source", DPDK_STABLE_GIT_REPO)
+        self._dpdk_branch = kwargs.pop("dpdk_branch", get_dpdk_default_source_version())
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""

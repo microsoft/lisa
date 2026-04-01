@@ -26,6 +26,7 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
+    get_dpdk_default_source_version,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
@@ -55,7 +56,7 @@ from lisa.base_tools.uname import Uname
 from lisa.executable import Process
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import Debian, Fedora, OperatingSystem, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
     Cp,
@@ -128,11 +129,9 @@ class DpdkTestResources:
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
-    # if mana is present, force a source build of 24.11
-    # if no other source was provided.
+    # if mana is present, force a source build from DPDK_STABLE if none is set.
     if node.nics.is_mana_device_present():
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v24.11")
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
@@ -140,7 +139,6 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # user. 20.11 is the latest dpdk version for 18.04.
     elif isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
 def get_rdma_core_installer(
@@ -512,11 +510,12 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     test_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
-    _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
-
-    dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
-    dpdk_branch = variables.get("dpdk_branch", "")
+    # Set dpdk source defaults for supported distros if none is set by the user.
+    # This must be set ahead of setting the default for rdma-core since the default
+    # for one is picked based on the other.
+    dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+    dpdk_branch = variables.get("dpdk_branch", get_dpdk_default_source_version(node))
     rdma_source = variables.get("rdma_source", "")
     rdma_branch = variables.get("rdma_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)

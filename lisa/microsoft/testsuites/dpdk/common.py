@@ -15,7 +15,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Oracle, Posix, Suse, Ubuntu
 from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
-from lisa.util import UnsupportedDistroException
+from lisa.util import UnsupportedDistroException, parse_version
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 
@@ -505,3 +505,53 @@ class TestpmdForwardMode(str, Enum):
     TX_ONLY = "txonly"
     RX_ONLY = "rxonly"
     FIVE_TUPLE_SWAP = "5tswap"
+
+
+_dpdk_default_source_dict = {
+    Ubuntu: {
+        "20.4.0": "v23.11.0",
+        "22.4.0": "v24.11.0",
+        "24.4.0": "v24.11.0",
+        "25.11.0": "v25.11.0",
+        "26.4.0": "v25.11.0",
+    },
+    Debian: {
+        "10.0.0": "v22.11.0",
+        "11.0.0": "v24.11.0",
+        "12.0.0": "v24.11.0",
+        "13.0.0": "v25.11.0",
+    },
+    # Note: 'fedora' is a bit of a misnomer,
+    #        redhat/centos/alma verisons all inherit from the parent class 'fedora'
+    #        but there are no actual fedora project marketplace images.
+    Fedora: {
+        "8.6.0": "v24.11.0",
+        "9.0.0": "v25.11.0",
+    },
+}
+
+
+def get_dpdk_default_source_version(node: Node) -> str:
+    # match major.minor os versions for supported distros
+    # to lkg dpdk versions for the source installation.
+    # Versions are evaluated at >= for the os version.
+
+    os_version = node.os.information.version
+    os_match = _dpdk_default_source_dict.get(type(node.os), None)
+    if os_match is None:
+        raise UnsupportedDistroException(
+            f"Unsupported distro {type(node.os)}, cannot determine "
+            "default DPDK source version for testpmd."
+        )
+    for version_threshold, dpdk_version in os_match.items():
+        if (
+            os_version >= version_threshold
+            and os_version.major == parse_version(version_threshold).major
+        ):
+            return dpdk_version
+        # if we get here, the os version is too old to have a supported dpdk version
+    raise UnsupportedDistroException(
+        f"Unsupported distro version {os_version} for {type(node.os)}. "
+        "Use a version >= the following versions: "
+        f"{', '.join(os_match.keys())}"
+    )
