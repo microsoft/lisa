@@ -521,10 +521,11 @@ _dpdk_default_source_dict = {
         "12.0.0": "v24.11.0",
         "13.0.0": "v25.11.0",
     },
-    # Note: 'fedora' is a bit of a misnomer,
-    #        redhat/centos/alma verisons all inherit from the parent class 'fedora'
-    #        but there are no actual fedora project marketplace images.
     "Redhat": {
+        "8.6.0": "v24.11.0",
+        "9.0.0": "v25.11.0",
+    },
+    "CentOs": {
         "8.6.0": "v24.11.0",
         "9.0.0": "v25.11.0",
     },
