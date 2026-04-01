@@ -18,10 +18,10 @@ from microsoft.testsuites.dpdk.common import (
     Pmd,
     TarDownloader,
     get_debian_backport_repo_args,
+    get_dpdk_default_source_version,
     is_url_for_git_repo,
     is_url_for_tarball,
     unsupported_os_thrower,
-    get_dpdk_default_source_version,
 )
 from semver import VersionInfo
 
@@ -895,7 +895,9 @@ class DpdkTestpmd(Tool):
         # but we'll also set a default here to avoid issues if Testpmd
         # is ever used without calling that function first.
         self._dpdk_source = kwargs.pop("dpdk_source", DPDK_STABLE_GIT_REPO)
-        self._dpdk_branch = kwargs.pop("dpdk_branch", get_dpdk_default_source_version())
+        self._dpdk_branch = kwargs.pop(
+            "dpdk_branch", get_dpdk_default_source_version(self.node)
+        )
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""

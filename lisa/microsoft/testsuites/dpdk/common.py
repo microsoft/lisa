@@ -508,14 +508,14 @@ class TestpmdForwardMode(str, Enum):
 
 
 _dpdk_default_source_dict = {
-    Ubuntu: {
+    "Ubuntu": {
         "20.4.0": "v23.11.0",
         "22.4.0": "v24.11.0",
         "24.4.0": "v24.11.0",
-        "25.11.0": "v25.11.0",
+        "25.4.0": "v25.11.0",
         "26.4.0": "v25.11.0",
     },
-    Debian: {
+    "Debian": {
         "10.0.0": "v22.11.0",
         "11.0.0": "v24.11.0",
         "12.0.0": "v24.11.0",
@@ -524,7 +524,7 @@ _dpdk_default_source_dict = {
     # Note: 'fedora' is a bit of a misnomer,
     #        redhat/centos/alma verisons all inherit from the parent class 'fedora'
     #        but there are no actual fedora project marketplace images.
-    Fedora: {
+    "Redhat": {
         "8.6.0": "v24.11.0",
         "9.0.0": "v25.11.0",
     },
@@ -537,11 +537,12 @@ def get_dpdk_default_source_version(node: Node) -> str:
     # Versions are evaluated at >= for the os version.
 
     os_version = node.os.information.version
-    os_match = _dpdk_default_source_dict.get(type(node.os), None)
+    os_match = _dpdk_default_source_dict.get(node.os.name, None)
     if os_match is None:
         raise UnsupportedDistroException(
-            f"Unsupported distro {type(node.os)}, cannot determine "
-            "default DPDK source version for testpmd."
+            node.os,
+            f"Unsupported distro {node.os.name}, cannot determine "
+            "default DPDK source version for testpmd.",
         )
     for version_threshold, dpdk_version in os_match.items():
         if (
@@ -551,7 +552,8 @@ def get_dpdk_default_source_version(node: Node) -> str:
             return dpdk_version
         # if we get here, the os version is too old to have a supported dpdk version
     raise UnsupportedDistroException(
-        f"Unsupported distro version {os_version} for {type(node.os)}. "
+        node.os,
+        f"Unsupported distro version {str(os_version)} for {node.os.name}. "
         "Use a version >= the following versions: "
-        f"{', '.join(os_match.keys())}"
+        f"{', '.join(os_match.keys())}",
     )
