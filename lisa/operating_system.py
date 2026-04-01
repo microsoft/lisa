@@ -2302,17 +2302,28 @@ class Suse(Linux):
     )
     _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
-    # zypper exit code 7: ZYPPER_EXIT_ERR_ZYPP — another zypper instance holds
-    # the system management lock.  This is transient and retryable.
+    # Zypper lock contention can manifest in two ways:
+    #   1. Exit code 7 (ZYPPER_EXIT_ERR_ZYPP) — another zypper instance holds
+    #      the system management lock.
+    #   2. Exit code 8 (ZYPPER_EXIT_ERR_COMMIT) — zypper resolved packages but
+    #      the RPM transaction failed because another process holds
+    #      /usr/lib/sysimage/rpm/.rpm.lock. The stdout will contain
+    #      "can't create transaction lock on ...rpm.lock".
+    # Both conditions are transient and retryable.
     # Retries are tuned to balance resilience and test runtime:
-    # - In practice, zypper locks are typically released within a few seconds
+    # - In practice, locks are typically released within a few seconds
     #   once the competing process exits.
     # - 5 attempts with a 10-second delay cap the worst-case wait at ~50s,
     #   which is long enough for transient locks to clear without noticeably
     #   extending overall LISA test runs.
     _ZYPPER_EXIT_LOCK = 7
+    _ZYPPER_EXIT_COMMIT = 8
     _ZYPPER_LOCK_MAX_RETRIES = 5
     _ZYPPER_LOCK_RETRY_DELAY = 10  # seconds
+    _rpm_lock_pattern = re.compile(
+        r"can't create transaction lock on.*\.rpm\.lock",
+        re.I,
+    )
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -2384,13 +2395,32 @@ class Suse(Linux):
             repo_name="packages-microsoft-com-azurecore",
         )
 
+    def _is_zypper_lock_error(self, result: ExecutableResult) -> bool:
+        """Check if a zypper result indicates lock contention.
+
+        Detects two lock scenarios:
+        - Exit code 7: zypper-level lock (another zypper instance running).
+        - Exit code 8 with RPM lock message: zypper resolved dependencies but
+          the RPM transaction failed on /usr/lib/sysimage/rpm/.rpm.lock.
+        """
+        if result.exit_code == self._ZYPPER_EXIT_LOCK:
+            return True
+        if result.exit_code == self._ZYPPER_EXIT_COMMIT:
+            output = f"{result.stdout}\n{result.stderr}"
+            if self._rpm_lock_pattern.search(output):
+                return True
+        return False
+
     def _execute_zypper_with_lock_retry(
         self,
         cmd: str,
         operation_name: str,
         **execute_kwargs: Any,
     ) -> ExecutableResult:
-        """Execute a zypper command, retrying on lock contention (exit code 7).
+        """Execute a zypper command, retrying on lock contention.
+
+        Retries on zypper exit code 7 (zypper lock) and exit code 8 when
+        the RPM transaction lock (.rpm.lock) is held by another process.
 
         Args:
             cmd: The zypper command string to execute.
@@ -2408,16 +2438,18 @@ class Suse(Linux):
         for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
             self.wait_running_process("zypper")
             result = self._node.execute(cmd, **execute_kwargs)
-            if result.exit_code != self._ZYPPER_EXIT_LOCK:
+            if not self._is_zypper_lock_error(result):
                 return result
             self._log.warning(
-                f"zypper lock contention (exit code 7) during {operation_name}, "
+                f"zypper lock contention (exit code {result.exit_code}) "
+                f"during {operation_name}, "
                 f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
             )
             time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
         raise LisaException(
             f"zypper {operation_name} failed due to persistent lock contention "
-            f"(exit code 7) after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
+            f"(exit code {result.exit_code}) "
+            f"after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
             f"with {self._ZYPPER_LOCK_RETRY_DELAY}s delay between retries. "
             f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
         )
