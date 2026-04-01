@@ -2406,23 +2406,21 @@ class Suse(Linux):
         """
         result: ExecutableResult
         for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+            self.wait_running_process("zypper")
             result = self._node.execute(cmd, **execute_kwargs)
             if result.exit_code != self._ZYPPER_EXIT_LOCK:
                 return result
-            self._log.debug(
+            self._log.warning(
                 f"zypper lock contention (exit code 7) during {operation_name}, "
                 f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
             )
-            self.wait_running_process("zypper")
             time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
-        if result.exit_code == self._ZYPPER_EXIT_LOCK:
-            raise LisaException(
-                f"zypper {operation_name} failed due to persistent lock contention "
-                f"(exit code 7) after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
-                f"with {self._ZYPPER_LOCK_RETRY_DELAY}s delay between retries. "
-                f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
-            )
-        return result
+        raise LisaException(
+            f"zypper {operation_name} failed due to persistent lock contention "
+            f"(exit code 7) after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
+            f"with {self._ZYPPER_LOCK_RETRY_DELAY}s delay between retries. "
+            f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
+        )
 
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
@@ -2434,8 +2432,11 @@ class Suse(Linux):
                 if service.is_service_inactive("guestregister"):
                     break
                 time.sleep(1)
-        output = self._node.execute(
-            "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
+        output = self._execute_zypper_with_lock_retry(
+            "zypper --non-interactive --gpg-auto-import-keys refresh",
+            operation_name="refresh",
+            sudo=True,
+            timeout=600,
         ).stdout
         if self._no_repo_defined.search(output):
             raise RepoNotExistException(
@@ -2456,7 +2457,6 @@ class Suse(Linux):
             command += " --no-gpg-checks "
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
-        self.wait_running_process("zypper")
         uninstall_result = self._execute_zypper_with_lock_retry(
             command,
             operation_name="uninstall",
@@ -2483,7 +2483,6 @@ class Suse(Linux):
         if not signed:
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
-        self.wait_running_process("zypper")
         install_result = self._execute_zypper_with_lock_retry(
             command,
             operation_name="install",
@@ -2507,8 +2506,12 @@ class Suse(Linux):
             if not signed:
                 command_with_force += " --no-gpg-checks "
             command_with_force += f" in --force-resolution {' '.join(packages)}"
-            install_result = self._node.execute(
-                command_with_force, shell=True, sudo=True, timeout=timeout
+            install_result = self._execute_zypper_with_lock_retry(
+                command_with_force,
+                operation_name="install (force-resolution)",
+                shell=True,
+                sudo=True,
+                timeout=timeout,
             )
 
         if install_result.exit_code in (1, 4, 100):
@@ -2529,7 +2532,9 @@ class Suse(Linux):
         command = "zypper --non-interactive --gpg-auto-import-keys update "
         if packages:
             command += " ".join(packages)
-        self._node.execute(command, sudo=True, timeout=3600)
+        self._execute_zypper_with_lock_retry(
+            command, operation_name="update", sudo=True, timeout=3600
+        )
 
     def _package_exists(self, package: str) -> bool:
         command = f"zypper search --installed-only --match-exact {package}"
