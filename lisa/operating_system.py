@@ -2454,6 +2454,8 @@ class Suse(Linux):
                 f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
                 f"stdout: {install_result.stdout}, stderr: {install_result.stderr}"
             )
+        elif install_result.exit_code == 104:
+            raise MissingPackagesException(packages)
         elif install_result.exit_code == 0:
             self._log.debug(f"{packages} is/are installed successfully.")
         else:
