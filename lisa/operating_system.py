@@ -2302,6 +2302,29 @@ class Suse(Linux):
     )
     _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
+    # Zypper lock contention can manifest in two ways:
+    #   1. Exit code 7 (ZYPPER_EXIT_ERR_ZYPP) — another zypper instance holds
+    #      the system management lock.
+    #   2. Exit code 8 (ZYPPER_EXIT_ERR_COMMIT) — zypper resolved packages but
+    #      the RPM transaction failed because another process holds
+    #      /usr/lib/sysimage/rpm/.rpm.lock. The stdout will contain
+    #      "can't create transaction lock on ...rpm.lock".
+    # Both conditions are transient and retryable.
+    # Retries are tuned to balance resilience and test runtime:
+    # - In practice, locks are typically released within a few seconds
+    #   once the competing process exits.
+    # - 5 attempts with a 10-second delay cap the worst-case wait at ~50s,
+    #   which is long enough for transient locks to clear without noticeably
+    #   extending overall LISA test runs.
+    _ZYPPER_EXIT_LOCK = 7
+    _ZYPPER_EXIT_COMMIT = 8
+    _ZYPPER_LOCK_MAX_RETRIES = 5
+    _ZYPPER_LOCK_RETRY_DELAY = 10  # seconds
+    _rpm_lock_pattern = re.compile(
+        r"can't create transaction lock on.*\.rpm\.lock",
+        re.I,
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^SUSE|opensuse-leap$")
@@ -2353,7 +2376,9 @@ class Suse(Linux):
         if no_gpgcheck:
             cmd += " -G "
         cmd += f" {repo} {repo_name}"
-        cmd_result = self._node.execute(cmd=cmd, sudo=True)
+        cmd_result = self._execute_zypper_with_lock_retry(
+            cmd, operation_name="add_repository", sudo=True
+        )
         if "already exists. Please use another alias." not in cmd_result.stdout:
             cmd_result.assert_exit_code(0, f"fail to add repo {repo}")
         else:
@@ -2370,6 +2395,65 @@ class Suse(Linux):
             repo_name="packages-microsoft-com-azurecore",
         )
 
+    def _is_zypper_lock_error(self, result: ExecutableResult) -> bool:
+        """Check if a zypper result indicates lock contention.
+
+        Detects two lock scenarios:
+        - Exit code 7: zypper-level lock (another zypper instance running).
+        - Exit code 8 with RPM lock message: zypper resolved dependencies but
+          the RPM transaction failed on /usr/lib/sysimage/rpm/.rpm.lock.
+        """
+        if result.exit_code == self._ZYPPER_EXIT_LOCK:
+            return True
+        if result.exit_code == self._ZYPPER_EXIT_COMMIT:
+            output = f"{result.stdout}\n{result.stderr}"
+            if self._rpm_lock_pattern.search(output):
+                return True
+        return False
+
+    def _execute_zypper_with_lock_retry(
+        self,
+        cmd: str,
+        operation_name: str,
+        **execute_kwargs: Any,
+    ) -> ExecutableResult:
+        """Execute a zypper command, retrying on lock contention.
+
+        Retries on zypper exit code 7 (zypper lock) and exit code 8 when
+        the RPM transaction lock (.rpm.lock) is held by another process.
+
+        Args:
+            cmd: The zypper command string to execute.
+            operation_name: Human-readable label used in log/error messages.
+            **execute_kwargs: Additional keyword arguments forwarded to
+                ``node.execute`` (e.g. ``sudo``, ``shell``, ``timeout``).
+
+        Returns:
+            The ``ExecutableResult`` of the last successful (non-lock) execution.
+
+        Raises:
+            LisaException: If lock contention persists after all retries.
+        """
+        result: ExecutableResult
+        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+            self.wait_running_process("zypper")
+            result = self._node.execute(cmd, **execute_kwargs)
+            if not self._is_zypper_lock_error(result):
+                return result
+            self._log.warning(
+                f"zypper lock contention (exit code {result.exit_code}) "
+                f"during {operation_name}, "
+                f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
+            )
+            time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
+        raise LisaException(
+            f"zypper {operation_name} failed due to persistent lock contention "
+            f"(exit code {result.exit_code}) "
+            f"after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
+            f"with {self._ZYPPER_LOCK_RETRY_DELAY}s delay between retries. "
+            f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
+        )
+
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
         service = self._node.tools[Service]
@@ -2380,8 +2464,11 @@ class Suse(Linux):
                 if service.is_service_inactive("guestregister"):
                     break
                 time.sleep(1)
-        output = self._node.execute(
-            "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
+        output = self._execute_zypper_with_lock_retry(
+            "zypper --non-interactive --gpg-auto-import-keys refresh",
+            operation_name="refresh",
+            sudo=True,
+            timeout=600,
         ).stdout
         if self._no_repo_defined.search(output):
             raise RepoNotExistException(
@@ -2402,9 +2489,12 @@ class Suse(Linux):
             command += " --no-gpg-checks "
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
-        self.wait_running_process("zypper")
-        uninstall_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+        uninstall_result = self._execute_zypper_with_lock_retry(
+            command,
+            operation_name="uninstall",
+            shell=True,
+            sudo=True,
+            timeout=timeout,
         )
         uninstall_result.assert_exit_code(
             expected_exit_code=0,
@@ -2425,9 +2515,12 @@ class Suse(Linux):
         if not signed:
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
-        self.wait_running_process("zypper")
-        install_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+        install_result = self._execute_zypper_with_lock_retry(
+            command,
+            operation_name="install",
+            shell=True,
+            sudo=True,
+            timeout=timeout,
         )
 
         # zypper exit codes that indicate dependency/resolution issues:
@@ -2445,8 +2538,12 @@ class Suse(Linux):
             if not signed:
                 command_with_force += " --no-gpg-checks "
             command_with_force += f" in --force-resolution {' '.join(packages)}"
-            install_result = self._node.execute(
-                command_with_force, shell=True, sudo=True, timeout=timeout
+            install_result = self._execute_zypper_with_lock_retry(
+                command_with_force,
+                operation_name="install (force-resolution)",
+                shell=True,
+                sudo=True,
+                timeout=timeout,
             )
 
         if install_result.exit_code in (1, 4, 100):
@@ -2467,7 +2564,9 @@ class Suse(Linux):
         command = "zypper --non-interactive --gpg-auto-import-keys update "
         if packages:
             command += " ".join(packages)
-        self._node.execute(command, sudo=True, timeout=3600)
+        self._execute_zypper_with_lock_retry(
+            command, operation_name="update", sudo=True, timeout=3600
+        )
 
     def _package_exists(self, package: str) -> bool:
         command = f"zypper search --installed-only --match-exact {package}"
