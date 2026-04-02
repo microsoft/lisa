@@ -37,6 +37,7 @@ from lisa import (
 )
 from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
+from lisa.features.security_profile import CvmDisabled
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD, Posix, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
@@ -66,6 +67,9 @@ from lisa.util.shell import wait_tcp_port_ready
     description="""
     This test suite uses to verify accelerated network functionality.
     """,
+    requirement=simple_requirement(
+        supported_features=[CvmDisabled()],
+    ),
 )
 class Sriov(TestSuite):
     TIME_OUT = 300
