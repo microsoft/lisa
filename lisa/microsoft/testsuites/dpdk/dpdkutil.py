@@ -132,13 +132,6 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # if mana is present, force a source build from DPDK_STABLE if none is set.
     if node.nics.is_mana_device_present():
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-    # DPDK packages 17.11 which is EOL and doesn't have the
-    # net_vdev_netvsc pmd used for simple handling of hyper-v
-    # guests. Force stable source build on this platform.
-    # Default to 20.11 unless another version is provided by the
-    # user. 20.11 is the latest dpdk version for 18.04.
-    elif isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
-        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
 
 
 def get_rdma_core_installer(
@@ -629,8 +622,8 @@ def run_testpmd_concurrent(
     seconds: int,
     log: Logger,
     hotplug_sriov: bool = False,
-) -> Dict[DpdkTestResources, str]:
-    output: Dict[DpdkTestResources, str] = dict()
+) -> Dict[Tuple[DpdkTestResources, str], str]:
+    output: Dict[Tuple[DpdkTestResources, str], str] = dict()
 
     task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
     if hotplug_sriov:
@@ -669,8 +662,8 @@ def start_testpmd_concurrent(
     node_cmd_pairs: Dict[DpdkTestResources, List[str]],
     seconds: int,
     log: Logger,
-    output: Dict[DpdkTestResources, str],
-) -> TaskManager[Tuple[DpdkTestResources, str]]:
+    output: Dict[Tuple[DpdkTestResources, str], str],
+) -> TaskManager[Tuple[DpdkTestResources, str, str]]:
     command_pairs_as_tuples: List[Tuple[DpdkTestResources, str]] = []
     kits_and_commands = deque(node_cmd_pairs.items())
     for kit_and_commands in kits_and_commands:
@@ -678,14 +671,14 @@ def start_testpmd_concurrent(
         for command in commands:
             command_pairs_as_tuples.append((kit, command))
 
-    def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
-        output[result[0]] = result[1]
+    def _collect_dict_result(result: Tuple[DpdkTestResources, str, str]) -> None:
+        output[result[0], result[1]] = result[2]
 
     def _run_command_with_testkit(
         run_kit: Tuple[DpdkTestResources, str],
-    ) -> Tuple[DpdkTestResources, str]:
+    ) -> Tuple[DpdkTestResources, str, str]:
         testkit, cmd = run_kit
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
+        return (testkit, cmd, testkit.testpmd.run_for_n_seconds(cmd, seconds))
 
     task_manager = run_in_parallel_async(
         [partial(_run_command_with_testkit, x) for x in command_pairs_as_tuples],
