@@ -2523,10 +2523,12 @@ class Suse(Linux):
             timeout=timeout,
         )
 
-        # zypper exit codes that indicate dependency/resolution issues:
+        # zypper exit codes:
+        # 0: ZYPPER_EXIT_OK - Success
         # 1: ZYPPER_EXIT_ERR_BUG - Unexpected situation
-        # 4: ZYPPER_EXIT_INF_CAP_NOT_FOUND - Capability not found or dependency problem
+        # 4: ZYPPER_EXIT_ERR_ZYPP - Capability not found or dependency problem
         # 100: ZYPPER_EXIT_INF_UPDATE_NEEDED - Updates available
+        # 104: ZYPPER_EXIT_INF_CAP_NOT_FOUND - Requested package/capability not found
         # If installation failed due to dependency conflicts, retry with
         # --force-resolution to allow zypper to automatically resolve conflicts
         if install_result.exit_code in (1, 4, 100):
