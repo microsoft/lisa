@@ -1,0 +1,55 @@
+name: hyperv default
+include:
+  - path: ./tiers/tier.yml
+variable:
+  - name: keep_environment
+    value: "no"
+  - name: vhd_admin_username
+    value: "lisatest"
+  - name: vhd_admin_password
+    value: ""
+    is_secret: true
+  - name: vhd
+    value: ""
+  - name: hv_server_address
+    value: "localhost"
+  - name: hv_server_username
+    value: ""
+  - name: hv_server_password
+    value: ""
+    is_secret: true
+  - name: hyperv_generation
+    value: 2
+  - name: osdisk_size_in_gb
+    value: 30
+  - name: cores
+    value: 2
+  - name: memory_mb
+    value: 2048
+concurrency: 1
+notifier:
+  - type: html
+  - type: env_stats
+platform:
+  - type: hyperv
+    admin_username: $(vhd_admin_username)
+    admin_password: $(vhd_admin_password)
+    keep_environment: $(keep_environment)
+    hyperv:
+      source:
+        type: local
+        files:
+          - source: $(vhd)
+            unzip: true
+      servers:
+        - address: $(hv_server_address)
+          username: $(hv_server_username)
+          password: $(hv_server_password)
+    requirement:
+      core_count:
+        min: $(cores)
+      memory_mb:
+        min: $(memory_mb)
+      hyperv:
+        hyperv_generation: $(hyperv_generation)
+        osdisk_size_in_gb: $(osdisk_size_in_gb)
