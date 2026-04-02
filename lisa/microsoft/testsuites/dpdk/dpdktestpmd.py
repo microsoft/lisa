@@ -100,22 +100,6 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
 # declare package/tool dependencies for DPDK source installation
 DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
     requirements=[
-        OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Ubuntu)
-            and x.information.codename == "bionic",
-            packages=[
-                "build-essential",
-                "libmnl-dev",
-                "libelf-dev",
-                "libnuma-dev",
-                "dpkg-dev",
-                "pkg-config",
-                "python3-pip",
-                # 18.04 doesn't need linux-modules-extra-azure
-                # since it will never have MANA support
-            ],
-            stop_on_match=True,
-        ),
         # install linux-modules-extra-azure if it's available for mana_ib
         # older debian kernels won't have mana_ib packaged,
         # so skip the check on those kernels.
@@ -506,17 +490,7 @@ class DpdkTestpmd(Tool):
         include_flag = f'{include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
-        if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
-            if pmd != Pmd.FAILSAFE:
-                raise SkippedException(
-                    "Skipping non-failsafe tests on very old DPDK version: "
-                    f"{str(self.get_dpdk_version())}"
-                )
-            # use explicit net_failsafe for old versions before net_vdev_netvsc
-            pmd_name = "net_failsafe"
-            pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
-            return f"{include_flag} --vdev={pmd_name},{pmd_flags}"
-        elif pmd == Pmd.FAILSAFE:
+        if pmd == Pmd.FAILSAFE:
             if self.is_mana:
                 return (
                     f'--vdev="net_vdev_netvsc{vdev_id},mac={node_nic.mac_addr}"'
@@ -895,9 +869,12 @@ class DpdkTestpmd(Tool):
         # but we'll also set a default here to avoid issues if Testpmd
         # is ever used without calling that function first.
         self._dpdk_source = kwargs.pop("dpdk_source", DPDK_STABLE_GIT_REPO)
-        self._dpdk_branch = kwargs.pop(
-            "dpdk_branch", get_dpdk_default_source_version(self.node)
-        )
+        try:
+            self._dpdk_branch = kwargs.pop(
+                "dpdk_branch", get_dpdk_default_source_version(self.node)
+            )
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""

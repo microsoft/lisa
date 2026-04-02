@@ -289,7 +289,7 @@ def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
+_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0"]
 
 
 # see https://ubuntu.com/about/release-cycle
@@ -331,9 +331,8 @@ def check_dpdk_support(node: Node) -> None:
                 f"is_latest_or_prerelease? ({is_ubuntu_latest_or_prerelease(node.os)})"
                 f" is_lts_version? ({is_ubuntu_lts_version(node.os)})"
             )
-            # TODO: undo special casing for 18.04 when it's usage is less common
             supported = (
-                node.os.information.version == "18.4.0"
+                node.os.information.version > "18.4.0"
                 or is_ubuntu_latest_or_prerelease(node.os)
                 or is_ubuntu_lts_version(node.os)
             )
