@@ -914,22 +914,25 @@ class Ethtool(Tool):
 
     def get_device_cqe_stats(self, interface: str) -> Dict[str, int]:
         """
-        Run 'ethtool -S <interface>' and return only CQE-related counters.
+        Run 'ethtool -S <interface> | grep cqe' and return CQE-related counters.
         """
-        result = self.run(f"-S {interface}", force_run=True, shell=True)
+        result = self.node.execute(
+            f"ethtool -S {interface} | grep -i cqe",
+            shell=True,
+            force_run=True,
+        )
         if result.exit_code != 0:
             self._log.debug(
-                f"ethtool -S {interface} failed: {result.stdout}"
+                f"ethtool -S {interface} | grep cqe failed: {result.stdout}"
             )
             return {}
         cqe_stats: Dict[str, int] = {}
         for line in result.stdout.splitlines():
-            if "cqe" in line.lower():
-                stat_match = re.match(r"\s*(.+?):\s*(\d+)", line)
-                if stat_match:
-                    cqe_stats[stat_match.group(1).strip()] = int(
-                        stat_match.group(2)
-                    )
+            stat_match = re.match(r"\s*(.+?):\s*(\d+)", line)
+            if stat_match:
+                cqe_stats[stat_match.group(1).strip()] = int(
+                    stat_match.group(2)
+                )
         return cqe_stats
 
     def get_device_statistics(
