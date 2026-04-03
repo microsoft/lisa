@@ -34,6 +34,7 @@ from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
     Echo,
+    Ethtool,
     Fdisk,
     Fio,
     FIOResult,
@@ -435,6 +436,29 @@ def perf_ntttcp(  # noqa: C901
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
+
+        # Check CQE coalescing status on client and server VF NICs
+        client_ethtool = client.tools[Ethtool]
+        server_ethtool = server.tools[Ethtool]
+        client_cqe_frames = client_ethtool.get_device_cqe_coalescing(
+            client_nic_name
+        )
+        server_cqe_frames = server_ethtool.get_device_cqe_coalescing(
+            server_nic_name
+        )
+        client_cqe_on = client_cqe_frames is not None and client_cqe_frames > 1
+        server_cqe_on = server_cqe_frames is not None and server_cqe_frames > 1
+        client.log.info(
+            f"CQE coalescing on client NIC {client_nic_name}: "
+            f"{'ON' if client_cqe_on else 'OFF'} "
+            f"(rx-cqe-frames={client_cqe_frames})"
+        )
+        server.log.info(
+            f"CQE coalescing on server NIC {server_nic_name}: "
+            f"{'ON' if server_cqe_on else 'OFF'} "
+            f"(rx-cqe-frames={server_cqe_frames})"
+        )
+
         max_server_threads = 64
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
@@ -558,6 +582,24 @@ def perf_ntttcp(  # noqa: C901
                         f"Successfully completed ntttcp test for "
                         f"{test_thread} connections"
                     )
+
+                    # Log CQE coalescing stats if coalescing is enabled
+                    if client_cqe_on:
+                        cqe_stats = client_ethtool.get_device_cqe_stats(
+                            client_nic_name
+                        )
+                        client.log.info(
+                            f"CQE stats on client NIC {client_nic_name} "
+                            f"after {test_thread} connections: {cqe_stats}"
+                        )
+                    if server_cqe_on:
+                        cqe_stats = server_ethtool.get_device_cqe_stats(
+                            server_nic_name
+                        )
+                        server.log.info(
+                            f"CQE stats on server NIC {server_nic_name} "
+                            f"after {test_thread} connections: {cqe_stats}"
+                        )
 
                 except Exception as e:
                     # An error occurred during the test (timeout, process hang,
