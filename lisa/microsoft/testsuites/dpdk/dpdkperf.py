@@ -10,7 +10,6 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
-    verify_dpdk_send_receive_multi_txrx_queue,
 )
 
 from lisa import (
