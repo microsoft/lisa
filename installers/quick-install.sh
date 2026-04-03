@@ -10,6 +10,7 @@ PYTHON_VERSION="3.12"
 INSTALL_PATH="$HOME/lisa"
 BRANCH="main"
 USE_VENV="auto"
+NO_CLONE=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -38,6 +39,10 @@ while [[ $# -gt 0 ]]; do
             fi
             shift 2
             ;;
+        --no-clone)
+            NO_CLONE=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [OPTIONS]"
             echo "Options:"
@@ -47,6 +52,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --branch BRANCH       Git branch to clone (default: main)"
             echo "  --use-venv MODE       Use virtual environment: true, false, or auto (default: auto)"
             echo "                        auto: use venv on Ubuntu 24.04+ to avoid PEP 668"
+            echo "  --no-clone            Skip git clone, use existing code at install-path"
             echo "  --help               Show this help message"
             exit 0
             ;;
@@ -359,26 +365,36 @@ echo "  [OK] Dependencies installed"
 # Step 4: Clone and install LISA
 echo "[4/4] Installing LISA from GitHub..."
 
-NEEDS_CLONE=true
+if [ "$NO_CLONE" = true ]; then
+    echo "  Skipping clone (--no-clone), using existing code at $INSTALL_PATH"
+    if [ ! -f "$INSTALL_PATH/pyproject.toml" ]; then
+        echo "  [ERROR] No LISA code found at $INSTALL_PATH"
+        echo "  Expected file not found: $INSTALL_PATH/pyproject.toml"
+        echo "  Make sure --install-path points to an existing LISA checkout"
+        exit 1
+    fi
+else
+    NEEDS_CLONE=true
 
-if [ -d "$INSTALL_PATH" ]; then
-    echo "  Directory $INSTALL_PATH already exists, removing it..."
-    rm -rf "$INSTALL_PATH"
-    echo "  Cloning LISA repository..."
-    git clone --branch "$BRANCH" https://github.com/microsoft/lisa.git "$INSTALL_PATH" --quiet
-    NEEDS_CLONE=false
-fi
+    if [ -d "$INSTALL_PATH" ]; then
+        echo "  Directory $INSTALL_PATH already exists, removing it..."
+        rm -rf "$INSTALL_PATH"
+        echo "  Cloning LISA repository..."
+        git clone --branch "$BRANCH" https://github.com/microsoft/lisa.git "$INSTALL_PATH" --quiet
+        NEEDS_CLONE=false
+    fi
 
-if [ "$NEEDS_CLONE" = true ] && [ ! -d "$INSTALL_PATH" ]; then
-    echo "  Cloning LISA repository to $INSTALL_PATH..."
-    git clone --branch "$BRANCH" https://github.com/microsoft/lisa.git "$INSTALL_PATH" --quiet
-fi
+    if [ "$NEEDS_CLONE" = true ] && [ ! -d "$INSTALL_PATH" ]; then
+        echo "  Cloning LISA repository to $INSTALL_PATH..."
+        git clone --branch "$BRANCH" https://github.com/microsoft/lisa.git "$INSTALL_PATH" --quiet
+    fi
 
-# Verify clone was successful
-if [ ! -f "$INSTALL_PATH/pyproject.toml" ]; then
-    echo "  [ERROR] LISA repository clone failed or incomplete"
-    echo "  Expected file not found: $INSTALL_PATH/pyproject.toml"
-    exit 1
+    # Verify clone was successful
+    if [ ! -f "$INSTALL_PATH/pyproject.toml" ]; then
+        echo "  [ERROR] LISA repository clone failed or incomplete"
+        echo "  Expected file not found: $INSTALL_PATH/pyproject.toml"
+        exit 1
+    fi
 fi
 
 echo "  Installing LISA with Azure extensions in editable mode..."

@@ -1,0 +1,367 @@
+name: AI Test Case Selection
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'lisa/**'
+  # Manual trigger for testing
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  models: read
+
+# Cancel in-flight runs for the same PR, only keep the latest
+concurrency:
+  group: ai-test-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Step 1: AI selects which test cases to run ──
+  ai-select-tests:
+    name: AI Select Test Cases
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: ai-select-${{ github.event.pull_request.head.ref || github.ref }}
+      cancel-in-progress: true
+    outputs:
+      case_count: ${{ steps.select.outputs.case_count }}
+      case_names: ${{ steps.select.outputs.case_names }}
+      marketplace_image: ${{ steps.select.outputs.marketplace_image }}
+      pr_number: ${{ steps.get-pr.outputs.pr_number }}
+
+    steps:
+      - name: Check CI status
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="${{ github.event.pull_request.head.sha }}"
+          echo "Checking CI status for commit $SHA..."
+
+          # Wait up to 5 minutes for checks to appear, then verify
+          for i in $(seq 1 10); do
+            TOTAL=$(gh api /repos/${{ github.repository }}/commits/$SHA/check-runs \
+              --jq '[.check_runs[] | select(.name | test("flake8|pylint|mypy|shellcheck|docs|test|example"; "i"))] | length')
+            if [ "$TOTAL" -gt 0 ]; then
+              break
+            fi
+            echo "  No CI checks found yet, waiting 30s... (attempt $i/10)"
+            sleep 30
+          done
+
+          # Check for failures
+          FAILED=$(gh api /repos/${{ github.repository }}/commits/$SHA/check-runs \
+            --jq '[.check_runs[] | select(.name | test("flake8|pylint|mypy|shellcheck|docs|test|example"; "i")) | select(.conclusion == "failure")] | length')
+          if [ "$FAILED" -gt 0 ]; then
+            echo "CI has $FAILED failed checks, skipping AI test selection"
+            exit 1
+          fi
+
+          COMPLETED=$(gh api /repos/${{ github.repository }}/commits/$SHA/check-runs \
+            --jq '[.check_runs[] | select(.name | test("flake8|pylint|mypy|shellcheck|docs|test|example"; "i")) | select(.conclusion == "success")] | length')
+          echo "CI status: $COMPLETED/$TOTAL checks passed (no failures detected)"
+
+      - name: Get PR number
+        id: get-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Auto-detect PR number from current branch
+            PR_NUMBER=$(gh pr list --head "${{ github.ref_name }}" --json number --jq '.[0].number')
+          else
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          fi
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Could not determine PR number. Is there an open PR for this branch?"
+            exit 1
+          fi
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "PR number: $PR_NUMBER"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Get PR diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr diff ${{ steps.get-pr.outputs.pr_number }} --name-only > /tmp/changed_files.txt
+          gh pr diff ${{ steps.get-pr.outputs.pr_number }} > /tmp/pr_diff.txt
+          echo "Changed files:"
+          cat /tmp/changed_files.txt
+
+      - name: Run AI test case selector
+        id: select
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUNBOOK_OUTPUT: ai_selected_cases.yml
+        run: |
+          export PR_CHANGED_FILES=$(cat /tmp/changed_files.txt)
+          export PR_DIFF=$(head -c 30000 /tmp/pr_diff.txt)
+          python .github/scripts/ai_select_cases.py
+
+      - name: Upload runbook artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-selected-runbook
+          path: ai_selected_cases.yml
+          retention-days: 7
+
+  # ── Step 2: Run selected LISA test cases on Azure ──
+  run-lisa-tests:
+    name: Run LISA Tests
+    needs: ai-select-tests
+    if: needs.ai-select-tests.outputs.case_count > 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout trusted code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git gcc libgirepository1.0-dev libcairo2-dev pkg-config python3-dev
+
+      - name: Install LISA from trusted code
+        working-directory: trusted
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[azure]"
+
+      - name: Generate Azure ARM token
+        id: azure-token
+        run: |
+          TOKEN=$(az account get-access-token --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "arm_token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Create AI-selected runbook
+        working-directory: trusted
+        env:
+          PR_NUMBER: ${{ needs.ai-select-tests.outputs.pr_number }}
+        run: |
+          cat > ai_selected_runbook.yml << 'EOF'
+          name: ai-pr-PLACEHOLDER
+          include:
+            - path: ./lisa/microsoft/runbook/azure.yml
+          extension:
+            - lisa/microsoft/testsuites
+          variable:
+            - name: subscription_id
+              value: ""
+            - name: tier
+              value: 0
+            - name: test_case_name
+              value: ""
+            - name: location
+              value: "westus3"
+          notifier:
+            - type: junit
+              path: lisa.junit.xml
+          testcase:
+            - criteria:
+                name: $(test_case_name)
+          EOF
+          sed -i "s/ai-pr-PLACEHOLDER/ai-pr-${PR_NUMBER}/" ai_selected_runbook.yml
+
+      - name: Run selected test cases
+        env:
+          CASE_NAMES: ${{ needs.ai-select-tests.outputs.case_names }}
+          MARKETPLACE_IMAGE: ${{ needs.ai-select-tests.outputs.marketplace_image }}
+        working-directory: trusted
+        run: |
+          # Build the test case name pattern (pipe-separated for regex OR)
+          CASE_PATTERN=$(echo "$CASE_NAMES" | tr ',' '|')
+          echo "Running test cases matching: $CASE_PATTERN"
+          echo "Using marketplace image: $MARKETPLACE_IMAGE"
+
+          lisa -r ai_selected_runbook.yml \
+            -v "subscription_id:${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -v "test_case_name:$CASE_PATTERN" \
+            -v "marketplace_image:$MARKETPLACE_IMAGE" \
+            -v "location:${{ vars.AZURE_LOCATION || 'westus3' }}" \
+            -v "auth_type:token" \
+            -v "s:azure_arm_access_token:${{ steps.azure-token.outputs.arm_token }}"
+
+      - name: Upload LISA results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lisa-test-results
+          path: trusted/runtime/
+          retention-days: 2
+
+      - name: Cleanup Azure resources on cancellation
+        if: cancelled()
+        env:
+          PR_NUMBER: ${{ needs.ai-select-tests.outputs.pr_number }}
+        run: |
+          echo "Workflow cancelled, cleaning up Azure resources for PR #${PR_NUMBER}..."
+          PREFIX="lisa-ai-pr-${PR_NUMBER}"
+          for rg in $(az group list --query "[?starts_with(name, '${PREFIX}')].name" -o tsv); do
+            echo "Deleting resource group: $rg"
+            az group delete --name "$rg" --yes --no-wait
+          done
+          echo "Cleanup initiated"
+
+  # ── Step 3: Report results on PR ──
+  report:
+    name: Report Results
+    needs: [ai-select-tests, run-lisa-tests]
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download LISA results
+        if: needs.run-lisa-tests.result != 'skipped'
+        uses: actions/download-artifact@v4
+        with:
+          name: lisa-test-results
+          path: lisa-results/
+        continue-on-error: true
+
+      - name: Comment on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CASE_COUNT="${{ needs.ai-select-tests.outputs.case_count }}"
+          CASE_NAMES="${{ needs.ai-select-tests.outputs.case_names }}"
+          MARKETPLACE_IMAGE="${{ needs.ai-select-tests.outputs.marketplace_image }}"
+          TEST_RESULT="${{ needs.run-lisa-tests.result }}"
+
+          if [ -z "$CASE_COUNT" ] || [ "$CASE_COUNT" = "0" ]; then
+            BODY="### 🤖 AI Test Selection\n\nNo test cases were selected for this PR."
+          else
+            # Build header based on result
+            if [ "$TEST_RESULT" = "success" ]; then
+              BODY="### ✅ AI Test Selection — PASSED\n\n"
+            elif [ "$TEST_RESULT" = "failure" ]; then
+              BODY="### ❌ AI Test Selection — FAILED\n\n"
+            elif [ "$TEST_RESULT" = "skipped" ]; then
+              BODY="### ⏭️ AI Test Selection — SKIPPED\n\n"
+            else
+              BODY="### ⚠️ AI Test Selection — ${TEST_RESULT}\n\n"
+            fi
+
+            BODY+="**${CASE_COUNT} test case(s)** selected "
+            BODY+="([view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))\n\n"
+            BODY+="**Marketplace image:** ${MARKETPLACE_IMAGE}\n\n"
+
+            # Try to parse junit XML for detailed results
+            JUNIT_FILE=$(find lisa-results/ -name 'lisa.junit.xml' -o -name 'lisa.html' 2>/dev/null | grep 'junit' | head -1)
+            if [ -n "$JUNIT_FILE" ] && [ -f "$JUNIT_FILE" ]; then
+              echo "Found junit report: $JUNIT_FILE"
+              # Parse with python for reliable XML handling
+              python3 << 'PYEOF' > /tmp/results_table.md
+          import xml.etree.ElementTree as ET
+          import glob, os
+
+          junit_files = glob.glob("lisa-results/**/lisa.junit.xml", recursive=True)
+          if not junit_files:
+              exit(0)
+
+          tree = ET.parse(junit_files[0])
+          root = tree.getroot()
+
+          rows = []
+          passed = failed = skipped = 0
+          for suite in root.iter("testsuite"):
+              for tc in suite.iter("testcase"):
+                  name = tc.get("name", "unknown")
+                  time_s = tc.get("time", "0")
+                  failure = tc.find("failure")
+                  skip = tc.find("skipped")
+                  if failure is not None:
+                      status = "❌ FAILED"
+                      msg = (failure.get("message") or "")[:120]
+                      failed += 1
+                  elif skip is not None:
+                      status = "⏭️ SKIPPED"
+                      msg = (skip.get("message") or "")[:120]
+                      skipped += 1
+                  else:
+                      status = "✅ PASSED"
+                      msg = ""
+                      passed += 1
+                  rows.append((name, status, time_s, msg))
+
+          # Summary
+          total = passed + failed + skipped
+          print(f"| | Count |")
+          print(f"|---|---|")
+          print(f"| ✅ Passed | {passed} |")
+          print(f"| ❌ Failed | {failed} |")
+          print(f"| ⏭️ Skipped | {skipped} |")
+          print(f"| **Total** | **{total}** |")
+          print()
+
+          # Detail table
+          print("<details>")
+          print("<summary>Test case details</summary>")
+          print()
+          print("| Test Case | Status | Time (s) | Message |")
+          print("|---|---|---|---|")
+          for name, status, time_s, msg in rows:
+              # Escape pipe chars in message
+              msg = msg.replace("|", "\\|").replace("\n", " ")
+              print(f"| {name} | {status} | {time_s} | {msg} |")
+          print()
+          print("</details>")
+          PYEOF
+
+              if [ -f /tmp/results_table.md ]; then
+                BODY+=$(cat /tmp/results_table.md)
+              fi
+            else
+              # Fallback: just list the case names
+              BODY+="<details>\n<summary>Selected test cases</summary>\n\n\`\`\`\n"
+              BODY+="$(echo $CASE_NAMES | tr ',' '\n')\n"
+              BODY+="\`\`\`\n</details>"
+            fi
+          fi
+
+          PR_NUMBER="${{ needs.ai-select-tests.outputs.pr_number }}"
+          gh pr comment $PR_NUMBER --body "$(echo -e "$BODY")"
