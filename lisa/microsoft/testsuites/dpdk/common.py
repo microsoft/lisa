@@ -508,7 +508,7 @@ class TestpmdForwardMode(str, Enum):
 
 _dpdk_default_source_dict = {
     "Ubuntu": {
-        "20.4.0": "v23.11.0",
+        "20.4.0": "v24.11.0",
         "22.4.0": "v24.11.0",
         "24.4.0": "v24.11.0",
         "25.4.0": "v25.11.0",

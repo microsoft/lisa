@@ -508,7 +508,12 @@ def initialize_node_resources(
     # This must be set ahead of setting the default for rdma-core since the default
     # for one is picked based on the other.
     dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-    dpdk_branch = variables.get("dpdk_branch", get_dpdk_default_source_version(node))
+    try:
+        dpdk_branch = variables.get(
+            "dpdk_branch", get_dpdk_default_source_version(node)
+        )
+    except UnsupportedDistroException as err:
+        raise SkippedException(err)
     rdma_source = variables.get("rdma_source", "")
     rdma_branch = variables.get("rdma_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
