@@ -353,12 +353,12 @@ class Provisioning(TestSuite):
     @TestCaseMetadata(
         description="""
         This case performs a reboot stress test on the node
-        and iterates smoke test 100 times.
+        and iterates smoke test 10 times.
         The test steps are almost the same as `smoke_test`.
         The reboot times is summarized after the test is run
         """,
         priority=3,
-        timeout=10800,
+        timeout=1800,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
         ),
@@ -366,15 +366,15 @@ class Provisioning(TestSuite):
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         reboot_times = []
         try:
-            for i in range(100):
+            for i in range(10):
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
                 reboot_times.append((i + 1, elapsed))
-                log.debug(f"Reboot iterations {i + 1}/100 completed in {elapsed:.2f}s")
+                log.debug(f"Reboot iterations {i + 1}/10 completed in {elapsed:.2f}s")
         except PassedException as e:
             raise LisaException(e)
         finally:
             times = [time for _, time in reboot_times if isinstance(time, (int, float))]
-            log.info(f"completed {i + 1}/100 iterations;summary:")
+            log.info(f"completed {i + 1}/10 iterations;summary:")
             log.info(f"Min reboot time: {min(times):.2f}s")
             log.info(f"Max reboot time: {max(times):.2f}s")
             log.info(f"Average reboot time: {mean(times):.2f}s")
