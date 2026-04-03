@@ -65,6 +65,7 @@ from lisa.util import (
     is recommended. It needs adding resoure tag for AzSecPack, creating and assigning
     UserAssigned Managed Identity AzSecPack AutoConfig to the ARM resources.
     """,
+    tags=["VM_Extension"],
 )
 class AzSecPack(TestSuite):
     @TestCaseMetadata(
@@ -380,3 +381,10 @@ class AzSecPack(TestSuite):
                             node.os, "AzSecPack doesn't support this Distro version."
                         )
                     )
+                return
+
+        raise SkippedException(
+            UnsupportedDistroException(
+                node.os, "AzSecPack doesn't support this distro."
+            )
+        )

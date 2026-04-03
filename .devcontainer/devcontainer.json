@@ -1,6 +1,6 @@
 {
 	"name": "LISA Development",
-	"dockerFile": "../Dockerfile.linux",
+	"dockerFile": "../installers/Dockerfile.linux",
 	"context": "..",
 	"workspaceFolder": "/app/lisa",
 	"customizations": {

@@ -162,6 +162,11 @@ class Html(Notifier):
                 value_str = ", ".join(str(v) for v in value)
             else:
                 value_str = str(value)
+
+            # Post-mask to catch secrets registered during test run
+            if key == "runbook":
+                value_str = mask(value_str)
+
             rows.append(
                 f"<tr><td>{html.escape(key)}</td>"
                 f"<td>{html.escape(value_str)}</td></tr>"

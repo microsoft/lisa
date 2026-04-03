@@ -8,6 +8,7 @@ import math
 import os
 import re
 import sys
+import threading
 from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
@@ -15,7 +16,19 @@ from difflib import SequenceMatcher
 from functools import lru_cache, partial
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
@@ -165,6 +178,19 @@ VM_SIZE_FALLBACK_PATTERNS = [
     # Catch-all for any remaining VM sizes
     re.compile(r".*"),
 ]
+
+# VM sizes that have been retired by Azure and must not be deployed.
+# Add newly retired sizes here as they are announced.
+# Reference links:
+# 1. https://learn.microsoft.com/en-us/azure/virtual-machines/isolation
+# 2. https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list # noqa: E501
+RETIRED_VM_SIZES: FrozenSet[str] = frozenset(
+    {
+        # Isolated VM series(retired 02/28/2022)
+        "Standard_E64i_v3",
+        "Standard_E64is_v3",
+    }
+)
 
 LOCATIONS = [
     "westus3",
@@ -356,6 +382,16 @@ class AzurePlatformSchema:
     # Enable logging of MANA driver/device information in test results
     log_mana_information: bool = field(default=False)
 
+    # VM sizes to block from deployment in addition to RETIRED_VM_SIZES.
+    # Useful for temporarily blocking sizes that are known to be problematic
+    # or have been retired but are not yet in the hardcoded list.
+    # Example in runbook:
+    #   azure:
+    #     blocked_vm_sizes:
+    #       - Standard_NV6
+    #       - Standard_NC24
+    blocked_vm_sizes: List[str] = field(default_factory=list)
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
             self,
@@ -482,6 +518,8 @@ class AzurePlatform(Platform):
             platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
             platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
         }
+
+        self._private_key_lock = threading.Lock()
 
     @classmethod
     def type_name(cls) -> str:
@@ -1224,8 +1262,14 @@ class AzurePlatform(Platform):
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
         # if no key or password specified, generate the key pair
-        if not self.runbook.admin_private_key_file and not self.runbook.admin_password:
-            self.runbook.admin_private_key_file = get_or_generate_key_pairs(self._log)
+        with self._private_key_lock:
+            if (
+                not self.runbook.admin_private_key_file
+                and not self.runbook.admin_password
+            ):
+                self.runbook.admin_private_key_file = get_or_generate_key_pairs(
+                    self._log
+                )
 
         if self.runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
@@ -2067,6 +2111,7 @@ class AzurePlatform(Platform):
             # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv2-series
             # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv3-series
             # https://docs.microsoft.com/en-us/azure/virtual-machines/nd-series
+            # https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/nccadsh100v5-series
             # below VM size families don't support `Accelerated Networking` but
             # API return `True`, fix this issue temporarily will revert it till
             # bug fixed.
@@ -2076,6 +2121,7 @@ class AzurePlatform(Platform):
                 "standardncsv2family",
                 "standardncsv3family",
                 "standardndsfamily",
+                "standardnccads2023family",
             ]:
                 # update data path types if sriov feature is supported
                 node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
@@ -2703,13 +2749,14 @@ class AzurePlatform(Platform):
     def _get_meet_capabilities(
         self, item: Any
     ) -> Iterable[Union[schema.NodeSpace, bool]]:
-        requirement, candidates = item
+        requirement, candidates = item[0], item[1]
 
         # assertion for type checks
         assert isinstance(requirement, schema.NodeSpace)
         assert isinstance(candidates, list)
 
         # filter allowed vm sizes
+        unmet_reasons: List[str] = []
         for azure_cap in candidates:
             check_result = requirement.check(azure_cap.capability)
             if check_result.result:
@@ -2717,6 +2764,18 @@ class AzurePlatform(Platform):
                     requirement, azure_cap, azure_cap.location
                 )
                 yield min_cap
+            else:
+                # Collect unique reasons from the first failing candidate to
+                # surface a meaningful skip message instead of a generic one.
+                if not unmet_reasons:
+                    unmet_reasons.extend(check_result.reasons)
+
+        # Store unmet reasons back into the item list so the caller can
+        # retrieve them after the generator is exhausted.
+        if len(item) == 2:
+            item.append(unmet_reasons)
+        elif len(item) > 2:
+            item[2] = unmet_reasons
 
         return False
 
@@ -2801,7 +2860,31 @@ class AzurePlatform(Platform):
             found = False
 
         if not found:
-            error = f"no available quota found on '{location}'."
+            # Collect unmet requirement reasons that were stored by
+            # _get_meet_capabilities during its iteration. These explain
+            # exactly which test-case requirements were not satisfied by
+            # any candidate VM size, replacing the previously generic
+            # "no available quota found" message.
+            unmet_reasons: List[str] = []
+            for item in awaitable_candidates:
+                if len(item) > 2 and item[2]:
+                    unmet_reasons.extend(item[2])
+            if unmet_reasons:
+                # De-duplicate while preserving order.
+                seen: Set[str] = set()
+                unique_reasons: List[str] = []
+                for r in unmet_reasons:
+                    if r not in seen:
+                        seen.add(r)
+                        unique_reasons.append(r)
+                error = "Requirement mismatch: " + "; ".join(unique_reasons)
+            else:
+                error = (
+                    f"Test skipped on '{location}' for an unknown reason. "
+                    "This could be due to insufficient quota, unmet hardware "
+                    "requirements, or other undiagnosed causes. "
+                    "Manual investigation may be required."
+                )
 
         return results, error
 
@@ -2827,6 +2910,26 @@ class AzurePlatform(Platform):
         else:
             location_info = self.get_location_info(location, log)
             allowed_vm_sizes = [key for key, _ in location_info.capabilities.items()]
+
+        # Filter out retired and explicitly blocked VM sizes.
+        azure_runbook: AzurePlatformSchema = self.runbook.get_extended_runbook(
+            AzurePlatformSchema
+        )
+        extra_blocked: FrozenSet[str] = frozenset(
+            s.strip() for s in azure_runbook.blocked_vm_sizes
+        )
+        all_blocked = RETIRED_VM_SIZES | extra_blocked
+
+        blocked_sizes_found = [s for s in allowed_vm_sizes if s in all_blocked]
+        allowed_vm_sizes = [s for s in allowed_vm_sizes if s not in all_blocked]
+
+        if blocked_sizes_found:
+            log.debug(f"Filtered out retired/blocked VM sizes: {blocked_sizes_found}")
+            if node_runbook.vm_size and not allowed_vm_sizes:
+                raise SkippedException(
+                    f"VM size(s) {blocked_sizes_found} are retired or blocked "
+                    "and cannot be deployed. Please choose a supported VM size."
+                )
 
         # build the capability of vm sizes. The information is useful to
         # check quota.

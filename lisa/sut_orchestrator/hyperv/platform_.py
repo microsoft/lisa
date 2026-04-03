@@ -348,41 +348,47 @@ class HypervPlatform(Platform):
                 extra_args=extra_args,
                 attach_offline_disks=False,
             )
-            # perform device passthrough for the VM
-            self.device_pool._set_device_passthrough_node_context(
-                node_context=node_context,
-                node_runbook=node_runbook,
-                hv=hv,
-                vm_name=vm_name,
-            )
 
             try:
+                # perform device passthrough for the VM
+                self.device_pool._set_device_passthrough_node_context(
+                    node_context=node_context,
+                    node_runbook=node_runbook,
+                    hv=hv,
+                    vm_name=vm_name,
+                )
+
                 # Start the VM
                 hv.start_vm(name=vm_name, extra_args=extra_args)
+                ip_addr = hv.get_ip_address(vm_name)
+                port = 22
+
+                # If the switch type is internal, we need to add a NAT mapping to
+                # access the VM from the outside of HyperV host.
+                if default_switch.type == HypervSwitchType.INTERNAL:
+                    port = hv.add_nat_mapping(
+                        nat_name=default_switch.name,
+                        internal_ip=ip_addr,
+                    )
+                    ip_addr = node_context.host.public_address
+
+                username = self.runbook.admin_username
+                password = self.runbook.admin_password
+                node.set_connection_info(
+                    address=ip_addr,
+                    username=username,
+                    password=password,
+                    public_port=port,
+                )
+
+                # In some cases, we observe that resize vhd resizes the entire disk
+                # but fails to expand the partition size.
+                resize = node.tools[ResizePartition]
+                resize.expand_os_partition()
             except Exception as ex:
                 # avoid stale VMs; delete the VM before raising exception
                 self._delete_node(node_context, wait_delete=False, log=log)
                 raise ex
-
-            ip_addr = hv.get_ip_address(vm_name)
-            port = 22
-            # If the switch type is internal, we need to add a NAT mapping to access the
-            # VM from the outside of HyperV host.
-            if default_switch.type == HypervSwitchType.INTERNAL:
-                port = hv.add_nat_mapping(
-                    nat_name=default_switch.name,
-                    internal_ip=ip_addr,
-                )
-                ip_addr = node_context.host.public_address
-            username = self.runbook.admin_username
-            password = self.runbook.admin_password
-            node.set_connection_info(
-                address=ip_addr, username=username, password=password, public_port=port
-            )
-            # In some cases, we observe that resize vhd resizes the entire disk
-            # but fails to expand the partition size.
-            resize = node.tools[ResizePartition]
-            resize.expand_os_partition()
 
     def _resize_vhd_if_needed(
         self, vhd_path: PurePath, node_runbook: HypervNodeSchema

@@ -120,7 +120,7 @@ class Disk(Feature):
             # /dev/nvd1p1 -> NVME
             if "da" in disk:
                 disk_type = schema.StorageInterfaceType.SCSI
-            elif ("nvd" in disk) or ("nvme" in disk):
+            elif ("nvd" in disk) or ("nvme" in disk) or ("nda" in disk):
                 disk_type = schema.StorageInterfaceType.NVME
             else:
                 raise LisaException(f"Unknown disk type {disk}")

@@ -166,6 +166,7 @@ def _validate_account_expiration_date(
         7. Username to remove
         8. Username, OpenSSH format public key, and valid expiration date
     """,
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],

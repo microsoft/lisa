@@ -24,8 +24,11 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
 from lisa.testsuite import TestResult, simple_requirement
+from lisa.tools import Lscpu
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import (
     SkippedException,
+    UnsupportedCpuArchitectureException,
     UnsupportedDistroException,
     generate_random_chars,
 )
@@ -41,10 +44,18 @@ UnsupportedVersionInfo = List[Dict[str, int]]
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Disk Encryption (ADE) extension",
+    tags=["VM_Extension"],
 )
 class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+        node_arch = node.tools[Lscpu].get_architecture()
+        # ADE only supports x64 architecture. See supported VM configurations at:
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/disk-encryption-overview#supported-vms-and-operating-systems
+        if node_arch != CpuArchitecture.X64:
+            raise SkippedException(
+                UnsupportedCpuArchitectureException(arch=str(node_arch.value))
+            )
         if not self._is_supported_linux_distro(node):
             raise SkippedException(UnsupportedDistroException(node.os))
         needed_packages = ["python-parted", "python3-parted"]

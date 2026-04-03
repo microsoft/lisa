@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.network.common import (
@@ -47,6 +47,7 @@ from lisa.tools import (
     InterruptInspector,
     Iperf3,
     Journalctl,
+    Kill,
     Lscpu,
     Service,
 )
@@ -761,7 +762,12 @@ class Sriov(TestSuite):
             err_msg += "\nPotential issues running iperf3, check logs for details."
 
         irqbalance.kill()
-        result = irqbalance.wait_result()
+        # The kill() above sends SIGKILL to the spur-tracked process (the
+        # sudo/sh wrapper), but irqbalance itself is a child that can survive
+        # as an orphan.  Explicitly kill it by name to ensure it is gone
+        # before waiting for the result, so wait_result() does not time out.
+        server_node.tools[Kill].by_name("irqbalance", ignore_not_exist=True)
+        result = irqbalance.wait_result(raise_on_timeout=False)
         assert re.search(
             "Selecting irq [0-9]+ for rebalancing",
             result.stdout,
@@ -811,6 +817,9 @@ class Sriov(TestSuite):
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
             if client_nic_info.is_pci_module_enabled:
+                # Skip InfiniBand and NICs without IP (enslaved VFs, etc.)
+                if client_nic_info.is_infiniband or not client_nic_info.ip_addr:
+                    continue
                 # 2. Get initial interrupts sum per irq and cpu number on client node.
                 # only collect 'Completion Queue Interrupts' irqs
                 initial_pci_interrupts_by_irqs = (
@@ -834,8 +843,13 @@ class Sriov(TestSuite):
                     assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
                     ).is_equal_to(client_thread_count)
-                matched_server_nic_info: NicInfo
+                matched_server_nic_info: Optional[NicInfo] = None
                 for _, server_nic_info in vm_nics[server_node.name].items():
+                    # Skip NICs without IP addresses (IB, enslaved VFs, etc.)
+                    if not server_nic_info.ip_addr:
+                        continue
+                    if server_nic_info.is_infiniband:
+                        continue
                     if (
                         server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
                         == client_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]

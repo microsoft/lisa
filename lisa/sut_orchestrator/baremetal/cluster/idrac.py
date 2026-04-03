@@ -10,6 +10,7 @@ from typing import Any, Optional, Type
 
 import redfish
 from assertpy import assert_that
+from redfish.rest.v1 import JsonDecodingError
 from retry import retry
 
 from lisa import features, schema
@@ -163,20 +164,90 @@ class Idrac(Cluster):
     def get_client_capability(self, client: ClientSchema) -> schema.Capability:
         if client.capability:
             return client.capability
-        self.login()
-        response = self.redfish_instance.get(
-            "/redfish/v1/Systems/System.Embedded.1/",
-        )
-        capability = schema.Capability()
-        capability.core_count = int(
-            response.dict["ProcessorSummary"]["LogicalProcessorCount"]
-        )
-        capability.memory_mb = (
-            int(response.dict["MemorySummary"]["TotalSystemMemoryGiB"]) * 1024
-        )
-        self.logout()
 
-        return capability
+        # Retry capability detection in case iDRAC is initializing
+        for attempt in range(3):
+            try:
+                self.login()
+                try:
+                    response = self.redfish_instance.get(
+                        "/redfish/v1/Systems/System.Embedded.1/",
+                    )
+
+                    # Log response structure for debugging
+                    self._log.debug(
+                        f"iDRAC capability response keys (attempt {attempt + 1}): "
+                        f"{list(response.dict.keys())}"
+                    )
+
+                    capability = schema.Capability()
+
+                    # Handle missing ProcessorSummary gracefully
+                    processor_summary = response.dict.get("ProcessorSummary", {})
+                    if "LogicalProcessorCount" in processor_summary:
+                        capability.core_count = int(
+                            processor_summary["LogicalProcessorCount"]
+                        )
+                    elif "Count" in processor_summary:
+                        capability.core_count = int(processor_summary["Count"])
+                    else:
+                        # Missing processor info - might be transient
+                        raise LisaException(
+                            f"Unable to get processor count from iDRAC response. "
+                            f"ProcessorSummary keys: {list(processor_summary.keys())}, "
+                            f"Response keys: {list(response.dict.keys())}"
+                        )
+
+                    # Handle missing MemorySummary gracefully
+                    memory_summary = response.dict.get("MemorySummary", {})
+                    if "TotalSystemMemoryGiB" in memory_summary:
+                        capability.memory_mb = (
+                            int(memory_summary["TotalSystemMemoryGiB"]) * 1024
+                        )
+                    else:
+                        # Missing memory info - might be transient
+                        raise LisaException(
+                            f"Unable to get memory size from iDRAC response. "
+                            f"MemorySummary keys: {list(memory_summary.keys())}, "
+                            f"Response keys: {list(response.dict.keys())}"
+                        )
+
+                    return capability
+                finally:
+                    # Always logout, regardless of success or failure
+                    self.logout()
+
+            except Exception as e:
+                if attempt < 2:  # Not last attempt
+                    self._log.warning(
+                        f"Failed to get capability (attempt {attempt + 1}/3): {e}. "
+                    )
+
+                    # On second failure, try resetting iDRAC
+                    if attempt == 1:
+                        self._log.warning(
+                            "iDRAC may be in unstable state. Attempting iDRAC reset..."
+                        )
+                        try:
+                            self._reset_idrac()
+                            # _reset_idrac() leaves session logged in, clean it up
+                            self.logout()
+                            time.sleep(30)  # Give iDRAC time to restart
+                        except Exception as reset_error:
+                            self._log.warning(
+                                f"iDRAC reset failed: {reset_error}. "
+                                f"Will retry capability detection anyway."
+                            )
+                    else:
+                        # First failure - simple retry with short delay
+                        self._log.warning("Retrying in 5 seconds...")
+                        time.sleep(5)
+                else:
+                    # Last attempt failed - re-raise
+                    raise
+
+        # Should never reach here due to raise above, but satisfy mypy
+        raise LisaException("Failed to get iDRAC capability after all retries")
 
     def get_serial_console_log(self) -> str:
         response = self.redfish_instance.post(
@@ -542,29 +613,69 @@ class Idrac(Cluster):
         self._log.debug(f"Updating boot source to {boot_from} completed")
 
     def _enable_serial_console(self) -> None:
-        self.login()
-        response = self.redfish_instance.get(
-            "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+        # iDRAC may return 503 Service Unavailable transiently (e.g. just after
+        # a reset or during initialisation). Retry for up to IDRAC_RESET_TIMEOUT
+        # seconds before giving up.
+        def _try_enable() -> bool:
+            try:
+                self.login()
+                response = self.redfish_instance.get(
+                    "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+                )
+                attributes = response.dict.get("Attributes", {})
+                serial_capture_enabled = attributes.get(
+                    "SerialCapture.1.Enable", "Disabled"
+                )
+
+                # Treat missing attribute as "Disabled" and attempt to enable
+                if serial_capture_enabled != "Enabled":
+                    self._log.debug(
+                        f"Serial console is '{serial_capture_enabled}'. Enabling..."
+                    )
+                    self.redfish_instance.patch(
+                        "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes",
+                        body={"Attributes": {"SerialCapture.1.Enable": "Enabled"}},
+                    )
+
+                # Verify it's enabled
+                response = self.redfish_instance.get(
+                    "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+                )
+                attributes = response.dict.get("Attributes", {})
+                final_state = attributes.get("SerialCapture.1.Enable", "Unknown")
+                if final_state == "Enabled":
+                    self._log.debug("Serial console enabled successfully.")
+                    return True
+                raise LisaException(
+                    f"Failed to enable serial console. Current state: {final_state}"
+                )
+            except JsonDecodingError as e:
+                # iDRAC returned a non-JSON response (e.g. 503 HTML page);
+                # log and signal caller to retry.
+                self._log.info(
+                    f"iDRAC returned invalid JSON (likely 503 transient error): "
+                    f"{e}. Retrying..."
+                )
+                return False
+            finally:
+                self.logout()
+
+        check_till_timeout(
+            _try_enable,
+            timeout_message=(
+                "iDRAC Attributes endpoint unavailable after retries "
+                "(repeated 503 / invalid JSON responses)"
+            ),
+            timeout=IDRAC_RESET_TIMEOUT,
+            interval=10,
         )
-        if response.dict["Attributes"]["SerialCapture.1.Enable"] == "Disabled":
-            response = self.redfish_instance.patch(
-                "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes",
-                body={"Attributes": {"SerialCapture.1.Enable": "Enabled"}},
-            )
-        response = self.redfish_instance.get(
-            "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
-        )
-        if response.dict["Attributes"]["SerialCapture.1.Enable"] == "Enabled":
-            self._log.debug("Serial console enabled successfully.")
-        else:
-            raise LisaException("Failed to enable serial console.")
-        self.logout()
 
     def _clear_serial_console_log(self) -> None:
         response = self.redfish_instance.get(
             "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
         )
-        if response.dict["Attributes"]["SerialCapture.1.Enable"] == "Disabled":
+        attributes = response.dict.get("Attributes", {})
+        if attributes.get("SerialCapture.1.Enable") == "Disabled":
             self._log.debug("Serial console is already disabled. No need to clear log.")
         response = self.redfish_instance.post(
             "/redfish/v1/Managers/iDRAC.Embedded.1/SerialInterfaces"

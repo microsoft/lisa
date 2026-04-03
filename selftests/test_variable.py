@@ -23,6 +23,16 @@ class VariableTestCase(TestCase):
         self.assertEqual("value_from_env", data["nested"]["normal_value"])
         self.assertEqual("s_value_from_env", data["normal_entry"])
 
+    def test_in_env_case_visible(self) -> None:
+        os.environ["CV_LISA_normal_value"] = "cv_value_from_env"
+        self.addCleanup(os.environ.pop, "CV_LISA_normal_value", None)
+        variables = self._get_default_variables()
+        variables.update(variable._load_from_env())
+        self.assertTrue(variables["normal_value"].is_case_visible)
+        case_vars = variable.get_case_variables(variables)
+        self.assertIn("normal_value", case_vars)
+        self.assertEqual("cv_value_from_env", case_vars["normal_value"])
+
     def test_in_pair(self) -> None:
         pair1 = "normal_value:nv_from_pair"
         pair2 = "S:normal_entry:s_value_from_env"

@@ -41,6 +41,7 @@ from lisa.util import SkippedException, generate_random_chars
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Performance Diagnostics VM Extension",
+    tags=["VM_Extension"],
 )
 class AzurePerformanceDiagnostics(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

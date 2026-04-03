@@ -18,7 +18,7 @@ LOCALHOST = "127.0.0.1"
 DEFAULT_PORT = 34567
 
 
-def create_tcp_server_client(port: int) -> None:
+def create_tcp_server_client(port: int, algo_output_path: str = "") -> None:
     """
     Create a TCP server-client connection and keep it alive.
 
@@ -50,6 +50,15 @@ def create_tcp_server_client(port: int) -> None:
     # Connect client
     client.connect((LOCALHOST, port))
 
+    if algo_output_path:
+        algo = client.getsockopt(
+            socket.IPPROTO_TCP,
+            socket.TCP_CONGESTION,  # type: ignore[attr-defined]
+            64,
+        )
+        with open(algo_output_path, "w", encoding="utf-8") as algo_file:
+            algo_file.write(algo.decode().strip("\x00"))
+
     print("CONNECTION_READY")
     sys.stdout.flush()
 
@@ -67,4 +76,5 @@ def create_tcp_server_client(port: int) -> None:
 if __name__ == "__main__":
     # Get port from command line argument, or use default
     port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
-    create_tcp_server_client(port)
+    algo_output_path = sys.argv[2] if len(sys.argv) > 2 else ""
+    create_tcp_server_client(port, algo_output_path)
