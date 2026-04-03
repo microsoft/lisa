@@ -14,7 +14,7 @@ from .whoami import Whoami
 
 
 class Meson(Tool):
-    _minimum_version = parse_version("0.52.0")
+    _minimum_version = parse_version("0.57.2")
 
     @property
     def command(self) -> str:
