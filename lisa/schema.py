@@ -891,8 +891,11 @@ class VirtualizationSettings(FeatureSettings):
     )
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, VirtualizationSettings), f"actual: {type(o)}"
-        return super().__eq__(o) and self.host_type == o.host_type
+        return self.host_type == o.host_type
 
     def __hash__(self) -> int:
         return hash(self._get_key())
