@@ -58,6 +58,7 @@ class CVMSuite(TestSuite):
     )
     def verify_lsvmbus(self, log: Logger, node: Node) -> None:
         valid_class_ids = {
+            "44c4f61d-4444-4400-9d52-802e27ede19f": "PCI Express pass-through",
             "ba6163d9-04a1-4d29-b605-72e2ffb1dc7f": "Synthetic SCSI Controller",
             "f8615163-df3e-46c5-913f-f2d2f965ed0e": "Synthetic network adapter",
             "9527e630-d0ae-497b-adce-e80ab0175caf": "[Time Synchronization]",

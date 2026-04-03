@@ -90,6 +90,7 @@ def _create_and_verify_extension_run(
         11. Provided a different valid user to run a command with
         12. Provided a different invalid user to run a command with (should fail)
     """,
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],

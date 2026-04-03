@@ -358,6 +358,7 @@ def check_dpdk_support(node: Node) -> None:
         # in the image _before_ starting the test.
         # ex: make a SIG image first using the kernel build transformer.
         if node.os.get_kernel_information().version < "5.15.0":
+            return
             raise UnsupportedDistroException(
                 node.os, "MANA driver is not available for kernel < 5.15"
             )
@@ -466,3 +467,8 @@ class Pmd(str, Enum):
 # set a threshold for an expected PPS minimum with DPDK.
 # this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps (for now)
 DPDK_PPS_THRESHOLD = 1_200_000
+
+
+class DpdkGradeMetric(str, Enum):
+    PPS = "pps"
+    BPS = "bps"

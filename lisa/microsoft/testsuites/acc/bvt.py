@@ -10,8 +10,13 @@ from lisa import (
 )
 from lisa.features import acc
 from lisa.operating_system import Ubuntu
-from lisa.tools import Dmesg, Make, Wget, Whoami
-from lisa.util import SkippedException, UnsupportedDistroException
+from lisa.tools import Dmesg, Lscpu, Make, Wget, Whoami
+from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import (
+    SkippedException,
+    UnsupportedCpuArchitectureException,
+    UnsupportedDistroException,
+)
 
 
 @TestSuiteMetadata(
@@ -42,6 +47,11 @@ class ACCBasicTest(TestSuite):
         ),
     )
     def verify_sgx(self, log: Logger, node: Node) -> None:
+        node_arch = node.tools[Lscpu].get_architecture()
+        if node_arch != CpuArchitecture.X64:
+            raise SkippedException(
+                UnsupportedCpuArchitectureException(arch=str(node_arch.value))
+            )
         if isinstance(node.os, Ubuntu) and (node.os.information.version >= "18.4.0"):
             os_version = node.os.information.release
         else:

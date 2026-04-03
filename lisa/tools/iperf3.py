@@ -102,7 +102,10 @@ class Iperf3(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages("iperf3")
+        try:
+            posix_os.install_packages("iperf3")
+        except Exception as e:
+            self._log.debug(f"Failed to install iperf3 from package manager: {e}")
         install_from_src = False
         if self._check_exists():
             if "--logfile" not in self.help().stdout:
@@ -121,9 +124,11 @@ class Iperf3(Tool):
         use_json_format: bool = False,
         one_connection_only: bool = False,
         daemon: bool = True,
+        interface_ip: str = "",
     ) -> Process:
         # -s: run iperf3 as server mode
         # -D: run iperf3 as a daemon
+        # -B: bind to a specific interface
         cmd = " -s"
         if daemon:
             cmd += " -D "
@@ -137,6 +142,8 @@ class Iperf3(Tool):
             cmd += f" -f {report_unit} "
         if port:
             cmd += f" -p {port} "
+        if interface_ip:
+            cmd += f" -B {interface_ip} "
         process = self.node.execute_async(
             f"{self.command} {cmd}", shell=True, sudo=True
         )

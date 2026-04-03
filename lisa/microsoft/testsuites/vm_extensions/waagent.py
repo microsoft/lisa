@@ -22,6 +22,7 @@ from lisa.util import SkippedException
     area="vm_extension",
     category="functional",
     description="BVT for VM Agent",
+    tags=["VM_Extension"],
     requirement=simple_requirement(unsupported_os=[]),
 )
 class WaAgentBvt(TestSuite):

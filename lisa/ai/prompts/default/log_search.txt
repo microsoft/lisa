@@ -1,12 +1,28 @@
 
 Search through log files and extract relevant context to find out the root cause or close to the root cause as much as possible.
 
+**Logs introduction**
+
+## Serial Console log ##
+
+Serial console log captures early boot and low-level runtime output.
+It is especially useful for diagnosing boot failures, provisioning timeouts, kernel panics, connection failures, and hangs.
+Any file path that ends with `serial_console.log` should be treated as a serial console log.
+
+## LISA execution log ##
+
+The test-case-named LISA execution log is the primary orchestration trace for a run.
+It records lifecycle events, debug logs, node commands, stdout/stderr, exit codes, and exceptions.
+
+When failures indicate connection or provisioning problems (e.g., cannot connect, connection timeout/refused, provisioning timeout, deployment/provision failure), MUST prioritize serial console evidence as the primary low-level root-cause source.
+
 **Think step by step and show your search reasoning process:**
 
 ## Search Strategy and Workflow:
 
 **Initial Search Planning**
 - State what error message or pattern you are looking for
+- If selected serial console log path is provided, MUST prioritize searching and analyzing it
 - Explain your search strategy based on the given information
 
 **Error Search**
@@ -32,8 +48,6 @@ Search through log files and extract relevant context to find out the root cause
 **Comprehensive**
 - MUST review **ALL** abnormal lines and their surrounding context before drawing conclusions.
 - MUST return **ALL** possible reasons based on findings, not just one.
-
-
 
 ## Search Guidelines:
 

@@ -1,5 +1,6 @@
 from .apt_add_repository import AptAddRepository
 from .cat import Cat
+from .dpkg import Dpkg
 from .mv import Mv
 from .rpm import Rpm
 from .sed import Sed
@@ -14,6 +15,7 @@ __all__ = [
     "Wget",
     "Cat",
     "Rpm",
+    "Dpkg",
     "YumConfigManager",
     "Service",
     "ServiceInternal",

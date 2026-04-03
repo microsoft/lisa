@@ -981,12 +981,10 @@ class Debian(Linux):
         timer = create_timer()
         while timeout > timer.elapsed(False):
             # fix the dpkg, in case it's broken.
-            dpkg_result = self._node.execute(
-                "dpkg --force-all --configure -a", sudo=True
-            )
+            self._node.execute("dpkg --force-all --configure -a", sudo=True)
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
-            if dpkg_result.exit_code == 0 and pidof_result.exit_code == 1:
-                # not found dpkg process, it's ok to exit.
+            if pidof_result.exit_code == 1:
+                # no dpkg process running, safe to exit and attempt repair.
                 break
             if is_first_time:
                 is_first_time = False
@@ -995,6 +993,55 @@ class Debian(Linux):
 
         if timeout < timer.elapsed():
             raise LisaTimeoutException("timeout to wait previous dpkg process stop.")
+
+        # Remove packages stuck in "reinst-required" state whose archive is
+        # missing (e.g. azsec-bpftrace on KernelCI images).
+        audit_result = self._node.execute("dpkg --audit", sudo=True, no_info_log=True)
+        if audit_result.stdout.strip():
+            self._log.debug(
+                f"Found packages needing repair: {audit_result.stdout.strip()}"
+            )
+            # Find packages stuck in "reinst-required" state:
+            # match any dpkg entry whose error flag (3rd column) is 'R'.
+            reinst_packages_result = self._node.execute(
+                "dpkg -l | grep '^..R' | awk '{print $2}'",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+            )
+            reinst_packages = [
+                pkg for pkg in reinst_packages_result.stdout.splitlines() if pkg.strip()
+            ]
+            if reinst_packages:
+                packages_arg = " ".join(reinst_packages)
+                remove_cmd = f"dpkg --remove --force-remove-reinstreq {packages_arg}"
+                remove_result = self._node.execute(
+                    remove_cmd,
+                    sudo=True,
+                    shell=True,
+                    no_info_log=True,
+                )
+                self._log.debug(
+                    f"dpkg repair removal result: exit_code={remove_result.exit_code}, "
+                    f"stdout={remove_result.stdout!r}, "
+                    f"stderr={remove_result.stderr!r}"
+                )
+                # After removing reinst-required packages, re-run configure
+                # to bring dpkg to a clean state.
+                final_dpkg_result = self._node.execute(
+                    "dpkg --force-all --configure -a",
+                    sudo=True,
+                )
+                self._log.debug(
+                    "final dpkg configure result after repair: "
+                    f"exit_code={final_dpkg_result.exit_code}, "
+                    f"stdout={final_dpkg_result.stdout!r}, "
+                    f"stderr={final_dpkg_result.stderr!r}"
+                )
+            else:
+                self._log.debug(
+                    "No 'reinst-required' packages found to remove after audit."
+                )
 
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
@@ -2255,6 +2302,29 @@ class Suse(Linux):
     )
     _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
+    # Zypper lock contention can manifest in two ways:
+    #   1. Exit code 7 (ZYPPER_EXIT_ERR_ZYPP) — another zypper instance holds
+    #      the system management lock.
+    #   2. Exit code 8 (ZYPPER_EXIT_ERR_COMMIT) — zypper resolved packages but
+    #      the RPM transaction failed because another process holds
+    #      /usr/lib/sysimage/rpm/.rpm.lock. The stdout will contain
+    #      "can't create transaction lock on ...rpm.lock".
+    # Both conditions are transient and retryable.
+    # Retries are tuned to balance resilience and test runtime:
+    # - In practice, locks are typically released within a few seconds
+    #   once the competing process exits.
+    # - 5 attempts with a 10-second delay cap the worst-case wait at ~50s,
+    #   which is long enough for transient locks to clear without noticeably
+    #   extending overall LISA test runs.
+    _ZYPPER_EXIT_LOCK = 7
+    _ZYPPER_EXIT_COMMIT = 8
+    _ZYPPER_LOCK_MAX_RETRIES = 5
+    _ZYPPER_LOCK_RETRY_DELAY = 10  # seconds
+    _rpm_lock_pattern = re.compile(
+        r"can't create transaction lock on.*\.rpm\.lock",
+        re.I,
+    )
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^SUSE|opensuse-leap$")
@@ -2306,7 +2376,9 @@ class Suse(Linux):
         if no_gpgcheck:
             cmd += " -G "
         cmd += f" {repo} {repo_name}"
-        cmd_result = self._node.execute(cmd=cmd, sudo=True)
+        cmd_result = self._execute_zypper_with_lock_retry(
+            cmd, operation_name="add_repository", sudo=True
+        )
         if "already exists. Please use another alias." not in cmd_result.stdout:
             cmd_result.assert_exit_code(0, f"fail to add repo {repo}")
         else:
@@ -2323,6 +2395,65 @@ class Suse(Linux):
             repo_name="packages-microsoft-com-azurecore",
         )
 
+    def _is_zypper_lock_error(self, result: ExecutableResult) -> bool:
+        """Check if a zypper result indicates lock contention.
+
+        Detects two lock scenarios:
+        - Exit code 7: zypper-level lock (another zypper instance running).
+        - Exit code 8 with RPM lock message: zypper resolved dependencies but
+          the RPM transaction failed on /usr/lib/sysimage/rpm/.rpm.lock.
+        """
+        if result.exit_code == self._ZYPPER_EXIT_LOCK:
+            return True
+        if result.exit_code == self._ZYPPER_EXIT_COMMIT:
+            output = f"{result.stdout}\n{result.stderr}"
+            if self._rpm_lock_pattern.search(output):
+                return True
+        return False
+
+    def _execute_zypper_with_lock_retry(
+        self,
+        cmd: str,
+        operation_name: str,
+        **execute_kwargs: Any,
+    ) -> ExecutableResult:
+        """Execute a zypper command, retrying on lock contention.
+
+        Retries on zypper exit code 7 (zypper lock) and exit code 8 when
+        the RPM transaction lock (.rpm.lock) is held by another process.
+
+        Args:
+            cmd: The zypper command string to execute.
+            operation_name: Human-readable label used in log/error messages.
+            **execute_kwargs: Additional keyword arguments forwarded to
+                ``node.execute`` (e.g. ``sudo``, ``shell``, ``timeout``).
+
+        Returns:
+            The ``ExecutableResult`` of the last successful (non-lock) execution.
+
+        Raises:
+            LisaException: If lock contention persists after all retries.
+        """
+        result: ExecutableResult
+        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+            self.wait_running_process("zypper")
+            result = self._node.execute(cmd, **execute_kwargs)
+            if not self._is_zypper_lock_error(result):
+                return result
+            self._log.warning(
+                f"zypper lock contention (exit code {result.exit_code}) "
+                f"during {operation_name}, "
+                f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
+            )
+            time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
+        raise LisaException(
+            f"zypper {operation_name} failed due to persistent lock contention "
+            f"(exit code {result.exit_code}) "
+            f"after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
+            f"with {self._ZYPPER_LOCK_RETRY_DELAY}s delay between retries. "
+            f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
+        )
+
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
         service = self._node.tools[Service]
@@ -2333,8 +2464,11 @@ class Suse(Linux):
                 if service.is_service_inactive("guestregister"):
                     break
                 time.sleep(1)
-        output = self._node.execute(
-            "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
+        output = self._execute_zypper_with_lock_retry(
+            "zypper --non-interactive --gpg-auto-import-keys refresh",
+            operation_name="refresh",
+            sudo=True,
+            timeout=600,
         ).stdout
         if self._no_repo_defined.search(output):
             raise RepoNotExistException(
@@ -2355,9 +2489,12 @@ class Suse(Linux):
             command += " --no-gpg-checks "
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
-        self.wait_running_process("zypper")
-        uninstall_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+        uninstall_result = self._execute_zypper_with_lock_retry(
+            command,
+            operation_name="uninstall",
+            shell=True,
+            sudo=True,
+            timeout=timeout,
         )
         uninstall_result.assert_exit_code(
             expected_exit_code=0,
@@ -2378,28 +2515,58 @@ class Suse(Linux):
         if not signed:
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
-        self.wait_running_process("zypper")
-        install_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+        install_result = self._execute_zypper_with_lock_retry(
+            command,
+            operation_name="install",
+            shell=True,
+            sudo=True,
+            timeout=timeout,
         )
-        if install_result.exit_code in (1, 100):
+
+        # zypper exit codes that indicate dependency/resolution issues:
+        # 1: ZYPPER_EXIT_ERR_BUG - Unexpected situation
+        # 4: ZYPPER_EXIT_INF_CAP_NOT_FOUND - Capability not found or dependency problem
+        # 100: ZYPPER_EXIT_INF_UPDATE_NEEDED - Updates available
+        # If installation failed due to dependency conflicts, retry with
+        # --force-resolution to allow zypper to automatically resolve conflicts
+        if install_result.exit_code in (1, 4, 100):
+            self._log.debug(
+                f"Installation failed with exit code {install_result.exit_code}, "
+                "retrying with --force-resolution to resolve dependency conflicts."
+            )
+            command_with_force = f"zypper --non-interactive {add_args}"
+            if not signed:
+                command_with_force += " --no-gpg-checks "
+            command_with_force += f" in --force-resolution {' '.join(packages)}"
+            install_result = self._execute_zypper_with_lock_retry(
+                command_with_force,
+                operation_name="install (force-resolution)",
+                shell=True,
+                sudo=True,
+                timeout=timeout,
+            )
+
+        if install_result.exit_code in (1, 4, 100):
             raise LisaException(
                 f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
-                f"stderr: {install_result.stderr}"
+                f"stdout: {install_result.stdout}, stderr: {install_result.stderr}"
             )
         elif install_result.exit_code == 0:
             self._log.debug(f"{packages} is/are installed successfully.")
         else:
-            self._log.debug(
-                f"{packages} is/are installed."
-                " A system reboot or package manager restart might be required."
+            raise LisaException(
+                f"Failed to install {packages}. "
+                f"Unexpected exit_code: {install_result.exit_code}, "
+                f"stdout: {install_result.stdout}, stderr: {install_result.stderr}"
             )
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         command = "zypper --non-interactive --gpg-auto-import-keys update "
         if packages:
             command += " ".join(packages)
-        self._node.execute(command, sudo=True, timeout=3600)
+        self._execute_zypper_with_lock_retry(
+            command, operation_name="update", sudo=True, timeout=3600
+        )
 
     def _package_exists(self, package: str) -> bool:
         command = f"zypper search --installed-only --match-exact {package}"

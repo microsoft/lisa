@@ -30,7 +30,12 @@ from lisa.tools import (
     Sed,
     Whoami,
 )
-from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
+from lisa.util import (
+    LisaException,
+    UnsupportedDistroException,
+    check_test_panic,
+    find_groups_in_lines,
+)
 
 
 @dataclass
@@ -38,6 +43,7 @@ class CloudHypervisorTestResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
     message: str = ""
+    hung: bool = False
 
 
 class CloudHypervisorTests(Tool):
@@ -46,8 +52,8 @@ class CloudHypervisorTests(Tool):
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
     CASE_TIME_OUT = CMD_TIME_OUT + 1200
-    # 2 Hrs of timeout for perf tests and 2400 seconds for other operations
-    PERF_CASE_TIME_OUT = 7200 + 2400
+    # 6 Hrs of timeout for perf tests and 2400 seconds for other operations
+    PERF_CASE_TIME_OUT = 21600 + 2400
     PERF_CMD_TIME_OUT = 1200
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
@@ -81,6 +87,7 @@ class CloudHypervisorTests(Tool):
     iops_block_size_kb = ""
 
     cmd_path: PurePath
+    vdpa_script_path: PurePath
     repo_root: PurePath
 
     # Perf-stable profile: Enforces reproducible performance testing environment
@@ -167,8 +174,18 @@ class CloudHypervisorTests(Tool):
         if isinstance(self.node.os, CBLMariner) and hypervisor == "mshv":
             # Install dependency to create VDPA Devices
             self.node.os.install_packages(["iproute", "iproute-devel"])
-            # Load VDPA kernel module and create devices
-            self._configure_vdpa_devices(self.node)
+            if self.node.shell.exists(self.vdpa_script_path):
+                self.node.execute(
+                    str(self.vdpa_script_path),
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Failed to configure VDPA devices"
+                    ),
+                )
+            else:
+                self._configure_vdpa_devices(self.node)
 
     def _handle_test_failure_with_diagnostics(
         self,
@@ -187,27 +204,29 @@ class CloudHypervisorTests(Tool):
             failure_msg += f" | {diagnostic_info}"
         fail(failure_msg)
 
+    def _summarize_test_list(self, test_list: List[str]) -> str:
+        if len(test_list) > 3:
+            return f"{test_list[:3]} and {len(test_list) - 3} more"
+        else:
+            return f"{test_list}"
+
     def _handle_timeout_failure(
         self,
         result: ExecutableResult,
         failures: List[str],
+        hung_tests: List[str],
         test_type: str,
         hypervisor: str,
         log_path: Path,
     ) -> None:
         """Handle timeout with failures."""
-        base_message = (
-            f"Timed out after {result.elapsed:.2f}s with failures: {failures[:3]}"
-        )
-        self._handle_test_failure_with_diagnostics(
-            base_message, result, test_type, hypervisor, log_path
-        )
+        hung_tests_summary = self._summarize_test_list(hung_tests)
+        failures_summary = self._summarize_test_list(failures)
 
-    def _handle_timeout_only(
-        self, result: ExecutableResult, test_type: str, hypervisor: str, log_path: Path
-    ) -> None:
-        """Handle pure timeout without test failures."""
-        base_message = f"Timed out after {result.elapsed:.2f}s"
+        base_message = (
+            f"Timed out after {result.elapsed:.2f}s with"
+            f"hung tests: {hung_tests_summary}, failures: {failures_summary}"
+        )
         self._handle_test_failure_with_diagnostics(
             base_message, result, test_type, hypervisor, log_path
         )
@@ -215,13 +234,19 @@ class CloudHypervisorTests(Tool):
     def _handle_test_failures(
         self,
         failures: List[str],
+        hung_tests: List[str],
         test_type: str,
         hypervisor: str,
         log_path: Path,
         result: ExecutableResult,
     ) -> None:
         """Handle test failures with diagnostic context."""
-        base_message = f"Unexpected failures: {failures[:3]}"
+        failures_summary = self._summarize_test_list(failures)
+        hung_tests_summary = self._summarize_test_list(hung_tests)
+        base_message = (
+            f"Unexpected failures: {failures_summary}, "
+            f"hung tests: {hung_tests_summary}"
+        )
         self._handle_test_failure_with_diagnostics(
             base_message, result, test_type, hypervisor, log_path
         )
@@ -302,11 +327,17 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         log_path: Path,
         subtests: Set[str],
+        test_name: str,
     ) -> None:
         """Process test results and handle various failure scenarios."""
         # Report subtest results and collect logs before doing any assertions.
         results = self._extract_test_results(result.stdout, log_path, subtests)
-        failures = [r.name for r in results if r.status == TestStatus.FAILED]
+        hung_tests = [r.name for r in results if r.hung]
+        failures = [
+            r.name
+            for r in results
+            if r.status == TestStatus.FAILED and r.name not in hung_tests
+        ]
 
         for r in results:
             send_sub_test_result_message(
@@ -318,16 +349,22 @@ class CloudHypervisorTests(Tool):
 
         self._save_kernel_logs(log_path)
 
-        has_failures = len(failures) > 0
-        if result.is_timeout and has_failures:
+        self._check_test_panic_from_logs(
+            test_result=test_result,
+            log_path=log_path,
+            content=result.stdout,
+            stage=f"{test_type} tests",
+            test_name=test_name,
+        )
+
+        has_failures = len(failures) > 0 or len(hung_tests) > 0
+        if result.is_timeout:
             self._handle_timeout_failure(
-                result, failures, test_type, hypervisor, log_path
+                result, failures, hung_tests, test_type, hypervisor, log_path
             )
-        elif result.is_timeout:
-            self._handle_timeout_only(result, test_type, hypervisor, log_path)
         elif has_failures:
             self._handle_test_failures(
-                failures, test_type, hypervisor, log_path, result
+                failures, hung_tests, test_type, hypervisor, log_path, result
             )
         elif result.exit_code != 0:
             self._handle_exit_code_failure(result, test_type, hypervisor, log_path)
@@ -384,6 +421,7 @@ class CloudHypervisorTests(Tool):
             hypervisor,
             log_path,
             subtests["subtest_set"],
+            test_name,
         )
 
     def run_metrics_tests(
@@ -438,6 +476,14 @@ class CloudHypervisorTests(Tool):
             )
             self._write_testcase_log(log_path, testcase, trace)
 
+            self._check_test_panic_from_logs(
+                test_result=test_result,
+                log_path=log_path,
+                content=trace,
+                stage=f"metrics test {testcase}",
+                test_name=testcase,
+            )
+
         self._save_kernel_logs(log_path)
 
         # Check for kernel panic after all tests complete
@@ -476,17 +522,16 @@ class CloudHypervisorTests(Tool):
 
     def _prepare_metrics_subtests(
         self, hypervisor: str, only: Optional[List[str]], skip: Optional[List[str]]
-    ) -> Set[str]:
+    ) -> List[str]:
         """Prepare subtests for metrics testing."""
         subtests = self._list_perf_metrics_tests(hypervisor=hypervisor)
 
         if only is not None:
-            if not skip:
-                skip = []
-            # Add everything except 'only' to skip list
-            skip += list(subtests.difference(only))
+            only_set = set(only)
+            subtests = [testcase for testcase in subtests if testcase in only_set]
         if skip is not None:
-            subtests.difference_update(skip)
+            skip_set = set(skip)
+            subtests = [testcase for testcase in subtests if testcase not in skip_set]
 
         self._log.debug(f"Final Subtests list to run: {subtests}")
         return subtests
@@ -727,6 +772,25 @@ class CloudHypervisorTests(Tool):
 
         return ""
 
+    def _check_test_panic_from_logs(
+        self,
+        test_result: TestResult,
+        log_path: Path,
+        content: str,
+        stage: str,
+        test_name: str,
+    ) -> None:
+        # Check the test output for panic markers
+        if content and content.strip():
+            check_test_panic(
+                content,
+                stage,
+                self._log,
+                test_result=test_result,
+                node_name=self.node.name,
+                source=f"{test_name} output",
+            )
+
     def _extract_stdout_diagnostics(self, stdout: str) -> List[str]:
         """Extract diagnostic information from stdout."""
         diagnostic_messages: List[str] = []
@@ -776,29 +840,6 @@ class CloudHypervisorTests(Tool):
         if assertions:
             assert_msg = assertions[0].strip()[:100]
             diagnostic_messages.append(f"Assertion: {assert_msg}")
-
-        # Check for hung tests using "has been running" messages
-        # Note: Cargo test doesn't print "test foo ..." until the test completes,
-        # so we can't detect hung tests by comparing started vs finished.
-        # We rely on the "has been running for over X seconds" messages.
-        running_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
-        running_tests = re.findall(running_pattern, stdout)
-
-        if running_tests:
-            # Get list of tests that actually finished
-            finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
-            finished_matches = re.findall(finished_pattern, stdout)
-            finished_tests = [match[0] for match in finished_matches]
-
-            # Cross-check: only report tests marked as "running too long"
-            # that didn't actually finish (these are truly hung)
-            hung_tests = [t for t in running_tests if t not in finished_tests]
-
-            if hung_tests:
-                # Remove duplicates while preserving order
-                unique_hung_tests = list(dict.fromkeys(hung_tests))
-                tests_list = ", ".join(unique_hung_tests)
-                diagnostic_messages.append(f"Likely hung in: {tests_list}")
 
         return diagnostic_messages
 
@@ -988,10 +1029,10 @@ while kill -0 $pid 2>/dev/null; do
     echo "[watchdog] No log growth for ${{idle_secs}}s; dumping live stacks" \\
       | tee -a "$log_file"
     echo "[watchdog] pstree / ps snapshot" | tee -a "$log_file"
-    pstree -ap 2>/dev/null | head -200 | tee -a "$log_file" || true
-    ps -eo pid,ppid,stat,etime,cmd | head -200 | tee -a "$log_file" || true
+    pstree -ap 2>/dev/null | head -200 | tee -a "$log_file" > /dev/null || true
+    ps -eo pid,ppid,stat,etime,cmd | head -200 | tee -a "$log_file" > /dev/null || true
     ps -eL -o pid,tid,ppid,stat,etime,comm,cmd | head -200 \\
-      | tee -a "$log_file" || true
+      | tee -a "$log_file" > /dev/null || true
 
     # Find a good target: prefer the integration test binary; otherwise a child
     # of the cargo/dev_cli process; otherwise fall back to the main pid.
@@ -1016,12 +1057,12 @@ while kill -0 $pid 2>/dev/null; do
     core_out="core.integration-$(date +%s)"
     echo "[watchdog] Generating core: $core_out" | tee -a "$log_file"
     if command -v gcore >/dev/null 2>&1; then
-      sudo gcore -o "$core_out" "$tpid" 2>&1 | tee -a "$log_file" || true
+      sudo gcore -o "$core_out" "$tpid" 2>&1 | tee -a "$log_file" > /dev/null || true
     else
       sudo gdb -batch -p "$tpid" \\
         -ex "set pagination off" \\
         -ex "generate-core-file $core_out" \\
-        -ex "detach" -ex "quit" 2>&1 | tee -a "$log_file" || true
+        -ex "detach" -ex "quit" 2>&1 | tee -a "$log_file" > /dev/null || true
     fi
 
     # Write live backtrace to BOTH main log and side file
@@ -1034,7 +1075,7 @@ while kill -0 $pid 2>/dev/null; do
         " echo n/a)";
       echo "[watchdog] comm(parent)=$(cat /proc/$pid/comm 2>/dev/null ||" \\
         " echo n/a)";
-    }} 2>/dev/null | tee -a "$log_file" || true
+    }} 2>/dev/null | tee -a "$log_file" > /dev/null || true
     sudo gdb -batch -p "$tpid" \\
       -ex "set pagination off" \\
       -ex "set print elements 0" \\
@@ -1211,6 +1252,7 @@ exit $ec
         tool_path = self.get_tool_path(use_global=True)
         self.repo_root = tool_path / "cloud-hypervisor"
         self.cmd_path = self.repo_root / "scripts" / "dev_cli.sh"
+        self.vdpa_script_path = self.repo_root / "scripts" / "prepare_vdpa.sh"
 
         # Pass through MIGRATABLE_VERSION from pipeline environment if set
         if "MIGRATABLE_VERSION" in os.environ:
@@ -1281,7 +1323,49 @@ exit $ec
 
         self.node.tools[Docker].start()
 
+        # Cache VMM version after installation completes
+        # This allows the platform hooks to pick it up automatically
+        self._cache_vmm_version()
+
         return self._check_exists()
+
+    def _cache_vmm_version(self) -> None:
+        """
+        Detect and cache cloud-hypervisor version after installation.
+        This is called automatically after the tool is installed, ensuring
+        the version is available for platform information hooks.
+        """
+        from lisa.sut_orchestrator.platform_utils import (
+            KEY_VMM_VERSION,
+            get_vmm_version,
+        )
+
+        try:
+            # Clear any previously cached UNKNOWN so detection is retried now
+            # that cloud-hypervisor has been installed.
+            extended_resources = getattr(
+                self.node.capability, "extended_resources", None
+            )
+            if (
+                extended_resources
+                and str(extended_resources.get(KEY_VMM_VERSION, "")).upper()
+                == "UNKNOWN"
+            ):
+                extended_resources.pop(KEY_VMM_VERSION)
+            vmm_version = get_vmm_version(self.node)
+            if vmm_version and vmm_version != "UNKNOWN":
+                self._log.info(f"Cloud-Hypervisor version detected: {vmm_version}")
+                # get_vmm_version() already caches the version in extended_resources
+
+                # Refresh environment information so it picks up the new VMM version
+                env = getattr(self.node, "environment", None)
+                if env is not None and hasattr(env, "get_information"):
+                    env.get_information(force_run=True)
+                    self._log.debug(
+                        "Refreshed environment information to include VMM version"
+                    )
+        except Exception as e:
+            self._log.debug(f"Could not cache VMM version: {e}")
 
     def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
         cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- --list"
@@ -1342,30 +1426,54 @@ exit $ec
 
             subtest_status[test_name] = status
 
+        # Detect hung tests: tests that cargo flagged as "has been running
+        # for over N seconds" but that never produced a final ok/FAILED result
+        # in the stdout. These are truly stuck tests.
+        hung_pattern = r"test\s+(\S+)\s+has been running for over \d+ seconds"
+        hung_candidates = re.findall(hung_pattern, output)
+
+        hung_test_names: Set[str] = set()
+        if hung_candidates:
+            finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
+            finished_matches = re.findall(finished_pattern, output)
+            finished_tests = {match[0].strip().lower() for match in finished_matches}
+
+            for name in hung_candidates:
+                normalized = name.strip()
+                if normalized not in finished_tests:
+                    hung_test_names.add(normalized)
+
+            # Mark hung tests as FAILED in subtest_status so they are
+            # reported correctly before subtest result messages are sent.
+            for name in hung_test_names:
+                if name in subtest_status:
+                    subtest_status[name] = TestStatus.FAILED
+
         messages = {
             TestStatus.QUEUED: "Subtest did not start",
-            TestStatus.RUNNING: "Subtest failed to finish - timed out",
         }
         for subtest in subtests:
+            hung = False
             status = subtest_status[subtest]
-            message = messages.get(status, "")
 
-            if status == TestStatus.RUNNING:
-                # Sub-test started running but didn't finish within the stipulated time.
-                # It should be treated as a failure.
-                status = TestStatus.FAILED
+            if subtest in hung_test_names:
+                message = "Subtest hung - no progress for extended period"
+                hung = True
+            else:
+                message = messages.get(status, "")
 
             results.append(
                 CloudHypervisorTestResult(
                     name=subtest,
                     status=status,
                     message=message,
+                    hung=hung,
                 )
             )
 
         return results
 
-    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> Set[str]:
+    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
         tests_list = []
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
@@ -1391,7 +1499,7 @@ exit $ec
         tests_list = [match[0] for match in pattern.findall(stdout)]
 
         self._log.debug(f"Testcases found: {tests_list}")
-        return set(tests_list)
+        return tests_list
 
     def _process_perf_metric_test_result(self, output: str) -> str:
         # Sample Output
@@ -1646,7 +1754,6 @@ exit $ec
         - C-states → ≤ C1E (Intel, best-effort AMD)
         - THP → never (host), madvise (guest)
         - irqbalance → ON
-        - Reserve hugepages (1GB fallback to 2MB) on selected NUMA node
 
         Note: numactl is installed by this method when perf_stable_enabled=True
         """
@@ -1695,64 +1802,6 @@ exit $ec
             shell=True,
             sudo=True,
         )
-
-        # Reserve hugepages (try 1GB first, fallback to 2MB)
-        hugepage_1g_path = (
-            f"/sys/devices/system/node/node{self._numa_node}/"
-            f"hugepages/hugepages-1048576kB/nr_hugepages"
-        )
-        hugepage_2m_path = (
-            f"/sys/devices/system/node/node{self._numa_node}/"
-            f"hugepages/hugepages-2048kB/nr_hugepages"
-        )
-
-        # Check if 1GB hugepages are available
-        result = self.node.execute(
-            f"[ -f {hugepage_1g_path} ]",
-            shell=True,
-        )
-
-        if result.exit_code == 0:
-            # Try 1GB hugepages (16GB total)
-            self.node.execute(
-                f"echo 16 | sudo tee {hugepage_1g_path} || true",
-                shell=True,
-                sudo=True,
-            )
-            # Verify allocation
-            verify = self.node.execute(
-                f"cat {hugepage_1g_path}",
-                shell=True,
-            )
-            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
-            if allocated >= 16:
-                self._log.debug(f"Reserved 16GB (1GB pages) on node{self._numa_node}")
-            else:
-                self._log.debug(
-                    f"Only {allocated}GB (1GB pages) allocated (requested 16GB)"
-                )
-        else:
-            # Fallback to 2MB hugepages (8192 pages = 16GB)
-            self.node.execute(
-                f"echo 8192 | sudo tee {hugepage_2m_path} || true",
-                shell=True,
-                sudo=True,
-            )
-            # Verify allocation
-            verify = self.node.execute(
-                f"cat {hugepage_2m_path}",
-                shell=True,
-            )
-            allocated = int(verify.stdout.strip()) if verify.exit_code == 0 else 0
-            # Convert 2MiB pages to GiB
-            allocated_gib = allocated * 2 / 1024
-            if allocated >= 8192:
-                self._log.debug(f"Reserved 16GB (2MB pages) on node{self._numa_node}")
-            else:
-                self._log.debug(
-                    f"Only {allocated_gib:.2f} GiB (2MiB pages) allocated "
-                    f"(requested 16 GiB)"
-                )
 
         # Export NUMA node for CH launcher
         os.environ["CH_NUMA_NODE"] = str(self._numa_node)

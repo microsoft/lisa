@@ -5,6 +5,7 @@
 from lisa.base_tools import (
     AptAddRepository,
     Cat,
+    Dpkg,
     Mv,
     Rpm,
     Sed,
@@ -90,6 +91,7 @@ from .mkdir import Mkdir
 from .mkfs import FileSystem, Mkfs, Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
 from .modprobe import Modprobe
+from .mokutil import Mokutil
 from .mono import Mono
 from .mount import Mount
 from .netperf import Netperf
@@ -141,6 +143,7 @@ from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
 from .tpm2 import Tpm2
+from .tpm2_pcrread import Tpm2Pcrread
 from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
@@ -178,6 +181,7 @@ __all__ = [
     "Dnsmasq",
     "Docker",
     "DockerCompose",
+    "Dpkg",
     "Echo",
     "EfiBootMgr",
     "Ethtool",
@@ -242,6 +246,7 @@ __all__ = [
     "Mkfsxfs",
     "Modinfo",
     "Modprobe",
+    "Mokutil",
     "Mono",
     "Mount",
     "Mv",
@@ -305,6 +310,7 @@ __all__ = [
     "Timedatectl",
     "Timeout",
     "Tpm2",
+    "Tpm2Pcrread",
     "Uname",
     "Unzip",
     "Uptime",

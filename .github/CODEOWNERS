@@ -1,2 +1,19 @@
 # See https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners
-* @LiliDeng
+* @LiliDeng @johnsongeorge-w
+/lisa/sut_orchestrator/libvirt/  @anirudhrb @vyadavmsft @pupacha
+/lisa/microsoft/testsuites/cloud_hypervisor/  @anirudhrb @vyadavmsft @pupacha
+/lisa/microsoft/testsuites/device_passthrough/  @anirudhrb @vyadavmsft @pupacha
+/lisa/sut_orchestrator/hyperv/  @anirudhrb @SRIKKANTH
+/lisa/ai/  @lubaihua33 @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/xfstests/  @shekharsorot @paxue
+/lisa/microsoft/testsuites/vm_extensions/runtime_extensions/  @mayankdaruka-msft @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/network/congestion_control.py  @andrew344c @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/dpdk/  @mcgov @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/gpu/  @paxue @umfranci @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/ltp/  @paxue @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/performance/  @lubaihua33 @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/storage/dmcache.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/network/xfrm.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/network/inet_diag.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/core/sched_core.py  @rlmenge @LiliDeng @johnsongeorge-w
+/lisa/microsoft/testsuites/bpf/  @rlmenge @LiliDeng @johnsongeorge-w

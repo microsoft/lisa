@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Type
@@ -104,6 +105,7 @@ class Ltp(Tool):
         ltp_tests: List[str],
         skip_tests: List[str],
         log_path: str,
+        user_input_skip_file: str = "",
         block_device: Optional[str] = None,
         temp_dir: str = "/tmp/",
         ltp_run_timeout: int = 12000,
@@ -147,12 +149,31 @@ class Ltp(Tool):
         parameters += f"-d {temp_dir} "
 
         # add the list of skip tests to run
-        if len(skip_tests) > 0:
-            # write skip test to skipfile with newline separator
-            skip_file_value = "\n".join(skip_tests)
-            self.node.tools[Echo].write_to_file(
-                skip_file_value, PurePosixPath(skip_file), sudo=True
+        if user_input_skip_file:
+            # copy user provided skip file to remote skip_file location
+            if not os.path.exists(user_input_skip_file):
+                raise LisaException(
+                    f"User provided skip file does not exist: {user_input_skip_file}"
+                )
+            self._log.debug(f"user_input_skip_file: {user_input_skip_file}")
+            self.node.shell.copy(
+                PurePath(user_input_skip_file),
+                PurePosixPath(skip_file),
             )
+            parameters += f"-S {skip_file} "
+        elif len(skip_tests) > 0:
+            # Write skip tests to a local temp file and copy to remote,
+            # avoiding shell quoting issues entirely.
+            skip_file_value = "\n".join(skip_tests)
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".skipfile", delete=False
+            ) as tmp:
+                tmp.write(skip_file_value)
+                local_tmp_path = tmp.name
+            try:
+                self.node.shell.copy(PurePath(local_tmp_path), PurePosixPath(skip_file))
+            finally:
+                os.unlink(local_tmp_path)
             parameters += f"-S {skip_file} "
 
         # Minimum 4M swap space is needed by some mmp test

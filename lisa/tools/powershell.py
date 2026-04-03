@@ -58,7 +58,7 @@ class PowerShell(Tool):
         no_debug_log: bool = True,
     ) -> Any:
         if output_json:
-            cmdlet = f"{cmdlet} | ConvertTo-Json"
+            cmdlet = f"{cmdlet.rstrip()} | ConvertTo-Json"
         process = self.run_cmdlet_async(
             cmdlet=cmdlet, force_run=force_run, sudo=sudo, no_debug_log=no_debug_log
         )

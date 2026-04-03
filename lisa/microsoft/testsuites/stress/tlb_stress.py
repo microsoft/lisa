@@ -11,7 +11,7 @@ from lisa.base_tools import Cat
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg
+from lisa.tools import Chmod, Dmesg, Mkdir
 from lisa.util import LisaException, UnsupportedDistroException
 
 if TYPE_CHECKING:
@@ -714,7 +714,8 @@ class TlbStress(Tool):
         remote_node = cast(RemoteNode, self.node)
 
         # Create working directory
-        self.node.execute(f"mkdir -p {self._work}", sudo=True)
+        self.node.tools[Mkdir].create_directory(self._work, sudo=True)
+        self.node.tools[Chmod].chmod(path=self._work, permission="777", sudo=True)
 
         # Get the C program from the same directory
         c_program_path = Path(__file__).parent / "tlb_flush_stress.c"

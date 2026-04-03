@@ -153,9 +153,18 @@ class HyperV(Tool):
             self._default_switch
             and self._default_switch.type == HypervSwitchType.INTERNAL
         ):
-            # delete port mapping for internal IP address of the VM
-            internal_ip = self.get_ip_address(name)
-            self.delete_nat_mapping(internal_ip=internal_ip)
+            # Delete port mapping for internal IP address of the VM
+            # It is possible that the VM does not have an IP address
+            # and we're in the cleanup phase after a failed VM creation,
+            # Since there is no IP get_ip_address will raise an exception.
+            # In that case, catch the exception and log a warning and
+            # continue to delete the VM anyway. We must try to delete the
+            # VM at any cost.
+            try:
+                internal_ip = self.get_ip_address(name)
+                self.delete_nat_mapping(internal_ip=internal_ip)
+            except Exception as e:
+                self._log.warning(f"Failed to delete NAT mapping for VM {name}: {e}")
 
         # stop and delete vm
         self.stop_vm(name=name)
@@ -484,16 +493,18 @@ class HyperV(Tool):
         )
 
     # delete NAT mapping for a port or internal IP
-    def delete_nat_mapping(
-        self, external_port: Optional[int] = None, internal_ip: Optional[str] = None
-    ) -> None:
-        if external_port is None:
-            external_port = self.node.tools[PowerShell].run_cmdlet(
-                f"Get-NetNatStaticMapping | "
-                f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
-                f" | Select-Object -ExpandProperty ExternalPort",
-                force_run=True,
-            )
+    def delete_nat_mapping(self, internal_ip: str) -> None:
+        external_port = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-NetNatStaticMapping | "
+            f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
+            f" | Select-Object -ExpandProperty ExternalPort",
+            force_run=True,
+        )
+
+        if not external_port:
+            self._log.debug(f"Mapping for internal IP {internal_ip} does not exist")
+            return
+
         mapping_id = self.get_nat_mapping_id(external_port)
         if mapping_id:
             # delete the NAT mapping if it exists

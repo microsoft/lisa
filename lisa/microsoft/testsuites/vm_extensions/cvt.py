@@ -307,6 +307,7 @@ def _run_cvt_tests(
     description="""
     This test is used to validate the functionality of ASR driver.
     """,
+    tags=["VM_Extension"],
     requirement=simple_requirement(unsupported_os=[]),
 )
 class CVTTest(TestSuite):

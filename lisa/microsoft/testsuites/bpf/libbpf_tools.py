@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
 from assertpy import assert_that
 
 from lisa import (
+    Logger,
     Node,
     SkippedException,
     TestCaseMetadata,
@@ -14,7 +15,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import Linux
+from lisa.operating_system import CBLMariner, Linux
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 
 
@@ -28,10 +29,18 @@ from lisa.sut_orchestrator import AZURE, HYPERV, READY
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
-        supported_os=[Linux],
+        supported_os=[CBLMariner],
     ),
 )
 class LibbpfToolsSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        if node.os.information.version.major != 3:
+            raise SkippedException(
+                f"libbpf-tools tests only supported on CBLMariner 3, "
+                f"found version {node.os.information.version}"
+            )
+
     def _find_tool(self, node: Node, base_tool_name: str) -> tuple[bool, str | None]:
         """
         Find a libbpf tool by checking for both prefixed and unprefixed variants.

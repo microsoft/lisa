@@ -17,7 +17,7 @@ from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
-from lisa.tools import Pgrep, Stat
+from lisa.tools import Pgrep, Service, Stat
 from lisa.util import get_matched_str
 
 
@@ -64,6 +64,22 @@ class Kvp(TestSuite):
 
         # 1. run the KVP client tool
         kvp_client = node.tools[KvpClient]
+
+        # Installing KvpClient on arm64 triggers gcc installation via apt-get,
+        # which can update the hyperv-daemons package and stop the KVP daemon.
+        # Ensure the daemon is running before we check its PID.
+        if not isinstance(node.os, BSD):
+            service = node.tools[Service]
+            for svc_name in ["hv-kvp-daemon", "hv_kvp_daemon", "hypervkvpd"]:
+                if service.check_service_exists(svc_name):
+                    if not service.is_service_running(svc_name):
+                        log.debug(
+                            f"KVP daemon service '{svc_name}' is not running, "
+                            "restarting after tool installation."
+                        )
+                        service.restart_service(svc_name)
+                    break
+
         pool_count = kvp_client.get_pool_count()
         assert_that(pool_count, "kvp pool count must be 5").is_equal_to(5)
 

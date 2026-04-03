@@ -6,7 +6,7 @@ from typing import Any
 from assertpy import assert_that
 
 from lisa import Node, SkippedException, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import CBLMariner, Debian, Linux
+from lisa.operating_system import CBLMariner, Debian, Linux, Ubuntu
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.testsuite import simple_requirement
 from lisa.tools import Gcc
@@ -91,6 +91,10 @@ class CdromSuite(TestSuite):
         # Mariner doesn't ship with many dev tools. Install build tools and headers
         if isinstance(distro, CBLMariner):
             distro.install_packages(["kernel-headers", "binutils-devel", "glibc-devel"])
+        # Starting from Ubuntu 2510 'build-essential' package is not available by
+        # default. It needs to be installed when needed.
+        elif isinstance(distro, Ubuntu):
+            distro.install_packages(["build-essential"])
         # debian ships with headers, no setup needed
         elif isinstance(distro, Debian):
             ...

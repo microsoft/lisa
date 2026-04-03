@@ -32,6 +32,7 @@ from lisa.util import SkippedException
 class CloudHypervisorTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+
         if not isinstance(node.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"Cloud Hypervisor tests are not implemented in LISA for {node.os.name}"
@@ -46,6 +47,7 @@ class CloudHypervisorTestSuite(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+
         node.tools[Modprobe].remove(["openvswitch"])
 
         journalctl = node.tools[Journalctl]

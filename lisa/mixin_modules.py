@@ -30,6 +30,7 @@ try:
     import lisa.sut_orchestrator.azure.hooks  # noqa: F401
     import lisa.sut_orchestrator.azure.notifiers  # noqa: F401
     import lisa.sut_orchestrator.azure.transformers  # noqa: F401
+    import lisa.transformers.azure_extension  # noqa: F401
     import lisa.transformers.disable_cloud_components  # noqa: F401
     import lisa.transformers.hyperv_preparation  # noqa: F401
 except ModuleNotFoundError as e:
@@ -80,6 +81,7 @@ import lisa.transformers.dom0_kernel_installer  # noqa: F401
 import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.file_uploader  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
+import lisa.transformers.kernel_source_packager  # noqa: F401
 import lisa.transformers.package_installer  # noqa: F401
 import lisa.transformers.repo_package_installer  # noqa: F401
 import lisa.transformers.rpm_kernel_installer  # noqa: F401

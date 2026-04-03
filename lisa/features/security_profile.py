@@ -148,7 +148,9 @@ SecureBootEnabled = partial(
 
 CvmEnabled = partial(
     SecurityProfileSettings,
-    security_profile=search_space.SetSpace(True, [SecurityProfileType.CVM]),
+    security_profile=search_space.SetSpace(
+        True, [SecurityProfileType.CVM, SecurityProfileType.Stateless]
+    ),
 )
 
 CvmDisabled = partial(
