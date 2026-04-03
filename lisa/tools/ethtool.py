@@ -896,6 +896,42 @@ class Ethtool(Tool):
 
         return self.get_device_sg_settings(interface, force_run=True)
 
+    def get_device_cqe_coalescing(self, interface: str) -> Optional[int]:
+        """
+        Run 'ethtool -c <interface>' and return the rx-cqe-frames value,
+        or None if not supported.
+        """
+        result = self.run(f"-c {interface}", force_run=True, shell=True)
+        if result.exit_code != 0:
+            self._log.debug(
+                f"ethtool -c {interface} not supported: {result.stdout}"
+            )
+            return None
+        match = re.search(r"rx-cqe-frames:\s*(\d+)", result.stdout)
+        if match:
+            return int(match.group(1))
+        return None
+
+    def get_device_cqe_stats(self, interface: str) -> Dict[str, int]:
+        """
+        Run 'ethtool -S <interface>' and return only CQE-related counters.
+        """
+        result = self.run(f"-S {interface}", force_run=True, shell=True)
+        if result.exit_code != 0:
+            self._log.debug(
+                f"ethtool -S {interface} failed: {result.stdout}"
+            )
+            return {}
+        cqe_stats: Dict[str, int] = {}
+        for line in result.stdout.splitlines():
+            if "cqe" in line.lower():
+                stat_match = re.match(r"\s*(.+?):\s*(\d+)", line)
+                if stat_match:
+                    cqe_stats[stat_match.group(1).strip()] = int(
+                        stat_match.group(2)
+                    )
+        return cqe_stats
+
     def get_device_statistics(
         self, interface: str, force_run: bool = False
     ) -> DeviceStatistics:
