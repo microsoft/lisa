@@ -21,6 +21,8 @@ from lisa import (
     create_timer,
     simple_requirement,
 )
+from lisa.features import SecurityProfile
+from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
 from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Ubuntu, Windows
 from lisa.tools import (
     Cat,
@@ -315,7 +317,7 @@ class TimeSync(TestSuite):
         description="""
         This test is to check -
             1. Current clock event name is 'Hyper-V clockevent' for x86,
-            'arch_sys_timer' for arm64.
+            'arch_sys_timer' for arm64 and 'lapic' for CVMs.
             2. 'Hyper-V clockevent' or 'arch_sys_timer' and 'hrtimer_interrupt'
              show up times in /proc/timer_list should equal to cpu count.
             3. when cpu count is 1 and cpu type is Intel type, unbind current time
@@ -325,16 +327,38 @@ class TimeSync(TestSuite):
     )
     def verify_timesync_unbind_clockevent(self, node: Node) -> None:
         if node.shell.exists(PurePosixPath(self.current_clockevent)):
-            # 1. Current clock event name is 'Hyper-V clockevent'.
+            # 1. Current clock event name is 'Hyper-V clockevent' for x86,
+            # 'arch_sys_timer' for arm64 and 'lapic' for CVMs.
             clockevent_map = {
                 CpuArchitecture.X64: "Hyper-V clockevent",
                 CpuArchitecture.ARM64: "arch_sys_timer",
             }
+
+            # Check if running on CVM (Confidential VM)
+            is_cvm = False
+            if node.features.is_supported(SecurityProfile):
+                security_profile_settings = cast(
+                    SecurityProfileSettings,
+                    node.features[SecurityProfile].get_settings(),
+                )
+                if (
+                    security_profile_settings.security_profile
+                    == SecurityProfileType.CVM
+                ):
+                    is_cvm = True
+
             lscpu = node.tools[Lscpu]
             arch = lscpu.get_architecture()
-            clock_event_name = clockevent_map.get(arch, None)
-            if not clock_event_name:
-                raise UnsupportedCpuArchitectureException(arch)
+
+            # For CVMs on X64, expect 'lapic' instead of 'Hyper-V clockevent'
+            # https://lkml.org/lkml/2024/6/21/1215
+            if is_cvm and arch == CpuArchitecture.X64:
+                clock_event_name = "lapic"
+            else:
+                clock_event_name = clockevent_map.get(arch, "")
+                if not clock_event_name:
+                    raise UnsupportedCpuArchitectureException(arch)
+
             cat = node.tools[Cat]
             clock_event_result = cat.run(self.current_clockevent)
             assert_that(clock_event_result.stdout).described_as(
@@ -366,7 +390,12 @@ class TimeSync(TestSuite):
 
             # 3. when cpu count is 1 and cpu type is Intel type, unbind current time
             #  clock event, check current time clock event switch to 'lapic'.
-            if CpuType.Intel == lscpu.get_cpu_type() and 1 == thread_count:
+            #  Note: For CVMs, clockevent is already 'lapic', so skip unbind test.
+            if (
+                CpuType.Intel == lscpu.get_cpu_type()
+                and 1 == thread_count
+                and not is_cvm
+            ):
                 cmd_result = node.execute(
                     f"echo {clock_event_name} > {self.unbind_clockevent}",
                     sudo=True,
