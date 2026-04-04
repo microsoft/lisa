@@ -1,0 +1,13 @@
+vm_size,expected_cpu_count,expected_memory_mb,expected_nic_count,expected_max_disks,expected_max_iops,expected_network_bw,expected_storage_bw
+Standard_D2s_v3,2,8192,2,4,3200,,
+Standard_D4s_v3,4,16384,2,8,6400,,
+Standard_D8s_v3,8,32768,4,16,12800,,
+Standard_D16s_v3,16,65536,8,32,25600,,
+Standard_D32s_v3,32,131072,8,32,51200,,
+Standard_D2s_v5,2,8192,2,4,3750,,
+Standard_D4s_v5,4,16384,2,8,6400,,
+Standard_D8s_v5,8,32768,4,16,12800,,
+Standard_E2s_v3,2,16384,2,4,3200,,
+Standard_E4s_v3,4,32768,2,8,6400,,
+Standard_F2s_v2,2,4096,2,4,3200,,
+Standard_F4s_v2,4,8192,2,8,6400,,

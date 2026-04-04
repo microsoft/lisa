@@ -1,0 +1,83 @@
+# VM Specification Validation Runbook
+#
+# This runbook provisions Azure VMs based on specifications from a CSV file
+# and validates that each VM matches the declared hardware properties.
+#
+# The CSV combinator iterates over every row in the CSV file. Each row sets
+# the vm_size (used by the platform to provision) and expected_* variables
+# (used by the test suite to validate).
+#
+# Usage:
+#   lisa -r microsoft/testsuites/vm_spec_validation/vm_spec_validation.yml \
+#        --variable "subscription_id:<your_sub_id>" \
+#        --variable "csv_file:microsoft/testsuites/vm_spec_validation/vm_specs.csv"
+#
+# You can also override location, marketplace_image, etc. from the CLI.
+
+name: vm_spec_validation
+
+include:
+  - path: ../../runbook/azure.yml
+
+extension:
+  - ../../testsuites
+
+variable:
+  # Path to the CSV file with VM specifications (override via CLI if needed)
+  - name: csv_file
+    value: "microsoft/testsuites/vm_spec_validation/vm_specs.csv"
+
+  # -------------------------------------------------------------------
+  # Variables populated by the CSV combinator for each row.
+  # They are marked is_case_visible so the test suite can read them.
+  # -------------------------------------------------------------------
+  - name: vm_size
+    value: ""
+    is_case_visible: true
+  - name: expected_cpu_count
+    value: ""
+    is_case_visible: true
+  - name: expected_memory_mb
+    value: ""
+    is_case_visible: true
+  - name: expected_nic_count
+    value: ""
+    is_case_visible: true
+  - name: expected_max_disks
+    value: ""
+    is_case_visible: true
+  - name: expected_max_iops
+    value: ""
+    is_case_visible: true
+  - name: expected_network_bw
+    value: ""
+    is_case_visible: true
+  - name: expected_storage_bw
+    value: ""
+    is_case_visible: true
+
+combinator:
+  type: csv
+  file_name: $(csv_file)
+  column_mapping:
+    - column: vm_size
+      variable: vm_size
+    - column: expected_cpu_count
+      variable: expected_cpu_count
+    - column: expected_memory_mb
+      variable: expected_memory_mb
+    - column: expected_nic_count
+      variable: expected_nic_count
+    - column: expected_max_disks
+      variable: expected_max_disks
+    - column: expected_max_iops
+      variable: expected_max_iops
+    - column: expected_network_bw
+      variable: expected_network_bw
+    - column: expected_storage_bw
+      variable: expected_storage_bw
+
+# Select only the vm_spec_validation test cases
+testcase:
+  - criteria:
+      area: vm_spec_validation
