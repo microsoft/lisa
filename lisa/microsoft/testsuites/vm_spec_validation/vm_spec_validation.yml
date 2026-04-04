@@ -21,7 +21,8 @@ test_pass: "adhoc"
 name: vm_spec_validation
 
 include:
-  - path: ../../runbook/azure.yml
+  # - path: ../../runbook/azure.yml
+  - path: 'C:\w\lisa\lisa\microsoft\runbook\azure.yml'
 
 extension:
   - ../../testsuites
