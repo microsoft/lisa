@@ -182,7 +182,7 @@ class VmSpecValidation(TestSuite):
         2. Query the VM's actual vCPU count via ``lscpu``.
         3. Assert they are equal.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(),
     )
     def verify_vm_cpu_count(
@@ -216,7 +216,7 @@ class VmSpecValidation(TestSuite):
         2. Query actual total memory in KB, convert to MB.
         3. Assert the actual value is within 10%% of expected.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(),
     )
     def verify_vm_memory(
@@ -252,7 +252,7 @@ class VmSpecValidation(TestSuite):
         2. Query GPU PCI devices via ``lspci``.
         3. Assert the GPU device count matches expected_gpu_count.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(min_gpu_count=1),
     )
     def verify_vm_gpu_count(
@@ -287,7 +287,7 @@ class VmSpecValidation(TestSuite):
         3. Run sriov_basic_test to verify SR-IOV modules and VFs.
         4. Assert total NIC count matches expected_nic_count from CSV.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
@@ -335,7 +335,7 @@ class VmSpecValidation(TestSuite):
         3. Run initialize_nic_info to validate NIC/IP assignment.
         4. Assert total NIC count matches expected_nic_count from CSV.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -383,7 +383,7 @@ class VmSpecValidation(TestSuite):
         3. Discover all attached raw data disks inside the guest.
         4. Assert the attached disk count matches expected_max_disks.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
@@ -423,7 +423,7 @@ class VmSpecValidation(TestSuite):
         3. Discover local NVMe namespaces inside the guest.
         4. Assert the NVMe disk count matches nvme_expected_max_disks.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(
             supported_features=[
                 NvmeSettings(

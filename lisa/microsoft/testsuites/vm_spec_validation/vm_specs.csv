@@ -1,4 +1,4 @@
-vm_size,expected_cpu_count,expected_memory_mb,expected_gpu_count,expected_nic_count,expected_max_disks,expected_max_iops,nvme_expected_max_disks,nvme_expected_max_iops,expected_network_bw,expected_storage_bw
-Standard_F4s_v2,4,8192,,2,8,6400,,,,,
-Standard_L8s_v3,8,65536,,4,16,,1,400000,,,
-Standard_NC6s_v3,6,114688,1,4,12,20000,,,,,
+vm_size,expected_cpu_count,expected_memory_mb,expected_nic_count,expected_max_disks,expected_max_iops,expected_network_bw,expected_storage_bw,expected_gpu_count,nvme_expected_max_disks,nvme_expected_max_iops
+Standard_F4s_v2,4,8192,2,8,6400,10000,95,,8,6400
+Standard_L8s_v3,8,65536,4,16,12800,12500,290,,1,400000
+Standard_NC6s_v3,6,114688,4,12,20000,12500,200,1,,

@@ -30,7 +30,7 @@ extension:
 variable:
   # Path to the CSV file with VM specifications (override via CLI if needed)
   - name: csv_file
-    value: "microsoft/testsuites/vm_spec_validation/vm_specs.csv"
+    value: 'C:\w\lisa\lisa\microsoft\testsuites\vm_spec_validation\vm_specs.csv'
 
   # -------------------------------------------------------------------
   # Variables populated by the CSV combinator for each row.
