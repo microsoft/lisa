@@ -43,17 +43,25 @@ from typing import Any, Dict, List
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    schema,
     search_space,
     simple_requirement,
 )
+from lisa.features import Disk
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Fio, Free, Lsblk, Lscpu
+from lisa.tools import Fio, Free, Lscpu
+from microsoft.testsuites.network.common import (
+    initialize_nic_info,
+    skip_if_no_synthetic_nics,
+    sriov_basic_test,
+)
 
 # ---------------------------------------------------------------------------
 # Variable name constants - must match the ``column_mapping`` in the runbook.
@@ -194,71 +202,122 @@ class VmSpecValidation(TestSuite):
         ).is_greater_than_or_equal_to(int(lower_bound))
 
     # ------------------------------------------------------------------
-    # NIC count validation
+    # SR-IOV NIC count validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
         description="""
-        Verify that the VM supports the expected number of NICs as
-        declared in the CSV specification.
+        Verify the VM supports the expected number of SR-IOV NICs by
+        provisioning with the maximum NIC count and validating that
+        each NIC is paired with a VF device and receives an IP.
 
         Steps:
-        1. Read expected_nic_count from the CSV-provided variables.
-        2. Query the platform's maximum NIC capability for this node.
-        3. Assert the max NIC count is >= expected value.
+        1. Provision the VM with max SR-IOV NICs (choose_max_value).
+        2. Run initialize_nic_info to validate NIC/IP/VF pairing.
+        3. Run sriov_basic_test to verify SR-IOV modules and VFs.
+        4. Assert total NIC count matches expected_nic_count from CSV.
         """,
         priority=1,
-        requirement=simple_requirement(),
+        requirement=simple_requirement(
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Sriov,
+                nic_count=search_space.IntRange(min=2, choose_max_value=True),
+            ),
+        ),
     )
-    def verify_vm_nic_count(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+    def verify_vm_sriov_nic_count(
+        self,
+        environment: Environment,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
     ) -> None:
         expected_nic_count = _get_int_var(variables, VAR_EXPECTED_NIC_COUNT)
         vm_size = variables.get(VAR_VM_SIZE, "unknown")
 
-        # Use the network interface capability from the node
-        nic_capability = node.capability.network_interface
-        if nic_capability and hasattr(nic_capability, "max_nic_count"):
-            max_nic = _resolve_countspace(nic_capability.max_nic_count)
-            log.info(
-                f"VM size: {vm_size} - expected NIC count: "
-                f"{expected_nic_count}, "
-                f"platform max NIC count: {max_nic}"
-            )
-            assert_that(max_nic).described_as(
-                f"VM size {vm_size}: expected max NIC count "
-                f">= {expected_nic_count} "
-                f"but platform reports {max_nic}"
-            ).is_greater_than_or_equal_to(expected_nic_count)
-        else:
-            # Fallback: count NICs visible inside the guest
-            nic_names = node.nics.get_nic_names()
-            actual_nic_count = len(nic_names)
-            log.info(
-                f"VM size: {vm_size} - expected NICs: "
-                f"{expected_nic_count}, "
-                f"visible NICs: {actual_nic_count}"
-            )
-            assert_that(actual_nic_count).described_as(
-                f"VM size {vm_size}: expected at least "
-                f"{expected_nic_count} NIC(s) "
-                f"but found {actual_nic_count}"
-            ).is_greater_than_or_equal_to(expected_nic_count)
+        # Validate SR-IOV NIC info: IP assignment + VF pairing
+        initialize_nic_info(environment, is_sriov=True)
+        # Verify SR-IOV modules loaded and VF device counts
+        sriov_basic_test(environment)
+
+        actual_nic_count = len(node.nics.nics)
+        log.info(
+            f"VM size: {vm_size} - expected NICs: {expected_nic_count}, "
+            f"actual SR-IOV NICs: {actual_nic_count}"
+        )
+        assert_that(actual_nic_count).described_as(
+            f"VM size {vm_size}: expected {expected_nic_count} SR-IOV NICs "
+            f"but found {actual_nic_count}"
+        ).is_equal_to(expected_nic_count)
 
     # ------------------------------------------------------------------
-    # Max data disk count validation
+    # Synthetic NIC count validation
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify the VM supports the expected number of synthetic NICs by
+        provisioning with the maximum NIC count and validating that
+        each NIC receives an IP address.
+
+        Steps:
+        1. Provision the VM with max synthetic NICs (choose_max_value).
+        2. Skip if the VM has no synthetic NIC devices.
+        3. Run initialize_nic_info to validate NIC/IP assignment.
+        4. Assert total NIC count matches expected_nic_count from CSV.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Synthetic,
+                nic_count=search_space.IntRange(min=2, choose_max_value=True),
+            ),
+        ),
+    )
+    def verify_vm_synthetic_nic_count(
+        self,
+        environment: Environment,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        expected_nic_count = _get_int_var(variables, VAR_EXPECTED_NIC_COUNT)
+        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+
+        skip_if_no_synthetic_nics(node)
+        # Validate synthetic NIC info: IP assignment
+        initialize_nic_info(environment, is_sriov=False)
+
+        actual_nic_count = len(node.nics.nics)
+        log.info(
+            f"VM size: {vm_size} - expected NICs: {expected_nic_count}, "
+            f"actual synthetic NICs: {actual_nic_count}"
+        )
+        assert_that(actual_nic_count).described_as(
+            f"VM size {vm_size}: expected {expected_nic_count} synthetic NICs "
+            f"but found {actual_nic_count}"
+        ).is_equal_to(expected_nic_count)
+
+    # ------------------------------------------------------------------
+    # Max data disk count validation — provision with max disks
     # ------------------------------------------------------------------
     @TestCaseMetadata(
         description="""
         Verify that the VM supports the expected maximum number of data
-        disks as declared in the CSV specification.
+        disks by provisioning with the maximum disk count allowed by the
+        VM size's container policy and confirming the disks are visible
+        inside the guest.
 
         Steps:
-        1. Read expected_max_disks from the CSV-provided variables.
-        2. Query the platform's max data disk capability for this node.
-        3. Assert the max data disk count is >= expected value.
+        1. Provision the VM with max data disks (choose_max_value).
+        2. Read expected_max_disks from the CSV-provided variables.
+        3. Discover all attached raw data disks inside the guest.
+        4. Assert the attached disk count matches expected_max_disks.
         """,
         priority=1,
-        requirement=simple_requirement(),
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
     )
     def verify_vm_max_data_disks(
         self, node: Node, log: Logger, variables: Dict[str, Any]
@@ -266,47 +325,44 @@ class VmSpecValidation(TestSuite):
         expected_max_disks = _get_int_var(variables, VAR_EXPECTED_MAX_DISKS)
         vm_size = variables.get(VAR_VM_SIZE, "unknown")
 
-        disk_capability = node.capability.disk
-        if disk_capability and hasattr(disk_capability, "max_data_disk_count"):
-            max_disks = _resolve_countspace(disk_capability.max_data_disk_count)
-            log.info(
-                f"VM size: {vm_size} - expected max disks: "
-                f"{expected_max_disks}, "
-                f"platform max disks: {max_disks}"
-            )
-            assert_that(max_disks).described_as(
-                f"VM size {vm_size}: expected max data disks "
-                f">= {expected_max_disks} "
-                f"but platform reports {max_disks}"
-            ).is_greater_than_or_equal_to(expected_max_disks)
-        else:
-            raise SkippedException(
-                f"Disk capability not available for VM size {vm_size} - "
-                "cannot validate max data disk count."
-            )
+        # Discover all raw data disks visible inside the guest
+        data_disks = node.features[Disk].get_raw_data_disks()
+        actual_disk_count = len(data_disks)
+        log.info(
+            f"VM size: {vm_size} - expected max disks: {expected_max_disks}, "
+            f"actual data disks: {actual_disk_count} {data_disks}"
+        )
+        assert_that(actual_disk_count).described_as(
+            f"VM size {vm_size}: expected {expected_max_disks} data disks "
+            f"but found {actual_disk_count} inside the guest"
+        ).is_equal_to(expected_max_disks)
 
     # ------------------------------------------------------------------
-    # Disk IOPS validation (optional - skipped if CSV column is empty)
+    # Disk IOPS validation — provision max disks, fio all of them
     # ------------------------------------------------------------------
     @TestCaseMetadata(
         description="""
         Verify that the VM can achieve at least the expected disk IOPS
-        declared in the CSV specification by running a short ``fio``
-        random-read benchmark.
+        declared in the CSV specification by provisioning with the
+        maximum number of data disks allowed by the VM size and running
+        a ``fio`` random-read benchmark across all of them.
 
         This test is skipped when the ``expected_max_iops`` CSV column
         is empty.
 
         Steps:
-        1. Read expected_max_iops from the CSV-provided variables.
-        2. Find a data disk to benchmark.
-        3. Run fio random-read 4K I/O for 30 seconds.
-        4. Assert the measured IOPS >= expected (with tolerance).
+        1. Provision the VM with max data disks (choose_max_value).
+        2. Read expected_max_iops from the CSV-provided variables.
+        3. Discover all attached raw data disks.
+        4. Run fio random-read 4K across all disks simultaneously.
+        5. Assert the aggregate IOPS >= expected (with tolerance).
         """,
         priority=3,
         requirement=simple_requirement(
-            min_data_disk_count=1,
             unsupported_os=[BSD, Windows],
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
         ),
     )
     def verify_vm_disk_iops(
@@ -319,25 +375,25 @@ class VmSpecValidation(TestSuite):
             )
         vm_size = variables.get(VAR_VM_SIZE, "unknown")
 
-        # Find a data disk to benchmark
-        lsblk = node.tools[Lsblk]
-        disks = lsblk.get_disks(force_run=True)
-        # Filter to non-OS disks that are not currently mounted
-        data_disks = [d for d in disks if not d.is_os_disk and not d.is_mounted]
-
+        # Discover all raw data disks attached by the platform
+        data_disks = node.features[Disk].get_raw_data_disks()
         if not data_disks:
             raise SkippedException(
-                "No unmounted data disk found for IOPS benchmark - skipping."
+                "No data disks found after provisioning - skipping IOPS check."
             )
 
-        # Use the first available data disk
-        target_disk = data_disks[0].device_name
-        log.info(f"VM size: {vm_size} - running fio IOPS benchmark on {target_disk}")
+        log.info(
+            f"VM size: {vm_size} - discovered {len(data_disks)} data disk(s): "
+            f"{data_disks}"
+        )
 
+        # Run fio across ALL data disks simultaneously using
+        # colon-separated filenames.
+        filename = ":".join(data_disks)
         fio = node.tools[Fio]
         result = fio.launch(
-            name="iops_check",
-            filename=target_disk,
+            name="iops_all_disks",
+            filename=filename,
             mode="randread",
             iodepth=64,
             numjob=4,
@@ -351,14 +407,15 @@ class VmSpecValidation(TestSuite):
         # Allow tolerance below the declared max
         iops_floor = int(expected_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
-            f"VM size: {vm_size} - expected IOPS >= {iops_floor} "
-            f"(declared max: {expected_iops}), measured: {measured_iops}"
+            f"VM size: {vm_size} - fio across {len(data_disks)} disk(s): "
+            f"measured {measured_iops} IOPS, "
+            f"expected >= {iops_floor} (declared max: {expected_iops})"
         )
         assert_that(measured_iops).described_as(
-            f"VM size {vm_size}: expected disk IOPS >= {iops_floor} "
+            f"VM size {vm_size}: expected aggregate disk IOPS >= {iops_floor} "
             f"(declared max {expected_iops} with "
-            f"{_PERF_TOLERANCE_PERCENT}% tolerance) "
-            f"but measured only {measured_iops}"
+            f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
+            f"{len(data_disks)} disk(s) but measured only {measured_iops}"
         ).is_greater_than_or_equal_to(iops_floor)
 
     # ------------------------------------------------------------------
@@ -407,17 +464,19 @@ class VmSpecValidation(TestSuite):
                     f"Memory: expected >= {lower_bound} MB, " f"got {actual_mem_mb} MB"
                 )
 
-        # --- NIC count ---
+        # --- NIC count (guest-visible NICs with IPs) ---
         expected_nic = _get_optional_int_var(variables, VAR_EXPECTED_NIC_COUNT)
         if expected_nic > 0:
-            nic_cap = node.capability.network_interface
-            if nic_cap and hasattr(nic_cap, "max_nic_count"):
-                actual_nic = _resolve_countspace(nic_cap.max_nic_count)
-            else:
-                actual_nic = len(node.nics.get_nic_names())
-            log.info(f"  NICs: expected>={expected_nic}, actual={actual_nic}")
+            node.nics.reload()
+            nics_with_ip = [
+                name for name, info in node.nics.nics.items() if info.ip_addr
+            ]
+            actual_nic = len(nics_with_ip)
+            log.info(f"  NICs with IP: expected>={expected_nic}, actual={actual_nic}")
             if actual_nic < expected_nic:
-                mismatches.append(f"NICs: expected >= {expected_nic}, got {actual_nic}")
+                mismatches.append(
+                    f"NICs with IP: expected >= {expected_nic}, got {actual_nic}"
+                )
 
         # --- Max data disks ---
         expected_disks = _get_optional_int_var(variables, VAR_EXPECTED_MAX_DISKS)

@@ -49,14 +49,15 @@ Optional columns can be left empty; the corresponding tests are skipped graceful
 
 ## Test Cases
 
-| Method                     | Priority | Validates                                                                 |
-|----------------------------|----------|---------------------------------------------------------------------------|
-| `verify_vm_cpu_count`      | P1       | vCPU count == `expected_cpu_count`                                        |
-| `verify_vm_memory`         | P1       | Total memory within 10% of `expected_memory_mb`                           |
-| `verify_vm_nic_count`      | P1       | Max NIC count >= `expected_nic_count` (platform capability or guest enum) |
-| `verify_vm_max_data_disks` | P1       | Max data disks >= `expected_max_disks` (platform capability)              |
-| `verify_vm_disk_iops`      | P3       | Fio random-read 4K IOPS >= `expected_max_iops` (20% tolerance)           |
-| `verify_vm_spec_summary`   | P2       | All-in-one: collects all mismatches and reports them together             |
+| Method                          | Priority | Validates                                                                           |
+|---------------------------------|----------|-------------------------------------------------------------------------------------|
+| `verify_vm_cpu_count`           | P1       | vCPU count == `expected_cpu_count`                                                  |
+| `verify_vm_memory`              | P1       | Total memory within 10% of `expected_memory_mb`                                     |
+| `verify_vm_sriov_nic_count`     | P1       | Provisions max SR-IOV NICs, validates VF pairing + IPs, asserts `expected_nic_count`|
+| `verify_vm_synthetic_nic_count` | P1       | Provisions max synthetic NICs, validates IPs, asserts `expected_nic_count`           |
+| `verify_vm_max_data_disks`      | P1       | Max data disks >= `expected_max_disks` (platform capability)                        |
+| `verify_vm_disk_iops`           | P3       | Fio random-read 4K IOPS >= `expected_max_iops` (20% tolerance)                     |
+| `verify_vm_spec_summary`        | P2       | All-in-one: collects all mismatches and reports them together                       |
 
 ### Tolerance Values
 
