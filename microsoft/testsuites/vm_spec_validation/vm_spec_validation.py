@@ -7,7 +7,8 @@ VM Specification Validation Test Suite
 This test suite reads expected VM specifications from CSV-driven variables
 (via the LISA CSV combinator) and validates that a provisioned VM matches
 the declared hardware properties: CPU count, memory, NIC count, max data
-disks, and optionally storage IOPS and network bandwidth.
+disks (including local NVMe), and optionally storage IOPS and network
+bandwidth.
 
 Architecture
 ============
@@ -54,9 +55,10 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk
+from lisa.features import Disk, Nvme
+from lisa.features.nvme import NvmeSettings
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Fio, Free, Lscpu
+from lisa.tools import Fio, Free, Lscpu, Lspci
 from microsoft.testsuites.network.common import (
     initialize_nic_info,
     skip_if_no_synthetic_nics,
@@ -69,9 +71,12 @@ from microsoft.testsuites.network.common import (
 VAR_VM_SIZE = "vm_size"
 VAR_EXPECTED_CPU = "expected_cpu_count"
 VAR_EXPECTED_MEMORY_MB = "expected_memory_mb"
+VAR_EXPECTED_GPU_COUNT = "expected_gpu_count"
 VAR_EXPECTED_NIC_COUNT = "expected_nic_count"
 VAR_EXPECTED_MAX_DISKS = "expected_max_disks"
 VAR_EXPECTED_MAX_IOPS = "expected_max_iops"
+VAR_NVME_EXPECTED_MAX_DISKS = "nvme_expected_max_disks"
+VAR_NVME_EXPECTED_MAX_IOPS = "nvme_expected_max_iops"
 VAR_EXPECTED_NETWORK_BW = "expected_network_bw"
 VAR_EXPECTED_STORAGE_BW = "expected_storage_bw"
 
@@ -124,7 +129,7 @@ def _resolve_countspace(value: Any) -> int:
     description="""
     Validates that a provisioned VM matches the hardware specification
     declared in a CSV file (CPU count, memory, NIC count, max disks,
-    and optionally IOPS / bandwidth).
+    local NVMe disks, and optionally IOPS / bandwidth).
 
     Designed to be run with the CSV combinator so that every row in
     the input CSV drives an independent test iteration.
@@ -132,6 +137,30 @@ def _resolve_countspace(value: Any) -> int:
 )
 class VmSpecValidation(TestSuite):
     """Validate VM hardware against CSV-declared specifications."""
+
+    # Required CSV variables that must be present for any test case to run.
+    _REQUIRED_CSV_VARS = [
+        VAR_VM_SIZE,
+        VAR_EXPECTED_CPU,
+        VAR_EXPECTED_MEMORY_MB,
+        VAR_EXPECTED_NIC_COUNT,
+        VAR_EXPECTED_MAX_DISKS,
+        VAR_EXPECTED_NETWORK_BW,
+        VAR_EXPECTED_STORAGE_BW,
+    ]
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        variables: Dict[str, Any] = kwargs.pop("variables")
+        missing = [
+            v
+            for v in self._REQUIRED_CSV_VARS
+            if variables.get(v) is None or str(variables.get(v)).strip() == ""
+        ]
+        if missing:
+            raise SkippedException(
+                f"Required CSV variable(s) not set: {', '.join(missing)}. "
+                "Ensure the CSV file and combinator column_mapping are correct."
+            )
 
     # ------------------------------------------------------------------
     # CPU validation
@@ -200,6 +229,45 @@ class VmSpecValidation(TestSuite):
             f"but found {actual_memory_mb} MB "
             f"(tolerance {_MEMORY_TOLERANCE_PERCENT}%)"
         ).is_greater_than_or_equal_to(int(lower_bound))
+
+    # ------------------------------------------------------------------
+    # GPU count validation
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM exposes the expected number of GPU devices.
+
+        This test is skipped when the ``expected_gpu_count`` CSV column
+        is empty or zero.
+
+        Steps:
+        1. Read expected_gpu_count from the CSV-provided variables.
+        2. Query GPU PCI devices via ``lspci``.
+        3. Assert the GPU device count matches expected_gpu_count.
+        """,
+        priority=1,
+        requirement=simple_requirement(min_gpu_count=1),
+    )
+    def verify_vm_gpu_count(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        expected_gpu_count = _get_int_var(variables, VAR_EXPECTED_GPU_COUNT)
+        if expected_gpu_count <= 0:
+            raise SkippedException(
+                "expected_gpu_count is 0 or empty - skipping GPU check."
+            )
+        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+
+        gpu_devices = node.tools[Lspci].get_gpu_devices(force_run=True)
+        actual_gpu_count = len(gpu_devices)
+        log.info(
+            f"VM size: {vm_size} - expected GPUs: {expected_gpu_count}, "
+            f"actual GPUs: {actual_gpu_count}"
+        )
+        assert_that(actual_gpu_count).described_as(
+            f"VM size {vm_size}: expected {expected_gpu_count} GPU device(s) "
+            f"but found {actual_gpu_count}"
+        ).is_equal_to(expected_gpu_count)
 
     # ------------------------------------------------------------------
     # SR-IOV NIC count validation
@@ -336,6 +404,129 @@ class VmSpecValidation(TestSuite):
             f"VM size {vm_size}: expected {expected_max_disks} data disks "
             f"but found {actual_disk_count} inside the guest"
         ).is_equal_to(expected_max_disks)
+
+    # ------------------------------------------------------------------
+    # NVMe local disk count validation
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM exposes the expected number of local NVMe
+        disks by provisioning a VM size that supports NVMe and
+        requesting the maximum local NVMe disk count.
+
+        Steps:
+        1. Provision the VM with max local NVMe disks.
+        2. Read nvme_expected_max_disks from the CSV-provided variables.
+        3. Discover local NVMe namespaces inside the guest.
+        4. Assert the NVMe disk count matches nvme_expected_max_disks.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_features=[
+                NvmeSettings(
+                    disk_count=search_space.IntRange(min=1, choose_max_value=True)
+                )
+            ],
+        ),
+    )
+    def verify_vm_nvme_disk_count(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        expected_nvme_disks = _get_int_var(variables, VAR_NVME_EXPECTED_MAX_DISKS)
+        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+
+        nvme_disks = node.features[Nvme].get_raw_nvme_disks()
+        actual_disk_count = len(nvme_disks)
+        log.info(
+            f"VM size: {vm_size} - expected NVMe disks: {expected_nvme_disks}, "
+            f"actual NVMe disks: {actual_disk_count} {nvme_disks}"
+        )
+        assert_that(actual_disk_count).described_as(
+            f"VM size {vm_size}: expected {expected_nvme_disks} local NVMe "
+            f"disks but found {actual_disk_count}"
+        ).is_equal_to(expected_nvme_disks)
+
+    # ------------------------------------------------------------------
+    # NVMe IOPS validation — fio across all local NVMe disks
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM can achieve at least the expected disk IOPS
+        on local NVMe storage by provisioning with the maximum NVMe
+        disk count and running a ``fio`` random-read benchmark across
+        all NVMe namespaces simultaneously.
+
+        This test is skipped when the ``nvme_expected_max_iops`` CSV
+        column is empty.
+
+        Steps:
+        1. Provision the VM with max local NVMe disks.
+        2. Read nvme_expected_max_iops from the CSV-provided variables.
+        3. Discover all local NVMe namespaces.
+        4. Run fio random-read 4K across all NVMe disks.
+        5. Assert the aggregate IOPS >= expected (with tolerance).
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+            supported_features=[
+                NvmeSettings(
+                    disk_count=search_space.IntRange(min=1, choose_max_value=True)
+                )
+            ],
+        ),
+    )
+    def verify_vm_nvme_disk_iops(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        expected_iops = _get_optional_int_var(variables, VAR_NVME_EXPECTED_MAX_IOPS)
+        if expected_iops <= 0:
+            raise SkippedException(
+                "nvme_expected_max_iops not specified in CSV "
+                "- skipping NVMe IOPS check."
+            )
+        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+
+        nvme_disks = node.features[Nvme].get_raw_nvme_disks()
+        if not nvme_disks:
+            raise SkippedException(
+                "No local NVMe disks found - skipping NVMe IOPS check."
+            )
+
+        log.info(
+            f"VM size: {vm_size} - discovered {len(nvme_disks)} NVMe disk(s): "
+            f"{nvme_disks}"
+        )
+
+        # Run fio across ALL local NVMe disks simultaneously
+        filename = ":".join(nvme_disks)
+        fio = node.tools[Fio]
+        result = fio.launch(
+            name="nvme_iops_all_disks",
+            filename=filename,
+            mode="randread",
+            iodepth=64,
+            numjob=4,
+            block_size="4K",
+            size_gb=0,
+            time=30,
+            overwrite=True,
+        )
+
+        measured_iops = int(result.iops)
+        # Allow tolerance below the declared max
+        iops_floor = int(expected_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100)
+        log.info(
+            f"VM size: {vm_size} - fio across {len(nvme_disks)} NVMe disk(s): "
+            f"measured {measured_iops} IOPS, "
+            f"expected >= {iops_floor} (declared max: {expected_iops})"
+        )
+        assert_that(measured_iops).described_as(
+            f"VM size {vm_size}: expected NVMe IOPS >= {iops_floor} "
+            f"(declared max {expected_iops} with "
+            f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
+            f"{len(nvme_disks)} NVMe disk(s) but measured only {measured_iops}"
+        ).is_greater_than_or_equal_to(iops_floor)
 
     # ------------------------------------------------------------------
     # Disk IOPS validation — provision max disks, fio all of them

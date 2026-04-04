@@ -40,6 +40,9 @@ variable:
   - name: expected_memory_mb
     value: ""
     is_case_visible: true
+  - name: expected_gpu_count
+    value: ""
+    is_case_visible: true
   - name: expected_nic_count
     value: ""
     is_case_visible: true
@@ -47,6 +50,12 @@ variable:
     value: ""
     is_case_visible: true
   - name: expected_max_iops
+    value: ""
+    is_case_visible: true
+  - name: nvme_expected_max_disks
+    value: ""
+    is_case_visible: true
+  - name: nvme_expected_max_iops
     value: ""
     is_case_visible: true
   - name: expected_network_bw
@@ -66,12 +75,18 @@ combinator:
       variable: expected_cpu_count
     - column: expected_memory_mb
       variable: expected_memory_mb
+    - column: expected_gpu_count
+      variable: expected_gpu_count
     - column: expected_nic_count
       variable: expected_nic_count
     - column: expected_max_disks
       variable: expected_max_disks
     - column: expected_max_iops
       variable: expected_max_iops
+    - column: nvme_expected_max_disks
+      variable: nvme_expected_max_disks
+    - column: nvme_expected_max_iops
+      variable: nvme_expected_max_iops
     - column: expected_network_bw
       variable: expected_network_bw
     - column: expected_storage_bw
