@@ -475,9 +475,7 @@ class Posix(OperatingSystem, BaseClassMixin):
 
                 try:
                     systemd_analyze_tool = self._node.tools[SystemdAnalyze]
-                    boot_time = systemd_analyze_tool.get_boot_time()
-                    boot_time.information.update(self._node.get_information())
-                    notifier.notify(boot_time)
+                    systemd_analyze_tool.send_boot_time_messages()
                 except Exception as e:
                     self._node.log.debug(f"error on get boot time: {e}")
 
