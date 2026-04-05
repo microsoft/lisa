@@ -39,7 +39,7 @@ See the accompanying ``vm_spec_validation.yml`` runbook and
 ``vm_specs.csv`` sample for a ready-to-run example.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
 
@@ -47,6 +47,7 @@ from lisa import (
     Environment,
     Logger,
     Node,
+    RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -57,13 +58,13 @@ from lisa import (
 )
 from lisa.features import Disk, Nvme
 from lisa.features.nvme import NvmeSettings
-from lisa.operating_system import BSD, Windows
-from lisa.tools import Fio, Free, Iperf3, Lscpu, Lspci
-from microsoft.testsuites.network.common import (
+from lisa.microsoft.testsuites.network.common import (
     initialize_nic_info,
     skip_if_no_synthetic_nics,
     sriov_basic_test,
 )
+from lisa.operating_system import BSD, Windows
+from lisa.tools import Fio, Free, Iperf3, Lscpu, Lspci
 
 # ---------------------------------------------------------------------------
 # Variable name constants - must match the ``column_mapping`` in the runbook.
@@ -214,7 +215,7 @@ class VmSpecValidation(TestSuite):
 
         Steps:
         1. Read expected_memory_gb from the CSV-provided variables.
-        2. Convert expected GB to MB (×1024).
+        2. Convert expected GB to MB (*1024).
         3. Query actual total memory in KiB, convert to MiB.
         4. Assert the actual value is within 10%% of expected.
         """,
