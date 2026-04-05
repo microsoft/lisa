@@ -64,7 +64,8 @@ from lisa.microsoft.testsuites.network.common import (
     sriov_basic_test,
 )
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Fio, Free, Iperf3, Lscpu, Lspci
+from lisa.tools import Fio, Free, Kill, Lscpu, Lspci, Ntttcp
+import re
 
 # ---------------------------------------------------------------------------
 # Variable name constants - must match the ``column_mapping`` in the runbook.
@@ -95,7 +96,11 @@ def _get_int_var(variables: Dict[str, Any], name: str) -> int:
     raw = variables.get(name)
     if raw is None or str(raw).strip() == "":
         raise SkippedException(f"Variable '{name}' is not set - skipping check.")
-    value = int(raw)
+    # Strip any non-digit characters (e.g. commas, units, spaces) before parsing.
+    digits_only = re.sub(r"[^\d]", "", str(raw))
+    if not digits_only:
+        raise SkippedException(f"Variable '{name}' contains no digits - skipping check.")
+    value = int(digits_only)
     if value <= 0:
         raise SkippedException(
             f"Variable '{name}' is {value} (zero or negative) - skipping check."
@@ -108,7 +113,11 @@ def _get_optional_int_var(variables: Dict[str, Any], name: str) -> int:
     raw = variables.get(name)
     if raw is None or str(raw).strip() == "":
         return -1
-    return int(raw)
+    # Strip any non-digit characters (e.g. commas, units, spaces) before parsing.
+    digits_only = re.sub(r"[^\d]", "", str(raw))
+    if not digits_only:
+        return -1
+    return int(digits_only)
 
 
 def _resolve_countspace(value: Any) -> int:
@@ -713,22 +722,22 @@ class VmSpecValidation(TestSuite):
         ).is_greater_than_or_equal_to(bw_floor)
 
     # ------------------------------------------------------------------
-    # Network bandwidth validation — iperf3 between two nodes
+    # Network bandwidth validation — ntttcp between two nodes
     # ------------------------------------------------------------------
     @TestCaseMetadata(
         description="""
         Verify that the VM can achieve at least the expected network
         throughput declared in the CSV specification by running an
-        ``iperf3`` bandwidth test between two nodes in the same
+        ``ntttcp`` bandwidth test between two nodes in the same
         environment.
 
         This test is skipped when the ``expected_network_bw`` CSV
         column is empty or zero.
 
         Steps:
-        1. Provision two nodes (client + server) in the same environment.
+        1. Provision two nodes (sender + receiver) in the same environment.
         2. Read expected_network_bw (Mbps) from the CSV variables.
-        3. Run iperf3 from the client to the server.
+        3. Run ntttcp from the sender to the receiver.
         4. Assert measured throughput >= expected (with tolerance).
         """,
         priority=3,
@@ -757,38 +766,62 @@ class VmSpecValidation(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
-        # Start iperf3 server in the background
-        iperf3_server = server_node.tools[Iperf3]
-        iperf3_server.run_as_server_async()
+        # Resolve NIC names for ntttcp.  With SR-IOV the PCI device name
+        # is used; otherwise fall back to the default synthetic NIC.
+        server_node.nics.reload()
+        client_node.nics.reload()
+        server_nic_name = server_node.nics.get_primary_nic().pci_device_name
+        client_nic_name = client_node.nics.get_primary_nic().pci_device_name
+
+        server_ntttcp = server_node.tools[Ntttcp]
+        client_ntttcp = client_node.tools[Ntttcp]
+
+        # Use thread count to saturate the NIC, capped at 64 to avoid
+        # diminishing returns from excessive thread overhead.
+        cpu = client_node.tools[Lscpu]
+        thread_count = cpu.get_thread_count()
+        # 64 ports max — beyond this ntttcp shows diminishing returns
+        ports_count = min(thread_count, 64)
+
+        # Start ntttcp receiver (server) in the background
+        server_process = server_ntttcp.run_as_server_async(
+            server_nic_name,
+            run_time_seconds=30,  # 30s for a stable throughput measurement
+            ports_count=ports_count,
+        )
 
         try:
-            iperf3_client = client_node.tools[Iperf3]
-
-            # Use multiple parallel streams to saturate the link.
-            # Cap at 64 to avoid diminishing returns from thread overhead.
-            cpu = client_node.tools[Lscpu]
-            thread_count = cpu.get_thread_count()
-            parallel_streams = min(thread_count, 64)
-
-            result = iperf3_client.run_as_client_async(
+            # Run ntttcp sender (client)
+            client_result = client_ntttcp.run_as_client(
+                client_nic_name,
                 server_ip=server_node.internal_address,
-                parallel_number=parallel_streams,
-                run_time_seconds=30,  # 30s for stable throughput measurement
+                threads_count=1,
+                run_time_seconds=30,  # match the server duration
+                ports_count=ports_count,
             )
-            measured_bw_mbps = result.wait_result()
         finally:
-            # Ensure the iperf3 server process is cleaned up
-            iperf3_server.kill()
+            # Stop the server and collect its result
+            server_node.tools[Kill].by_name(server_ntttcp.command)
+
+        server_executable_result = server_process.wait_result()
+        server_result = server_ntttcp.create_ntttcp_result(
+            server_executable_result
+        )
+
+        # ntttcp reports throughput in Gbps — convert to Mbps to match
+        # the CSV column unit.
+        measured_bw_mbps = int(server_result.throughput_in_gbps * 1000)
 
         # Allow tolerance below the declared max
         bw_floor_mbps = int(
             expected_bw_mbps * (100 - _PERF_TOLERANCE_PERCENT) / 100
         )
         log.info(
-            f"VM size: {vm_size} - iperf3 network bandwidth: "
+            f"VM size: {vm_size} — ntttcp network bandwidth: "
             f"measured {measured_bw_mbps} Mbps, "
             f"expected >= {bw_floor_mbps} Mbps "
-            f"(declared: {expected_bw_mbps} Mbps)"
+            f"(declared: {expected_bw_mbps} Mbps, "
+            f"tolerance: {_PERF_TOLERANCE_PERCENT}%)"
         )
         assert_that(measured_bw_mbps).described_as(
             f"VM size {vm_size}: expected network throughput "
