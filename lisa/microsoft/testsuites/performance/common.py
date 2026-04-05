@@ -156,7 +156,7 @@ def perf_disk(
                 filename=filename,
                 mode=mode.name,
                 time=time,
-                size_gb=size_mb,
+                size_mb=size_mb,
                 block_size=f"{block_size}K",
                 iodepth=iodepth,
                 overwrite=overwrite,
