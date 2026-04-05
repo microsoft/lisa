@@ -6,9 +6,9 @@ VM Specification Validation Test Suite
 
 This test suite reads expected VM specifications from CSV-driven variables
 (via the LISA CSV combinator) and validates that a provisioned VM matches
-the declared hardware properties: CPU count, memory, NIC count, max data
-disks (including local NVMe), and optionally storage IOPS and network
-bandwidth.
+the declared hardware properties like: CPU count, memory, NIC count, max data
+disks (including local NVMe), storage IOPS and network
+bandwidth and GPU count where applicable.
 
 Architecture
 ============
@@ -58,7 +58,7 @@ from lisa import (
 from lisa.features import Disk, Nvme
 from lisa.features.nvme import NvmeSettings
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Fio, Free, Lscpu, Lspci
+from lisa.tools import Fio, Free, Iperf3, Lscpu, Lspci
 from microsoft.testsuites.network.common import (
     initialize_nic_info,
     skip_if_no_synthetic_nics,
@@ -83,7 +83,7 @@ VAR_EXPECTED_STORAGE_BW = "expected_storage_bw"
 # Percentage tolerance for memory comparison.
 # Azure VMs typically report slightly less memory than the nominal value
 # because the hypervisor and firmware reserve a portion.
-_MEMORY_TOLERANCE_PERCENT = 10
+_MEMORY_TOLERANCE_PERCENT = 5
 
 # Percentage tolerance for bandwidth / IOPS comparisons.
 _PERF_TOLERANCE_PERCENT = 5
@@ -150,6 +150,7 @@ class VmSpecValidation(TestSuite):
         VAR_EXPECTED_MEMORY_GB,
         VAR_EXPECTED_NIC_COUNT,
         VAR_EXPECTED_MAX_DISKS,
+        VAR_EXPECTED_MAX_IOPS,
         VAR_EXPECTED_NETWORK_BW,
         VAR_EXPECTED_STORAGE_BW,
     ]
@@ -618,6 +619,182 @@ class VmSpecValidation(TestSuite):
             f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
             f"{len(data_disks)} disk(s) but measured only {measured_iops}"
         ).is_greater_than_or_equal_to(iops_floor)
+
+    # ------------------------------------------------------------------
+    # Storage bandwidth validation — fio sequential read, 1024K blocks
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM can achieve at least the expected storage
+        throughput declared in the CSV specification by provisioning
+        with the maximum number of data disks and running a ``fio``
+        sequential-read benchmark with 1024K block size across all
+        of them.
+
+        With ``block_size=1024K`` each I/O transfers 1 MiB, so the
+        reported IOPS value equals the throughput in MiB/s.
+
+        This test is skipped when the ``expected_storage_bw`` CSV
+        column is empty or zero.
+
+        Steps:
+        1. Provision the VM with max data disks (choose_max_value).
+        2. Read expected_storage_bw (MBps) from the CSV variables.
+        3. Discover all attached raw data disks.
+        4. Run fio sequential-read 1024K across all disks.
+        5. Assert throughput >= expected (with tolerance).
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def verify_vm_storage_bandwidth(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        expected_bw = _get_optional_int_var(variables, VAR_EXPECTED_STORAGE_BW)
+        if expected_bw <= 0:
+            raise SkippedException(
+                "expected_storage_bw not specified in CSV "
+                "- skipping storage bandwidth check."
+            )
+        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+
+        # Discover all raw data disks attached by the platform
+        data_disks = node.features[Disk].get_raw_data_disks()
+        if not data_disks:
+            raise SkippedException(
+                "No data disks found after provisioning "
+                "- skipping storage bandwidth check."
+            )
+
+        log.info(
+            f"VM size: {vm_size} - discovered {len(data_disks)} data disk(s): "
+            f"{data_disks}"
+        )
+
+        # Run fio sequential read with 1024K block size across all disks.
+        # With block_size=1024K each IOP = 1 MiB, so IOPS == MiB/s.
+        filename = ":".join(data_disks)
+        fio = node.tools[Fio]
+        cpu = node.tools[Lscpu]
+        thread_count = cpu.get_thread_count()
+        result = fio.launch(
+            name="storage_bw_all_disks",
+            filename=filename,
+            mode="read",
+            iodepth=64,
+            numjob=thread_count,
+            block_size="1024K",
+            size_gb=8192,
+            time=120,
+            overwrite=True,
+        )
+
+        # With 1024K block size, IOPS == throughput in MiB/s
+        measured_bw = int(result.iops)
+        bw_floor = int(expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100)
+        log.info(
+            f"VM size: {vm_size} - fio seq read across {len(data_disks)} disk(s): "
+            f"measured {measured_bw} MiB/s, "
+            f"expected >= {bw_floor} MiB/s (declared: {expected_bw} MBps)"
+        )
+        assert_that(measured_bw).described_as(
+            f"VM size {vm_size}: expected storage throughput >= {bw_floor} MiB/s "
+            f"(declared {expected_bw} MBps with "
+            f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
+            f"{len(data_disks)} disk(s) but measured only {measured_bw} MiB/s"
+        ).is_greater_than_or_equal_to(bw_floor)
+
+    # ------------------------------------------------------------------
+    # Network bandwidth validation — iperf3 between two nodes
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM can achieve at least the expected network
+        throughput declared in the CSV specification by running an
+        ``iperf3`` bandwidth test between two nodes in the same
+        environment.
+
+        This test is skipped when the ``expected_network_bw`` CSV
+        column is empty or zero.
+
+        Steps:
+        1. Provision two nodes (client + server) in the same environment.
+        2. Read expected_network_bw (Mbps) from the CSV variables.
+        3. Run iperf3 from the client to the server.
+        4. Assert measured throughput >= expected (with tolerance).
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            unsupported_os=[BSD, Windows],
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Sriov,
+            ),
+        ),
+    )
+    def verify_vm_network_bandwidth(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        expected_bw_mbps = _get_optional_int_var(variables, VAR_EXPECTED_NETWORK_BW)
+        if expected_bw_mbps <= 0:
+            raise SkippedException(
+                "expected_network_bw not specified in CSV "
+                "— skipping network bandwidth check."
+            )
+        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+
+        server_node = cast(RemoteNode, environment.nodes[0])
+        client_node = cast(RemoteNode, environment.nodes[1])
+
+        # Start iperf3 server in the background
+        iperf3_server = server_node.tools[Iperf3]
+        iperf3_server.run_as_server_async()
+
+        try:
+            iperf3_client = client_node.tools[Iperf3]
+
+            # Use multiple parallel streams to saturate the link.
+            # Cap at 64 to avoid diminishing returns from thread overhead.
+            cpu = client_node.tools[Lscpu]
+            thread_count = cpu.get_thread_count()
+            parallel_streams = min(thread_count, 64)
+
+            result = iperf3_client.run_as_client_async(
+                server_ip=server_node.internal_address,
+                parallel_number=parallel_streams,
+                run_time_seconds=30,  # 30s for stable throughput measurement
+            )
+            measured_bw_mbps = result.wait_result()
+        finally:
+            # Ensure the iperf3 server process is cleaned up
+            iperf3_server.kill()
+
+        # Allow tolerance below the declared max
+        bw_floor_mbps = int(
+            expected_bw_mbps * (100 - _PERF_TOLERANCE_PERCENT) / 100
+        )
+        log.info(
+            f"VM size: {vm_size} - iperf3 network bandwidth: "
+            f"measured {measured_bw_mbps} Mbps, "
+            f"expected >= {bw_floor_mbps} Mbps "
+            f"(declared: {expected_bw_mbps} Mbps)"
+        )
+        assert_that(measured_bw_mbps).described_as(
+            f"VM size {vm_size}: expected network throughput "
+            f">= {bw_floor_mbps} Mbps (declared {expected_bw_mbps} Mbps "
+            f"with {_PERF_TOLERANCE_PERCENT}% tolerance) but measured "
+            f"only {measured_bw_mbps} Mbps"
+        ).is_greater_than_or_equal_to(bw_floor_mbps)
 
     # ------------------------------------------------------------------
     # End-to-end hardware summary (informational, always runs)
