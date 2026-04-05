@@ -42,7 +42,7 @@ variable:
   - name: expected_cpu_count
     value: ""
     is_case_visible: true
-  - name: expected_memory_mb
+  - name: expected_memory_gb
     value: ""
     is_case_visible: true
   - name: expected_gpu_count
@@ -87,8 +87,8 @@ combinator:
       variable: vm_size
     - column: expected_cpu_count
       variable: expected_cpu_count
-    - column: expected_memory_mb
-      variable: expected_memory_mb
+    - column: expected_memory_gb
+      variable: expected_memory_gb
     - column: expected_gpu_count
       variable: expected_gpu_count
     - column: expected_nic_count
@@ -110,3 +110,4 @@ combinator:
 testcase:
   - criteria:
       area: vm_spec_validation
+      name: verify_vm_memory

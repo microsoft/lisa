@@ -28,7 +28,7 @@ vm_specs.csv  ──►  CSV Combinator  ──►  variables (is_case_visible) 
 |----------------------|------------------------|------------------------------------------|----------|
 | `vm_size`            | `vm_size`              | Azure VM size (e.g. `Standard_D4s_v3`)   | Yes      |
 | `expected_cpu_count` | `expected_cpu_count`   | Expected vCPU count                      | Yes      |
-| `expected_memory_mb` | `expected_memory_mb`   | Expected memory in MB                    | Yes      |
+| `expected_memory_gb` | `expected_memory_gb`   | Expected memory in GB                    | Yes      |
 | `expected_gpu_count` | `expected_gpu_count`   | Expected GPU device count                | Optional |
 | `expected_nic_count` | `expected_nic_count`   | Expected max NIC count                   | Yes      |
 | `expected_max_disks` | `expected_max_disks`   | Expected max data disk count             | Yes      |
@@ -55,7 +55,7 @@ Optional columns can be left empty; the corresponding tests are skipped graceful
 | Method                          | Priority | Validates                                                                                     |
 |---------------------------------|----------|-----------------------------------------------------------------------------------------------|
 | `verify_vm_cpu_count`           | P1       | vCPU count == `expected_cpu_count`                                                            |
-| `verify_vm_memory`              | P1       | Total memory within 10% of `expected_memory_mb`                                               |
+| `verify_vm_memory`              | P1       | Total memory within 10% of `expected_memory_gb` (converted to MB)                             |
 | `verify_vm_gpu_count`           | P1       | GPU PCI device count == `expected_gpu_count` (skipped when empty)                             |
 | `verify_vm_sriov_nic_count`     | P1       | Provisions max SR-IOV NICs, validates VF pairing + IPs, asserts `expected_nic_count`          |
 | `verify_vm_synthetic_nic_count` | P1       | Provisions max synthetic NICs, validates IPs, asserts `expected_nic_count`                     |

@@ -20,7 +20,7 @@ Architecture
          +------------------------+
          | vm_size                |  Azure VM size used by the platform
          | expected_cpu_count     |  Expected vCPU count
-         | expected_memory_mb     |  Expected memory in MB
+         | expected_memory_gb     |  Expected memory in GB
          | expected_nic_count     |  Expected max NIC count
          | expected_max_disks     |  Expected max data disk count
          | expected_max_iops      |  (optional) Expected disk IOPS ceiling
@@ -70,7 +70,7 @@ from microsoft.testsuites.network.common import (
 # ---------------------------------------------------------------------------
 VAR_VM_SIZE = "vm_size"
 VAR_EXPECTED_CPU = "expected_cpu_count"
-VAR_EXPECTED_MEMORY_MB = "expected_memory_mb"
+VAR_EXPECTED_MEMORY_GB = "expected_memory_gb"
 VAR_EXPECTED_GPU_COUNT = "expected_gpu_count"
 VAR_EXPECTED_NIC_COUNT = "expected_nic_count"
 VAR_EXPECTED_MAX_DISKS = "expected_max_disks"
@@ -147,7 +147,7 @@ class VmSpecValidation(TestSuite):
     _REQUIRED_CSV_VARS = [
         VAR_VM_SIZE,
         VAR_EXPECTED_CPU,
-        VAR_EXPECTED_MEMORY_MB,
+        VAR_EXPECTED_MEMORY_GB,
         VAR_EXPECTED_NIC_COUNT,
         VAR_EXPECTED_MAX_DISKS,
         VAR_EXPECTED_NETWORK_BW,
@@ -212,9 +212,10 @@ class VmSpecValidation(TestSuite):
         firmware reserve a portion of RAM that is not visible to the OS.
 
         Steps:
-        1. Read expected_memory_mb from the CSV-provided variables.
-        2. Query actual total memory in KB, convert to MB.
-        3. Assert the actual value is within 10%% of expected.
+        1. Read expected_memory_gb from the CSV-provided variables.
+        2. Convert expected GB to MB (×1024).
+        3. Query actual total memory in KiB, convert to MiB.
+        4. Assert the actual value is within 10%% of expected.
         """,
         priority=5,
         requirement=simple_requirement(),
@@ -222,17 +223,19 @@ class VmSpecValidation(TestSuite):
     def verify_vm_memory(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        expected_memory_mb = _get_int_var(variables, VAR_EXPECTED_MEMORY_MB)
+        expected_memory_gb = _get_int_var(variables, VAR_EXPECTED_MEMORY_GB)
+        expected_memory_mb = expected_memory_gb * 1024
         # _get_field_bytes_kib returns KiB; shift right 10 to get MiB
         actual_memory_mb = node.tools[Free]._get_field_bytes_kib("Mem", "total") >> 10
         vm_size = variables.get(VAR_VM_SIZE, "unknown")
         log.info(
-            f"VM size: {vm_size} - expected memory: {expected_memory_mb} MB, "
-            f"actual memory: {actual_memory_mb} MB"
+            f"VM size: {vm_size} - expected memory: {expected_memory_gb} GB "
+            f"({expected_memory_mb} MB), actual memory: {actual_memory_mb} MB"
         )
         lower_bound = expected_memory_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100
         assert_that(actual_memory_mb).described_as(
-            f"VM size {vm_size}: expected ~{expected_memory_mb} MB memory "
+            f"VM size {vm_size}: expected ~{expected_memory_gb} GB "
+            f"({expected_memory_mb} MB) memory "
             f"but found {actual_memory_mb} MB "
             f"(tolerance {_MEMORY_TOLERANCE_PERCENT}%)"
         ).is_greater_than_or_equal_to(int(lower_bound))
@@ -650,16 +653,19 @@ class VmSpecValidation(TestSuite):
                 mismatches.append(f"CPU: expected {expected_cpu}, got {actual_cpu}")
 
         # --- Memory ---
-        expected_mem = _get_optional_int_var(variables, VAR_EXPECTED_MEMORY_MB)
-        if expected_mem > 0:
+        expected_mem_gb = _get_optional_int_var(variables, VAR_EXPECTED_MEMORY_GB)
+        if expected_mem_gb > 0:
+            expected_mem_mb = expected_mem_gb * 1024
             actual_mem_mb = node.tools[Free]._get_field_bytes_kib("Mem", "total") >> 10
-            lower_bound = int(expected_mem * (100 - _MEMORY_TOLERANCE_PERCENT) / 100)
+            lower_bound = int(expected_mem_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100)
             log.info(
-                f"  Memory: expected>={lower_bound} MB, " f"actual={actual_mem_mb} MB"
+                f"  Memory: expected>={lower_bound} MB "
+                f"({expected_mem_gb} GB), actual={actual_mem_mb} MB"
             )
             if actual_mem_mb < lower_bound:
                 mismatches.append(
-                    f"Memory: expected >= {lower_bound} MB, " f"got {actual_mem_mb} MB"
+                    f"Memory: expected >= {lower_bound} MB "
+                    f"({expected_mem_gb} GB), got {actual_mem_mb} MB"
                 )
 
         # --- NIC count (guest-visible NICs with IPs) ---
