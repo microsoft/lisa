@@ -24,51 +24,52 @@ vm_specs.csv  ──►  CSV Combinator  ──►  variables (is_case_visible) 
 
 ### CSV Variables
 
-| CSV Column           | LISA Variable          | Description                              | Required |
-|----------------------|------------------------|------------------------------------------|----------|
-| `vm_size`            | `vm_size`              | Azure VM size (e.g. `Standard_D4s_v3`)   | Yes      |
-| `expected_cpu_count` | `expected_cpu_count`   | Expected vCPU count                      | Yes      |
-| `expected_memory_gb` | `expected_memory_gb`   | Expected memory in GB                    | Yes      |
-| `expected_gpu_count` | `expected_gpu_count`   | Expected GPU device count                | Optional |
-| `expected_nic_count` | `expected_nic_count`   | Expected max NIC count                   | Yes      |
-| `expected_max_disks` | `expected_max_disks`   | Expected max data disk count             | Yes      |
-| `expected_max_iops`  | `expected_max_iops`    | Expected remote disk IOPS ceiling        | Optional |
-| `nvme_expected_max_disks` | `nvme_expected_max_disks` | Expected local NVMe disk count    | Optional |
-| `nvme_expected_max_iops`  | `nvme_expected_max_iops`  | Expected local NVMe IOPS ceiling  | Optional |
-| `expected_network_bw`| `expected_network_bw`  | Expected network bandwidth (Mbps)        | Optional |
-| `expected_storage_bw`| `expected_storage_bw`  | Expected storage bandwidth (MBps)        | Optional |
+| CSV Column                | LISA Variable            | Description                            | Required |
+|---------------------------|--------------------------|----------------------------------------|----------|
+| `vm_size`                 | `vm_size`                | Azure VM size (e.g. `Standard_D4s_v3`) | Yes      |
+| `expected_cpu_count`      | `expected_cpu_count`     | Expected vCPU count                    | Yes      |
+| `expected_memory_gb`      | `expected_memory_gb`     | Expected memory in GB                  | Yes      |
+| `expected_gpu_count`      | `expected_gpu_count`     | Expected GPU device count              | Optional |
+| `expected_nic_count`      | `expected_nic_count`     | Expected max NIC count                 | Yes      |
+| `expected_max_disks`      | `expected_max_disks`     | Expected max data disk count           | Yes      |
+| `expected_max_iops`       | `expected_max_iops`      | Expected remote disk IOPS ceiling      | Optional |
+| `nvme_expected_max_disks` | `nvme_expected_max_disks` | Expected local NVMe disk count        | Optional |
+| `nvme_expected_max_iops`  | `nvme_expected_max_iops` | Expected local NVMe IOPS ceiling       | Optional |
+| `expected_network_bw`     | `expected_network_bw`    | Expected network bandwidth (Mbps)      | Optional |
+| `expected_storage_bw`     | `expected_storage_bw`    | Expected storage bandwidth (MBps)      | Optional |
 
 Optional columns can be left empty; the corresponding tests are skipped gracefully.
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `vm_spec_validation.py` | Test suite — 9 test cases validating CPU, memory, NICs, remote disks, NVMe disks, IOPS, and a combined summary |
-| `vm_specs.csv`           | Sample CSV with 17 Azure VM sizes (including NVMe-capable Lsv2/Lsv3) |
-| `vm_spec_validation.yml` | Runbook wiring the CSV combinator to the test suite and Azure platform |
-| `__init__.py`            | Python package marker |
-| `DESIGN.md`             | This document |
+| File                     | Purpose                                                                                              |
+|--------------------------|------------------------------------------------------------------------------------------------------|
+| `vm_spec_validation.py`  | Test suite — 11 test cases validating CPU, memory, NICs, remote disks, NVMe disks, IOPS, and more   |
+| `vm_specs.csv`           | Sample CSV with Azure VM sizes (including NVMe-capable Lsv2/Lsv3)                                   |
+| `vm_spec_validation.yml` | Runbook wiring the CSV combinator to the test suite and Azure platform                               |
+| `__init__.py`            | Python package marker                                                                                |
+| `DESIGN.md`              | This document                                                                                        |
 
 ## Test Cases
 
 | Method                          | Priority | Validates                                                                                     |
 |---------------------------------|----------|-----------------------------------------------------------------------------------------------|
-| `verify_vm_cpu_count`           | P1       | vCPU count == `expected_cpu_count`                                                            |
-| `verify_vm_memory`              | P1       | Total memory within 10% of `expected_memory_gb` (converted to MB)                             |
-| `verify_vm_gpu_count`           | P1       | GPU PCI device count == `expected_gpu_count` (skipped when empty)                             |
-| `verify_vm_sriov_nic_count`     | P1       | Provisions max SR-IOV NICs, validates VF pairing + IPs, asserts `expected_nic_count`          |
-| `verify_vm_synthetic_nic_count` | P1       | Provisions max synthetic NICs, validates IPs, asserts `expected_nic_count`                     |
-| `verify_vm_max_data_disks`      | P1       | Provisions max remote data disks, verifies guest-visible count == `expected_max_disks`         |
-| `verify_vm_nvme_disk_count`     | P1       | Provisions max local NVMe disks (Lsv2/Lsv3), verifies namespace count == `expected_max_disks` |
-| `verify_vm_disk_iops`           | P3       | Fio random-read 4K across max remote data disks, IOPS >= `expected_max_iops` (20% tolerance)  |
-| `verify_vm_nvme_disk_iops`      | P3       | Fio random-read 4K across all local NVMe disks, IOPS >= `expected_max_iops` (20% tolerance)   |
-| `verify_vm_spec_summary`        | P2       | All-in-one: collects all mismatches and reports them together                                  |
+| `verify_vm_cpu_count`           |    P5    | vCPU count == `expected_cpu_count`                                                            |
+| `verify_vm_memory`              |    P5    | Total memory within 10% of `expected_memory_gb` (converted to MB)                             |
+| `verify_vm_gpu_count`           |    P5    | GPU PCI device count == `expected_gpu_count` (skipped when empty)                             |
+| `verify_vm_sriov_nic_count`     |    P5    | Provisions max SR-IOV NICs, validates VF pairing + IPs, asserts `expected_nic_count`          |
+| `verify_vm_synthetic_nic_count` |    P5    | Provisions max synthetic NICs, validates IPs, asserts `expected_nic_count`                     |
+| `verify_vm_max_data_disks`      |    P5    | Provisions max remote data disks, verifies guest-visible count == `expected_max_disks`         |
+| `verify_vm_nvme_disk_count`     |    P5    | Provisions max local NVMe disks (Lsv2/Lsv3), verifies namespace count == `expected_max_disks` |
+| `verify_vm_disk_iops`           |    P5    | Fio random-read 4K across max remote data disks, IOPS >= `expected_max_iops` (5% tolerance)  |
+| `verify_vm_nvme_disk_iops`      |    P5    | Fio random-read 4K across all local NVMe disks, IOPS >= `expected_max_iops` (5% tolerance)   |
+| `verify_vm_storage_bandwidth`   |    P5    | Fio seq-read 1024K across max data disks, throughput >= `expected_storage_bw` (5% tolerance)   |
+| `verify_vm_spec_summary`        |    P5    | All-in-one: collects all mismatches and reports them together                                  |
 
 ### Tolerance Values
 
-- **Memory**: 10% — Azure VMs report less than nominal due to hypervisor/firmware reservation.
-- **IOPS**: 20% — real-world I/O varies with host load, caching state, and warm-up time.
+- **Memory**: 5% — Azure VMs report less than nominal due to hypervisor/firmware reservation.
+- **IOPS**: 5% — real-world I/O varies with host load, caching state, and warm-up time.
 
 ## How to Run
 
