@@ -86,7 +86,7 @@ VAR_EXPECTED_STORAGE_BW = "expected_storage_bw"
 _MEMORY_TOLERANCE_PERCENT = 10
 
 # Percentage tolerance for bandwidth / IOPS comparisons.
-_PERF_TOLERANCE_PERCENT = 20
+_PERF_TOLERANCE_PERCENT = 5
 
 
 def _get_int_var(variables: Dict[str, Any], name: str) -> int:
@@ -390,7 +390,7 @@ class VmSpecValidation(TestSuite):
             ),
         ),
     )
-    def verify_vm_max_data_disks(
+    def verify_vm_max_premium_data_disks(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         expected_max_disks = _get_int_var(variables, VAR_EXPECTED_MAX_DISKS)
@@ -555,11 +555,13 @@ class VmSpecValidation(TestSuite):
         requirement=simple_requirement(
             unsupported_os=[BSD, Windows],
             disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
             ),
         ),
     )
-    def verify_vm_disk_iops(
+    def verify_vm_premium_disk_iops(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         expected_iops = _get_optional_int_var(variables, VAR_EXPECTED_MAX_IOPS)
@@ -585,15 +587,17 @@ class VmSpecValidation(TestSuite):
         # colon-separated filenames.
         filename = ":".join(data_disks)
         fio = node.tools[Fio]
+        cpu = node.tools[Lscpu]
+        thread_count = cpu.get_thread_count()
         result = fio.launch(
             name="iops_all_disks",
             filename=filename,
             mode="randread",
             iodepth=64,
-            numjob=4,
+            numjob=thread_count,
             block_size="4K",
-            size_gb=0,
-            time=30,
+            size_gb=8192,
+            time=120,
             overwrite=True,
         )
 
