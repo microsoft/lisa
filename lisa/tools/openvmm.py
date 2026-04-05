@@ -17,7 +17,10 @@ VERSION_PATTERN = re.compile(r"openvmm(?:\.exe)?\s+(?P<version>.+)")
 @dataclass
 class OpenVmmLaunchConfig:
     uefi_firmware_path: str
+    with_hv: bool = True
+    hypervisor: str = "mshv"
     disk_img_path: str = ""
+    dvd_disk_paths: List[str] = field(default_factory=list)
     processors: int = 1
     memory_mb: int = 1024
     network_mode: str = "user"
@@ -75,6 +78,10 @@ class OpenVmm(Tool):
 
     def build_command(self, config: OpenVmmLaunchConfig) -> str:
         args: List[str] = [self.command]
+        if config.with_hv:
+            args.append("--hv")
+        if config.hypervisor:
+            args.extend(["--hypervisor", config.hypervisor])
         args.extend(["--processors", str(config.processors)])
         args.extend(["--memory", f"{config.memory_mb}MB"])
 
@@ -83,32 +90,21 @@ class OpenVmm(Tool):
         args.append("--uefi")
         args.extend(["--uefi-firmware", config.uefi_firmware_path])
 
-        pcie_port_index = 0
-        has_network = config.network_mode != "none"
-        if config.disk_img_path or has_network:
-            args.extend(["--pcie-root-complex", "rc0"])
-
         if config.disk_img_path:
             args.extend(["--disk", f"file:{config.disk_img_path}"])
 
+        for dvd_disk_path in config.dvd_disk_paths:
+            args.extend(["--disk", f"file:{dvd_disk_path},dvd"])
+
         if config.network_mode == "user":
-            nic_port = f"rp{pcie_port_index}"
-            args.extend(["--pcie-root-port", f"rc0:{nic_port}"])
             network_backend = "consomme"
             if config.network_cidr:
                 network_backend = f"{network_backend}:{config.network_cidr}"
-            args.extend(["--virtio-net", f"pcie_port={nic_port}:{network_backend}"])
+            args.extend(["--net", network_backend])
         elif config.network_mode == "tap":
             if not config.tap_name:
                 raise LisaException("tap_name must be provided for tap networking")
-            nic_port = f"rp{pcie_port_index}"
-            args.extend(["--pcie-root-port", f"rc0:{nic_port}"])
-            args.extend(
-                [
-                    "--virtio-net",
-                    f"pcie_port={nic_port}:tap:{config.tap_name}",
-                ]
-            )
+            args.extend(["--net", f"tap:{config.tap_name}"])
 
         if config.serial_mode == "stderr":
             args.extend(["--com1", "stderr"])
@@ -123,7 +119,10 @@ class OpenVmm(Tool):
         return " ".join(shlex.quote(arg) for arg in args)
 
     def launch_vm(
-        self, config: OpenVmmLaunchConfig, cwd: Optional[PurePath] = None
+        self,
+        config: OpenVmmLaunchConfig,
+        cwd: Optional[PurePath] = None,
+        sudo: bool = False,
     ) -> str:
         if not config.stdout_path or not config.stderr_path:
             raise LisaException("stdout_path and stderr_path must be provided")
@@ -136,6 +135,7 @@ class OpenVmm(Tool):
         result = self.node.execute(
             shell_command,
             shell=True,
+            sudo=sudo,
             no_info_log=True,
             cwd=cwd,
         )

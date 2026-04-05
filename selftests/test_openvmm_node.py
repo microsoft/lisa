@@ -6,6 +6,8 @@ from unittest import TestCase
 from unittest.mock import patch
 from unittest.mock import MagicMock
 
+import yaml
+
 from lisa.util import LisaException
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.sut_orchestrator.openvmm.schema import OpenVmmNetworkSchema
@@ -188,6 +190,7 @@ class OpenVmmNodeTestCase(TestCase):
         node_context = SimpleNamespace(
             uefi_firmware_path="/tmp/MSVM.fd",
             disk_img_path="/tmp/guest.img",
+            cloud_init_file_path="/tmp/cloud-init.iso",
             console_log_file_path="/tmp/openvmm-console.log",
             launcher_log_file_path="/tmp/openvmm-launcher.log",
             working_path="/tmp",
@@ -215,6 +218,10 @@ class OpenVmmNodeTestCase(TestCase):
                             controller.launch(node, MagicMock())
 
         ensure_process_running.assert_called_once()
+        openvmm.launch_vm.assert_called_once()
+        launch_config = openvmm.launch_vm.call_args.args[0]
+        self.assertEqual(["/tmp/cloud-init.iso"], launch_config.dvd_disk_paths)
+        self.assertTrue(openvmm.launch_vm.call_args.kwargs["sudo"])
 
     def test_openvmm_build_command_for_uefi_boot(self) -> None:
         tool = OpenVmm.__new__(OpenVmm)
@@ -232,6 +239,96 @@ class OpenVmmNodeTestCase(TestCase):
         )
 
         self.assertIn("--uefi", command)
+        self.assertIn("--hv", command)
+        self.assertIn("--hypervisor", command)
         self.assertIn("--uefi-firmware", command)
         self.assertIn("--disk", command)
+        self.assertIn("--net", command)
+        self.assertNotIn("--virtio-net", command)
         self.assertNotIn("--kernel", command)
+
+    def test_openvmm_build_command_adds_cloud_init_iso(self) -> None:
+        tool = OpenVmm.__new__(OpenVmm)
+        tool._command = "openvmm"
+
+        command = tool.build_command(
+            OpenVmmLaunchConfig(
+                uefi_firmware_path="/var/tmp/MSVM.fd",
+                disk_img_path="/var/tmp/ubuntu.img",
+                dvd_disk_paths=["/var/tmp/cloud-init.iso"],
+                network_mode="tap",
+                tap_name="tap0",
+                serial_mode="file",
+                serial_path="/var/tmp/serial.log",
+            )
+        )
+
+        self.assertIn("file:/var/tmp/cloud-init.iso,dvd", command)
+
+    def test_openvmm_launch_vm_uses_sudo_when_requested(self) -> None:
+        tool = OpenVmm.__new__(OpenVmm)
+        tool._command = "/usr/local/bin/openvmm"
+        tool.node = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(stdout="1234\n")
+
+        process_id = tool.launch_vm(
+            OpenVmmLaunchConfig(
+                uefi_firmware_path="/var/tmp/MSVM.fd",
+                disk_img_path="/var/tmp/guest.img",
+                network_mode="tap",
+                tap_name="tap0",
+                serial_mode="file",
+                serial_path="/var/tmp/serial.log",
+                stdout_path="/var/tmp/openvmm-launcher.log",
+                stderr_path="/var/tmp/openvmm-launcher.log",
+            ),
+            sudo=True,
+        )
+
+        self.assertEqual("1234", process_id)
+        self.assertEqual(1, tool.node.execute.call_count)
+        self.assertTrue(tool.node.execute.call_args.kwargs["sudo"])
+
+    def test_cloud_init_iso_uses_valid_password_schema_and_instance_id(self) -> None:
+        controller = OpenVmmController.__new__(OpenVmmController)
+        controller.host_node = MagicMock()
+        controller.host_node.shell = MagicMock()
+
+        node = MagicMock()
+        node.runbook = SimpleNamespace(
+            username="lisatest",
+            password="guest-password",
+            private_key_file="",
+        )
+
+        node_context = SimpleNamespace(
+            vm_name="openvmm-manual",
+            cloud_init_file_path="/tmp/cloud-init.iso",
+            extra_cloud_init_user_data=[],
+        )
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=node_context,
+        ):
+            with patch.object(
+                OpenVmmController, "_create_iso", autospec=True
+            ) as create_iso:
+                controller.create_node_cloud_init_iso(node)
+
+        files = {
+            path: contents for path, contents in create_iso.call_args.args[2]
+        }
+        user_data = yaml.safe_load(files["/user-data"].removeprefix("#cloud-config\n"))
+        meta_data = yaml.safe_load(files["/meta-data"])
+
+        user = user_data["users"][1]
+        self.assertEqual("lisatest", user["name"])
+        self.assertFalse(user["lock_passwd"])
+        self.assertEqual("guest-password", user["plain_text_passwd"])
+        self.assertTrue(user_data["ssh_pwauth"])
+        self.assertNotIn("chpasswd", user_data)
+        self.assertEqual("openvmm-manual", meta_data["local-hostname"])
+        self.assertRegex(
+            meta_data["instance-id"], r"^openvmm-manual-[0-9a-f]{32}$"
+        )

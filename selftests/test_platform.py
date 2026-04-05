@@ -19,7 +19,10 @@ from lisa.environment import (
 )
 from lisa.feature import Feature
 from lisa.platform_ import Platform, load_platform
-from lisa.sut_orchestrator.openvmm.schema import OpenVmmGuestNodeSchema
+from lisa.sut_orchestrator.openvmm.schema import (
+    CloudInitSchema,
+    OpenVmmGuestNodeSchema,
+)
 from lisa.util import ResourceAwaitableException, plugin_manager
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook as generate_env_runbook
@@ -173,6 +176,9 @@ class PlatformTestCase(TestCase):
                         "use_parent_capability": False,
                         "username": "root",
                         "password": "guest-password",
+                        "cloud_init": {
+                            "extra_user_data": "cloud-init/openvmm-user-data.yaml"
+                        },
                         "boot_mode": "uefi",
                         "uefi": {"firmware_path": "/var/tmp/MSVM.fd"},
                         "disk_img": "/var/tmp/ubuntu.img",
@@ -197,6 +203,11 @@ class PlatformTestCase(TestCase):
         self.assertEqual("uefi", guest.boot_mode)
         self.assertEqual("discover", guest.network.address_mode)
         self.assertEqual("ovmbr0", guest.network.bridge_name)
+        self.assertIsInstance(guest.cloud_init, CloudInitSchema)
+        assert guest.cloud_init
+        self.assertEqual(
+            "cloud-init/openvmm-user-data.yaml", guest.cloud_init.extra_user_data
+        )
 
     def test_prepared_env_success(self) -> None:
         platform = generate_platform()

@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
 
@@ -14,8 +14,10 @@ class NodeContext:
     working_path: str = ""
     uefi_firmware_path: str = ""
     disk_img_path: str = ""
+    cloud_init_file_path: str = ""
     console_log_file_path: str = ""
     launcher_log_file_path: str = ""
+    extra_cloud_init_user_data: List[Dict[str, Any]] = field(default_factory=list)
     guest_address: str = ""
     ssh_port: int = 22
     forwarded_port: int = 0

@@ -11,13 +11,15 @@ variable:
     value: ""
     is_secret: true
   - name: guest_admin_username
-    value: root
+    value: lisatest
   - name: guest_admin_password
     value: ""
     is_secret: true
   - name: guest_admin_private_key_file
     value: ""
     is_secret: true
+  - name: guest_extra_user_data
+    value: ""
   - name: subscription_id
     value: ""
   - name: location
@@ -77,6 +79,8 @@ platform:
         username: $(guest_admin_username)
         password: $(guest_admin_password)
         private_key_file: $(guest_admin_private_key_file)
+        cloud_init:
+          extra_user_data: $(guest_extra_user_data)
         lisa_working_dir: $(openvmm_host_working_dir)
         openvmm_binary: $(openvmm_binary)
         boot_mode: uefi

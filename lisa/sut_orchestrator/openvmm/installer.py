@@ -83,6 +83,7 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
         Ubuntu.__name__: ["build-essential", "libssl-dev", "perl", "pkg-config"],
         CBLMariner.__name__: [
             "build-essential",
+            "gcc",
             "openssl-devel",
             "perl",
             "pkg-config",
