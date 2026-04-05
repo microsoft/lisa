@@ -96,7 +96,7 @@ class Fio(Tool):
         time: int = 120,
         ssh_timeout: int = 6400,
         block_size: str = "4K",
-        size_gb: int = 0,
+        size_mb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
         group_reporting: bool = True,
@@ -118,7 +118,7 @@ class Fio(Tool):
             numjob,
             time,
             block_size,
-            size_gb,
+            size_mb,
             direct,
             gtod_reduce,
             group_reporting,
@@ -154,7 +154,7 @@ class Fio(Tool):
         numjob: int,
         time: int = 120,
         block_size: str = "4K",
-        size_gb: int = 0,
+        size_mb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
         group_reporting: bool = True,
@@ -176,7 +176,7 @@ class Fio(Tool):
             numjob,
             time,
             block_size,
-            size_gb,
+            size_mb,
             direct,
             gtod_reduce,
             group_reporting,
@@ -326,7 +326,7 @@ class Fio(Tool):
         numjob: int = 0,
         time: int = 120,
         block_size: str = "4K",
-        size_gb: int = 0,
+        size_mb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
         group_reporting: bool = True,
@@ -358,8 +358,8 @@ class Fio(Tool):
             cmd += " --direct=1"
         if gtod_reduce:
             cmd += " --gtod_reduce=1"
-        if size_gb:
-            cmd += f" --size={size_gb}M"
+        if size_mb:
+            cmd += f" --size={size_mb}M"
         if group_reporting:
             cmd += " --group_reporting"
         if overwrite:

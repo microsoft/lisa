@@ -111,7 +111,7 @@ class CPUSuite(TestSuite):
                 numjob=10,
                 time=fio_run_time,
                 block_size="1M",
-                size_gb=fio_data_size_in_gb,
+                size_mb=fio_data_size_in_gb,
                 group_reporting=False,
                 overwrite=True,
                 time_based=True,

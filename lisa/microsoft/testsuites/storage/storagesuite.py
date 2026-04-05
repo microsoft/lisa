@@ -153,7 +153,7 @@ class StorageTest(TestSuite):
                     numjob=0,
                     time=0,
                     block_size="",
-                    size_gb=100,
+                    size_mb=100,
                     group_reporting=False,
                     do_verify=True,
                     bsrange="512-256K",
