@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import re
+import subprocess
 import sys
 import threading
 from copy import deepcopy
@@ -236,6 +237,7 @@ KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
+KEY_LISA_SHA = "lisa_sha"
 ATTRIBUTE_FEATURES = "features"
 
 
@@ -382,6 +384,9 @@ class AzurePlatformSchema:
     # Enable logging of MANA driver/device information in test results
     log_mana_information: bool = field(default=False)
 
+    # Enable capturing the LISA git commit SHA in test results
+    log_lisa_sha: bool = field(default=False)
+
     # VM sizes to block from deployment in addition to RETIRED_VM_SIZES.
     # Useful for temporarily blocking sizes that are known to be problematic
     # or have been retired but are not yet in the hardcoded list.
@@ -520,6 +525,7 @@ class AzurePlatform(Platform):
         }
 
         self._private_key_lock = threading.Lock()
+        self._lisa_sha_cache: Optional[str] = None
 
     @classmethod
     def type_name(cls) -> str:
@@ -771,7 +777,7 @@ class AzurePlatform(Platform):
                 check_panic(log_response_content.decode("utf-8"), "provision", log)
                 check_rootfs_failure(log_response_content.decode("utf-8"), log)
 
-    def _get_node_information(self, node: Node) -> Dict[str, str]:
+    def _get_node_information(self, node: Node) -> Dict[str, str]:  # noqa: C901
         platform_runbook = cast(schema.Platform, self.runbook)
         information: Dict[str, Any] = {}
         if platform_runbook.capture_vm_information is False:
@@ -850,6 +856,12 @@ class AzurePlatform(Platform):
         if self._azure_runbook.log_mana_information and node.is_connected:
             self._collect_mana_information(node, information)
 
+        # Log LISA SHA if enabled in runbook
+        if self._azure_runbook.log_lisa_sha:
+            lisa_sha = self._get_lisa_sha(node)
+            if lisa_sha:
+                information[KEY_LISA_SHA] = lisa_sha
+
         return information
 
     def _collect_mana_information(
@@ -868,6 +880,62 @@ class AzurePlatform(Platform):
             )
         except Exception as e:
             node.log.debug(f"error detecting MANA information: {e}")
+
+    def _get_lisa_sha(self, node: Node) -> str:
+        # The LISA SHA is a property of the local checkout, not the node.
+        # Cache it to avoid spawning a git process per node.
+        if self._lisa_sha_cache is not None:
+            return self._lisa_sha_cache
+
+        result: str = ""
+        try:
+            lisa_repo_path = Path(__file__).resolve().parent.parent.parent.parent
+            git_command = [
+                "git",
+                "-c",
+                f"safe.directory={str(lisa_repo_path)}",
+                "rev-parse",
+                "--short",
+                "HEAD",
+            ]
+            completed = subprocess.run(
+                git_command,
+                cwd=str(lisa_repo_path),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            result = completed.stdout.strip()
+        except FileNotFoundError as ex:
+            # git not installed — permanent, cache empty to avoid retrying
+            self._log.debug(
+                f"error on getting LISA SHA (FileNotFoundError): "
+                f"{type(ex).__name__}: {ex}"
+            )
+            self._lisa_sha_cache = result
+        except subprocess.CalledProcessError as ex:
+            # git command failed (e.g., not a git repo) — permanent
+            self._log.debug(
+                f"error on getting LISA SHA (CalledProcessError): "
+                f"{type(ex).__name__}: {ex}"
+            )
+            self._lisa_sha_cache = result
+        except subprocess.TimeoutExpired as ex:
+            # git command timed out — transient, don't cache
+            self._log.debug(
+                f"error on getting LISA SHA (TimeoutExpired): "
+                f"{type(ex).__name__}: {ex}"
+            )
+        except Exception as ex:
+            # unexpected error — transient, don't cache
+            self._log.debug(
+                f"unexpected error on getting LISA SHA ({type(ex).__name__}): {ex}"
+            )
+        if result:
+            self._lisa_sha_cache = result
+        return result
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
