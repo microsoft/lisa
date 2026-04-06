@@ -63,7 +63,7 @@ variable:
   - name: expected_network_bw
     value: ""
     is_case_visible: true
-  - name: expected_storage_bw
+  - name: expected_storage_throughput
     value: ""
     is_case_visible: true
   - name: location
