@@ -1,0 +1,110 @@
+# VM Specification Validation Runbook
+#
+# This runbook provisions Azure VMs based on specifications from a CSV file
+# and validates that each VM matches the declared hardware properties.
+#
+# The CSV combinator iterates over every row in the CSV file. Each row sets
+# the vm_size (used by the platform to provision) and expected_* variables
+# (used by the test suite to validate).
+#
+# Usage:
+#   lisa -r lisa\microsoft\runbook\examples\vm_spec_validation.yml \
+#        --variable "subscription_id:<your_sub_id>" \
+#        --variable "csv_file:lisa\microsoft\runbook\examples\vm_specs.csv"
+#
+# You can also override location, marketplace_image, etc. from the CLI.
+
+test_pass: "adhoc"
+
+name: vm_spec_validation
+
+include:
+  - path: ../azure.yml
+
+extension:
+  - ../../testsuites
+
+variable:
+  # Path to the CSV file with VM specifications (override via CLI if needed)
+  - name: csv_file
+    value: 'lisa\microsoft\runbook\examples\vm_specs.csv'
+
+  # -------------------------------------------------------------------
+  # Variables populated by the CSV combinator for each row.
+  # They are marked is_case_visible so the test suite can read them.
+  # -------------------------------------------------------------------
+  - name: vm_size
+    value: ""
+    is_case_visible: true
+  - name: expected_cpu_count
+    value: ""
+    is_case_visible: true
+  - name: expected_memory_gb
+    value: ""
+    is_case_visible: true
+  - name: expected_gpu_count
+    value: ""
+    is_case_visible: true
+  - name: expected_nic_count
+    value: ""
+    is_case_visible: true
+  - name: expected_max_disks
+    value: ""
+    is_case_visible: true
+  - name: expected_max_iops
+    value: ""
+    is_case_visible: true
+  - name: nvme_expected_max_disks
+    value: ""
+    is_case_visible: true
+  - name: nvme_expected_max_iops
+    value: ""
+    is_case_visible: true
+  - name: expected_network_bw
+    value: ""
+    is_case_visible: true
+  - name: expected_storage_bw
+    value: ""
+    is_case_visible: true
+  - name: location
+    value: "westus2"
+  - name: marketplace_image
+    value: "Canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest"
+  - name: test_pass
+    value: "adhoc"
+  - name: keep_environment
+    value: "no"
+  - name: subscription_id
+    value: ""
+combinator:
+  type: csv
+  file_name: $(csv_file)
+  column_mapping:
+    - column: vm_size
+      variable: vm_size
+    - column: expected_cpu_count
+      variable: expected_cpu_count
+    - column: expected_memory_gb
+      variable: expected_memory_gb
+    - column: expected_gpu_count
+      variable: expected_gpu_count
+    - column: expected_nic_count
+      variable: expected_nic_count
+    - column: expected_max_disks
+      variable: expected_max_disks
+    - column: expected_max_iops
+      variable: expected_max_iops
+    - column: nvme_expected_max_disks
+      variable: nvme_expected_max_disks
+    - column: nvme_expected_max_iops
+      variable: nvme_expected_max_iops
+    - column: expected_network_bw
+      variable: expected_network_bw
+    - column: expected_storage_throughput
+      variable: expected_storage_throughput
+
+# Select only the vm_spec_validation test cases
+testcase:
+  - criteria:
+      area: vm_spec_validation
+      name: ""
