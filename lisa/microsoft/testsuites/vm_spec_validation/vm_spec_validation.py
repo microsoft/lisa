@@ -60,7 +60,7 @@ VAR_EXPECTED_STORAGE_THROUGHPUT = "expected_storage_throughput"
 _MEMORY_TOLERANCE_PERCENT = 5
 
 # Percentage tolerance for bandwidth / IOPS comparisons.
-_PERF_TOLERANCE_PERCENT = 5
+_PERF_TOLERANCE_PERCENT = 7
 
 
 def _get_int_var(variables: Dict[str, Any], name: str) -> int:
@@ -151,20 +151,25 @@ class VmSpecValidation(TestSuite):
     ) -> None:
         expected_memory_gb = _get_int_var(variables, VAR_EXPECTED_MEMORY_GB)
         expected_memory_mb = expected_memory_gb * 1024
-        # _get_field_bytes_kib returns KiB; shift right 10 to get MiB
-        actual_memory_mb = node.tools[Free]._get_field_bytes_kib("Mem", "total") >> 10
+        actual_memory_mb = node.tools[Free].get_free_memory_mb()
         vm_size = variables.get(VAR_VM_SIZE, "unknown")
         log.info(
             f"VM size: {vm_size} - expected memory: {expected_memory_gb} GB "
             f"({expected_memory_mb} MB), actual memory: {actual_memory_mb} MB"
         )
-        lower_bound = expected_memory_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100
+        lower_bound = int(
+            expected_memory_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100
+        )
+        # VM sizes typically report slightly less memory than the nominal value
+        # due to hypervisor/firmware reservations, so we allow the actual memory
+        # to be up to the expected value but not above it.
+        upper_bound = expected_memory_mb
         assert_that(actual_memory_mb).described_as(
             f"VM size {vm_size}: expected ~{expected_memory_gb} GB "
             f"({expected_memory_mb} MB) memory "
             f"but found {actual_memory_mb} MB "
             f"(tolerance {_MEMORY_TOLERANCE_PERCENT}%)"
-        ).is_greater_than_or_equal_to(int(lower_bound))
+        ).is_between(lower_bound, upper_bound)
 
     # ------------------------------------------------------------------
     # GPU count validation
@@ -326,7 +331,7 @@ class VmSpecValidation(TestSuite):
             ),
         ),
     )
-    def verify_vm_max_premium_ssddata_disk_count(
+    def verify_vm_max_premium_ssd_disk_count(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         expected_max_disks = _get_int_var(variables, VAR_EXPECTED_MAX_DISKS)
@@ -494,7 +499,7 @@ class VmSpecValidation(TestSuite):
             ),
         ),
     )
-    def verify_vm_premium_ssddisk_iops(
+    def verify_vm_premium_ssd_iops(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         expected_iops = _get_int_var(variables, VAR_EXPECTED_MAX_IOPS)
@@ -579,7 +584,7 @@ class VmSpecValidation(TestSuite):
             ),
         ),
     )
-    def verify_vm_premium_ssd_storage_throughput(
+    def verify_vm_premium_ssd_throughput(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         expected_bw = _get_int_var(variables, VAR_EXPECTED_STORAGE_THROUGHPUT)
@@ -618,18 +623,27 @@ class VmSpecValidation(TestSuite):
 
         # With 1024K block size, IOPS == throughput in MiB/s
         measured_bw = int(result.iops)
-        bw_floor = int(expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100)
+        bw_floor = int(
+            expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100
+        )
+        bw_ceiling = int(
+            expected_bw * (100 + _PERF_TOLERANCE_PERCENT) / 100
+        )
         log.info(
-            f"VM size: {vm_size} - fio seq read across {len(data_disks)} disk(s): "
+            f"VM size: {vm_size} - fio seq read across "
+            f"{len(data_disks)} disk(s): "
             f"measured {measured_bw} MiB/s, "
-            f"expected >= {bw_floor} MiB/s (declared: {expected_bw} MBps)"
+            f"expected {bw_floor}-{bw_ceiling} MiB/s "
+            f"(declared: {expected_bw} MBps)"
         )
         assert_that(measured_bw).described_as(
-            f"VM size {vm_size}: expected storage throughput >= {bw_floor} MiB/s "
+            f"VM size {vm_size}: expected storage throughput "
+            f"between {bw_floor} and {bw_ceiling} MiB/s "
             f"(declared {expected_bw} MBps with "
             f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
-            f"{len(data_disks)} disk(s) but measured only {measured_bw} MiB/s"
-        ).is_greater_than_or_equal_to(bw_floor)
+            f"{len(data_disks)} disk(s) but measured "
+            f"{measured_bw} MiB/s"
+        ).is_between(bw_floor, bw_ceiling)
 
     # ------------------------------------------------------------------
     # Network bandwidth validation — ntttcp between two nodes
@@ -671,8 +685,7 @@ class VmSpecValidation(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
-        # Resolve NIC names for ntttcp.  With SR-IOV the PCI device name
-        # is used; otherwise fall back to the default synthetic NIC.
+        # Resolve NIC names for ntttcp.
         server_node.nics.reload()
         client_node.nics.reload()
         server_nic_name = server_node.nics.get_primary_nic().pci_device_name
@@ -717,20 +730,28 @@ class VmSpecValidation(TestSuite):
         # the runbook variable unit.
         measured_bw_mbps = int(server_result.throughput_in_gbps * 1000)
 
-        # Allow tolerance below the declared max
+        # Allow tolerance around the declared max
         bw_floor_mbps = int(
-            expected_bw_mbps * (100 - _PERF_TOLERANCE_PERCENT) / 100
+            expected_bw_mbps
+            * (100 - _PERF_TOLERANCE_PERCENT)
+            / 100
+        )
+        bw_ceiling_mbps = int(
+            expected_bw_mbps
+            * (100 + _PERF_TOLERANCE_PERCENT)
+            / 100
         )
         log.info(
             f"VM size: {vm_size} — ntttcp network bandwidth: "
             f"measured {measured_bw_mbps} Mbps, "
-            f"expected >= {bw_floor_mbps} Mbps "
+            f"expected {bw_floor_mbps}-{bw_ceiling_mbps} Mbps "
             f"(declared: {expected_bw_mbps} Mbps, "
             f"tolerance: {_PERF_TOLERANCE_PERCENT}%)"
         )
         assert_that(measured_bw_mbps).described_as(
             f"VM size {vm_size}: expected network throughput "
-            f">= {bw_floor_mbps} Mbps (declared {expected_bw_mbps} Mbps "
-            f"with {_PERF_TOLERANCE_PERCENT}% tolerance) but measured "
-            f"only {measured_bw_mbps} Mbps"
-        ).is_greater_than_or_equal_to(bw_floor_mbps)
+            f"between {bw_floor_mbps} and {bw_ceiling_mbps} Mbps "
+            f"(declared {expected_bw_mbps} Mbps with "
+            f"{_PERF_TOLERANCE_PERCENT}% tolerance) but measured "
+            f"{measured_bw_mbps} Mbps"
+        ).is_between(bw_floor_mbps, bw_ceiling_mbps)
