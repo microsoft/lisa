@@ -4,34 +4,6 @@
 """
 VM Specification Validation Test Suite
 
-This test suite reads expected VM specifications from CSV-driven variables
-(via the LISA CSV combinator) and validates that a provisioned VM matches
-the declared hardware properties like: CPU count, memory, NIC count, max data
-disks (including local NVMe), storage IOPS and network
-bandwidth and GPU count where applicable.
-
-Architecture
-============
-
-    CSV file --> CSV Combinator --> variables (is_case_visible) --> test methods
-                                         |
-                    +--------------------+
-                    v
-         +------------------------+
-         | vm_size                |  Azure VM size used by the platform
-         | expected_cpu_count     |  Expected vCPU count
-         | expected_memory_gb     |  Expected memory in GB
-         | expected_nic_count     |  Expected max NIC count
-         | expected_max_disks     |  Expected max data disk count
-         | expected_max_iops      |  (optional) Expected disk IOPS ceiling
-         | expected_network_bw    |  (optional) Expected network bandwidth Mbps
-         | expected_storage_bw    |  (optional) Expected storage bandwidth MBps
-         +------------------------+
-
-Each row in the CSV becomes one iteration of the runner (one VM size).
-The platform provisions a VM with the given ``vm_size``, and the test
-suite validates hardware against the expected values.
-
 Usage
 =====
 
@@ -792,7 +764,7 @@ class VmSpecValidation(TestSuite):
 
         try:
             # Run ntttcp sender (client)
-            client_result = client_ntttcp.run_as_client(
+            client_ntttcp.run_as_client(
                 client_nic_name,
                 server_ip=server_node.internal_address,
                 threads_count=1,
