@@ -376,8 +376,12 @@ class AzureImageSchema(schema.ImageSchema):
     ) -> None:
         security_profile = raw_features.get("SecurityType")
         capabilities: List[SecurityProfileType] = []
-        if security_profile in ["TrustedLaunchSupported", "TrustedLaunch"]:
+        if security_profile == "TrustedLaunchSupported":
+            # Image supports both Standard and TrustedLaunch security types.
             capabilities.append(SecurityProfileType.Standard)
+            capabilities.append(SecurityProfileType.SecureBoot)
+        elif security_profile == "TrustedLaunch":
+            # Image requires TrustedLaunch only; Standard is not allowed.
             capabilities.append(SecurityProfileType.SecureBoot)
         elif security_profile in (
             "TrustedLaunchAndConfidentialVmSupported",
