@@ -580,8 +580,10 @@ class VmSpecValidation(TestSuite):
         sequential-read benchmark with 1024K block size across all
         of them.
 
-        With ``block_size=1024K`` each I/O transfers 1 MiB, so the
-        reported IOPS value equals the throughput in MiB/s.
+        With ``block_size=1024K`` each I/O transfers 1 MiB.  The raw
+        IOPS figure is converted from MiB/s to MBps
+        (1 MiB/s = 1.048576 MBps) so that all comparisons use the
+        same unit as the runbook specification.
 
         This test is skipped when the ``expected_storage_throughput``
         variable is empty or zero.
@@ -591,7 +593,8 @@ class VmSpecValidation(TestSuite):
         2. Read expected_storage_throughput (MBps) from runbook variables.
         3. Discover all attached raw data disks.
         4. Run fio sequential-read 1024K across all disks.
-        5. Assert throughput >= expected (with tolerance).
+        5. Convert measured throughput from MiB/s to MBps.
+        6. Assert throughput >= expected (with tolerance).
         """,
         priority=5,
         requirement=simple_requirement(
@@ -623,12 +626,12 @@ class VmSpecValidation(TestSuite):
         )
 
         # Run fio sequential read with 1024K block size across all disks.
-        # With block_size=1024K each IOP = 1 MiB, so IOPS == MiB/s.
+        # With block_size=1024K each IOP = 1 MiB; convert to MBps below.
         filename = ":".join(data_disks)
         fio = node.tools[Fio]
         cpu = node.tools[Lscpu]
         thread_count = cpu.get_thread_count()
-        best_bw = 0
+        best_bw_mbps = 0
         for i in range(_PERF_ITERATIONS):
             result = fio.launch(
                 name=f"storage_throughput_all_disks_{i}",
@@ -641,16 +644,17 @@ class VmSpecValidation(TestSuite):
                 time=120,
                 overwrite=True,
             )
-            bw = int(result.iops)
+            # fio IOPS with 1024K blocks = MiB/s; convert to MBps
+            # 1 MiB/s = 1,048,576 / 1,000,000 MBps ((1024 * 1024) / (1000 * 1000))
+            bw_mbps = int(int(result.iops) * 1048576 / 1000000)
             log.info(
                 f"VM size: {vm_size} - storage throughput "
                 f"iteration {i + 1}/{_PERF_ITERATIONS}: "
-                f"{bw} MiB/s"
+                f"{bw_mbps} MBps"
             )
-            best_bw = max(best_bw, bw)
+            best_bw_mbps = max(best_bw_mbps, bw_mbps)
 
-        # With 1024K block size, IOPS == throughput in MiB/s
-        measured_bw = best_bw
+        measured_bw = best_bw_mbps
         bw_floor = int(
             expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100
         )
@@ -660,17 +664,17 @@ class VmSpecValidation(TestSuite):
         log.info(
             f"VM size: {vm_size} - fio seq read across "
             f"{len(data_disks)} disk(s): "
-            f"measured {measured_bw} MiB/s, "
-            f"expected {bw_floor}-{bw_ceiling} MiB/s "
+            f"measured {measured_bw} MBps, "
+            f"expected {bw_floor}-{bw_ceiling} MBps "
             f"(declared: {expected_bw} MBps)"
         )
         assert_that(measured_bw).described_as(
             f"VM size {vm_size}: expected storage throughput "
-            f"between {bw_floor} and {bw_ceiling} MiB/s "
+            f"between {bw_floor} and {bw_ceiling} MBps "
             f"(declared {expected_bw} MBps with "
             f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
             f"{len(data_disks)} disk(s) but measured "
-            f"{measured_bw} MiB/s"
+            f"{measured_bw} MBps"
         ).is_between(bw_floor, bw_ceiling)
 
     # ------------------------------------------------------------------
