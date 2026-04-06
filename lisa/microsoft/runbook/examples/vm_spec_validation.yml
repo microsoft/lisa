@@ -15,8 +15,6 @@
 # You can also override location, marketplace_image, etc. from the CLI.
 
 test_pass: "adhoc"
-# extension:
-#   - C:\w\lisa\microsoft\testsuites
 
 name: vm_spec_validation
 
@@ -77,7 +75,7 @@ variable:
   - name: keep_environment
     value: "no"
   - name: subscription_id
-    value: "0cc2a67a-58b9-4e4f-98a8-bfa46a28e896"
+    value: ""
 combinator:
   type: csv
   file_name: $(csv_file)
@@ -109,4 +107,4 @@ combinator:
 testcase:
   - criteria:
       area: vm_spec_validation
-      name: verify_vm_memory
+      name: ""
