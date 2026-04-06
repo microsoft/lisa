@@ -565,7 +565,11 @@ def intersect_setspace_by_priority(
 
     assert capability is not None, "Capability shouldn't be None"
 
-    value = SetSpace[T]()
+    # Result must be an allow-set so downstream callers (e.g. _add_image_features,
+    # reload_platform_features) can correctly re-intersect it with further
+    # constraints. A deny-set result would corrupt _original_nodes_requirement via
+    # the shallow copy in reload_requirements() and cause failures on retries.
+    value = SetSpace[T](is_allow_set=True)
     # Ensure that both cap and req are instance of SetSpace
     if not isinstance(capability, SetSpace):
         capability = SetSpace[T](items=[capability])
