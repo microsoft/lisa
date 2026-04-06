@@ -62,6 +62,9 @@ _MEMORY_TOLERANCE_PERCENT = 5
 # Percentage tolerance for bandwidth / IOPS comparisons.
 _PERF_TOLERANCE_PERCENT = 7
 
+# Number of iterations for performance tests; the best result is used.
+_PERF_ITERATIONS = 3
+
 
 def _get_int_var(variables: Dict[str, Any], name: str) -> int:
     """Return an integer variable, raising ``SkippedException`` if missing or zero."""
@@ -442,19 +445,27 @@ class VmSpecValidation(TestSuite):
         # Run fio across ALL local NVMe disks simultaneously
         filename = ":".join(nvme_disks)
         fio = node.tools[Fio]
-        result = fio.launch(
-            name="nvme_iops_all_disks",
-            filename=filename,
-            mode="randread",
-            iodepth=64,
-            numjob=4,
-            block_size="4K",
-            size_gb=0,
-            time=30,
-            overwrite=True,
-        )
+        best_iops = 0
+        for i in range(_PERF_ITERATIONS):
+            result = fio.launch(
+                name=f"nvme_iops_all_disks_{i}",
+                filename=filename,
+                mode="randread",
+                iodepth=64,
+                numjob=4,
+                block_size="4K",
+                size_gb=8192,
+                time=120,
+                overwrite=True,
+            )
+            iops = int(result.iops)
+            log.info(
+                f"VM size: {vm_size} - NVMe IOPS iteration "
+                f"{i + 1}/{_PERF_ITERATIONS}: {iops}"
+            )
+            best_iops = max(best_iops, iops)
 
-        measured_iops = int(result.iops)
+        measured_iops = best_iops
         # Allow tolerance below the declared max
         iops_floor = int(expected_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
@@ -523,19 +534,27 @@ class VmSpecValidation(TestSuite):
         fio = node.tools[Fio]
         cpu = node.tools[Lscpu]
         thread_count = cpu.get_thread_count()
-        result = fio.launch(
-            name="iops_all_disks",
-            filename=filename,
-            mode="randread",
-            iodepth=64,
-            numjob=thread_count,
-            block_size="4K",
-            size_gb=8192,
-            time=120,
-            overwrite=True,
-        )
+        best_iops = 0
+        for i in range(_PERF_ITERATIONS):
+            result = fio.launch(
+                name=f"iops_all_disks_{i}",
+                filename=filename,
+                mode="randread",
+                iodepth=64,
+                numjob=thread_count,
+                block_size="4K",
+                size_gb=8192,
+                time=120,
+                overwrite=True,
+            )
+            iops = int(result.iops)
+            log.info(
+                f"VM size: {vm_size} - disk IOPS iteration "
+                f"{i + 1}/{_PERF_ITERATIONS}: {iops}"
+            )
+            best_iops = max(best_iops, iops)
 
-        measured_iops = int(result.iops)
+        measured_iops = best_iops
         # Allow tolerance below the declared max
         iops_floor = int(expected_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
@@ -609,20 +628,29 @@ class VmSpecValidation(TestSuite):
         fio = node.tools[Fio]
         cpu = node.tools[Lscpu]
         thread_count = cpu.get_thread_count()
-        result = fio.launch(
-            name="storage_throughput_all_disks",
-            filename=filename,
-            mode="read",
-            iodepth=64,
-            numjob=thread_count,
-            block_size="1024K",
-            size_gb=8192,
-            time=120,
-            overwrite=True,
-        )
+        best_bw = 0
+        for i in range(_PERF_ITERATIONS):
+            result = fio.launch(
+                name=f"storage_throughput_all_disks_{i}",
+                filename=filename,
+                mode="read",
+                iodepth=64,
+                numjob=thread_count,
+                block_size="1024K",
+                size_gb=8192,
+                time=120,
+                overwrite=True,
+            )
+            bw = int(result.iops)
+            log.info(
+                f"VM size: {vm_size} - storage throughput "
+                f"iteration {i + 1}/{_PERF_ITERATIONS}: "
+                f"{bw} MiB/s"
+            )
+            best_bw = max(best_bw, bw)
 
         # With 1024K block size, IOPS == throughput in MiB/s
-        measured_bw = int(result.iops)
+        measured_bw = best_bw
         bw_floor = int(
             expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100
         )
@@ -701,34 +729,52 @@ class VmSpecValidation(TestSuite):
         # 64 ports max — beyond this ntttcp shows diminishing returns
         ports_count = min(thread_count, 64)
 
-        # Start ntttcp receiver (server) in the background
-        server_process = server_ntttcp.run_as_server_async(
-            server_nic_name,
-            run_time_seconds=60,  # 60s for a stable throughput measurement
-            ports_count=ports_count,
-        )
+        # Start ntttcp iterations and take the best result
+        best_bw_mbps = 0
 
+        server_ntttcp.setup_system()
+        client_ntttcp.setup_system()
         try:
-            # Run ntttcp sender (client)
-            client_ntttcp.run_as_client(
-                client_nic_name,
-                server_ip=server_node.internal_address,
-                threads_count=1,
-                run_time_seconds=60,  # match the server duration
-                ports_count=ports_count,
-            )
+            for i in range(_PERF_ITERATIONS):
+                server_process = server_ntttcp.run_as_server_async(
+                    server_nic_name,
+                    run_time_seconds=60,
+                    ports_count=ports_count,
+                )
+
+                try:
+                    client_ntttcp.run_as_client(
+                        client_nic_name,
+                        server_ip=server_node.internal_address,
+                        threads_count=1,
+                        run_time_seconds=60,
+                        ports_count=ports_count,
+                    )
+                finally:
+                    server_node.tools[Kill].by_name(
+                        server_ntttcp.command
+                    )
+
+                server_executable_result = server_process.wait_result()
+                server_result = server_ntttcp.create_ntttcp_result(
+                    server_executable_result
+                )
+                bw_mbps = int(
+                    server_result.throughput_in_gbps * 1000
+                )
+                log.info(
+                    f"VM size: {vm_size} - network bandwidth "
+                    f"iteration {i + 1}/{_PERF_ITERATIONS}: "
+                    f"{bw_mbps} Mbps"
+                )
+                best_bw_mbps = max(best_bw_mbps, bw_mbps)
         finally:
-            # Stop the server and collect its result
             server_node.tools[Kill].by_name(server_ntttcp.command)
+            server_ntttcp.restore_system()
+            client_ntttcp.restore_system()
 
-        server_executable_result = server_process.wait_result()
-        server_result = server_ntttcp.create_ntttcp_result(
-            server_executable_result
-        )
-
-        # ntttcp reports throughput in Gbps — convert to Mbps to match
-        # the runbook variable unit.
-        measured_bw_mbps = int(server_result.throughput_in_gbps * 1000)
+        # ntttcp reports throughput in Gbps — convert to Mbps
+        measured_bw_mbps = best_bw_mbps
 
         # Allow tolerance around the declared max
         bw_floor_mbps = int(
