@@ -366,6 +366,14 @@ class Nvmecli(Tool):
         except (json.JSONDecodeError, KeyError, TypeError):
             return {}
 
+        if not isinstance(nvme_devices, list):
+            self._log.debug(
+                f"Expected 'Devices' to be a list in nvme-cli JSON, "
+                f"got {type(nvme_devices).__name__}. "
+                f"Trying legacy disk detection."
+            )
+            return {}
+
         device_models: Dict[str, str] = {}
 
         for nvme_device in nvme_devices or []:
