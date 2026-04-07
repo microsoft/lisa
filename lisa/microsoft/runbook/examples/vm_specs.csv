@@ -1,2 +1,4 @@
 vm_size,expected_cpu_count,expected_memory_gb,expected_nic_count,expected_network_bw,expected_max_disks,expected_max_iops,expected_storage_throughput,expected_gpu_count,nvme_expected_max_disks,nvme_expected_max_iops
 Standard_D32s_v5,32,128,8,"16,000",32,"51,200",865,,,
+Standard_L8s_v2,8,64,4,12500,16,12800,290,,1,400000
+Standard_NC6s_v3,6,112,4,12500,12,20000,200,1,,
