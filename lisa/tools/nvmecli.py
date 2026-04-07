@@ -300,6 +300,47 @@ class Nvmecli(Tool):
             )
         return device_paths_namespace_ids
 
+    def get_disk_model_map(self, force_run: bool = False) -> Dict[str, str]:
+        """
+        Return a mapping of NVMe device paths to their model names.
+
+        Azure remote disks use "MSFT NVMe Accelerator" model, while local
+        NVMe disks use "Microsoft NVMe Direct Disk" model.
+
+        Returns:
+            Dict[str, str]: e.g. {"/dev/nvme0n1": "MSFT NVMe Accelerator v1.0",
+                                  "/dev/nvme1n1": "Microsoft NVMe Direct Disk v2"}
+        """
+        nvme_list = self.run(
+            "list -o json 2>/dev/null",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
+        if not nvme_list.stdout:
+            return {}
+        nvme_devices = json.loads(nvme_list.stdout)["Devices"]
+        disk_model_map: Dict[str, str] = {}
+
+        for nvme_device in nvme_devices or []:
+            # Legacy schema: flat Devices[] with DevicePath and ModelNumber
+            device_path = nvme_device.get("DevicePath")
+            model = nvme_device.get("ModelNumber", "")
+            if isinstance(device_path, str) and device_path.startswith("/dev/"):
+                disk_model_map[device_path] = model
+
+            # New schema: Subsystems → Controllers → Namespaces
+            for subsystem in nvme_device.get("Subsystems") or []:
+                for controller in (subsystem or {}).get("Controllers") or []:
+                    ctrl_model = (controller or {}).get("ModelNumber", "")
+                    for namespace in (controller or {}).get("Namespaces") or []:
+                        ns_name = namespace.get("NameSpace")
+                        if isinstance(ns_name, str) and ns_name:
+                            disk_model_map[f"/dev/{ns_name}"] = ctrl_model
+
+        return disk_model_map
+
     def get_disks(self, force_run: bool = False) -> List[str]:
         device_paths = sorted(self.get_devices(force_run=force_run).keys())
         return device_paths
