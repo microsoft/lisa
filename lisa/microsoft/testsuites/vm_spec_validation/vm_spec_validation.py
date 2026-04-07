@@ -379,9 +379,7 @@ class VmSpecValidation(TestSuite):
     def verify_vm_nvme_disk_count(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        expected_nvme_disks = _get_int_var(
-            variables, VAR_NVME_EXPECTED_MAX_DISKS
-        )
+        expected_nvme_disks = _get_int_var(variables, VAR_NVME_EXPECTED_MAX_DISKS)
         vm_size = variables.get(VAR_VM_SIZE, "unknown")
 
         nvme_disks = node.features[Nvme].get_raw_nvme_disks()
