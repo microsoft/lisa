@@ -162,9 +162,7 @@ class VmSpecValidation(TestSuite):
             f"VM size: {vm_size} - expected memory: {expected_memory_gb} GB "
             f"({expected_memory_mb} MB), actual memory: {actual_memory_mb} MB"
         )
-        lower_bound = int(
-            expected_memory_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100
-        )
+        lower_bound = int(expected_memory_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100)
         # VM sizes typically report slightly less memory than the nominal value
         # due to hypervisor/firmware reservations, so we allow the actual memory
         # to be up to the expected value but not above it.
