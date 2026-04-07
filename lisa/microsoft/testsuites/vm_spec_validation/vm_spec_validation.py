@@ -653,12 +653,8 @@ class VmSpecValidation(TestSuite):
             best_bw_mbps = max(best_bw_mbps, bw_mbps)
 
         measured_bw = best_bw_mbps
-        bw_floor = int(
-            expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100
-        )
-        bw_ceiling = int(
-            expected_bw * (100 + _PERF_TOLERANCE_PERCENT) / 100
-        )
+        bw_floor = int(expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100)
+        bw_ceiling = int(expected_bw * (100 + _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
             f"VM size: {vm_size} - fio seq read across "
             f"{len(data_disks)} disk(s): "
@@ -753,17 +749,13 @@ class VmSpecValidation(TestSuite):
                         ports_count=ports_count,
                     )
                 finally:
-                    server_node.tools[Kill].by_name(
-                        server_ntttcp.command
-                    )
+                    server_node.tools[Kill].by_name(server_ntttcp.command)
 
                 server_executable_result = server_process.wait_result()
                 server_result = server_ntttcp.create_ntttcp_result(
                     server_executable_result
                 )
-                bw_mbps = int(
-                    server_result.throughput_in_gbps * 1000
-                )
+                bw_mbps = int(server_result.throughput_in_gbps * 1000)
                 log.info(
                     f"VM size: {vm_size} - network bandwidth "
                     f"iteration {i + 1}/{_PERF_ITERATIONS}: "
@@ -779,16 +771,8 @@ class VmSpecValidation(TestSuite):
         measured_bw_mbps = best_bw_mbps
 
         # Allow tolerance around the declared max
-        bw_floor_mbps = int(
-            expected_bw_mbps
-            * (100 - _PERF_TOLERANCE_PERCENT)
-            / 100
-        )
-        bw_ceiling_mbps = int(
-            expected_bw_mbps
-            * (100 + _PERF_TOLERANCE_PERCENT)
-            / 100
-        )
+        bw_floor_mbps = int(expected_bw_mbps * (100 - _PERF_TOLERANCE_PERCENT) / 100)
+        bw_ceiling_mbps = int(expected_bw_mbps * (100 + _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
             f"VM size: {vm_size} — ntttcp network bandwidth: "
             f"measured {measured_bw_mbps} Mbps, "
