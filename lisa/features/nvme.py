@@ -146,17 +146,45 @@ class Nvme(Feature):
     # nvme3n1     259:6    0  440G  0 disk # nvme resource disk
     # nvme4n1     259:7    0  440G  0 disk # nvme resource disk
     # lisa [ ~ ]$
+    # Azure remote NVMe disks use "MSFT NVMe Accelerator" model name.
+    _REMOTE_NVME_MODEL = "MSFT NVMe Accelerator"
+
     def _remove_nvme_remote_disks(self, disk_list: List[str]) -> List[str]:
-        # TODO: Commented out controller checking logic for nvme list command
-        # if (
-        #     self._node.features[Disk].get_os_disk_controller_type()
-        #     == schema.DiskControllerType.NVME
-        # ):
-        #     os_disk_nvme_device = self._get_os_disk_nvme_device()
-        #     # Removing OS disk/device from the list.
-        #     for disk in disk_list.copy():
-        #         if os_disk_nvme_device in disk:
-        #             disk_list.remove(disk)
+        # When disk controller type is NVMe, both remote and local disks appear
+        # as NVMe devices. Use the model name to distinguish them:
+        # - Remote disks: "MSFT NVMe Accelerator"
+        # - Local disks: "Microsoft NVMe Direct Disk"
+        if (
+            self._node.features[Disk].get_os_disk_controller_type()
+            == schema.DiskControllerType.NVME
+        ):
+            os_disk_nvme_device = self._get_os_disk_nvme_device()
+            nvme_cli = self._node.tools[Nvmecli]
+            disk_model_map = nvme_cli.get_disk_model_map()
+            self._log.debug(
+                f"NVMe disk model map: {disk_model_map}"
+            )
+            filtered = []
+            removed_os = []
+            removed_remote = []
+            for disk in disk_list:
+                # Remove OS disk/device
+                if os_disk_nvme_device and os_disk_nvme_device in disk:
+                    removed_os.append(disk)
+                    continue
+                # Remove remote disks (MSFT NVMe Accelerator)
+                model = disk_model_map.get(disk, "")
+                if self._REMOTE_NVME_MODEL in model:
+                    removed_remote.append(disk)
+                    continue
+                filtered.append(disk)
+            self._log.debug(
+                f"NVMe disk filtering: input={len(disk_list)}, "
+                f"removed_os={removed_os}, "
+                f"removed_remote={removed_remote}, "
+                f"kept_local={filtered}"
+            )
+            return filtered
         return disk_list
 
     def get_namespaces_from_cli(self) -> List[str]:

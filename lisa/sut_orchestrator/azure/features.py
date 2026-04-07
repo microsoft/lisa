@@ -2232,19 +2232,32 @@ class Disk(AzureFeatureMixin, features.Disk):
             partition.mountpoint == "/mnt/resource" for partition in disk.partitions
         )
 
+    # Azure remote NVMe disks use "MSFT NVMe Accelerator" model name.
+    # Local NVMe disks use "Microsoft NVMe Direct Disk" model name.
+    _REMOTE_NVME_MODEL = "MSFT NVMe Accelerator"
+
     def _is_remote_data_disk(self, disk: str) -> bool:
         # If disk_controller_type == NVME
         nvme = self._node.features[Nvme]
         if self.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
             os_disk_namespace = nvme.get_nvme_os_disk_namespace()
-            # TODO: Commented out controller checking logic for nvme list command
-            # When disk_controller_type is NVME, all remote disks are connected to
-            # same NVMe controller. The same controller is used by OS disk.
-            # Original logic: if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
-            # New logic: just exclude the OS disk namespace, include all other NVMe disks
-            if disk != os_disk_namespace:
-                return True
-            return False
+            if disk == os_disk_namespace:
+                self._log.debug(
+                    f"Disk {disk} is OS disk namespace, not a remote data disk"
+                )
+                return False
+            # Use model name to distinguish remote vs local NVMe disks.
+            # Remote disks use "MSFT NVMe Accelerator" model, local disks
+            # use "Microsoft NVMe Direct Disk" model. This works regardless
+            # of which NVMe controller the disks are on.
+            nvme_cli = self._node.tools[Nvmecli]
+            disk_model_map = nvme_cli.get_disk_model_map()
+            model = disk_model_map.get(disk, "")
+            is_remote = self._REMOTE_NVME_MODEL in model
+            self._log.debug(
+                f"Disk {disk}: model='{model}', is_remote={is_remote}"
+            )
+            return is_remote
 
         # If disk_controller_type == SCSI
         azure_scsi_disks = self._get_scsi_data_disks()
