@@ -74,7 +74,9 @@ def _get_int_var(variables: Dict[str, Any], name: str) -> int:
     # Strip any non-digit characters (e.g. commas, units, spaces) before parsing.
     digits_only = re.sub(r"[^\d]", "", str(raw))
     if not digits_only:
-        raise SkippedException(f"Variable '{name}' contains no digits - skipping check.")
+        raise SkippedException(
+            f"Variable '{name}' contains no digits - skipping check."
+        )
     value = int(digits_only)
     if value <= 0:
         raise SkippedException(
