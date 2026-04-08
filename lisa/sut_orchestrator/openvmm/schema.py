@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from dataclasses_json import dataclass_json
 
@@ -16,6 +16,12 @@ OPENVMM_BOOT_MODE_UEFI = "uefi"
 OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
+
+
+@dataclass_json()
+@dataclass
+class CloudInitSchema:
+    extra_user_data: Optional[Union[str, List[str]]] = None
 
 
 @dataclass_json()
@@ -85,6 +91,7 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     username: str = "root"
     password: str = ""
     private_key_file: str = ""
+    cloud_init: Optional[CloudInitSchema] = None
     lisa_working_dir: str = "/var/tmp"
     boot_mode: str = OPENVMM_BOOT_MODE_UEFI
     uefi: Optional[OpenVmmUefiSchema] = None
@@ -110,3 +117,13 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
             )
         if not self.disk_img:
             raise LisaException("disk_img is required for UEFI OpenVMM guests")
+        if (
+            self.cloud_init
+            and not self.private_key_file
+            and not self.password
+            and not self.cloud_init.extra_user_data
+        ):
+            raise LisaException(
+                "OpenVMM cloud_init requires private_key_file, password, or "
+                "cloud_init.extra_user_data to provision guest access"
+            )

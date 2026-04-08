@@ -1,17 +1,24 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import io
+import os
 import shlex
+import tempfile
 import time
 from pathlib import Path, PurePath
 from typing import Any, List, Optional, Type, cast
+
+import pycdlib
+import uuid
+import yaml
 
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
 from lisa.tools import Kill, Ls, Mkdir, OpenVmm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
-from lisa.util import LisaException
+from lisa.util import LisaException, get_public_key_data
 from lisa.util.logger import Logger
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -82,6 +89,11 @@ class OpenVmmController:
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
             disk_img_path=node_context.disk_img_path,
+            dvd_disk_paths=(
+                [node_context.cloud_init_file_path]
+                if node_context.cloud_init_file_path
+                else []
+            ),
             processors=_countspace_to_int(node.capability.core_count),
             memory_mb=_countspace_to_int(node.capability.memory_mb),
             network_mode=runbook.network.mode,
@@ -104,6 +116,83 @@ class OpenVmmController:
             f"Launched OpenVMM VM '{node_context.vm_name}' with pid "
             f"{node_context.process_id}"
         )
+
+    def create_node_cloud_init_iso(self, node: "OpenVmmGuestNode") -> None:
+        runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
+        node_context = get_node_context(node)
+
+        user: dict[str, Any] = {
+            "name": runbook.username,
+            "shell": "/bin/bash",
+            "sudo": ["ALL=(ALL) NOPASSWD:ALL"],
+            "groups": ["sudo"],
+        }
+        if runbook.private_key_file:
+            user["ssh_authorized_keys"] = [
+                get_public_key_data(runbook.private_key_file)
+            ]
+
+        user_data: dict[str, Any] = {
+            "users": ["default", user],
+        }
+        if runbook.username == "root":
+            user_data["disable_root"] = False
+        if runbook.password:
+            user["lock_passwd"] = False
+            user["plain_text_passwd"] = runbook.password
+            user_data["ssh_pwauth"] = True
+
+        for extra_user_data in node_context.extra_cloud_init_user_data:
+            for key, value in extra_user_data.items():
+                existing_value = user_data.get(key)
+                if not existing_value:
+                    user_data[key] = value
+                elif isinstance(existing_value, dict) and isinstance(value, dict):
+                    existing_value.update(value)
+                elif isinstance(existing_value, list) and isinstance(value, list):
+                    existing_value.extend(value)
+                else:
+                    user_data[key] = value
+
+        meta_data = {
+            "instance-id": f"{node_context.vm_name}-{uuid.uuid4().hex}",
+            "local-hostname": node_context.vm_name,
+        }
+
+        user_data_string = "#cloud-config\n" + yaml.safe_dump(user_data)
+        meta_data_string = yaml.safe_dump(meta_data)
+
+        tmp_dir = tempfile.TemporaryDirectory()
+        try:
+            iso_path = os.path.join(tmp_dir.name, "cloud-init.iso")
+            self._create_iso(
+                iso_path,
+                [
+                    ("/user-data", user_data_string),
+                    ("/meta-data", meta_data_string),
+                ],
+            )
+            self.host_node.shell.copy(
+                Path(iso_path), PurePath(node_context.cloud_init_file_path)
+            )
+        finally:
+            tmp_dir.cleanup()
+
+    def _create_iso(self, file_path: str, files: List[tuple[str, str]]) -> None:
+        iso = pycdlib.PyCdlib()
+        iso.new(joliet=3, vol_ident="cidata")
+
+        for index, (path, contents) in enumerate(files):
+            contents_data = contents.encode()
+            iso.add_fp(
+                io.BytesIO(contents_data),
+                len(contents_data),
+                f"/{index}.;1",
+                joliet_path=path,
+            )
+
+        iso.write(file_path)
+        iso.close()
 
     def configure_connection(self, node: RemoteNode, log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
@@ -279,6 +368,26 @@ class OpenVmmGuestNode(RemoteNode):
                     working_path,
                 )
             )
+
+        if runbook.cloud_init:
+            node_context.cloud_init_file_path = str(working_path / "cloud-init.iso")
+
+            extra_user_data = runbook.cloud_init.extra_user_data
+            if extra_user_data:
+                if isinstance(extra_user_data, str):
+                    extra_user_data = [extra_user_data]
+
+                for relative_file_path in extra_user_data:
+                    if not relative_file_path:
+                        continue
+
+                    file_path = constants.RUNBOOK_PATH.joinpath(relative_file_path)
+                    with open(file_path, "r") as file:
+                        node_context.extra_cloud_init_user_data.append(
+                            yaml.safe_load(file)
+                        )
+
+            self._openvmm_controller.create_node_cloud_init_iso(self)
 
         node_context.launcher_log_file_path = str(working_path / "openvmm-launcher.log")
         node_context.console_log_file_path = str(working_path / "openvmm-console.log")
