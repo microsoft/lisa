@@ -1,0 +1,115 @@
+name: openvmm azure smoke
+extension:
+  - ../../testsuites
+variable:
+  - name: host_admin_username
+    value: lisatest
+  - name: host_admin_password
+    value: ""
+    is_secret: true
+  - name: host_admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: guest_admin_username
+    value: lisatest
+  - name: guest_admin_password
+    value: ""
+    is_secret: true
+  - name: guest_admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: guest_extra_user_data
+    value: ""
+  - name: subscription_id
+    value: ""
+  - name: location
+    value: "westus3"
+  - name: marketplace_image
+    value: ""
+  - name: vm_size
+    value: ""
+  - name: openvmm_binary
+    value: /usr/local/bin/openvmm
+  - name: openvmm_install_path
+    value: /usr/local/bin/openvmm
+  - name: openvmm_installer_repo
+    value: https://github.com/microsoft/openvmm.git
+  - name: openvmm_installer_ref
+    value: ""
+  - name: openvmm_installer_force_install
+    value: false
+  - name: openvmm_host_working_dir
+    value: /var/tmp
+  - name: uefi_firmware_path
+    value: ""
+  - name: uefi_firmware_is_remote_path
+    value: false
+  - name: disk_img_path
+    value: ""
+  - name: disk_img_is_remote_path
+    value: false
+  - name: tap_name
+    value: tap0
+  - name: bridge_name
+    value: ovmbr0
+  - name: tap_host_cidr
+    value: 10.0.0.1/24
+  - name: forwarded_port
+    value: 60022
+notifier:
+  - type: html
+transformer:
+  - type: openvmm_installer
+    phase: environment_connected
+    installer:
+      type: source
+      repo: $(openvmm_installer_repo)
+      ref: $(openvmm_installer_ref)
+      force_install: $(openvmm_installer_force_install)
+      install_path: $(openvmm_install_path)
+platform:
+  - type: azure
+    admin_username: $(host_admin_username)
+    admin_password: $(host_admin_password)
+    admin_private_key_file: $(host_admin_private_key_file)
+    guest_enabled: true
+    guests:
+      - type: openvmm
+        use_parent_capability: false
+        username: $(guest_admin_username)
+        password: $(guest_admin_password)
+        private_key_file: $(guest_admin_private_key_file)
+        cloud_init:
+          extra_user_data: $(guest_extra_user_data)
+        lisa_working_dir: $(openvmm_host_working_dir)
+        openvmm_binary: $(openvmm_binary)
+        boot_mode: uefi
+        capability:
+          core_count: 2
+          memory_mb: 2048
+        uefi:
+          firmware_path: $(uefi_firmware_path)
+          firmware_is_remote_path: $(uefi_firmware_is_remote_path)
+        disk_img: $(disk_img_path)
+        disk_img_is_remote_path: $(disk_img_is_remote_path)
+        serial:
+          mode: file
+        network:
+          mode: tap
+          address_mode: discover
+          tap_name: $(tap_name)
+          bridge_name: $(bridge_name)
+          tap_host_cidr: $(tap_host_cidr)
+          forward_ssh_port: true
+          forwarded_port: $(forwarded_port)
+    azure:
+      subscription_id: $(subscription_id)
+    requirement:
+      azure:
+        marketplace: $(marketplace_image)
+        location: $(location)
+        vm_size: $(vm_size)
+testcase:
+  - criteria:
+      name:
+        - smoke_test
