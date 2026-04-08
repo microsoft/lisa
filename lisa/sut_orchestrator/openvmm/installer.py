@@ -43,7 +43,7 @@ class OpenVmmInstaller(subclasses.BaseClassWithRunbookMixin):
     def install(self) -> str:
         raise NotImplementedError()
 
-    def _run_version_command(self, command: str = "openvmm") -> str:
+    def get_version(self, command: str = "openvmm") -> str:
         attempts = [
             f"{shlex.quote(command)} --version",
             f"{shlex.quote(command)} --help",
@@ -56,7 +56,9 @@ class OpenVmmInstaller(subclasses.BaseClassWithRunbookMixin):
                 no_error_log=True,
                 expected_exit_code=None,
             )
-            output = (result.stdout or result.stderr).strip()
+            stdout = result.stdout.strip() if result.stdout else ""
+            stderr = result.stderr.strip() if result.stderr else ""
+            output = stdout or stderr
             normalized_output = output.lower()
             if output and (
                 result.exit_code == 0
@@ -249,4 +251,4 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             expected_exit_code_failure_message=("failed to make OpenVMM executable"),
         )
         self._create_symlink_to_usr_bin(runbook.install_path)
-        return self._run_version_command(runbook.install_path)
+        return self.get_version(runbook.install_path)

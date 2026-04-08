@@ -11,7 +11,7 @@ from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
 )
-from lisa.util import field_metadata, subclasses
+from lisa.util import LisaException, field_metadata, subclasses
 
 from .installer import OpenVmmInstaller
 from .schema import OpenVmmInstallerSchema
@@ -21,7 +21,7 @@ from .schema import OpenVmmInstallerSchema
 @dataclass
 class OpenVmmInstallerTransformerSchema(DeploymentTransformerSchema):
     installer: Optional[OpenVmmInstallerSchema] = field(
-        default=None, metadata=field_metadata(required=True)
+        default=None, metadata=field_metadata(required=False)
     )
 
 
@@ -40,7 +40,8 @@ class OpenVmmInstallerTransformer(DeploymentTransformer):
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook = cast(OpenVmmInstallerTransformerSchema, self.runbook)
-        assert runbook.installer, "installer must be defined"
+        if runbook.installer is None:
+            raise LisaException("installer must be defined in the transformer runbook")
         installer_runbook = schema.load_by_type(
             OpenVmmInstallerSchema, runbook.installer
         )
@@ -59,9 +60,9 @@ class OpenVmmInstallerTransformer(DeploymentTransformer):
         )
 
         try:
-            version = installer._run_version_command()
+            version = installer.get_version()
             is_installed = True
-        except Exception:
+        except LisaException:
             version = ""
             is_installed = False
 
@@ -72,15 +73,15 @@ class OpenVmmInstallerTransformer(DeploymentTransformer):
         else:
             self._log.info(f"OpenVMM already available on PATH. Version: {version}")
 
-        verified_version = installer._run_version_command(install_path)
+        verified_version = installer.get_version(install_path)
         self._log.info(
             f"verified OpenVMM at '{install_path}'. Version: {verified_version}"
         )
 
         try:
-            path_version = installer._run_version_command()
+            path_version = installer.get_version()
             self._log.info(f"verified OpenVMM on PATH. Version: {path_version}")
-        except Exception as identifier_error:
+        except LisaException as identifier_error:
             self._log.warning(
                 "OpenVMM is not available on PATH after transformer execution: "
                 f"{identifier_error}"

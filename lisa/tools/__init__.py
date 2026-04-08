@@ -104,8 +104,8 @@ from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
-from .openvmm import OpenVmm
 from .openssl import OpenSSL
+from .openvmm import OpenVmm
 from .parted import Parted
 from .perf import Perf
 from .pgrep import Pgrep, ProcessInfo

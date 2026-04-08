@@ -10,8 +10,9 @@ from typing import List, Optional
 from lisa.executable import Tool
 from lisa.util import LisaException
 
-
 VERSION_PATTERN = re.compile(r"openvmm(?:\.exe)?\s+(?P<version>.+)")
+
+OPENVMM_NETWORK_BACKEND_CONSOMME = "consomme"
 
 
 @dataclass
@@ -62,7 +63,9 @@ class OpenVmm(Tool):
                 no_error_log=True,
                 expected_exit_code=None,
             )
-            output = (result.stdout or result.stderr).strip()
+            stdout_output = result.stdout.strip()
+            stderr_output = result.stderr.strip()
+            output = stdout_output or stderr_output
             if not output:
                 continue
             normalized_output = output.lower()
@@ -97,7 +100,7 @@ class OpenVmm(Tool):
             args.extend(["--disk", f"file:{dvd_disk_path},dvd"])
 
         if config.network_mode == "user":
-            network_backend = "consomme"
+            network_backend = OPENVMM_NETWORK_BACKEND_CONSOMME
             if config.network_cidr:
                 network_backend = f"{network_backend}:{config.network_cidr}"
             args.extend(["--net", network_backend])
@@ -105,6 +108,8 @@ class OpenVmm(Tool):
             if not config.tap_name:
                 raise LisaException("tap_name must be provided for tap networking")
             args.extend(["--net", f"tap:{config.tap_name}"])
+        else:
+            raise LisaException(f"Unsupported network mode: {config.network_mode}")
 
         if config.serial_mode == "stderr":
             args.extend(["--com1", "stderr"])
@@ -145,5 +150,7 @@ class OpenVmm(Tool):
         self, command: str, config: OpenVmmLaunchConfig
     ) -> str:
         stdout_path = shlex.quote(config.stdout_path)
+        if PurePath(config.stdout_path) == PurePath(config.stderr_path):
+            return f"nohup {command} > {stdout_path} 2>&1 < /dev/null & echo $!"
         stderr_path = shlex.quote(config.stderr_path)
         return f"nohup {command} > {stdout_path} 2> {stderr_path} < /dev/null & echo $!"

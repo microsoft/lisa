@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import os
 import re
+import shlex
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
 
@@ -67,7 +68,7 @@ class Cargo(Tool):
                 shell=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="failure to grab $HOME path",
-            ).stdout
+            ).stdout.strip()
             cargo_bin = f"{home_dir}/.cargo/bin/cargo"
             rustup_bin = f"{home_dir}/.cargo/bin/rustup"
 
@@ -86,7 +87,7 @@ class Cargo(Tool):
             raise UnsupportedDistroException(node_os)
 
         self.node.execute(
-            f"{rustup_bin} default stable",
+            f"{shlex.quote(rustup_bin)} default stable",
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="failed to set rustup stable toolchain",
@@ -197,7 +198,7 @@ class Cargo(Tool):
     ) -> str:
         err_msg = "Error occurred in getting rust toolchain info"
         output = self.node.execute(
-            f"{rustup_command} default",
+            f"{shlex.quote(rustup_command)} default",
             expected_exit_code=0,
             expected_exit_code_failure_message=err_msg,
             sudo=sudo,

@@ -1462,6 +1462,20 @@ class GuestNode(Node):
 
 
 def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
+    """
+    Load a guest-node runbook into the concrete GuestNode schema for its type.
+
+    Accepts an already-instantiated GuestNode subclass, a raw dict, or an
+    object that can be converted with ``to_dict()``. Subclass instances are
+    returned unchanged so any type-specific state is preserved. Otherwise, this
+    helper initializes the node factory, resolves the schema from the runbook
+    ``type`` field, and rejects unknown fields exposed through
+    ``extended_schemas``.
+
+    Raises:
+        LisaException: If the node type cannot be resolved, if unknown fields
+            are present, or if the resolved schema is not a GuestNode.
+    """
     if isinstance(raw_runbook, GuestNode) and type(raw_runbook) is not GuestNode:
         return raw_runbook
 
@@ -1477,10 +1491,17 @@ def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
         )
 
     node_module.Node._factory.initialize()
-    node_type = node_module.Node._factory.get(raw_runbook[constants.TYPE])
+    node_type_name = raw_runbook.get(constants.TYPE)
+    if not node_type_name:
+        raise LisaException(
+            f"guest node runbook is missing the required '{constants.TYPE}' field. "
+            "Each guest node entry must specify a 'type' to identify the "
+            "orchestrator (e.g. 'openvmm')."
+        )
+    node_type = node_module.Node._factory.get(node_type_name)
     if node_type is None:
         raise LisaException(
-            f"cannot find guest node type '{raw_runbook[constants.TYPE]}'. "
+            f"cannot find guest node type '{node_type_name}'. "
             "Make sure the node type is imported in mixin_modules.py or the "
             "extension is loaded."
         )
@@ -1492,7 +1513,7 @@ def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
 
     if not isinstance(guest_runbook, GuestNode):
         raise LisaException(
-            f"guest node type '{raw_runbook[constants.TYPE]}' must use a "
+            f"guest node type '{node_type_name}' must use a "
             "GuestNode schema, "
             f"but loaded '{type(guest_runbook).__name__}'"
         )
@@ -1595,7 +1616,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     admin_private_key_file: str = ""
 
     guest_enabled: bool = False
-    guests: List[GuestNode] = field(default_factory=list)
+    guests: List[Any] = field(default_factory=list)
 
     # no/False: means to delete the environment regardless case fail or pass
     # yes/always/True: means to keep the environment regardless case fail or pass

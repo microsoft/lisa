@@ -4,7 +4,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from dataclasses_json import dataclass_json
+from dataclasses_json import config, dataclass_json
 
 from lisa import schema
 from lisa.secret import PATTERN_HEADTAIL, add_secret
@@ -29,9 +29,15 @@ class OpenVmmInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 class OpenVmmSourceInstallerSchema(OpenVmmInstallerSchema):
     repo: str = "https://github.com/microsoft/openvmm.git"
     ref: str = ""
-    auth_token: str = ""
+    auth_token: str = field(
+        default="", repr=False, metadata=config(exclude=lambda x: True)
+    )
     install_path: str = "/usr/local/bin/openvmm"
     features: List[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.auth_token:
+            add_secret(self.auth_token)
 
 
 @dataclass_json()
@@ -83,7 +89,9 @@ class OpenVmmNetworkSchema:
 class OpenVmmGuestNodeSchema(schema.GuestNode):
     type: str = OPENVMM
     username: str = "root"
-    password: str = ""
+    password: str = field(
+        default="", repr=False, metadata=config(exclude=lambda x: True)
+    )
     private_key_file: str = ""
     lisa_working_dir: str = "/var/tmp"
     boot_mode: str = OPENVMM_BOOT_MODE_UEFI
