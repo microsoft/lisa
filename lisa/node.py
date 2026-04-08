@@ -355,12 +355,16 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         )
 
     def cleanup(self) -> None:
+        for guest in self.guests:
+            guest.cleanup()
         self.log.debug("cleaning up...")
         if hasattr(self, "_log_handler") and self._log_handler:
             remove_handler(self._log_handler, self.log)
             self._log_handler.close()
 
     def close(self) -> None:
+        for guest in self.guests:
+            guest.close()
         self.log.debug("closing node connection...")
         if self._shell:
             self._shell.close()
@@ -553,7 +557,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._is_dirty = True
 
     def test_connection(self) -> bool:
-        assert self._shell
+        if not self._shell:
+            self.log.debug(
+                f"connection test failed for node '{self.name}' because its "
+                "shell is not initialized"
+            )
+            return False
         if not self._shell.is_remote:
             return True
         self.log.debug("testing connection...")

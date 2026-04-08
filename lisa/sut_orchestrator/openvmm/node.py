@@ -7,12 +7,11 @@ import ipaddress
 import os
 import shlex
 import tempfile
-import time
+import uuid
+from abc import ABC, abstractmethod
 from pathlib import Path, PurePath
 from typing import Any, List, Optional, Type, cast
 
-import pycdlib
-import uuid
 import yaml
 
 from lisa import constants, schema, search_space
@@ -34,15 +33,19 @@ from .. import OPENVMM
 from .context import get_node_context
 from .schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
-    OPENVMM_NETWORK_MODE_NONE,
     OPENVMM_NETWORK_MODE_TAP,
+    OPENVMM_NETWORK_MODE_USER,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
 )
 from .start_stop import StartStop
 
+# Allow slower guest boot and reconnect paths on loaded L1 hosts.
 OPENVMM_CONNECTION_TIMEOUT = 300
+# Allow DHCP lease discovery enough time after OpenVMM launch.
 OPENVMM_IP_DISCOVERY_TIMEOUT = 300
+# Capture enough recent log lines to include the relevant launch or boot failure.
+OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 
 
@@ -59,6 +62,33 @@ def _countspace_to_int(value: search_space.CountSpace) -> int:
             "configuration resolves to a single integer value."
         )
     return chosen
+
+
+class GuestIpResolver(ABC):
+    @abstractmethod
+    def resolve(
+        self,
+        host: Node,
+        node_context: Any,
+        network: OpenVmmNetworkSchema,
+        log: Logger,
+    ) -> str:
+        pass
+
+
+class StaticAddressResolver(GuestIpResolver):
+    def resolve(
+        self,
+        host: Node,
+        node_context: Any,
+        network: OpenVmmNetworkSchema,
+        log: Logger,
+    ) -> str:
+        if not network.guest_address:
+            raise LisaException(
+                "guest_address is required when address_mode is 'static'"
+            )
+        return network.guest_address
 
 
 class OpenVmmController:
@@ -126,7 +156,7 @@ class OpenVmmController:
             processors=_countspace_to_int(node.capability.core_count),
             memory_mb=_countspace_to_int(node.capability.memory_mb),
             network_mode=runbook.network.mode,
-            tap_name=runbook.network.tap_name,
+            tap_name=getattr(runbook.network, "tap_name", ""),
             network_cidr=runbook.network.consomme_cidr,
             serial_mode=runbook.serial.mode,
             serial_path=node_context.console_log_file_path,
@@ -142,7 +172,7 @@ class OpenVmmController:
             cwd=launch_cwd,
             sudo=runbook.network.mode == OPENVMM_NETWORK_MODE_TAP,
         )
-        self._ensure_process_running(node_context)
+        self._ensure_process_running(node_context, runbook.network)
         log.debug(
             f"Launched OpenVMM VM '{node_context.vm_name}' with pid "
             f"{node_context.process_id}"
@@ -163,7 +193,9 @@ class OpenVmmController:
                 get_public_key_data(runbook.private_key_file)
             ]
 
-        user_data: dict[str, Any] = {"users": ["default", user]}
+        user_data: dict[str, Any] = {
+            "users": ["default", user],
+        }
         if runbook.username == "root":
             user_data["disable_root"] = False
         if runbook.password:
@@ -196,7 +228,10 @@ class OpenVmmController:
             iso_path = os.path.join(tmp_dir.name, "cloud-init.iso")
             self._create_iso(
                 iso_path,
-                [("/user-data", user_data_string), ("/meta-data", meta_data_string)],
+                [
+                    ("/user-data", user_data_string),
+                    ("/meta-data", meta_data_string),
+                ],
             )
             self.host_node.shell.copy(
                 Path(iso_path), PurePath(node_context.cloud_init_file_path)
@@ -205,23 +240,39 @@ class OpenVmmController:
             tmp_dir.cleanup()
 
     def _create_iso(self, file_path: str, files: List[tuple[str, str]]) -> None:
+        try:
+            import pycdlib
+        except ModuleNotFoundError as identifier:
+            raise LisaException(
+                "pycdlib is required to build the OpenVMM cloud-init ISO. "
+                "Install the pycdlib package in the LISA environment or "
+                "disable cloud_init for this guest."
+            ) from identifier
+
         iso = pycdlib.PyCdlib()
-        iso.new(joliet=3, vol_ident="cidata")
+        iso_created = False
+        try:
+            iso.new(joliet=3, vol_ident="cidata")
+            iso_created = True
 
-        for index, (path, contents) in enumerate(files):
-            contents_data = contents.encode()
-            iso.add_fp(
-                io.BytesIO(contents_data),
-                len(contents_data),
-                f"/{index}.;1",
-                joliet_path=path,
-            )
+            for index, (path, contents) in enumerate(files):
+                contents_data = contents.encode()
+                iso.add_fp(
+                    io.BytesIO(contents_data),
+                    len(contents_data),
+                    f"/{index}.;1",
+                    joliet_path=path,
+                )
 
-        iso.write(file_path)
-        iso.close()
+            iso.write(file_path)
+        finally:
+            if iso_created:
+                iso.close()
 
     def _prepare_tap_network(
-        self, network: OpenVmmNetworkSchema, node_context: Any
+        self,
+        network: OpenVmmNetworkSchema,
+        node_context: Any,
     ) -> None:
         if network.mode != OPENVMM_NETWORK_MODE_TAP:
             return
@@ -249,7 +300,10 @@ class OpenVmmController:
                 ),
             )
             host.execute(
-                f"ip link set dev {shlex.quote(bridge_name)} type bridge forward_delay 0",
+                (
+                    "ip link set dev "
+                    f"{shlex.quote(bridge_name)} type bridge forward_delay 0"
+                ),
                 shell=True,
                 sudo=True,
                 expected_exit_code=0,
@@ -294,7 +348,8 @@ class OpenVmmController:
 
         if bridge_name:
             ip_tool.set_master(tap_name, bridge_name)
-        else:
+
+        if not bridge_name:
             host.execute(
                 (
                     f"ip addr replace {shlex.quote(network.tap_host_cidr)} "
@@ -318,6 +373,10 @@ class OpenVmmController:
                 f"/var/run/qemu-dnsmasq-{host_interface_name}.pid"
             )
             node_context.tap_dnsmasq_lease_file = lease_file
+
+        self._log_tap_network_state(network, node_context)
+        if node_context.tap_dnsmasq_pid_file:
+            self._log_dnsmasq_state(node_context)
 
     def _disable_bridge_netfilter(self) -> None:
         host = self.host_node
@@ -401,9 +460,6 @@ class OpenVmmController:
         network = runbook.network
         node_context = get_node_context(node)
 
-        if network.mode == OPENVMM_NETWORK_MODE_NONE:
-            return
-
         guest_address = self._resolve_guest_address(node_context, network, log)
         node_context.guest_address = guest_address
 
@@ -444,7 +500,8 @@ class OpenVmmController:
                 "Verify the guest is running, port forwarding or network "
                 "configuration is correct, the SSH service is listening on the "
                 "expected port, and review the OpenVMM guest and host logs for "
-                "startup or networking errors."
+                "startup or networking errors. "
+                f"{self._get_openvmm_failure_context(node_context, runbook.network)}"
             ) from identifier
         if not is_ready:
             raise LisaException(
@@ -453,7 +510,8 @@ class OpenVmmController:
                 f"(error code: {error_code}). Verify the guest is running, "
                 "port forwarding or network configuration is correct, the SSH "
                 "service is listening on the expected port, and review the "
-                "OpenVMM guest and host logs for startup or networking errors."
+                "OpenVMM guest and host logs for startup or networking errors. "
+                f"{self._get_openvmm_failure_context(node_context, runbook.network)}"
             )
 
     def _resolve_guest_address(
@@ -462,21 +520,21 @@ class OpenVmmController:
         network: OpenVmmNetworkSchema,
         log: Logger,
     ) -> str:
-        if network.mode == OPENVMM_NETWORK_MODE_NONE:
-            return ""
+        if network.mode == OPENVMM_NETWORK_MODE_USER:
+            return network.connection_address or self._get_host_public_address()
 
+        resolver: GuestIpResolver
         if network.address_mode == OPENVMM_ADDRESS_MODE_STATIC:
-            if not network.guest_address:
-                raise LisaException(
-                    "guest_address is required when address_mode is 'static'"
-                )
-            return network.guest_address
-        if network.mode != OPENVMM_NETWORK_MODE_TAP:
+            resolver = StaticAddressResolver()
+        elif network.mode == OPENVMM_NETWORK_MODE_TAP:
+            return self._get_tap_guest_address(node_context, network, log)
+        else:
             raise LisaException(
-                "address discovery is supported only for tap networking"
+                "address discovery is supported only for tap networking. "
+                "Use address_mode 'static' for other network modes."
             )
 
-        return self._get_tap_guest_address(node_context, network, log)
+        return resolver.resolve(self.host_node, node_context, network, log)
 
     def _get_tap_guest_address(
         self,
@@ -491,7 +549,7 @@ class OpenVmmController:
                 "failed to derive the OpenVMM guest IP from "
                 f"'{network.tap_host_cidr}'"
             )
-        self._wait_for_tap_lease(node_context, guest_address, log)
+        self._wait_for_tap_lease(node_context, guest_address, log, network)
         return guest_address
 
     def _wait_for_tap_lease(
@@ -499,40 +557,266 @@ class OpenVmmController:
         node_context: Any,
         guest_address: str,
         log: Logger,
+        network: Optional[OpenVmmNetworkSchema] = None,
         timeout: int = OPENVMM_IP_DISCOVERY_TIMEOUT,
     ) -> None:
         lease_file = node_context.tap_dnsmasq_lease_file
         if not lease_file:
-            raise LisaException("OpenVMM TAP DHCP lease tracking is not configured")
+            raise LisaException(
+                "OpenVMM TAP DHCP lease tracking is not configured. "
+                "dnsmasq lease file path was not recorded."
+            )
 
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+        def _lease_is_ready() -> bool:
             result = self.host_node.execute(
-                f"test -f {shlex.quote(lease_file)} && cat {shlex.quote(lease_file)} || true",
+                (
+                    f"test -f {shlex.quote(lease_file)} && "
+                    f"cat {shlex.quote(lease_file)} || true"
+                ),
                 shell=True,
                 sudo=True,
                 no_info_log=True,
                 no_error_log=True,
                 expected_exit_code=0,
             )
-            if guest_address in result.stdout.strip():
-                log.debug(
-                    f"confirmed OpenVMM guest DHCP lease '{guest_address}' in {lease_file}"
-                )
-                return
+            for lease_line in result.stdout.splitlines():
+                lease_fields = lease_line.split()
+                if len(lease_fields) >= 3 and lease_fields[2] == guest_address:
+                    log.debug(
+                        "confirmed OpenVMM guest DHCP lease "
+                        f"'{guest_address}' in {lease_file}"
+                    )
+                    return True
             if not self._is_process_running(node_context.process_id):
                 raise LisaException(
-                    "OpenVMM process exited before the guest acquired the expected DHCP lease"
+                    "OpenVMM process exited before the guest acquired the expected "
+                    f"DHCP lease '{guest_address}'. "
+                    f"{self._get_openvmm_failure_context(node_context, network)}"
                 )
-            time.sleep(1)
+            return False
 
-        raise LisaException(
-            f"OpenVMM guest did not acquire the expected DHCP lease '{guest_address}'"
-        )
+        try:
+            check_till_timeout(
+                _lease_is_ready,
+                timeout_message=(
+                    "wait for OpenVMM guest DHCP lease "
+                    f"'{guest_address}' in '{lease_file}'"
+                ),
+                timeout=timeout,
+            )
+        except LisaTimeoutException as identifier:
+            raise LisaException(
+                "OpenVMM guest did not acquire the expected DHCP lease "
+                f"'{guest_address}' on '{lease_file}'. "
+                f"{self._get_openvmm_failure_context(node_context, None)}"
+            ) from identifier
+
+    def _get_openvmm_failure_context(
+        self,
+        node_context: Any,
+        network: Optional[OpenVmmNetworkSchema],
+    ) -> str:
+        details: list[str] = []
+
+        network_state = self._capture_tap_network_state(network)
+        if network_state:
+            details.append(network_state)
+
+        dnsmasq_state = self._capture_dnsmasq_state(node_context)
+        if dnsmasq_state:
+            details.append(dnsmasq_state)
+
+        process_state = self._capture_process_state(node_context)
+        if process_state:
+            details.append(process_state)
+
+        forwarding_state = self._capture_forwarding_state(node_context, network)
+        if forwarding_state:
+            details.append(forwarding_state)
+
+        if node_context.tap_dnsmasq_lease_file:
+            lease_result = self.host_node.execute(
+                (
+                    f"test -f {shlex.quote(node_context.tap_dnsmasq_lease_file)} && "
+                    "tail -n "
+                    f"{OPENVMM_LOG_TAIL_LINES} "
+                    f"{shlex.quote(node_context.tap_dnsmasq_lease_file)} || true"
+                ),
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+            lease_output = lease_result.stdout.strip()
+            details.append(
+                "lease tail: " + (lease_output if lease_output else "<empty>")
+            )
+
+        for label, path in [
+            ("console tail", node_context.console_log_file_path),
+            ("launcher tail", node_context.launcher_log_file_path),
+        ]:
+            if not path:
+                continue
+            result = self.host_node.execute(
+                (
+                    f"test -f {shlex.quote(path)} && "
+                    f"tail -n {OPENVMM_LOG_TAIL_LINES} {shlex.quote(path)} || true"
+                ),
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+            output = result.stdout.strip()
+            details.append(f"{label}: " + (output if output else "<empty>"))
+
+        return " | ".join(details)
+
+    def _log_tap_network_state(
+        self,
+        network: OpenVmmNetworkSchema,
+        node_context: Any,
+    ) -> None:
+        state = self._capture_tap_network_state(network)
+        if state:
+            self._log.debug(state)
+
+    def _capture_tap_network_state(
+        self,
+        network: Optional[OpenVmmNetworkSchema],
+    ) -> str:
+        if not network or network.mode != OPENVMM_NETWORK_MODE_TAP:
+            return ""
+
+        host_interface = _get_tap_host_interface_name(network)
+        commands = [
+            (
+                "host interface addr",
+                f"ip addr show dev {shlex.quote(host_interface)} 2>/dev/null || true",
+            ),
+            (
+                "host interface link",
+                f"ip link show dev {shlex.quote(host_interface)} 2>/dev/null || true",
+            ),
+            (
+                "tap link",
+                f"ip link show dev {shlex.quote(network.tap_name)} 2>/dev/null || true",
+            ),
+        ]
+        if network.bridge_name:
+            commands.append(
+                (
+                    "bridge members",
+                    "bridge link show master "
+                    f"{shlex.quote(network.bridge_name)} 2>/dev/null || true",
+                )
+            )
+
+        outputs = self._capture_command_outputs(commands)
+        return "tap network state: " + " | ".join(outputs) if outputs else ""
+
+    def _log_dnsmasq_state(self, node_context: Any) -> None:
+        state = self._capture_dnsmasq_state(node_context)
+        if state:
+            self._log.debug(state)
+
+    def _capture_dnsmasq_state(self, node_context: Any) -> str:
+        commands: list[tuple[str, str]] = []
+        if node_context.tap_dnsmasq_pid_file:
+            commands.append(
+                (
+                    "dnsmasq pid",
+                    (
+                        f"test -f {shlex.quote(node_context.tap_dnsmasq_pid_file)} && "
+                        f"cat {shlex.quote(node_context.tap_dnsmasq_pid_file)} || true"
+                    ),
+                )
+            )
+        if node_context.tap_dnsmasq_lease_file:
+            commands.append(
+                (
+                    "dnsmasq lease tail",
+                    (
+                        "test -f "
+                        f"{shlex.quote(node_context.tap_dnsmasq_lease_file)} && "
+                        "tail -n "
+                        f"{OPENVMM_LOG_TAIL_LINES} "
+                        f"{shlex.quote(node_context.tap_dnsmasq_lease_file)} || true"
+                    ),
+                )
+            )
+
+        outputs = self._capture_command_outputs(commands)
+        return "dnsmasq state: " + " | ".join(outputs) if outputs else ""
+
+    def _capture_process_state(self, node_context: Any) -> str:
+        if not node_context.process_id:
+            return ""
+
+        process_id = shlex.quote(node_context.process_id)
+        commands = [
+            (
+                "openvmm process status",
+                "ps -p "
+                f"{process_id} -o pid=,ppid=,stat=,etime=,cmd= 2>/dev/null || true",
+            ),
+        ]
+        outputs = self._capture_command_outputs(commands)
+        return "process state: " + " | ".join(outputs) if outputs else ""
+
+    def _capture_forwarding_state(
+        self,
+        node_context: Any,
+        network: Optional[OpenVmmNetworkSchema],
+    ) -> str:
+        if not network or not node_context.forwarded_port:
+            return ""
+
+        guest_address = str(node_context.guest_address or "")
+        if not guest_address:
+            return ""
+        match_pattern = shlex.quote(f"{node_context.forwarded_port}|{guest_address}")
+        commands = [
+            (
+                "forward filter rules",
+                (
+                    "iptables -S FORWARD 2>/dev/null | "
+                    f"grep -E {match_pattern} || true"
+                ),
+            ),
+            (
+                "forward nat rules",
+                (
+                    "iptables -t nat -S 2>/dev/null | "
+                    f"grep -E {match_pattern} || true"
+                ),
+            ),
+        ]
+        outputs = self._capture_command_outputs(commands)
+        return "forwarding state: " + " | ".join(outputs) if outputs else ""
+
+    def _capture_command_outputs(self, commands: list[tuple[str, str]]) -> list[str]:
+        outputs: list[str] = []
+        for label, command in commands:
+            result = self.host_node.execute(
+                command,
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+            output = result.stdout.strip()
+            outputs.append(f"{label}: {output if output else '<empty>'}")
+        return outputs
 
     def stop_node(self, node: Node, wait: bool = True) -> None:
         node_context = get_node_context(node)
         wait_failure: Optional[LisaException] = None
+        process_id = node_context.process_id
         if node.is_connected:
             node.execute(
                 "shutdown -P now",
@@ -543,15 +827,15 @@ class OpenVmmController:
                 expected_exit_code=None,
             )
 
-        if wait and node_context.process_id:
+        if wait and process_id:
             try:
-                self._wait_for_process_exit(node_context.process_id)
+                self._wait_for_process_exit(process_id)
             except LisaException as identifier:
                 wait_failure = identifier
 
-        if node_context.process_id:
+        if process_id:
             self.host_node.tools[Kill].by_pid(
-                node_context.process_id,
+                process_id,
                 ignore_not_exist=True,
             )
             node_context.process_id = ""
@@ -563,9 +847,14 @@ class OpenVmmController:
         )
 
         if wait_failure:
-            raise wait_failure
+            self._log.info(
+                f"{wait_failure} Forcing OpenVMM process '{process_id}' to stop."
+            )
 
     def start_node(self, node: "OpenVmmGuestNode", wait: bool = True) -> None:
+        runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
+        if runbook.cloud_init:
+            self.create_node_cloud_init_iso(node)
         self.launch(node, node.log)
         if wait:
             self.configure_connection(node, node.log)
@@ -573,6 +862,24 @@ class OpenVmmController:
     def restart_node(self, node: "OpenVmmGuestNode", wait: bool = True) -> None:
         self.stop_node(node, wait=wait)
         self.start_node(node, wait=wait)
+
+    def cleanup_node_artifacts(self, node: "OpenVmmGuestNode") -> None:
+        node_context = get_node_context(node)
+        if not node_context.working_path:
+            return
+
+        self.host_node.execute(
+            f"rm -rf {shlex.quote(node_context.working_path)}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+        )
+        node_context.working_path = ""
+        node_context.uefi_firmware_path = ""
+        node_context.disk_img_path = ""
+        node_context.cloud_init_file_path = ""
+        node_context.console_log_file_path = ""
+        node_context.launcher_log_file_path = ""
 
     def _get_host_public_address(self) -> str:
         if self.host_node.is_remote:
@@ -595,14 +902,18 @@ class OpenVmmController:
             "sysctl -w net.ipv4.ip_forward=1",
             (
                 "iptables -C FORWARD -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} -j ACCEPT || "
+                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} "
+                "-j ACCEPT "
+                "|| "
                 "iptables -I FORWARD -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} -j ACCEPT"
+                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} "
+                "-j ACCEPT"
             ),
             (
                 "iptables -C FORWARD -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT || "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT "
+                "|| "
                 "iptables -I FORWARD -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT"
@@ -610,28 +921,39 @@ class OpenVmmController:
             (
                 "iptables -C FORWARD -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT || "
+                f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT "
+                "|| "
                 "iptables -I FORWARD -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT"
             ),
             (
                 "iptables -t nat -C POSTROUTING -s "
-                f"{shlex.quote(str(host_network))} -o {shlex.quote(forwarding_interface)} -j MASQUERADE || "
+                f"{shlex.quote(str(host_network))} "
+                f"-o {shlex.quote(forwarding_interface)} "
+                "-j MASQUERADE || "
                 "iptables -t nat -I POSTROUTING -s "
-                f"{shlex.quote(str(host_network))} -o {shlex.quote(forwarding_interface)} -j MASQUERADE"
+                f"{shlex.quote(str(host_network))} "
+                f"-o {shlex.quote(forwarding_interface)} "
+                "-j MASQUERADE"
             ),
             (
                 "iptables -t nat -C PREROUTING -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination {guest_address}:{guest_port} || "
+                f"{forwarded_port} -j DNAT --to-destination "
+                f"{guest_address}:{guest_port} "
+                "|| "
                 "iptables -t nat -I PREROUTING -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination {guest_address}:{guest_port}"
+                f"{forwarded_port} -j DNAT --to-destination "
+                f"{guest_address}:{guest_port}"
             ),
             (
                 "iptables -t nat -C OUTPUT -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination {guest_address}:{guest_port} || "
+                f"{forwarded_port} -j DNAT --to-destination "
+                f"{guest_address}:{guest_port} "
+                "|| "
                 "iptables -t nat -I OUTPUT -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination {guest_address}:{guest_port}"
+                f"{forwarded_port} -j DNAT --to-destination "
+                f"{guest_address}:{guest_port}"
             ),
         ]
         for command in commands:
@@ -664,7 +986,8 @@ class OpenVmmController:
         commands = [
             (
                 "iptables -D FORWARD -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} -j ACCEPT || true"
+                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} "
+                "-j ACCEPT || true"
             ),
             (
                 "iptables -D FORWARD -i "
@@ -678,15 +1001,19 @@ class OpenVmmController:
             ),
             (
                 "iptables -t nat -D PREROUTING -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination {guest_address}:{guest_port} || true"
+                f"{forwarded_port} -j DNAT --to-destination "
+                f"{guest_address}:{guest_port} || true"
             ),
             (
                 "iptables -t nat -D OUTPUT -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination {guest_address}:{guest_port} || true"
+                f"{forwarded_port} -j DNAT --to-destination "
+                f"{guest_address}:{guest_port} || true"
             ),
             (
                 "iptables -t nat -D POSTROUTING -s "
-                f"{shlex.quote(str(host_network))} -o {shlex.quote(forwarding_interface)} -j MASQUERADE || true"
+                f"{shlex.quote(str(host_network))} "
+                f"-o {shlex.quote(forwarding_interface)} "
+                "-j MASQUERADE || true"
             ),
         ]
         for command in commands:
@@ -718,7 +1045,12 @@ class OpenVmmController:
                 "for details."
             ) from identifier
 
-    def _ensure_process_running(self, node_context: Any, grace_period: int = 2) -> None:
+    def _ensure_process_running(
+        self,
+        node_context: Any,
+        network: OpenVmmNetworkSchema,
+        grace_period: int = 2,
+    ) -> None:
         timeout = max(grace_period + 1, 1)
         grace_timer = create_timer()
 
@@ -726,8 +1058,7 @@ class OpenVmmController:
             if not self._is_process_running(node_context.process_id):
                 raise LisaException(
                     "OpenVMM process exited immediately after launch. "
-                    f"Check {node_context.launcher_log_file_path} on the host "
-                    "for details."
+                    f"{self._get_openvmm_failure_context(node_context, network)}"
                 )
             return grace_timer.elapsed(False) >= grace_period
 
@@ -780,7 +1111,8 @@ class OpenVmmController:
             self.host_node.execute(
                 (
                     f"test -f {shlex.quote(node_context.tap_dnsmasq_pid_file)} && "
-                    f"kill $(cat {shlex.quote(node_context.tap_dnsmasq_pid_file)}) || true"
+                    "kill $(cat "
+                    f"{shlex.quote(node_context.tap_dnsmasq_pid_file)}) || true"
                 ),
                 shell=True,
                 sudo=True,
@@ -847,6 +1179,12 @@ class OpenVmmGuestNode(RemoteNode):
             self._openvmm_controller.stop_node(self, wait=False)
         except Exception as identifier:
             self.log.debug(f"failed to stop OpenVMM guest during cleanup: {identifier}")
+        try:
+            self._openvmm_controller.cleanup_node_artifacts(self)
+        except Exception as identifier:
+            self.log.debug(
+                f"failed to clean OpenVMM guest artifacts during cleanup: {identifier}"
+            )
         super().cleanup()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -911,9 +1249,32 @@ class OpenVmmGuestNode(RemoteNode):
 
                     file_path = constants.RUNBOOK_PATH.joinpath(relative_file_path)
                     with open(file_path, "r") as file:
-                        node_context.extra_cloud_init_user_data.append(
-                            yaml.safe_load(file)
+                        file_content = file.read()
+
+                    try:
+                        loaded_user_data = yaml.safe_load(file_content)
+                    except yaml.YAMLError as identifier:
+                        raise LisaException(
+                            "failed to parse cloud-init extra_user_data file "
+                            f"'{file_path}'. Verify the file contains valid YAML "
+                            "mapping content that cloud-init can merge. "
+                            f"Parse error: {identifier}"
+                        ) from identifier
+
+                    if not isinstance(loaded_user_data, dict):
+                        content_preview = file_content.strip()
+                        if len(content_preview) > 200:
+                            content_preview = f"{content_preview[:200]}..."
+                        raise LisaException(
+                            "invalid cloud-init extra_user_data file "
+                            f"'{file_path}': expected a YAML mapping/dictionary, "
+                            f"but got {type(loaded_user_data).__name__}. "
+                            "Update the file to contain key/value pairs that "
+                            "cloud-init can merge. "
+                            f"Content preview: {content_preview!r}"
                         )
+
+                    node_context.extra_cloud_init_user_data.append(loaded_user_data)
 
             self._openvmm_controller.create_node_cloud_init_iso(self)
 

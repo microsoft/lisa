@@ -153,7 +153,11 @@ class OpenVmm(Tool):
         )
         pid = result.stdout.strip()
         if not pid:
-            raise LisaException("OpenVMM launch did not return a PID")
+            raise LisaException(
+                "OpenVMM launch did not return a PID. "
+                f"stdout: {result.stdout.strip() or '<empty>'}. "
+                f"stderr: {result.stderr.strip() or '<empty>'}"
+            )
         return pid
 
     def _build_launch_shell_command(

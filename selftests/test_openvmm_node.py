@@ -20,21 +20,24 @@ from lisa.util import LisaException
 
 
 class OpenVmmNodeTestCase(TestCase):
-    def _create_controller(self) -> Tuple[OpenVmmController, MagicMock, MagicMock]:
+    def _create_controller(
+        self,
+    ) -> Tuple[OpenVmmController, MagicMock, MagicMock, MagicMock]:
         shell_copy = MagicMock()
         kill_by_pid = MagicMock()
+        guest_log = MagicMock()
         host_node = SimpleNamespace(
             is_remote=True,
             get_pure_path=PurePosixPath,
             shell=SimpleNamespace(copy=shell_copy),
             tools={Kill: SimpleNamespace(by_pid=kill_by_pid)},
         )
-        guest_node = SimpleNamespace(parent=host_node, log=MagicMock())
+        guest_node = SimpleNamespace(parent=host_node, log=guest_log)
         controller = OpenVmmController(cast(Any, guest_node))
-        return controller, shell_copy, kill_by_pid
+        return controller, shell_copy, kill_by_pid, guest_log
 
     def test_resolve_guest_artifact_path_uses_unique_names(self) -> None:
-        controller, shell_copy, _ = self._create_controller()
+        controller, shell_copy, _, _ = self._create_controller()
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             first_dir = root / "first"
@@ -61,8 +64,11 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertEqual(2, shell_copy.call_count)
 
     def test_stop_node_kills_process_after_wait_timeout(self) -> None:
-        controller, _, kill_by_pid = self._create_controller()
-        node = SimpleNamespace(is_connected=False)
+        controller, _, kill_by_pid, guest_log = self._create_controller()
+        node = SimpleNamespace(
+            is_connected=False,
+            runbook=SimpleNamespace(network=OpenVmmNetworkSchema()),
+        )
         node_context = NodeContext(process_id="1234")
 
         with patch(
@@ -73,17 +79,19 @@ class OpenVmmNodeTestCase(TestCase):
             "_wait_for_process_exit",
             side_effect=LisaException("timeout"),
         ):
-            with self.assertRaises(LisaException):
-                controller.stop_node(cast(Any, node), wait=True)
+            controller.stop_node(cast(Any, node), wait=True)
 
         kill_by_pid.assert_called_once_with(
             "1234",
             ignore_not_exist=True,
         )
         self.assertEqual("", node_context.process_id)
+        guest_log.info.assert_called_once_with(
+            "timeout Forcing OpenVMM process '1234' to stop."
+        )
 
     def test_launch_uses_host_pure_path_for_cwd(self) -> None:
-        controller, _, _ = self._create_controller()
+        controller, _, _, _ = self._create_controller()
         openvmm = MagicMock()
         openvmm.build_command.return_value = "openvmm --uefi"
         openvmm.launch_vm.return_value = "1234"

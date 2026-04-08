@@ -77,7 +77,7 @@ class OpenVmmSerialSchema:
 @dataclass_json()
 @dataclass
 class OpenVmmNetworkSchema:
-    mode: str = OPENVMM_NETWORK_MODE_NONE
+    mode: str = OPENVMM_NETWORK_MODE_USER
     address_mode: str = OPENVMM_ADDRESS_MODE_DISCOVER
     tap_name: str = ""
     bridge_name: str = ""
@@ -102,14 +102,18 @@ class OpenVmmNetworkSchema:
     )
 
     def __post_init__(self) -> None:
+        if self.mode == OPENVMM_NETWORK_MODE_NONE:
+            raise LisaException(
+                "network mode 'none' is not supported for OpenVMM guests. "
+                "Use network mode 'user' or 'tap' to keep the guest reachable "
+                "over SSH."
+            )
         if self.mode not in [
-            OPENVMM_NETWORK_MODE_NONE,
             OPENVMM_NETWORK_MODE_USER,
             OPENVMM_NETWORK_MODE_TAP,
         ]:
             raise LisaException(
                 f"network mode '{self.mode}' is not supported. "
-                f"Supported values: {OPENVMM_NETWORK_MODE_NONE}, "
                 f"{OPENVMM_NETWORK_MODE_USER}, "
                 f"{OPENVMM_NETWORK_MODE_TAP}"
             )
@@ -125,22 +129,6 @@ class OpenVmmNetworkSchema:
                 f"address_mode '{self.address_mode}' is not supported. "
                 f"Supported values: {OPENVMM_ADDRESS_MODE_DISCOVER}, "
                 f"{OPENVMM_ADDRESS_MODE_STATIC}"
-            )
-
-        if self.mode == OPENVMM_NETWORK_MODE_NONE:
-            return
-
-        if (
-            self.address_mode == OPENVMM_ADDRESS_MODE_DISCOVER
-            and self.mode != OPENVMM_NETWORK_MODE_TAP
-        ):
-            raise LisaException(
-                "address_mode 'discover' is supported only with tap networking"
-            )
-
-        if self.address_mode == OPENVMM_ADDRESS_MODE_STATIC and not self.guest_address:
-            raise LisaException(
-                "guest_address is required when address_mode is 'static'"
             )
 
         if self.forward_ssh_port:
@@ -160,6 +148,22 @@ class OpenVmmNetworkSchema:
                     "forwarded_port must be between 1 and 65535 when "
                     "forward_ssh_port is enabled"
                 )
+
+        if self.mode == OPENVMM_NETWORK_MODE_USER:
+            return
+
+        if (
+            self.address_mode == OPENVMM_ADDRESS_MODE_DISCOVER
+            and self.mode != OPENVMM_NETWORK_MODE_TAP
+        ):
+            raise LisaException(
+                "address_mode 'discover' is supported only with tap networking"
+            )
+
+        if self.address_mode == OPENVMM_ADDRESS_MODE_STATIC and not self.guest_address:
+            raise LisaException(
+                "guest_address is required when address_mode is 'static'"
+            )
 
 
 @dataclass_json()

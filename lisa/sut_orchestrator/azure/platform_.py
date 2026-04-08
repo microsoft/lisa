@@ -802,7 +802,9 @@ class AzurePlatform(Platform):
 
             # Guest nodes (like WslContainerNode) don't have features attribute
             # Skip security profile collection for guest nodes
-            if hasattr(node, "features"):
+            if hasattr(node, "features") and node.features.is_supported(
+                SecurityProfile
+            ):
                 security_profile = node.features[SecurityProfile].get_settings()
             else:
                 security_profile = None
@@ -968,7 +970,11 @@ class AzurePlatform(Platform):
             linux_information = node.tools[Uname].get_linux_information()
             result = linux_information.kernel_version_raw
         elif not node.is_connected or node.is_posix:
-            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+            if (
+                not result
+                and hasattr(node, ATTRIBUTE_FEATURES)
+                and node.features.is_supported(features.SerialConsole)
+            ):
                 # try to get kernel version in Azure. use it, when uname doesn't work
                 node.log.debug("detecting kernel version from serial log...")
                 serial_console = node.features[features.SerialConsole]
@@ -1004,7 +1010,11 @@ class AzurePlatform(Platform):
             node.log.debug(f"error on run waagent: {e}")
 
         if not node.is_connected or node.is_posix:
-            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+            if (
+                not result
+                and hasattr(node, ATTRIBUTE_FEATURES)
+                and node.features.is_supported(features.SerialConsole)
+            ):
                 node.log.debug("detecting wala agent version from serial log...")
                 serial_console = node.features[features.SerialConsole]
                 result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
