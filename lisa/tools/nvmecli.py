@@ -256,6 +256,23 @@ class Nvmecli(Tool):
         # ]
         # }
         # get nvme devices information ignoring stderror
+        #
+        # Sample nvme list output where NameSpace field is
+        # missing but DevicePath is present:
+        # /home/lisa# nvme list -o json 2>/dev/null
+        # "Devices" : [
+        #   {
+        #     "DevicePath" : "/dev/nvme0n1",
+        #     "Firmware" : "v1.00000",
+        #     "Index" : 0,
+        #     "ModelNumber" : "MSFT NVMe Accelerator v1.0",
+        #     "ProductName" : "Non-Volatile memory controller: Microsoft Corporation Device 0x00a9",  # noqa: E501
+        #     "SerialNumber" : "SN: 00000",
+        #     "UsedBytes" : 68719476736,
+        #     "MaximumLBA" : 134217728,
+        #     "PhysicalSize" : 68719476736,
+        #     "SectorSize" : 512
+        #   }
         nvme_list = self.run(
             "list -o json 2>/dev/null",
             shell=True,
@@ -283,7 +300,24 @@ class Nvmecli(Tool):
 
         for nvme_device in nvme_devices or []:
             # Legacy schema (flat fields):
-            _add(nvme_device.get("DevicePath"), nvme_device.get("NameSpace"))
+            device_path = nvme_device.get("DevicePath")
+            namespace_id = nvme_device.get("NameSpace")
+
+            # Some older nvme-cli versions (e.g., 1.8.x on RHEL 7) emit
+            # DevicePath but omit the NameSpace field entirely.
+            # Derive the namespace ID from the DevicePath if missing.
+            if isinstance(device_path, str) and device_path and namespace_id is None:
+                # e.g., "/dev/nvme0n1" → "1", "/dev/nvme0n17" → "17"
+                ns_match = re.search(r"nvme\d+n(\d+)$", device_path)
+                if ns_match:
+                    namespace_id = int(ns_match.group(1))
+                    self._log.debug(
+                        f"NameSpace field missing in nvme-cli JSON for "
+                        f"{device_path}. Derived namespace_id={namespace_id} "
+                        f"from device path. nvme-cli version may be < 2.0."
+                    )
+
+            _add(device_path, namespace_id)
 
             # New schema: Subsystems → Controllers → Namespaces
             for subsystem in nvme_device.get("Subsystems") or []:
@@ -307,6 +341,64 @@ class Nvmecli(Tool):
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
         device_paths_namespace_ids_map = self.get_devices(force_run=force_run)
         return [{path: nsid} for path, nsid in device_paths_namespace_ids_map.items()]
+
+    def get_device_models(self, force_run: bool = False) -> Dict[str, str]:
+        """
+        Return a mapping of NVMe device paths to their model names.
+        Example return:
+            {
+                "/dev/nvme0n1": "MSFT NVMe Accelerator v1.0",
+                "/dev/nvme1n1": "Microsoft NVMe Direct Disk v2",
+            }
+        """
+        nvme_list = self.run(
+            "list -o json 2>/dev/null",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
+        if not nvme_list.stdout:
+            return {}
+
+        try:
+            nvme_devices = json.loads(nvme_list.stdout)["Devices"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return {}
+
+        if not isinstance(nvme_devices, list):
+            self._log.debug(
+                f"Expected 'Devices' to be a list in nvme-cli JSON, "
+                f"got {type(nvme_devices).__name__}. "
+                f"Trying legacy disk detection."
+            )
+            return {}
+
+        device_models: Dict[str, str] = {}
+
+        for nvme_device in nvme_devices or []:
+            # Legacy schema (flat fields):
+            device_path = nvme_device.get("DevicePath")
+            raw_model = nvme_device.get("ModelNumber", "")
+            model = raw_model.strip() if isinstance(raw_model, str) else ""
+            if isinstance(device_path, str) and device_path.startswith("/dev/"):
+                device_models[device_path] = model
+
+            # New schema: Subsystems → Controllers → Namespaces
+            for subsystem in nvme_device.get("Subsystems") or []:
+                for controller in (subsystem or {}).get("Controllers") or []:
+                    raw_ctrl_model = (controller or {}).get("ModelNumber", "")
+                    ctrl_model = (
+                        raw_ctrl_model.strip()
+                        if isinstance(raw_ctrl_model, str)
+                        else ""
+                    )
+                    for namespace in (controller or {}).get("Namespaces") or []:
+                        namespace_name = namespace.get("NameSpace")
+                        if isinstance(namespace_name, str) and namespace_name:
+                            device_models[f"/dev/{namespace_name}"] = ctrl_model
+
+        return device_models
 
 
 class BSDNvmecli(Nvmecli):

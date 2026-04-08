@@ -151,6 +151,35 @@ class Nvme(Feature):
             self._node.features[Disk].get_os_disk_controller_type()
             == schema.DiskControllerType.NVME
         ):
+            # Try model-based detection first if nvme-cli is available,
+            # as it's more reliable. If not, fallback to legacy behavior.
+            nvme_cli = self._node.tools[Nvmecli]
+            device_models = nvme_cli.get_device_models()
+            if device_models:
+                # Remove any disk whose model contains "NVMe Accelerator".
+                # device_models keys are namespace paths (e.g., /dev/nvme0n1).
+                # disk_list may contain controller paths (e.g., /dev/nvme0) or
+                # namespace paths. For controller paths, check if ANY namespace
+                # under that controller is a remote "Accelerator" disk.
+                def _is_remote(disk: str) -> bool:
+                    # Direct match (namespace path like /dev/nvme0n1)
+                    model = device_models.get(disk, "")
+                    if model:
+                        return "nvme accelerator" in model.lower()
+                    # Prefix match (controller path like /dev/nvme0).
+                    # Check if any namespace under this controller has
+                    # the "Accelerator" model. E.g., disk="/dev/nvme0"
+                    # matches keys "/dev/nvme0n1", "/dev/nvme0n2", etc.
+                    for ns_path, ns_model in device_models.items():
+                        if ns_path.startswith(f"{disk}n") and ns_model:
+                            if "nvme accelerator" in ns_model.lower():
+                                return True
+                    return False
+
+                disk_list[:] = [disk for disk in disk_list if not _is_remote(disk)]
+                return disk_list
+
+            # Fallback if nvme-cli is not available or doesn't return device models.
             os_disk_nvme_device = self._get_os_disk_nvme_device()
             # Removing OS disk/device from the list.
             for disk in disk_list.copy():
