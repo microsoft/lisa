@@ -163,4 +163,19 @@ class OpenVmm(Tool):
         if PurePath(config.stdout_path) == PurePath(config.stderr_path):
             return f"nohup {command} > {stdout_path} 2>&1 < /dev/null & echo $!"
         stderr_path = shlex.quote(config.stderr_path)
-        return f"nohup {command} > {stdout_path} 2> {stderr_path} < /dev/null & echo $!"
+        wrapped_command = shlex.quote(command)
+        pty_command = shlex.quote(
+            f"tail -f /dev/null | script -qefc {wrapped_command} /dev/null"
+        )
+
+        # OpenVMM's management loop expects a tty for its stdio thread. Feed an
+        # always-open empty stream into script so detached launches behave like
+        # an interactive session instead of exiting on immediate stdin EOF.
+        return (
+            "if command -v script >/dev/null 2>&1; then "
+            f"nohup sh -c {pty_command} > {stdout_path} "
+            f"2> {stderr_path} < /dev/null & echo $!; "
+            "else "
+            f"nohup {command} > {stdout_path} 2> {stderr_path} < /dev/null & echo $!; "
+            "fi"
+        )
