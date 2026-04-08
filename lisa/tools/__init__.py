@@ -104,6 +104,7 @@ from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
 from .nvmecli import Nvmecli
+from .openvmm import OpenVmm
 from .openssl import OpenSSL
 from .parted import Parted
 from .perf import Perf
@@ -263,6 +264,7 @@ __all__ = [
     "NvidiaGridDriver",
     "NvidiaSmi",
     "Nvmecli",
+    "OpenVmm",
     "AmdGpuDriver",
     "AmdSmi",
     "OpenSSL",
