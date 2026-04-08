@@ -1277,26 +1277,19 @@ class AzurePlatform(Platform):
             node_arm_parameters = self._create_node_arm_parameters(node.capability, log)
             nodes_parameters.append(node_arm_parameters)
 
-            arm_parameters.is_ultradisk = any(
-                [
-                    x
-                    for x in nodes_parameters
-                    if x.data_disk_type
-                    == features.get_azure_disk_type(schema.DiskType.UltraSSDLRS)
-                ]
-            )
-
-            # Set data disk array
+            # Set data disk array and derive disk-related template flags from the
+            # actual generated disks so the deployment stays in sync.
             arm_parameters.data_disks = self._generate_data_disks(
                 node, node_arm_parameters
             )
-
+            arm_parameters.is_ultradisk = any(
+                disk.type
+                == features.get_azure_disk_type(schema.DiskType.UltraSSDLRS)
+                for disk in arm_parameters.data_disks
+            )
             arm_parameters.is_data_disk_with_vhd = any(
-                [
-                    x
-                    for x in arm_parameters.data_disks
-                    if x.vhd_details is not None and x.vhd_details.vhd_uri != ""
-                ]
+                disk.vhd_details is not None and disk.vhd_details.vhd_uri != ""
+                for disk in arm_parameters.data_disks
             )
 
             if not arm_parameters.location:
@@ -1385,6 +1378,18 @@ class AzurePlatform(Platform):
                 environment=environment,
                 log=log,
             )
+
+        # Recalculate disk-related flags after feature hooks in case they updated
+        # the final disk definitions used by the ARM template.
+        arm_parameters.is_ultradisk = any(
+            disk.type
+            == features.get_azure_disk_type(schema.DiskType.UltraSSDLRS)
+            for disk in arm_parameters.data_disks
+        )
+        arm_parameters.is_data_disk_with_vhd = any(
+            disk.vhd_details is not None and disk.vhd_details.vhd_uri != ""
+            for disk in arm_parameters.data_disks
+        )
 
         # composite deployment properties
         parameters = arm_parameters.to_dict()  # type:ignore
