@@ -2,7 +2,8 @@
 # Licensed under the MIT license.
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import PurePath
+from glob import glob
+from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Type, cast
 
 from dataclasses_json import dataclass_json
@@ -70,15 +71,28 @@ class RepoLocationSchema(LocalLocationSchema):
 @dataclass_json()
 @dataclass
 class PatchModifierSchema(BaseModifierSchema):
-    repo: str = field(
-        default="",
-        metadata=field_metadata(
-            required=True,
-        ),
-    )
+    repo: str = ""
     ref: str = ""
     path: str = ""
     file_pattern: str = "*.patch"
+    # Local filesystem glob pattern for patch files (e.g., "/path/to/*.patch").
+    # Mutually exclusive with 'repo'.
+    local_patches: str = ""
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if self.repo and self.local_patches:
+            raise LisaException(
+                "'repo' and 'local_patches' are mutually exclusive in patch modifier."
+            )
+        if not self.repo and not self.local_patches:
+            raise LisaException(
+                "One of 'repo' or 'local_patches' must be specified in patch modifier."
+            )
+        if self.local_patches and self.file_pattern != "*.patch":
+            raise LisaException(
+                "'local_patches' and 'file_pattern' are mutually exclusive. "
+                "Use a glob pattern in 'local_patches' instead."
+            )
 
 
 @dataclass_json()
@@ -587,13 +601,29 @@ class PatchModifier(BaseModifier):
 
     def modify(self) -> None:
         runbook: PatchModifierSchema = self.runbook
-
-        code_path = _get_code_path(runbook.path, self._node, "patch")
-
         git = self._node.tools[Git]
-        code_path = git.clone(url=runbook.repo, cwd=code_path, ref=runbook.ref)
-        patches_path = code_path / runbook.file_pattern
-        git.apply(cwd=self._code_path, patches=patches_path)
+
+        if runbook.local_patches:
+            local_files = sorted(
+                f for f in glob(runbook.local_patches) if Path(f).is_file()
+            )
+            if not local_files:
+                raise LisaException(
+                    f"No patch files matched the pattern: {runbook.local_patches}"
+                )
+            remote_patch_dir = _get_code_path(runbook.path, self._node, "patch")
+            self._node.shell.mkdir(remote_patch_dir, parents=True, exist_ok=True)
+            for local_file in local_files:
+                local = Path(local_file)
+                remote = remote_patch_dir / local.name
+                self._node.shell.copy(local, remote)
+                self._log.debug(f"copied and applying patch {local.name} to node")
+                git.apply(cwd=self._code_path, patches=remote)
+        else:
+            code_path = _get_code_path(runbook.path, self._node, "patch")
+            code_path = git.clone(url=runbook.repo, cwd=code_path, ref=runbook.ref)
+            patches_path = code_path / runbook.file_pattern
+            git.apply(cwd=self._code_path, patches=patches_path)
 
 
 def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
