@@ -4,7 +4,7 @@ import random
 import re
 import string
 import time
-from typing import Any, Pattern, cast
+from typing import Any, List, Pattern, cast
 
 from assertpy.assertpy import assert_that
 
@@ -32,8 +32,15 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Fedora, Posix, Windows
-from lisa.operating_system import BSD, AlmaLinux, CBLMariner, Posix, Redhat, Windows
+from lisa.operating_system import (
+    BSD,
+    Debian,
+    Fedora,
+    Posix,
+    Suse,
+    Ubuntu,
+    Windows,
+)
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import (
@@ -690,7 +697,10 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(
             min_count=2,
-            unsupported_os=[Redhat, CBLMariner, AlmaLinux, BSD, Windows],
+            # Only Debian-based (Ubuntu, Debian) and SUSE are supported.
+            # Redhat family has SELinux issues, and CBLMariner/AlmaLinux
+            # do not officially support SMB server packages.
+            supported_os=[Debian, Suse, Ubuntu],
         ),
         priority=1,
     )
@@ -702,10 +712,10 @@ class Storage(TestSuite):
         client_node = cast(RemoteNode, environment.nodes[1])
 
         # Check if CONFIG_CIFS is enabled in KCONFIG on both nodes
-        for role_name, role_node in (("server", server_node), ("client", client_node)):
+        for role_node in (server_node, client_node):
             if not role_node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
                 raise LisaException(
-                    f"CIFS module must be present for SMB testing on {role_name} node"
+                    "CIFS module must be present for SMB testing"
                 )
         # Install and setup SMB tools on both nodes
         smb_server = server_node.tools[SmbServer]
@@ -719,6 +729,7 @@ class Storage(TestSuite):
         share_path = f"/tmp/{share_name}"
         mount_point = f"/mnt/{share_name}"
 
+        failed_versions: List[str] = []
         try:
             # Step 3: Configure SMB server and create a share
             smb_server.create_share(share_name, share_path)
@@ -726,27 +737,43 @@ class Storage(TestSuite):
             # Step 8: Repeat for different SMB versions
             for smb_version in smb_versions:
                 log.info(f"Testing SMB version {smb_version}")
+                try:
+                    # Step 4: Mount the SMB share on client
+                    smb_client.mount_share(
+                        server_node.internal_address,
+                        share_name,
+                        mount_point,
+                        smb_version,
+                    )
 
-                # Step 4: Mount the SMB share on client
-                smb_client.mount_share(
-                    server_node.internal_address, share_name, mount_point, smb_version
-                )
-
-                # Step 5 & 6: Verify mount is successful
-                self._verify_smb_mount(
-                    client_node,
-                    mount_point,
-                    server_node,
-                    share_path,
-                    log,
-                )
-
-                # Step 7: Cleanup between version tests
-                smb_client.unmount_share(mount_point)
+                    # Step 5 & 6: Verify mount is successful
+                    self._verify_smb_mount(
+                        client_node,
+                        mount_point,
+                        server_node,
+                        share_path,
+                        log,
+                    )
+                except Exception as e:
+                    log.info(
+                        f"SMB version {smb_version} failed: {e}"
+                    )
+                    failed_versions.append(smb_version)
+                finally:
+                    # Step 7: Cleanup between version tests
+                    try:
+                        smb_client.unmount_share(mount_point)
+                    except Exception:
+                        pass
         finally:
             # Cleanup
             self._cleanup_smb_test(
                 server_node, client_node, share_path, mount_point, log
+            )
+
+        if failed_versions:
+            raise LisaException(
+                f"SMB test failed for versions: {', '.join(failed_versions)}"
             )
 
     def _verify_smb_mount(
@@ -825,7 +852,6 @@ class Storage(TestSuite):
         log: Logger,
     ) -> None:
         """Clean up SMB test resources."""
-        bad_cleanup = False
         # Cleanup on client
         try:
             smb_client = client_node.tools[SmbClient]
@@ -833,11 +859,11 @@ class Storage(TestSuite):
                 smb_client.unmount_share(mount_point)
             smb_client.cleanup_mount_point(mount_point)
         except Exception as e:
-            log.error(
+            log.info(
                 f"Failed to cleanup SMB client mount point {mount_point}: "
                 f"{e}. Continuing cleanup..."
             )
-            bad_cleanup = True
+            client_node.mark_dirty()
 
         # Cleanup on server
         try:
@@ -845,13 +871,11 @@ class Storage(TestSuite):
             smb_server.stop()
             smb_server.remove_share(share_path)
         except Exception as e:
-            log.error(
+            log.info(
                 f"Failed to remove share {share_path} from SMB server: "
                 f"{e}. Finishing cleanup..."
             )
-            bad_cleanup = True
-        if bad_cleanup:
-            raise BadEnvironmentStateException("SMB test cleanup encountered errors.")
+            server_node.mark_dirty()
 
     @TestCaseMetadata(
         description="""

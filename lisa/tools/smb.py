@@ -74,8 +74,8 @@ class SmbServer(Tool):
         # Create share directory
         self.node.tools[Mkdir].create_directory(share_path, sudo=True)
 
-        # Set permissions for the share directory
-        self.node.tools[Chmod].chmod(share_path, "777", sudo=True)
+        # Set permissions for the share directory (775 to avoid world-writable)
+        self.node.tools[Chmod].chmod(share_path, "775", sudo=True)
         # Create SMB configuration
         smb_config = f"""
 [global]
@@ -163,8 +163,8 @@ class SmbClient(Tool):
         # Build mount options
         mount_options = [
             f"vers={smb_version}",
-            "file_mode=0777",
-            "dir_mode=0777",
+            "file_mode=0755",
+            "dir_mode=0755",
             "guest",
         ]
 
