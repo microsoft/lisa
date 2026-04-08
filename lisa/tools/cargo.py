@@ -68,28 +68,38 @@ class Cargo(Tool):
                 expected_exit_code=0,
                 expected_exit_code_failure_message="failure to grab $HOME path",
             ).stdout
+            cargo_bin = f"{home_dir}/.cargo/bin/cargo"
+            rustup_bin = f"{home_dir}/.cargo/bin/rustup"
 
             ln = self.node.tools[Ln]
             ln.create_link(
                 is_symbolic=True,
-                target=f"{home_dir}/.cargo/bin/cargo",
+                target=cargo_bin,
                 link="/usr/local/bin/cargo",
             )
             ln.create_link(
                 is_symbolic=True,
-                target=f"{home_dir}/.cargo/bin/rustup",
+                target=rustup_bin,
                 link="/usr/local/bin/rustup",
             )
         else:
             raise UnsupportedDistroException(node_os)
-        is_installed = self._check_exists()
 
-        # Point cargo from stable toolchain of rust after installation
-        if is_installed:
-            self.node.execute("rustup default stable", shell=True)
-            self.toolchain = self.__get_rust_toolchain()
-            self._log.debug(f"Rust toolchain: {self.toolchain}")
-            self._command = f"{home_dir}/.rustup/toolchains/{self.toolchain}/bin/cargo"
+        self.node.execute(
+            f"{rustup_bin} default stable",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to set rustup stable toolchain",
+        )
+        self.toolchain = self.__get_rust_toolchain(rustup_command=rustup_bin)
+        self._log.debug(f"Rust toolchain: {self.toolchain}")
+        self._command = f"{home_dir}/.rustup/toolchains/{self.toolchain}/bin/cargo"
+        self._exists = None
+        is_installed = self._check_exists()
+        if not is_installed:
+            self._command = cargo_bin
+            self._exists = None
+            is_installed = self._check_exists()
 
         self.node.tools[Rm].remove_file(
             "/usr/local/bin/cargo",
@@ -180,13 +190,14 @@ class Cargo(Tool):
 
     def __get_rust_toolchain(
         self,
+        rustup_command: str = "rustup",
         sudo: bool = False,
         shell: bool = False,
         cwd: Optional[PurePath] = None,
     ) -> str:
         err_msg = "Error occurred in getting rust toolchain info"
         output = self.node.execute(
-            "rustup default",
+            f"{rustup_command} default",
             expected_exit_code=0,
             expected_exit_code_failure_message=err_msg,
             sudo=sudo,
