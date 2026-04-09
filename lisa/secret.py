@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, List, Optional, Pattern, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Pattern, Set, Tuple, Union
 
 PATTERN_GUID = (
     re.compile(r"^([0-9a-f]{8})-(?:[0-9a-f]{4}-){3}[0-9a-f]{8}([0-9a-f]{4})$"),
@@ -23,7 +23,7 @@ PATTERN_URL = (
     r"\1***",
 )
 
-patterns: dict[str, Tuple[Pattern[str], str]] = {
+patterns: Dict[str, Tuple[Pattern[str], str]] = {
     "guid": PATTERN_GUID,
     "headtail": PATTERN_HEADTAIL,
     "url": PATTERN_URL,

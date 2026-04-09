@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import shlex
-import time
 from pathlib import Path, PurePath
 from typing import Any, List, Optional, Type, cast
 
@@ -11,7 +10,12 @@ from lisa.feature import Features
 from lisa.node import Node, RemoteNode
 from lisa.tools import Kill, Ls, Mkdir, OpenVmm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
-from lisa.util import LisaException
+from lisa.util import (
+    LisaException,
+    LisaTimeoutException,
+    check_till_timeout,
+    create_timer,
+)
 from lisa.util.logger import Logger
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -120,19 +124,30 @@ class OpenVmmController:
             port=runbook.network.ssh_port,
             public_port=runbook.network.ssh_port,
         )
-        is_ready, error_code = wait_tcp_port_ready(
-            runbook.network.connection_address,
-            runbook.network.ssh_port,
-            log=log,
-            timeout=OPENVMM_CONNECTION_TIMEOUT,
-        )
+        try:
+            is_ready, error_code = wait_tcp_port_ready(
+                runbook.network.connection_address,
+                runbook.network.ssh_port,
+                log=log,
+                timeout=OPENVMM_CONNECTION_TIMEOUT,
+            )
+        except LisaException as identifier:
+            raise LisaException(
+                "OpenVMM guest SSH port readiness check failed for "
+                f"{runbook.network.connection_address}:{runbook.network.ssh_port}. "
+                "Verify the guest is running, port forwarding or network "
+                "configuration is correct, the SSH service is listening on the "
+                "expected port, and review the OpenVMM guest and host logs for "
+                "startup or networking errors."
+            ) from identifier
         if not is_ready:
             raise LisaException(
                 "OpenVMM guest SSH port did not become reachable at "
                 f"{runbook.network.connection_address}:{runbook.network.ssh_port} "
                 f"(error code: {error_code}). Verify the guest is running, "
-                "networking is configured correctly, and the SSH service is "
-                "listening on the expected port."
+                "port forwarding or network configuration is correct, the SSH "
+                "service is listening on the expected port, and review the "
+                "OpenVMM guest and host logs for startup or networking errors."
             )
 
     def stop_node(self, node: Node, wait: bool = True) -> None:
@@ -167,22 +182,41 @@ class OpenVmmController:
         self.start_node(node, wait=wait)
 
     def _wait_for_process_exit(self, process_id: str, timeout: int = 60) -> None:
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if not self._is_process_running(process_id):
-                return
-            time.sleep(1)
+        try:
+            check_till_timeout(
+                lambda: not self._is_process_running(process_id),
+                timeout_message=(
+                    f"wait for OpenVMM process '{process_id}' to exit"
+                ),
+                timeout=timeout,
+            )
+        except LisaTimeoutException as identifier:
+            raise LisaException(
+                f"OpenVMM process '{process_id}' did not exit within {timeout} "
+                "seconds. Check the host process state and guest shutdown logs "
+                "for details."
+            ) from identifier
 
     def _ensure_process_running(self, node_context: Any, grace_period: int = 2) -> None:
-        if grace_period > 0:
-            time.sleep(grace_period)
+        timeout = max(grace_period + 1, 1)
+        grace_timer = create_timer()
 
-        if self._is_process_running(node_context.process_id):
-            return
+        def _process_survived_grace_period() -> bool:
+            if not self._is_process_running(node_context.process_id):
+                raise LisaException(
+                    "OpenVMM process exited immediately after launch. "
+                    f"Check {node_context.launcher_log_file_path} on the host "
+                    "for details."
+                )
+            return grace_timer.elapsed(False) >= grace_period
 
-        raise LisaException(
-            "OpenVMM process exited immediately after launch. "
-            f"Check {node_context.launcher_log_file_path} on the host for details."
+        check_till_timeout(
+            _process_survived_grace_period,
+            timeout_message=(
+                f"wait for OpenVMM process '{node_context.process_id}' to "
+                "remain running after launch"
+            ),
+            timeout=timeout,
         )
 
     def _is_process_running(self, process_id: str) -> bool:
