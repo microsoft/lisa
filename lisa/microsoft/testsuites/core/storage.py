@@ -689,7 +689,7 @@ class Storage(TestSuite):
             force_run=True,
             no_error_log=True,
         )
-        if fips_result.exit_code == 0 and fips_result.stdout.strip() == "1":
+        if fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1":
             raise SkippedException(
                 "This test mounts Azure Files over SMB using shared-key/"
                 "NTLMSSP authentication, which is not FIPS-compliant."
