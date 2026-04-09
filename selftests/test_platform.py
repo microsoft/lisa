@@ -2,13 +2,14 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Type, Union
+from types import SimpleNamespace
+from typing import Any, List, Optional, Type, Union, cast
 from unittest.case import TestCase
 
 from dataclasses_json import dataclass_json
 
 import lisa
-from lisa import schema
+from lisa import schema, search_space
 from lisa.environment import (
     Environment,
     Environments,
@@ -255,3 +256,43 @@ class PlatformTestCase(TestCase):
             self.assertEqual(EnvironmentStatus.Deployed, env.status)
             platform.delete_environment(env)
             self.assertEqual(EnvironmentStatus.Deleted, env.status)
+
+    def test_initialize_guest_nodes_copies_parent_capability(self) -> None:
+        runbook = schema.load_by_type(
+            schema.Platform,
+            {
+                constants.TYPE: constants.PLATFORM_MOCK,
+                "guest_enabled": True,
+                "guests": [{constants.TYPE: "wsl", "distro": "Ubuntu"}],
+            },
+        )
+        platform = load_platform([runbook])
+        platform.initialize()
+
+        parent_capability = schema.NodeSpace()
+        parent_capability.features = search_space.SetSpace[schema.FeatureSettings](
+            is_allow_set=True
+        )
+
+        class _FakeNode:
+            def __init__(self) -> None:
+                self.capability = parent_capability
+                self.guests: List[Any] = []
+
+            def create(self, **kwargs: Any) -> Any:
+                return SimpleNamespace(runbook=kwargs["runbook"])
+
+        fake_node = _FakeNode()
+        platform._initialize_guest_nodes(cast(Any, fake_node))
+
+        guest_runbook = fake_node.guests[0].runbook
+        self.assertIsNot(guest_runbook.capability, parent_capability)
+        guest_runbook.capability.features.add(
+            schema.FeatureSettings.create("guest-only-feature")
+        )
+        self.assertFalse(
+            any(
+                feature.type == "guest-only-feature"
+                for feature in parent_capability.features
+            )
+        )

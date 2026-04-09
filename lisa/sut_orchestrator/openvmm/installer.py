@@ -2,13 +2,13 @@
 # Licensed under the MIT license.
 
 import shlex
-from pathlib import PurePath
 from typing import Any, Dict, List, Type, cast
 
 from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
 from lisa.tools import Cargo, Git, Ln
+from lisa.tools.openvmm import is_missing_command_output
 from lisa.util import LisaException, UnsupportedDistroException, subclasses
 from lisa.util.logger import Logger
 
@@ -60,13 +60,9 @@ class OpenVmmInstaller(subclasses.BaseClassWithRunbookMixin):
             stderr = result.stderr.strip() if result.stderr else ""
             output = stdout or stderr
             normalized_output = output.lower()
-            if output and (
-                result.exit_code == 0
-                or (
-                    "usage:" in normalized_output
-                    and "command not found" not in normalized_output
-                )
-            ):
+            if is_missing_command_output(output):
+                continue
+            if output and (result.exit_code == 0 or "usage:" in normalized_output):
                 return output.splitlines()[0].strip()
 
         raise LisaException(f"failed to get OpenVMM version from {command}")
@@ -155,7 +151,9 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
         )
 
         cargo_command = shlex.quote(cargo.command)
-        cargo_bin_dir = str(PurePath(cargo.command).parent)
+        cargo_bin_dir = self._node.get_str_path(
+            self._node.get_pure_path(cargo.command).parent
+        )
         cargo_env = {
             "OPENSSL_NO_VENDOR": "1",
             "PATH": f"{cargo_bin_dir}:$PATH",
@@ -222,7 +220,14 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             expected_exit_code_failure_message="failed to build OpenVMM",
         )
 
-        install_parent = str(PurePath(runbook.install_path).parent)
+        install_parent = self._node.get_str_path(
+            self._node.get_pure_path(runbook.install_path).parent
+        )
+        built_openvmm_path = self._node.get_str_path(
+            self._node.get_pure_path(str(code_path)).joinpath(
+                "target", "release", "openvmm"
+            )
+        )
         self._node.execute(
             f"mkdir -p {shlex.quote(install_parent)}",
             shell=True,
@@ -235,7 +240,7 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
         self._node.execute(
             (
                 "cp "
-                f"{shlex.quote(str(PurePath(code_path) / 'target/release/openvmm'))} "
+                f"{shlex.quote(built_openvmm_path)} "
                 f"{shlex.quote(runbook.install_path)}"
             ),
             shell=True,
