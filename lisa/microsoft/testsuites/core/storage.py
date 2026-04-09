@@ -682,6 +682,19 @@ class Storage(TestSuite):
         priority=5,
     )
     def verify_cifs_basic(self, node: Node, environment: Environment) -> None:
+        # FIPS mode disallows the MD5-based NTLMSSP signing that CIFS/SMB
+        # mounts rely on by default, so skip rather than fail on FIPS images.
+        fips_result = node.tools[Cat].run(
+            "/proc/sys/crypto/fips_enabled",
+            force_run=True,
+            no_error_log=True,
+        )
+        if fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1":
+            raise SkippedException(
+                "This test mounts Azure Files over SMB using shared-key/"
+                "NTLMSSP authentication, which is not FIPS-compliant."
+            )
+
         if not node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
             raise LisaException("CIFS module must be present in Azure Endorsed Distros")
         test_folder = "/root/test"
