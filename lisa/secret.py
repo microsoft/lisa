@@ -23,7 +23,11 @@ PATTERN_URL = (
     r"\1***",
 )
 
-patterns = {"guid": PATTERN_GUID, "headtail": PATTERN_HEADTAIL, "url": PATTERN_URL}
+patterns: dict[str, Tuple[Pattern[str], str]] = {
+    "guid": PATTERN_GUID,
+    "headtail": PATTERN_HEADTAIL,
+    "url": PATTERN_URL,
+}
 
 
 def replace(
@@ -46,7 +50,7 @@ def replace(
         return sub
 
 
-_secret_list: List[Tuple[str, str]] = []
+_secret_list: List[Tuple[Pattern[str], str]] = []
 _secret_set: Set[str] = set()
 
 
@@ -64,20 +68,28 @@ def add_secret(
     if origin:
         if not isinstance(origin, str):
             origin = str(origin)
+        escaped_pattern = re.escape(origin)
         if origin in _secret_set:
             for index, secret in enumerate(_secret_list):
-                if origin == secret[0]:
-                    _secret_list[index] = (origin, replace(origin, sub=sub, mask=mask))
+                if escaped_pattern == secret[0].pattern:
+                    _secret_list[index] = (
+                        re.compile(escaped_pattern),
+                        replace(origin, sub=sub, mask=mask),
+                    )
                     break
         else:
             _secret_set.add(origin)
-            _secret_list.append((origin, replace(origin, sub=sub, mask=mask)))
+            _secret_list.append(
+                (re.compile(escaped_pattern), replace(origin, sub=sub, mask=mask))
+            )
             # deal with longer first, in case it's broken by shorter
-            _secret_list = sorted(_secret_list, reverse=True, key=lambda x: len(x[0]))
+            _secret_list = sorted(
+                _secret_list, reverse=True, key=lambda x: len(x[0].pattern)
+            )
 
 
 def mask(text: str) -> str:
     for secret in _secret_list:
-        if secret[0] in text:
-            text = text.replace(secret[0], secret[1])
+        if secret[0].search(text):
+            text = secret[0].sub(secret[1], text)
     return text
