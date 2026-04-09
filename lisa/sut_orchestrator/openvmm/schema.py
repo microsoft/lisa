@@ -70,7 +70,13 @@ class OpenVmmNetworkSchema:
     mode: str = OPENVMM_NETWORK_MODE_USER
     connection_address: str = ""
     consomme_cidr: str = ""
-    ssh_port: int = 22
+    ssh_port: int = field(
+        default=22,
+        metadata=schema.field_metadata(
+            field_function=schema.fields.Int,
+            validate=schema.validate.Range(min=1, max=65535),
+        ),
+    )
 
     def __post_init__(self) -> None:
         if self.mode != OPENVMM_NETWORK_MODE_USER:

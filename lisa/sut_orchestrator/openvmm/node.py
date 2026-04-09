@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import hashlib
 import shlex
 from pathlib import Path, PurePath
 from typing import Any, List, Optional, Type, cast
@@ -8,7 +9,7 @@ from typing import Any, List, Optional, Type, cast
 from lisa import schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
-from lisa.tools import Kill, Ls, Mkdir, OpenVmm
+from lisa.tools import Kill, Mkdir, OpenVmm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.util import (
     LisaException,
@@ -41,8 +42,10 @@ def _countspace_to_int(value: search_space.CountSpace) -> int:
 class OpenVmmController:
     def __init__(self, node: "OpenVmmGuestNode") -> None:
         self._node = node
-        assert node.parent, "OpenVMM guest node must have a parent host node"
-        self.host_node = node.parent
+        host_node = node.parent
+        if host_node is None:
+            raise LisaException("OpenVMM guest node must have a parent host node")
+        self.host_node = host_node
         self._log = node.log
 
     @classmethod
@@ -66,9 +69,11 @@ class OpenVmmController:
         if not source.exists():
             raise LisaException(f"file does not exist: {source_path}")
 
-        destination = working_path / source.name
-        if not self.host_node.tools[Ls].path_exists(str(destination), sudo=True):
-            self.host_node.shell.copy(source, destination)
+        source_id = hashlib.sha256(str(source.resolve()).encode("utf-8")).hexdigest()[
+            :8
+        ]
+        destination = working_path / f"{source.stem}-{source_id}{source.suffix}"
+        self.host_node.shell.copy(source, destination)
         return str(destination)
 
     def get_openvmm_tool(self, binary_path: str) -> OpenVmm:
@@ -102,9 +107,10 @@ class OpenVmmController:
         )
         openvmm = self.get_openvmm_tool(runbook.openvmm_binary)
         node_context.command_line = openvmm.build_command(launch_config)
+        launch_cwd = self.host_node.get_pure_path(node_context.working_path)
         node_context.process_id = openvmm.launch_vm(
             launch_config,
-            cwd=PurePath(node_context.working_path),
+            cwd=launch_cwd,
             sudo=False,
         )
         self._ensure_process_running(node_context)
@@ -152,6 +158,7 @@ class OpenVmmController:
 
     def stop_node(self, node: Node, wait: bool = True) -> None:
         node_context = get_node_context(node)
+        wait_failure: Optional[LisaException] = None
         if node.is_connected:
             node.execute(
                 "shutdown -P now",
@@ -163,7 +170,10 @@ class OpenVmmController:
             )
 
         if wait and node_context.process_id:
-            self._wait_for_process_exit(node_context.process_id)
+            try:
+                self._wait_for_process_exit(node_context.process_id)
+            except LisaException as identifier:
+                wait_failure = identifier
 
         if node_context.process_id:
             self.host_node.tools[Kill].by_pid(
@@ -171,6 +181,9 @@ class OpenVmmController:
                 ignore_not_exist=True,
             )
             node_context.process_id = ""
+
+        if wait_failure:
+            raise wait_failure
 
     def start_node(self, node: "OpenVmmGuestNode", wait: bool = True) -> None:
         self.launch(node, node.log)
@@ -185,9 +198,7 @@ class OpenVmmController:
         try:
             check_till_timeout(
                 lambda: not self._is_process_running(process_id),
-                timeout_message=(
-                    f"wait for OpenVMM process '{process_id}' to exit"
-                ),
+                timeout_message=(f"wait for OpenVMM process '{process_id}' to exit"),
                 timeout=timeout,
             )
         except LisaTimeoutException as identifier:
@@ -280,11 +291,13 @@ class OpenVmmGuestNode(RemoteNode):
         super()._initialize(*args, **kwargs)
 
     def _provision(self) -> None:
-        assert self.parent, "OpenVMM guest node must have a parent host node"
-        self.parent.initialize()
+        host_node = self.parent
+        if host_node is None:
+            raise LisaException("OpenVMM guest node must have a parent host node")
+
+        host_node.initialize()
         runbook = cast(OpenVmmGuestNodeSchema, self.runbook)
 
-        host_node = self.parent
         openvmm = self._openvmm_controller.get_openvmm_tool(runbook.openvmm_binary)
         if not openvmm.exists:
             raise LisaException(
@@ -292,16 +305,18 @@ class OpenVmmGuestNode(RemoteNode):
                 "Use the openvmm_installer transformer before provisioning guests."
             )
 
-        vm_name = f"{self.parent.name or 'host'}-{self.name or f'g{self.index}'}"
+        vm_name = f"{host_node.name or 'host'}-{self.name or f'g{self.index}'}"
         node_context = get_node_context(self)
         node_context.vm_name = vm_name
         node_context.host = host_node
 
-        working_path = PurePath(runbook.lisa_working_dir, vm_name)
+        base_working_path = host_node.get_pure_path(runbook.lisa_working_dir)
+        working_path = base_working_path / vm_name
         node_context.working_path = str(working_path)
         host_node.tools[Mkdir].create_directory(str(working_path))
 
-        assert runbook.uefi, "UEFI settings should be validated in schema"
+        if runbook.uefi is None:
+            raise LisaException("UEFI settings must be defined for OpenVMM guests")
         node_context.uefi_firmware_path = (
             self._openvmm_controller.resolve_guest_artifact_path(
                 runbook.uefi.firmware_path,

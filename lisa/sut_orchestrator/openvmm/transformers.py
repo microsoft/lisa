@@ -42,16 +42,14 @@ class OpenVmmInstallerTransformer(DeploymentTransformer):
         runbook = cast(OpenVmmInstallerTransformerSchema, self.runbook)
         if runbook.installer is None:
             raise LisaException("installer must be defined in the transformer runbook")
-        installer_runbook = schema.load_by_type(
-            OpenVmmInstallerSchema, runbook.installer
-        )
 
         installer_factory = subclasses.Factory[OpenVmmInstaller](OpenVmmInstaller)
         installer = installer_factory.create_by_runbook(
-            runbook=installer_runbook,
+            runbook=runbook.installer,
             node=self._node,
             log=self._log,
         )
+        installer_runbook = cast(OpenVmmInstallerSchema, installer.runbook)
         force_install = getattr(installer_runbook, "force_install", False)
         install_path = getattr(installer_runbook, "install_path", "openvmm")
         self._log.info(

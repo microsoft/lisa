@@ -14,6 +14,17 @@ VERSION_PATTERN = re.compile(r"openvmm(?:\.exe)?\s+(?P<version>.+)")
 
 OPENVMM_NETWORK_BACKEND_CONSOMME = "consomme"
 
+_COMMAND_NOT_FOUND_MARKERS = (
+    "command not found",
+    "no such file or directory",
+    "is not recognized as an internal or external command",
+)
+
+
+def is_missing_command_output(output: str) -> bool:
+    normalized_output = output.lower()
+    return any(marker in normalized_output for marker in _COMMAND_NOT_FOUND_MARKERS)
+
 
 @dataclass
 class OpenVmmLaunchConfig:
@@ -69,13 +80,12 @@ class OpenVmm(Tool):
             if not output:
                 continue
             normalized_output = output.lower()
+            if is_missing_command_output(output):
+                continue
             match = VERSION_PATTERN.search(output)
             if match:
                 return match.group("version").strip()
-            if result.exit_code == 0 or (
-                "usage:" in normalized_output
-                and "command not found" not in normalized_output
-            ):
+            if result.exit_code == 0 or ("usage:" in normalized_output):
                 return output.splitlines()[0].strip()
         return "Unknown"
 

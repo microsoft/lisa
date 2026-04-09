@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -255,7 +256,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         for guest_runbook in platform_runbook.guests:
             # follow parent capability, so it can pass requirements validations.
             if guest_runbook.use_parent_capability:
-                guest_runbook.capability = node.capability
+                guest_runbook.capability = copy.deepcopy(node.capability)
             guest_node = node.create(
                 index=len(node.guests),
                 runbook=guest_runbook,
