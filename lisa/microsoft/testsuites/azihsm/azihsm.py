@@ -91,7 +91,6 @@ class AziHsm(TestSuite):
 
         if isinstance(node.os, Ubuntu):
             AziHsmPkgList = [
-                             "azihsm-api-tests",
                              "azihsm-driver-tests",
                              "azihsm-sdk-tests",
                              "azihsm-tools",
@@ -108,7 +107,6 @@ class AziHsm(TestSuite):
                              "azihsm-sdk-tests",
                              "libazihsm",
                              "libazihsm-devel",
-                             "azihsm-api-tests",
                              ]
 
         for pkg in AziHsmPkgList:
