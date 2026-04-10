@@ -365,7 +365,7 @@ def run_storage_workload(node: Node) -> Decimal:
         time=120,
         block_size="1M",
         overwrite=True,
-        size_gb=1,
+        size_mb=1,
     )
     return fio_result.iops
 
