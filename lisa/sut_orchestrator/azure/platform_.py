@@ -2263,7 +2263,10 @@ class AzurePlatform(Platform):
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
         resource_disk_size = azure_raw_capabilities.get("MaxResourceVolumeMB", None)
-        if resource_disk_size and int(resource_disk_size) > 0:
+        nvme_disk_size = azure_raw_capabilities.get("NvmeDiskSizeInMiB", None)
+        if (resource_disk_size and int(resource_disk_size) > 0) or (
+            nvme_disk_size and int(nvme_disk_size) > 0
+        ):
             node_space.disk.has_resource_disk = True
         else:
             node_space.disk.has_resource_disk = False
