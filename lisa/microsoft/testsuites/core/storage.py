@@ -830,10 +830,11 @@ class Storage(TestSuite):
             # verify that partition count is increased by 1
             # and the size of partition is correct
             partitons_after_adding_disk = lsblk.get_disks(force_run=True)
+            before_names = {d.name for d in partitions_before_adding_disk}
             added_partitions = [
                 item
                 for item in partitons_after_adding_disk
-                if item not in partitions_before_adding_disk
+                if item.name not in before_names
             ]
             log.debug(f"added_partitions: {added_partitions}")
             assert_that(added_partitions, "Data disk should be added").is_length(
@@ -866,10 +867,11 @@ class Storage(TestSuite):
 
         # verify that all the attached disks are removed
         partitions_after_removing_disks = lsblk.get_disks(force_run=True)
+        after_names = {d.name for d in partitions_after_removing_disks}
         partitions_available = [
             item
             for item in partitions_before_adding_disk
-            if item not in partitions_after_removing_disks
+            if item.name not in after_names
         ]
         assert_that(partitions_available, "data disks should not be present").is_length(
             0
@@ -916,10 +918,11 @@ class Storage(TestSuite):
         timer = create_timer()
         while timeout > timer.elapsed(False):
             partitons_after_adding_disks = lsblk.get_disks(force_run=True)
+            before_names = {d.name for d in partitions_before_adding_disks}
             added_partitions = [
                 item
                 for item in partitons_after_adding_disks
-                if item not in partitions_before_adding_disks
+                if item.name not in before_names
             ]
             if len(added_partitions) == disks_to_add:
                 break
@@ -941,10 +944,11 @@ class Storage(TestSuite):
 
         # verify that partition count is decreased by disks_to_add
         partition_after_removing_disk = lsblk.get_disks(force_run=True)
+        after_names = {d.name for d in partition_after_removing_disk}
         added_partitions = [
             item
             for item in partitions_before_adding_disks
-            if item not in partition_after_removing_disk
+            if item.name not in after_names
         ]
         assert_that(added_partitions, "data disks should not be present").is_length(0)
 
