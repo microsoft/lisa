@@ -411,8 +411,10 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   /*
     Create ultra data disks with setting iops and throughput, and attach them to the VMs.
     There is no way to use getCreateDisk with setting iops and throughput.
+    Use the per-disk condition so the resource definition always matches the VM
+    storage profile, even when the environment mixes disk types.
   */
-  for i in range(0, (length(data_disks) * node_count)): if (is_ultradisk) {
+  for i in range(0, (length(data_disks) * node_count)): if (data_disks[(i % length(data_disks))].type == 'UltraSSD_LRS') {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
     location: location
     tags: tags
@@ -433,7 +435,7 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
 
 // Create managed disks from data VHD URIs
 resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
-  for i in range(0, (length(data_disks) * node_count)): if (is_data_disk_with_vhd && !is_ultradisk) {
+  for i in range(0, (length(data_disks) * node_count)): if (!empty(data_disks[(i % length(data_disks))].vhd_details) && (!empty(data_disks[(i % length(data_disks))].vhd_details.vhd_uri)) && data_disks[(i % length(data_disks))].type != 'UltraSSD_LRS') {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
     location: location
     tags: tags
@@ -493,6 +495,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
+    nodes_data_disks
     nodes_data_disks_with_vhds
   ]
 }]
