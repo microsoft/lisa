@@ -25,6 +25,7 @@ from .cluster import Cluster
 # Timeout constants for iDRAC operations (in seconds)
 VIRTUAL_MEDIA_EJECT_TIMEOUT = 30
 IDRAC_RESET_TIMEOUT = 120
+IDRAC_REMOTE_SERVICES_TIMEOUT = 300
 VIRTUAL_MEDIA_INSERTION_POLL_TIMEOUT = 30
 
 
@@ -414,13 +415,18 @@ class Idrac(Cluster):
         This method checks for specific iDRAC internal error message IDs.
         These message IDs are part of the Redfish standard and DMTF Base Registry:
         - IDRAC.2.8.SYS446: Dell iDRAC-specific message (stable across versions)
+        - IDRAC.2.8.RAC0508: Lifecycle Controller/provider not ready
         - Base.1.12.InternalError: DMTF standard message (version-independent)
 
-        Both indicate transient iDRAC service errors that resolve after reset.
+        These indicate transient iDRAC service errors that can resolve after reset.
         Reference: DMTF DSP0268 (Message Registry Guide)
         """
+        normalized_error = error_str.lower()
         is_idrac_internal_error = (
-            "IDRAC.2.8.SYS446" in error_str or "Base.1.12.InternalError" in error_str
+            "IDRAC.2.8.SYS446" in error_str
+            or "IDRAC.2.8.RAC0508" in error_str
+            or "Base.1.12.InternalError" in error_str
+            or "provider is not ready" in normalized_error
         )
 
         if is_idrac_internal_error:
@@ -462,8 +468,8 @@ class Idrac(Cluster):
         self._log.debug("Logging out before iDRAC restart...")
         self.logout()
 
-        # Poll for iDRAC readiness (typically takes 3-4 minutes)
-        self._log.debug("Waiting for iDRAC to restart and become ready...")
+        # Poll for iDRAC manager reachability first.
+        self._log.debug("Waiting for iDRAC manager API to become ready...")
 
         def _try_login() -> bool:
             try:
@@ -473,7 +479,6 @@ class Idrac(Cluster):
                     "/redfish/v1/Managers/iDRAC.Embedded.1"
                 ).dict
                 if mgr_state.get("Status", {}).get("State") == "Enabled":
-                    self._log.info("iDRAC reset completed successfully")
                     return True
                 # Not enabled yet
                 self.logout()
@@ -487,6 +492,73 @@ class Idrac(Cluster):
             _try_login,
             timeout_message="iDRAC did not recover after reset",
             timeout=IDRAC_RESET_TIMEOUT,
+            interval=5,
+        )
+
+        self._wait_for_remote_services_ready()
+        self._log.info("iDRAC reset completed successfully")
+
+    def _wait_for_remote_services_ready(self) -> None:
+        """
+        Wait for Lifecycle Controller remote services to report ready.
+
+        Manager availability is not sufficient for operations like
+        ImportSystemConfiguration. Those depend on the Lifecycle Controller
+        provider, which can still be initializing after the manager API is
+        reachable again.
+        """
+
+        self._log.debug(
+            "Waiting for iDRAC Lifecycle Controller provider to become ready..."
+        )
+
+        def _remote_services_ready() -> bool:
+            try:
+                response = self.redfish_instance.post(
+                    "/redfish/v1/Managers/iDRAC.Embedded.1/Oem/Dell/"
+                    "DellLCService/Actions/"
+                    "DellLCService.GetRemoteServicesAPIStatus",
+                    body={},
+                )
+                if response.status != 200:
+                    self._log.debug(
+                        "iDRAC remote services status check returned "
+                        f"HTTP {response.status}"
+                    )
+                    return False
+
+                remote_services = response.dict
+                lc_status = str(remote_services.get("LCStatus", "Unknown"))
+                rt_status = remote_services.get("RTStatus")
+                rt_status_str = str(rt_status) if rt_status is not None else "Unknown"
+
+                if lc_status == "Ready" and (
+                    rt_status is None or rt_status_str == "Ready"
+                ):
+                    self._log.debug(
+                        "iDRAC remote services ready: "
+                        f"LCStatus={lc_status}, RTStatus={rt_status_str}"
+                    )
+                    return True
+
+                self._log.debug(
+                    "iDRAC remote services not ready yet: "
+                    f"LCStatus={lc_status}, RTStatus={rt_status_str}"
+                )
+                return False
+            except JsonDecodingError as e:
+                self._log.debug(
+                    "iDRAC remote services status returned invalid JSON: " f"{e}"
+                )
+                return False
+            except Exception as e:
+                self._log.debug(f"iDRAC remote services not ready yet: {e}")
+                return False
+
+        check_till_timeout(
+            _remote_services_ready,
+            timeout_message="iDRAC remote services did not become ready after reset",
+            timeout=IDRAC_REMOTE_SERVICES_TIMEOUT,
             interval=5,
         )
 
@@ -602,14 +674,28 @@ class Idrac(Cluster):
         ).decode()
 
         body = {"ShareParameters": {"Target": "ALL"}, "ImportBuffer": import_buffer}
-        response = self.redfish_instance.post(
+        url = (
             "/redfish/v1/Managers/iDRAC.Embedded.1/Actions/Oem/"
-            "EID_674_Manager.ImportSystemConfiguration",
-            body=body,
+            "EID_674_Manager.ImportSystemConfiguration"
         )
 
-        self._log.debug("Waiting for boot order override task to complete...")
-        self._wait_for_completion(response)
+        try:
+            response = self.redfish_instance.post(url, body=body)
+            self._log.debug("Waiting for boot order override task to complete...")
+            self._wait_for_completion(response)
+        except LisaException as e:
+            if self._reset_if_idrac_error(str(e)):
+                self._log.debug(
+                    "Retrying boot order override after iDRAC reset recovery..."
+                )
+                response = self.redfish_instance.post(url, body=body)
+                self._log.debug(
+                    "Waiting for boot order override task to complete after retry..."
+                )
+                self._wait_for_completion(response)
+            else:
+                raise
+
         self._log.debug(f"Updating boot source to {boot_from} completed")
 
     def _enable_serial_console(self) -> None:
