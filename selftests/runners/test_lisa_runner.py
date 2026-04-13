@@ -641,7 +641,13 @@ class RunnerTestCase(TestCase):
             expected_deployed_envs=[],
             expected_deleted_envs=[
                 "generated_0",
+                "generated_0",
+                "generated_0",
                 "generated_1",
+                "generated_1",
+                "generated_1",
+                "generated_2",
+                "generated_2",
                 "generated_2",
             ],
             runner=runner,
