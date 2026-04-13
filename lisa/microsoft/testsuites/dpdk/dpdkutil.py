@@ -514,7 +514,7 @@ def initialize_node_resources(
         )
     except UnsupportedDistroException as err:
         raise SkippedException(err)
-    rdma_source = variables.get("rdma_source", "")
+    rdma_source = variables.get("rdma_source", RDMA_CORE_MANA_DEFAULT_SOURCE)
     rdma_branch = variables.get("rdma_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
