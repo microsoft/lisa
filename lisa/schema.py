@@ -1458,6 +1458,67 @@ class RemoteNode(Node):
 @dataclass
 class GuestNode(Node):
     reinstall: bool = False
+    use_parent_capability: bool = True
+
+
+def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
+    """
+    Load a guest-node runbook into the concrete GuestNode schema for its type.
+
+    Accepts an already-instantiated GuestNode subclass, a raw dict, or an
+    object that can be converted with ``to_dict()``. Subclass instances are
+    returned unchanged so any type-specific state is preserved. Otherwise, this
+    helper initializes the node factory, resolves the schema from the runbook
+    ``type`` field, and rejects unknown fields exposed through
+    ``extended_schemas``.
+
+    Raises:
+        LisaException: If the node type cannot be resolved, if unknown fields
+            are present, or if the resolved schema is not a GuestNode.
+    """
+    if isinstance(raw_runbook, GuestNode) and type(raw_runbook) is not GuestNode:
+        return raw_runbook
+
+    if not isinstance(raw_runbook, dict):
+        raw_runbook = raw_runbook.to_dict()
+
+    from lisa import node as node_module
+    from lisa.util import subclasses
+
+    if not node_module.Node._factory:
+        node_module.Node._factory = subclasses.Factory[node_module.Node](
+            node_module.Node
+        )
+
+    node_module.Node._factory.initialize()
+    node_type_name = raw_runbook.get(constants.TYPE)
+    if not node_type_name:
+        raise LisaException(
+            f"guest node runbook is missing the required '{constants.TYPE}' field. "
+            "Each guest node entry must specify a 'type' to identify the "
+            "orchestrator (e.g. 'openvmm')."
+        )
+    node_type = node_module.Node._factory.get(node_type_name)
+    if node_type is None:
+        raise LisaException(
+            f"cannot find guest node type '{node_type_name}'. "
+            "Make sure the node type is imported in mixin_modules.py or the "
+            "extension is loaded."
+        )
+
+    guest_schema_type = cast(Any, node_type).type_schema()
+    guest_runbook = load_by_type(guest_schema_type, raw_runbook)
+    if hasattr(guest_runbook, "extended_schemas") and guest_runbook.extended_schemas:
+        raise LisaException(f"found unknown fields: {guest_runbook.extended_schemas}")
+
+    if not isinstance(guest_runbook, GuestNode):
+        raise LisaException(
+            f"guest node type '{node_type_name}' must use a "
+            "GuestNode schema, "
+            f"but loaded '{type(guest_runbook).__name__}'"
+        )
+
+    return guest_runbook
 
 
 @dataclass_json()
@@ -1555,7 +1616,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     admin_private_key_file: str = ""
 
     guest_enabled: bool = False
-    guests: List[Node] = field(default_factory=list)
+    guests: List[Any] = field(default_factory=list)
 
     # no/False: means to delete the environment regardless case fail or pass
     # yes/always/True: means to keep the environment regardless case fail or pass
@@ -1580,6 +1641,9 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
+
+        if self.guests:
+            self.guests = [load_typed_guest_node(guest) for guest in self.guests]
 
         if isinstance(self.keep_environment, bool):
             if self.keep_environment:
