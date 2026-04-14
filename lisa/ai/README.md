@@ -109,6 +109,9 @@ python -m lisa.ai.log_agent analyze -l "C:\path\to\log\folder1" "C:\path\to\log\
 # Analyze logs without a specific error message (general log analysis)
 python -m lisa.ai.log_agent analyze -l "C:\path\to\log\folder1" "C:\path\to\log\folder2"
 
+# Analyze logs directly from a LISA Azure Storage portal link
+python -m lisa.ai.log_agent analyze -ll "https://ms.portal.azure.com/#blade/Microsoft_Azure_Storage/ContainerMenuBlade/overview/storageAccountId/%2Fsubscriptions%2F...%2FresourceGroups%2F...%2Fproviders%2FMicrosoft.Storage%2FstorageAccounts%2F.../path/lisa-logs%2F..."
+
 # Use a specific analysis flow (choices: 'default', 'gpt-5')
 python -m lisa.ai.log_agent eval --flow default
 python -m lisa.ai.log_agent eval -t 6 --flow gpt-5
@@ -123,7 +126,13 @@ python -m lisa.ai.log_agent --help
 The `analyze` command is designed for real-world troubleshooting scenarios where you have specific log folders and error messages to investigate:
 
 **Required Parameters:**
-- `-l, --log-folders`: One or more log folder paths to analyze
+- At least one of the following is required:
+   - `-l, --log-folders`: One or more local log folder paths to analyze
+   - `-ll, --log-link`: A LISA Azure Storage portal log link. The tool validates
+      the link pattern, parses `subscription/resourceGroup/storageAccount/path`,
+      downloads all blobs under the path to `lisa/ai/logs`, preserves hierarchy,
+   then analyzes the downloaded local path. Authentication is AAD-only via
+   `DefaultAzureCredential`.
 
 **Optional Parameters:**
 - `-e, --error-message`: The error message you want to analyze (optional - if not provided, performs general log analysis)
@@ -138,6 +147,9 @@ python -m lisa.ai.log_agent analyze -l "C:\path\to\log1" "C:\path\to\log2" -e "C
 
 # General log analysis without specific error message
 python -m lisa.ai.log_agent analyze -l "C:\path\to\log1" "C:\path\to\log2"
+
+# Analyze by Azure Storage portal link (download then analyze)
+python -m lisa.ai.log_agent analyze -ll "https://ms.portal.azure.com/#blade/Microsoft_Azure_Storage/ContainerMenuBlade/overview/storageAccountId/%2Fsubscriptions%2F...%2FresourceGroups%2F...%2Fproviders%2FMicrosoft.Storage%2FstorageAccounts%2F.../path/lisa-logs%2F..." -e "OSProvisioningTimedOut"
 
 # Custom code path with specific error
 python -m lisa.ai.log_agent analyze -l "C:\path\to\logs" -e "Import error" -c "C:\custom\path\to\lisa"
