@@ -437,6 +437,13 @@ class Ntttcp(Tool):
             client_result.connections_created_time
         )
         other_fields["connections_num"] = int(connections_num)
+        if client_result.connections_created_time > 0:
+            other_fields["connections_per_second"] = float(
+                Decimal(connections_num)
+                / (client_result.connections_created_time / Decimal(1_000_000))
+            )
+        else:
+            other_fields["connections_per_second"] = 0
         other_fields["latency_us"] = latency
         other_fields["retrans_segments"] = int(client_result.retrans_segs)
         other_fields["throughput_in_gbps"] = client_result.throughput_in_gbps
@@ -487,6 +494,13 @@ class Ntttcp(Tool):
             client_result.connections_created_time
         )
         other_fields["connections_num"] = int(connections_num)
+        if client_result.connections_created_time > 0:
+            other_fields["connections_per_second"] = float(
+                Decimal(connections_num)
+                / (client_result.connections_created_time / Decimal(1_000_000))
+            )
+        else:
+            other_fields["connections_per_second"] = 0
         other_fields["tx_throughput_in_gbps"] = client_result.throughput_in_gbps
         other_fields["rx_throughput_in_gbps"] = server_result.throughput_in_gbps
         other_fields["receiver_cycles_rer_byte"] = server_result.cycles_per_byte
@@ -585,6 +599,17 @@ class Ntttcp(Tool):
                 "value": float(client_result.connections_created_time),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "microseconds",
+            },
+            {
+                "name": f"connections_per_second{conn_suffix}",
+                "value": float(
+                    Decimal(connections_num)
+                    / (client_result.connections_created_time / Decimal(1_000_000))
+                )
+                if client_result.connections_created_time > 0
+                else 0,
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "CPS",
             },
             {
                 "name": f"rx_packets{conn_suffix}",
@@ -693,6 +718,17 @@ class Ntttcp(Tool):
                 "value": float(client_result.connections_created_time),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "microseconds",
+            },
+            {
+                "name": f"connections_per_second{conn_suffix}",
+                "value": float(
+                    Decimal(connections_num)
+                    / (client_result.connections_created_time / Decimal(1_000_000))
+                )
+                if client_result.connections_created_time > 0
+                else 0,
+                "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "CPS",
             },
             {
                 "name": f"receiver_cycles_per_byte{conn_suffix}",

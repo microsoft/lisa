@@ -635,6 +635,12 @@ def perf_ntttcp(  # noqa: C901
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+            cps = ntttcp_message.other_fields.get("connections_per_second", 0)
+            client.log.info(
+                f"ntttcp {test_thread} connections: "
+                f"throughput={ntttcp_message.other_fields.get('throughput_in_gbps', ntttcp_message.other_fields.get('tx_throughput_in_gbps', 'N/A'))} Gbps, "
+                f"connections_per_second={cps:.2f} CPS"
+            )
     except Exception as ex:
         client.log.info(f"Exception during ntttcp performance test: {ex}")
         raise
