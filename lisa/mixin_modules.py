@@ -75,6 +75,8 @@ if platform.system() == "Linux":
 
 # Hyper-V platform
 import lisa.sut_orchestrator.hyperv.platform_  # noqa: F401
+import lisa.sut_orchestrator.openvmm.node  # noqa: F401
+import lisa.sut_orchestrator.openvmm.transformers  # noqa: F401
 
 # Transformers
 import lisa.transformers.dom0_kernel_installer  # noqa: F401
