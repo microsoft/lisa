@@ -41,6 +41,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.sut_orchestrator import AZURE, HYPERV, QEMU, READY
+from lisa.sut_orchestrator.azure.common import is_cloud_init_enabled
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import (
@@ -1463,8 +1464,16 @@ class AzureImageStandard(TestSuite):
             assert_that(folder_exists, f"{fold_path} should be present").is_true()
 
         # verify DATALOSS_WARNING_README.txt file exists
+        # This file is created by waagent, not cloud-init. When cloud-init
+        # manages the resource disk, the file will not be present.
         file_path = f"{resource_disk_mount_point}/DATALOSS_WARNING_README.txt"
         file_exists = node.tools[Ls].path_exists(file_path, sudo=True)
+        if not file_exists and is_cloud_init_enabled(node):
+            raise SkippedException(
+                f"{file_path} is not present. DATALOSS_WARNING_README.txt is"
+                " created by waagent, not cloud-init. Skipping on cloud-init"
+                " managed resource disk."
+            )
         assert_that(file_exists, f"{file_path} should be present").is_true()
 
         # verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
