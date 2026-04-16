@@ -351,6 +351,22 @@ def _clean_json_markers(text: str) -> str:
     return text.strip()
 
 
+def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
+    """Extract keywords from ground truth data."""
+    if isinstance(answer, dict):
+        keywords: List[str] = answer.get("problem_keywords", [""])
+    elif isinstance(answer, list):
+        keywords = answer
+    else:
+        # ground_truth is a string
+        keywords = [answer]
+    assert isinstance(keywords, list), f"Expected list, got {type(keywords)}"
+    # Sort alphabetically and join.
+    keywords_str = ", ".join(sorted(keywords))
+
+    return keywords_str
+
+
 def _parse_lisa_storage_log_link(log_link: str) -> StorageLogLinkInfo:
     """
     Parse a LISA-generated Azure Portal storage container link.
@@ -425,11 +441,109 @@ def _get_storage_credential() -> Any:
     """
     Get Azure Storage credential using AAD only.
     """
-
-    from azure.identity import DefaultAzureCredential
+    try:
+        from azure.identity import DefaultAzureCredential
+    except ModuleNotFoundError as e:
+        _raise_missing_azure_dependency_error("azure.identity", e)
 
     logger.info("Using DefaultAzureCredential (AAD) for storage access.")
     return DefaultAzureCredential()
+
+
+def _raise_missing_azure_dependency_error(
+    module_name: str, error: ModuleNotFoundError
+) -> None:
+    raise ModuleNotFoundError(
+        "Missing Azure SDK dependencies required for --log-link. "
+        f"Failed to import '{module_name}'. "
+        "Install the repo Azure optional dependencies and retry. "
+        "From the lisa package root, run: pip install -e .[azure]"
+    ) from error
+
+
+def _to_local_fs_path(path: str) -> str:
+    absolute_path = os.path.abspath(path)
+    if os.name == "nt" and not absolute_path.startswith("\\\\?\\"):
+        return "\\\\?\\" + absolute_path
+    return absolute_path
+
+
+def _resolve_safe_local_blob_path(
+    root_path: str, relative_blob_path: str, source_blob_name: str
+) -> str:
+    # Blob names should be relative and use '/' as separators.
+    if not relative_blob_path:
+        raise ValueError(
+            f"Invalid blob path: empty relative path for '{source_blob_name}'"
+        )
+    if relative_blob_path.startswith(("/", "\\")):
+        raise ValueError(
+            f"Invalid blob path: absolute path is not allowed: '{source_blob_name}'"
+        )
+    if re.match(r"^[a-zA-Z]:", relative_blob_path):
+        raise ValueError(
+            f"Invalid blob path: drive letter is not allowed: '{source_blob_name}'"
+        )
+    if os.name == "nt" and "\\" in relative_blob_path:
+        raise ValueError(
+            f"Invalid blob path: backslash is not allowed on Windows: "
+            f"'{source_blob_name}'."
+        )
+
+    safe_parts = [
+        part for part in relative_blob_path.split("/") if part and part != "."
+    ]
+    if any(part == ".." for part in safe_parts):
+        raise ValueError(
+            f"Invalid blob path: parent directory traversal is not allowed: "
+            f"'{source_blob_name}'."
+        )
+
+    if not safe_parts:
+        raise ValueError(
+            f"Invalid blob path: no valid path segments in '{source_blob_name}'."
+        )
+
+    root_abs = os.path.abspath(root_path)
+    destination_abs = os.path.abspath(os.path.join(root_abs, *safe_parts))
+    if os.path.commonpath([root_abs, destination_abs]) != root_abs:
+        raise ValueError(
+            f"Invalid blob path: resolved outside destination root: "
+            f"'{source_blob_name}'."
+        )
+
+    return destination_abs
+
+
+def _download_blobs_to_local(
+    container_client: Any,
+    blobs: List[Any],
+    prefix_with_sep: str,
+    local_selected_root: str,
+) -> int:
+    downloaded_count = 0
+    for blob in blobs:
+        blob_name = blob.name
+        relative_blob_name = blob_name
+        if prefix_with_sep and blob_name.startswith(prefix_with_sep):
+            relative_blob_name = blob_name[len(prefix_with_sep) :]
+        if not relative_blob_name:
+            continue
+
+        local_blob_path = _resolve_safe_local_blob_path(
+            root_path=local_selected_root,
+            relative_blob_path=relative_blob_name,
+            source_blob_name=blob_name,
+        )
+        local_blob_path_fs = _to_local_fs_path(local_blob_path)
+        local_parent_fs = os.path.dirname(local_blob_path_fs)
+        os.makedirs(local_parent_fs, exist_ok=True)
+
+        with open(local_blob_path_fs, "wb") as output_file:
+            stream = container_client.download_blob(blob_name)
+            output_file.write(stream.readall())
+        downloaded_count += 1
+    return downloaded_count
 
 
 def _download_logs_from_link(log_link: str) -> str:
@@ -439,7 +553,10 @@ def _download_logs_from_link(log_link: str) -> str:
     Returns the local folder path used for analysis.
     """
 
-    from azure.storage.blob import BlobServiceClient
+    try:
+        from azure.storage.blob import BlobServiceClient
+    except ModuleNotFoundError as e:
+        _raise_missing_azure_dependency_error("azure.storage.blob", e)
 
     link_info = _parse_lisa_storage_log_link(log_link)
     logger.info(
@@ -465,13 +582,6 @@ def _download_logs_from_link(log_link: str) -> str:
         )
 
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
-
-    def _to_local_fs_path(path: str) -> str:
-        absolute_path = os.path.abspath(path)
-        if os.name == "nt" and not absolute_path.startswith("\\\\?\\"):
-            return "\\\\?\\" + absolute_path
-        return absolute_path
-
     local_root = os.path.join(
         get_current_directory(),
         "logs",
@@ -492,7 +602,6 @@ def _download_logs_from_link(log_link: str) -> str:
     normalized_prefix = link_info.blob_prefix.strip("/")
     prefix_with_sep = f"{normalized_prefix}/" if normalized_prefix else ""
 
-    # Keep only the selected case folder name locally, and preserve subfolders below it.
     selected_root_name = (
         normalized_prefix.rsplit("/", maxsplit=1)[-1]
         if normalized_prefix
@@ -500,51 +609,15 @@ def _download_logs_from_link(log_link: str) -> str:
     )
     local_selected_root = os.path.join(local_root, selected_root_name)
 
-    downloaded_count = 0
-    for blob in blobs:
-        blob_name = blob.name
-        relative_blob_name = blob_name
-        if prefix_with_sep and blob_name.startswith(prefix_with_sep):
-            relative_blob_name = blob_name[len(prefix_with_sep) :]
-        if not relative_blob_name:
-            continue
-
-        local_blob_path = os.path.join(
-            local_selected_root, *relative_blob_name.split("/")
-        )
-        local_blob_path_fs = _to_local_fs_path(local_blob_path)
-        local_parent_fs = os.path.dirname(local_blob_path_fs)
-        os.makedirs(local_parent_fs, exist_ok=True)
-
-        with open(local_blob_path_fs, "wb") as output_file:
-            stream = container_client.download_blob(blob_name)
-            output_file.write(stream.readall())
-        downloaded_count += 1
-
-    analysis_root = local_selected_root
+    downloaded_count = _download_blobs_to_local(
+        container_client, blobs, prefix_with_sep, local_selected_root
+    )
 
     logger.info(
         f"Downloaded {downloaded_count} blob(s) from "
-        f"'{link_info.container}/{link_info.blob_prefix}' to: {analysis_root}"
+        f"'{link_info.container}/{link_info.blob_prefix}' to: {local_selected_root}"
     )
-    return analysis_root
-
-
-def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
-    """Extract keywords from ground truth data."""
-    if isinstance(answer, dict):
-        keywords: List[str] = answer.get("problem_keywords", [""])
-    elif isinstance(answer, list):
-        keywords = answer
-    else:
-        # ground_truth is a string
-        keywords = [answer]
-
-    assert isinstance(keywords, list), f"Expected list, got {type(keywords)}"
-    # Sort alphabetically and join.
-    keywords_str = ", ".join(sorted(keywords))
-
-    return keywords_str
+    return local_selected_root
 
 
 @retry(tries=3, delay=2)  # type: ignore
