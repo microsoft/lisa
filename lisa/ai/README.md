@@ -131,8 +131,8 @@ The `analyze` command is designed for real-world troubleshooting scenarios where
    - `-ll, --log-link`: A LISA Azure Storage portal log link. The tool validates
       the link pattern, parses `subscription/resourceGroup/storageAccount/path`,
       downloads all blobs under the path to `lisa/ai/logs`, preserves hierarchy,
-   then analyzes the downloaded local path. Authentication is AAD-only via
-   `DefaultAzureCredential`.
+      then analyzes the downloaded local path. Authentication is AAD-only via
+      `DefaultAzureCredential`.
 
 **Optional Parameters:**
 - `-e, --error-message`: The error message you want to analyze (optional - if not provided, performs general log analysis)
