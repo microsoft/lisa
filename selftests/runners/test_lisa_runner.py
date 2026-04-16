@@ -639,17 +639,12 @@ class RunnerTestCase(TestCase):
                 "generated_2",
             ],
             expected_deployed_envs=[],
-            expected_deleted_envs=[
-                "generated_0",
-                "generated_0",
-                "generated_0",
-                "generated_1",
-                "generated_1",
-                "generated_1",
-                "generated_2",
-                "generated_2",
-                "generated_2",
-            ],
+            # Each environment is deleted once per failed deployment attempt:
+            # the initial attempt plus `env_runbook.retry` retries.
+            expected_deleted_envs=
+            ["generated_0"] * (env_runbook.retry + 1)
+            + ["generated_1"] * (env_runbook.retry + 1)
+            + ["generated_2"] * (env_runbook.retry + 1),
             runner=runner,
         )
         self.verify_test_results(
