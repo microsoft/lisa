@@ -423,9 +423,9 @@ class Idrac(Cluster):
         """
         normalized_error = error_str.lower()
         is_idrac_internal_error = (
-            "IDRAC.2.8.SYS446" in error_str
-            or "IDRAC.2.8.RAC0508" in error_str
-            or "Base.1.12.InternalError" in error_str
+            "idrac.2.8.sys446" in normalized_error
+            or "idrac.2.8.rac0508" in normalized_error
+            or "base.1.12.internalerror" in normalized_error
             or "provider is not ready" in normalized_error
         )
 
@@ -557,7 +557,13 @@ class Idrac(Cluster):
 
         check_till_timeout(
             _remote_services_ready,
-            timeout_message="iDRAC remote services did not become ready after reset",
+            timeout_message=(
+                "iDRAC remote services did not become ready after reset. "
+                "Check Lifecycle Controller status and the LC job queue in the "
+                "iDRAC UI or logs for stuck or failed jobs, and increase "
+                "IDRAC_REMOTE_SERVICES_TIMEOUT if this platform is slow to "
+                "initialize remote services."
+            ),
             timeout=IDRAC_REMOTE_SERVICES_TIMEOUT,
             interval=5,
         )
