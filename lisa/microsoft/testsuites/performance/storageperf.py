@@ -538,6 +538,34 @@ class StoragePerformance(TestSuite):
             [client.internal_address], server_raid_disk_mount_dir
         )
 
+        # Check if the NFS server supports the requested protocol.
+        # /proc/fs/nfsd/portlist lists the protocols the NFS daemon is
+        # actually listening on (e.g. "udp 2049", "tcp 2049"). On newer
+        # kernels/distros (RHEL 8+, SUSE 15 SP4+, etc.) the NFS server
+        # no longer binds to UDP, so mounting with proto=udp will fail.
+        # This check is distro-agnostic: it works on any Linux kernel
+        # where the nfsd module exposes the portlist procfs entry.
+        # A short retry loop handles the case where the portlist is not
+        # yet populated immediately after the NFS service restart.
+        if "udp" in protocol:
+            portlist_result = server.execute(
+                "for i in 1 2 3 4 5; do "
+                "content=$(cat /proc/fs/nfsd/portlist 2>/dev/null) && "
+                '[ -n "$content" ] && echo "$content" && exit 0; '
+                "sleep 1; done; exit 1",
+                sudo=True,
+                shell=True,
+            )
+            if (
+                portlist_result.exit_code == 0
+                and portlist_result.stdout.strip()
+                and "udp" not in portlist_result.stdout.lower()
+            ):
+                raise SkippedException(
+                    "NFS server does not support UDP. "
+                    f"Server portlist: {portlist_result.stdout.strip()}"
+                )
+
         # setup raid on client
         client.tools[NFSClient].setup(
             server.internal_address,
@@ -609,18 +637,6 @@ class StoragePerformance(TestSuite):
             and not isinstance(server_node.os, Suse)
         ):
             raise SkippedException(f"{server_node.os.name} not supported")
-
-        # refer below link, in RHEL 8, NFS over UDP is no longer supported.
-        # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/deploying_different_types_of_servers/exporting-nfs-shares_deploying-different-types-of-servers#the-tcp-and-udp-protocols-in-nfsv3-and-nfsv4_exporting-nfs-shares  # noqa: E501
-        if (
-            "udp" == protocol
-            and isinstance(server_node.os, Redhat)
-            and server_node.os.information.version >= "8.0.0"
-        ):
-            raise SkippedException(
-                f"udp mode not supported on {server_node.os.information.vendor} "
-                f"{server_node.os.information.release}"
-            )
 
         # Each fio process start jobs equal to the iodepth to read/write from
         # the disks. The max number of jobs can be equal to the core count of
