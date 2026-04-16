@@ -541,7 +541,8 @@ def _download_blobs_to_local(
 
         with open(local_blob_path_fs, "wb") as output_file:
             stream = container_client.download_blob(blob_name)
-            output_file.write(stream.readall())
+            for chunk in stream.chunks():
+                output_file.write(chunk)
         downloaded_count += 1
     return downloaded_count
 
