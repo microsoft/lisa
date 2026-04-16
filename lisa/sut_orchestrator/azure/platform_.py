@@ -2958,7 +2958,7 @@ class AzurePlatform(Platform):
                         seen.add(r)
                         unique_reasons.append(r)
                 error = "Requirement mismatch: " + "; ".join(unique_reasons)
-            else:
+            elif not error:
                 error = (
                     f"Test skipped on '{location}' for an unknown reason. "
                     "This could be due to insufficient quota, unmet hardware "
@@ -3021,7 +3021,14 @@ class AzurePlatform(Platform):
         )
 
         if not allowed_capabilities:
-            error = f"no vm size found in '{location}' for {allowed_vm_sizes}."
+            if node_runbook.vm_size:
+                error = (
+                    "Requirement mismatch: requested VM size "
+                    f"'{node_runbook.vm_size}' is unavailable in '{location}' "
+                    "or incompatible with current test requirements."
+                )
+            else:
+                error = f"no vm size found in '{location}' for {allowed_vm_sizes}."
 
         return allowed_capabilities, error
 
