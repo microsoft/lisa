@@ -65,6 +65,7 @@ param source_address_prefixes array
 param create_public_address bool
 
 var vnet_id = virtual_network_name_resource.id
+var rg_id = resourceGroup().id
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
 var existing_subnet_ref = (empty(virtual_network_resource_group) ? '' : resourceId(virtual_network_resource_group, 'Microsoft.Network/virtualNetworks/subnets', virtual_network_name, subnet_prefix))
@@ -131,16 +132,18 @@ func getCreateDisk(disk object, diskName string, index int) object => {
   }
 }
 
-func getAttachDisk(disk object, diskName string, index int) object => {
+func getAttachDisk(disk object, diskName string, index int, rgId string) object => {
   lun: index
   createOption: 'attach'
   caching: disk.caching_type
   managedDisk: {
-      id: '${resourceGroup().id}/providers/Microsoft.Compute/disks/${diskName}'
+      id: '${rgId}/providers/Microsoft.Compute/disks/${diskName}'
   }
 }
 
-func shouldAttachDataDisk(dataDisk object) bool => bool(dataDisk.type == 'UltraSSD_LRS' || (dataDisk.vhd_details != null && !empty(dataDisk.vhd_details) && (!empty(dataDisk.vhd_details.vhd_uri))))
+func getDataDisk(nodeName string, dataDisk object, index int, rgId string) object => (dataDisk.type == 'UltraSSD_LRS' || (!empty(dataDisk.vhd_details) && (!empty(dataDisk.vhd_details.vhd_uri))))
+? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index, rgId)
+: getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
 func getOsDiskSharedGallery(shared_gallery object) object => {
   id: resourceId(shared_gallery.subscription_id, empty(shared_gallery.resource_group_name) ? 'None' : shared_gallery.resource_group_name, 'Microsoft.Compute/galleries/images/versions', shared_gallery.image_gallery, shared_gallery.image_definition, shared_gallery.image_version)
@@ -409,8 +412,10 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   /*
     Create ultra data disks with setting iops and throughput, and attach them to the VMs.
     There is no way to use getCreateDisk with setting iops and throughput.
-    Use conditional count (0 when not ultra) instead of loop-level 'if' condition,
-    so ARM won't register resource names or evaluate body expressions when not needed.
+    The condition is folded into the range count so that the copy loop produces
+    0 iterations when is_ultradisk is false. Using `for...if` with a non-zero
+    count but false condition leaves phantom resources in the ARM dependency
+    graph, causing validation errors in dependsOn references.
   */
   for i in range(0, is_ultradisk ? (length(data_disks) * node_count) : 0): {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
@@ -431,9 +436,8 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   }
 ]
 
-// Create managed disks from data VHD URIs
-// Use conditional count so ARM won't evaluate body expressions (like resourceId on
-// null vhd_details) when not needed.
+// Create managed disks from data VHD URIs.
+// Condition folded into range count ??? see nodes_data_disks comment above.
 resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
   for i in range(0, (is_data_disk_with_vhd && !is_ultradisk) ? (length(data_disks) * node_count) : 0): {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
@@ -468,16 +472,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
       imageReference: getImageReference(nodes[i])
       osDisk:  getVMOsDisk(nodes[i])
       diskControllerType: (nodes[i].disk_controller_type == 'SCSI') ? null : nodes[i].disk_controller_type
-      dataDisks: concat(
-        map(
-          filter(range(0, length(data_disks)), j => !shouldAttachDataDisk(data_disks[j])),
-          j => getCreateDisk(data_disks[j], '${nodes[i].name}-data-disk-${j}', j)
-        ),
-        map(
-          filter(range(0, length(data_disks)), j => shouldAttachDataDisk(data_disks[j])),
-          j => getAttachDisk(data_disks[j], '${nodes[i].name}-data-disk-${j}', j)
-        )
-      )
+      dataDisks: [for (item, j) in data_disks: getDataDisk(nodes[i].name, item, j, rg_id)]
     }
     networkProfile: {
       networkInterfaces: [for j in range(0, nodes[i].nic_count): {
@@ -504,7 +499,6 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
-    nodes_data_disks
     nodes_data_disks_with_vhds
   ]
 }]
