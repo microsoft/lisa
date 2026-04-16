@@ -1502,7 +1502,7 @@ class AzurePlatform(Platform):
             )
 
         # composite deployment properties
-        parameters = arm_parameters.to_dict()  # type:ignore
+        parameters = arm_parameters.to_dict()  # type: ignore
         parameters = {k: {"value": v} for k, v in parameters.items()}
         log.debug(f"parameters: {parameters}")
         deployment_properties = DeploymentProperties(
@@ -2859,6 +2859,38 @@ class AzurePlatform(Platform):
 
         return False
 
+    @staticmethod
+    def _collect_unmet_reasons(
+        awaitable_candidates: List[Any],
+        all_candidates: List[Any],
+    ) -> List[str]:
+        """Collect capability mismatch reasons from candidates.
+
+        First checks reasons stored by _get_meet_capabilities during its
+        iteration. If none were found (e.g. all candidates were dropped due
+        to zero quota before capability matching), falls back to running
+        capability checks against ALL allowed (pre-quota-filtered) candidates
+        to surface the real mismatch reasons.
+        """
+        unmet_reasons: List[str] = []
+        for item in awaitable_candidates:
+            if len(item) > 2 and item[2]:
+                unmet_reasons.extend(item[2])
+
+        if not unmet_reasons and all_candidates:
+            for item in all_candidates:
+                req_check, caps_check = item[0], item[1]
+                assert isinstance(req_check, schema.NodeSpace)
+                for azure_cap in caps_check:
+                    check_result = req_check.check(azure_cap.capability)
+                    if not check_result.result and check_result.reasons:
+                        unmet_reasons.extend(check_result.reasons)
+                        break
+                if unmet_reasons:
+                    break
+
+        return unmet_reasons
+
     def _get_azure_capabilities(
         self, location: str, nodes_requirement: List[schema.NodeSpace], log: Logger
     ) -> Tuple[List[Union[AzureCapability, bool]], str]:
@@ -2869,6 +2901,10 @@ class AzurePlatform(Platform):
         # capabilities.
         available_candidates: List[Any] = []
         awaitable_candidates: List[Any] = []
+        # Keep all allowed candidates (before quota filtering) so we can
+        # run capability checks on them to collect meaningful skip reasons
+        # even for VMs that were dropped due to zero quota.
+        all_candidates: List[Any] = []
 
         # get allowed vm sizes. Either it's from the runbook defined, or
         # from subscription supported.
@@ -2880,6 +2916,8 @@ class AzurePlatform(Platform):
                 # no candidate found, so try next one.
                 error = sub_error
                 continue
+
+            all_candidates.append([req, candidate_caps])
 
             # filter vm sizes and return two list. 1st is deployable, 2nd is
             # wait able for released resource.
@@ -2941,14 +2979,12 @@ class AzurePlatform(Platform):
 
         if not found:
             # Collect unmet requirement reasons that were stored by
-            # _get_meet_capabilities during its iteration. These explain
-            # exactly which test-case requirements were not satisfied by
-            # any candidate VM size, replacing the previously generic
-            # "no available quota found" message.
-            unmet_reasons: List[str] = []
-            for item in awaitable_candidates:
-                if len(item) > 2 and item[2]:
-                    unmet_reasons.extend(item[2])
+            # _get_meet_capabilities during its iteration, or fall back
+            # to checking all pre-quota-filtered candidates.
+            unmet_reasons = self._collect_unmet_reasons(
+                awaitable_candidates, all_candidates
+            )
+
             if unmet_reasons:
                 # De-duplicate while preserving order.
                 seen: Set[str] = set()
