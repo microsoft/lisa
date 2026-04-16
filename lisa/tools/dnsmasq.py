@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import shlex
+
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools.firewall import Firewall
@@ -26,23 +28,40 @@ class Dnsmasq(Tool):
         nic_name: str,
         gateway: str,
         dhcp_range: str,
+        stop_firewall: bool = True,
+        kill_existing: bool = True,
+        pid_file: str = "",
+        lease_file: str = "",
     ) -> None:
-        # stop firewall
-        self.node.tools[Firewall].stop()
+        if stop_firewall:
+            # stop firewall
+            self.node.tools[Firewall].stop()
 
-        # kill dnsmasq if it is running
-        kill = self.node.tools[Kill]
-        kill.by_name("dnsmasq")
+        if kill_existing:
+            # kill dnsmasq if it is running
+            kill = self.node.tools[Kill]
+            kill.by_name("dnsmasq")
+
+        if not pid_file:
+            pid_file = f"/var/run/qemu-dnsmasq-{nic_name}.pid"
+        if not lease_file:
+            lease_file = f"/var/run/qemu-dnsmasq-{nic_name}.leases"
 
         # setup dnsmasq on interface `nic_name` and listen on `nic_address`
         # assign dhcp address in `dhcp_range`
-        cmd = (
-            "--strict-order --except-interface=lo "
-            f"--interface={nic_name} --listen-address={gateway} --bind-interfaces "
-            f"--dhcp-range={dhcp_range} --conf-file= "
-            f"--pid-file=/var/run/qemu-dnsmasq-{nic_name}.pid "
-            f"--dhcp-leasefile=/var/run/qemu-dnsmasq-{nic_name}.leases "
-            "--dhcp-no-override "
+        cmd = shlex.join(
+            [
+                "--strict-order",
+                "--except-interface=lo",
+                f"--interface={nic_name}",
+                f"--listen-address={gateway}",
+                "--bind-interfaces",
+                f"--dhcp-range={dhcp_range}",
+                "--conf-file=",
+                f"--pid-file={pid_file}",
+                f"--dhcp-leasefile={lease_file}",
+                "--dhcp-no-override",
+            ]
         )
 
         # start dnsmasq

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
@@ -15,7 +16,6 @@ from .. import OPENVMM
 OPENVMM_BOOT_MODE_UEFI = "uefi"
 OPENVMM_ADDRESS_MODE_DISCOVER = "discover"
 OPENVMM_ADDRESS_MODE_STATIC = "static"
-OPENVMM_NETWORK_MODE_NONE = "none"
 OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
@@ -101,26 +101,35 @@ class OpenVmmNetworkSchema:
         ),
     )
 
-    def __post_init__(self) -> None:
-        if self.mode == OPENVMM_NETWORK_MODE_NONE:
+    def _validate_tap_host_cidr(self) -> None:
+        if self.mode != OPENVMM_NETWORK_MODE_TAP:
+            return
+
+        if not self.tap_host_cidr:
+            raise LisaException("tap_host_cidr is required when network mode is 'tap'")
+
+        try:
+            ipaddress.ip_interface(self.tap_host_cidr)
+        except ValueError as identifier:
             raise LisaException(
-                "network mode 'none' is not supported for OpenVMM guests. "
-                "Use network mode 'user' or 'tap' to keep the guest reachable "
-                "over SSH."
-            )
+                "tap_host_cidr "
+                f"'{self.tap_host_cidr}' is invalid for OpenVMM tap networking. "
+                "Use an interface CIDR like '10.0.0.1/24'."
+            ) from identifier
+
+    def __post_init__(self) -> None:
         if self.mode not in [
             OPENVMM_NETWORK_MODE_USER,
             OPENVMM_NETWORK_MODE_TAP,
         ]:
             raise LisaException(
-                f"network mode '{self.mode}' is not supported. "
-                f"{OPENVMM_NETWORK_MODE_USER}, "
+                f"network mode '{self.mode}' is not supported for OpenVMM guests. "
+                f"Supported values: {OPENVMM_NETWORK_MODE_USER}, "
                 f"{OPENVMM_NETWORK_MODE_TAP}"
             )
         if self.mode == OPENVMM_NETWORK_MODE_TAP and not self.tap_name:
             raise LisaException("tap_name is required when network mode is 'tap'")
-        if self.mode == OPENVMM_NETWORK_MODE_TAP and not self.tap_host_cidr:
-            raise LisaException("tap_host_cidr is required when network mode is 'tap'")
+        self._validate_tap_host_cidr()
         if self.address_mode not in [
             OPENVMM_ADDRESS_MODE_DISCOVER,
             OPENVMM_ADDRESS_MODE_STATIC,

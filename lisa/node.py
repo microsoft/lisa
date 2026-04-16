@@ -356,7 +356,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     def cleanup(self) -> None:
         for guest in self.guests:
-            guest.cleanup()
+            try:
+                guest.cleanup()
+            except Exception:
+                self.log.exception(
+                    "failed to clean up guest "
+                    f"'{guest.name or guest.index}' while cleaning node "
+                    f"'{self.name}'. Continuing parent cleanup."
+                )
         self.log.debug("cleaning up...")
         if hasattr(self, "_log_handler") and self._log_handler:
             remove_handler(self._log_handler, self.log)
@@ -364,7 +371,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     def close(self) -> None:
         for guest in self.guests:
-            guest.close()
+            try:
+                guest.close()
+            except Exception:
+                self.log.exception(
+                    "failed to close guest "
+                    f"'{guest.name or guest.index}' while closing node "
+                    f"'{self.name}'. Continuing parent close."
+                )
         self.log.debug("closing node connection...")
         if self._shell:
             self._shell.close()

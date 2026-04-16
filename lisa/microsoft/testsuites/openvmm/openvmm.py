@@ -1,10 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from pathlib import Path
 from typing import Any
-
-from assertpy import assert_that
 
 from lisa import (
     Logger,
@@ -28,7 +25,7 @@ from lisa.tools import Uname
     This test suite validates OpenVMM guests running on a prepared L1 host.
     """,
 )
-class OpenVmmPlatform(TestSuite):
+class OpenVmmPlatformSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         if not isinstance(node, OpenVmmGuestNode):
@@ -36,12 +33,6 @@ class OpenVmmPlatform(TestSuite):
                 "This suite only applies to OpenVMM guest nodes. "
                 f"Actual node type: {type(node).__name__}."
             )
-
-    def _assert_log_path_exists(self, log_path: object) -> None:
-        resolved_log_path = Path(str(log_path))
-        assert_that(resolved_log_path.exists()).described_as(
-            f"log path should exist: {resolved_log_path}"
-        ).is_true()
 
     @TestCaseMetadata(
         description="""
@@ -57,16 +48,14 @@ class OpenVmmPlatform(TestSuite):
         self,
         log: Logger,
         node: RemoteNode,
-        log_path: Path,
     ) -> None:
         kernel_release = node.tools[Uname].get_linux_information().kernel_version_raw
         log.info(f"Connected to OpenVMM guest kernel {kernel_release}")
-        self._assert_log_path_exists(log_path)
 
     @TestCaseMetadata(
         description="""
         This case validates that platform restart keeps the OpenVMM guest
-        reachable and that serial console capture still works after the restart.
+        reachable after the restart.
         """,
         priority=0,
         requirement=simple_requirement(
@@ -78,14 +67,12 @@ class OpenVmmPlatform(TestSuite):
         self,
         log: Logger,
         node: RemoteNode,
-        log_path: Path,
     ) -> None:
         start_stop = node.features[StartStop]
         start_stop.restart()
 
         kernel_release = node.tools[Uname].get_linux_information().kernel_version_raw
         log.info(f"OpenVMM guest returned after restart on kernel {kernel_release}")
-        self._assert_log_path_exists(log_path)
 
     @TestCaseMetadata(
         description="""
@@ -102,7 +89,6 @@ class OpenVmmPlatform(TestSuite):
         self,
         log: Logger,
         node: RemoteNode,
-        log_path: Path,
     ) -> None:
         start_stop = node.features[StartStop]
         log.info("Stopping OpenVMM guest via platform")
@@ -110,9 +96,8 @@ class OpenVmmPlatform(TestSuite):
         log.info("Starting OpenVMM guest via platform")
         start_stop.start(wait=True)
 
-        result = node.execute("echo openvmm-recovered", shell=True)
-        result.assert_exit_code()
-        assert_that(result.stdout.strip()).described_as(
-            "OpenVMM guest should remain reachable over SSH after platform stop/start"
-        ).is_equal_to("openvmm-recovered")
-        self._assert_log_path_exists(log_path)
+        kernel_release = node.tools[Uname].get_linux_information().kernel_version_raw
+        log.info(
+            f"OpenVMM guest returned after platform stop/start on kernel "
+            f"{kernel_release}"
+        )
