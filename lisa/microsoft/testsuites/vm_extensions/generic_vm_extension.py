@@ -6,6 +6,7 @@ from retry import retry
 from lisa import (
     Logger,
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -44,9 +45,18 @@ class GenericVmExtension(TestSuite):
         node: Node,
         variables: Dict[str, Any],
     ) -> None:
-        publisher: str = variables["extension_publisher"]
-        type_: str = variables["extension_type"]
-        version: str = variables["extension_version"]
+        publisher: str = variables.get("extension_publisher", "")
+        type_: str = variables.get("extension_type", "")
+        version: str = variables.get("extension_version", "")
+
+        if not publisher or not type_ or not version:
+            raise SkippedException(
+                "Required runbook variable(s) are missing or empty: "
+                f"extension_publisher='{publisher}', "
+                f"extension_type='{type_}', "
+                f"extension_version='{version}'. "
+                "Please set them in the runbook before running this test case."
+            )
 
         extension = node.features[AzureExtension]
         extension_name = f"{publisher}.{type_}-{version}"
@@ -61,29 +71,28 @@ class GenericVmExtension(TestSuite):
         )
 
         assert_that(extension_result["provisioning_state"]).described_as(
-            "Found the extension provisioning state unexpectedly not Succeeded"
+            "Expected extension provisioning state to be Succeeded"
         ).is_equal_to("Succeeded")
 
         assert_that(self._check_exist(extension, extension_name)).described_as(
-            "Found the VM Extension unexpectedly not exists on the VM after"
-            "installation"
+            "Expected VM extension to exist after installation"
         ).is_true()
 
         # Verify the VM is still reachable after extension operations.
         assert_that(node.test_connection()).described_as(
-            "Found the VM unexpectedly not reachable via SSH after extension install"
+            "Expected VM to be reachable via SSH after extension installation"
         ).is_true()
 
         # if extension installed by test then delete the extension
         self._delete_extension(extension, extension_name)
 
         assert_that(self._check_exist(extension, extension_name)).described_as(
-            "Found the VM Extension still unexpectedly exists on the VM after deletion"
+            "Expected VM extension to be removed after deletion"
         ).is_false()
 
         # Verify the VM is still reachable after extension operations.
         assert_that(node.test_connection()).described_as(
-            "Found the VM unexpectedly not reachable via SSH after extension uninstall"
+            "Expected VM to be reachable via SSH after extension uninstallation"
         ).is_true()
 
     @retry(tries=3, delay=10)  # type: ignore
