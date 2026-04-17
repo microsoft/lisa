@@ -80,10 +80,19 @@ class AzureCVMAttestationTestSuite(TestSuite):
     ) -> None:
         if isinstance(node.os, Ubuntu):
             cvm_tests: AzureCVMAttestationTests = node.tools[AzureCVMAttestationTests]
-            if node.tools[Lscpu].get_cpu_type() == CpuType.AMD:
+            cpu_type = node.tools[Lscpu].get_cpu_type()
+            if cpu_type == CpuType.AMD:
                 config_file = "config_snp_guest.json"
             else:
                 config_file = "config_tdx_guest.json"
+
+            log.info(
+                "CVM attestation: os=%s, cpu_type=%s, config=%s, node=%s",
+                node.os.information.full_version,
+                cpu_type,
+                config_file,
+                node.name,
+            )
 
             cvm_tests.run_cvm_attestation(
                 result,

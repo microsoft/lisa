@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import logging
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Type
 
@@ -11,8 +12,10 @@ from lisa.features import SerialConsole
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Cargo, Dmesg, Echo, Git, Make, Mkdir
-from lisa.util import UnsupportedDistroException
+from lisa.util import SkippedException, UnsupportedDistroException
 from lisa.util.process import ExecutableResult
+
+_log = logging.getLogger(__name__)
 
 
 class AzureCVMAttestationTests(Tool):
@@ -47,10 +50,58 @@ class AzureCVMAttestationTests(Tool):
         )
 
         output: str = command_result.stdout
+        stderr: str = command_result.stderr
         self._save_attestation_report(output, log_path=log_path)
+
+        # Debug logging for platform attestation diagnostics
+        _log.info(
+            "Platform attestation command: 'attest %s'",
+            command_option,
+        )
+        _log.info(
+            "Platform attestation exit_code: %d",
+            command_result.exit_code,
+        )
+        _log.info(
+            "Platform attestation stdout (last 2000 chars): %s",
+            output[-2000:] if len(output) > 2000 else output,
+        )
+        if stderr:
+            _log.info(
+                "Platform attestation stderr (last 1000 chars): %s",
+                stderr[-1000:] if len(stderr) > 1000 else stderr,
+            )
+
+        # Log specific known error indicators for diagnostics
+        _known_error_indicators = [
+            "InvalidUri",
+            "TDQuoteException",
+            "SnpReportException",
+            "IMDS",
+            "400",
+            "404",
+            "timeout",
+        ]
+        found_indicators = [
+            ind for ind in _known_error_indicators if ind in output or ind in stderr
+        ]
+        if found_indicators:
+            _log.warning(
+                "Platform attestation output contains error indicators: %s",
+                found_indicators,
+            )
 
         success_message = "Attested Platform Successfully"
         is_valid = command_result.exit_code == 0 and success_message in output
+
+        if not is_valid:
+            _log.error(
+                "Platform attestation FAILED. "
+                "exit_code=%d, success_message_found=%s, config=%s",
+                command_result.exit_code,
+                success_message in output,
+                config,
+            )
 
         assert_that(
             is_valid,
@@ -67,10 +118,48 @@ class AzureCVMAttestationTests(Tool):
         )
 
         output = command_result.stdout
+        stderr = command_result.stderr
         self._save_attestation_report(output, log_path=log_path)
+
+        # Debug logging for guest attestation diagnostics
+        _log.info(
+            "Guest attestation command: 'attest %s'",
+            command_option,
+        )
+        _log.info(
+            "Guest attestation exit_code: %d",
+            command_result.exit_code,
+        )
+        _log.info(
+            "Guest attestation stdout (last 2000 chars): %s",
+            output[-2000:] if len(output) > 2000 else output,
+        )
+        if stderr:
+            _log.info(
+                "Guest attestation stderr (last 1000 chars): %s",
+                stderr[-1000:] if len(stderr) > 1000 else stderr,
+            )
+
+        found_indicators = [
+            ind for ind in _known_error_indicators if ind in output or ind in stderr
+        ]
+        if found_indicators:
+            _log.warning(
+                "Guest attestation output contains error indicators: %s",
+                found_indicators,
+            )
 
         success_message = "Attested Guest Successfully"
         is_valid = command_result.exit_code == 0 and success_message in output
+
+        if not is_valid:
+            _log.error(
+                "Guest attestation FAILED. "
+                "exit_code=%d, success_message_found=%s, config=%s",
+                command_result.exit_code,
+                success_message in output,
+                config,
+            )
 
         assert_that(
             is_valid,
