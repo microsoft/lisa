@@ -351,7 +351,6 @@ class CloudHypervisorTests(Tool):
 
         self._check_test_panic_from_logs(
             test_result=test_result,
-            log_path=log_path,
             content=result.stdout,
             stage=f"{test_type} tests",
             test_name=test_name,
@@ -399,7 +398,6 @@ class CloudHypervisorTests(Tool):
             result = self._run_with_enhanced_diagnostics(
                 cmd_args=cmd_args,
                 timeout=self.CMD_TIME_OUT,
-                log_path=log_path,
                 test_name=test_name,
                 numa_cmd="",
             )
@@ -478,7 +476,6 @@ class CloudHypervisorTests(Tool):
 
             self._check_test_panic_from_logs(
                 test_result=test_result,
-                log_path=log_path,
                 content=trace,
                 stage=f"metrics test {testcase}",
                 test_name=testcase,
@@ -570,7 +567,6 @@ class CloudHypervisorTests(Tool):
                 result = self._run_with_enhanced_diagnostics(
                     cmd_args=cmd_args,
                     timeout=cmd_timeout,
-                    log_path=log_path,
                     test_name=test_name,
                     numa_cmd=numa_cmd,
                 )
@@ -775,7 +771,6 @@ class CloudHypervisorTests(Tool):
     def _check_test_panic_from_logs(
         self,
         test_result: TestResult,
-        log_path: Path,
         content: str,
         stage: str,
         test_name: str,
@@ -934,7 +929,6 @@ class CloudHypervisorTests(Tool):
         self,
         cmd_args: str,
         timeout: int,
-        log_path: Path,
         test_name: str = "ch_test",
         numa_cmd: str = "",
     ) -> Any:
