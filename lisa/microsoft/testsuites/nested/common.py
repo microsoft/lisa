@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 import io
 import re
+import secrets
+import string
 from typing import Any, Dict, List, Optional, Tuple
 
 import pycdlib
@@ -26,6 +28,7 @@ NESTED_VM_TEST_FILE_CONTENT = "Message from L1 vm!!"
 NESTED_VM_TEST_PUBLIC_FILE_URL = "http://www.github.com"
 NESTED_VM_REQUIRED_DISK_SIZE_IN_GB = 6
 NESTED_VM_DOWNLOAD_TIMEOUT = 3600
+_DEFAULT_NESTED_USERNAME = "lisauser"
 KVM_CRASH_CALL_STACK_PATTERN = re.compile(
     r"KVM: accessing unsupported EVMCS field 2032", re.M
 )
@@ -286,8 +289,35 @@ def hyperv_remove_nested_vm(
     hyperv.delete_port_forwarding(nat_name)
 
 
+def _generate_password(length: int = 16) -> str:
+    upper = string.ascii_uppercase
+    lower = string.ascii_lowercase
+    digits = string.digits
+    # Exclude shell metacharacters ('$', '&') that would be interpreted
+    # when the password is passed to `openssl passwd` via shell=True.
+    special = "!@#%*"
+    pool = upper + lower + digits + special
+    while True:
+        pwd = [
+            secrets.choice(upper),
+            secrets.choice(lower),
+            secrets.choice(digits),
+            secrets.choice(special),
+        ]
+        pwd += [secrets.choice(pool) for _ in range(length - 4)]
+        secrets.SystemRandom().shuffle(pwd)
+        result = "".join(pwd)
+        if (
+            any(c in upper for c in result)
+            and any(c in lower for c in result)
+            and any(c in digits for c in result)
+            and any(c in special for c in result)
+        ):
+            return result
+
+
 def parse_nested_image_variables(
-    variables: Dict[str, Any]
+    variables: Dict[str, Any],
 ) -> Tuple[str, str, int, str]:
     nested_image_username = variables.get("nested_image_username", "")
     nested_image_password = variables.get("nested_image_password", "")
@@ -295,10 +325,10 @@ def parse_nested_image_variables(
     nested_image_url = variables.get("nested_image_url", "")
 
     if not nested_image_username:
-        raise SkippedException("Nested image username should not be empty")
+        nested_image_username = _DEFAULT_NESTED_USERNAME
 
     if not nested_image_password:
-        raise SkippedException("Nested image password should not be empty")
+        nested_image_password = _generate_password()
 
     if not nested_image_url:
         nested_image_url = (
