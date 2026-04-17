@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import logging
+import time
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Type
 
@@ -16,6 +17,13 @@ from lisa.util import SkippedException, UnsupportedDistroException
 from lisa.util.process import ExecutableResult
 
 _log = logging.getLogger(__name__)
+
+# Known error indicators that signal infrastructure unavailability
+# (e.g., IMDS /acc/tdquote endpoint not exposed on the host)
+_INFRA_ERROR_INDICATORS = ["InvalidUri", "TDQuoteException"]
+
+_ATTESTATION_MAX_RETRIES = 3
+_ATTESTATION_RETRY_DELAY_SECS = 30
 
 
 class AzureCVMAttestationTests(Tool):
@@ -40,130 +48,134 @@ class AzureCVMAttestationTests(Tool):
     ) -> None:
         config_path = self.attestation_dir / config
 
-        command_option = f"--c {config_path}"
-        command_result = self.run(
-            command_option,
-            cwd=self.attestation_dir,
-            shell=True,
-            sudo=True,
-            force_run=True,
+        # --- Platform Attestation (with retry) ---
+        self._run_attestation_phase(
+            phase="PLATFORM",
+            command_option=f"--c {config_path}",
+            success_message="Attested Platform Successfully",
+            config=config,
+            log_path=log_path,
         )
 
-        output: str = command_result.stdout
-        stderr: str = command_result.stderr
-        self._save_attestation_report(output, log_path=log_path)
+        # --- Guest Attestation (with retry) ---
+        self._run_attestation_phase(
+            phase="GUEST",
+            command_option=f"--c {config_path} --t GUEST",
+            success_message="Attested Guest Successfully",
+            config=config,
+            log_path=log_path,
+        )
 
-        # Debug logging for platform attestation diagnostics
-        _log.info(
-            "Platform attestation command: 'attest %s'",
-            command_option,
-        )
-        _log.info(
-            "Platform attestation exit_code: %d",
-            command_result.exit_code,
-        )
-        _log.info(
-            "Platform attestation stdout (last 2000 chars): %s",
-            output[-2000:] if len(output) > 2000 else output,
-        )
-        if stderr:
+    def _run_attestation_phase(
+        self,
+        phase: str,
+        command_option: str,
+        success_message: str,
+        config: str,
+        log_path: Path,
+    ) -> None:
+        """Run a single attestation phase with retry logic.
+
+        Retries up to _ATTESTATION_MAX_RETRIES times when known
+        infrastructure error indicators are detected (e.g., IMDS endpoint
+        not yet available).  If all retries are exhausted and the failure
+        is due to infrastructure unavailability, raises SkippedException
+        so the test is reported as SKIPPED rather than a false FAIL.
+        """
+        last_result: ExecutableResult = None  # type: ignore[assignment]
+        last_output = ""
+        last_stderr = ""
+        found_infra_errors: List[str] = []
+
+        for attempt in range(1, _ATTESTATION_MAX_RETRIES + 1):
+            last_result = self.run(
+                command_option,
+                cwd=self.attestation_dir,
+                shell=True,
+                sudo=True,
+                force_run=True,
+            )
+
+            last_output = last_result.stdout
+            last_stderr = last_result.stderr
+            self._save_attestation_report(last_output, log_path=log_path)
+
             _log.info(
-                "Platform attestation stderr (last 1000 chars): %s",
-                stderr[-1000:] if len(stderr) > 1000 else stderr,
+                "%s attestation attempt %d/%d: command='attest %s', "
+                "exit_code=%d",
+                phase,
+                attempt,
+                _ATTESTATION_MAX_RETRIES,
+                command_option,
+                last_result.exit_code,
             )
-
-        # Log specific known error indicators for diagnostics
-        _known_error_indicators = [
-            "InvalidUri",
-            "TDQuoteException",
-            "SnpReportException",
-            "IMDS",
-            "400",
-            "404",
-            "timeout",
-        ]
-        found_indicators = [
-            ind for ind in _known_error_indicators if ind in output or ind in stderr
-        ]
-        if found_indicators:
-            _log.warning(
-                "Platform attestation output contains error indicators: %s",
-                found_indicators,
+            _log.info(
+                "%s attestation stdout (last 2000 chars): %s",
+                phase,
+                last_output[-2000:] if len(last_output) > 2000 else last_output,
             )
+            if last_stderr:
+                _log.info(
+                    "%s attestation stderr (last 1000 chars): %s",
+                    phase,
+                    last_stderr[-1000:] if len(last_stderr) > 1000 else last_stderr,
+                )
 
-        success_message = "Attested Platform Successfully"
-        is_valid = command_result.exit_code == 0 and success_message in output
+            is_valid = (
+                last_result.exit_code == 0 and success_message in last_output
+            )
+            if is_valid:
+                _log.info(
+                    "%s attestation PASSED on attempt %d.", phase, attempt
+                )
+                return
 
-        if not is_valid:
-            _log.error(
-                "Platform attestation FAILED. "
-                "exit_code=%d, success_message_found=%s, config=%s",
-                command_result.exit_code,
-                success_message in output,
-                config,
+            # Check for infrastructure-level errors
+            combined = last_output + last_stderr
+            found_infra_errors = [
+                ind for ind in _INFRA_ERROR_INDICATORS if ind in combined
+            ]
+
+            if found_infra_errors and attempt < _ATTESTATION_MAX_RETRIES:
+                _log.warning(
+                    "%s attestation failed with infra errors %s, "
+                    "retrying in %ds (attempt %d/%d)...",
+                    phase,
+                    found_infra_errors,
+                    _ATTESTATION_RETRY_DELAY_SECS,
+                    attempt,
+                    _ATTESTATION_MAX_RETRIES,
+                )
+                time.sleep(_ATTESTATION_RETRY_DELAY_SECS)
+                continue
+
+            # Non-infra failure or last attempt — break out
+            break
+
+        # All retries exhausted or non-retryable failure
+        _log.error(
+            "%s attestation FAILED after %d attempt(s). "
+            "exit_code=%d, success_message_found=%s, config=%s",
+            phase,
+            _ATTESTATION_MAX_RETRIES,
+            last_result.exit_code,
+            success_message in last_output,
+            config,
+        )
+
+        if found_infra_errors:
+            raise SkippedException(
+                f"CVM {phase.lower()} attestation infrastructure not available "
+                f"after {_ATTESTATION_MAX_RETRIES} retries. "
+                f"Detected infra errors: {found_infra_errors} in output. "
+                f"The IMDS /acc/tdquote endpoint may not be exposed on this host."
             )
 
         assert_that(
-            is_valid,
-            "The CVM platform attestation test failed",
-        ).is_true()
-
-        command_option = f"--c {config_path} --t GUEST"
-        command_result = self.run(
-            command_option,
-            cwd=self.attestation_dir,
-            shell=True,
-            sudo=True,
-            force_run=True,
-        )
-
-        output = command_result.stdout
-        stderr = command_result.stderr
-        self._save_attestation_report(output, log_path=log_path)
-
-        # Debug logging for guest attestation diagnostics
-        _log.info(
-            "Guest attestation command: 'attest %s'",
-            command_option,
-        )
-        _log.info(
-            "Guest attestation exit_code: %d",
-            command_result.exit_code,
-        )
-        _log.info(
-            "Guest attestation stdout (last 2000 chars): %s",
-            output[-2000:] if len(output) > 2000 else output,
-        )
-        if stderr:
-            _log.info(
-                "Guest attestation stderr (last 1000 chars): %s",
-                stderr[-1000:] if len(stderr) > 1000 else stderr,
-            )
-
-        found_indicators = [
-            ind for ind in _known_error_indicators if ind in output or ind in stderr
-        ]
-        if found_indicators:
-            _log.warning(
-                "Guest attestation output contains error indicators: %s",
-                found_indicators,
-            )
-
-        success_message = "Attested Guest Successfully"
-        is_valid = command_result.exit_code == 0 and success_message in output
-
-        if not is_valid:
-            _log.error(
-                "Guest attestation FAILED. "
-                "exit_code=%d, success_message_found=%s, config=%s",
-                command_result.exit_code,
-                success_message in output,
-                config,
-            )
-
-        assert_that(
-            is_valid,
-            "The CVM guest attestation test failed",
+            False,
+            f"The CVM {phase.lower()}
+            False,
+            f"The CVM {phase.lower()} attestation test failed",
         ).is_true()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
