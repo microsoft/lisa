@@ -36,6 +36,7 @@ class FipsTests(TestSuite):
         requirement=simple_requirement(
             supported_os=[CBLMariner],
         ),
+        tags=["AZURE_LINUX"],
     )
     def verify_azl_fips_status(
         self, log: Logger, node: Node, variables: Dict[str, Any]

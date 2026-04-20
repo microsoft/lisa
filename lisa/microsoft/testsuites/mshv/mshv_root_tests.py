@@ -119,6 +119,7 @@ class MshvHostTestSuite(TestSuite):
            (/sys/kernel/debug/mshv/hvdbg) and verify that a kdump is produced
         """,
         priority=2,
+        tags=["AZURE_LINUX"],
     )
     def verify_mshv_crash(
         self,

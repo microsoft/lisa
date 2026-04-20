@@ -125,6 +125,7 @@ def _parse_test_result(
     These tests interact with both iptables & nftables as backend.
     The testsuite is provided by the firewalld-test rpm.
     """,
+    tags=["AZURE_LINUX"],
 )
 class FirewalldSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

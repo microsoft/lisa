@@ -17,6 +17,7 @@ from lisa.util import SkippedException, UnsupportedDistroException
     description="""
     This test suite is to confirm bpf support.
     """,
+    tags=["AZURE_LINUX"],
 )
 class BpfSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

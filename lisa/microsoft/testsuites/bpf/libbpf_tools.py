@@ -31,6 +31,7 @@ from lisa.sut_orchestrator import AZURE, HYPERV, READY
         supported_platform_type=[AZURE, READY, HYPERV],
         supported_os=[CBLMariner],
     ),
+    tags=["AZURE_LINUX"],
 )
 class LibbpfToolsSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

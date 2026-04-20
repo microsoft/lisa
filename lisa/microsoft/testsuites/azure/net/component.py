@@ -25,6 +25,7 @@ from lisa.util import LisaException, SkippedException, UnsupportedDistroExceptio
     such as conntrack, ipset, and iptables. It ensures that connection tracking,
     IP-based filtering, and custom rule management operate as expected
     """,
+    tags=["AZURE_LINUX"],
 )
 class NetworkComponentTest(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

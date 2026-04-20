@@ -37,6 +37,7 @@ from lisa.util import UnsupportedDistroException
         supported_platform_type=[AZURE, HYPERV, READY],
         unsupported_os=[BSD, Windows],
     ),
+    tags=["AZURE_LINUX"],
 )
 class ZramCompression(TestSuite):
     # zram device path used for testing

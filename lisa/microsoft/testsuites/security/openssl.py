@@ -56,6 +56,7 @@ class OpenSSLTestSuite(TestSuite):
         requirement=simple_requirement(
             supported_os=[CBLMariner],
         ),
+        tags=["AZURE_LINUX"],
     )
     def verify_golang_sys_crypto(self, node: Node) -> None:
         """

@@ -42,6 +42,7 @@ from lisa.util import UnsupportedDistroException
         supported_platform_type=[AZURE, READY, HYPERV],
         supported_os=[Linux],
     ),
+    tags=["AZURE_LINUX"],
 )
 class SchedCore(TestSuite):
     _file_name = "sched_core_test"

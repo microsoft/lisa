@@ -31,6 +31,7 @@ from lisa.util import SkippedException
     It sets up a dm-cache configuration to verify that caching is functional
     and provides performance benefits.
     """,
+    tags=["AZURE_LINUX"],
 )
 class DmCacheTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

@@ -36,6 +36,7 @@ from lisa.util import SkippedException, UnsupportedDistroException
     description="""This test suite covers some common scenarios related to
     CVM boot on Azure.
     """,
+    tags=["AZURE_LINUX"],
 )
 class CVMBootTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

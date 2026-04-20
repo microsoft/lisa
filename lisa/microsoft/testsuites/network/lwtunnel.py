@@ -36,6 +36,7 @@ from lisa.util import UnsupportedDistroException
         supported_platform_type=[AZURE, READY, HYPERV],
         supported_os=[Linux],
     ),
+    tags=["AZURE_LINUX"],
 )
 class LwtunnelSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
