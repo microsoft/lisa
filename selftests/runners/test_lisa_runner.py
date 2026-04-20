@@ -208,7 +208,7 @@ class RunnerTestCase(TestCase):
             existing_environments=envs,
             platform_type=constants.PLATFORM_MOCK,
         )
-        platform_unsupported = "capability cannot support some of requirement"
+        platform_unsupported = "requires ["
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["", "", ""],

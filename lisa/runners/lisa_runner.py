@@ -752,7 +752,9 @@ class LisaRunner(BaseRunner):
                 continue
 
             if test_result.check_results and test_result.check_results.reasons:
-                reasons = f"{additional_reason}: {test_result.check_results.reasons}"
+                reasons = f"{additional_reason}: " + "; ".join(
+                    test_result.check_results.reasons
+                )
             else:
                 reasons = additional_reason
 
