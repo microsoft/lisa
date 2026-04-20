@@ -169,7 +169,9 @@ class HtmlStructuredRunbookTestCase(TestCase):
         try:
             self._send_initializing_message()
         except Exception as e:
-            self.fail(f"_received_test_run raised {type(e).__name__} for None runbook: {e}")
+            self.fail(
+                f"_received_test_run raised {type(e).__name__} for None runbook: {e}"
+            )
 
         result = self._notifier._generate_metadata_rows()
         # No runbook key should be present when value is empty/None
