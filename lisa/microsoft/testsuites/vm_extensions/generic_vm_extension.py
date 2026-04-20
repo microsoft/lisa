@@ -36,7 +36,7 @@ class GenericVmExtension(TestSuite):
           - extension_type       (e.g. "AzureMonitorLinuxAgent")
           - extension_version    (e.g. "1.0")
         """,
-        priority=2,
+        priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_vm_extension_install_uninstall(
