@@ -6,6 +6,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from pprint import pformat
 from string import Template
 from typing import Any, Dict, List, Type, cast
 
@@ -66,7 +67,7 @@ class Html(Notifier):
                 "test pass": message.test_pass,
                 "tags": message.tags,
                 "runbook_path": constants.RUNBOOK_FILE,
-                "runbook": mask(constants.RUNBOOK),
+                "runbook": mask(self._stringify_runbook(constants.RUNBOOK)),
             }
             # Filter out None/empty values
             self._metadata = OrderedDict(
@@ -92,6 +93,13 @@ class Html(Notifier):
         self._title = "LISA Test Report"
         self._metadata = OrderedDict()
         self._start_time = datetime.now(timezone.utc)
+
+    def _stringify_runbook(self, runbook: Any) -> str:
+        if isinstance(runbook, str):
+            return runbook
+        if runbook is None:
+            return ""
+        return pformat(runbook, sort_dicts=False, width=120)
 
     def _write_html_report(self) -> None:
         """Generate and write the HTML report."""
