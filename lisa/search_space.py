@@ -86,7 +86,8 @@ class RequirementMixin:
         check_result = self.check(capability)
         if not check_result.result:
             raise NotMeetRequirementException(
-                f"capability doesn't support requirement: {check_result.reasons}"
+                "capability doesn't support requirement: "
+                + "; ".join(check_result.reasons)
             )
 
 
@@ -304,10 +305,11 @@ class SetSpace(RequirementMixin, Set[T]):
             self.is_allow_set = is_allow_set
 
     def __repr__(self) -> str:
-        return (
-            f"allowed:{self.is_allow_set},"
-            f"items:[{','.join([str(x) for x in self])}]"
-        )
+        parts = [x.value if isinstance(x, Enum) else str(x) for x in self]
+        items_str = ", ".join(parts)
+        if self.is_allow_set:
+            return items_str
+        return f"not({items_str})"
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self.update(self.items)
@@ -331,9 +333,7 @@ class SetSpace(RequirementMixin, Set[T]):
             if self.is_allow_set:
                 if not capability.issuperset(self):
                     result.add_reason(
-                        "capability cannot support some of requirements, "
-                        f"requirement: '{self}'"
-                        f"capability: '{capability}', "
+                        f"requires [{self}]" f" but VM supports [{capability}]"
                     )
             else:
                 inter_set: Set[Any] = self.intersection(capability)
@@ -346,7 +346,7 @@ class SetSpace(RequirementMixin, Set[T]):
                             names.append(item.__class__.__name__)
                         else:
                             names.append(item)
-                    result.add_reason(f"requirements excludes {names}")
+                    result.add_reason(f"requirements excludes {', '.join(names)}")
         return result
 
     def add(self, element: T) -> None:
@@ -469,7 +469,7 @@ def choose_value_countspace(requirement: CountSpace, capability: CountSpace) -> 
     if not check_result.result:
         raise NotMeetRequirementException(
             "cannot choose value, capability doesn't support requirement: "
-            f"{check_result.reasons}"
+            + "; ".join(check_result.reasons)
         )
     if requirement is None or (isinstance(requirement, list) and not requirement):
         if capability:
@@ -502,7 +502,7 @@ def intersect_countspace(requirement: CountSpace, capability: CountSpace) -> Any
     if not check_result.result:
         raise NotMeetRequirementException(
             "cannot get intersect, capability doesn't support requirement: "
-            f"{check_result.reasons}"
+            + "; ".join(check_result.reasons)
         )
     if requirement is None and capability:
         return copy.copy(capability)
@@ -529,18 +529,16 @@ def check_setspace(
         if requirement is not None:
             has_met_check = False
             if not isinstance(capability, SetSpace):
-                capability = SetSpace[T](items=[capability])
+                capability = SetSpace[T](is_allow_set=True, items=[capability])
             if not isinstance(requirement, SetSpace):
-                requirement = SetSpace[T](items=[requirement])
+                requirement = SetSpace[T](is_allow_set=True, items=[requirement])
             for item in requirement:
                 if item in capability:
                     has_met_check = True
                     break
             if not has_met_check:
                 result.add_reason(
-                    f"requirement not supported in capability. "
-                    f"requirement: {requirement}, "
-                    f"capability: {capability}"
+                    f"requires [{requirement}]" f" but VM supports [{capability}]"
                 )
     return result
 
@@ -553,8 +551,8 @@ def choose_value_setspace_by_priority(
     check_result = check_setspace(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            "cannot choose value, capability doesn't support requirement"
-            f"{check_result.reasons}"
+            "cannot choose value, capability doesn't support requirement: "
+            + "; ".join(check_result.reasons)
         )
 
     assert capability is not None, "Capability shouldn't be None"
@@ -591,7 +589,7 @@ def intersect_setspace_by_priority(
     check_result = check_setspace(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            f"capability doesn't support requirement: {check_result.reasons}"
+            "capability doesn't support requirement: " + "; ".join(check_result.reasons)
         )
 
     assert capability is not None, "Capability shouldn't be None"

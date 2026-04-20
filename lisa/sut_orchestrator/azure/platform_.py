@@ -632,9 +632,14 @@ class AzurePlatform(Platform):
                     "vm size", "No available quota, try to deploy later."
                 )
             else:
-                raise NotMeetRequirementException(
-                    f"{errors}, runbook: {environment.runbook}."
+                error_message = (
+                    "; ".join(errors)
+                    if errors
+                    else (
+                        "no eligible VM configuration found" f" in {allowed_locations}"
+                    )
                 )
+                raise NotMeetRequirementException(error_message)
 
         # resolve Latest to specified version
         if is_success:
