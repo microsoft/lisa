@@ -10,7 +10,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, NoReturn, Union
 from urllib.parse import unquote, urlparse
 
 from openai import AsyncAzureOpenAI
@@ -452,7 +452,7 @@ def _get_storage_credential() -> Any:
 
 def _raise_missing_azure_dependency_error(
     module_name: str, error: ModuleNotFoundError
-) -> None:
+) -> NoReturn:
     raise ModuleNotFoundError(
         "Missing Azure SDK dependencies required for --log-link. "
         f"Failed to import '{module_name}'. "
