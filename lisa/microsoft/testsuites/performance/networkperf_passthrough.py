@@ -89,9 +89,6 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
-
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
         )
@@ -126,9 +123,6 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -167,9 +161,6 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
-
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
         )
@@ -204,9 +195,6 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -244,9 +232,6 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
-
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
         )
@@ -282,9 +267,6 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
