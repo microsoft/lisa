@@ -188,8 +188,10 @@ def qemu_connect_nested_vm(
         )
 
     # setup connection to nested vm
+    # Use the host's connection address which respects use_public_address setting.
+    host_address = host.connection_info["address"]
     connection_info = schema.ConnectionInfo(
-        address=host.public_address,
+        address=host_address,
         port=guest_port,
         username=guest_username,
         password=guest_password,
@@ -246,8 +248,9 @@ def hyperv_connect_nested_vm(
     hyperv.setup_port_forwarding(nat_name, port, local_ip)
 
     # setup connection to nested vm
+    host_address = host.connection_info["address"]
     connection_info = schema.ConnectionInfo(
-        address=host.public_address,
+        address=host_address,
         port=port,
         username=guest_username,
         password=guest_password,
