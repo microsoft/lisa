@@ -66,21 +66,21 @@ class Reboot(Tool):
         return last_boot_time
 
     def _resolve_ssh_endpoint(self) -> Tuple[Optional[str], Optional[int]]:
-        # Only remote linux nodes have a routable ssh endpoint we can probe
-        # with a raw TCP connect. For other node types, skip the probe.
-        from lisa.node import RemoteNode
-
-        if not isinstance(self.node, RemoteNode):
+        # Use duck typing: any node that exposes connection_info with
+        # address+port (RemoteNode and libvirt/nested guests that call
+        # set_connection_info) can be probed. Guests that proxy through a
+        # parent shell (e.g. WslContainerNode) won't expose connection_info
+        # and will skip the probe.
+        connection_info = getattr(self.node, "connection_info", None)
+        if not isinstance(connection_info, dict):
             return None, None
         try:
-            address = str(
-                self.node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
-            )
-            port = int(
-                self.node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT]
-            )
-            return address, port
-        except (KeyError, TypeError, ValueError):
+            address = connection_info.get(constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS)
+            port = connection_info.get(constants.ENVIRONMENTS_NODES_REMOTE_PORT)
+            if not address or port is None:
+                return None, None
+            return str(address), int(port)
+        except (TypeError, ValueError):
             return None, None
 
     def _is_ssh_port_open(
@@ -156,6 +156,13 @@ class Reboot(Tool):
         # poll iteration costs ~seconds while the vm is down, instead of the
         # 30s func_set_timeout budget of _who_last hanging on shell init.
         tcp_address, tcp_port = self._resolve_ssh_endpoint()
+        if tcp_address and tcp_port is not None:
+            self._log.debug(f"post-reboot tcp probe target: {tcp_address}:{tcp_port}")
+        else:
+            self._log.debug(
+                "post-reboot tcp probe disabled: no ssh endpoint resolved "
+                f"from node type {type(self.node).__name__}"
+            )
 
         connected: bool = False
         port_opened_once: bool = False
