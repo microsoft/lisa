@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import socket
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import sleep
-from typing import Any, Optional, Type, cast
+from typing import Any, Optional, Tuple, Type, cast
 
 from func_timeout import FunctionTimedOut, func_set_timeout
 
@@ -54,9 +55,46 @@ class Reboot(Tool):
     def _get_last_boot_time(self) -> datetime:
         try:
             last_boot_time = cast(datetime, _who_last(self.node.tools[Who]))
-        except Exception:
-            last_boot_time = self.node.tools[Uptime].since_time()
+        except FunctionTimedOut as identifier:
+            # who -b hung inside the ssh shell; fall back to uptime -s with a
+            # bounded command timeout so we don't block the reboot poll loop.
+            self._log.debug(f"who -b timed out; using uptime -s: {identifier}")
+            last_boot_time = self.node.tools[Uptime].since_time(timeout=30)
+        except Exception as identifier:
+            self._log.debug(f"who -b failed; using uptime -s: {identifier}")
+            last_boot_time = self.node.tools[Uptime].since_time(timeout=30)
         return last_boot_time
+
+    def _resolve_ssh_endpoint(self) -> Tuple[Optional[str], Optional[int]]:
+        # Only remote linux nodes have a routable ssh endpoint we can probe
+        # with a raw TCP connect. For other node types, skip the probe.
+        from lisa.node import RemoteNode
+
+        if not isinstance(self.node, RemoteNode):
+            return None, None
+        try:
+            address = str(
+                self.node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+            )
+            port = int(
+                self.node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT]
+            )
+            return address, port
+        except (KeyError, TypeError, ValueError):
+            return None, None
+
+    def _is_ssh_port_open(
+        self, address: str, port: int, timeout_seconds: float = 3.0
+    ) -> bool:
+        # Bounded TCP connect probe. connect_ex honors the socket timeout, so
+        # a filtered/dropped port returns within timeout_seconds instead of
+        # the kernel's default ~2 minute TCP connect timeout.
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(timeout_seconds)
+                return sock.connect_ex((address, port)) == 0
+        except OSError:
+            return False
 
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
@@ -113,16 +151,33 @@ class Reboot(Tool):
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {e}")
 
+        # Resolve the ssh endpoint once. When available we gate the expensive
+        # ssh boot-time probe behind a fast TCP reachability check so each
+        # poll iteration costs ~seconds while the vm is down, instead of the
+        # 30s func_set_timeout budget of _who_last hanging on shell init.
+        tcp_address, tcp_port = self._resolve_ssh_endpoint()
+
         connected: bool = False
+        port_opened_once: bool = False
         # The previous steps may take longer time than time out. After that, it
         # needs to connect at least once.
         tried_times: int = 0
         while (timer.elapsed(False) < time_out) or tried_times < 1:
             tried_times += 1
+            self.node.close()
+
+            if tcp_address and tcp_port is not None:
+                if not self._is_ssh_port_open(tcp_address, tcp_port):
+                    # vm is not yet serving ssh; retry cheaply rather than
+                    # wasting 30s on a hung shell init.
+                    sleep(2)
+                    continue
+                port_opened_once = True
+
             try:
-                self.node.close()
                 current_boot_time = self._get_last_boot_time()
                 connected = True
+                self._log.debug(f"reconnected with last boot time: {current_boot_time}")
             except FunctionTimedOut as e:
                 # The FunctionTimedOut must be caught separated, or the process
                 # will exit.
@@ -130,18 +185,24 @@ class Reboot(Tool):
             except Exception as e:
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {e}")
-            self._log.debug(f"reconnected with uptime: {current_boot_time}")
             if last_boot_time < current_boot_time:
                 break
-        if last_boot_time == current_boot_time:
-            if connected:
-                raise LisaException(
-                    "timeout to wait reboot, the node may not perform reboot."
-                )
-            else:
-                raise LisaException(
-                    "timeout to wait reboot, the node may stuck on reboot command."
-                )
+        if last_boot_time < current_boot_time:
+            return
+        if connected:
+            raise LisaException(
+                "timeout to wait reboot, the node may not perform reboot."
+            )
+        if tcp_address and tcp_port is not None and not port_opened_once:
+            raise LisaException(
+                f"timeout to wait reboot: ssh endpoint {tcp_address}:{tcp_port} "
+                f"was not reachable within {time_out}s after reboot. The vm "
+                "likely failed to boot (for guests with passthrough devices, "
+                "check the host for qemu/vfio errors and the guest serial log)."
+            )
+        raise LisaException(
+            "timeout to wait reboot, the node may stuck on reboot command."
+        )
 
 
 class WindowsReboot(Reboot):
