@@ -385,15 +385,23 @@ class Ltp(Tool):
                 ]
             )
         elif isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(
-                [
-                    "kernel-headers",
-                    "binutils",
-                    "diffutils",
-                    "glibc-devel",
-                    "zlib-devel",
-                ]
-            )
+            packages = [
+                "kernel-headers",
+                "binutils",
+                "diffutils",
+                "glibc-devel",
+            ]
+            if self.node.os.information.version >= "4.0.0":
+                packages.extend([
+                    "libaio-devel",
+                    "libattr",
+                    "libcap-devel",
+                    "pkgconf",
+                    "zlib-ng-compat-devel",
+                ])
+            else:
+                packages.append("zlib-devel")
+            self.node.os.install_packages(packages)
         else:
             raise LisaException(f"{self.node.os} is not supported")
 
