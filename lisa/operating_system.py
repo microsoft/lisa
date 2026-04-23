@@ -2036,12 +2036,43 @@ class CentOs(Redhat):
 
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
-        if 8 == information.version.major:
-            # refer https://www.centos.org/centos-linux-eol/ CentOS 8 is EOL,
-            # old repo mirror was moved to vault.centos.org
-            # CentOS-AppStream.repo, CentOS-Base.repo may contain non-existed
-            # repo use skip_if_unavailable to avoid installation issues brought
-            #  in by above issue
+        if information.version.major in (7, 8):
+            # refer https://www.centos.org/centos-linux-eol/ - both CentOS 7
+            # and CentOS 8 are EOL and their repo mirrors were moved to
+            # vault.centos.org. mirror.centos.org returns 404 and
+            # olcentgbl.trafficmanager.net no longer resolves, so rewrite the
+            # stock repo files to point at vault.centos.org before any package
+            # operation. Use "|| true" so a missing repo file does not fail
+            # the whole command.
+            fix_commands = [
+                # Disable mirrorlist entries (vault does not serve mirrorlist)
+                "sed -i 's/^mirrorlist=/#mirrorlist=/g' "
+                "/etc/yum.repos.d/CentOS-*.repo || true",
+                # Point baseurl to vault.centos.org. Preserve the original
+                # scheme (http or https) via back-reference so images that
+                # ship with either scheme are handled correctly.
+                "sed -i -E 's|^#?baseurl=(https?)://mirror.centos.org|"
+                "baseurl=\\1://vault.centos.org|g' "
+                "/etc/yum.repos.d/CentOS-*.repo || true",
+                # Some CentOS images ship a second baseurl pointing at
+                # olcentgbl.trafficmanager.net which no longer resolves. The
+                # URL often appears on a continuation line (no "baseurl="
+                # prefix), may live in a file that does not match
+                # CentOS-*.repo (e.g. OpenLogic.repo), and on CentOS 8 uses
+                # the $contentdir variable in place of a literal "centos"
+                # path component, so rewrite just the host globally across
+                # every repo file. Paths with no vault equivalent (e.g.
+                # /openlogic/*) will be silently skipped via
+                # skip_if_unavailable below.
+                "sed -i -E "
+                "'s|olcentgbl\\.trafficmanager\\.net|vault.centos.org|g' "
+                "/etc/yum.repos.d/*.repo || true",
+            ]
+            for cmd in fix_commands:
+                self._node.execute(cmd, shell=True, sudo=True, timeout=30)
+            # Some stock repo files still reference unreachable hosts
+            # (e.g. olcentgbl.trafficmanager.net); allow yum to skip them so a
+            # single broken repo does not block the whole install.
             cmd_results = self._node.execute("yum repolist -v", sudo=True)
             if 0 != cmd_results.exit_code:
                 self._node.tools[YumConfigManager].set_opt("skip_if_unavailable=true")
