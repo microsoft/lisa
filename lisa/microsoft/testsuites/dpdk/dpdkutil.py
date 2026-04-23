@@ -830,7 +830,7 @@ def verify_dpdk_send_receive(
     )
 
     # Collect results
-    _collect_testpmd_results(
+    testpmd_results = _collect_testpmd_results(
         sender, receiver, sender_processes, receiver_processes, log
     )
 
@@ -863,7 +863,7 @@ def verify_dpdk_send_receive(
     # Validate 5-tuple swap if applicable
     if receiver_mode == TestpmdForwardMode.FIVE_TUPLE_SWAP:
         _validate_5tswap_results(
-            sender, receiver, grading_metric, log, sender_processes
+            testpmd_results, sender, receiver, grading_metric, log, sender_processes
         )
 
     return sender, receiver
@@ -938,7 +938,7 @@ def _run_testpmd_processes(
             signal=constants.SIGINT,
             kill_timeout=receiver_timeout,
         )
-        proc.wait_output("start packet forwarding")
+        proc.wait_output("start packet forwarding", timeout=20)
         receiver_processes.append(proc)
 
     for command in kit_cmd_pairs[sender]:
@@ -960,22 +960,24 @@ def _collect_testpmd_results(
     sender_processes: List[Process],
     receiver_processes: List[Process],
     log: Logger,
-) -> Dict[DpdkTestResources, str]:
+) -> Dict[Tuple[DpdkTestResources, Process], str]:
     """Collect and log testpmd output from all processes."""
     results = {}
-    results[sender] = sender.testpmd.process_testpmd_output(
-        sender_processes[0].wait_result()
-    )
-    results[receiver] = receiver.testpmd.process_testpmd_output(
-        receiver_processes[0].wait_result()
-    )
+    for proc in sender_processes:
+        results[(sender, proc)] = sender.testpmd.process_testpmd_result(
+            sender_processes[0].wait_result()
+        )
+    for proc in receiver_processes:
+        results[(receiver, proc)] = receiver.testpmd.process_testpmd_result(
+            receiver_processes[0].wait_result()
+        )
 
-    log.debug(f"\nSENDER:\n{results[sender]}")
-    for tx_secondary in [x.wait_result() for x in sender_processes[1:]]:
-        log.debug(f"\nSENDER_SECONDARY:\n{tx_secondary.stdout}")
-    log.debug(f"\nRECEIVER:\n{results[receiver]}")
-    for rx_secondary in [x.wait_result() for x in receiver_processes[1:]]:
-        log.debug(f"\nRECEIVER_SECONDARY:\n{rx_secondary.stdout}")
+    log.debug(f"\nSENDER:\n{results[(sender,sender_processes[0])]}")
+    for secondary in sender_processes[1:]:
+        log.debug(f"\nSENDER_SECONDARY:\n{results[(sender,secondary)]}")
+    log.debug(f"\nRECEIVER:\n{results[(receiver,receiver_processes[0])]}")
+    for secondary in receiver_processes[1:]:
+        log.debug(f"\nRECEIVER_SECONDARY:\n{results[(receiver,secondary)]}")
 
     return results
 
@@ -1006,6 +1008,7 @@ def _grade_dpdk_results(
 
 
 def _validate_5tswap_results(
+    results: Dict[Tuple[DpdkTestResources, Process], str],
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
     grading_metric: DpdkGradeMetric,
@@ -1033,15 +1036,16 @@ def _validate_5tswap_results(
     ).is_close_to(1.0, 0.2)
 
     # Verify sender secondary process received forwarded packets
-    tx_secondary_results = [x.wait_result() for x in sender_processes[1:]]
+    assert_that(sender_processes).described_as(
+        "Test bug: found no sender secondary process to validate in _validate_5tswap_results()"
+    ).is_length(2)
+
+    tx_secondary_results = results[(sender, sender_processes[1])]
     assert_that(tx_secondary_results).described_as(
         "Sender secondary process result is missing!"
     ).is_not_empty()
-    assert_that(tx_secondary_results[0].stdout).described_as(
-        "Sender secondary process output was empty"
-    ).is_not_empty()
 
-    sender.testpmd.process_testpmd_output(tx_secondary_results[0])
+    sender.testpmd.process_testpmd_output(tx_secondary_results)
     snd_rx_pps = sender.testpmd.get_mean_rx_pps()
 
     log.info(f"sender secondary rx-pps: {snd_rx_pps}")
@@ -1181,10 +1185,10 @@ def verify_dpdk_mutliple_ports(
 
     results = dict()
     for sender in sender_results:
-        results[sender] = sender.testpmd.process_testpmd_output(
+        results[sender] = sender.testpmd.process_testpmd_result(
             sender_results[sender].wait_result()
         )
-    results[receiver_kit] = receiver_kit.testpmd.process_testpmd_output(
+    results[receiver_kit] = receiver_kit.testpmd.process_testpmd_result(
         receive_result.wait_result()
     )
 

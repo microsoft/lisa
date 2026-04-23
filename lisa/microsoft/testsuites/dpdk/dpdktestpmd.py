@@ -696,12 +696,15 @@ class DpdkTestpmd(Tool):
         proc_result = self.node.tools[Timeout].run_with_timeout(
             cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
-        return self.process_testpmd_output(proc_result)
+        return self.process_testpmd_result(proc_result)
 
-    def process_testpmd_output(self, result: ExecutableResult) -> str:
-        self._last_run_output = result.stdout
-        self.populate_performance_data()
+    def process_testpmd_result(self, result: ExecutableResult) -> str:
+        self.process_testpmd_output(result.stdout)
         return result.stdout
+
+    def process_testpmd_output(self, output: str) -> None:
+        self._last_run_output = output
+        self.populate_performance_data()
 
     def check_testpmd_is_running(self) -> bool:
         pids = self.node.tools[Pidof].get_pids(self.command, sudo=True)
@@ -1057,8 +1060,16 @@ class DpdkTestpmd(Tool):
             mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
                 "CONFIG_MANA_INFINIBAND"
             )
-            if not mana_ib_builtin:
+            mana_ib_enabled = self.node.tools[KernelConfig].is_enabled(
+                "CONFIG_MANA_INFINIBAND"
+            )
+            if mana_ib_enabled and not mana_ib_builtin:
                 network_drivers.append("mana_ib")
+            else:
+                raise SkippedException(
+                    "DPDK test on mana requires mana_ib driver, "
+                    "but it was not enabled in the kernel config."
+                )
         else:
             network_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
