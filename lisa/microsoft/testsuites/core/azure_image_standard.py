@@ -19,7 +19,11 @@ from lisa import (
 )
 from lisa.base_tools.uname import Uname
 from lisa.features import Disk
-from lisa.features.security_profile import CvmDisabled
+from lisa.features import SecurityProfile
+from lisa.features.security_profile import (
+    SecurityProfileSettings,
+    SecurityProfileType,
+)
 from lisa.features.virtualization import HyperVHostType
 from lisa.operating_system import (
     BSD,
@@ -739,10 +743,25 @@ class AzureImageStandard(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_platform_type=[AZURE, READY, HYPERV],
-            supported_features=[HyperVHostType(), CvmDisabled()],
+            supported_features=[HyperVHostType()],
         ),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
+        if node.features.is_supported(SecurityProfile):
+            security_settings = cast(
+                SecurityProfileSettings,
+                node.features[SecurityProfile].get_settings(),
+            )
+            if security_settings.security_profile in [
+                SecurityProfileType.CVM,
+                SecurityProfileType.Stateless,
+            ]:
+                raise SkippedException(
+                    "KVP daemon is not supported on Confidential VMs. "
+                    "Skipping test due to security profile type: "
+                    f"{security_settings.security_profile}"
+                )
+
         if isinstance(node.os, Debian):
             running_processes = node.tools[Pgrep].get_processes("hv_kvp_daemon")
             if len(running_processes) == 0:
