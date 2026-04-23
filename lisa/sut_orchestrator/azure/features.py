@@ -3340,6 +3340,9 @@ class Nfs(AzureFeatureMixin, features.Nfs):
 
 class AzureExtension(AzureFeatureMixin, Feature):
     RESOURCE_NOT_FOUND = re.compile(r"ResourceNotFound", re.M)
+    _TYPE_HANDLER_VERSION_PATTERN = re.compile(
+        r"^(?P<major>\d+)\.(?P<minor>\d+)(?:\.(?P<patch>\d+))?$"
+    )
 
     @classmethod
     def create_setting(
@@ -3360,6 +3363,41 @@ class AzureExtension(AzureFeatureMixin, Feature):
             expand="instanceView",
         )
         return extension
+
+    def normalize_type_handler_version(self, version: str) -> Tuple[str, bool]:
+        """
+        Normalize a requested extension version for installation.
+
+        Returns:
+            Tuple[str, bool]:
+            - normalized Major.Minor version for installation
+            - True if the original version was Major.Minor.Patch
+        """
+        requested_version = version.strip()
+        matched = self._TYPE_HANDLER_VERSION_PATTERN.fullmatch(requested_version)
+        if not matched:
+            raise LisaException(
+                "Invalid extension_version format. Expected 'Major.Minor' "
+                f"or 'Major.Minor.Patch', got '{version}'."
+            )
+
+        normalized_version = f"{matched.group('major')}.{matched.group('minor')}"
+        is_patch_version = matched.group("patch") is not None
+        return normalized_version, is_patch_version
+
+    def get_installed_type_handler_version(self, name: str) -> str:
+        extension_obj = self.get(name=name)
+
+        instance_view = getattr(extension_obj, "instance_view", None)
+        version = getattr(instance_view, "type_handler_version", None)
+        if version:
+            return str(version)
+
+        version = getattr(extension_obj, "type_handler_version", None)
+        if version:
+            return str(version)
+
+        return str(getattr(extension_obj, "type_handler_version_name", "unknown"))
 
     def create_or_update(
         self,
