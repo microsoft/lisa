@@ -2545,6 +2545,27 @@ class Resize(AzureFeatureMixin, features.Resize):
         ).is_instance_of(int)
         assert current_vm_size.capability.features
 
+        # Get the actual disk controller type the VM is using (from Azure API,
+        # works even when VM is stopped). This may differ from the VM SIZE's
+        # supported types — e.g. a size supports {SCSI, NVMe} but the deployed
+        # image uses SCSI. We must ensure the candidate also supports the
+        # actual controller type, not just any overlapping type.
+        actual_disk_controller_type: Optional[schema.DiskControllerType] = None
+        try:
+            node_disk = self._node.features[features.Disk]
+            hw_dc_type = node_disk.get_hardware_disk_controller_type()
+            if hw_dc_type is not None:
+                actual_disk_controller_type = schema.DiskControllerType(hw_dc_type)
+                self._log.debug(
+                    f"actual hardware disk controller type: "
+                    f"{actual_disk_controller_type}"
+                )
+        except Exception as e:
+            self._log.debug(
+                f"could not determine actual disk controller type, "
+                f"falling back to VM size capability comparison: {e}"
+            )
+
         # Loop removes candidate vm sizes if they can't be resized to or if the
         # change in cores resulting from the resize is undesired
         for candidate_size in avail_eligible_intersect[:]:
@@ -2577,6 +2598,28 @@ class Resize(AzureFeatureMixin, features.Resize):
                 # Continue to the next candidate size in the loop
                 # without checking further
                 continue
+
+            # Additionally check against the actual hardware disk controller
+            # type. The VM SIZE capability comparison above checks for overlap
+            # (e.g. current supports {SCSI,NVMe} and candidate supports
+            # {NVMe} → overlap exists). But if the VM is actually using SCSI,
+            # resizing to an NVMe-only size will fail at the Azure API level.
+            if actual_disk_controller_type is not None:
+                candidate_dc_types = getattr(
+                    candidate_size.capability.disk, "disk_controller_type", None
+                )
+                if candidate_dc_types is not None:
+                    if isinstance(
+                        candidate_dc_types, search_space.SetSpace
+                    ) and actual_disk_controller_type not in candidate_dc_types:
+                        avail_eligible_intersect.remove(candidate_size)
+                        continue
+                    elif (
+                        isinstance(candidate_dc_types, schema.DiskControllerType)
+                        and candidate_dc_types != actual_disk_controller_type
+                    ):
+                        avail_eligible_intersect.remove(candidate_size)
+                        continue
 
             if not self._compare_size_generation(candidate_size, current_vm_size):
                 avail_eligible_intersect.remove(candidate_size)
