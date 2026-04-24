@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
 from typing import (
@@ -12,6 +14,7 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -1148,10 +1151,23 @@ class WslContainerNode(GuestNode):
 
 
 class Nodes:
+    # Environment variables that opt-in to retry + tolerant initialization.
+    # These are read as fallbacks when the corresponding argument to
+    # ``initialize`` is not provided, which lets callers opt in via the
+    # pipeline/runbook environment without requiring schema changes.
+    _ENV_RETRIES = "LISA_NODE_INIT_RETRIES"
+    _ENV_BACKOFF = "LISA_NODE_INIT_RETRY_BACKOFF"
+    _ENV_TOLERATE = "LISA_TOLERATE_NODE_INIT_FAILURES"
+    _ENV_MIN_INITIALIZED = "LISA_MIN_INITIALIZED_NODES"
+
     def __init__(self) -> None:
         super().__init__()
         self._default: Optional[Node] = None
         self._list: List[Node] = []
+        # Nodes whose initialize() ultimately failed and were dropped from
+        # ``_list`` by the most recent tolerant ``initialize()`` call, along
+        # with the last exception seen.
+        self.failed_nodes: List[Tuple[Node, Exception]] = []
 
     def __getitem__(self, key: Union[int, str]) -> Node:
         found = None
@@ -1196,8 +1212,120 @@ class Nodes:
     def list(self) -> Iterable[Node]:
         yield from self._list
 
-    def initialize(self) -> None:
-        run_in_parallel([x.initialize for x in self._list])
+    def initialize(
+        self,
+        retries: Optional[int] = None,
+        retry_backoff_seconds: Optional[float] = None,
+        tolerate_failures: Optional[bool] = None,
+        min_initialized: Optional[int] = None,
+    ) -> None:
+        """
+        Initialize all nodes in parallel.
+
+        By default, behavior is unchanged: any node whose initialize() raises
+        causes the whole call to raise. Callers (or the environment) may opt
+        in to retry / tolerance via arguments or the matching environment
+        variables:
+
+        * ``retries`` / ``LISA_NODE_INIT_RETRIES``: how many times to retry a
+          failed per-node initialize before giving up (default 0).
+        * ``retry_backoff_seconds`` / ``LISA_NODE_INIT_RETRY_BACKOFF``: sleep
+          between retries (default 0).
+        * ``tolerate_failures`` / ``LISA_TOLERATE_NODE_INIT_FAILURES``: when
+          true, nodes that exhaust their retries are dropped from the list
+          and captured in ``failed_nodes`` instead of propagating.
+        * ``min_initialized`` / ``LISA_MIN_INITIALIZED_NODES``: minimum number
+          of successfully initialized nodes required to proceed. If the
+          surviving count drops below this, the first captured exception is
+          re-raised. Defaults to the original node count (i.e. strict).
+        """
+        retries = (
+            retries
+            if retries is not None
+            else int(os.environ.get(self._ENV_RETRIES, "0") or "0")
+        )
+        retry_backoff_seconds = (
+            retry_backoff_seconds
+            if retry_backoff_seconds is not None
+            else float(os.environ.get(self._ENV_BACKOFF, "0") or "0")
+        )
+        if tolerate_failures is None:
+            tolerate_failures = (
+                os.environ.get(self._ENV_TOLERATE, "").strip().lower()
+                in ("1", "true", "yes", "on")
+            )
+        original_count = len(self._list)
+        if min_initialized is None:
+            env_min = os.environ.get(self._ENV_MIN_INITIALIZED, "").strip()
+            if env_min.isdigit():
+                min_initialized = int(env_min)
+            else:
+                # Strict default: every node must come up.
+                min_initialized = original_count
+
+        self.failed_nodes = []
+        retries = max(0, retries)
+        retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+
+        def _init_one(node: Node) -> Tuple[Node, Optional[Exception]]:
+            last_exc: Optional[Exception] = None
+            for attempt in range(retries + 1):
+                try:
+                    node.initialize()
+                    if attempt > 0:
+                        node.log.info(
+                            f"node initialize succeeded on retry {attempt}"
+                        )
+                    return node, None
+                except Exception as e:  # noqa: BLE001 - bubbled per-node below
+                    last_exc = e
+                    if attempt < retries:
+                        node.log.warning(
+                            f"node initialize attempt {attempt + 1} failed: {e}; "
+                            f"retrying after {retry_backoff_seconds:.1f}s "
+                            f"({retries - attempt} attempt(s) left)"
+                        )
+                        if retry_backoff_seconds > 0:
+                            time.sleep(retry_backoff_seconds)
+                    else:
+                        node.log.error(
+                            f"node initialize gave up after "
+                            f"{attempt + 1} attempt(s): {e}"
+                        )
+            return node, last_exc
+
+        results = run_in_parallel([lambda n=n: _init_one(n) for n in self._list])
+
+        survivors: List[Node] = []
+        failures: List[Tuple[Node, Exception]] = []
+        for node, exc in results:
+            if exc is None:
+                survivors.append(node)
+            else:
+                failures.append((node, exc))
+
+        if failures and not tolerate_failures:
+            # Preserve strict legacy behavior: raise the first error.
+            raise failures[0][1]
+
+        if len(survivors) < min_initialized:
+            # Even with tolerance, we must not silently proceed with too few
+            # live nodes — raise the first captured error to surface the root
+            # cause.
+            if failures:
+                raise failures[0][1]
+            raise LisaException(
+                f"only {len(survivors)} node(s) initialized, "
+                f"below min_initialized={min_initialized}"
+            )
+
+        if failures:
+            # Drop failed nodes so downstream callers iterate only live ones.
+            self._list = survivors
+            self.failed_nodes = failures
+            # Recompute default if it was one of the dropped nodes.
+            if self._default is not None and self._default not in survivors:
+                self._default = None
 
     def close(self) -> None:
         for node in self._list:
