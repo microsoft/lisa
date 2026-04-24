@@ -151,9 +151,16 @@ class OpenVmm(Tool):
             no_info_log=True,
             cwd=cwd,
         )
-        pid = result.stdout.strip()
-        if not pid:
-            raise LisaException("OpenVMM launch did not return a PID")
+        pid_lines = [
+            line.strip() for line in result.stdout.splitlines() if line.strip()
+        ]
+        pid = pid_lines[-1] if pid_lines else ""
+        if not pid or not pid.isdigit():
+            raise LisaException(
+                "OpenVMM launch did not return a valid PID. "
+                f"stdout: {result.stdout.strip() or '<empty>'}. "
+                f"stderr: {result.stderr.strip() or '<empty>'}"
+            )
         return pid
 
     def _build_launch_shell_command(
@@ -163,4 +170,34 @@ class OpenVmm(Tool):
         if PurePath(config.stdout_path) == PurePath(config.stderr_path):
             return f"nohup {command} > {stdout_path} 2>&1 < /dev/null & echo $!"
         stderr_path = shlex.quote(config.stderr_path)
-        return f"nohup {command} > {stdout_path} 2> {stderr_path} < /dev/null & echo $!"
+        pid_path = shlex.quote(f"{config.stdout_path}.pid")
+        inner_command = shlex.quote(f"echo $$ > {pid_path}; exec {command}")
+        wrapped_command = shlex.quote(f"sh -c {inner_command}")
+        pty_command = shlex.quote(
+            f"tail -f /dev/null | script -qefc {wrapped_command} /dev/null"
+        )
+
+        # OpenVMM's management loop expects a tty for its stdio thread. Feed an
+        # always-open empty stream into script so detached launches behave like
+        # an interactive session instead of exiting on immediate stdin EOF. The
+        # script wrapper records the exec'd OpenVMM PID so later liveness checks
+        # and forced cleanup target the VM process rather than the wrapper shell.
+        return (
+            "if command -v script >/dev/null 2>&1; then "
+            f"rm -f {pid_path}; "
+            f"nohup sh -c {pty_command} > {stdout_path} "
+            f"2> {stderr_path} < /dev/null & wrapper_pid=$!; "
+            "attempt=0; "
+            "while [ $attempt -lt 100 ]; do "
+            f"if [ -s {pid_path} ]; then cat {pid_path}; exit 0; fi; "
+            "if ! kill -0 $wrapper_pid >/dev/null 2>&1; then break; fi; "
+            "attempt=$((attempt + 1)); "
+            "sleep 0.1; "
+            "done; "
+            "echo 'OpenVMM launch did not record a child PID from the "
+            "script wrapper.' >&2; "
+            "exit 1; "
+            "else "
+            f"nohup {command} > {stdout_path} 2> {stderr_path} < /dev/null & echo $!; "
+            "fi"
+        )
