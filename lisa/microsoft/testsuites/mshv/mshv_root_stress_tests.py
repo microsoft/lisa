@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 import time
 from pathlib import Path, PurePath
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from assertpy import assert_that
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
@@ -10,7 +11,21 @@ from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Cp, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Usermod, Wget
+from lisa.tools import (
+    Cp,
+    Free,
+    Ls,
+    Lsblk,
+    Lscpu,
+    Mount,
+    QemuImg,
+    Rm,
+    Ssh,
+    Usermod,
+    Wget,
+)
+from lisa.tools.lsblk import DiskInfo
+from lisa.tools.mkfs import FileSystem
 from lisa.util import SkippedException
 
 
@@ -142,7 +157,7 @@ class MshvHostStressTestSuite(TestSuite):
         )
         hypervisor_fw_path = str(node.get_working_path() / self.HYPERVISOR_FW_NAME)
         disk_img_path = node.get_working_path() / self.DISK_IMG_NAME
-        disk_img_copy_path = self._get_disk_img_copy_path(node)
+        disk_img_copy_path = self._get_disk_img_copy_path(node, log)
         threads = node.tools[Lscpu].get_thread_count()
         vm_count = int(threads / cpus_per_vm)
         failures = 0
@@ -217,10 +232,68 @@ class MshvHostStressTestSuite(TestSuite):
 
         assert_that(failures).is_equal_to(0)
 
-    def _get_disk_img_copy_path(self, node: Node) -> PurePath:
-        # Azure temporary disk is mounted at /mnt. It has more space then OS
-        # disk. Use it for storing copies of the disk image if it exists.
-        if node.tools[Ls].path_exists("/mnt"):
-            return PurePath("/mnt")
-        else:
+    def _get_disk_img_copy_path(self, node: Node, log: Logger) -> PurePath:
+        # The guest disk image is copied once per concurrent VM, so we need
+        # a directory backed by a large disk. Prefer an existing resource
+        # disk mount; otherwise try to mount an unused nvme*n1 disk at
+        # /mnt/resource.
+        mount_point = "/mnt/resource"
+        fallback_mount = "/mnt"
+
+        disks = node.tools[Lsblk].get_disks(force_run=True)
+
+        if self._is_mountpoint_in_use(disks, mount_point):
+            return PurePath(mount_point)
+        if self._is_mountpoint_in_use(disks, fallback_mount):
+            return PurePath(fallback_mount)
+
+        candidate = self._find_unused_nvme_disk(disks)
+        if candidate is None:
+            log.warning(
+                "No mounted resource disk and no unused nvme*n1 disk found; "
+                "falling back to working path. The test may run out of disk "
+                "space."
+            )
             return node.working_path
+
+        try:
+            node.execute(f"mkdir -p {mount_point}", shell=True, sudo=True)
+            node.tools[Mount].mount(
+                name=candidate,
+                point=mount_point,
+                fs_type=FileSystem.ext4,
+                format_=True,
+            )
+        except Exception as e:
+            log.warning(
+                f"Failed to mount {candidate} at {mount_point}: {e}; "
+                "falling back to working path."
+            )
+            return node.working_path
+
+        log.info(f"Mounted {candidate} at {mount_point} for VM disk copies")
+        return PurePath(mount_point)
+
+    @staticmethod
+    def _is_mountpoint_in_use(disks: List[DiskInfo], mountpoint: str) -> bool:
+        for disk in disks:
+            if disk.mountpoint == mountpoint:
+                return True
+            for partition in disk.partitions:
+                if partition.mountpoint == mountpoint:
+                    return True
+        return False
+
+    def _find_unused_nvme_disk(self, disks: List[DiskInfo]) -> Optional[str]:
+        nvme_pattern = re.compile(r"^nvme\d+n1$")
+        for disk in disks:
+            if disk.is_os_disk:
+                continue
+            if not nvme_pattern.match(disk.name):
+                continue
+            if disk.partitions:
+                continue
+            if disk.is_mounted:
+                continue
+            return f"/dev/{disk.name}"
+        return None
