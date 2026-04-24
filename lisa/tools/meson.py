@@ -14,7 +14,11 @@ from .whoami import Whoami
 
 
 class Meson(Tool):
-    _minimum_version = parse_version("0.52.0")
+    # Keep this in sync with the minimum Meson version required by the DPDK
+    # builds this tool is expected to support; raising it can break older
+    # distro/package-manager environments unless the install/bootstrap flow
+    # is updated as well.
+    _minimum_version = parse_version("0.57.2")
 
     @property
     def command(self) -> str:

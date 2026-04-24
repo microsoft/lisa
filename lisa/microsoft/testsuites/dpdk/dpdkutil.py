@@ -15,17 +15,20 @@ from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
     Downloader,
     DpdkGradeMetric,
+    DpdkMpRole,
     GitDownloader,
     Installer,
     PackageManagerInstall,
     Pmd,
     TarDownloader,
+    TestpmdForwardMode,
     check_dpdk_support,
+    get_dpdk_default_source_version,
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
 )
-from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
     RDMA_CORE_MANA_DEFAULT_SOURCE,
     RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
@@ -126,19 +129,9 @@ class DpdkTestResources:
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
-    # if mana is present, force a source build of 24.11
-    # if no other source was provided.
+    # if mana is present, force a source build from DPDK_STABLE if none is set.
     if node.nics.is_mana_device_present():
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v24.11")
-    # DPDK packages 17.11 which is EOL and doesn't have the
-    # net_vdev_netvsc pmd used for simple handling of hyper-v
-    # guests. Force stable source build on this platform.
-    # Default to 20.11 unless another version is provided by the
-    # user. 20.11 is the latest dpdk version for 18.04.
-    elif isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
-        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
 def get_rdma_core_installer(
@@ -207,7 +200,7 @@ def generate_send_receive_run_info(
     multiple_queues: bool = False,
     use_service_cores: int = 1,
     set_mtu: int = 0,
-) -> Dict[DpdkTestResources, str]:
+) -> Dict[DpdkTestResources, List[str]]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
@@ -223,10 +216,12 @@ def generate_send_receive_run_info(
             )
     else:
         maxmtu_int = 0
+
     snd_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
         0,
         "txonly",
+        pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
@@ -237,6 +232,7 @@ def generate_send_receive_run_info(
         [rcv_nic],
         0,
         "rxonly",
+        pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -244,11 +240,106 @@ def generate_send_receive_run_info(
     )
 
     kit_cmd_pairs = {
-        sender: snd_cmd,
-        receiver: rcv_cmd,
+        sender: [snd_cmd],
+        receiver: [rcv_cmd],
     }
 
     return kit_cmd_pairs
+
+
+def generate_5tswap_run_info(
+    pmd: Pmd,
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    multiple_queues: bool = False,
+    use_service_cores: int = 1,
+    set_mtu: int = 0,
+) -> Dict[DpdkTestResources, List[str]]:
+    snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
+    # for MTU test: check that we can fetch the max MTU size for the NIC
+    if set_mtu:
+        check_nic = sender.node.nics.get_primary_nic().lower
+        maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        if not maxmtu:
+            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+        maxmtu_int = int(maxmtu)
+        if set_mtu > maxmtu_int:
+            raise SkippedException(
+                "Requested MTU size exceeds max mtu for DPDK mtu test: "
+                f"{set_mtu} > {maxmtu}."
+            )
+    else:
+        maxmtu_int = 0
+
+    # Dynamically allocate cores for primary and secondary processes.
+    # We need non-overlapping core lists for each process.
+    # Use only cores from NUMA node 0 for better memory locality.
+    # Reserve core 0 for the OS, use remaining cores split between processes.
+    sender_lscpu = sender.node.tools[Lscpu]
+    sender_cpu_info = sender_lscpu.get_cpu_info()
+    # Get cores on NUMA node 0, excluding core 0 (reserved for OS)
+    sender_numa0_cores = sorted(
+        [cpu.cpu for cpu in sender_cpu_info if cpu.numa_node == 0 and cpu.cpu != 0]
+    )
+    # Split cores between primary (txonly) and secondary (rxonly) processes
+    # Use even-indexed cores for primary, odd-indexed for secondary
+    primary_cores = sender_numa0_cores[::2]  # every other core starting at index 0
+    secondary_cores = sender_numa0_cores[1::2]  # every other core starting at index 1
+
+    # similarly for receiver - use NUMA node 0 cores only
+    receiver_lscpu = receiver.node.tools[Lscpu]
+    receiver_cpu_info = receiver_lscpu.get_cpu_info()
+    receiver_available_cores = sorted(
+        [cpu.cpu for cpu in receiver_cpu_info if cpu.numa_node == 0 and cpu.cpu != 0]
+    )
+
+    snd_cmd = sender.testpmd.generate_testpmd_command(
+        [snd_nic],
+        0,
+        "txonly",
+        pmd,
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        mp_role=DpdkMpRole.PRIMARY_PROCESS,
+        num_procs=2,
+        proc_id=0,
+        core_list=primary_cores,
+        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
+    )
+    snd_mp_cmd = sender.testpmd.generate_testpmd_command(
+        [snd_nic],
+        0,
+        "rxonly",
+        pmd,
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        mp_role=DpdkMpRole.SECONDARY_PROCESS,
+        num_procs=2,
+        proc_id=1,
+        core_list=secondary_cores,
+    )
+    rcv_cmd = receiver.testpmd.generate_testpmd_command(
+        [rcv_nic],
+        0,
+        "5tswap",
+        pmd,
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        core_list=receiver_available_cores,
+    )
+
+    dpdk_kit_cmds = {
+        sender: [snd_cmd, snd_mp_cmd],
+        receiver: [rcv_cmd],
+    }
+
+    return dpdk_kit_cmds
 
 
 def generate_testpmd_multiple_port_command(
@@ -294,7 +385,6 @@ def generate_testpmd_multiple_port_command(
     else:
         maxmtu_int = 0
     kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
-    receiver_includes: List[str] = []
     for i in range(len(senders)):
         # get the sender
         sender = senders[i]
@@ -310,6 +400,7 @@ def generate_testpmd_multiple_port_command(
             [sender_nic],
             0,
             "txonly",
+            pmd,
             extra_args=f"--tx-ip={sender_nic.ip_addr},{receiver_nic.ip_addr}",
             multiple_queues=multiple_queues,
             service_cores=use_service_cores,
@@ -318,18 +409,13 @@ def generate_testpmd_multiple_port_command(
         )
         # store this senders command
         kit_cmd_pairs[sender] = snd_cmd
-        # receiver needs multiple ports, so only generate the include.
-        receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i
-        )
-        # and save it
-        receiver_includes += [receiver_include]
 
     # and generate the command with multiple ports for the single receiver:
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         list([receiver_nics[key] for key in receiver_nics]),
         0,
         "rxonly",
+        pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -417,12 +503,18 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     test_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
-    _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
-
-    dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
-    dpdk_branch = variables.get("dpdk_branch", "")
-    rdma_source = variables.get("rdma_source", "")
+    # Set dpdk source defaults for supported distros if none is set by the user.
+    # This must be set ahead of setting the default for rdma-core since the default
+    # for one is picked based on the other.
+    dpdk_source = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+    try:
+        dpdk_branch = variables.get(
+            "dpdk_branch", get_dpdk_default_source_version(node)
+        )
+    except UnsupportedDistroException as err:
+        raise SkippedException(err)
+    rdma_source = variables.get("rdma_source", RDMA_CORE_MANA_DEFAULT_SOURCE)
     rdma_branch = variables.get("rdma_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
@@ -460,13 +552,18 @@ def initialize_node_resources(
     # create tool, initialize testpmd tool (installs dpdk)
     # use create over get to avoid skipping
     # reinitialization of tool when new arguments are present
-    testpmd: DpdkTestpmd = node.tools.create(
-        DpdkTestpmd,
-        dpdk_source=dpdk_source,
-        dpdk_branch=dpdk_branch,
-        sample_apps=sample_apps,
-        force_net_failsafe_pmd=force_net_failsafe_pmd,
-    )
+    try:
+        testpmd: DpdkTestpmd = node.tools.create(
+            DpdkTestpmd,
+            dpdk_source=dpdk_source,
+            dpdk_branch=dpdk_branch,
+            sample_apps=sample_apps,
+            force_net_failsafe_pmd=force_net_failsafe_pmd,
+        )
+    except UnsupportedDistroException as err:
+        # if DPDK installation or test is not supported, skip.
+        raise SkippedException(err)
+
     # Tools will skip installation if the binary is present, so
     # force invoke install. Installer will skip if the correct
     # *type* of installation is already installed,
@@ -531,12 +628,12 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
 
 
 def run_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
+    node_cmd_pairs: Dict[DpdkTestResources, List[str]],
     seconds: int,
     log: Logger,
     hotplug_sriov: bool = False,
-) -> Dict[DpdkTestResources, str]:
-    output: Dict[DpdkTestResources, str] = dict()
+) -> Dict[Tuple[DpdkTestResources, str], str]:
+    output: Dict[Tuple[DpdkTestResources, str], str] = dict()
 
     task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
     if hotplug_sriov:
@@ -572,24 +669,29 @@ def run_testpmd_concurrent(
 
 
 def start_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
+    node_cmd_pairs: Dict[DpdkTestResources, List[str]],
     seconds: int,
     log: Logger,
-    output: Dict[DpdkTestResources, str],
-) -> TaskManager[Tuple[DpdkTestResources, str]]:
-    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
+    output: Dict[Tuple[DpdkTestResources, str], str],
+) -> TaskManager[Tuple[DpdkTestResources, str, str]]:
+    command_pairs_as_tuples: List[Tuple[DpdkTestResources, str]] = []
+    kits_and_commands = deque(node_cmd_pairs.items())
+    for kit_and_commands in kits_and_commands:
+        kit, commands = kit_and_commands
+        for command in commands:
+            command_pairs_as_tuples.append((kit, command))
 
-    def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
-        output[result[0]] = result[1]
+    def _collect_dict_result(result: Tuple[DpdkTestResources, str, str]) -> None:
+        output[result[0], result[1]] = result[2]
 
     def _run_command_with_testkit(
         run_kit: Tuple[DpdkTestResources, str],
-    ) -> Tuple[DpdkTestResources, str]:
+    ) -> Tuple[DpdkTestResources, str, str]:
         testkit, cmd = run_kit
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
+        return (testkit, cmd, testkit.testpmd.run_for_n_seconds(cmd, seconds))
 
     task_manager = run_in_parallel_async(
-        [partial(_run_command_with_testkit, x) for x in cmd_pairs_as_tuples],
+        [partial(_run_command_with_testkit, x) for x in command_pairs_as_tuples],
         _collect_dict_result,
     )
 
@@ -665,7 +767,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        [test_nic], 0, "txonly", multiple_queues=multiple_queues
+        [test_nic], 0, "txonly", pmd, multiple_queues=multiple_queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -692,78 +794,203 @@ def verify_dpdk_send_receive(
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
+    receiver_mode: TestpmdForwardMode = TestpmdForwardMode.RX_ONLY,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
-    # helpful to have the public ips labeled for debugging
+    # Validate nodes and log external IPs
+    _validate_nodes_and_log_ips(environment, log, set_mtu)
+
+    # Get test duration and timeouts
+    test_duration: int = variables.get("dpdk_test_duration", 15)
+    kill_timeout = test_duration + 5
+
+    # Initialize nodes concurrently
+    test_kits = init_nodes_concurrent(
+        environment, log, variables, pmd, hugepage_size=hugepage_size
+    )
+    check_send_receive_compatibility(test_kits)
+    sender, receiver = test_kits
+
+    # Annotate and generate commands
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
+
+    kit_cmd_pairs = _generate_receiver_commands(
+        pmd,
+        sender,
+        receiver,
+        receiver_mode,
+        use_service_cores,
+        multiple_queues,
+        set_mtu,
+    )
+
+    # Run testpmd processes
+    sender_processes, receiver_processes = _run_testpmd_processes(
+        sender, receiver, kit_cmd_pairs, test_duration, kill_timeout
+    )
+
+    # Collect results
+    _collect_testpmd_results(
+        sender, receiver, sender_processes, receiver_processes, log
+    )
+
+    # Grade and validate results
+    snd_tx_pps = sender.testpmd.get_mean_tx_pps()
+    rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
+
+    log.info(f"receiver rx-pps: {rcv_rx_pps}")
+    log.info(f"sender tx-pps: {snd_tx_pps}")
+
+    if result:
+        result.information["snd_pps"] = snd_tx_pps
+        result.information["rcv_pps"] = rcv_rx_pps
+
+    # Check for kernel errors
+    sender.dmesg.check_kernel_errors(force_run=True)
+    receiver.dmesg.check_kernel_errors(force_run=True)
+
+    # Grade based on metric
+    _grade_dpdk_results(
+        grading_metric, rcv_rx_pps, snd_tx_pps, result, sender, receiver, log
+    )
+
+    # Check packet drops
+    if check_sender_packet_drops:
+        sender.testpmd.check_tx_packet_drops()
+    receiver.testpmd.check_rx_packet_drops()
+    annotate_packet_drops(log, result, receiver)
+
+    # Validate 5-tuple swap if applicable
+    if receiver_mode == TestpmdForwardMode.FIVE_TUPLE_SWAP:
+        _validate_5tswap_results(
+            sender, receiver, grading_metric, log, sender_processes
+        )
+
+    return sender, receiver
+
+
+def _validate_nodes_and_log_ips(
+    environment: Environment, log: Logger, set_mtu: int
+) -> None:
+    """Validate nodes are remote and check MTU test compatibility."""
     external_ips = []
     for node in environment.nodes.list():
-        if isinstance(node, RemoteNode):
-            external_ips += node.connection_info[
-                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
-            ]
-        else:
+        if not isinstance(node, RemoteNode):
             raise SkippedException()
-        # skip MTU test if not on MANA (for now).
+        external_ips += node.connection_info[
+            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+        ]
         if set_mtu and not node.nics.is_mana_device_present():
             raise SkippedException("set mtu test is intended for MANA VMs only.")
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
-    # get test duration variable if set
-    # enables long-running tests to shakeQoS and SLB issue
-    test_duration: int = variables.get("dpdk_test_duration", 15)
-    kill_timeout = test_duration + 5
-    test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, hugepage_size=hugepage_size
-    )
 
-    check_send_receive_compatibility(test_kits)
-    sender, receiver = test_kits
+def _generate_receiver_commands(
+    pmd: Pmd,
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    receiver_mode: TestpmdForwardMode,
+    use_service_cores: int,
+    multiple_queues: bool,
+    set_mtu: int,
+) -> Dict[DpdkTestResources, List[str]]:
+    """Generate testpmd commands based on receiver mode."""
+    if receiver_mode == TestpmdForwardMode.RX_ONLY:
+        return generate_send_receive_run_info(
+            pmd,
+            sender,
+            receiver,
+            use_service_cores=use_service_cores,
+            multiple_queues=multiple_queues,
+            set_mtu=set_mtu,
+        )
+    elif receiver_mode == TestpmdForwardMode.FIVE_TUPLE_SWAP:
+        return generate_5tswap_run_info(
+            pmd,
+            sender,
+            receiver,
+            use_service_cores=use_service_cores,
+            multiple_queues=multiple_queues,
+            set_mtu=set_mtu,
+        )
+    else:
+        raise LisaException(
+            f"Unsupported TestpmdForwardMode for receiver: {receiver_mode}"
+        )
 
-    # annotate test result before starting
-    if result is not None:
-        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
-    kit_cmd_pairs = generate_send_receive_run_info(
-        pmd,
-        sender,
-        receiver,
-        use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
-        set_mtu=set_mtu,
-    )
-    receive_timeout = kill_timeout + 10
-    receive_result = receiver.node.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[receiver],
-        receive_timeout,
-        constants.SIGINT,
-        kill_timeout=receive_timeout,
-    )
-    receive_result.wait_output("start packet forwarding")
-    sender_result = sender.node.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[sender],
-        test_duration,
-        constants.SIGINT,
-        kill_timeout=kill_timeout,
-    )
+def _run_testpmd_processes(
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    kit_cmd_pairs: Dict[DpdkTestResources, List[str]],
+    test_duration: int,
+    kill_timeout: int,
+) -> Tuple[List[Process], List[Process]]:
+    """Start testpmd processes on sender and receiver."""
+    receiver_timeout = kill_timeout + 10
+    receiver_processes: List[Process] = []
+    sender_processes: List[Process] = []
 
-    results = dict()
-    results[sender] = sender.testpmd.process_testpmd_output(sender_result.wait_result())
+    for command in kit_cmd_pairs[receiver]:
+        proc = receiver.node.tools[Timeout].start_with_timeout(
+            command=command,
+            timeout=receiver_timeout,
+            signal=constants.SIGINT,
+            kill_timeout=receiver_timeout,
+        )
+        proc.wait_output("start packet forwarding")
+        receiver_processes.append(proc)
+
+    for command in kit_cmd_pairs[sender]:
+        proc = sender.node.tools[Timeout].start_with_timeout(
+            command=command,
+            timeout=test_duration,
+            signal=constants.SIGINT,
+            kill_timeout=kill_timeout,
+        )
+        sender_processes.append(proc)
+        proc.wait_output("start packet forwarding")
+
+    return sender_processes, receiver_processes
+
+
+def _collect_testpmd_results(
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    sender_processes: List[Process],
+    receiver_processes: List[Process],
+    log: Logger,
+) -> Dict[DpdkTestResources, str]:
+    """Collect and log testpmd output from all processes."""
+    results = {}
+    results[sender] = sender.testpmd.process_testpmd_output(
+        sender_processes[0].wait_result()
+    )
     results[receiver] = receiver.testpmd.process_testpmd_output(
-        receive_result.wait_result()
+        receiver_processes[0].wait_result()
     )
 
-    # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
+    for tx_secondary in [x.wait_result() for x in sender_processes[1:]]:
+        log.debug(f"\nSENDER_SECONDARY:\n{tx_secondary.stdout}")
     log.debug(f"\nRECEIVER:\n{results[receiver]}")
+    for rx_secondary in [x.wait_result() for x in receiver_processes[1:]]:
+        log.debug(f"\nRECEIVER_SECONDARY:\n{rx_secondary.stdout}")
 
-    rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
-    snd_tx_pps = sender.testpmd.get_mean_tx_pps()
-    log.info(f"receiver rx-pps: {rcv_rx_pps}")
-    log.info(f"sender tx-pps: {snd_tx_pps}")
+    return results
 
-    sender.dmesg.check_kernel_errors(force_run=True)
-    receiver.dmesg.check_kernel_errors(force_run=True)
+
+def _grade_dpdk_results(
+    grading_metric: DpdkGradeMetric,
+    rcv_rx_pps: int,
+    snd_tx_pps: int,
+    result: Optional[TestResult],
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    log: Logger,
+) -> None:
+    """Grade DPDK results based on selected metric."""
     if grading_metric == DpdkGradeMetric.PPS:
-        # differences in NIC type throughput can lead to different snd/rcv counts
         assert_that(rcv_rx_pps).described_as(
             "Throughput for RECEIVE was below the correct order-of-magnitude"
         ).is_greater_than(DPDK_PPS_THRESHOLD)
@@ -771,35 +998,61 @@ def verify_dpdk_send_receive(
             "Throughput for SEND was below the correct order of magnitude"
         ).is_greater_than(DPDK_PPS_THRESHOLD)
     elif grading_metric == DpdkGradeMetric.BPS:
-        # grading bits per second is non-trivial since
-        # Azure internal SKU information is not exposed to the guest,
-        # also it's difficult to look up the expected Mbps for a given SKU.
-
         sender_gbps = sender.testpmd.check_bps_data("TX")
         receiver_gbps = receiver.testpmd.check_bps_data("RX")
-
-        # so just annotate test result if it's available
-        # a test crashing because of no data or dpdk failing to start
-        # will still result in a fail.
         if result:
             result.information["tx_gbps"] = sender_gbps
             result.information["rx_gbps"] = receiver_gbps
-    else:
-        pass  # no-op if no grading is required.
 
-    # sender packet drops are common when network bandwidth is
-    # artificially throttled by the sku, so checking sender
-    # is optional
-    if check_sender_packet_drops:
-        sender.testpmd.check_tx_packet_drops()
 
-    # verify receiver didn't drop most of the packets
-    receiver.testpmd.check_rx_packet_drops()
+def _validate_5tswap_results(
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    grading_metric: DpdkGradeMetric,
+    log: Logger,
+    sender_processes: List[Process],
+) -> None:
+    """Validate 5-tuple swap packet forwarding results."""
+    if grading_metric != DpdkGradeMetric.PPS:
+        return
 
-    # annotate the amount of dropped packets on the receiver
-    annotate_packet_drops(log, result, receiver)
+    rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
+    rcv_tx_pps = receiver.testpmd.get_mean_tx_pps()
 
-    return sender, receiver
+    log.info(f"receiver rx-pps: {rcv_rx_pps}")
+    assert_that(rcv_rx_pps).described_as("receiver received no packets!").is_not_zero()
+
+    log.info(f"receiver tx-pps: {rcv_tx_pps}")
+    assert_that(rcv_tx_pps).described_as(
+        f"receiver forwarded no packets after receiving {rcv_rx_pps}"
+    ).is_not_zero()
+
+    forwarded_over_received = abs(rcv_tx_pps / rcv_rx_pps)
+    assert_that(forwarded_over_received).described_as(
+        "receiver re-send pps was unexpectedly low!"
+    ).is_close_to(1.0, 0.2)
+
+    # Verify sender secondary process received forwarded packets
+    tx_secondary_results = [x.wait_result() for x in sender_processes[1:]]
+    assert_that(tx_secondary_results).described_as(
+        "Sender secondary process result is missing!"
+    ).is_not_empty()
+    assert_that(tx_secondary_results[0].stdout).described_as(
+        "Sender secondary process output was empty"
+    ).is_not_empty()
+
+    sender.testpmd.process_testpmd_output(tx_secondary_results[0])
+    snd_rx_pps = sender.testpmd.get_mean_rx_pps()
+
+    log.info(f"sender secondary rx-pps: {snd_rx_pps}")
+    assert_that(snd_rx_pps).described_as(
+        "Sender secondary process did not receive forwarded packets"
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
+
+    forwarded_over_received = abs(snd_rx_pps / rcv_tx_pps)
+    assert_that(forwarded_over_received).described_as(
+        "sender secondary process received pps was unexpectedly low!"
+    ).is_close_to(1.0, 0.25)
 
 
 def annotate_packet_drops(
@@ -1277,10 +1530,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
+            subnet_a_nics[forwarder], dpdk_port_a, pmd
         ),
         fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
+            subnet_b_nics[forwarder], dpdk_port_b, pmd
         ),
     ]
 

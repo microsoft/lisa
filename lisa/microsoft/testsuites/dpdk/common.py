@@ -15,7 +15,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Oracle, Posix, Suse, Ubuntu
 from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
-from lisa.util import UnsupportedDistroException
+from lisa.util import UnsupportedDistroException, parse_version
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 
@@ -289,7 +289,7 @@ def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
+_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0"]
 
 
 # see https://ubuntu.com/about/release-cycle
@@ -331,9 +331,8 @@ def check_dpdk_support(node: Node) -> None:
                 f"is_latest_or_prerelease? ({is_ubuntu_latest_or_prerelease(node.os)})"
                 f" is_lts_version? ({is_ubuntu_lts_version(node.os)})"
             )
-            # TODO: undo special casing for 18.04 when it's usage is less common
             supported = (
-                node.os.information.version == "18.4.0"
+                node.os.information.version > "18.4.0"
                 or is_ubuntu_latest_or_prerelease(node.os)
                 or is_ubuntu_lts_version(node.os)
             )
@@ -472,3 +471,89 @@ DPDK_PPS_THRESHOLD = 1_200_000
 class DpdkGradeMetric(str, Enum):
     PPS = "pps"
     BPS = "bps"
+
+
+class DpdkMpRole(str, Enum):
+    # dpdk multiprocessing allows numerous secondary processes to
+    # share a single primary context. Testpmd and other apps allow this
+    # to occur fairly transparently, but require it to be declared
+    # at start time. The primary process has a proc_id of '0'
+    # This is unfortunate, since it's the nice python default for
+    # integer arguments.
+    #
+    # Use this enum to differentiate between primary and secondary
+    # multiple process context types. There is no single process
+    # context type, because this argument will be passed as Optional.
+    # So DpdkMpRole is either None or PRIMARY | SECONDARY
+
+    PRIMARY_PROCESS = "primary"
+    SECONDARY_PROCESS = "secondary"
+
+
+class TestpmdForwardMode(str, Enum):
+    # Forwarding modes for the testpmd application.
+    #
+    # txonly  : generate and transmit packets without validating received
+    #           traffic (useful for pure transmit/throughput tests).
+    # rxonly  : receive and count packets without transmitting (useful for
+    #           pure receive/throughput or loss measurement).
+    # 5tswap  : swap the 5‑tuple fields between source and destination for
+    #           each packet (IP src/dst, L4 src/dst ports, and protocol),
+    #           exercising header rewrite paths.
+
+    TX_ONLY = "txonly"
+    RX_ONLY = "rxonly"
+    FIVE_TUPLE_SWAP = "5tswap"
+
+
+_dpdk_default_source_dict = {
+    "Ubuntu": {
+        "20.4.0": "v25.11",
+        "22.4.0": "v24.11",
+        "24.4.0": "v24.11",
+        "25.4.0": "v25.11",
+        "26.4.0": "v25.11",
+    },
+    "Debian": {
+        "10.0.0": "v22.11",
+        "11.0.0": "v24.11",
+        "12.0.0": "v24.11",
+        "13.0.0": "v25.11",
+    },
+    "Redhat": {
+        "8.6.0": "v24.11",
+        "9.0.0": "v25.11",
+    },
+    "CentOs": {
+        "8.6.0": "v24.11",
+        "9.0.0": "v25.11",
+    },
+}
+
+
+def get_dpdk_default_source_version(node: Node) -> str:
+    # match major.minor os versions for supported distros
+    # to lkg dpdk versions for the source installation.
+    # Versions are evaluated at >= for the os version.
+
+    os_version = node.os.information.version
+    os_match = _dpdk_default_source_dict.get(node.os.name, None)
+    if os_match is None:
+        raise UnsupportedDistroException(
+            node.os,
+            f"Unsupported distro {node.os.name}, cannot determine "
+            "default DPDK source version for testpmd.",
+        )
+    for version_threshold, dpdk_version in os_match.items():
+        if (
+            os_version >= version_threshold
+            and os_version.major == parse_version(version_threshold).major
+        ):
+            return dpdk_version
+        # if we get here, the os version is too old to have a supported dpdk version
+    raise UnsupportedDistroException(
+        node.os,
+        f"Unsupported distro version {str(os_version)} for {node.os.name}. "
+        "Use a version >= the following versions: "
+        f"{', '.join(os_match.keys())}",
+    )
