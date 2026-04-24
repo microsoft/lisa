@@ -847,16 +847,22 @@ class Storage(TestSuite):
 
             # verify the lun number from linux VM
             linux_device_luns_after = disk.get_luns()
-            linux_device_lun_diff = [
-                linux_device_luns_after[k]
-                for k in set(linux_device_luns_after) - set(linux_device_luns)
-            ][0]
             log.debug(f"linux_device_luns: {linux_device_luns}")
             log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
-            log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
+            new_device_keys = set(linux_device_luns_after) - set(linux_device_luns)
             assert_that(
-                linux_device_lun_diff, "No new device lun found on VM"
-            ).is_equal_to(lun)
+                list(new_device_keys),
+                f"Expected new device at lun {lun} but no new device "
+                f"appeared. Before: {linux_device_luns}, "
+                f"After: {linux_device_luns_after}. This may indicate "
+                f"the VM size does not support this many data disks "
+                f"(max_data_disk_count={max_data_disk_count}).",
+            ).is_not_empty()
+            linux_device_lun_diff = linux_device_luns_after[next(iter(new_device_keys))]
+            log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
+            assert_that(linux_device_lun_diff, "New device lun mismatch").is_equal_to(
+                lun
+            )
 
         # Remove all attached data disks
         for disk_added in disks_added:
