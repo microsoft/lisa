@@ -98,9 +98,9 @@ class CPUSuite(TestSuite):
     )
     def verify_cpu_offline_storage_workload(self, log: Logger, node: Node) -> None:
         # run fio process asynchronously on the node
-        fio_data_size_in_gb = 1
+        fio_data_size_in_mb = 1
         try:
-            image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
+            image_folder_path = node.find_partition_with_freespace(fio_data_size_in_mb)
             # Each CPU takes ~10 seconds to toggle offline-online
             fio_run_time = 300 + (node.tools[Lscpu].get_thread_count() * 10)
             fio_process = node.tools[Fio].launch_async(
@@ -111,7 +111,7 @@ class CPUSuite(TestSuite):
                 numjob=10,
                 time=fio_run_time,
                 block_size="1M",
-                size_gb=fio_data_size_in_gb,
+                size_mb=fio_data_size_in_mb,
                 group_reporting=False,
                 overwrite=True,
                 time_based=True,
