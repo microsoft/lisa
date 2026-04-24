@@ -159,7 +159,7 @@ class Stress(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
+                nic_count=15,
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
         ),
@@ -191,7 +191,7 @@ class Stress(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
+                nic_count=15,
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
         ),
@@ -224,7 +224,7 @@ class Stress(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
+                nic_count=15,
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
         ),
@@ -258,7 +258,7 @@ class Stress(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
+                nic_count=15,
                 data_path=schema.NetworkDataPath.Sriov,
             ),
         ),
@@ -286,7 +286,7 @@ class Stress(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
+                nic_count=15,
                 data_path=schema.NetworkDataPath.Sriov,
             ),
         ),
@@ -317,7 +317,7 @@ class Stress(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
+                nic_count=15,
                 data_path=schema.NetworkDataPath.Sriov,
             )
         ),
