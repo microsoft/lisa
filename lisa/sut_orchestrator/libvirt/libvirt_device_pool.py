@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, cast
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
-from lisa.tools import Ls, Lspci, Modprobe
+from lisa.tools import Ls, Lsblk, Lspci, Modprobe, Readlink
 from lisa.util import (
     LisaException,
     ResourceAwaitableException,
@@ -40,6 +40,7 @@ class LibvirtDevicePool(BaseDevicePool):
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
             HostDevicePoolType.PCI_GPU,
+            HostDevicePoolType.PCI_NVME,
         ]
         self.host_node = host_node
         self.platform_runbook = runbook
@@ -173,6 +174,70 @@ class LibvirtDevicePool(BaseDevicePool):
 
         iommu_grp = self._get_device_iommu_group(device)
         return [iommu_grp]
+
+    def get_rootfs_nvme_id(self) -> List[str]:
+        # Find the NVMe device backing the root filesystem to exclude it
+        # from the passthrough pool (passing it through would crash the host).
+        lsblk = self.host_node.tools[Lsblk]
+        root_disk = lsblk.find_disk_by_mountpoint("/")
+
+        # Only NVMe devices have names like nvme0n1, nvme1n1, etc.
+        # Root could be on a SATA SSD (sda), HDD (sda), or virtio disk (vda)
+        # — none of which are NVMe PCI devices, so skip exclusion.
+        if not root_disk.name.startswith("nvme"):
+            return []
+
+        # Resolve the PCI address of the NVMe device via sysfs.
+        readlink = self.host_node.tools[Readlink]
+        sysfs_device_path = readlink.get_canonical_path(
+            f"/sys/block/{root_disk.name}/device/device",
+            sudo=True,
+            no_error_log=True,
+        )
+        if not sysfs_device_path:
+            self.host_node.log.debug(
+                f"Could not resolve sysfs device path for '{root_disk.name}'; "
+                "skipping rootfs NVMe exclusion."
+            )
+            return []
+
+        pci_address = PurePosixPath(sysfs_device_path).name
+        if not re.fullmatch(
+            r"[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F]",
+            pci_address,
+        ):
+            self.host_node.log.debug(
+                f"Root filesystem block device is not backed by a PCI device; "
+                f"skipping rootfs NVMe exclusion. Sysfs path: "
+                f"{sysfs_device_path or '<empty>'}"
+            )
+            return []
+
+        device = DeviceAddressSchema()
+        domain, bus, slot, fn = self._parse_pci_address_str(addr=pci_address)
+        device.domain = domain
+        device.bus = bus
+        device.slot = slot
+        device.function = fn
+
+        iommu_grp = self._get_device_iommu_group(device)
+        return [iommu_grp]
+
+    def auto_discover_pool(self, pool_type: HostDevicePoolType) -> None:
+        self.available_host_devices[pool_type] = {}
+        candidates = self._get_passthrough_device_candidates(pool_type)
+        if not candidates:
+            raise LisaException(
+                f"Auto-discovery found no eligible devices for pool type "
+                f"'{pool_type.value}' on the host. Verify that devices of "
+                f"this type exist and are not excluded (primary NIC, "
+                f"rootfs NVMe)."
+            )
+        self.host_node.log.debug(
+            f"Auto-discovered {len(candidates)} device(s) for pool "
+            f"'{pool_type.value}': {candidates}"
+        )
+        self._create_pool(pool_type, candidates)
 
     def create_device_pool(
         self,
@@ -315,12 +380,22 @@ class LibvirtDevicePool(BaseDevicePool):
             )
         elif pool_type == HostDevicePoolType.PCI_GPU:
             pool_devices = lspci.get_gpu_devices(force_run=True)
+        elif pool_type == HostDevicePoolType.PCI_NVME:
+            pool_devices = lspci.get_devices_by_type(
+                constants.DEVICE_TYPE_NVME, force_run=True
+            )
         else:
             return []
 
         primary_nic_iommu = (
             self.get_primary_nic_id() if pool_type == HostDevicePoolType.PCI_NIC else []
         )
+        rootfs_nvme_iommu = (
+            self.get_rootfs_nvme_id()
+            if pool_type == HostDevicePoolType.PCI_NVME
+            else []
+        )
+        excluded_iommu = primary_nic_iommu + rootfs_nvme_iommu
         candidates: List[str] = []
         for pool_device in pool_devices:
             domain, bus, slot, fn = self._parse_pci_address_str(pool_device.slot)
@@ -330,7 +405,7 @@ class LibvirtDevicePool(BaseDevicePool):
             except LisaException:
                 continue
 
-            if iommu_group in primary_nic_iommu:
+            if iommu_group in excluded_iommu:
                 continue
 
             candidates.append(pool_device.slot)
@@ -344,6 +419,8 @@ class LibvirtDevicePool(BaseDevicePool):
     ) -> None:
         iommu_grp_of_used_devices = []
         primary_nic_iommu = self.get_primary_nic_id()
+        rootfs_nvme_iommu = self.get_rootfs_nvme_id()
+        excluded_iommu = primary_nic_iommu + rootfs_nvme_iommu
         for bdf in bdf_list:
             domain, bus, slot, fn = self._parse_pci_address_str(bdf)
             dev = self._get_pci_address_instance(domain, bus, slot, fn)
@@ -359,7 +436,7 @@ class LibvirtDevicePool(BaseDevicePool):
                 # Remove iommu group from pool: a device in it is already in use.
                 self.available_host_devices[pool_type].pop(iommu_group, None)
                 iommu_grp_of_used_devices.append(iommu_group)
-            elif iommu_group not in primary_nic_iommu:
+            elif iommu_group not in excluded_iommu:
                 devices = self.available_host_devices[pool_type].setdefault(
                     iommu_group, []
                 )

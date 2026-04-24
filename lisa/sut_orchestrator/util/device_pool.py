@@ -85,6 +85,17 @@ class BaseDevicePool:
                 )
 
     def _configure_passthrough_pool(self, config: HostDevicePoolSchema) -> None:
+        if config.auto_discover:
+            if self._has_explicit_devices(config.devices):
+                host_node = getattr(self, "host_node", None)
+                if host_node:
+                    host_node.log.debug(
+                        f"Pool type '{config.type}': 'auto_discover' is set; "
+                        "ignoring explicit 'devices' configuration."
+                    )
+            self.auto_discover_pool(config.type)
+            return
+
         devices = config.devices
         if self._is_vendor_device_id_list(devices):
             vendor_device_list = cast(List[VendorDeviceIdIdentifier], devices)
@@ -101,6 +112,27 @@ class BaseDevicePool:
         raise LisaException(
             f"Unknown device identifier of type: {type(devices)}" f", value: {devices}"
         )
+
+    def auto_discover_pool(self, pool_type: HostDevicePoolType) -> None:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support auto-discovery "
+            f"for pool type '{pool_type}'."
+        )
+
+    def _has_explicit_devices(self, devices: Any) -> bool:
+        if isinstance(devices, list):
+            return any(
+                d.vendor_id.strip() or d.device_id.strip()
+                for d in devices
+                if isinstance(d, VendorDeviceIdIdentifier)
+            )
+        if isinstance(devices, PciAddressIdentifier):
+            return bool(devices.pci_bdf)
+        if isinstance(devices, DeviceLocationPathIdentifier):
+            return bool(devices.location_path)
+        if isinstance(devices, dict):
+            return bool(devices)
+        return False
 
     def _is_vendor_device_id_list(self, devices: Any) -> bool:
         if not isinstance(devices, list):

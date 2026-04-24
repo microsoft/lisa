@@ -8,6 +8,7 @@ from dataclasses_json import dataclass_json
 class HostDevicePoolType(Enum):
     PCI_NIC = "pci_net"
     PCI_GPU = "pci_gpu"
+    PCI_NVME = "pci_nvme"
 
 
 @dataclass_json()
@@ -36,6 +37,7 @@ class DeviceLocationPathIdentifier:
 @dataclass
 class HostDevicePoolSchema:
     type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
+    auto_discover: bool = False
     devices: Union[
         List[VendorDeviceIdIdentifier],
         PciAddressIdentifier,

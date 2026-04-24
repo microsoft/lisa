@@ -36,6 +36,7 @@ class HyperVDevicePool(BaseDevicePool):
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
             HostDevicePoolType.PCI_GPU,
+            HostDevicePoolType.PCI_NVME,
         ]
         self._server = node
         self._hyperv_runbook = runbook
@@ -243,10 +244,16 @@ Get-VM | ForEach-Object {{
         devices: List[DeviceAddressSchema],
     ) -> None:
         primary_nic_id_list = self.get_primary_nic_id()
+        rootfs_nvme_id_list = (
+            self.get_rootfs_nvme_id()
+            if pool_type == HostDevicePoolType.PCI_NVME
+            else []
+        )
+        excluded_ids = set(primary_nic_id_list + rootfs_nvme_id_list)
         pool = self.available_host_devices.get(pool_type, [])
         known_instance_ids = {device.instance_id for device in pool}
         for dev in devices:
-            if dev.instance_id in primary_nic_id_list:
+            if dev.instance_id in excluded_ids:
                 continue
 
             if dev.instance_id in known_instance_ids:
@@ -307,6 +314,56 @@ Get-VM | ForEach-Object {{
                     device.instance_id,
                     device.location_path,
                 )
+
+    def get_rootfs_nvme_id(self) -> List[str]:
+        # Find the PCI NVMe controller backing the boot volume (C:) so it
+        # can be excluded from the passthrough pool.  Passing through the
+        # boot controller would crash the host.
+        powershell = self._server.tools[PowerShell]
+
+        # Step 1: Get the boot disk number and check if it is NVMe.
+        boot_disk_cmd = (
+            "$diskNum = (Get-Partition -DriveLetter 'C' "
+            "| Select-Object -First 1).DiskNumber; "
+            "$physDisk = Get-PhysicalDisk "
+            "| Where-Object { $_.DeviceId -eq \"$diskNum\" }; "
+            "if ($physDisk -and $physDisk.BusType -eq 'NVMe') "
+            "{ Write-Output $diskNum } "
+            "else { Write-Output '' }"
+        )
+        disk_num = powershell.run_cmdlet(
+            cmdlet=boot_disk_cmd,
+            force_run=True,
+        ).strip()
+        if not disk_num:
+            return []
+
+        # Step 2: Walk up the PnP device tree from the disk device to find
+        # the PCI NVMe controller instance ID.
+        pci_controller_cmd = (
+            f"$disk = Get-CimInstance Win32_DiskDrive "
+            f"| Where-Object {{ $_.Index -eq {disk_num} }}; "
+            "if (-not $disk) { exit 0 }; "
+            "$currentId = $disk.PNPDeviceID; "
+            "while ($currentId) { "
+            "  if ($currentId -like 'PCI\\*') { "
+            "    Write-Output $currentId; exit 0 "
+            "  }; "
+            "  $parent = (Get-PnpDeviceProperty -InstanceId $currentId "
+            "    -KeyName 'DEVPKEY_Device_Parent' "
+            "    -ErrorAction SilentlyContinue).Data; "
+            "  if (-not $parent) { break }; "
+            "  $currentId = $parent "
+            "}"
+        )
+        controller_id = powershell.run_cmdlet(
+            cmdlet=pci_controller_cmd,
+            force_run=True,
+        ).strip()
+        if not controller_id:
+            return []
+
+        return [controller_id]
 
     def get_primary_nic_id(self) -> List[str]:
         powershell = self._server.tools[PowerShell]
