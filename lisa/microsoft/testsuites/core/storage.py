@@ -50,6 +50,7 @@ from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
     SkippedException,
+    check_till_timeout,
     constants,
     generate_random_chars,
     get_matched_str,
@@ -846,11 +847,36 @@ class Storage(TestSuite):
             ).is_equal_to(size)
 
             # verify the lun number from linux VM
+            # Retry to allow udev to create the LUN symlink after disk attach
             linux_device_luns_after = disk.get_luns()
-            linux_device_lun_diff = [
-                linux_device_luns_after[k]
-                for k in set(linux_device_luns_after) - set(linux_device_luns)
-            ][0]
+
+            def _new_lun_detected(
+                _baseline: dict[str, int] = linux_device_luns,
+            ) -> bool:
+                nonlocal linux_device_luns_after
+                linux_device_luns_after = disk.get_luns()
+                new_keys = set(linux_device_luns_after) - set(_baseline)
+                return len(new_keys) > 0
+
+            # 30s matches the disk-detection timeout used in
+            # _hot_add_disk_parallel for partition appearance after attach.
+            check_till_timeout(
+                _new_lun_detected,
+                timeout_message=(
+                    f"new LUN not detected after disk attach at lun {lun}, "
+                    f"luns_before: {linux_device_luns}, "
+                    f"luns_after: {linux_device_luns_after}"
+                ),
+                timeout=30,
+                interval=1,
+            )
+            new_lun_keys: list[str] = list(
+                set(linux_device_luns_after) - set(linux_device_luns)
+            )
+            assert_that(new_lun_keys, "Expected exactly one new LUN device").is_length(
+                1
+            )
+            linux_device_lun_diff = linux_device_luns_after[new_lun_keys[0]]
             log.debug(f"linux_device_luns: {linux_device_luns}")
             log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
             log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
