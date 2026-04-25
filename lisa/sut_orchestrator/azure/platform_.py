@@ -2963,12 +2963,20 @@ class AzurePlatform(Platform):
                         seen.add(r)
                         unique_reasons.append(r)
                 error = "Requirement mismatch: " + "; ".join(unique_reasons)
-            else:
+            elif not error:
+                # No error was set by _get_allowed_capabilities either,
+                # and no unmet reasons were collected. This typically means
+                # all candidates were filtered out by zero quota before
+                # requirement matching could run.
+                total_candidates = sum(
+                    len(item[1]) for item in awaitable_candidates
+                )
                 error = (
-                    f"Test skipped on '{location}' for an unknown reason. "
-                    "This could be due to insufficient quota, unmet hardware "
-                    "requirements, or other undiagnosed causes. "
-                    "Manual investigation may be required."
+                    f"no eligible VM size found in '{location}'. "
+                    f"{total_candidates} candidate(s) were evaluated but "
+                    f"none had sufficient quota or met the environment "
+                    f"availability check. Verify quota for the required "
+                    f"VM family in this region."
                 )
 
         return results, error
