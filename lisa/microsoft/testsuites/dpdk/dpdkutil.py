@@ -801,7 +801,7 @@ def verify_dpdk_send_receive(
 
     # Get test duration and timeouts
     test_duration: int = variables.get("dpdk_test_duration", 15)
-    kill_timeout = test_duration + 5
+    kill_timeout = 10
 
     # Initialize nodes concurrently
     test_kits = init_nodes_concurrent(
