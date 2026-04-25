@@ -21,18 +21,11 @@ class Kill(Tool):
     def by_name(
         self, process_name: str, signum: int = SIGKILL, ignore_not_exist: bool = False
     ) -> None:
-        # attempt kill by name first
-        kill_by_name = self.run(
-            f"-s {signum} {process_name}", sudo=True, shell=True, force_run=True
-        )
-        if kill_by_name.exit_code == 0:
-            return
-
-        # fallback to kill by pid if first attempt fails for some reason
         pids = self.node.tools[Pidof].get_pids(process_name, sudo=True)
         for pid in pids:
             self.by_pid(pid, signum, ignore_not_exist)
-        else:
+
+        if not pids:
             self._log.debug(
                 f"Kill for {process_name} did not find any processes to kill."
             )

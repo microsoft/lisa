@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
-import time
 from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -58,6 +57,13 @@ from lisa.tools.ntttcp import (
 )
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
+
+# 20480 connections maps to 64 receiver ports and 320 sender threads. On large
+# passthrough runs, NTTTCP can spend more than the default 60s in final
+# sender/receiver synchronization after the 10s traffic window completes.
+NTTTCP_HIGH_CONNECTION_THRESHOLD = 20480
+NTTTCP_HIGH_CONNECTION_TOLERANCE_SECONDS = 180
+NTTTCP_MAX_RETRIES = 20
 
 
 def perf_nvme(
@@ -444,7 +450,7 @@ def perf_ntttcp(  # noqa: C901
         # ntttcp client can sometimes hang or timeout, especially with
         # high connection counts. We implement a retry mechanism to improve
         # test reliability without failing the entire suite.
-        max_retries = 20  # Maximum retry attempts for each connection test
+        max_retries = NTTTCP_MAX_RETRIES
 
         for test_thread in connections:
             if test_thread < max_server_threads:
@@ -533,6 +539,11 @@ def perf_ntttcp(  # noqa: C901
                         ports_count=num_threads_p,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
+                        tolerance_seconds=(
+                            NTTTCP_HIGH_CONNECTION_TOLERANCE_SECONDS
+                            if test_thread >= NTTTCP_HIGH_CONNECTION_THRESHOLD
+                            else 60
+                        ),
                     )
 
                     # Stop the server and collect results from both client
@@ -562,8 +573,6 @@ def perf_ntttcp(  # noqa: C901
                 except Exception as e:
                     # An error occurred during the test (timeout, process hang,
                     # network issue, etc.)
-
-                    time.sleep(30)
                     client.log.error(
                         f"Error during ntttcp test for {test_thread} connections "
                         f"(attempt {retry_count}/{max_retries}): {e}"

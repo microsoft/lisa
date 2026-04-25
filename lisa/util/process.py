@@ -525,7 +525,22 @@ class Process:
                 if self._is_posix:
                     if self._shell.is_remote:
                         # Support remote Posix so far
-                        self._process.send_signal(9)
+                        try:
+                            self._process.send_signal(9)
+                        except spur.results.RunProcessError:
+                            if not self._sudo:
+                                raise
+
+                            kill_process = Process(
+                                "kill", self._shell, parent_logger=self._log
+                            )
+                            kill_process.start(
+                                f"kill -9 {self._process.pid}",
+                                shell=True,
+                                sudo=True,
+                                no_info_log=True,
+                            )
+                            kill_process.wait_result(10)
                     else:
                         # local process should use the compiled value
                         # the value is different between windows and posix
