@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import threading
 import xml.etree.ElementTree as ET  # noqa: N817
 from dataclasses import dataclass
 from pathlib import Path
@@ -84,6 +85,8 @@ class JUnit(Notifier):
 
         self._testsuites_info = {}
         self._testcases_info = {}
+        # Guard against concurrent access from multiple notification workers
+        self._lock = threading.Lock()
 
     # Test runner is closing.
     def finalize(self) -> None:

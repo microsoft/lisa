@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from collections import OrderedDict
 from enum import Enum
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
@@ -12,7 +13,7 @@ from urllib3.util.url import parse_url
 
 from lisa import Node
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Fedora, Oracle, Posix, Suse, Ubuntu
+from lisa.operating_system import CentOs, Debian, Fedora, Oracle, Posix, Redhat, Suse, Ubuntu
 from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException, parse_version
@@ -507,24 +508,24 @@ class TestpmdForwardMode(str, Enum):
 
 
 _dpdk_default_source_dict = {
-    "Ubuntu": {
+    Ubuntu: {
         "20.4.0": "v25.11",
         "22.4.0": "v24.11",
         "24.4.0": "v24.11",
         "25.4.0": "v25.11",
         "26.4.0": "v25.11",
     },
-    "Debian": {
+    Debian: {
         "10.0.0": "v22.11",
         "11.0.0": "v24.11",
         "12.0.0": "v24.11",
         "13.0.0": "v25.11",
     },
-    "Redhat": {
+    Redhat: {
         "8.6.0": "v24.11",
         "9.0.0": "v25.11",
     },
-    "CentOs": {
+    CentOs: {
         "8.6.0": "v24.11",
         "9.0.0": "v25.11",
     },
@@ -537,7 +538,7 @@ def get_dpdk_default_source_version(node: Node) -> str:
     # Versions are evaluated at >= for the os version.
 
     os_version = node.os.information.version
-    os_match = _dpdk_default_source_dict.get(node.os.name, None)
+    os_match = _dpdk_default_source_dict.get(type(node.os), None)
     if os_match is None:
         raise UnsupportedDistroException(
             node.os,

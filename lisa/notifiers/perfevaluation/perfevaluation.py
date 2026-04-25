@@ -1,6 +1,7 @@
 import fnmatch
 import json
 import re
+import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -199,6 +200,8 @@ class PerfEvaluation(notifier.Notifier):
         self._failed_metrics: Dict[str, List[Dict[str, Any]]] = {}
         self._pending_messages: Dict[Any, List[messages.UnifiedPerfMessage]] = {}
         self._perf_runs_cache: Dict[Any, List[messages.UnifiedPerfMessage]] = {}
+        # Guard against concurrent access from multiple notification workers
+        self._lock = threading.Lock()
         plugin_manager.register(self)
 
     @classmethod
@@ -955,20 +958,22 @@ class PerfEvaluation(notifier.Notifier):
                                 "metric_name": m.metric_name,
                                 "metric_value": m.metric_value,
                                 "vmsize": m.vmsize,
-                                "time": str(m.time) if hasattr(m, "time") else None,
+                                "time": (str(m.time) if hasattr(m, "time") else None),
                                 "run_uuid": str(uuid.uuid4()),
                             }
                             message.perf_runs.append(run_info)
                             self._log.info(
-                                f"[PerfRun] Write to message.perf_runs: test_case="
-                                f"{m.test_case_name}, metric={m.metric_name}, "
+                                f"[PerfRun] Write to message.perf_runs: "
+                                f"test_case={m.test_case_name}, "
+                                f"metric={m.metric_name}, "
                                 f"value={m.metric_value}, VM={m.vmsize}"
                             )
             for failed_key in self._failed_metrics.keys():
                 if failed_key in message.full_name or failed_key in message.name:
                     failed_metrics = self._failed_metrics[failed_key]
                     summary_msg = (
-                        f"Performance evaluation failed: {len(failed_metrics)} "
+                        f"Performance evaluation failed: "
+                        f"{len(failed_metrics)} "
                         f"metric(s) did not meet criteria"
                     )
                     message.perf_evaluation_summary = {
@@ -983,8 +988,8 @@ class PerfEvaluation(notifier.Notifier):
                     if fail_on_perf and message.status != TestStatus.FAILED:
                         original_message = message.message or ""
                         perf_summary = (
-                            f"Performance criteria failed: {len(failed_metrics)} "
-                            f"metrics"
+                            f"Performance criteria failed: "
+                            f"{len(failed_metrics)} metrics"
                         )
                         message.status = TestStatus.FAILED
                         if original_message:
@@ -993,8 +998,8 @@ class PerfEvaluation(notifier.Notifier):
                             message.message = perf_summary
                         self._log.info(
                             f"Test {failed_key} failed due to performance "
-                            f"criteria: {len(failed_metrics)} metrics did not "
-                            f"meet requirements"
+                            f"criteria: {len(failed_metrics)} metrics did "
+                            f"not meet requirements"
                         )
                     break
 

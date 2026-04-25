@@ -79,7 +79,8 @@ class TaskManager(Generic[T_RESULT]):
         self._log = get_logger("TaskManager")
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
         self._max_workers = max_workers
-        self._futures: List[Future[T_RESULT]] = []
+        # Use a set for O(1) add/discard instead of a list with O(n) remove.
+        self._futures: set[Future[T_RESULT]] = set()
         self._callback = callback
         self._cancelled = False
         self._future_task_map: Dict[Future[T_RESULT], Task[T_RESULT]] = {}
@@ -120,7 +121,7 @@ class TaskManager(Generic[T_RESULT]):
             True, if there is running worker.
         """
 
-        wait(self._futures[:], return_when=return_condition)
+        wait(list(self._futures), return_when=return_condition)
         self._process_done_futures()
         self.join_exceptions()
         return len(self._futures) > 0
@@ -143,42 +144,50 @@ class TaskManager(Generic[T_RESULT]):
             future.result()
 
     def _process_done_futures(self) -> None:
-        for future in self._futures[:]:
-            if future.done():
-                success = False
-                try:
-                    result = future.result()
-                    success = True
-                except Exception:
-                    # save exceptions of subthreads to main thread
-                    self._stored_exceptions.put(future)
-                finally:
-                    # removed finished threads
-                    self._futures.remove(future)
-                task = self._future_task_map.pop(future)
-                task.close()
-                if success:
-                    # set result back for tracking order
-                    task.result = result
+        # Snapshot and iterate only completed futures to avoid
+        # repeated O(n) scans over the entire set.
+        done_futures = [f for f in self._futures if f.done()]
+        for future in done_futures:
+            success = False
+            try:
+                result = future.result()
+                success = True
+            except Exception:
+                # save exceptions of subthreads to main thread
+                self._stored_exceptions.put(future)
+            finally:
+                # O(1) removal from set
+                self._futures.discard(future)
+            task = self._future_task_map.pop(future)
+            task.close()
+            if success:
+                # set result back for tracking order
+                task.result = result
 
-                    # exception will throw at this point
-                    if self._callback:
-                        self._callback(result)
+                # exception will throw at this point
+                if self._callback:
+                    self._callback(result)
 
     def _process_pending_tasks(self) -> None:
         new_futures: List[Future[T_RESULT]] = []
-        with self._process_lock:
+        if not self._process_lock.acquire(blocking=False):
+            # Another thread is already scheduling; skip to avoid piling up
+            # on the lock. The thread that holds the lock will drain the queue.
+            return
+        try:
             while not self._pending_tasks.empty() and self.has_idle_worker():
                 self.check_cancelled()
                 task = self._pending_tasks.get()
                 future: Future[T_RESULT] = self._pool.submit(task)
                 self._future_task_map[future] = task
-                self._futures.append(future)
+                self._futures.add(future)
                 new_futures.append(future)
+        finally:
+            self._process_lock.release()
 
-        # Add a callback to trigger scheduling when this future completes
-        # It cannot be in the lock, because if it's finished the done callback will
-        # be called immediately. It causes deadlock.
+        # Add a callback to trigger scheduling when this future completes.
+        # Must be outside the lock — if the future is already done the
+        # callback fires immediately and would deadlock on re-entry.
         for future in new_futures:
             future.add_done_callback(self._on_future_done)
 

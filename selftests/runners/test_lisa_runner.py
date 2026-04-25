@@ -754,6 +754,6 @@ class RunnerTestCase(TestCase):
             flush_notifications()
 
         runner.close()
-        _notifiers.clear()
+        # _notifiers.clear()
 
         return [x for x in results_collector.results.values()]

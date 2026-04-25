@@ -3042,22 +3042,41 @@ class Availability(AzureFeatureMixin, features.Availability):
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
-    # From https://docs.microsoft.com/en-us/azure/security/fundamentals/isolation-choices#compute-isolation # noqa: E501
+    # Note: this concept is being deprecated in GA skus.
+    # It's only used in DPDK (and not really by choice).
+    # But for the potential long running, resource hogging tests...
+    # So: use for long running perf and stress tests.
+    # Or: use when you want to enforce a large size which (probably)
+    #      is on it's own node.
+    # Since this is no longer guaranteed; this list requires maintenance
+    # to ensure the sizes are accurate for each hardware generation.
+    #
+    # The likelihood of isolation varies depending on undocumented cloud
+    # allocator rules.
+    #
+    # They *will* change over time. Beware! If you see git blame that indicates
+    # this list hasn't changed in over a year... it is time for a PR.
+
+    # Sizes <= v5 are documented: https://docs.microsoft.com/en-us/azure/security/fundamentals/isolation-choices#compute-isolation # noqa: E501
+    # the others are new hardware and skus, or they are preview SKUs which are pinned
+    # to specific clusters for consistency.
+
+    # TODO: allow adding additional sizes to this at runtime.
     supported_vm_sizes = set(
         [
-            "Standard_E80ids_v4",
-            "Standard_E80is_v4",
-            "Standard_E104i_v5",
-            "Standard_E104is_v5",
-            "Standard_E104id_v5",
-            "Standard_E104ids_v5",
-            "Standard_M192is_v2",
-            "Standard_M192ims_v2",
-            "Standard_M192ids_v2",
-            "Standard_M192idms_v2",
-            "Standard_F72s_v2",
-            "Standard_M128ms",
-            # add custom vm sizes below,
+            "standard_e80ids_v4",
+            "standard_e80is_v4",
+            "standard_e104i_v5",
+            "standard_e104is_v5",
+            "standard_e104id_v5",
+            "standard_e104ids_v5",
+            "standard_f72s_v2",
+            "standard_e192ids_v6",
+            "standard_d360is_v7",
+            "standard_d372is_v7",
+            "standard_d360ids_v7",
+            "standard_d372ids_v7",
+            "experimental_boost192",
         ]
     )
 
@@ -3065,9 +3084,9 @@ class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
     def create_setting(
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
-        resource_sku: Any = kwargs.get("resource_sku")
+        resource_sku: Any = kwargs.get("resource_sku", "")
 
-        if resource_sku.name in cls.supported_vm_sizes:
+        if resource_sku and resource_sku.name.casefold() in cls.supported_vm_sizes:
             return schema.FeatureSettings.create(cls.name())
 
         return None

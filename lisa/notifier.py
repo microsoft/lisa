@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import copy
+import os
 from datetime import datetime, timezone
 from functools import partial
 from typing import Any, Dict, List, Type, cast
@@ -10,7 +11,7 @@ from lisa import schema
 from lisa.messages import MessageBase
 from lisa.util import InitializableMixin, constants, subclasses
 from lisa.util.logger import get_logger
-from lisa.util.parallel import Task, TaskManager, run_in_parallel
+from lisa.util.parallel import Task, TaskManager
 
 _get_init_logger = partial(get_logger, "init", "notifier")
 
@@ -59,8 +60,11 @@ class Notifier(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 _notifiers: List[Notifier] = []
 _messages: Dict[type, List[Notifier]] = {}
 _system_notifiers = [constants.NOTIFIER_CONSOLE, constants.NOTIFIER_FILE]
-# process test results message in an order, so the max_workers is 1
-_message_manager: TaskManager[None] = TaskManager(max_workers=1)
+# Use multiple workers to avoid serializing all notifications during
+# concurrent test execution. The original max_workers=1 created a
+# throughput bottleneck when log volume was high.
+_notification_workers = min(os.cpu_count() or 4, 8)
+_message_manager: TaskManager[None] = TaskManager(max_workers=_notification_workers)
 
 
 def initialize(runbooks: List[schema.Notifier]) -> None:
@@ -135,16 +139,14 @@ def _notify(message: MessageBase) -> None:
         for notifier in notifiers:
             notifier._modify_message(message)
 
-        if notifiers:
-            run_in_parallel(
-                [
-                    partial(
-                        x._received_message,
-                        message=copy.deepcopy(message),
-                    )
-                    for x in notifiers
-                ]
-            )
+        # Dispatch to notifiers directly instead of spawning a new
+        # ThreadPoolExecutor per message via run_in_parallel. With multiple
+        # notification workers processing messages concurrently, the overhead
+        # of creating/destroying a thread pool per message far exceeds the
+        # benefit of per-message notifier parallelism.
+        for notifier in notifiers:
+            notifier._received_message(message=copy.deepcopy(message))
+
         if message_type == MessageBase:
             # skip base class type: object
             break

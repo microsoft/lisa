@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import html
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -92,6 +93,8 @@ class Html(Notifier):
         self._title = "LISA Test Report"
         self._metadata = OrderedDict()
         self._start_time = datetime.now(timezone.utc)
+        # Guard against concurrent access from multiple notification workers
+        self._lock = threading.Lock()
 
     def _write_html_report(self) -> None:
         """Generate and write the HTML report."""
