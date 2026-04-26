@@ -4,9 +4,9 @@
 import re
 from pathlib import PurePath
 
-from lisa.base_tools import Mv, Service, Uname, Wget
+from lisa.base_tools import Service, Uname, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Posix, Redhat
+from lisa.operating_system import Posix, Redhat
 from lisa.util import LisaException, get_matched_str
 
 
@@ -19,13 +19,33 @@ class DockerCompose(Tool):
         re.M,
     )
 
+    _compose_command: str = ""
+
     @property
     def command(self) -> str:
-        return "docker-compose"
+        return self._compose_command or "docker compose"
 
     @property
     def can_install(self) -> bool:
         return True
+
+    def _check_exists(self) -> bool:
+        # Prefer "docker compose" (v2 CLI plugin) — its API version matches
+        # the installed Docker Engine, avoiding client/daemon mismatches
+        # like "client version 1.42 is too old. Minimum supported API
+        # version is 1.44".
+        result = self.node.execute(
+            "docker compose version", shell=True, no_info_log=True
+        )
+        if result.exit_code == 0:
+            self._compose_command = "docker compose"
+            return True
+        # Fall back to standalone "docker-compose" binary.
+        exists, self._use_sudo = self.command_exists("docker-compose")
+        if exists:
+            self._compose_command = "docker-compose"
+            return True
+        return False
 
     def start(self) -> None:
         self._log.debug("Start docker compose")
@@ -45,36 +65,39 @@ class DockerCompose(Tool):
             ):
                 self.node.os.install_packages("crun-1.4.5-2*")
                 result = self.run("up -d", sudo=True, cwd=path, force_run=True)
-        result.assert_exit_code(message="fail to launch docker-compose up -d")
+        result.assert_exit_code(message=f"fail to launch {self.command} up -d")
 
     def _install_from_source(self) -> None:
         wget_tool = self.node.tools[Wget]
         uname_tool = self.node.tools[Uname]
         hardware = uname_tool.get_linux_information().hardware_platform
-        filename = "docker-compose"
+        # Install as a Docker CLI plugin so it is accessible via
+        # "docker compose" and uses the correct Docker API version.
+        plugin_dir = "/usr/libexec/docker/cli-plugins"
+        self.node.execute(f"mkdir -p {plugin_dir}", sudo=True)
+        target = f"{plugin_dir}/docker-compose"
         wget_tool.run(
-            "https://github.com/docker/compose/releases/download/v2.14.2"
-            f"/docker-compose-Linux-{hardware} -O {filename}",
+            "https://github.com/docker/compose/releases/download/v2.29.2"
+            f"/docker-compose-linux-{hardware} -O {target}",
             sudo=True,
         )
-        self.node.execute(f"sudo chmod +x {filename}")
-        self.node.tools[Mv].move(
-            "docker-compose", "/usr/bin/", overwrite=True, sudo=True
-        )
+        self.node.execute(f"chmod +x {target}", sudo=True)
 
     def _install(self) -> bool:
-        # The default installed docker-compose package doesn't work for
-        # redhat so it uses the latest version
-        if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
-            self._install_from_source()
-        elif isinstance(self.node.os, Posix):
+        if isinstance(self.node.os, Posix):
+            # Try the docker-compose-plugin distro package first (available
+            # when Docker's official apt/yum repo is configured), then fall
+            # back to downloading the binary.
             try:
-                self._install_from_source()
+                self.node.os.install_packages("docker-compose-plugin")
+                if self._check_exists():
+                    return True
             except Exception as e:
-                self._log.info(
-                    f"Failed to install docker-compose from source. Error: {e}"
+                self._log.debug(
+                    f"docker-compose-plugin package unavailable ({e}), "
+                    "installing from source"
                 )
-                self.node.os.install_packages("docker-compose")
+            self._install_from_source()
         else:
             raise LisaException(f"Not supported on {self.node.os.information.vendor}")
         return self._check_exists()
