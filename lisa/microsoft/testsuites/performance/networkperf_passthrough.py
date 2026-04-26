@@ -232,6 +232,9 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
 
+        # Reboot guest first to avoid stale passthrough NIC state after device attach.
+        node.reboot()
+
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
         )
