@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import math
+from typing import cast
 
 from assertpy import assert_that
 
@@ -16,7 +16,7 @@ from lisa import (
 from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, Df, Echo, Fdisk, Lscpu, Lspci, Mkfs, Mount, Nvmecli
+from lisa.tools import Cat, Df, Echo, Fdisk, Lspci, Mkfs, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
 from lisa.util.constants import DEVICE_TYPE_NVME, DEVICE_TYPE_SRIOV
 
@@ -66,7 +66,7 @@ class NvmeTestSuite(TestSuite):
           and list nvme devices under /dev/.
 
         4. Azure platform only, nvme devices count should equal to
-          actual vCPU count / 8.
+          expected disk count from SKU capabilities.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -414,13 +414,13 @@ class NvmeTestSuite(TestSuite):
         ).is_length(len(nvme_device_from_lspci))
 
         # 4. Azure platform only, nvme devices count should equal to
-        #  actual vCPU count / 8.
+        #  expected disk count from SKU capabilities.
         if isinstance(environment.platform, AzurePlatform):
-            lscpu_tool = node.tools[Lscpu]
-            thread_count = lscpu_tool.get_thread_count()
-            expected_count = math.ceil(thread_count / 8)
+            nvme_settings = cast(NvmeSettings, node.features[Nvme].get_settings())
+            expected_count = nvme_settings.disk_count
             assert_that(nvme_namespace).described_as(
-                "nvme devices count should be equal to [vCPU/8]."
+                f"nvme devices count should be equal to expected disk count"
+                f" [{expected_count}] from SKU capabilities."
             ).is_length(expected_count)
 
     def _verify_nvme_function(self, node: Node, use_partitions: bool = True) -> None:
