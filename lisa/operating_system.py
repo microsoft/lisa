@@ -2057,25 +2057,74 @@ class CentOs(Redhat):
                 # Some CentOS images ship a second baseurl pointing at
                 # olcentgbl.trafficmanager.net which no longer resolves. The
                 # URL often appears on a continuation line (no "baseurl="
-                # prefix), may live in a file that does not match
-                # CentOS-*.repo (e.g. OpenLogic.repo), and on CentOS 8 uses
-                # the $contentdir variable in place of a literal "centos"
-                # path component, so rewrite just the host globally across
-                # every repo file. Paths with no vault equivalent (e.g.
-                # /openlogic/*) will be silently skipped via
-                # skip_if_unavailable below.
-                "sed -i -E "
-                "'s|olcentgbl\\.trafficmanager\\.net|vault.centos.org|g' "
+                # prefix) and may live in a file that does not match
+                # CentOS-*.repo (e.g. OpenLogic.repo), so rewrite the host
+                # across every repo file.
+                #
+                # IMPORTANT: only rewrite when the path starts with
+                # "/centos/" (CentOS 7) or literal "/$contentdir/"
+                # (CentOS 8, where $contentdir is a yum variable that
+                # expands to "centos"). vault.centos.org only mirrors the
+                # /centos/<ver>/... tree (base/extras/updates). Other
+                # olcentgbl paths (notably /openlogic/*) have no
+                # vault.centos.org equivalent and rewriting them produces
+                # a stable 404. Those repos are left untouched and will
+                # be disabled below.
+                #
+                # Use plain (BRE) sed with literal strings — extended
+                # regex with alternation and "\$contentdir" inside a
+                # single-quoted "sh -c" argument has been observed to
+                # silently no-op on some images.
+                "sed -i 's|olcentgbl\\.trafficmanager\\.net/centos/"
+                "|vault.centos.org/centos/|g' "
                 "/etc/yum.repos.d/*.repo || true",
+                # Note: in sed BRE, "$" is the end-of-line anchor, so the
+                # literal yum variable "$contentdir" must be escaped as
+                # "\$contentdir" in the search pattern. The replacement
+                # side has no such anchor semantics, so "$contentdir" is
+                # already literal there.
+                "sed -i 's|olcentgbl\\.trafficmanager\\.net/\\$contentdir/"
+                "|vault.centos.org/$contentdir/|g' "
+                "/etc/yum.repos.d/*.repo || true",
+                # The OpenLogic repo (shipped on Azure marketplace
+                # CentOS 7 images) points at olcentgbl.trafficmanager.net
+                # /openlogic/... which no longer resolves and has no
+                # vault.centos.org equivalent. Disable the repo file by
+                # renaming it so yum stops trying to contact it. Use a
+                # case-insensitive glob via a "for" loop because the
+                # filename casing varies across images.
+                "for f in /etc/yum.repos.d/[Oo]pen[Ll]ogic*.repo; do "
+                '[ -f "$f" ] && mv -f "$f" "$f.disabled"; '
+                "done || true",
             ]
             for cmd in fix_commands:
                 self._node.execute(cmd, shell=True, sudo=True, timeout=30)
             # Some stock repo files still reference unreachable hosts
-            # (e.g. olcentgbl.trafficmanager.net); allow yum to skip them so a
-            # single broken repo does not block the whole install.
+            # (e.g. olcentgbl.trafficmanager.net for the OpenLogic repo,
+            # which has no vault.centos.org equivalent). Allow yum to skip
+            # them so a single broken repo does not block the whole install.
+            #
+            # Setting skip_if_unavailable on the global [main] section is
+            # not enough: per-repo skip_if_unavailable overrides the global
+            # value and the stock CentOS repo files set it to False per
+            # repo. So we additionally apply skip_if_unavailable=true to
+            # every repo that failed in `yum repolist -v` output. Lines
+            # look like:
+            #   failure: repodata/repomd.xml from openlogic: [Errno 256] ...
             cmd_results = self._node.execute("yum repolist -v", sudo=True)
             if 0 != cmd_results.exit_code:
-                self._node.tools[YumConfigManager].set_opt("skip_if_unavailable=true")
+                yum_config_manager = self._node.tools[YumConfigManager]
+                yum_config_manager.set_opt("skip_if_unavailable=true")
+                failed_repos = sorted(
+                    set(
+                        re.findall(
+                            r"failure:\s+\S+\s+from\s+([\w.\-]+):",
+                            cmd_results.stdout,
+                        )
+                    )
+                )
+                for repo in failed_repos:
+                    yum_config_manager.set_opt(f"{repo}.skip_if_unavailable=true")
 
 
 class Oracle(Redhat):
