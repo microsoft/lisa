@@ -634,37 +634,89 @@ def run_testpmd_concurrent(
     hotplug_sriov: bool = False,
 ) -> Dict[Tuple[DpdkTestResources, str], str]:
     output: Dict[Tuple[DpdkTestResources, str], str] = dict()
+    process_tracker: Dict[Tuple[DpdkTestResources, str], Process] = dict()
+    # task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
+    processes: List[Process] = []
 
-    task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
+    for kit, cmds in deque(node_cmd_pairs.items()):
+        for cmd in cmds:
+            process_tracker[(kit, cmd)] = kit.node.tools[Timeout].start_with_timeout(
+                cmd, timeout=seconds, signal=SIGINT, kill_timeout=10
+            )
+            processes.append(process_tracker[(kit, cmd)])
+    for process in processes:
+        process.wait_output("start packet forwarding", timeout=20)
     if hotplug_sriov:
         time.sleep(10)  # run testpmd for a bit before disabling sriov
-
-        test_kits = node_cmd_pairs.keys()
+        running_at_start = len(processes)
+        test_kits = set(node_cmd_pairs.keys())
 
         # disable sriov (and wait for change to apply)
         for node_resources in [x for x in test_kits if x.switch_sriov]:
             node_resources.nic_controller.switch_sriov(
-                enable=False, wait=True, reset_connections=False
+                enable=False, wait=False, reset_connections=False
             )
-
-        # let run for a bit with SRIOV disabled
+            # run for a bit with SRIOV re-enabled
         time.sleep(10)
+        failed = False
+        # check for missing hotplug messages
+        for kit, cmds in deque(node_cmd_pairs.items()):
+            if kit.switch_sriov:
+                for cmd in cmds:
+                    process = process_tracker[(kit, cmd)]
+                    if not process.wait_output(
+                        "HN_DRIVER: netvsc_hotadd_callback(): "
+                        "Device notification type=1",
+                        timeout=300,
+                        delta_only=True,
+                        error_on_missing=False,
+                    ):
+                        failed = True
+                        break
 
-        # re-enable sriov
         for node_resources in [x for x in test_kits if x.switch_sriov]:
             node_resources.nic_controller.switch_sriov(
-                enable=True, wait=True, reset_connections=False
+                enable=True, wait=False, reset_connections=False
             )
 
-        # run for a bit with SRIOV re-enabled
-        time.sleep(10)
+        for kit, cmds in deque(node_cmd_pairs.items()):
+            if kit.switch_sriov and not failed:
+                process = process_tracker[(kit, cmds[0])]
+                if not process.wait_output(
+                    "HN_DRIVER: netvsc_hotplug_retry(): "
+                    "Found matching MAC address, adding device",
+                    timeout=300,
+                    delta_only=True,
+                    error_on_missing=False,
+                ):
+                    failed = True
+                    break
+        # check if anything died
+        if running_at_start > len([x for x in processes if x.is_running()]):
+            for node_resources in test_kits:
+                node_resources.testpmd.kill_previous_testpmd_command()
+            raise LisaException("A process died after hotplug removal.")
 
-        # kill the commands to collect the output early and terminate before timeout
-        for node_resources in test_kits:
-            node_resources.testpmd.kill_previous_testpmd_command()
+        # check if anyhting is missing it's hotplug message
+        if failed:
+            for node_resources in test_kits:
+                node_resources.testpmd.kill_previous_testpmd_command()
+            raise LisaException("Missing hotplug message during run.")
 
-    task_manager.wait_for_all_workers()
+    else:
+        time.sleep(seconds)
 
+    # kill the commands to collect the output early and terminate before timeout
+    for node_resources in test_kits:
+        node_resources.testpmd.kill_previous_testpmd_command()
+
+    for kit, cmds in deque(node_cmd_pairs.items()):
+        for cmd in cmds:
+            output[(kit, cmd)] = process_tracker[(kit, cmd)].wait_result(
+                timeout=seconds,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"Testpmd process exited with error: {cmd}",
+            )
     return output
 
 

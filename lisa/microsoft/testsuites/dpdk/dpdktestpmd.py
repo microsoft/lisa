@@ -675,7 +675,7 @@ class DpdkTestpmd(Tool):
             f"{nic_includes} {debug_logging} --proc-type=auto "
             f"-- --forward-mode={mode} "
             f"-a --stats-period 4 --nb-cores={forwarding_cores} "
-            f"{mp_args} {extra_args}"
+            f"{mp_args} {extra_args} --record-burst-stats"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -709,7 +709,12 @@ class DpdkTestpmd(Tool):
 
     def kill_previous_testpmd_command(self) -> None:
         # kill testpmd early
-        self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
+        self.node.tools[Kill].by_name(self.command, SIGINT, ignore_not_exist=True)
+
+        if self.check_testpmd_is_running():
+            self.node.log.debug("Testpmd didn't exit with SIGINT, try KILL...")
+            self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
+
         if self.check_testpmd_is_running():
             self.node.log.debug(
                 "Testpmd is not responding to signals, "
