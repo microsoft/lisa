@@ -563,6 +563,13 @@ class VhdSchema(AzureImageSchema):
     data_vhd_paths: Optional[List[DataVhdPath]] = None
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
+        # VHD images are user-provided custom images. Azure does not expose
+        # architecture metadata for them, and uploaded VHDs in this codepath
+        # are x64. Restrict candidate VM sizes to x64 to avoid selecting
+        # ARM64 SKUs that would fail to boot the VHD.
+        if self.architecture is None:
+            self.architecture = schema.ArchitectureType.x64
+
         # There are no platform tags to parse, but we can assume the
         # security profile based on the presence of a VMGS path.
         if self.cvm_gueststate_path:
