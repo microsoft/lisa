@@ -32,7 +32,7 @@ from typing import (
 )
 
 import requests
-from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import AzureError, HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
     CommunityGalleryImage,
@@ -1877,12 +1877,12 @@ class AzurePlatform(Platform):
             # listing deployment operations to surface the real sub-resource
             # errors.
             top_code = getattr(e.error, "code", "") or ""
-            if (
-                "aggregated deployment error is too large" in error_message
-                or "ResourceDeploymentFailure" in top_code
-                or (
-                    "DeploymentFailed" in top_code
-                    and not getattr(e.error, "details", None)
+            has_details = bool(getattr(e.error, "details", None))
+            if "aggregated deployment error is too large" in error_message or (
+                not has_details
+                and (
+                    "ResourceDeploymentFailure" in top_code
+                    or "DeploymentFailed" in top_code
                 )
             ):
                 op_errors = self._collect_deployment_operation_errors(
@@ -1960,18 +1960,43 @@ class AzurePlatform(Platform):
     ) -> List[str]:
         """Fetch per-resource errors from a failed ARM deployment.
 
-        Used when the top-level HttpResponseError only carries the aggregated
-        "deployment error is too large" message and no nested details.
+        Used as a fallback when the top-level HttpResponseError does not
+        already carry actionable per-resource details. Callers in ``_deploy``
+        invoke this helper for any of the following cases:
+
+        * The aggregated "deployment error is too large" message, where ARM
+          truncates the nested error tree.
+        * ``ResourceDeploymentFailure`` errors with no nested
+          ``error.details`` (e.g. transient internal server errors that
+          carry only a tracking id).
+        * ``DeploymentFailed`` errors that arrive without any nested
+          ``details`` populated.
+
+        When the top-level error already carries actionable nested
+        ``details``, callers skip this helper to avoid an extra ARM call
+        and duplicated/noisy output.
+
+        In all of these cases, listing the deployment operations is the
+        only way to surface the underlying per-resource failure messages.
         """
         errors: List[str] = []
         try:
-            operations = self._rm_client.deployment_operations.list(
-                resource_group_name=resource_group_name,
-                deployment_name=AZURE_DEPLOYMENT_NAME,
-            )
+            # Azure SDK calls share auth state via files on disk; serialize
+            # access to avoid intermittent failures during parallel runs.
+            # See common.py global_credential_access_lock for context.
+            with global_credential_access_lock:
+                operations = list(
+                    self._rm_client.deployment_operations.list(
+                        resource_group_name=resource_group_name,
+                        deployment_name=AZURE_DEPLOYMENT_NAME,
+                    )
+                )
             for op in operations:
                 props = getattr(op, "properties", None)
-                if not props or props.provisioning_state != "Failed":
+                if not props:
+                    continue
+                provisioning_state = getattr(props, "provisioning_state", None) or ""
+                if provisioning_state.lower() != "failed":
                     continue
                 target = getattr(props, "target_resource", None)
                 resource_type = getattr(target, "resource_type", "") if target else ""
@@ -1985,8 +2010,17 @@ class AzurePlatform(Platform):
                     )
                 else:
                     errors.append(f"{resource_type}/{resource_name}: {status}")
-        except Exception as ex:
-            log.debug(f"failed to list deployment operations: {ex}")
+        except (AzureError, ValueError, TypeError, AttributeError) as ex:
+            # Keep the original error path intact: never let this helper raise.
+            # Catch Azure SDK errors (AzureError covers HttpResponseError /
+            # ResourceNotFoundError) plus common parsing/shape mismatches
+            # (ValueError, TypeError, AttributeError). Programming errors
+            # outside this set will still propagate so they remain visible.
+            # Log with traceback so failures here are still debuggable.
+            log.debug(
+                f"failed to collect deployment operation errors: {ex}",
+                exc_info=True,
+            )
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
