@@ -1870,6 +1870,30 @@ class AzurePlatform(Platform):
             assert e.error, f"HttpResponseError: {e}"
 
             error_message = "\n".join(self._parse_detail_errors(e.error))
+            # When Azure returns a generic deployment failure message without
+            # actionable per-resource details (e.g. truncated aggregated error,
+            # ResourceDeploymentFailure with only a tracking id, or any other
+            # *DeploymentFailed* code with no nested details), fall back to
+            # listing deployment operations to surface the real sub-resource
+            # errors.
+            top_code = getattr(e.error, "code", "") or ""
+            if (
+                "aggregated deployment error is too large" in error_message
+                or "ResourceDeploymentFailure" in top_code
+                or (
+                    "DeploymentFailed" in top_code
+                    and not getattr(e.error, "details", None)
+                )
+            ):
+                op_errors = self._collect_deployment_operation_errors(
+                    resource_group_name, log
+                )
+                if op_errors:
+                    log.error(
+                        "deployment failed sub-resource errors:\n"
+                        + "\n".join(op_errors)
+                    )
+                    error_message = error_message + "\n" + "\n".join(op_errors)
             if (
                 self._azure_runbook.ignore_provisioning_error
                 and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
@@ -1929,6 +1953,40 @@ class AzurePlatform(Platform):
             except Exception:
                 # load failed, it should be a real error message string
                 errors = [f"{error.code}: {error.message}"]
+        return errors
+
+    def _collect_deployment_operation_errors(
+        self, resource_group_name: str, log: Logger
+    ) -> List[str]:
+        """Fetch per-resource errors from a failed ARM deployment.
+
+        Used when the top-level HttpResponseError only carries the aggregated
+        "deployment error is too large" message and no nested details.
+        """
+        errors: List[str] = []
+        try:
+            operations = self._rm_client.deployment_operations.list(
+                resource_group_name=resource_group_name,
+                deployment_name=AZURE_DEPLOYMENT_NAME,
+            )
+            for op in operations:
+                props = getattr(op, "properties", None)
+                if not props or props.provisioning_state != "Failed":
+                    continue
+                target = getattr(props, "target_resource", None)
+                resource_type = getattr(target, "resource_type", "") if target else ""
+                resource_name = getattr(target, "resource_name", "") if target else ""
+                status = getattr(props, "status_message", None)
+                inner = getattr(status, "error", None) if status else None
+                if inner is not None:
+                    errors.extend(
+                        f"{resource_type}/{resource_name}: {msg}"
+                        for msg in self._parse_detail_errors(inner)
+                    )
+                else:
+                    errors.append(f"{resource_type}/{resource_name}: {status}")
+        except Exception as ex:
+            log.debug(f"failed to list deployment operations: {ex}")
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
