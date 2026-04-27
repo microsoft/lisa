@@ -53,7 +53,10 @@ class Ltp(Tool):
     _RESULT_LTP_ARCH_REGEX = re.compile(r"Machine Architecture: (.*)\s+")
 
     LTP_DIR_NAME = "ltp"
-    DEFAULT_LTP_TESTS_GIT_TAG = "20250130"
+    # Bumped to 20260130 to fix listmount04.c build failure on newer kernels
+    # ('struct mnt_id_req' no longer has a 'spare' member). Fixed upstream
+    # after the 20250130 tag.
+    DEFAULT_LTP_TESTS_GIT_TAG = "20260130"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
     LTP_RESULT_FILE = "ltp-results.log"
     LTP_OUTPUT_FILE = "ltp-output.log"
