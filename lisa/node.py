@@ -586,8 +586,18 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     def check_kernel_error(self) -> None:
         # Check if the kernel is in a healthy state without errors or panics.
+        # Retry on transient SSH/connection errors that can occur when the
+        # node was recently rebooted and the connection is not fully stable.
         dmesg = self.tools[Dmesg]
-        dmesg.check_kernel_errors(force_run=True, throw_error=True)
+        try:
+            dmesg.check_kernel_errors(force_run=True, throw_error=True)
+        except LisaException:
+            # Re-raise actual kernel errors (dmesg matched error patterns)
+            raise
+        except Exception:
+            # Transient connection failure — reconnect and retry once
+            self.close()
+            dmesg.check_kernel_errors(force_run=True, throw_error=True)
         self.check_kernel_panic()
 
     def expand_env_path(self, raw_path: str) -> str:
