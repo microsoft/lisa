@@ -276,7 +276,7 @@ class SourceInstaller(BaseInstaller):
             lscpu = node.tools[Lscpu]
             if (
                 isinstance(node.os, Ubuntu)
-                and arch == CpuArchitecture.ARM64
+                and lscpu.get_architecture() == CpuArchitecture.ARM64
                 and node.shell.exists(
                     node.get_pure_path("/etc/initramfs/post-update.d/flash-kernel")
                 )
