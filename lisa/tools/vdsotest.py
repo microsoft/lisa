@@ -73,14 +73,11 @@ class Vdsotest(Tool):
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("vdsotest")
         self.node.execute("./autogen.sh", cwd=code_path).assert_exit_code()
-        # Fedora requires explicit C11 standard flag to avoid compilation errors.
-        # Using -std=gnu11 ensures compatibility with the vdsotest source code while
-        # avoiding issues with stricter compiler enforcement on newer GCC versions.
-        if type(self.node.os) is Fedora:
-            self.node.execute(
-                "./configure CFLAGS='-std=gnu11'", cwd=code_path
-            ).assert_exit_code()
-        else:
-            self.node.execute("./configure", cwd=code_path).assert_exit_code()
+        # Use -std=gnu11 to avoid compilation errors on newer GCC versions that
+        # default to C23, where 'nullptr' is a reserved keyword conflicting with
+        # the vdsotest source code (src/getcpu.c).
+        self.node.execute(
+            "./configure CFLAGS='-std=gnu11'", cwd=code_path
+        ).assert_exit_code()
         make.make_install(cwd=code_path)
         return self._check_exists()
