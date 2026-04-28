@@ -2099,7 +2099,7 @@ class CBLMariner(RPMDistro):
 
     def __init__(self, node: Any) -> None:
         super().__init__(node)
-        self._dnf_tool_name: str
+        self._dnf_tool_name: str = "dnf"
 
     def _initialize_package_installation(self) -> None:
         self.set_kill_user_processes()
@@ -2167,9 +2167,15 @@ class CBLMariner(RPMDistro):
     # the SSH session is reset
     def set_kill_user_processes(self) -> None:
         sed = self._node.tools[Sed]
+        # Azure Linux 4.0 moved logind.conf to /usr/lib/systemd/
+        logind_conf = "/etc/systemd/logind.conf"
+        if not self._node.shell.exists(
+            self._node.get_pure_path(logind_conf)
+        ):
+            logind_conf = "/usr/lib/systemd/logind.conf"
         sed.append(
             text="KillUserProcesses=no",
-            file="/etc/systemd/logind.conf",
+            file=logind_conf,
             sudo=True,
         )
         self._node.tools[Service].restart_service("systemd-logind")

@@ -116,7 +116,13 @@ class Cargo(Tool):
         node_os: Posix = cast(Posix, self.node.os)
 
         # install prerequisites
-        node_os.install_packages(["build-essential", "cmake"])
+        if isinstance(node_os, CBLMariner) and node_os.information.version >= "4.0.0":
+            # build-essential not available on Azure Linux 4.0
+            node_os.install_packages(
+                ["kernel-headers", "binutils", "glibc-devel", "gcc", "make", "cmake"]
+            )
+        else:
+            node_os.install_packages(["build-essential", "cmake"])
 
         gcc = self.node.tools[Gcc]
         gcc_version_info = gcc.get_version()

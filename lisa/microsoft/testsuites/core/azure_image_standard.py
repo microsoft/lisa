@@ -522,7 +522,10 @@ class AzureImageStandard(TestSuite):
                     f"networking=yes should be present in {network_file_path}",
                 ).contains("networking=yes".upper())
         elif isinstance(node.os, CBLMariner):
-            network_file_path = "/etc/systemd/networkd.conf"
+            if node.os.information.version >= "4.0.0":
+                network_file_path = "/usr/lib/systemd/networkd.conf"
+            else:
+                network_file_path = "/etc/systemd/networkd.conf"
             file_exists = node.shell.exists(PurePosixPath(network_file_path))
             assert_that(
                 file_exists,
