@@ -3,7 +3,7 @@
 import json
 import string
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
@@ -33,7 +33,10 @@ from lisa.util import (
     generate_random_chars,
 )
 
-TIME_LIMIT = 3600 * 2
+# Allow up to 3.5 hours total: 3 hours of initial polling for encryption
+# completion plus up to ~30 minutes of extended polling when the extension
+# is still reporting "EncryptionInProgress" at the 3-hour mark.
+TIME_LIMIT = int(3600 * 3.5)
 MIN_REQUIRED_MEMORY_MB = 8 * 1024
 
 # Define a type alias for readability
@@ -94,44 +97,68 @@ class AzureDiskEncryption(TestSuite):
         ).is_equal_to("Succeeded")
 
         # Get VM Extension status
-        # Maximum time to check is 3 hours, which is 180 minutes.
-        # We're checking every 5 minutes, so the loop will run 180/5 = 36 times.
-        max_retries = 36
+        # Initial polling: up to 2 hours, checking every 5 minutes (24 retries).
+        # If the extension is still reporting "EncryptionInProgress" at the
+        # 2-hour mark, extend polling by an additional 1 hour (12 more retries)
+        # to accommodate slow encryption on older distros / VM SKUs where
+        # encryption legitimately takes longer than 2 hours.
+        initial_retries = 24
+        extended_retries = 12
         retry_interval = 300  # 5 minutes in seconds
         os_status = None
         extension = node.features[AzureExtension]
         extension_status = extension.get(name="AzureDiskEncryptionForLinux")
         instance_view = extension_status.instance_view
-        substatuses = instance_view.substatuses
         log.debug(f"Extension status: {extension_status}")
         log.debug(f"Instance view: {instance_view}")
 
-        for i in range(max_retries):
-            extension_status = extension.get(name="AzureDiskEncryptionForLinux")
-            instance_view = extension_status.instance_view
-            substatuses = instance_view.substatuses
-            for substatus in substatuses:
+        def _poll_os_status() -> Optional[str]:
+            latest_status: Optional[str] = None
+            current = extension.get(name="AzureDiskEncryptionForLinux")
+            for substatus in current.instance_view.substatuses:
                 log.debug(f"Substatus: {substatus}")
                 try:
                     message_json = json.loads(substatus.message)
-                    os_status = message_json.get("os")
-                    if os_status == "Encrypted":
-                        log.debug("The 'os' status is 'Encrypted'")
-                        break
+                    candidate = message_json.get("os")
+                    if candidate:
+                        latest_status = candidate
                 except json.JSONDecodeError:
                     log.error(f"Failed to parse message content: {substatus.message}")
+            return latest_status
 
-            # If the os_status is 'Encrypted', break out of the loop
+        # Phase 1: initial 2-hour poll for "Encrypted".
+        for i in range(initial_retries):
+            os_status = _poll_os_status()
             if os_status == "Encrypted":
+                log.debug("The 'os' status is 'Encrypted'")
                 break
 
-            # Otherwise, sleep for 5 minutes before checking again
-            if i < max_retries - 1:  # To avoid sleeping after the last iteration
+            if i < initial_retries - 1:
                 log.debug(
                     f"Sleeping for {retry_interval} seconds before checking again"
                 )
-                log.debug(f"Retry #{i + 1} of {max_retries}")
+                log.debug(f"Initial retry #{i + 1} of {initial_retries}")
                 time.sleep(retry_interval)
+
+        # Phase 2: if encryption is still progressing after the initial window,
+        # extend polling by up to 1 more hour. This handles slow-encryption
+        # scenarios (older distros, older VM SKUs) where the extension is
+        # healthy but has not yet reported "Encrypted".
+        if os_status != "Encrypted" and os_status == "EncryptionInProgress":
+            log.info(
+                "Initial 2-hour window elapsed with status 'EncryptionInProgress'. "
+                "Extending polling by up to 1 more hour for 'Encrypted'."
+            )
+            for j in range(extended_retries):
+                log.debug(
+                    f"Sleeping for {retry_interval} seconds before checking again"
+                )
+                log.debug(f"Extended retry #{j + 1} of {extended_retries}")
+                time.sleep(retry_interval)
+                os_status = _poll_os_status()
+                if os_status == "Encrypted":
+                    log.debug("The 'os' status is 'Encrypted' after extended polling")
+                    break
 
         assert_that(os_status).described_as(
             "Expected the OS status to be 'Encrypted'"
