@@ -388,6 +388,15 @@ class LisaRunner(BaseRunner):
         # release environment reference to optimize memory.
         test_result.environment = None
 
+        # Run environment_cleanup transformers while SSH is still alive.
+        # This allows post-test data collection (e.g., ftrace coverage)
+        # before the environment is torn down.
+        transformer.run(
+            self._runbook_builder,
+            phase=constants.TRANSFORMER_PHASE_ENVIRONMENT_CLEANUP,
+            environment=tested_environment,
+        )
+
         # Some test cases may break the ssh connections. To reduce side effects
         # on next test cases, close the connection after each test run. It will
         # be connected on the next command automatically.

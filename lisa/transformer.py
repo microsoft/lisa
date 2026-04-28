@@ -96,6 +96,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     init_transformers: List[schema.Transformer] = []
     expanded_transformers: List[schema.Transformer] = []
     deployed_transformers: List[schema.Transformer] = []
+    environment_cleanup_transformers: List[schema.Transformer] = []
     expanded_cleanup_transformers: List[schema.Transformer] = []
     cleanup_transformers: List[schema.Transformer] = []
     for transformer in sorted_transformers:
@@ -105,6 +106,8 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
             expanded_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED:
             deployed_transformers.append(transformer)
+        elif transformer.phase == constants.TRANSFORMER_PHASE_ENVIRONMENT_CLEANUP:
+            environment_cleanup_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP:
             expanded_cleanup_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_CLEANUP:
@@ -115,6 +118,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
         init_transformers
         + expanded_transformers
         + deployed_transformers
+        + environment_cleanup_transformers
         + expanded_cleanup_transformers
         + cleanup_transformers
     )
