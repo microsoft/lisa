@@ -200,6 +200,13 @@ class LisaRunner(BaseRunner):
         # run on deployed environment
         can_run_results = [x for x in can_run_results if x.can_run]
         if environment.status == EnvironmentStatus.Deployed and can_run_results:
+            if self._guest_enabled:
+                return self._generate_task(
+                    task_method=self._initialize_environment_task,
+                    environment=environment,
+                    test_results=can_run_results[:1],
+                )
+
             selected_test_results = self._get_test_result_to_run(
                 test_results=test_results, environment=environment
             )
@@ -341,6 +348,9 @@ class LisaRunner(BaseRunner):
                 phase=constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED,
                 environment=environment,
             )
+            if self._guest_enabled:
+                guest_environment = environment.get_guest_environment()
+                guest_environment.nodes.initialize()
         except Exception as e:
             self._attach_failed_environment_to_result(
                 environment=environment,
@@ -639,8 +649,10 @@ class LisaRunner(BaseRunner):
             )
             and (
                 environment_status is None
-                or x.runtime_data.metadata.requirement.environment_status
-                == environment_status
+                or self._matches_environment_status(
+                    x.runtime_data.metadata.requirement.environment_status,
+                    environment_status,
+                )
             )
         ]
         if environment:
@@ -687,6 +699,23 @@ class LisaRunner(BaseRunner):
 
         results = self._sort_test_results(results)
         return results
+
+    def _matches_environment_status(
+        self,
+        requirement_status: EnvironmentStatus,
+        actual_status: EnvironmentStatus,
+    ) -> bool:
+        if requirement_status == actual_status:
+            return True
+
+        if (
+            self._guest_enabled
+            and actual_status == EnvironmentStatus.Connected
+            and requirement_status == EnvironmentStatus.Deployed
+        ):
+            return True
+
+        return False
 
     def _get_test_result_to_run(
         self, test_results: List[TestResult], environment: Environment

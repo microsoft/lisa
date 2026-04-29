@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from dataclasses_json import config, dataclass_json
 
@@ -13,9 +14,18 @@ from lisa.util import LisaException
 from .. import OPENVMM
 
 OPENVMM_BOOT_MODE_UEFI = "uefi"
+OPENVMM_ADDRESS_MODE_DISCOVER = "discover"
+OPENVMM_ADDRESS_MODE_STATIC = "static"
 OPENVMM_NETWORK_MODE_USER = "user"
+OPENVMM_NETWORK_MODE_TAP = "tap"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
+
+
+@dataclass_json()
+@dataclass
+class CloudInitSchema:
+    extra_user_data: Optional[Union[str, List[str]]] = None
 
 
 @dataclass_json()
@@ -68,6 +78,11 @@ class OpenVmmSerialSchema:
 @dataclass
 class OpenVmmNetworkSchema:
     mode: str = OPENVMM_NETWORK_MODE_USER
+    address_mode: str = OPENVMM_ADDRESS_MODE_DISCOVER
+    tap_name: str = ""
+    bridge_name: str = ""
+    tap_host_cidr: str = "10.0.0.1/24"
+    guest_address: str = ""
     connection_address: str = ""
     consomme_cidr: str = ""
     ssh_port: int = field(
@@ -77,16 +92,86 @@ class OpenVmmNetworkSchema:
             validate=schema.validate.Range(min=1, max=65535),
         ),
     )
+    forward_ssh_port: bool = False
+    forwarded_port: int = field(
+        default=0,
+        metadata=schema.field_metadata(
+            field_function=schema.fields.Int,
+            validate=schema.validate.Range(min=0, max=65535),
+        ),
+    )
+
+    def _validate_tap_host_cidr(self) -> None:
+        if self.mode != OPENVMM_NETWORK_MODE_TAP:
+            return
+
+        if not self.tap_host_cidr:
+            raise LisaException("tap_host_cidr is required when network mode is 'tap'")
+
+        try:
+            ipaddress.ip_interface(self.tap_host_cidr)
+        except ValueError as identifier:
+            raise LisaException(
+                "tap_host_cidr "
+                f"'{self.tap_host_cidr}' is invalid for OpenVMM tap networking. "
+                "Use an interface CIDR like '10.0.0.1/24'."
+            ) from identifier
 
     def __post_init__(self) -> None:
-        if self.mode != OPENVMM_NETWORK_MODE_USER:
+        if self.mode not in [
+            OPENVMM_NETWORK_MODE_USER,
+            OPENVMM_NETWORK_MODE_TAP,
+        ]:
             raise LisaException(
-                f"network mode '{self.mode}' is not supported. "
-                f"Supported values: {OPENVMM_NETWORK_MODE_USER}"
+                f"network mode '{self.mode}' is not supported for OpenVMM guests. "
+                f"Supported values: {OPENVMM_NETWORK_MODE_USER}, "
+                f"{OPENVMM_NETWORK_MODE_TAP}"
             )
-        if not self.connection_address:
+        if self.mode == OPENVMM_NETWORK_MODE_TAP and not self.tap_name:
+            raise LisaException("tap_name is required when network mode is 'tap'")
+        self._validate_tap_host_cidr()
+        if self.address_mode not in [
+            OPENVMM_ADDRESS_MODE_DISCOVER,
+            OPENVMM_ADDRESS_MODE_STATIC,
+        ]:
             raise LisaException(
-                "connection_address is required for OpenVMM guest networking"
+                f"address_mode '{self.address_mode}' is not supported. "
+                f"Supported values: {OPENVMM_ADDRESS_MODE_DISCOVER}, "
+                f"{OPENVMM_ADDRESS_MODE_STATIC}"
+            )
+
+        if self.forward_ssh_port:
+            if self.mode != OPENVMM_NETWORK_MODE_TAP:
+                raise LisaException(
+                    "forward_ssh_port is supported only with tap networking"
+                )
+            if (
+                self.address_mode == OPENVMM_ADDRESS_MODE_STATIC
+                and not self.guest_address
+            ):
+                raise LisaException(
+                    "guest_address is required when forward_ssh_port is enabled"
+                )
+            if self.forwarded_port <= 0 or self.forwarded_port > 65535:
+                raise LisaException(
+                    "forwarded_port must be between 1 and 65535 when "
+                    "forward_ssh_port is enabled"
+                )
+
+        if self.mode == OPENVMM_NETWORK_MODE_USER:
+            return
+
+        if (
+            self.address_mode == OPENVMM_ADDRESS_MODE_DISCOVER
+            and self.mode != OPENVMM_NETWORK_MODE_TAP
+        ):
+            raise LisaException(
+                "address_mode 'discover' is supported only with tap networking"
+            )
+
+        if self.address_mode == OPENVMM_ADDRESS_MODE_STATIC and not self.guest_address:
+            raise LisaException(
+                "guest_address is required when address_mode is 'static'"
             )
 
 
@@ -99,6 +184,7 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
         default="", repr=False, metadata=config(exclude=lambda x: True)
     )
     private_key_file: str = ""
+    cloud_init: Optional[CloudInitSchema] = None
     lisa_working_dir: str = "/var/tmp"
     boot_mode: str = OPENVMM_BOOT_MODE_UEFI
     uefi: Optional[OpenVmmUefiSchema] = None
@@ -124,3 +210,13 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
             )
         if not self.disk_img:
             raise LisaException("disk_img is required for UEFI OpenVMM guests")
+        if (
+            self.cloud_init
+            and not self.private_key_file
+            and not self.password
+            and not self.cloud_init.extra_user_data
+        ):
+            raise LisaException(
+                "OpenVMM cloud_init requires private_key_file, password, or "
+                "cloud_init.extra_user_data to provision guest access"
+            )

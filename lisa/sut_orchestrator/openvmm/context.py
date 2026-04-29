@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
+from lisa.util import LisaException
 
 
 @dataclass
@@ -26,6 +27,7 @@ class NodeContext:
     forwarding_interface: str = ""
     tap_created: bool = False
     tap_bridge_created: bool = False
+    tap_bridge_netfilter_disabled: bool = False
     tap_dhcp_input_rule_added: bool = False
     tap_dnsmasq_pid_file: str = ""
     tap_dnsmasq_lease_file: str = ""
@@ -33,5 +35,29 @@ class NodeContext:
     command_line: str = ""
 
 
+@dataclass
+class OpenVmmHostContext:
+    original_ip_forward_value: str = ""
+    active_forwarding_count: int = 0
+    original_bridge_netfilter_values: Dict[str, str] = field(default_factory=dict)
+    active_bridge_netfilter_count: int = 0
+
+
 def get_node_context(node: Node) -> NodeContext:
     return node.get_context(NodeContext)
+
+
+def get_host_context(node: Node) -> OpenVmmHostContext:
+    context_attr = "_openvmm_host_context"
+    if not hasattr(node, context_attr):
+        setattr(node, context_attr, OpenVmmHostContext())
+
+    context = getattr(node, context_attr)
+    if not isinstance(context, OpenVmmHostContext):
+        raise LisaException(
+            "unexpected OpenVMM host context type "
+            f"'{type(context).__name__}' stored in '{context_attr}'. Clear "
+            "the stale attribute or ensure only OpenVMM stores "
+            "OpenVmmHostContext in this slot."
+        )
+    return context

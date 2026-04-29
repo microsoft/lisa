@@ -1,60 +1,103 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from assertpy import assert_that
+from typing import Any
 
-from lisa import Node, SkippedException, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    RemoteNode,
+    SkippedException,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.environment import EnvironmentStatus
 from lisa.features import StartStop
 from lisa.sut_orchestrator.openvmm.node import OpenVmmGuestNode
-from lisa.testsuite import simple_requirement
+from lisa.tools import Uname
 
 
 @TestSuiteMetadata(
     area="openvmm",
     category="functional",
     description="""
-    Smoke coverage for OpenVMM guest provisioning and platform lifecycle.
+    This test suite validates OpenVMM guests running on a prepared L1 host.
     """,
 )
-class OpenVmmSmokeTestSuite(TestSuite):
-    @TestCaseMetadata(
-        description="""
-        Validate an OpenVMM guest is provisioned, reachable over SSH, and can
-        execute a simple command after launch.
-        """,
-        priority=1,
-        requirement=simple_requirement(supported_features=[StartStop]),
-    )
-    def verify_openvmm_provisioning(self, node: Node) -> None:
-        openvmm_node = self._get_openvmm_guest(node)
-
-        result = openvmm_node.execute("echo openvmm-smoke", shell=True)
-
-        result.assert_exit_code()
-        assert_that(result.stdout.strip()).is_equal_to("openvmm-smoke")
+class OpenVmmPlatformSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        if not isinstance(node, OpenVmmGuestNode):
+            raise SkippedException(
+                "This suite only applies to OpenVMM guest nodes. "
+                f"Actual node type: {type(node).__name__}."
+            )
 
     @TestCaseMetadata(
         description="""
-        Validate the OpenVMM StartStop feature can stop and start a guest while
-        preserving SSH connectivity for subsequent command execution.
+        This case validates that an OpenVMM guest is reachable over SSH and that
+        the guest booted successfully.
         """,
-        priority=1,
-        requirement=simple_requirement(supported_features=[StartStop]),
+        priority=0,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+        ),
     )
-    def verify_openvmm_stop_start_in_platform(self, node: Node) -> None:
-        openvmm_node = self._get_openvmm_guest(node)
+    def verify_openvmm_guest_boot(
+        self,
+        log: Logger,
+        node: RemoteNode,
+    ) -> None:
+        kernel_release = node.tools[Uname].get_linux_information().kernel_version_raw
+        log.info(f"Connected to OpenVMM guest kernel {kernel_release}")
 
-        start_stop = openvmm_node.features[StartStop]
+    @TestCaseMetadata(
+        description="""
+        This case validates that platform restart keeps the OpenVMM guest
+        reachable after the restart.
+        """,
+        priority=0,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[StartStop],
+        ),
+    )
+    def verify_openvmm_restart_via_platform(
+        self,
+        log: Logger,
+        node: RemoteNode,
+    ) -> None:
+        start_stop = node.features[StartStop]
+        start_stop.restart()
+
+        kernel_release = node.tools[Uname].get_linux_information().kernel_version_raw
+        log.info(f"OpenVMM guest returned after restart on kernel {kernel_release}")
+
+    @TestCaseMetadata(
+        description="""
+        This case validates that platform stop/start keeps the OpenVMM guest
+        reachable for subsequent command execution.
+        """,
+        priority=0,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[StartStop],
+        ),
+    )
+    def verify_openvmm_stop_start_in_platform(
+        self,
+        log: Logger,
+        node: RemoteNode,
+    ) -> None:
+        start_stop = node.features[StartStop]
+        log.info("Stopping OpenVMM guest via platform")
         start_stop.stop(wait=True)
+        log.info("Starting OpenVMM guest via platform")
         start_stop.start(wait=True)
 
-        result = openvmm_node.execute("echo openvmm-recovered", shell=True)
-
-        result.assert_exit_code()
-        assert_that(result.stdout.strip()).is_equal_to("openvmm-recovered")
-
-    def _get_openvmm_guest(self, node: Node) -> OpenVmmGuestNode:
-        if not isinstance(node, OpenVmmGuestNode):
-            raise SkippedException("This suite only applies to OpenVMM guest nodes.")
-
-        return node
+        kernel_release = node.tools[Uname].get_linux_information().kernel_version_raw
+        log.info(
+            f"OpenVMM guest returned after platform stop/start on kernel "
+            f"{kernel_release}"
+        )
