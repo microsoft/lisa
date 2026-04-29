@@ -682,7 +682,7 @@ class Nics(InitializableMixin):
         module_list = [
             m
             for m in self._device_module_map[module_name].drivers
-            if modprobe.module_exists(m)
+            if modprobe.is_module_loaded(m, force_run=True)
         ]
         modprobe.remove(module_list)
         return module_list
