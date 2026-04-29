@@ -359,7 +359,7 @@ class Fio(Tool):
         if gtod_reduce:
             cmd += " --gtod_reduce=1"
         if size_gb:
-            cmd += f" --size={size_gb}M"
+            cmd += f" --size={size_gb}G"
         if group_reporting:
             cmd += " --group_reporting"
         if overwrite:
