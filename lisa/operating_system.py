@@ -2534,6 +2534,9 @@ class Suse(Linux):
             f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
         )
 
+    # Retry initialization when no repos are visible yet — the cloud
+    # registration may still be in progress.
+    @retry(exceptions=RepoNotExistException, tries=5, delay=30)  # type: ignore
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
         service = self._node.tools[Service]
