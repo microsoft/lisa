@@ -506,8 +506,8 @@ class Sriov(TestSuite):
         sriov_basic_test(environment)
 
         module_in_used: Dict[str, List[str]] = {}
-        module_name_list: List[str] = []
         for node in environment.nodes.list():
+            module_name_list: List[str] = []
             for module_name in node.nics.get_used_modules(["hv_netvsc"]):
                 if node.nics.is_module_reloadable(module_name):
                     module_name_list.extend(node.nics.unload_module(module_name))
