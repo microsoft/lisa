@@ -1267,30 +1267,53 @@ class Nodes:
         retries = max(0, retries)
         retry_backoff_seconds = max(0.0, retry_backoff_seconds)
 
+        total_attempts = retries + 1
+
+        def _node_id(node: Node) -> str:
+            # Best-effort identity string for log lines: name + whichever
+            # address is populated (public preferred, else internal). Both
+            # may be missing/empty if the platform hasn't filled them in
+            # yet, in which case we fall back to "<unknown>".
+            name = getattr(node, "name", None) or "<unnamed>"
+            public_addr = getattr(node, "public_address", "") or ""
+            internal_addr = getattr(node, "internal_address", "") or ""
+            ip = public_addr or internal_addr or "<unknown>"
+            return f"name={name} ip={ip}"
+
         def _init_one(node: Node) -> Tuple[Node, Optional[Exception]]:
             last_exc: Optional[Exception] = None
-            for attempt in range(retries + 1):
+            for attempt in range(total_attempts):
+                ident = _node_id(node)
+                node.log.info(
+                    f"node initialize attempt {attempt + 1}/{total_attempts} "
+                    f"START [{ident}]"
+                )
                 try:
                     node.initialize()
-                    if attempt > 0:
-                        node.log.info(
-                            f"node initialize succeeded on retry {attempt}"
-                        )
+                    node.log.info(
+                        f"node initialize attempt {attempt + 1}/{total_attempts} "
+                        f"SUCCESS [{_node_id(node)}]"
+                    )
                     return node, None
                 except Exception as e:  # noqa: BLE001 - bubbled per-node below
                     last_exc = e
+                    remaining = retries - attempt
                     if attempt < retries:
                         node.log.warning(
-                            f"node initialize attempt {attempt + 1} failed: {e}; "
-                            f"retrying after {retry_backoff_seconds:.1f}s "
-                            f"({retries - attempt} attempt(s) left)"
+                            f"node initialize attempt "
+                            f"{attempt + 1}/{total_attempts} FAILED "
+                            f"[{ident}]: {e}; retrying after "
+                            f"{retry_backoff_seconds:.1f}s "
+                            f"({remaining} attempt(s) left)"
                         )
                         if retry_backoff_seconds > 0:
                             time.sleep(retry_backoff_seconds)
                     else:
                         node.log.error(
-                            f"node initialize gave up after "
-                            f"{attempt + 1} attempt(s): {e}"
+                            f"node initialize attempt "
+                            f"{attempt + 1}/{total_attempts} FAILED "
+                            f"[{ident}]: {e}; gave up after "
+                            f"{total_attempts} attempt(s)"
                         )
             return node, last_exc
 
