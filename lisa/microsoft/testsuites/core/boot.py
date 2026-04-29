@@ -35,8 +35,9 @@ class Boot(TestSuite):
         1. Skip testing if the distro is not redhat/centos type, RHEL added this test
            case, since they encounter an issue which is seeing call trace when boot
            with debug kernel.
-        2. Install kernel-debug package and set boot with this debug kernel.
-        3. Reboot VM, check kernel version is debug type.
+        2. Skip if kernel-debug package is not available in repos (e.g. HPC images).
+        3. Install kernel-debug package and set boot with this debug kernel.
+        4. Reboot VM, check kernel version is debug type.
         """,
         priority=3,
         requirement=simple_requirement(
@@ -53,12 +54,21 @@ class Boot(TestSuite):
                 "This test case only supports redhat/centos distro."
             )
 
-        # 2. Install kernel-debug package and set boot with this debug kernel.
+        # 2. Skip if kernel-debug package is not available (e.g. HPC images
+        #    like AlmaLinux HPC intentionally omit debug kernels).
+        if not node.os.is_package_in_repo("kernel-debug"):
+            raise SkippedException(
+                "kernel-debug package is not available in the repo. "
+                "This is expected for HPC and minimal images that intentionally "
+                "omit debug kernels."
+            )
+
+        # 3. Install kernel-debug package and set boot with this debug kernel.
         node.os.install_packages("kernel-debug")
         result = node.execute("grub2-set-default 0", sudo=True)
         result.assert_exit_code()
 
-        # 3. Reboot VM, check kernel version is debug type.
+        # 4. Reboot VM, check kernel version is debug type.
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
 
