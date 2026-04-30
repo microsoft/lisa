@@ -188,9 +188,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -565,8 +565,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         ]
     }
     """  # noqa: E501
-    _gpu_extension_nvidia_properties = json.loads(
-        """
+    _gpu_extension_nvidia_properties = json.loads("""
         {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
@@ -575,8 +574,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             "settings": {
             }
         }
-    """
-    )
+    """)
 
     def is_supported(self) -> bool:
         # TODO: The GPU Feature is supposed to handle cloud related
@@ -2021,9 +2019,9 @@ class Disk(AzureFeatureMixin, features.Disk):
             cmd_result = self._node.execute(
                 f"readlink -f {disk}", shell=True, sudo=True
             )
-            disk_array[
-                int(disk.split("/")[-1].replace("lun", ""))
-            ] = cmd_result.stdout.strip()
+            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = (
+                cmd_result.stdout.strip()
+            )
         return disk_array
 
     def get_all_disks(self) -> List[str]:
@@ -2554,13 +2552,20 @@ class Resize(AzureFeatureMixin, features.Resize):
         try:
             node_disk = self._node.features[features.Disk]
             hw_dc_type = node_disk.get_hardware_disk_controller_type()
-            if hw_dc_type is not None:
+            if hw_dc_type:
                 actual_disk_controller_type = schema.DiskControllerType(hw_dc_type)
                 self._log.debug(
                     f"actual hardware disk controller type: "
                     f"{actual_disk_controller_type}"
                 )
-        except (LisaException, ValueError, AttributeError) as e:
+        except (
+            LisaException,
+            ValueError,
+            AttributeError,
+            HttpResponseError,
+            ResourceNotFoundError,
+            ClientAuthenticationError,
+        ) as e:
             self._log.debug(
                 f"could not determine actual disk controller type, "
                 f"falling back to VM size capability comparison: {e}"
@@ -2604,17 +2609,18 @@ class Resize(AzureFeatureMixin, features.Resize):
             # capabilities (e.g. current supports {SCSI,NVMe} and candidate
             # supports {NVMe} -> overlap exists). But if the VM is actually
             # using SCSI, resizing to an NVMe-only size will fail.
-            if actual_disk_controller_type is not None:
+            if actual_disk_controller_type:
                 candidate_dc_types = getattr(
                     candidate_size.capability.disk, "disk_controller_type", None
                 )
-                if candidate_dc_types is not None:
-                    if isinstance(
-                        candidate_dc_types, search_space.SetSpace
-                    ) and actual_disk_controller_type not in candidate_dc_types:
+                if candidate_dc_types:
+                    if (
+                        isinstance(candidate_dc_types, search_space.SetSpace)
+                        and actual_disk_controller_type not in candidate_dc_types
+                    ):
                         avail_eligible_intersect.remove(candidate_size)
                         continue
-                    elif (
+                    if (
                         isinstance(candidate_dc_types, schema.DiskControllerType)
                         and candidate_dc_types != actual_disk_controller_type
                     ):
@@ -2877,9 +2883,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile[
-                "disk_encryption_set_id"
-            ] = settings.disk_encryption_set_id
+            node_parameters.security_profile["disk_encryption_set_id"] = (
+                settings.disk_encryption_set_id
+            )
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
