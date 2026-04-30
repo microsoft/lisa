@@ -1919,9 +1919,11 @@ class Disk(AzureFeatureMixin, features.Disk):
         #
         # LUN numbers is a concept of SCSI and not applicable for NVME.
         # But in Azure, remote data disks attached with NVME disk controller show LUN
-        # numbers in "Namespace" field of nvme-cli output with an off set of +2.
-        # If we reduce the Namespace id by 2 we can get the LUN id of any attached
-        # azure data disks.
+        # numbers in the "Namespace" (NSID) field of nvme-cli output with a fixed
+        # offset relative to LUN 0. The offset depends on whether the remote data
+        # disks share the OS NVMe controller (offset = 2, because NSID 1 = OS disk
+        # and NSID 2 = LUN 0) or live on a dedicated NVMe controller as on
+        # multi-controller / dual-NVMe VM sizes (offset = 1, because NSID 1 = LUN 0).
         # Example:
         # root@lisa--170-e0-n0:/home/lisa# nvme -list
         # Node                  SN                   Model                                    Namespace Usage                      Format           FW Rev   # noqa: E501
@@ -1945,12 +1947,30 @@ class Disk(AzureFeatureMixin, features.Disk):
             nvme_device_ids = self._node.tools[Nvmecli].get_namespace_ids(
                 force_run=True
             )
+            nvme = self._node.features[Nvme]
+            os_disk_controller = nvme.get_nvme_os_disk_controller()
 
             for nvme_device_id in nvme_device_ids:
                 nvme_device_file = list(nvme_device_id.keys())[0]
                 if self._is_remote_data_disk(nvme_device_file):
-                    # Reduce 2 from Namespace to get the actual LUN number.
-                    device_lun = int(list(nvme_device_id.values())[0]) - 2
+                    nsid = int(list(nvme_device_id.values())[0])
+                    # Determine which NVMe controller this remote data disk is on.
+                    # On single-controller VMs, remote data disks share the OS
+                    # NVMe controller: OS disk has NSID 1, so NSID 2 maps to
+                    # LUN 0 (offset = 2).
+                    # On multi-controller (e.g. dual NVMe) VMs, remote data disks
+                    # are placed on a dedicated controller that does NOT host the
+                    # OS disk, so namespaces start at NSID 1 = LUN 0 (offset = 1).
+                    controller_match = Nvme.NVME_CONTROLLER_PATTERN.match(
+                        nvme_device_file
+                    )
+                    controller = (
+                        controller_match.group(0) if controller_match else ""
+                    )
+                    if controller and controller == os_disk_controller:
+                        device_lun = nsid - 2
+                    else:
+                        device_lun = nsid - 1
                     if nvme_device_file in data_disks:
                         device_luns.update(
                             {
