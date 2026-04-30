@@ -730,7 +730,7 @@ class CloudHypervisorTests(Tool):
     def _write_testcase_log(self, log_path: Path, testcase: str, trace: str) -> None:
         """Write testcase log to file."""
         testcase_log_file = log_path.joinpath(f"{testcase}.log")
-        with open(testcase_log_file, "w") as f:
+        with open(testcase_log_file, "w", encoding="utf-8") as f:
             if hasattr(self, "_last_result") and self._last_result is not None:
                 if self._last_result.stdout:
                     f.write(self._last_result.stdout)

@@ -1446,7 +1446,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             libvirt_log = self.host_node.tools[Journalctl].logs_for_unit(
                 "libvirtd", sudo=self.host_node.is_remote
             )
-            with open(str(libvirt_log_local_path), "w") as f:
+            with open(str(libvirt_log_local_path), "w", encoding="utf-8") as f:
                 f.write(libvirt_log)
 
     def _expand_nodes_os_partition(self, environment: Environment, log: Logger) -> None:
