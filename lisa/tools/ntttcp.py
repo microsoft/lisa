@@ -214,6 +214,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         cmd = ""
         if server_ip:
@@ -236,6 +237,7 @@ class Ntttcp(Tool):
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
+            no_debug_log=no_debug_log,
         )
         # NTTTCP for Linux 1.4.0
         # ---------------------------------------------------------
@@ -258,6 +260,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         # -rserver_ip: run as a receiver with specified server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -286,6 +289,7 @@ class Ntttcp(Tool):
             dev_differentiator,
             run_as_daemon,
             udp_mode,
+            no_debug_log,
         )
 
         return self.wait_server_result(process)
@@ -309,6 +313,7 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         cmd = (
             f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
@@ -325,6 +330,7 @@ class Ntttcp(Tool):
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
+            no_debug_log=no_debug_log,
         )
         return process
 
@@ -342,6 +348,7 @@ class Ntttcp(Tool):
         run_as_daemon: bool = False,
         udp_mode: bool = False,
         tolerance_seconds: int = 60,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -373,6 +380,7 @@ class Ntttcp(Tool):
             dev_differentiator,
             run_as_daemon,
             udp_mode,
+            no_debug_log,
         )
         return process.wait_result(
             expected_exit_code=0,
@@ -868,6 +876,7 @@ class BSDNtttcp(Ntttcp):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         assert server_ip, "server ip is required for ntttcp server"
         self._log.debug(
@@ -889,6 +898,7 @@ class BSDNtttcp(Ntttcp):
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
+            no_debug_log=no_debug_log,
         )
         time.sleep(5)
 
@@ -908,6 +918,7 @@ class BSDNtttcp(Ntttcp):
         run_as_daemon: bool = False,
         udp_mode: bool = False,
         tolerance_seconds: int = 60,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         self._log.debug(
             "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
@@ -928,6 +939,7 @@ class BSDNtttcp(Ntttcp):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
             timeout=run_time_seconds + tolerance_seconds,
+            no_debug_log=no_debug_log,
         )
         return result
 

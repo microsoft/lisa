@@ -136,7 +136,7 @@ class Lagscope(Tool, KillableMixin):
         for key in self._busy_pool_keys:
             sysctl.write(key, self._original_settings[key])
 
-    def run_as_server_async(self, ip: str = "") -> Process:
+    def run_as_server_async(self, ip: str = "", no_debug_log: bool = False) -> Process:
         # -r: run as a receiver
         # -rip: run as server mode with specified ip address
         cmd = ""
@@ -144,7 +144,9 @@ class Lagscope(Tool, KillableMixin):
             cmd += f" -r{ip}"
         else:
             cmd += " -r"
-        process = self.run_async(cmd, sudo=True, shell=True, force_run=True)
+        process = self.run_async(
+            cmd, sudo=True, shell=True, force_run=True, no_debug_log=no_debug_log
+        )
         if not process.is_running():
             raise LisaException("lagscope server failed to start")
         if not self.node.tools[Lsof].is_port_opened_per_process_name(self.command):
@@ -164,6 +166,7 @@ class Lagscope(Tool, KillableMixin):
         count_of_histogram_intervals: int = 30,
         dump_csv: bool = True,
         daemon: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         # -s: run as a sender
         # -i: test interval
@@ -197,7 +200,7 @@ class Lagscope(Tool, KillableMixin):
             cmd += " -P "
         if dump_csv:
             cmd += f" -RLatency-{get_datetime_path()}.csv "
-        process = self.node.execute_async(cmd, shell=True)
+        process = self.node.execute_async(cmd, shell=True, no_debug_log=no_debug_log)
         return process
 
     def run_as_client(
@@ -213,6 +216,7 @@ class Lagscope(Tool, KillableMixin):
         count_of_histogram_intervals: int = 30,
         dump_csv: bool = True,
         daemon: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         process = self.run_as_client_async(
             server_ip,
@@ -226,6 +230,7 @@ class Lagscope(Tool, KillableMixin):
             count_of_histogram_intervals,
             dump_csv,
             daemon,
+            no_debug_log,
         )
 
         result = process.wait_result()
@@ -532,7 +537,7 @@ class BSDLagscope(Lagscope):
         # This is not supported on FreeBSD.
         return
 
-    def run_as_server_async(self, ip: str = "") -> Process:
+    def run_as_server_async(self, ip: str = "", no_debug_log: bool = False) -> Process:
         return self.node.tools[Sockperf].start_server_async("tcp")
 
     def run_as_client_async(
@@ -548,6 +553,7 @@ class BSDLagscope(Lagscope):
         count_of_histogram_intervals: int = 30,
         dump_csv: bool = True,
         daemon: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         return self.node.tools[Sockperf].run_client_async("tcp", server_ip)
 
@@ -564,6 +570,7 @@ class BSDLagscope(Lagscope):
         count_of_histogram_intervals: int = 30,
         dump_csv: bool = True,
         daemon: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         process = self.run_as_client_async(
             server_ip,
@@ -577,6 +584,7 @@ class BSDLagscope(Lagscope):
             count_of_histogram_intervals,
             dump_csv,
             daemon,
+            no_debug_log,
         )
         result = process.wait_result()
         return result
