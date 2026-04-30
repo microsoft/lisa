@@ -4,9 +4,10 @@ import json
 import re
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Pattern, Type, cast
 
 from retry import retry
+from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.messages import (
@@ -70,6 +71,13 @@ IPERF_UDP_CONCURRENCY = [
 class Iperf3(Tool):
     _repo = "https://github.com/esnet/iperf"
     _branch = "3.10.1"
+    # iperf3 versions 3.14+ have a known segfault in UDP mode with high
+    # parallelism (-P 64+). Force a source build from _branch when the
+    # distro-installed version falls in this buggy range.
+    _buggy_version_min = VersionInfo(3, 14, 0)
+    _version_pattern = re.compile(
+        r"iperf\s+(?P<major>\d+)\.(?P<minor>\d+)\.?(?P<patch>\d*)"
+    )
     _sender_pattern = re.compile(
         r"(([\w\W]*?)[SUM].* (?P<bandwidth>[0-9]+.[0-9]+)"
         r" Gbits/sec.*sender([\w\W]*?))",
@@ -100,6 +108,17 @@ class Iperf3(Tool):
     def help(self) -> ExecutableResult:
         return self.run("-h", force_run=True)
 
+    def get_version(self) -> Optional[VersionInfo]:
+        result = self.run("-v", force_run=True)
+        matched = self._version_pattern.search(result.stdout)
+        if matched:
+            major = int(matched.group("major"))
+            minor = int(matched.group("minor"))
+            patch_str = matched.group("patch")
+            patch = int(patch_str) if patch_str.isdigit() else 0
+            return VersionInfo(major, minor, patch)
+        return None
+
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         try:
@@ -110,6 +129,16 @@ class Iperf3(Tool):
         if self._check_exists():
             if "--logfile" not in self.help().stdout:
                 install_from_src = True
+            else:
+                # iperf3 >= 3.14 segfaults in UDP mode with high parallelism.
+                # Force a source build from a known-good version.
+                version = self.get_version()
+                if version and version >= self._buggy_version_min:
+                    self._log.info(
+                        f"iperf3 {version} has known UDP segfault, "
+                        f"rebuilding from source ({self._branch})"
+                    )
+                    install_from_src = True
         else:
             install_from_src = True
         if install_from_src:
@@ -577,7 +606,7 @@ class Iperf3(Tool):
     def _install_from_src(self) -> None:
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self._repo, tool_path)
+        git.clone(self._repo, tool_path, ref=self._branch)
         code_path = tool_path.joinpath("iperf")
         make = self.node.tools[Make]
         self.node.execute("./configure", cwd=code_path).assert_exit_code()
@@ -597,5 +626,9 @@ class Iperf3(Tool):
     def _pre_handle(self, result: str) -> str:
         result = result.replace("-nan", "0")
         result_matched = get_matched_str(result, self._json_pattern)
-        assert result_matched, "fail to find json format results"
+        if not result_matched:
+            raise LisaException(
+                f"Failed to parse iperf3 JSON output. "
+                f"Raw output (first 500 chars): {result[:500]}"
+            )
         return result_matched
