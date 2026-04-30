@@ -514,7 +514,8 @@ def perf_ntttcp(  # noqa: C901
                             lagscope_server_ip
                             if lagscope_server_ip is not None
                             else server.internal_address
-                        )
+                        ),
+                        no_debug_log=True,
                     )
 
                     # Start ntttcp server asynchronously to accept incoming
@@ -530,6 +531,7 @@ def perf_ntttcp(  # noqa: C901
                         buffer_size=buffer_size,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
+                        no_debug_log=True,
                     )
 
                     # Start lagscope client to measure latency during the
@@ -544,6 +546,7 @@ def perf_ntttcp(  # noqa: C901
                         length_of_histogram_intervals=0,
                         count_of_histogram_intervals=0,
                         dump_csv=False,
+                        no_debug_log=True,
                     )
 
                     # Run ntttcp client and monitor for hangs
@@ -556,6 +559,7 @@ def perf_ntttcp(  # noqa: C901
                         ports_count=num_threads_p,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
+                        no_debug_log=True,
                     )
 
                     # Stop the server and collect results from both client
@@ -783,6 +787,7 @@ def perf_iperf(
                         one_connection_only=True,
                         daemon=False,
                         interface_ip=server_interface_ip,
+                        no_debug_log=True,
                     )
                 )
                 current_server_port += 1
@@ -804,6 +809,7 @@ def perf_iperf(
                         ip_version="4",
                         udp_mode=udp_mode,
                         client_ip=client_interface_ip,
+                        no_debug_log=True,
                     )
                 )
                 current_client_port += 1
