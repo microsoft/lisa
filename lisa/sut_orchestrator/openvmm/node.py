@@ -97,13 +97,9 @@ class StaticAddressResolver(GuestIpResolver):
 
 
 class OpenVmmController:
-    def __init__(self, node: "OpenVmmGuestNode") -> None:
-        self._node = node
-        host_node = node.parent
-        if host_node is None:
-            raise LisaException("OpenVMM guest node must have a parent host node")
+    def __init__(self, host_node: Node, log: Logger) -> None:
         self.host_node = host_node
-        self._log = node.log
+        self._log = log
 
     @classmethod
     def type_name(cls) -> str:
@@ -1357,7 +1353,10 @@ class OpenVmmGuestNode(RemoteNode):
             encoding=encoding,
             **kwargs,
         )
-        self._openvmm_controller = OpenVmmController(self)
+        host_node = self.parent
+        if host_node is None:
+            raise LisaException("OpenVMM guest node must have a parent host node")
+        self._openvmm_controller = OpenVmmController(host_node, self.log)
         self._initialize_capability()
         self.features = Features(self, cast(Any, self._openvmm_controller))
 
