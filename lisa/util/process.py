@@ -102,7 +102,7 @@ class ExecutableResult:
         return assert_that(expected_exit_codes, message).contains(self.exit_code)
 
     def save_stdout_to_file(self, saved_path: Path) -> "ExecutableResult":
-        with open(saved_path, "w") as f:
+        with open(saved_path, "w", encoding="utf-8") as f:
             f.write(self.stdout)
         return self
 
