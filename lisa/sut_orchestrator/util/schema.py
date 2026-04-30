@@ -1,8 +1,15 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Union, cast
+from typing import List, Optional, Union, cast
 
 from dataclasses_json import dataclass_json
+
+
+@dataclass_json()
+@dataclass
+class CloudInitSchema:
+    # Additional values to apply to the cloud-init user-data file.
+    extra_user_data: Optional[Union[str, List[str]]] = None
 
 
 class HostDevicePoolType(Enum):
