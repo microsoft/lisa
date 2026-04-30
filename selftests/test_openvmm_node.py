@@ -32,8 +32,7 @@ class OpenVmmNodeTestCase(TestCase):
             shell=SimpleNamespace(copy=shell_copy),
             tools={Kill: SimpleNamespace(by_pid=kill_by_pid)},
         )
-        guest_node = SimpleNamespace(parent=host_node, log=guest_log)
-        controller = OpenVmmController(cast(Any, guest_node))
+        controller = OpenVmmController(cast(Any, host_node), cast(Any, guest_log))
         return controller, shell_copy, kill_by_pid, guest_log
 
     def test_resolve_guest_artifact_path_uses_unique_names(self) -> None:
