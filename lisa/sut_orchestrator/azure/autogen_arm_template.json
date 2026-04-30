@@ -111,6 +111,9 @@
             "type": "object",
             "value": {
               "name": "[format('{0}-osDisk', parameters('node').name)]",
+              "managedDisk": {
+                "securityProfile": "[if(or(empty(parameters('node').security_profile), not(equals(parameters('node').security_profile.security_type, 'ConfidentialVM'))), null(), __bicep.getSecurityProfileForOSDisk(parameters('node')))]"
+              },
               "diffDiskSettings": {
                 "option": "local",
                 "placement": "[parameters('node').ephemeral_disk_placement_type]"
