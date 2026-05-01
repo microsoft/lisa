@@ -565,7 +565,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         ]
     }
     """  # noqa: E501
-    _gpu_extension_nvidia_properties = json.loads("""
+    _gpu_extension_nvidia_properties = json.loads(
+        """
         {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
@@ -574,7 +575,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             "settings": {
             }
         }
-    """)
+    """
+    )
 
     def is_supported(self) -> bool:
         # TODO: The GPU Feature is supposed to handle cloud related
