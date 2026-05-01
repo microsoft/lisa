@@ -121,6 +121,16 @@ class CPU(TestSuite):
         # For all other cases, check L3 cache mapping with socket awareness
         cpu_info = lscpu.get_cpu_info()
 
+        # On some VMs (e.g. confidential VMs), cache topology is not exposed
+        # by the hypervisor, so lscpu reports "-" for all cache values.
+        # In this case, we cannot verify L3 cache mapping.
+        if any(cpu.l3_cache == -1 for cpu in cpu_info):
+            raise SkippedException(
+                "Cache topology is not exposed on this VM. "
+                "lscpu reports no cache information (likely a confidential VM "
+                "or a VM size that does not expose cache topology to the guest)."
+            )
+
         # Build a mapping of socket -> NUMA nodes and socket -> L3 caches
         socket_to_numa_nodes: dict[int, set[int]] = {}
         socket_to_l3_caches: dict[int, set[int]] = {}
@@ -299,6 +309,11 @@ class CPU(TestSuite):
 
     def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
         cpu_info = node.tools[Lscpu].get_cpu_info()
+        if any(cpu.l3_cache == -1 for cpu in cpu_info):
+            raise SkippedException(
+                "Cache topology is not exposed on this VM. "
+                "lscpu reports no cache information."
+            )
         cpu_info.sort(key=lambda cpu: cpu.cpu)
         for i, cpu in enumerate(cpu_info):
             numa_node_id = i // numa_node_size
