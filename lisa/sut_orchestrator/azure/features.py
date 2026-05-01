@@ -2021,9 +2021,9 @@ class Disk(AzureFeatureMixin, features.Disk):
             cmd_result = self._node.execute(
                 f"readlink -f {disk}", shell=True, sudo=True
             )
-            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = (
-                cmd_result.stdout.strip()
-            )
+            disk_array[
+                int(disk.split("/")[-1].replace("lun", ""))
+            ] = cmd_result.stdout.strip()
         return disk_array
 
     def get_all_disks(self) -> List[str]:
@@ -2877,9 +2877,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile["disk_encryption_set_id"] = (
-                settings.disk_encryption_set_id
-            )
+            node_parameters.security_profile[
+                "disk_encryption_set_id"
+            ] = settings.disk_encryption_set_id
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
