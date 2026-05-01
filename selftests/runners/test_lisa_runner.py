@@ -57,6 +57,7 @@ class RunnerTestCase(TestCase):
 
     def setUp(self) -> None:
         lisa.environment._global_environment_id = 0
+        test_testsuite.cleanup_cases_metadata()  # Clear any globally-registered cases
 
     def tearDown(self) -> None:
         test_testsuite.cleanup_cases_metadata()  # Necessary side effects!
