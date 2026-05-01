@@ -188,9 +188,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
-            platform._azure_runbook.use_public_address
-        )
+        node_info[
+            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
+        ] = platform._azure_runbook.use_public_address
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -2562,9 +2562,7 @@ class Resize(AzureFeatureMixin, features.Resize):
             )
             and self._compare_size_generation(candidate_size, current_vm_size)
             and self._compare_network_interface(candidate_size, current_vm_size)
-            and self._compare_core_count(
-                candidate_size, current_vm_size, resize_action
-            )
+            and self._compare_core_count(candidate_size, current_vm_size, resize_action)
         )
 
     def _select_vm_size(
