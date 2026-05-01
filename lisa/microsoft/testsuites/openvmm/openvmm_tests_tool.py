@@ -352,9 +352,12 @@ class OpenVmmTests(Tool):
             f"-o {shlex.quote(archive_name)} && "
             f"{shlex.quote(curl_command)} --fail -L {shlex.quote(sha256_url)} "
             f"-o {shlex.quote(sha256_name)} && "
-            f"computed=$(sha256sum {shlex.quote(archive_name)} | awk '{{print $1}}') && "
+            f"computed=$(sha256sum {shlex.quote(archive_name)} | "
+            "awk '{print $1}') && "
             f"expected=$(awk '{{print $1}}' {shlex.quote(sha256_name)}) && "
-            'test "$computed" = "$expected" && '
+            'test "$computed" = "$expected" || '
+            '{ echo "SHA256 mismatch: expected=$expected '
+            'computed=$computed" >&2; exit 1; } && '
             f"tar -xf {shlex.quote(archive_name)} && "
             "cp cargo-nextest ~/.cargo/bin/cargo-nextest && "
             "chmod 0755 ~/.cargo/bin/cargo-nextest"
