@@ -27,7 +27,12 @@ class _JUnitSummary:
 
 
 class OpenVmmTests(Tool):
+    # Restoring packages (cargo xflowey restore-packages) can take up to 1 hour
+    # on first run due to large dependency downloads; subsequent runs are faster.
     RESTORE_TIMEOUT = 3600
+    # The full vmm_tests suite can take up to 12 hours on slower hardware.
+    # Individual filtered runs are faster, but allow the full ceiling to avoid
+    # spurious timeouts when running the complete suite.
     VMM_TIMEOUT = 43200
     NEXTEST_VERSION = "0.9.101"
     NEXTEST_LINUX_X64_TARGET = "x86_64-unknown-linux-gnu"
@@ -259,7 +264,7 @@ class OpenVmmTests(Tool):
             "RUST_BACKTRACE": "1",
             "RUSTC": f"{cargo_bin_dir}/rustc",
             "RUSTDOC": f"{cargo_bin_dir}/rustdoc",
-            "RUST_LOG": "trace",
+            "RUST_LOG": "info",
         }
 
     def _wrap_command_for_group(self, command: str) -> str:
@@ -332,10 +337,12 @@ class OpenVmmTests(Tool):
         )
         install_dir = self._artifact_root / "cargo-nextest-install"
         archive_name = f"{self.NEXTEST_LINUX_X64_TARGET}.tar.gz"
+        sha256_name = f"{archive_name}.sha256"
         download_url = (
             f"https://get.nexte.st/{self.NEXTEST_VERSION}/"
             f"{self.NEXTEST_LINUX_X64_TARGET}.tar.gz"
         )
+        sha256_url = f"{download_url}.sha256"
         curl_command = self.node.tools[Curl].command
         install_command = (
             f"rm -rf {shlex.quote(str(install_dir))} && "
@@ -343,6 +350,11 @@ class OpenVmmTests(Tool):
             f"cd {shlex.quote(str(install_dir))} && "
             f"{shlex.quote(curl_command)} --fail -L {shlex.quote(download_url)} "
             f"-o {shlex.quote(archive_name)} && "
+            f"{shlex.quote(curl_command)} --fail -L {shlex.quote(sha256_url)} "
+            f"-o {shlex.quote(sha256_name)} && "
+            f"computed=$(sha256sum {shlex.quote(archive_name)} | awk '{{print $1}}') && "
+            f"expected=$(awk '{{print $1}}' {shlex.quote(sha256_name)}) && "
+            'test "$computed" = "$expected" && '
             f"tar -xf {shlex.quote(archive_name)} && "
             "cp cargo-nextest ~/.cargo/bin/cargo-nextest && "
             "chmod 0755 ~/.cargo/bin/cargo-nextest"
@@ -391,10 +403,15 @@ class OpenVmmTests(Tool):
         )
 
     def _copy_back_if_exists(self, remote_path: PurePath, local_path: Path) -> None:
+        if not self.node.tools[Ls].path_exists(str(remote_path)):
+            self._log.debug(f"artifact not present on remote, skipping: {remote_path}")
+            return
         try:
             self.node.shell.copy_back(remote_path, local_path)
         except Exception as identifier:
-            self._log.debug(f"skipping artifact copy for {remote_path}: {identifier}")
+            self._log.warning(
+                f"failed to copy artifact {remote_path} to {local_path}: {identifier}"
+            )
 
     def _tail_remote_log(self, remote_log: PurePath) -> str:
         result = self.node.execute(
@@ -452,7 +469,18 @@ class OpenVmmTests(Tool):
         if not failed_count and summary.failed_tests:
             failed_count = len(summary.failed_tests)
 
-        passed_count = summary.passed or len(summary.passed_tests)
+        if summary.passed:
+            passed_count = summary.passed
+        elif summary.passed_tests:
+            passed_count = len(summary.passed_tests)
+        elif summary.tests:
+            # Derive passed count from totals when individual names aren't captured
+            # (e.g. JUnit reports that record counts but omit per-case elements).
+            passed_count = max(
+                0, summary.tests - summary.failures - summary.errors - summary.skipped
+            )
+        else:
+            passed_count = 0
         tests_run = summary.tests or (passed_count + failed_count)
         if summary.total:
             overview = (
