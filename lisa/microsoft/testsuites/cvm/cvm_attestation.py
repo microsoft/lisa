@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     description="""
     This test suite is for generating CVM attestation report only for azure cvms.
     """,
+    requirement=simple_requirement(supported_os=[Ubuntu, CBLMariner]),
 )
 class AzureCVMAttestationTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
