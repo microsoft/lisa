@@ -47,6 +47,7 @@ _cudnn_file_name = "cudnn.tgz"
     description="""
     This test suite runs the gpu test cases.
     """,
+    requirement=simple_requirement(supported_os=[Linux]),
 )
 class GpuTestSuite(TestSuite):
     TIMEOUT = 2000
@@ -59,6 +60,8 @@ class GpuTestSuite(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
 

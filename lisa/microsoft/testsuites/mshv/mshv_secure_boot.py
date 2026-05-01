@@ -35,6 +35,7 @@ from lisa.util.shell import wait_tcp_port_ready
     description="""This test suite covers the secure boot flow for
     Dom0 AzureLinux nodes.
     """,
+    requirement=simple_requirement(supported_os=[CBLMariner]),
 )
 class Dom0SecureBootTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

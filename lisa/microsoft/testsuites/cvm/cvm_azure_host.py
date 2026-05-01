@@ -28,6 +28,7 @@ from lisa.util import LisaException, SkippedException, get_matched_str
     This test suite is for azure host vm pre-checks
     for nested-cvm cases.
     """,
+    requirement=simple_requirement(supported_os=[CBLMariner]),
 )
 class CVMAzureHostTestSuite(TestSuite):
     __sev_enabled_pattern = re.compile(r"mshv: SEV-SNP is supported")
@@ -37,11 +38,13 @@ class CVMAzureHostTestSuite(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if not isinstance(node.os, (CBLMariner)):
             raise SkippedException(
                 f"CVMAzureHostTestSuite is not implemented for {node.os.name}"
             )
-        elif not is_mariner_dom0(node):
+        if not is_mariner_dom0(node):
             raise SkippedException(
                 "CVMAzureHostTestSuite is supported only on Dom0-Mariner"
             )
