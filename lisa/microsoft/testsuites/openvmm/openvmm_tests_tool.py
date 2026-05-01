@@ -22,8 +22,8 @@ class _JUnitSummary:
     failures: int = 0
     errors: int = 0
     skipped: int = 0
-    failed_tests: List[str] = field(default_factory=list)
-    passed_tests: List[str] = field(default_factory=list)
+    failed_tests: List[str] = field(default_factory=list[str])
+    passed_tests: List[str] = field(default_factory=list[str])
 
 
 class OpenVmmTests(Tool):
@@ -287,7 +287,8 @@ class OpenVmmTests(Tool):
             (
                 "bash -lc "
                 + shlex.quote(
-                    f"set -o pipefail; {command} > {shlex.quote(str(remote_log))} 2>&1"
+                    "set -o pipefail; "
+                    f"{{ {command}; }} > {shlex.quote(str(remote_log))} 2>&1"
                 )
             ),
             shell=True,
@@ -336,13 +337,15 @@ class OpenVmmTests(Tool):
             "installing the upstream pinned standalone binary"
         )
         install_dir = self._artifact_root / "cargo-nextest-install"
-        archive_name = f"{self.NEXTEST_LINUX_X64_TARGET}.tar.gz"
-        sha256_name = f"{archive_name}.sha256"
-        download_url = (
-            f"https://get.nexte.st/{self.NEXTEST_VERSION}/"
-            f"{self.NEXTEST_LINUX_X64_TARGET}.tar.gz"
+        release_name = f"cargo-nextest-{self.NEXTEST_VERSION}"
+        asset_name = f"{release_name}-{self.NEXTEST_LINUX_X64_TARGET}"
+        archive_name = f"{asset_name}.tar.gz"
+        sha256_name = f"{asset_name}.sha256"
+        release_url = (
+            "https://github.com/nextest-rs/nextest/releases/download/" f"{release_name}"
         )
-        sha256_url = f"{download_url}.sha256"
+        download_url = f"{release_url}/{archive_name}"
+        sha256_url = f"{release_url}/{sha256_name}"
         curl_command = self.node.tools[Curl].command
         install_command = (
             f"rm -rf {shlex.quote(str(install_dir))} && "
@@ -352,9 +355,12 @@ class OpenVmmTests(Tool):
             f"-o {shlex.quote(archive_name)} && "
             f"{shlex.quote(curl_command)} --fail -L {shlex.quote(sha256_url)} "
             f"-o {shlex.quote(sha256_name)} && "
-            f"computed=$(sha256sum {shlex.quote(archive_name)} | awk '{{print $1}}') && "
+            f"computed=$(sha256sum {shlex.quote(archive_name)} | "
+            "awk '{print $1}') && "
             f"expected=$(awk '{{print $1}}' {shlex.quote(sha256_name)}) && "
-            'test "$computed" = "$expected" && '
+            'test "$computed" = "$expected" || '
+            '{ echo "SHA256 mismatch: expected=$expected '
+            'computed=$computed" >&2; exit 1; } && '
             f"tar -xf {shlex.quote(archive_name)} && "
             "cp cargo-nextest ~/.cargo/bin/cargo-nextest && "
             "chmod 0755 ~/.cargo/bin/cargo-nextest"

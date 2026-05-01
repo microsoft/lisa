@@ -1,15 +1,62 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import OpenVmmTests
+from lisa.tools import Curl
 from lisa.util import LisaException
 
 
 class OpenVmmTestsToolTestCase(TestCase):
+    def test_run_logged_command_redirects_entire_command_to_log(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.repo_root = PurePosixPath("/repo/openvmm")
+        tool._artifact_root = PurePosixPath("/repo/openvmm/target/lisa-openvmm-tests")
+        tool.node = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(exit_code=0)
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_copy_back_if_exists"
+        ):
+            tool._run_logged_command(
+                name="openvmm_sample",
+                command="echo before && false",
+                log_path=Path(temp_dir),
+                timeout=60,
+                update_envs={},
+            )
+
+        logged_command = tool.node.execute.call_args.args[0]
+        self.assertIn(
+            "{ echo before && false; } > "
+            "/repo/openvmm/target/lisa-openvmm-tests/openvmm_sample.log 2>&1",
+            logged_command,
+        )
+
+    def test_ensure_cargo_nextest_uses_release_checksum_asset(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool._artifact_root = PurePosixPath("/repo/openvmm/target/lisa-openvmm-tests")
+        tool.node = MagicMock()
+        tool.node.tools = {Curl: SimpleNamespace(command="curl")}
+        tool._log = MagicMock()
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_has_cargo_nextest", side_effect=[False, True]
+        ), patch.object(tool, "_run_logged_command") as run_logged_command:
+            tool._ensure_cargo_nextest(Path(temp_dir), {})
+
+        install_command = run_logged_command.call_args.kwargs["command"]
+        release_url = (
+            "https://github.com/nextest-rs/nextest/releases/download/"
+            "cargo-nextest-0.9.101"
+        )
+        asset_name = "cargo-nextest-0.9.101-x86_64-unknown-linux-gnu"
+        self.assertIn(f"{release_url}/{asset_name}.tar.gz", install_command)
+        self.assertIn(f"{release_url}/{asset_name}.sha256", install_command)
+
     def test_check_vmm_tests_results_raises_on_junit_failures(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
 
