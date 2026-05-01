@@ -12,6 +12,7 @@ from lisa.microsoft.testsuites.openvmm.openvmm_tests import (
     _get_openvmm_tests_type,
 )
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import _JUnitSummary
+from lisa.operating_system import Ubuntu
 from lisa.tools import Ls, Uname
 from lisa.tools.usermod import Usermod
 from lisa.util import SkippedException
@@ -137,6 +138,27 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         )
 
         self.assertEqual(result, "(test(linux_direct) | test(ubuntu) | test(alpine))")
+
+    def test_before_case_initializes_host_before_os_check(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        host = MagicMock()
+        tool = MagicMock()
+        openvmm_tests_type = _get_openvmm_tests_type()
+        host.tools = {openvmm_tests_type: tool}
+
+        def initialize_host() -> None:
+            host.os = object.__new__(Ubuntu)
+
+        host.initialize.side_effect = initialize_host
+
+        suite.before_case(
+            MagicMock(),
+            node=host,
+            variables={"openvmm_tests_repo": "https://example.com/openvmm.git"},
+        )
+
+        host.initialize.assert_called_once()
+        self.assertEqual("https://example.com/openvmm.git", tool.repo_url)
 
     def test_verify_openvmm_upstream_vmm_tests_sets_multiline_summary(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)

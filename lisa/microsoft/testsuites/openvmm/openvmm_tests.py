@@ -7,8 +7,17 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
 
-from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.environment import EnvironmentStatus
 from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.secret import add_secret
 from lisa.testsuite import TestResult
 from lisa.tools import Ls, Uname
 from lisa.tools.usermod import Usermod
@@ -41,22 +50,26 @@ class OpenVmmUpstreamTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         openvmm_tests_type = _get_openvmm_tests_type()
         node = cast(Node, kwargs["node"])
-        host = self._get_host_node(node)
+        host = self._get_initialized_host_node(node)
         if not isinstance(host.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"OpenVMM upstream tests are not implemented for {host.os.name}"
             )
 
         variables: Dict[str, Any] = cast(Dict[str, Any], kwargs.get("variables", {}))
-        openvmm_tests_type.repo_url = (
+        repo_url = (
             str(
                 variables.get("openvmm_tests_repo", openvmm_tests_type.DEFAULT_REPO)
             ).strip()
             or openvmm_tests_type.DEFAULT_REPO
         )
-        openvmm_tests_type.auth_token = str(
-            variables.get("openvmm_tests_auth_token", "")
-        ).strip()
+        auth_token = str(variables.get("openvmm_tests_auth_token", "")).strip()
+        if auth_token:
+            add_secret(auth_token)
+
+        openvmm_tests = host.tools[openvmm_tests_type]
+        openvmm_tests.repo_url = repo_url
+        openvmm_tests.auth_token = auth_token
 
     @TestCaseMetadata(
         description="""
@@ -67,7 +80,13 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         PCAT firmware discovery depends on Windows or WSL-hosted firmware paths.
         """,
         priority=2,
+        # The full upstream vmm_tests suite can take up to 12 hours on slower
+        # hardware; individual filtered runs are much shorter, but a generous
+        # ceiling avoids spurious timeouts when running the complete suite.
         timeout=43200,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+        ),
     )
     def verify_openvmm_upstream_vmm_tests(
         self,
@@ -76,7 +95,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         result: TestResult,
         variables: Dict[str, Any],
     ) -> None:
-        host = self._get_host_node(node)
+        host = self._get_initialized_host_node(node)
         command_group = self._ensure_vmm_tests_supported(host)
 
         openvmm_tests = host.tools[_get_openvmm_tests_type()]
@@ -108,6 +127,11 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             return parent
 
         return node
+
+    def _get_initialized_host_node(self, node: Node) -> Any:
+        host = self._get_host_node(node)
+        host.initialize()
+        return host
 
     def _ensure_vmm_tests_supported(self, host: Node) -> Optional[str]:
         hardware_platform = host.tools[Uname].get_linux_information().hardware_platform
