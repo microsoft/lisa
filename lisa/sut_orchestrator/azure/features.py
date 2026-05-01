@@ -2489,6 +2489,84 @@ class Resize(AzureFeatureMixin, features.Resize):
             return False
         return True
 
+    def _get_actual_disk_controller_type(
+        self,
+    ) -> Optional[schema.DiskControllerType]:
+        # Get the actual disk controller type the VM is using (from Azure API,
+        # works even when VM is stopped). This may differ from the VM SIZE's
+        # supported types — e.g. a size supports {SCSI, NVMe} but the deployed
+        # VM uses SCSI. We must ensure the candidate also supports the actual
+        # controller type, not just any overlapping type.
+        try:
+            node_disk = self._node.features[features.Disk]
+            hw_dc_type = node_disk.get_hardware_disk_controller_type()
+            if hw_dc_type:
+                dc_type = schema.DiskControllerType(hw_dc_type)
+                self._log.debug(f"actual hardware disk controller type: {dc_type}")
+                return dc_type
+        except (
+            LisaException,
+            ValueError,
+            AttributeError,
+            HttpResponseError,
+            ResourceNotFoundError,
+            ClientAuthenticationError,
+        ) as e:
+            self._log.debug(
+                f"could not determine actual disk controller type, "
+                f"falling back to VM size capability comparison: {e}"
+            )
+        return None
+
+    def _check_actual_disk_controller_type(
+        self,
+        candidate_size: "AzureCapability",
+        actual_disk_controller_type: Optional[schema.DiskControllerType],
+    ) -> bool:
+        # Check against the actual hardware disk controller type.
+        # The capability comparison checks for overlap between VM SIZE
+        # capabilities (e.g. current supports {SCSI,NVMe} and candidate
+        # supports {NVMe} -> overlap exists). But if the VM is actually
+        # using SCSI, resizing to an NVMe-only size will fail.
+        if not actual_disk_controller_type:
+            return True
+
+        candidate_dc_types = getattr(
+            candidate_size.capability.disk, "disk_controller_type", None
+        )
+        if not candidate_dc_types:
+            return True
+
+        if isinstance(candidate_dc_types, search_space.SetSpace):
+            return actual_disk_controller_type in candidate_dc_types
+        if isinstance(candidate_dc_types, schema.DiskControllerType):
+            return candidate_dc_types == actual_disk_controller_type
+
+        return True
+
+    def _is_candidate_size_valid(
+        self,
+        candidate_size: "AzureCapability",
+        current_vm_size: "AzureCapability",
+        resize_action: ResizeAction,
+        actual_disk_controller_type: Optional[schema.DiskControllerType],
+    ) -> bool:
+        return (
+            self._compare_architecture(candidate_size, current_vm_size)
+            and all(
+                self._compare_disk_property(candidate_size, current_vm_size, prop)
+                for prop in ["disk_controller_type", "os_disk_type", "data_disk_type"]
+            )
+            and self._check_actual_disk_controller_type(
+                candidate_size, actual_disk_controller_type
+            )
+            and self._compare_size_generation(candidate_size, current_vm_size)
+            and self._compare_network_interface(candidate_size, current_vm_size)
+            and self._compare_core_count(
+                candidate_size, current_vm_size, resize_action
+            )
+        )
+
     def _select_vm_size(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[str, "AzureCapability"]:
@@ -2543,103 +2621,19 @@ class Resize(AzureFeatureMixin, features.Resize):
         ).is_instance_of(int)
         assert current_vm_size.capability.features
 
-        # Get the actual disk controller type the VM is using (from Azure API,
-        # works even when VM is stopped). This may differ from the VM SIZE's
-        # supported types — e.g. a size supports {SCSI, NVMe} but the deployed
-        # VM uses SCSI. We must ensure the candidate also supports the actual
-        # controller type, not just any overlapping type.
-        actual_disk_controller_type: Optional[schema.DiskControllerType] = None
-        try:
-            node_disk = self._node.features[features.Disk]
-            hw_dc_type = node_disk.get_hardware_disk_controller_type()
-            if hw_dc_type:
-                actual_disk_controller_type = schema.DiskControllerType(hw_dc_type)
-                self._log.debug(
-                    f"actual hardware disk controller type: "
-                    f"{actual_disk_controller_type}"
-                )
-        except (
-            LisaException,
-            ValueError,
-            AttributeError,
-            HttpResponseError,
-            ResourceNotFoundError,
-            ClientAuthenticationError,
-        ) as e:
-            self._log.debug(
-                f"could not determine actual disk controller type, "
-                f"falling back to VM size capability comparison: {e}"
+        actual_disk_controller_type = self._get_actual_disk_controller_type()
+
+        # Filter candidate vm sizes that can't be resized to
+        avail_eligible_intersect = [
+            candidate
+            for candidate in avail_eligible_intersect
+            if self._is_candidate_size_valid(
+                candidate,
+                current_vm_size,
+                resize_action,
+                actual_disk_controller_type,
             )
-
-        # Loop removes candidate vm sizes if they can't be resized to or if the
-        # change in cores resulting from the resize is undesired
-        for candidate_size in avail_eligible_intersect[:]:
-            if not self._compare_architecture(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            # List of disk properties to compare
-            disk_properties_to_compare = [
-                "disk_controller_type",
-                "os_disk_type",
-                "data_disk_type",
-            ]
-            # Flag to track whether the candidate passed all disk property checks
-            candidate_passed_all_checks = True
-            for prop in disk_properties_to_compare:
-                # compare the current property between the candidate size
-                # and the current VM size
-                if not self._compare_disk_property(
-                    candidate_size, current_vm_size, prop
-                ):
-                    # If the comparison fails (returns False)
-                    # mark the candidate as failing all checks
-                    candidate_passed_all_checks = False
-                    break
-            # If the candidate failed any of the checks (disk properties did not match)
-            if not candidate_passed_all_checks:
-                # Remove the candidate size from the list of available eligible sizes
-                avail_eligible_intersect.remove(candidate_size)
-                # Continue to the next candidate size in the loop
-                # without checking further
-                continue
-
-            # Check against the actual hardware disk controller type.
-            # The capability comparison above checks for overlap between VM SIZE
-            # capabilities (e.g. current supports {SCSI,NVMe} and candidate
-            # supports {NVMe} -> overlap exists). But if the VM is actually
-            # using SCSI, resizing to an NVMe-only size will fail.
-            if actual_disk_controller_type:
-                candidate_dc_types = getattr(
-                    candidate_size.capability.disk, "disk_controller_type", None
-                )
-                if candidate_dc_types:
-                    if (
-                        isinstance(candidate_dc_types, search_space.SetSpace)
-                        and actual_disk_controller_type not in candidate_dc_types
-                    ):
-                        avail_eligible_intersect.remove(candidate_size)
-                        continue
-                    if (
-                        isinstance(candidate_dc_types, schema.DiskControllerType)
-                        and candidate_dc_types != actual_disk_controller_type
-                    ):
-                        avail_eligible_intersect.remove(candidate_size)
-                        continue
-
-            if not self._compare_size_generation(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            if not self._compare_network_interface(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            if not self._compare_core_count(
-                candidate_size, current_vm_size, resize_action
-            ):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
+        ]
 
         if not avail_eligible_intersect:
             raise LisaException(
