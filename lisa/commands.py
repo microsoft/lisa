@@ -13,6 +13,7 @@ from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants, hookspec, plugin_manager
 from lisa.util.logger import enable_console_timestamp, get_logger
+from lisa.util.os_resolver import infer_target_os
 from lisa.util.perf_timer import create_timer
 
 _get_init_logger = functools.partial(get_logger, "init")
@@ -75,12 +76,20 @@ def list_start(args: Namespace) -> int:
     list_all = cast(Optional[bool], args.list_all)
     log = _get_init_logger("list")
     if args.type == constants.LIST_CASE:
+        # Resolve target OS from runbook variables so the listing reflects
+        # the same distro pre-filter the runner will apply.
+        case_variables = {name: entry.data for name, entry in builder.variables.items()}
+        gate = case_variables.get("enable_distro_pre_filtering")
+        if gate is not None and str(gate).lower() in ("false", "0", "no"):
+            target_os = None
+        else:
+            target_os = infer_target_os(case_variables)
         if list_all:
-            cases: Iterable[TestCaseRuntimeData] = select_testcases()
+            cases: Iterable[TestCaseRuntimeData] = select_testcases(target_os=target_os)
         else:
             criteria_dict = builder.partial_resolve(constants.TESTCASE)
             criteria = schema.load_by_type_many(schema.TestCase, criteria_dict)
-            cases = select_testcases(criteria)
+            cases = select_testcases(criteria, target_os=target_os)
         for case_data in cases:
             log.info(
                 f"case: {case_data.name}, suite: {case_data.metadata.suite.name}, "
