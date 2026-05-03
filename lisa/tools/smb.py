@@ -74,8 +74,12 @@ class SmbServer(Tool):
         # Create share directory
         self.node.tools[Mkdir].create_directory(share_path, sudo=True)
 
-        # Set permissions for the share directory (775 to avoid world-writable)
-        self.node.tools[Chmod].chmod(share_path, "775", sudo=True)
+        # Set permissions for the share directory. Guest connections are mapped
+        # to the unprivileged samba "guest account" (typically `nobody`), which
+        # is neither the owner nor in the owning group of a freshly-created
+        # /tmp share. Without world-writable bits the guest cannot create files
+        # on the share and writes fail with EACCES at the server.
+        self.node.tools[Chmod].chmod(share_path, "0777", sudo=True)
         # Create SMB configuration
         smb_config = f"""
 [global]
@@ -90,8 +94,10 @@ class SmbServer(Tool):
     browsable = yes
     writable = yes
     guest ok = yes
+    guest only = yes
     read only = no
-    create mask = 0755
+    create mask = 0666
+    directory mask = 0777
 """
 
         # Write SMB configuration
