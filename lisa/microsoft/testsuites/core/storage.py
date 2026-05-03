@@ -32,15 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import (
-    BSD,
-    Debian,
-    Fedora,
-    Posix,
-    Suse,
-    Ubuntu,
-    Windows,
-)
+from lisa.operating_system import BSD, Debian, Fedora, Posix, Suse, Ubuntu, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import (
@@ -714,9 +706,7 @@ class Storage(TestSuite):
         # Check if CONFIG_CIFS is enabled in KCONFIG on both nodes
         for role_node in (server_node, client_node):
             if not role_node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
-                raise LisaException(
-                    "CIFS module must be present for SMB testing"
-                )
+                raise LisaException("CIFS module must be present for SMB testing")
         # Install and setup SMB tools on both nodes
         smb_server = server_node.tools[SmbServer]
         smb_client = client_node.tools[SmbClient]
