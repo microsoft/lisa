@@ -245,7 +245,7 @@ class Sriov(TestSuite):
             min_core_count=64,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
+                nic_count=search_space.IntRange(min=2, max=15),
             ),
         ),
     )
