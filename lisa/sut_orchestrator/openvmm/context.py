@@ -29,6 +29,7 @@ class NodeContext:
     tap_bridge_created: bool = False
     tap_bridge_netfilter_disabled: bool = False
     tap_dhcp_input_rule_added: bool = False
+    tap_input_rules_added: List[str] = field(default_factory=list)
     tap_dnsmasq_pid_file: str = ""
     tap_dnsmasq_lease_file: str = ""
     process_id: str = ""
