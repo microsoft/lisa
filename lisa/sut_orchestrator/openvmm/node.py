@@ -47,6 +47,7 @@ OPENVMM_IP_DISCOVERY_TIMEOUT = 300
 # Capture enough recent log lines to include the relevant launch or boot failure.
 OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
+OPENVMM_DNS_SERVER_PORT = 53
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -126,7 +127,15 @@ class OpenVmmController:
             :8
         ]
         destination = working_path / f"{source.stem}-{source_id}{source.suffix}"
+        copy_timer = create_timer()
+        self._log.info(
+            f"Copying OpenVMM artifact '{source.name}' to host path '{destination}'."
+        )
         self.host_node.shell.copy(source, destination)
+        self._log.info(
+            f"Copied OpenVMM artifact '{source.name}' to host path "
+            f"'{destination}' in {copy_timer.elapsed_text()}."
+        )
         return str(destination)
 
     def get_openvmm_tool(self, binary_path: str) -> OpenVmm:
@@ -374,7 +383,9 @@ class OpenVmmController:
         ip_tool.up(tap_name)
 
         if network.address_mode != OPENVMM_ADDRESS_MODE_STATIC:
-            self._ensure_tap_dhcp_input_allowed(host_interface_name, node_context)
+            self._ensure_tap_host_services_input_allowed(
+                host_interface_name, node_context
+            )
             pid_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.pid"
             lease_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.leases"
             host.execute(
@@ -400,6 +411,10 @@ class OpenVmmController:
                 kill_existing=False,
                 pid_file=pid_file,
                 lease_file=lease_file,
+                dhcp_options=[
+                    f"option:router,{tap_gateway}",
+                    f"option:dns-server,{tap_gateway}",
+                ],
             )
             node_context.tap_dnsmasq_pid_file = pid_file
             node_context.tap_dnsmasq_lease_file = lease_file
@@ -481,7 +496,7 @@ class OpenVmmController:
                 expected_exit_code_failure_message=failure_message,
             )
 
-    def _ensure_tap_dhcp_input_allowed(
+    def _ensure_tap_host_services_input_allowed(
         self, host_interface_name: str, node_context: NodeContext
     ) -> None:
         iptables_exists = self.host_node.execute(
@@ -495,31 +510,47 @@ class OpenVmmController:
         if iptables_exists.exit_code != 0:
             return
 
-        rule = (
-            f"INPUT -i {shlex.quote(host_interface_name)} -p udp -m udp "
-            f"--dport {OPENVMM_DHCP_SERVER_PORT} -j ACCEPT"
-        )
-        check_result = self.host_node.execute(
-            f"iptables -C {rule}",
-            shell=True,
-            sudo=True,
-            no_info_log=True,
-            no_error_log=True,
-            expected_exit_code=None,
-        )
-        if check_result.exit_code == 0:
-            return
+        for rule in self._get_tap_host_service_input_rules(host_interface_name):
+            check_result = self.host_node.execute(
+                f"iptables -C {rule}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=None,
+            )
+            if check_result.exit_code == 0:
+                continue
 
-        self.host_node.execute(
-            f"iptables -I {rule}",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "failed to allow DHCP traffic to the OpenVMM host interface"
+            self.host_node.execute(
+                f"iptables -I {rule}",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to allow OpenVMM DHCP/DNS traffic to the host "
+                    f"interface {host_interface_name}"
+                ),
+            )
+            node_context.tap_input_rules_added.append(rule)
+            node_context.tap_dhcp_input_rule_added = True
+
+    def _get_tap_host_service_input_rules(self, host_interface_name: str) -> List[str]:
+        quoted_interface = shlex.quote(host_interface_name)
+        return [
+            (
+                f"INPUT -i {quoted_interface} -p udp -m udp "
+                f"--dport {OPENVMM_DHCP_SERVER_PORT} -j ACCEPT"
             ),
-        )
-        node_context.tap_dhcp_input_rule_added = True
+            (
+                f"INPUT -i {quoted_interface} -p udp -m udp "
+                f"--dport {OPENVMM_DNS_SERVER_PORT} -j ACCEPT"
+            ),
+            (
+                f"INPUT -i {quoted_interface} -p tcp -m tcp "
+                f"--dport {OPENVMM_DNS_SERVER_PORT} -j ACCEPT"
+            ),
+        ]
 
     def _get_tap_network_config(self, network: OpenVmmNetworkSchema) -> tuple[str, str]:
         host_interface = ipaddress.ip_interface(network.tap_host_cidr)
@@ -1264,18 +1295,19 @@ class OpenVmmController:
         if network.mode != OPENVMM_NETWORK_MODE_TAP:
             return
 
-        if node_context.tap_dhcp_input_rule_added:
+        if node_context.tap_dhcp_input_rule_added or node_context.tap_input_rules_added:
             host_interface_name = _get_tap_host_interface_name(network)
-            self.host_node.execute(
-                (
-                    "iptables -D INPUT -i "
-                    f"{shlex.quote(host_interface_name)} -p udp -m udp "
-                    f"--dport {OPENVMM_DHCP_SERVER_PORT} -j ACCEPT || true"
-                ),
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
+            rules_to_remove = node_context.tap_input_rules_added or (
+                self._get_tap_host_service_input_rules(host_interface_name)
             )
+            for rule in rules_to_remove:
+                self.host_node.execute(
+                    f"iptables -D {rule} || true",
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                )
+            node_context.tap_input_rules_added.clear()
             node_context.tap_dhcp_input_rule_added = False
 
         if node_context.tap_dnsmasq_pid_file:
