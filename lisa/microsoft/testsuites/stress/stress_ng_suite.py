@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import logging
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import yaml
 
@@ -214,12 +214,9 @@ class StressNgTestSuite(TestSuite):
         # Check for kernel panics on all failed nodes
         kernel_panics: List[Tuple[RemoteNode, Exception]] = []
         for node, _e in start_failures + result_failures:
-            try:
-                node.features[SerialConsole].check_panic(
-                    saved_path=None, force_run=True
-                )
-            except KernelPanicException as e:
-                kernel_panics.append((node, e))
+            kernel_panic = self._check_serial_console_panic(node, log)
+            if kernel_panic:
+                kernel_panics.append((node, kernel_panic))
 
         # Raise exceptions if there were any failures
         if start_failures or result_failures or kernel_panics:
@@ -281,9 +278,10 @@ class StressNgTestSuite(TestSuite):
                 f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
             for node in nodes:
-                # check_panic automatically logs, attaches to result, and raises
-                node.features[SerialConsole].check_panic(
-                    saved_path=None, force_run=True, test_result=test_result
+                self._check_serial_console_panic(
+                    node,
+                    log,
+                    test_result=test_result,
                 )
             raise execution_error
 
@@ -291,6 +289,29 @@ class StressNgTestSuite(TestSuite):
             self._report_test_results(
                 test_result, job_file_name, execution_status, execution_summary
             )
+
+    def _check_serial_console_panic(
+        self,
+        node: RemoteNode,
+        log: Logger,
+        test_result: Optional[TestResult] = None,
+    ) -> Optional[KernelPanicException]:
+        if not node.features.is_supported(SerialConsole):
+            log.debug(
+                f"Skipping serial-console panic check on {node.name}: "
+                "SerialConsole is not supported."
+            )
+            return None
+
+        try:
+            node.features[SerialConsole].check_panic(
+                saved_path=None,
+                force_run=True,
+                test_result=test_result,
+            )
+        except KernelPanicException as identifier:
+            return identifier
+        return None
 
     def _deploy_and_launch_stress_jobs(
         self,
