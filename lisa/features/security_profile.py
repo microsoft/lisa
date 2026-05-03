@@ -166,3 +166,23 @@ CvmDiskEncryptionEnabled = partial(
     security_profile=search_space.SetSpace(True, [SecurityProfileType.CVM]),
     encrypt_disk=True,
 )
+
+
+def is_cvm(node: Any) -> bool:
+    """
+    Returns True if the node is provisioned as a Confidential VM.
+
+    Falls back to False when the platform does not expose a SecurityProfile
+    feature (e.g. ready / hyperv platforms), so callers can use this as a
+    guard without extra checks.
+    """
+    try:
+        settings = Feature.get_feature_settings(
+            node.features[SecurityProfile].get_settings()
+        )
+    except Exception:
+        return False
+    return (
+        isinstance(settings, SecurityProfileSettings)
+        and settings.security_profile == SecurityProfileType.CVM
+    )
