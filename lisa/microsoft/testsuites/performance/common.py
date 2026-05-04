@@ -498,6 +498,7 @@ def perf_ntttcp(  # noqa: C901
                     # connections
                     server_result = server_ntttcp.run_as_server_async(
                         server_nic_name,
+                        run_time_seconds=60,
                         server_ip=(
                             server.internal_address
                             if isinstance(server.os, BSD)
@@ -510,11 +511,12 @@ def perf_ntttcp(  # noqa: C901
                     )
 
                     # Start lagscope client to measure latency during the
-                    # ntttcp test
+                    # ntttcp test. Run for the full ntttcp duration so the
+                    # latency window covers the entire throughput test.
                     client_lagscope_process = client_lagscope.run_as_client_async(
                         server_ip=server.internal_address,
                         ping_count=0,
-                        run_time_seconds=10,
+                        run_time_seconds=60,
                         print_histogram=False,
                         print_percentile=False,
                         histogram_1st_interval_start_value=0,
@@ -531,6 +533,7 @@ def perf_ntttcp(  # noqa: C901
                         buffer_size=buffer_size,
                         threads_count=num_threads_n,
                         ports_count=num_threads_p,
+                        run_time_seconds=60,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                     )
