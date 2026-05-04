@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
@@ -43,6 +44,7 @@ class OpenVmmHostContext:
     active_forwarding_count: int = 0
     original_bridge_netfilter_values: Dict[str, str] = field(default_factory=dict)
     active_bridge_netfilter_count: int = 0
+    artifact_copy_lock: Lock = field(default_factory=Lock)
 
 
 def get_node_context(node: Node) -> NodeContext:

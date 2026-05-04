@@ -195,7 +195,9 @@ class OpenVmmController:
         self._log.info(
             f"Copying OpenVMM artifact '{source.name}' to host path '{destination}'."
         )
-        self.host_node.shell.copy(source, destination)
+        host_context = get_host_context(self.host_node)
+        with host_context.artifact_copy_lock:
+            self.host_node.shell.copy(source, destination)
         self._log.info(
             f"Copied OpenVMM artifact '{source.name}' to host path "
             f"'{destination}' in {copy_timer.elapsed_text()}."
@@ -350,10 +352,12 @@ class OpenVmmController:
                     ("/meta-data", meta_data_string),
                 ],
             )
-            self.host_node.shell.copy(
-                Path(iso_path),
-                self.host_node.get_pure_path(node_context.cloud_init_file_path),
-            )
+            host_context = get_host_context(self.host_node)
+            with host_context.artifact_copy_lock:
+                self.host_node.shell.copy(
+                    Path(iso_path),
+                    self.host_node.get_pure_path(node_context.cloud_init_file_path),
+                )
         finally:
             tmp_dir.cleanup()
 
