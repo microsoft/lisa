@@ -720,12 +720,8 @@ class VmSpecValidation(TestSuite):
         server_ntttcp = server_node.tools[Ntttcp]
         client_ntttcp = client_node.tools[Ntttcp]
 
-        # Use thread count to saturate the NIC, capped at 64 to avoid
-        # diminishing returns from excessive thread overhead.
-        cpu = client_node.tools[Lscpu]
-        thread_count = cpu.get_thread_count()
-        # 64 ports max — beyond this ntttcp shows diminishing returns
-        ports_count = min(thread_count, 64)
+        # Use a fixed connection count of 1024 to saturate the NIC.
+        ports_count = 1024
 
         # Start ntttcp iterations and take the best result
         best_bw_mbps = 0
