@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import math
 
 from assertpy import assert_that
 
@@ -16,7 +15,7 @@ from lisa import (
 from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, Df, Echo, Fdisk, Lscpu, Lspci, Mkfs, Mount, Nvmecli
+from lisa.tools import Cat, Df, Echo, Fdisk, Lspci, Mkfs, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
 from lisa.util.constants import DEVICE_TYPE_NVME, DEVICE_TYPE_SRIOV
 
@@ -413,15 +412,33 @@ class NvmeTestSuite(TestSuite):
             "and listed devices under folder /dev."
         ).is_length(len(nvme_device_from_lspci))
 
-        # 4. Azure platform only, nvme devices count should equal to
-        #  actual vCPU count / 8.
+        # 4. Azure platform only, verify the actual NVMe namespace count
+        #  found on the VM matches the expected disk count from the Azure
+        #  SKU capability. The platform derives disk_count from
+        #  NvmeDiskSizeInMiB / NvmeSizePerDiskInMiB in the SKU data.
         if isinstance(environment.platform, AzurePlatform):
-            lscpu_tool = node.tools[Lscpu]
-            thread_count = lscpu_tool.get_thread_count()
-            expected_count = math.ceil(thread_count / 8)
-            assert_that(nvme_namespace).described_as(
-                "nvme devices count should be equal to [vCPU/8]."
-            ).is_length(expected_count)
+            nvme_settings = next(
+                (
+                    f
+                    for f in node.capability.features.items
+                    if isinstance(f, NvmeSettings)
+                ),
+                None,
+            )
+            assert_that(nvme_settings).described_as(
+                "NvmeSettings capability should be present for Azure NVMe VMs."
+            ).is_not_none()
+            expected_disk_count = nvme_settings.disk_count  # type: ignore
+            assert_that(expected_disk_count).described_as(
+                "NvmeSettings.disk_count should be a concrete integer, "
+                f"but got {type(expected_disk_count).__name__}: {expected_disk_count}."
+            ).is_instance_of(int)
+            actual_count = len(nvme_namespace)
+            assert_that(actual_count).described_as(
+                "actual NVMe namespace count on the VM should match the "
+                f"expected disk count from the platform capability "
+                f"(expected {expected_disk_count}, found {actual_count})."
+            ).is_equal_to(expected_disk_count)
 
     def _verify_nvme_function(self, node: Node, use_partitions: bool = True) -> None:
         # Verify the basic function of all NVMe disks
