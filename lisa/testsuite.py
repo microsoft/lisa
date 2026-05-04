@@ -215,10 +215,28 @@ class TestResult:
                     continue
                 # use __mro__ to match any super types.
                 # for example, Ubuntu satisfies Linux
-                node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
-                    is_allow_set=True, items=type(node.os).__mro__
-                )
-                os_result = requirement.os_type.check(node_os_capability)
+                node_os_mro = set(type(node.os).__mro__)
+                # Apply OR semantics for the OS check, matching how users
+                # naturally read `supported_os=[A, B, C]` ("any of A, B, C")
+                # and `unsupported_os=[A, B, C]` ("none of A, B, C"). The
+                # generic SetSpace.check uses AND semantics for is_allow_set,
+                # which would require the node's MRO to contain *every* listed
+                # OS at once - impossible across distinct families like
+                # Debian/Suse/Ubuntu.
+                os_result = search_space.ResultReason()
+                if requirement.os_type.is_allow_set:
+                    if not (set(requirement.os_type) & node_os_mro):
+                        os_result.add_reason(
+                            f"requires [{requirement.os_type}] but VM supports "
+                            f"[{type(node.os).__name__}]"
+                        )
+                else:
+                    excluded = set(requirement.os_type) & node_os_mro
+                    if excluded:
+                        names = sorted(item.__name__ for item in excluded)
+                        os_result.add_reason(
+                            f"requirements excludes {', '.join(names)}"
+                        )
                 # If one of OS mismatches, mark the test case is skipped. It
                 # assumes no more env can meet the requirements, instead of
                 # checking the rest envs one by one. The reason is this checking
