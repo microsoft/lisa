@@ -24,7 +24,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import CBLMariner, Linux
+from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import Gcc, Rm
 from lisa.tools.kernel_config import KernelConfig
@@ -40,7 +40,7 @@ from lisa.util import UnsupportedDistroException
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
-        supported_os=[Linux],
+        supported_os=[CBLMariner],
     ),
 )
 class SchedCore(TestSuite):

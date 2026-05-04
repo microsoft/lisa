@@ -14,10 +14,11 @@ from lisa import (
     node_requirement,
     schema,
     search_space,
+    simple_requirement,
 )
 from lisa.features import SecurityProfile
 from lisa.features.security_profile import SecurityProfileSettings, SecurityProfileType
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, Linux, Windows
 from lisa.tools import KdumpCheck, Lscpu
 
 
@@ -37,10 +38,13 @@ from lisa.tools import KdumpCheck, Lscpu
         6. crashkernel is set "auto"
         7. crashkernel is set "auto" and VM has more than 2T memory
     """,
+    requirement=simple_requirement(supported_os=[Linux]),
 )
 class KdumpCrash(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
         # Skip kdump tests on CVMs (Confidential VMs) as they are not supported

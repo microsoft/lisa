@@ -7,7 +7,7 @@ from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
-from lisa.testsuite import TestResult
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Lscpu
 from lisa.util import SkippedException
 
@@ -19,10 +19,13 @@ from lisa.util import SkippedException
     This test suite is for executing the community maintained KVM tests.
     See: https://gitlab.com/kvm-unit-tests/kvm-unit-tests
     """,
+    requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
 )
 class KvmUnitTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
 
@@ -42,6 +45,7 @@ class KvmUnitTestSuite(TestSuite):
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
         if not virtualization_enabled:
             raise SkippedException("Virtualization is not enabled in hardware")
+        # Defense-in-depth: same rationale as the before_case check above.
         if not isinstance(node.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"KVM unit tests are not implemented in LISA for {node.os.name}"

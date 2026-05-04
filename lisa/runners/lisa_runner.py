@@ -36,6 +36,33 @@ from lisa.util import (
     deep_update_dict,
     is_unittest,
 )
+from lisa.util.os_resolver import infer_target_os
+
+
+def _resolve_target_os(
+    variables: Any,
+) -> Optional[type]:
+    """Return the target OS class if distro pre-filtering is enabled.
+
+    The ``enable_distro_pre_filtering`` runbook variable (default ``true``)
+    controls whether the pre-filter is active.  When set to ``false`` the
+    function returns ``None`` and all test cases are kept.
+    """
+    # Accept both raw dicts and VariableEntry-style mappings.
+    if isinstance(variables, dict):
+        raw = variables
+    else:
+        raw = {}
+    # Check for the gate variable.  Treat missing / empty as "true".
+    gate = raw.get("enable_distro_pre_filtering")
+    if gate is not None:
+        # VariableEntry wraps the real value in .data; plain dicts don't.
+        val = getattr(gate, "data", gate)
+        if str(val).lower() in ("false", "0", "no"):
+            return None
+    return infer_target_os(variables)
+
+
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
@@ -48,8 +75,22 @@ class LisaRunner(BaseRunner):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
 
-        # select test cases
-        selected_test_cases = select_testcases(filters=self._runbook.testcase)
+        # select test cases. When the user specifies a target_os variable, or
+        # when one can be inferred from a marketplace / gallery / vhd image
+        # variable, drop cases whose declared supported_os/unsupported_os
+        # requirement makes them inapplicable to that distro. This avoids the
+        # overhead of deploying an environment just to mark cases as Skipped.
+        # Use the full runbook variable pool (not ``self._case_variables``,
+        # which only contains ``is_case_visible=True`` entries) so the
+        # prefilter sees standard runbook variables like ``marketplace_image``
+        # and ``target_os`` even when they are not marked case-visible.
+        variables_pool = (
+            getattr(self._runbook_builder, "variables", None) or self._case_variables
+        )
+        target_os = _resolve_target_os(variables_pool)
+        selected_test_cases = select_testcases(
+            filters=self._runbook.testcase, target_os=target_os
+        )
 
         # create test results
         self.test_results = [

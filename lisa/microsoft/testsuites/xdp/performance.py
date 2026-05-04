@@ -35,7 +35,7 @@ from lisa import (
 from lisa.executable import Tool
 from lisa.features import Sriov, Synthetic
 from lisa.nic import NicInfo
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, Linux, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Firewall, Kill, Lagscope, Lscpu, Ntttcp
 from lisa.util.parallel import run_in_parallel
@@ -52,11 +52,14 @@ _default_latency_threshold = 1.4
     description="""
     This test suite is to validate XDP performance.
     """,
+    requirement=simple_requirement(supported_os=[Linux]),
 )
 class XdpPerformance(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         node: Node = kwargs["node"]
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
 

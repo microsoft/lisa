@@ -41,12 +41,14 @@ class Boot(TestSuite):
         priority=3,
         requirement=simple_requirement(
             supported_features=[SerialConsole],
+            supported_os=[Redhat],
         ),
     )
     def verify_boot_with_debug_kernel(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        # 1. Skip testing if the distro is not redhat type.
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if not isinstance(node.os, Redhat) and not isinstance(node.os, CentOs):
             raise SkippedException(
                 f"{node.os.name} not supported. "

@@ -22,7 +22,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, Linux, Windows
 from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util import get_matched_str
@@ -35,6 +35,7 @@ from lisa.util.constants import SIGINT
     description="""
     This test suite is to validate XDP functionality.
     """,
+    requirement=simple_requirement(supported_os=[Linux]),
 )
 class XdpFunctional(TestSuite):
     # sample output:
@@ -45,6 +46,8 @@ class XdpFunctional(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
         environment: Environment = kwargs.pop("environment")
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"XDP is not supported in {node.os.name} yet.")
 

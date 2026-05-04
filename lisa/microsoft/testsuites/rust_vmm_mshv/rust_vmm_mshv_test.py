@@ -8,8 +8,8 @@ from assertpy.assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.operating_system import BSD, Windows
-from lisa.testsuite import TestResult
+from lisa.operating_system import BSD, Linux, Windows
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Cargo, Dmesg, Git, Ls, RemoteCopy
 from lisa.util import SkippedException
 from lisa.util.process import ExecutableResult
@@ -21,10 +21,13 @@ from lisa.util.process import ExecutableResult
     description="""
     This test suite is for executing the rust-vmm/mshv tests
     """,
+    requirement=simple_requirement(supported_os=[Linux]),
 )
 class RustVmmTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
 

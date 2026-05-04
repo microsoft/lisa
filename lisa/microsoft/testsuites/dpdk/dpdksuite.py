@@ -68,6 +68,7 @@ DPDK_VF_REMOVAL_MAX_TEST_TIME = 60 * 10
     description="""
     This test suite check DPDK functionality
     """,
+    requirement=simple_requirement(unsupported_os=[BSD, Windows]),
 )
 class Dpdk(TestSuite):
     # regex for parsing ring ping output for the final line,
@@ -594,11 +595,14 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
+            unsupported_os=[CBLMariner],
         ),
     )
     def verify_dpdk_vpp(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the unsupported_os gate.
         if isinstance(node.os, CBLMariner):
             raise SkippedException(
                 UnsupportedDistroException(
