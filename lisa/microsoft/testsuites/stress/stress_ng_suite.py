@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import logging
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import yaml
 
@@ -215,9 +215,7 @@ class StressNgTestSuite(TestSuite):
         kernel_panics: List[Tuple[RemoteNode, Exception]] = []
         for node, _e in start_failures + result_failures:
             try:
-                node.features[SerialConsole].check_panic(
-                    saved_path=None, force_run=True
-                )
+                self._check_serial_console_panic(node)
             except KernelPanicException as e:
                 kernel_panics.append((node, e))
 
@@ -281,10 +279,7 @@ class StressNgTestSuite(TestSuite):
                 f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
             for node in nodes:
-                # check_panic automatically logs, attaches to result, and raises
-                node.features[SerialConsole].check_panic(
-                    saved_path=None, force_run=True, test_result=test_result
-                )
+                self._check_serial_console_panic(node, test_result)
             raise execution_error
 
         finally:
@@ -336,6 +331,18 @@ class StressNgTestSuite(TestSuite):
                 if getattr(node, "log", None):
                     node.log.error(f"Failed to start stress job: {deployment_error}")
                 raise deployment_error
+
+    def _check_serial_console_panic(
+        self, node: RemoteNode, test_result: Optional[TestResult] = None
+    ) -> None:
+        if node.features.is_supported(SerialConsole):
+            node.features[SerialConsole].check_panic(
+                saved_path=None, force_run=True, test_result=test_result
+            )
+        else:
+            node.log.debug(
+                "SerialConsole feature is not supported; skipping panic check."
+            )
 
     def _monitor_stress_execution(
         self,
