@@ -32,6 +32,7 @@ class NodeContext:
     tap_input_rules_added: List[str] = field(default_factory=list)
     tap_dnsmasq_pid_file: str = ""
     tap_dnsmasq_lease_file: str = ""
+    effective_network: Optional[Any] = None
     process_id: str = ""
     command_line: str = ""
 

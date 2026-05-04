@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 import hashlib
 import io
 import ipaddress
@@ -68,6 +69,69 @@ def _countspace_to_int(value: search_space.CountSpace) -> int:
             "configuration resolves to a single integer value."
         )
     return chosen
+
+
+def _increment_name_suffix(value: str, index: int) -> str:
+    if not value or index == 0:
+        return value
+
+    suffix_start = len(value)
+    while suffix_start > 0 and value[suffix_start - 1].isdigit():
+        suffix_start -= 1
+
+    if suffix_start == len(value):
+        return f"{value}{index}"
+
+    prefix = value[:suffix_start]
+    suffix = value[suffix_start:]
+    return f"{prefix}{int(suffix) + index:0{len(suffix)}d}"
+
+
+def _shift_ip_interface_cidr(cidr: str, index: int) -> str:
+    if not cidr or index == 0:
+        return cidr
+
+    interface = ipaddress.ip_interface(cidr)
+    network = interface.network
+    network_address = int(network.network_address) + index * network.num_addresses
+    host_offset = int(interface.ip) - int(network.network_address)
+    max_address = (1 << network.max_prefixlen) - 1
+    new_ip_address = network_address + host_offset
+    if new_ip_address > max_address or (
+        network_address + network.num_addresses - 1 > max_address
+    ):
+        raise LisaException(
+            f"cannot derive OpenVMM guest network from '{cidr}' for guest index "
+            f"{index}: derived address exceeds the IP address space. Use a "
+            "larger base network or explicit per-guest network settings."
+        )
+
+    return f"{ipaddress.ip_address(new_ip_address)}/{network.prefixlen}"
+
+
+def _shift_ip_address(address: str, base_cidr: str, index: int) -> str:
+    if not address or not base_cidr or index == 0:
+        return address
+
+    base_network = ipaddress.ip_interface(base_cidr).network
+    ip_address = ipaddress.ip_address(address)
+    if ip_address not in base_network:
+        return address
+
+    host_offset = int(ip_address) - int(base_network.network_address)
+    new_network_address = int(base_network.network_address) + (
+        index * base_network.num_addresses
+    )
+    new_address = new_network_address + host_offset
+    max_address = (1 << base_network.max_prefixlen) - 1
+    if new_address > max_address:
+        raise LisaException(
+            f"cannot derive OpenVMM guest address from '{address}' for guest "
+            f"index {index}: derived address exceeds the IP address space. "
+            "Use a larger base network or explicit per-guest network settings."
+        )
+
+    return str(ipaddress.ip_address(new_address))
 
 
 class GuestIpResolver(ABC):
@@ -151,10 +215,53 @@ class OpenVmmController:
             openvmm.set_binary_path("openvmm")
         return openvmm
 
+    def create_effective_network(
+        self, network: OpenVmmNetworkSchema, guest_index: int
+    ) -> OpenVmmNetworkSchema:
+        effective_network = copy.deepcopy(network)
+        if effective_network.mode != OPENVMM_NETWORK_MODE_TAP:
+            return effective_network
+
+        base_tap_host_cidr = effective_network.tap_host_cidr
+        effective_network.tap_name = _increment_name_suffix(
+            effective_network.tap_name, guest_index
+        )
+        effective_network.bridge_name = _increment_name_suffix(
+            effective_network.bridge_name, guest_index
+        )
+        effective_network.tap_host_cidr = _shift_ip_interface_cidr(
+            effective_network.tap_host_cidr, guest_index
+        )
+        effective_network.guest_address = _shift_ip_address(
+            effective_network.guest_address, base_tap_host_cidr, guest_index
+        )
+        effective_network.consomme_cidr = _shift_ip_interface_cidr(
+            effective_network.consomme_cidr, guest_index
+        )
+        if effective_network.forward_ssh_port:
+            effective_network.forwarded_port += guest_index
+            if effective_network.forwarded_port > 65535:
+                raise LisaException(
+                    "cannot derive OpenVMM forwarded SSH port from "
+                    f"'{network.forwarded_port}' for guest index {guest_index}: "
+                    "derived port exceeds 65535. Use a lower base forwarded_port."
+                )
+
+        return effective_network
+
+    def _get_node_network(
+        self, node: "OpenVmmGuestNode", node_context: NodeContext
+    ) -> OpenVmmNetworkSchema:
+        if node_context.effective_network:
+            return cast(OpenVmmNetworkSchema, node_context.effective_network)
+
+        return cast(OpenVmmGuestNodeSchema, node.runbook).network
+
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         node_context = get_node_context(node)
-        self._prepare_tap_network(runbook.network, node_context)
+        network = self._get_node_network(node, node_context)
+        self._prepare_tap_network(network, node_context)
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
             disk_img_path=node_context.disk_img_path,
@@ -165,9 +272,9 @@ class OpenVmmController:
             ),
             processors=_countspace_to_int(node.capability.core_count),
             memory_mb=_countspace_to_int(node.capability.memory_mb),
-            network_mode=runbook.network.mode,
-            tap_name=getattr(runbook.network, "tap_name", ""),
-            network_cidr=runbook.network.consomme_cidr,
+            network_mode=network.mode,
+            tap_name=getattr(network, "tap_name", ""),
+            network_cidr=network.consomme_cidr,
             serial_mode=runbook.serial.mode,
             serial_path=node_context.console_log_file_path,
             extra_args=runbook.extra_args,
@@ -180,9 +287,9 @@ class OpenVmmController:
         node_context.process_id = openvmm.launch_vm(
             launch_config,
             cwd=launch_cwd,
-            sudo=runbook.network.mode == OPENVMM_NETWORK_MODE_TAP,
+            sudo=network.mode == OPENVMM_NETWORK_MODE_TAP,
         )
-        self._ensure_process_running(node_context, runbook.network)
+        self._ensure_process_running(node_context, network)
         log.debug(
             f"Launched OpenVMM VM '{node_context.vm_name}' with pid "
             f"{node_context.process_id}"
@@ -571,8 +678,8 @@ class OpenVmmController:
 
     def configure_connection(self, node: RemoteNode, log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
-        network = runbook.network
         node_context = get_node_context(node)
+        network = self._get_node_network(cast(OpenVmmGuestNode, node), node_context)
 
         guest_address = self._resolve_guest_address(node_context, network, log)
         node_context.guest_address = guest_address
@@ -613,7 +720,7 @@ class OpenVmmController:
                 "configuration is correct, the SSH service is listening on the "
                 "expected port, and review the OpenVMM guest and host logs for "
                 "startup or networking errors. "
-                f"{self._get_openvmm_failure_context(node_context, runbook.network)}"
+                f"{self._get_openvmm_failure_context(node_context, network)}"
             ) from identifier
         if not is_ready:
             raise LisaException(
@@ -623,7 +730,7 @@ class OpenVmmController:
                 "port forwarding or network configuration is correct, the SSH "
                 "service is listening on the expected port, and review the "
                 "OpenVMM guest and host logs for startup or networking errors. "
-                f"{self._get_openvmm_failure_context(node_context, runbook.network)}"
+                f"{self._get_openvmm_failure_context(node_context, network)}"
             )
 
     def _resolve_guest_address(
@@ -953,7 +1060,7 @@ class OpenVmmController:
         self._disable_ssh_forwarding(node)
         self._teardown_tap_network(
             node_context,
-            cast(OpenVmmGuestNodeSchema, node.runbook).network,
+            self._get_node_network(cast(OpenVmmGuestNode, node), node_context),
         )
 
         if wait_failure:
@@ -1143,7 +1250,7 @@ class OpenVmmController:
         node_context = get_node_context(node)
         self._disable_ssh_forwarding_context(
             node_context,
-            cast(OpenVmmGuestNodeSchema, node.runbook).network,
+            self._get_node_network(cast(OpenVmmGuestNode, node), node_context),
         )
 
     def _disable_ssh_forwarding_context(
@@ -1436,6 +1543,11 @@ class OpenVmmGuestNode(RemoteNode):
         node_context = get_node_context(self)
         node_context.vm_name = vm_name
         node_context.host = host_node
+        node_context.effective_network = (
+            self._openvmm_controller.create_effective_network(
+                runbook.network, self.index
+            )
+        )
 
         base_working_path = host_node.get_pure_path(runbook.lisa_working_dir)
         working_path = base_working_path / vm_name
