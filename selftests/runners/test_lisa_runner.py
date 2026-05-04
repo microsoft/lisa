@@ -2,12 +2,13 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import List, Optional, Union, cast
+from typing import Any, List, Optional, Union, cast
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 import lisa
-from lisa import LisaException, constants, schema
-from lisa.environment import EnvironmentStatus, load_environments
+from lisa import LisaException, constants, schema, search_space
+from lisa.environment import EnvironmentSpace, EnvironmentStatus, load_environments
 from lisa.messages import TestResultMessage, TestStatus
 from lisa.notifier import _notifiers, flush_notifications, register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
@@ -88,6 +89,83 @@ class RunnerTestCase(TestCase):
             expected_status=[TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
             expected_message=["", "", ""],
             test_results=test_results,
+        )
+
+    def test_merge_req_guest_enabled_uses_platform_requirement(self) -> None:
+        envs = load_environments(None)
+        runner = generate_runner(None)
+        platform = test_platform.generate_platform()
+        platform.runbook.guest_enabled = True
+        platform.runbook.requirement = {"node_count": 1, "core_count": 4}
+        runner.platform = platform
+        runner._guest_enabled = True
+
+        test_results = test_testsuite.generate_cases_result()
+        runner._merge_test_requirements(
+            test_results=test_results,
+            existing_environments=envs,
+            platform_type=constants.PLATFORM_MOCK,
+        )
+
+        first_env = next(iter(envs.values()))
+        assert first_env.runbook.nodes_requirement
+        self.assertEqual(1, len(first_env.runbook.nodes_requirement))
+        self.assertEqual(4, first_env.runbook.nodes_requirement[0].core_count)
+
+        test_environment = test_results[0].runtime_data.requirement.environment
+        assert test_environment
+        self.assertEqual(2, len(test_environment.nodes))
+
+    def test_merge_req_platform_features_do_not_bleed_between_nodes(self) -> None:
+        runner = generate_runner(None)
+        test_result = test_testsuite.generate_cases_result()[0]
+        platform_requirement = schema.NodeSpace()
+        platform_requirement.features = search_space.SetSpace[schema.FeatureSettings](
+            True, [schema.FeatureSettings.create("PlatformFeature")]
+        )
+        environment_requirement = EnvironmentSpace(
+            nodes=[
+                schema.NodeSpace(),
+                schema.NodeSpace(),
+            ]
+        )
+        environment_requirement.nodes[0].features = search_space.SetSpace[
+            schema.FeatureSettings
+        ](True, [schema.FeatureSettings.create("NodeOneFeature")])
+        environment_requirement.nodes[1].features = search_space.SetSpace[
+            schema.FeatureSettings
+        ](True, [schema.FeatureSettings.create("NodeTwoFeature")])
+
+        runner._merge_platform_requirement(
+            environment_requirement,
+            platform_requirement,
+            test_result,
+        )
+
+        node_features = [
+            {feature.type for feature in node.features or []}
+            for node in environment_requirement.nodes
+        ]
+        self.assertEqual(
+            [
+                {"PlatformFeature", "NodeOneFeature"},
+                {"PlatformFeature", "NodeTwoFeature"},
+            ],
+            node_features,
+        )
+
+    def test_deploy_environment_empty_results_still_cleans_up(self) -> None:
+        runner = generate_runner(None)
+        environment = cast(Any, MagicMock())
+
+        with patch.object(runner, "_need_retry", return_value=False), patch.object(
+            runner, "_delete_environment_task"
+        ) as delete_environment_task:
+            with self.assertRaises(IndexError):
+                runner._deploy_environment_task(environment, [])
+
+        delete_environment_task.assert_called_once_with(
+            environment=environment, test_results=[]
         )
 
     def test_merge_req(self) -> None:
