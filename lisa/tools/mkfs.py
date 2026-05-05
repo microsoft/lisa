@@ -12,6 +12,7 @@ FileSystem = Enum(
     "mkfs",
     [
         "xfs",
+        "cifs",
         "ext2",
         "ext3",
         "ext4",
