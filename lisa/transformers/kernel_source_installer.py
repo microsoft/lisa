@@ -270,6 +270,30 @@ class SourceInstaller(BaseInstaller):
             result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
             result.assert_exit_code()
         else:
+            # On Ubuntu ARM64, the flash-kernel package hooks into both
+            # initramfs post-update and kernel postinst. It always fails
+            # on Azure VMs because there is no recognized ARM board/DTB.
+            # Disable all flash-kernel hooks before running make install.
+            lscpu = node.tools[Lscpu]
+            if (
+                isinstance(node.os, Ubuntu)
+                and lscpu.get_architecture() == CpuArchitecture.ARM64
+            ):
+                self._log.info(
+                    "Disabling flash-kernel hooks on Ubuntu ARM64 "
+                    "(unsupported on Azure VMs)"
+                )
+                for hook_path in [
+                    "/etc/initramfs/post-update.d/flash-kernel",
+                    "/etc/kernel/postinst.d/zz-flash-kernel",
+                ]:
+                    node.execute(
+                        f"test -f {hook_path} && "
+                        f"mv {hook_path} {hook_path}.disabled "
+                        f"|| true",
+                        sudo=True,
+                        shell=True,
+                    )
             make.make(arguments="install", cwd=code_path, sudo=True)
 
         # The build for Redhat needs extra steps than RPM package. So put it
