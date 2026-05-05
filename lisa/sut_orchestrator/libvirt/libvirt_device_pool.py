@@ -180,6 +180,21 @@ class LibvirtDevicePool(BaseDevicePool):
             sysfs_path, context="rootfs NVMe"
         )
 
+    def auto_discover_pool(self, pool_type: HostDevicePoolType) -> None:
+        self.available_host_devices[pool_type] = {}
+        candidates = self._get_passthrough_device_candidates(pool_type)
+        if not candidates:
+            raise LisaException(
+                f"Auto-discovery found no eligible devices for pool type "
+                f"'{pool_type.value}' on the host. Verify that devices of "
+                f"this type exist and are not excluded (primary NIC, etc)."
+            )
+        self.host_node.log.debug(
+            f"Auto-discovered {len(candidates)} device(s) for pool "
+            f"'{pool_type.value}': {candidates}"
+        )
+        self._create_pool(pool_type, candidates)
+
     def create_device_pool(
         self,
         pool_type: HostDevicePoolType,
