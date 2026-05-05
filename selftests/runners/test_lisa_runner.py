@@ -106,14 +106,14 @@ class RunnerTestCase(TestCase):
             platform_type=constants.PLATFORM_MOCK,
         )
 
-        first_env = next(iter(envs.values()))
-        assert first_env.runbook.nodes_requirement
-        self.assertEqual(1, len(first_env.runbook.nodes_requirement))
-        self.assertEqual(4, first_env.runbook.nodes_requirement[0].core_count)
-
-        test_environment = test_results[0].runtime_data.requirement.environment
-        assert test_environment
-        self.assertEqual(2, len(test_environment.nodes))
+        # One parent environment is created per test result, each sized from the
+        # platform requirement (1 node, 4 cores), not from testcase requirements
+        # (mock_ut1 requires 2 nodes; mock_ut3 requires 1 node with 8 cores).
+        self.assertEqual(len(test_results), len(envs))
+        for env in envs.values():
+            self.assertIsNotNone(env.runbook.nodes_requirement)
+            self.assertEqual(1, len(env.runbook.nodes_requirement))
+            self.assertEqual(4, env.runbook.nodes_requirement[0].core_count)
 
     def test_merge_req(self) -> None:
         # each test case will create an environment candidate.
