@@ -85,6 +85,10 @@ class BaseDevicePool:
                 )
 
     def _configure_passthrough_pool(self, config: HostDevicePoolSchema) -> None:
+        if config.auto_discover:
+            self.auto_discover_pool(config.type)
+            return
+
         devices = config.devices
         if self._is_vendor_device_id_list(devices):
             vendor_device_list = cast(List[VendorDeviceIdIdentifier], devices)
@@ -101,6 +105,9 @@ class BaseDevicePool:
         raise LisaException(
             f"Unknown device identifier of type: {type(devices)}" f", value: {devices}"
         )
+
+    def auto_discover_pool(self, pool_type: HostDevicePoolType) -> None:
+        raise NotImplementedError()
 
     def _is_vendor_device_id_list(self, devices: Any) -> bool:
         if not isinstance(devices, list):
