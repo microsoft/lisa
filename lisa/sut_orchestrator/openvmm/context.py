@@ -45,6 +45,7 @@ class OpenVmmHostContext:
     original_bridge_netfilter_values: Dict[str, str] = field(default_factory=dict)
     active_bridge_netfilter_count: int = 0
     artifact_copy_lock: Lock = field(default_factory=Lock)
+    artifact_cache: Dict[str, str] = field(default_factory=dict)
 
 
 def get_node_context(node: Node) -> NodeContext:

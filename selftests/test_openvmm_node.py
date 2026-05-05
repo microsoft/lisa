@@ -29,6 +29,7 @@ class OpenVmmNodeTestCase(TestCase):
         guest_log = MagicMock()
         host_node = SimpleNamespace(
             is_remote=True,
+            execute=MagicMock(),
             get_pure_path=PurePosixPath,
             shell=SimpleNamespace(copy=shell_copy),
             tools={Kill: SimpleNamespace(by_pid=kill_by_pid)},
@@ -62,6 +63,26 @@ class OpenVmmNodeTestCase(TestCase):
 
         self.assertNotEqual(first_destination, second_destination)
         self.assertEqual(2, shell_copy.call_count)
+
+    def test_resolve_guest_artifact_path_reuses_host_cache(self) -> None:
+        controller, shell_copy, _, _ = self._create_controller()
+        with TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "guest.raw"
+            source.write_text("disk")
+
+            first_destination = controller.resolve_guest_artifact_path(
+                str(source),
+                is_remote_path=False,
+                working_path=PurePath("/var/tmp/openvmm/g0"),
+            )
+            second_destination = controller.resolve_guest_artifact_path(
+                str(source),
+                is_remote_path=False,
+                working_path=PurePath("/var/tmp/openvmm/g1"),
+            )
+
+        self.assertNotEqual(first_destination, second_destination)
+        self.assertEqual(1, shell_copy.call_count)
 
     def test_stop_node_kills_process_after_wait_timeout(self) -> None:
         controller, _, kill_by_pid, guest_log = self._create_controller()

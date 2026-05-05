@@ -191,13 +191,50 @@ class OpenVmmController:
             :8
         ]
         destination = working_path / f"{source.stem}-{source_id}{source.suffix}"
+        cache_directory = working_path.parent / ".openvmm-artifacts"
+        cache_path = cache_directory / f"{source.stem}-{source_id}{source.suffix}"
+        cache_key = str(source.resolve())
         copy_timer = create_timer()
-        self._log.info(
-            f"Copying OpenVMM artifact '{source.name}' to host path '{destination}'."
-        )
         host_context = get_host_context(self.host_node)
         with host_context.artifact_copy_lock:
-            self.host_node.shell.copy(source, destination)
+            cached_path = host_context.artifact_cache.get(cache_key)
+            if not cached_path:
+                self.host_node.execute(
+                    f"mkdir -p {shlex.quote(str(cache_directory))}",
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to create OpenVMM artifact cache directory "
+                        f"'{cache_directory}'"
+                    ),
+                )
+                self._log.info(
+                    f"Copying OpenVMM artifact '{source.name}' to host cache "
+                    f"'{cache_path}'."
+                )
+                self.host_node.shell.copy(source, cache_path)
+                host_context.artifact_cache[cache_key] = str(cache_path)
+                self._log.info(
+                    f"Copied OpenVMM artifact '{source.name}' to host cache "
+                    f"'{cache_path}' in {copy_timer.elapsed_text()}."
+                )
+            else:
+                self._log.debug(
+                    f"Using cached OpenVMM artifact '{source.name}' from "
+                    f"'{cached_path}'."
+                )
+
+            self.host_node.execute(
+                "cp -f --reflink=auto "
+                f"{shlex.quote(host_context.artifact_cache[cache_key])} "
+                f"{shlex.quote(str(destination))}",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"failed to clone OpenVMM artifact '{source.name}' from host "
+                    f"cache to '{destination}'"
+                ),
+            )
         self._log.info(
             f"Copied OpenVMM artifact '{source.name}' to host path "
             f"'{destination}' in {copy_timer.elapsed_text()}."
