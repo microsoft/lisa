@@ -90,6 +90,31 @@ class RunnerTestCase(TestCase):
             test_results=test_results,
         )
 
+    def test_merge_req_guest_enabled_uses_platform_requirement(self) -> None:
+        envs = load_environments(None)
+        runner = generate_runner(None)
+        platform = test_platform.generate_platform()
+        platform.runbook.guest_enabled = True
+        platform.runbook.requirement = {"node_count": 1, "core_count": 4}
+        runner.platform = platform
+        runner._guest_enabled = True
+
+        test_results = test_testsuite.generate_cases_result()
+        runner._merge_test_requirements(
+            test_results=test_results,
+            existing_environments=envs,
+            platform_type=constants.PLATFORM_MOCK,
+        )
+
+        # One parent environment is created per test result, each sized from the
+        # platform requirement (1 node, 4 cores), not from testcase requirements
+        # (mock_ut1 requires 2 nodes; mock_ut3 requires 1 node with 8 cores).
+        self.assertEqual(len(test_results), len(envs))
+        for env in envs.values():
+            self.assertIsNotNone(env.runbook.nodes_requirement)
+            self.assertEqual(1, len(env.runbook.nodes_requirement))
+            self.assertEqual(4, env.runbook.nodes_requirement[0].core_count)
+
     def test_merge_req(self) -> None:
         # each test case will create an environment candidate.
         env_runbook = generate_env_runbook(remote=True)

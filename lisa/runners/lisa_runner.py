@@ -20,6 +20,7 @@ from lisa.action import ActionStatus
 from lisa.environment import (
     Environment,
     Environments,
+    EnvironmentSpace,
     EnvironmentStatus,
     load_environments,
 )
@@ -296,8 +297,9 @@ class LisaRunner(BaseRunner):
     def _deploy_environment_task(
         self, environment: Environment, test_results: List[TestResult]
     ) -> None:
+        assert test_results
+        test_result = test_results[0]
         try:
-            test_result = test_results[0]
             test_result.subscribe_log(environment.log)
             try:
                 # Attempt to deploy the environment
@@ -823,6 +825,7 @@ class LisaRunner(BaseRunner):
             # object cross test results.
             platform_requirement = self._create_platform_requirement()
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
+            environment_requirement: Optional[EnvironmentSpace] = None
 
             check_result = test_result.check_platform(platform_type)
             if not check_result.result:
@@ -838,98 +841,23 @@ class LisaRunner(BaseRunner):
                 if ignored_features:
                     cases_ignored_features[test_result.name] = ignored_features
 
-                environment_requirement = copy.deepcopy(test_req.environment)
-                if platform_requirement:
-                    node_count = 1
+                if getattr(self, "_guest_enabled", False):
+                    environment_requirement = self._create_guest_parent_requirement(
+                        platform_requirement
+                    )
+                else:
+                    environment_requirement = copy.deepcopy(test_req.environment)
 
-                    if platform_requirement.node_count:
-                        # get minimun node count from the runbook.
-                        node_count = search_space.choose_value_countspace(
-                            platform_requirement.node_count,
-                            platform_requirement.node_count,
-                        )
-
-                        # Reset to 1 since platform_requirement will be used as
-                        # a template for intersecting with individual node
-                        # requirements, not for the entire environment
-                        platform_requirement.node_count = 1
-
-                    # Use the larger node count between test requirements and
-                    # runbook settings to support scaling scenarios where
-                    # runbook overrides test defaults
-                    node_count = max(len(environment_requirement.nodes), node_count)
-                    node_requirement_data: Dict[str, Any] = {}
-                    for index in range(node_count):
-                        if index < len(environment_requirement.nodes):
-                            node_requirement = environment_requirement.nodes[index]
-
-                            node_requirement_data = (
-                                node_requirement.to_dict()  # type: ignore
-                            )
-                        else:
-                            # Runbook has bigger node count, copy from the last
-                            # node space of the environment.
-                            node_requirement = schema.load_by_type(
-                                schema.NodeSpace, node_requirement_data
-                            )
-
-                        assert node_requirement_data, "Node requirement data is missing"
-                        original_node_requirement = schema.load_by_type(
-                            schema.NodeSpace, node_requirement_data
-                        )
-
-                        # Manage the union of the platform requirements and the node
-                        # requirements before taking the intersection of
-                        # the rest of the requirements.
-                        platform_requirement.features = search_space.SetSpace(
-                            True,
-                            (
-                                platform_requirement.features.items
-                                if platform_requirement.features
-                                else []
-                            )
-                            + (
-                                original_node_requirement.features.items
-                                if original_node_requirement.features
-                                else []
-                            ),
-                        )
-                        platform_requirement.excluded_features = search_space.SetSpace(
-                            False,
-                            (
-                                platform_requirement.excluded_features.items
-                                if platform_requirement.excluded_features
-                                else []
-                            )
-                            + (
-                                original_node_requirement.excluded_features.items
-                                if original_node_requirement.excluded_features
-                                else []
-                            ),
-                        )
-
-                        try:
-                            node_requirement = original_node_requirement.intersect(
-                                platform_requirement
-                            )
-                        except NotMeetRequirementException as e:
-                            test_result.set_status(TestStatus.SKIPPED, str(e))
-                            break
-
-                        assert isinstance(platform_requirement.extended_schemas, dict)
-                        assert isinstance(node_requirement.extended_schemas, dict)
-                        node_requirement.extended_schemas = deep_update_dict(
-                            platform_requirement.extended_schemas,
-                            node_requirement.extended_schemas,
-                        )
-                        if index < len(environment_requirement.nodes):
-                            environment_requirement.nodes[index] = node_requirement
-                        else:
-                            # add extra nodes, which is more from runbook.
-                            environment_requirement.nodes.append(node_requirement)
+                if platform_requirement and not getattr(self, "_guest_enabled", False):
+                    self._merge_platform_requirement(
+                        environment_requirement,
+                        platform_requirement,
+                        test_result,
+                    )
 
             if test_result.can_run:
                 # the requirement may be skipped by high platform requirement.
+                assert environment_requirement
                 env = existing_environments.from_requirement(environment_requirement)
                 if env:
                     # if env prepare or deploy failed and the test result is not
@@ -944,6 +872,116 @@ class LisaRunner(BaseRunner):
                 f"the feature(s) {ignored_features} have "
                 f"been ignored for case {case_name}"
             )
+
+    def _create_guest_parent_requirement(
+        self, platform_requirement: Optional[schema.NodeSpace]
+    ) -> EnvironmentSpace:
+        if platform_requirement:
+            return EnvironmentSpace(nodes=[platform_requirement])
+
+        return EnvironmentSpace(nodes=[schema.NodeSpace()])
+
+    def _merge_platform_requirement(
+        self,
+        environment_requirement: EnvironmentSpace,
+        platform_requirement: schema.NodeSpace,
+        test_result: TestResult,
+    ) -> None:
+        node_count = 1
+
+        if platform_requirement.node_count:
+            # get minimum node count from the runbook.
+            node_count = search_space.choose_value_countspace(
+                platform_requirement.node_count,
+                platform_requirement.node_count,
+            )
+
+            # Reset to 1 since platform_requirement will be used as
+            # a template for intersecting with individual node
+            # requirements, not for the entire environment
+            platform_requirement.node_count = 1
+
+        # Use the larger node count between test requirements and
+        # runbook settings to support scaling scenarios where
+        # runbook overrides test defaults
+        node_count = max(len(environment_requirement.nodes), node_count)
+        node_requirement_data: Dict[str, Any] = {}
+        for index in range(node_count):
+            if index < len(environment_requirement.nodes):
+                node_requirement = environment_requirement.nodes[index]
+
+                node_requirement_data = node_requirement.to_dict()  # type: ignore
+            else:
+                # Runbook has bigger node count, copy from the last
+                # node space of the environment.
+                node_requirement = schema.load_by_type(
+                    schema.NodeSpace, node_requirement_data
+                )
+
+            assert node_requirement_data, "Node requirement data is missing"
+            original_node_requirement = schema.load_by_type(
+                schema.NodeSpace, node_requirement_data
+            )
+
+            # Manage the union of the platform requirements and the node
+            # requirements before taking the intersection of
+            # the rest of the requirements.
+            platform_requirement.features = search_space.SetSpace(
+                True,
+                (
+                    platform_requirement.features.items
+                    if platform_requirement.features
+                    else []
+                )
+                + (
+                    original_node_requirement.features.items
+                    if original_node_requirement.features
+                    else []
+                ),
+            )
+            platform_requirement.excluded_features = search_space.SetSpace(
+                False,
+                (
+                    platform_requirement.excluded_features.items
+                    if platform_requirement.excluded_features
+                    else []
+                )
+                + (
+                    original_node_requirement.excluded_features.items
+                    if original_node_requirement.excluded_features
+                    else []
+                ),
+            )
+
+            try:
+                node_requirement = original_node_requirement.intersect(
+                    platform_requirement
+                )
+            except NotMeetRequirementException as e:
+                test_result.set_status(TestStatus.SKIPPED, str(e))
+                break
+
+            platform_extended_schemas_object = getattr(
+                platform_requirement, "extended_schemas", None
+            )
+            node_extended_schemas_object = getattr(
+                node_requirement, "extended_schemas", None
+            )
+            assert isinstance(platform_extended_schemas_object, dict)
+            assert isinstance(node_extended_schemas_object, dict)
+            platform_extended_schemas = cast(
+                Dict[str, Any], platform_extended_schemas_object
+            )
+            node_extended_schemas = cast(Dict[str, Any], node_extended_schemas_object)
+            node_requirement.extended_schemas = deep_update_dict(
+                platform_extended_schemas,
+                node_extended_schemas,
+            )
+            if index < len(environment_requirement.nodes):
+                environment_requirement.nodes[index] = node_requirement
+            else:
+                # add extra nodes, which is more from runbook.
+                environment_requirement.nodes.append(node_requirement)
 
     def _create_platform_requirement(self) -> Optional[schema.NodeSpace]:
         if not hasattr(self, "platform"):
