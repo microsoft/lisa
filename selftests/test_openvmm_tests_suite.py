@@ -158,7 +158,9 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         )
 
         host.initialize.assert_called_once()
-        self.assertEqual("https://example.com/openvmm.git", tool.repo_url)
+        tool.configure_repository.assert_called_once_with(
+            "https://example.com/openvmm.git", ""
+        )
 
     def test_verify_openvmm_upstream_vmm_tests_sets_multiline_summary(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)

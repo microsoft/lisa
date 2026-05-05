@@ -27,9 +27,12 @@ class OpenVmmNodeTestCase(TestCase):
         shell_copy = MagicMock()
         kill_by_pid = MagicMock()
         guest_log = MagicMock()
+        # execute() returns a result with exit_code=0 so that cache freshness
+        # checks (test -f ...) appear to succeed and the cache is reused.
+        execute_result = SimpleNamespace(exit_code=0, stderr="", stdout="")
         host_node = SimpleNamespace(
             is_remote=True,
-            execute=MagicMock(),
+            execute=MagicMock(return_value=execute_result),
             get_pure_path=PurePosixPath,
             shell=SimpleNamespace(copy=shell_copy),
             tools={Kill: SimpleNamespace(by_pid=kill_by_pid)},

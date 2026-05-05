@@ -1,11 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import importlib.util
 import shlex
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from lisa import (
     Logger,
@@ -26,17 +25,9 @@ from lisa.util import LisaException, SkippedException
 
 @lru_cache(maxsize=1)
 def _get_openvmm_tests_type() -> Any:
-    module_path = Path(__file__).with_name("openvmm_tests_tool.py")
-    spec = importlib.util.spec_from_file_location(
-        "lisa_openvmm_tests_tool",
-        module_path,
-    )
-    if not spec or not spec.loader:
-        raise RuntimeError(f"failed to load OpenVMM tests helper from {module_path}")
+    from .openvmm_tests_tool import OpenVmmTests
 
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.OpenVmmTests
+    return OpenVmmTests
 
 
 @TestSuiteMetadata(
@@ -67,9 +58,25 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         if auth_token:
             add_secret(auth_token)
 
-        openvmm_tests = host.tools[openvmm_tests_type]
-        openvmm_tests.repo_url = repo_url
-        openvmm_tests.auth_token = auth_token
+        openvmm_tests = self._get_openvmm_tests(
+            host, openvmm_tests_type, repo_url, auth_token
+        )
+        openvmm_tests.configure_repository(repo_url, auth_token)
+
+    def _get_openvmm_tests(
+        self,
+        host: Node,
+        openvmm_tests_type: Any,
+        repo_url: str,
+        auth_token: str,
+    ) -> Any:
+        create_tool = getattr(host.tools, "create", None)
+        if callable(create_tool):
+            return create_tool(
+                openvmm_tests_type, repo_url=repo_url, auth_token=auth_token
+            )
+
+        return host.tools[openvmm_tests_type]
 
     @TestCaseMetadata(
         description="""
@@ -240,7 +247,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
 
         guest_filter = guest_filters[guest_os]
 
-        filters = []
+        filters: List[str] = []
         if guest_filter:
             filters.append(guest_filter)
         if custom_filter:

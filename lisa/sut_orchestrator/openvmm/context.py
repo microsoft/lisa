@@ -8,6 +8,20 @@ from typing import Any, Dict, List, Optional
 from lisa.node import Node
 from lisa.util import LisaException
 
+from .schema import OpenVmmNetworkSchema
+
+
+def _new_extra_cloud_init_user_data() -> List[Dict[str, Any]]:
+    return []
+
+
+def _new_str_list() -> List[str]:
+    return []
+
+
+def _new_str_dict() -> Dict[str, str]:
+    return {}
+
 
 @dataclass
 class NodeContext:
@@ -20,7 +34,9 @@ class NodeContext:
     console_log_file_path: str = ""
     launcher_log_file_path: str = ""
     launcher_stderr_log_file_path: str = ""
-    extra_cloud_init_user_data: List[Dict[str, Any]] = field(default_factory=list)
+    extra_cloud_init_user_data: List[Dict[str, Any]] = field(
+        default_factory=_new_extra_cloud_init_user_data
+    )
     guest_address: str = ""
     ssh_port: int = 22
     forwarded_port: int = 0
@@ -29,11 +45,10 @@ class NodeContext:
     tap_created: bool = False
     tap_bridge_created: bool = False
     tap_bridge_netfilter_disabled: bool = False
-    tap_dhcp_input_rule_added: bool = False
-    tap_input_rules_added: List[str] = field(default_factory=list)
+    tap_input_rules_added: List[str] = field(default_factory=_new_str_list)
     tap_dnsmasq_pid_file: str = ""
     tap_dnsmasq_lease_file: str = ""
-    effective_network: Optional[Any] = None
+    effective_network: Optional[OpenVmmNetworkSchema] = None
     process_id: str = ""
     command_line: str = ""
 
@@ -42,10 +57,12 @@ class NodeContext:
 class OpenVmmHostContext:
     original_ip_forward_value: str = ""
     active_forwarding_count: int = 0
-    original_bridge_netfilter_values: Dict[str, str] = field(default_factory=dict)
+    original_bridge_netfilter_values: Dict[str, str] = field(
+        default_factory=_new_str_dict
+    )
     active_bridge_netfilter_count: int = 0
     artifact_copy_lock: Lock = field(default_factory=Lock)
-    artifact_cache: Dict[str, str] = field(default_factory=dict)
+    artifact_cache: Dict[str, str] = field(default_factory=_new_str_dict)
 
 
 def get_node_context(node: Node) -> NodeContext:

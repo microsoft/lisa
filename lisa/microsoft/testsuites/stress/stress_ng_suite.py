@@ -305,7 +305,7 @@ class StressNgTestSuite(TestSuite):
             stress_processes: List to store launched processes
             log: Logger instance for detailed logging
         """
-        prepared_jobs: List[Tuple[RemoteNode, PurePath, StressNg]] = []
+        prepared_jobs: List[Tuple[RemoteNode, PurePath]] = []
 
         for node_index, node in enumerate(nodes):
             try:
@@ -319,8 +319,7 @@ class StressNgTestSuite(TestSuite):
                 remote_job_file = remote_workspace / job_file_name
                 node.shell.copy(PurePath(job_file), remote_job_file)
 
-                stress_ng = node.tools[StressNg]
-                prepared_jobs.append((node, remote_job_file, stress_ng))
+                prepared_jobs.append((node, remote_job_file))
 
             except Exception as deployment_error:
                 log.error(
@@ -331,12 +330,12 @@ class StressNgTestSuite(TestSuite):
                     node.log.error(f"Failed to prepare stress job: {deployment_error}")
                 raise deployment_error
 
-        for node_index, (node, remote_job_file, stress_ng) in enumerate(prepared_jobs):
+        for node_index, (node, remote_job_file) in enumerate(prepared_jobs):
             try:
                 log.debug(f"Launching node {node_index + 1}/{len(nodes)}: {node.name}")
 
                 # Launch stress-ng with the job file
-                stress_process = stress_ng.launch_job_async(
+                stress_process = node.tools[StressNg].launch_job_async(
                     str(remote_job_file),
                 )
                 stress_processes.append(stress_process)

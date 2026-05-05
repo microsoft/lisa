@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import hashlib
 import re
 import shlex
 import xml.etree.ElementTree as ETree
@@ -14,6 +15,10 @@ from lisa.tools import Cargo, Curl, Git, Ls
 from lisa.util import LisaException, UnsupportedDistroException
 
 
+def _new_str_list() -> List[str]:
+    return []
+
+
 @dataclass
 class _JUnitSummary:
     tests: int = 0
@@ -22,8 +27,8 @@ class _JUnitSummary:
     failures: int = 0
     errors: int = 0
     skipped: int = 0
-    failed_tests: List[str] = field(default_factory=list[str])
-    passed_tests: List[str] = field(default_factory=list[str])
+    failed_tests: List[str] = field(default_factory=_new_str_list)
+    passed_tests: List[str] = field(default_factory=_new_str_list)
 
 
 class OpenVmmTests(Tool):
@@ -83,10 +88,43 @@ class OpenVmmTests(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Cargo, Curl]
+        return [Git, Cargo, Curl, Ls]
+
+    @classmethod
+    def create(cls, node: Any, *args: Any, **kwargs: Any) -> "OpenVmmTests":
+        repo_url = str(kwargs.pop("repo_url", "")).strip()
+        auth_token = str(kwargs.pop("auth_token", "")).strip()
+        if args:
+            repo_url = str(args[0]).strip()
+        if len(args) > 1:
+            auth_token = str(args[1]).strip()
+        if len(args) > 2 or kwargs:
+            raise LisaException(
+                "OpenVmmTests.create accepts only repo_url and auth_token. "
+                "Remove any extra tool creation arguments."
+            )
+
+        tool = cls(node)
+        tool.repo_url = repo_url or cls.DEFAULT_REPO
+        tool.auth_token = auth_token
+        return tool
 
     def _check_exists(self) -> bool:
+        self._set_repo_paths()
         return self.node.tools[Ls].path_exists(str(self.repo_root))
+
+    def configure_repository(self, repo_url: str, auth_token: str) -> None:
+        repository_changed = self.repo_url != repo_url or self.auth_token != auth_token
+
+        self.repo_url = repo_url
+        self.auth_token = auth_token
+        self._set_repo_paths()
+        if not repository_changed:
+            return
+
+        self._prepared_ref = None
+        self._repo_prepared = False
+        self._exists = None
 
     def run_vmm_tests(
         self,
@@ -149,11 +187,17 @@ class OpenVmmTests(Tool):
         )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        tool_path = self.get_tool_path(use_global=True)
-        self.repo_root = tool_path / "openvmm"
-        self._artifact_root = self.repo_root / "target" / "lisa-openvmm-tests"
+        self._set_repo_paths()
         self._prepared_ref = None
         self._repo_prepared = False
+
+    def _get_repo_dir_name(self) -> str:
+        repo_hash = hashlib.sha256(self.repo_url.encode("utf-8")).hexdigest()[:8]
+        return f"openvmm-{repo_hash}"
+
+    def _set_repo_paths(self) -> None:
+        self.repo_root = self.get_tool_path(use_global=True) / self._get_repo_dir_name()
+        self._artifact_root = self.repo_root / "target" / "lisa-openvmm-tests"
 
     def _install(self) -> bool:
         node_os = cast(Posix, self.node.os)
@@ -166,10 +210,12 @@ class OpenVmmTests(Tool):
 
         node_os.install_packages(package_names)
 
+        self._set_repo_paths()
+
         self.repo_root = self.node.tools[Git].clone(
             url=self.repo_url,
             cwd=self.get_tool_path(use_global=True),
-            dir_name="openvmm",
+            dir_name=self._get_repo_dir_name(),
             fail_on_exists=False,
             auth_token=self.auth_token or None,
             timeout=1800,
@@ -186,6 +232,12 @@ class OpenVmmTests(Tool):
         return self.node.tools[Ls].path_exists(str(self.repo_root))
 
     def _prepare_repo(self, log_path: Path, ref: str) -> Dict[str, str]:
+        if not self._check_exists() and not self._install():
+            raise LisaException(
+                f"failed to prepare OpenVMM upstream tests repository from "
+                f"{self.repo_url}"
+            )
+
         cargo_env = self._get_cargo_environment()
 
         if ref and self._prepared_ref != ref:
@@ -235,7 +287,30 @@ class OpenVmmTests(Tool):
                 "failed to determine the home directory for OpenVMM tests"
             ),
         ).stdout.strip()
-        cargo_bin_dir = str(PurePath(cargo.command).parent)
+        # Fetch the current remote PATH explicitly so we can prepend to a
+        # concrete value rather than relying on shell expansion in update_envs.
+        current_env_path = self.node.execute(
+            "echo $PATH",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to determine the remote PATH for OpenVMM tests"
+            ),
+        ).stdout.strip()
+        cargo_bin_dir = ""
+        cargo_command = cargo.command
+        if not PurePath(cargo_command).is_absolute():
+            # cargo.command is a bare name on PATH; resolve its real location
+            # so we can build correct RUSTC/RUSTDOC paths.
+            resolve_result = self.node.execute(
+                f"command -v {shlex.quote(cargo_command)}",
+                shell=True,
+                expected_exit_code=None,
+            )
+            if resolve_result.exit_code == 0:
+                cargo_command = resolve_result.stdout.strip()
+        if cargo_command and PurePath(cargo_command).is_absolute():
+            cargo_bin_dir = str(PurePath(cargo_command).parent)
         cargo_home_bin = f"{home_dir}/.cargo/bin"
         rustup_bin = f"{cargo_home_bin}/rustup"
         toolchain = cargo.toolchain or "stable"
@@ -258,14 +333,19 @@ class OpenVmmTests(Tool):
             ),
         )
 
-        return {
+        path_prefix = (
+            f"{cargo_home_bin}:{cargo_bin_dir}" if cargo_bin_dir else cargo_home_bin
+        )
+        env: Dict[str, str] = {
             "OPENSSL_NO_VENDOR": "1",
-            "PATH": f"{cargo_home_bin}:{cargo_bin_dir}:$PATH",
+            "PATH": f"{path_prefix}:{current_env_path}",
             "RUST_BACKTRACE": "1",
-            "RUSTC": f"{cargo_bin_dir}/rustc",
-            "RUSTDOC": f"{cargo_bin_dir}/rustdoc",
             "RUST_LOG": "info",
         }
+        if cargo_bin_dir:
+            env["RUSTC"] = f"{cargo_bin_dir}/rustc"
+            env["RUSTDOC"] = f"{cargo_bin_dir}/rustdoc"
+        return env
 
     def _wrap_command_for_group(self, command: str) -> str:
         group = str(self.command_group).strip()
@@ -396,7 +476,7 @@ class OpenVmmTests(Tool):
         source_dir: PurePath,
         archive_path: PurePath,
     ) -> None:
-        self.node.execute(
+        result = self.node.execute(
             (
                 f"rm -f {shlex.quote(str(archive_path))} && "
                 f"tar -czf {shlex.quote(str(archive_path))} "
@@ -407,6 +487,11 @@ class OpenVmmTests(Tool):
             no_info_log=True,
             no_error_log=True,
         )
+        if result.exit_code != 0:
+            self._log.warning(
+                f"failed to archive '{source_dir}' to '{archive_path}' "
+                f"(exit {result.exit_code}); diagnostic artifacts may be missing"
+            )
 
     def _copy_back_if_exists(self, remote_path: PurePath, local_path: Path) -> None:
         if not self.node.tools[Ls].path_exists(str(remote_path)):
@@ -414,9 +499,10 @@ class OpenVmmTests(Tool):
             return
         try:
             self.node.shell.copy_back(remote_path, local_path)
-        except Exception as identifier:
-            self._log.warning(
+        except OSError as identifier:
+            self._log.debug(
                 f"failed to copy artifact {remote_path} to {local_path}: {identifier}"
+                " (check permissions, disk space, and SSH/SFTP connectivity)"
             )
 
     def _tail_remote_log(self, remote_log: PurePath) -> str:
@@ -462,7 +548,11 @@ class OpenVmmTests(Tool):
 
             return summary
 
-        return _JUnitSummary()
+        raise LisaException(
+            f"{name} did not produce a local JUnit report or log file. "
+            f"Checked JUnit path: {junit_file}, log path: {log_file}. "
+            "Verify the test run completed and artifact copy-back succeeded."
+        )
 
     def format_run_summary(
         self,

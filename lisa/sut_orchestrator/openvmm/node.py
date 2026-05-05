@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from __future__ import annotations
+
 import copy
 import hashlib
 import io
@@ -187,17 +189,41 @@ class OpenVmmController:
         if not source.exists():
             raise LisaException(f"file does not exist: {source_path}")
 
-        source_id = hashlib.sha256(str(source.resolve()).encode("utf-8")).hexdigest()[
-            :8
-        ]
+        # Include mtime+size in the cache key so the entry is invalidated when
+        # the local file changes between calls (same path, new content).
+        source_stat = source.stat()
+        source_id = hashlib.sha256(
+            f"{source.resolve()}|{source_stat.st_mtime}|{source_stat.st_size}".encode(
+                "utf-8"
+            )
+        ).hexdigest()[:8]
         destination = working_path / f"{source.stem}-{source_id}{source.suffix}"
         cache_directory = working_path.parent / ".openvmm-artifacts"
         cache_path = cache_directory / f"{source.stem}-{source_id}{source.suffix}"
-        cache_key = str(source.resolve())
+        cache_key = f"{source.resolve()}|{source_stat.st_mtime}|{source_stat.st_size}"
         copy_timer = create_timer()
         host_context = get_host_context(self.host_node)
+
+        # Narrow the lock to the cache-miss path so that once the shared cache
+        # entry is populated, other guests can do their per-guest cp in parallel.
         with host_context.artifact_copy_lock:
             cached_path = host_context.artifact_cache.get(cache_key)
+
+            # Verify the cached remote path still exists; repopulate if removed.
+            if cached_path:
+                check = self.host_node.execute(
+                    f"test -f {shlex.quote(cached_path)}",
+                    shell=True,
+                    expected_exit_code=None,
+                )
+                if check.exit_code != 0:
+                    self._log.debug(
+                        f"Cached OpenVMM artifact '{cached_path}' no longer "
+                        "exists on the remote host; re-uploading."
+                    )
+                    cached_path = None
+                    del host_context.artifact_cache[cache_key]
+
             if not cached_path:
                 self.host_node.execute(
                     f"mkdir -p {shlex.quote(str(cache_directory))}",
@@ -214,6 +240,7 @@ class OpenVmmController:
                 )
                 self.host_node.shell.copy(source, cache_path)
                 host_context.artifact_cache[cache_key] = str(cache_path)
+                cached_path = str(cache_path)
                 self._log.info(
                     f"Copied OpenVMM artifact '{source.name}' to host cache "
                     f"'{cache_path}' in {copy_timer.elapsed_text()}."
@@ -224,9 +251,25 @@ class OpenVmmController:
                     f"'{cached_path}'."
                 )
 
+        # Per-guest copy is done outside the lock so multiple guests on the same
+        # host can proceed in parallel once the shared cache is warm.
+        # Try copy-on-write (reflink) first; fall back to a plain copy when the
+        # filesystem does not support it (e.g. ext4 without reflink patches).
+        result = self.host_node.execute(
+            f"cp --reflink=auto "
+            f"{shlex.quote(cached_path)} "
+            f"{shlex.quote(str(destination))}",
+            shell=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code != 0:
+            self._log.debug(
+                f"cp --reflink=auto failed (exit {result.exit_code}), "
+                f"attempting plain copy fallback: {result.stderr or result.stdout}"
+            )
             self.host_node.execute(
-                "cp -f --reflink=auto "
-                f"{shlex.quote(host_context.artifact_cache[cache_key])} "
+                f"cp -f "
+                f"{shlex.quote(cached_path)} "
                 f"{shlex.quote(str(destination))}",
                 shell=True,
                 expected_exit_code=0,
@@ -292,7 +335,7 @@ class OpenVmmController:
         self, node: "OpenVmmGuestNode", node_context: NodeContext
     ) -> OpenVmmNetworkSchema:
         if node_context.effective_network:
-            return cast(OpenVmmNetworkSchema, node_context.effective_network)
+            return node_context.effective_network
 
         return cast(OpenVmmGuestNodeSchema, node.runbook).network
 
@@ -681,7 +724,6 @@ class OpenVmmController:
                 ),
             )
             node_context.tap_input_rules_added.append(rule)
-            node_context.tap_dhcp_input_rule_added = True
 
     def _get_tap_host_service_input_rules(self, host_interface_name: str) -> List[str]:
         quoted_interface = shlex.quote(host_interface_name)
@@ -1443,11 +1485,8 @@ class OpenVmmController:
         if network.mode != OPENVMM_NETWORK_MODE_TAP:
             return
 
-        if node_context.tap_dhcp_input_rule_added or node_context.tap_input_rules_added:
-            host_interface_name = _get_tap_host_interface_name(network)
-            rules_to_remove = node_context.tap_input_rules_added or (
-                self._get_tap_host_service_input_rules(host_interface_name)
-            )
+        if node_context.tap_input_rules_added:
+            rules_to_remove = node_context.tap_input_rules_added
             for rule in rules_to_remove:
                 self.host_node.execute(
                     f"iptables -D {rule} || true",
@@ -1456,7 +1495,6 @@ class OpenVmmController:
                     expected_exit_code=0,
                 )
             node_context.tap_input_rules_added.clear()
-            node_context.tap_dhcp_input_rule_added = False
 
         if node_context.tap_dnsmasq_pid_file:
             self.host_node.execute(

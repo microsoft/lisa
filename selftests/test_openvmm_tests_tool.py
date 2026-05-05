@@ -13,6 +13,21 @@ from lisa.util import LisaException
 
 
 class OpenVmmTestsToolTestCase(TestCase):
+    def test_set_repo_paths_uses_repo_url_hash(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+
+        with patch.object(tool, "get_tool_path", return_value=PurePosixPath("/tools")):
+            tool.repo_url = "https://example.com/first/openvmm.git"
+            tool._set_repo_paths()
+            first_repo_root = tool.repo_root
+
+            tool.repo_url = "https://example.com/second/openvmm.git"
+            tool._set_repo_paths()
+
+        self.assertNotEqual(first_repo_root, tool.repo_root)
+        self.assertTrue(str(first_repo_root).startswith("/tools/openvmm-"))
+        self.assertTrue(str(tool.repo_root).startswith("/tools/openvmm-"))
+
     def test_run_logged_command_redirects_entire_command_to_log(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
         tool.repo_root = PurePosixPath("/repo/openvmm")
@@ -204,3 +219,36 @@ encountered at least one test failure!
             ["vmm_tests::tests multiarch::openvmm_boot"],
             summary.passed_tests,
         )
+
+    def test_archive_remote_directory_logs_warning_on_failure(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        tool._log = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(
+            exit_code=1, stdout="", stderr="No such file or directory"
+        )
+
+        tool._archive_remote_directory(
+            source_dir=PurePosixPath("/remote/artifacts"),
+            archive_path=PurePosixPath("/remote/artifacts.tar.gz"),
+        )
+
+        tool._log.warning.assert_called_once()
+        warning_message = tool._log.warning.call_args.args[0]
+        self.assertIn("/remote/artifacts", warning_message)
+        self.assertIn("/remote/artifacts.tar.gz", warning_message)
+
+    def test_archive_remote_directory_does_not_warn_on_success(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        tool._log = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(
+            exit_code=0, stdout="", stderr=""
+        )
+
+        tool._archive_remote_directory(
+            source_dir=PurePosixPath("/remote/artifacts"),
+            archive_path=PurePosixPath("/remote/artifacts.tar.gz"),
+        )
+
+        tool._log.warning.assert_not_called()
