@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
@@ -29,8 +30,10 @@ class NodeContext:
     tap_bridge_created: bool = False
     tap_bridge_netfilter_disabled: bool = False
     tap_dhcp_input_rule_added: bool = False
+    tap_input_rules_added: List[str] = field(default_factory=list)
     tap_dnsmasq_pid_file: str = ""
     tap_dnsmasq_lease_file: str = ""
+    effective_network: Optional[Any] = None
     process_id: str = ""
     command_line: str = ""
 
@@ -41,6 +44,7 @@ class OpenVmmHostContext:
     active_forwarding_count: int = 0
     original_bridge_netfilter_values: Dict[str, str] = field(default_factory=dict)
     active_bridge_netfilter_count: int = 0
+    artifact_copy_lock: Lock = field(default_factory=Lock)
 
 
 def get_node_context(node: Node) -> NodeContext:

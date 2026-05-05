@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import logging
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import yaml
 
@@ -215,9 +215,7 @@ class StressNgTestSuite(TestSuite):
         kernel_panics: List[Tuple[RemoteNode, Exception]] = []
         for node, _e in start_failures + result_failures:
             try:
-                node.features[SerialConsole].check_panic(
-                    saved_path=None, force_run=True
-                )
+                self._check_serial_console_panic(node)
             except KernelPanicException as e:
                 kernel_panics.append((node, e))
 
@@ -281,10 +279,7 @@ class StressNgTestSuite(TestSuite):
                 f"Error: {type(execution_error).__name__}: {str(execution_error)}"
             )
             for node in nodes:
-                # check_panic automatically logs, attaches to result, and raises
-                node.features[SerialConsole].check_panic(
-                    saved_path=None, force_run=True, test_result=test_result
-                )
+                self._check_serial_console_panic(node, test_result)
             raise execution_error
 
         finally:
@@ -310,9 +305,11 @@ class StressNgTestSuite(TestSuite):
             stress_processes: List to store launched processes
             log: Logger instance for detailed logging
         """
+        prepared_jobs: List[Tuple[RemoteNode, PurePath, StressNg]] = []
+
         for node_index, node in enumerate(nodes):
             try:
-                log.debug(f"Processing node {node_index + 1}/{len(nodes)}: {node.name}")
+                log.debug(f"Preparing node {node_index + 1}/{len(nodes)}: {node.name}")
 
                 # Create dedicated workspace for stress-ng jobs
                 remote_workspace = node.working_path / "stress_ng_jobs"
@@ -322,8 +319,24 @@ class StressNgTestSuite(TestSuite):
                 remote_job_file = remote_workspace / job_file_name
                 node.shell.copy(PurePath(job_file), remote_job_file)
 
+                stress_ng = node.tools[StressNg]
+                prepared_jobs.append((node, remote_job_file, stress_ng))
+
+            except Exception as deployment_error:
+                log.error(
+                    f"Failed to prepare stress job on node {node_index + 1}: "
+                    f"{deployment_error}"
+                )
+                if getattr(node, "log", None):
+                    node.log.error(f"Failed to prepare stress job: {deployment_error}")
+                raise deployment_error
+
+        for node_index, (node, remote_job_file, stress_ng) in enumerate(prepared_jobs):
+            try:
+                log.debug(f"Launching node {node_index + 1}/{len(nodes)}: {node.name}")
+
                 # Launch stress-ng with the job file
-                stress_process = node.tools[StressNg].launch_job_async(
+                stress_process = stress_ng.launch_job_async(
                     str(remote_job_file),
                 )
                 stress_processes.append(stress_process)
@@ -336,6 +349,18 @@ class StressNgTestSuite(TestSuite):
                 if getattr(node, "log", None):
                     node.log.error(f"Failed to start stress job: {deployment_error}")
                 raise deployment_error
+
+    def _check_serial_console_panic(
+        self, node: RemoteNode, test_result: Optional[TestResult] = None
+    ) -> None:
+        if node.features.is_supported(SerialConsole):
+            node.features[SerialConsole].check_panic(
+                saved_path=None, force_run=True, test_result=test_result
+            )
+        else:
+            node.log.debug(
+                "SerialConsole feature is not supported; skipping panic check."
+            )
 
     def _monitor_stress_execution(
         self,

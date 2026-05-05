@@ -3,12 +3,13 @@
 
 import ipaddress
 from dataclasses import dataclass, field
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from dataclasses_json import config, dataclass_json
 
 from lisa import schema
 from lisa.secret import PATTERN_HEADTAIL, add_secret
+from lisa.sut_orchestrator.util.schema import CloudInitSchema
 from lisa.util import LisaException
 
 from .. import OPENVMM
@@ -20,12 +21,6 @@ OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
-
-
-@dataclass_json()
-@dataclass
-class CloudInitSchema:
-    extra_user_data: Optional[Union[str, List[str]]] = None
 
 
 @dataclass_json()
