@@ -59,3 +59,21 @@ class GuestNodeSchemaTestCase(TestCase):
         loaded = schema.load_typed_guest_node(cast(Any, runbook))
 
         self.assertIs(runbook, loaded)
+
+    def test_platform_expands_object_guest_node_count(self) -> None:
+        runbook = OpenVmmGuestNodeSchema(
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.img",
+            network=OpenVmmNetworkSchema(connection_address="127.0.0.1"),
+        )
+        runbook.capability.node_count = 2
+
+        platform = schema.Platform(guests=[runbook])
+
+        self.assertEqual(2, len(platform.guests))
+        self.assertTrue(
+            all(isinstance(guest, OpenVmmGuestNodeSchema) for guest in platform.guests)
+        )
+        self.assertEqual(
+            [1, 1], [guest.capability.node_count for guest in platform.guests]
+        )

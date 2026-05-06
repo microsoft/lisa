@@ -140,6 +140,9 @@ class OpenVmmNetworkSchema:
                 f"{OPENVMM_ADDRESS_MODE_STATIC}"
             )
 
+        if self.forwarded_port:
+            self.forward_ssh_port = True
+
         if self.forward_ssh_port:
             if self.mode != OPENVMM_NETWORK_MODE_TAP:
                 raise LisaException(
