@@ -101,6 +101,19 @@ class AzureHookSpecDefaultImpl:
             SkippedException,
         ),
         (
+            # InvalidParameter: The requested VM size <sku> is not available
+            # in the current region. The sizes available in the current region
+            # are: ...
+            # The selected VM SKU is simply not offered in the picked region
+            # The case can never run on this combination, so skip rather than fail.
+            "The requested VM size is not available in the current region",
+            re.compile(
+                r"InvalidParameter: The requested VM size \S+ is not available "
+                r"in the current region"
+            ),
+            SkippedException,
+        ),
+        (
             # ResourceCollectionRequestsThrottled - Too many requests to Azure API
             "Azure API throttling detected. The deployment was throttled "
             "due to too many requests",
