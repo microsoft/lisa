@@ -292,16 +292,33 @@ class SourceInstaller(BaseInstaller):
                         "Disabling flash-kernel hooks (machine not supported "
                         "by flash-kernel)"
                     )
+                    mv = node.tools[Mv]
                     for hook_path in [
                         "/etc/initramfs/post-update.d/flash-kernel",
                         "/etc/kernel/postinst.d/zz-flash-kernel",
                     ]:
-                        node.execute(
-                            f"test -f {hook_path} && "
-                            f"mv {hook_path} {hook_path}.disabled "
-                            f"|| true",
+                        # Check existence and rename in two distinct steps so
+                        # that a missing hook is silently skipped (expected on
+                        # images without flash-kernel installed) but any other
+                        # mv failure (permissions, read-only fs, etc.) is
+                        # surfaced rather than swallowed by `|| true`.
+                        exists_check = node.execute(
+                            f"test -f {hook_path}",
                             sudo=True,
                             shell=True,
+                            no_error_log=True,
+                        )
+                        if exists_check.exit_code != 0:
+                            self._log.debug(
+                                f"flash-kernel hook not present, skipping: "
+                                f"{hook_path}"
+                            )
+                            continue
+                        mv.move(
+                            hook_path,
+                            f"{hook_path}.disabled",
+                            overwrite=True,
+                            sudo=True,
                         )
             make.make(arguments="install", cwd=code_path, sudo=True)
 
