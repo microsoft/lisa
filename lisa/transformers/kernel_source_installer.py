@@ -271,29 +271,38 @@ class SourceInstaller(BaseInstaller):
             result.assert_exit_code()
         else:
             # On Ubuntu ARM64, the flash-kernel package hooks into both
-            # initramfs post-update and kernel postinst. It always fails
-            # on Azure VMs because there is no recognized ARM board/DTB.
-            # Disable all flash-kernel hooks before running make install.
+            # initramfs post-update and kernel postinst. On environments
+            # without a recognized ARM board/DTB (e.g., Azure VMs), these
+            # hooks fail and block make install. Only disable them when
+            # flash-kernel reports the machine is unsupported, so that
+            # bare-metal boards that rely on flash-kernel remain bootable.
             lscpu = node.tools[Lscpu]
             if (
                 isinstance(node.os, Ubuntu)
                 and lscpu.get_architecture() == CpuArchitecture.ARM64
             ):
-                self._log.info(
-                    "Disabling flash-kernel hooks on Ubuntu ARM64 "
-                    "(unsupported on Azure VMs)"
+                fk_check = node.execute(
+                    "flash-kernel --supported",
+                    sudo=True,
+                    shell=True,
+                    no_error_log=True,
                 )
-                for hook_path in [
-                    "/etc/initramfs/post-update.d/flash-kernel",
-                    "/etc/kernel/postinst.d/zz-flash-kernel",
-                ]:
-                    node.execute(
-                        f"test -f {hook_path} && "
-                        f"mv {hook_path} {hook_path}.disabled "
-                        f"|| true",
-                        sudo=True,
-                        shell=True,
+                if fk_check.exit_code != 0:
+                    self._log.info(
+                        "Disabling flash-kernel hooks (machine not supported "
+                        "by flash-kernel)"
                     )
+                    for hook_path in [
+                        "/etc/initramfs/post-update.d/flash-kernel",
+                        "/etc/kernel/postinst.d/zz-flash-kernel",
+                    ]:
+                        node.execute(
+                            f"test -f {hook_path} && "
+                            f"mv {hook_path} {hook_path}.disabled "
+                            f"|| true",
+                            sudo=True,
+                            shell=True,
+                        )
             make.make(arguments="install", cwd=code_path, sudo=True)
 
         # The build for Redhat needs extra steps than RPM package. So put it
