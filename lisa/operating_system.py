@@ -2543,9 +2543,29 @@ class Suse(Linux):
         if service.check_service_exists("guestregister"):
             timeout = 120
             timer = create_timer()
+            recovered = False
             while timeout > timer.elapsed(False):
                 if service.is_service_inactive("guestregister"):
                     break
+                if not recovered and self._is_guestregister_failed():
+                    # On some SUSE images guestregister.service ends in the
+                    # "failed" state (typically "Credentials are invalid"),
+                    # leaving zypper without any cloud repositories. Force a
+                    # re-registration so repos become available before refresh.
+                    # After this, registercloudguest restarts the service, so
+                    # fall back to the wait loop until it becomes inactive.
+                    self._log.debug(
+                        "guestregister.service is in failed state; running "
+                        "'registercloudguest --force-new' to recover"
+                    )
+                    self._node.execute(
+                        "registercloudguest --force-new",
+                        sudo=True,
+                        shell=True,
+                        timeout=300,
+                    )
+                    recovered = True
+                    continue
                 time.sleep(1)
         output = self._execute_zypper_with_lock_retry(
             "zypper --non-interactive --gpg-auto-import-keys refresh",
@@ -2558,6 +2578,16 @@ class Suse(Linux):
                 self._node.os,
                 "There are no enabled repositories defined in this image.",
             )
+
+    def _is_guestregister_failed(self) -> bool:
+        result = self._node.execute(
+            "systemctl is-active guestregister",
+            sudo=True,
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        return "failed" in result.stdout
 
     def _uninstall_packages(
         self,
