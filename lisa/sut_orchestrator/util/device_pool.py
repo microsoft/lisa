@@ -47,9 +47,6 @@ class BaseDevicePool:
             f"{type(self).__name__} for pool type '{pool_type}'."
         )
 
-    def get_primary_nic_id(self) -> List[str]:
-        raise NotImplementedError()
-
     def request_devices(
         self,
         pool_type: HostDevicePoolType,

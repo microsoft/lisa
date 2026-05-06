@@ -118,7 +118,7 @@ class LibvirtDevicePool(BaseDevicePool):
                 pool[iommu_grp] = pool_devices
             self.available_host_devices[pool_type] = pool
 
-    def get_primary_nic_id(self) -> List[str]:
+    def get_primary_nic_iommu_group(self) -> str:
         # This is for baremetal. For azure, we have to get private IP
         host_ip = cast(RemoteNode, self.host_node).connection_info.get("address")
         assert host_ip, "Host IP is empty"
@@ -157,7 +157,7 @@ class LibvirtDevicePool(BaseDevicePool):
             sysfs_path, context="primary NIC"
         )
 
-    def get_rootfs_nvme_id(self) -> List[str]:
+    def get_rootfs_nvme_iommu_group(self) -> str:
         # Find the NVMe device backing the root filesystem to exclude it
         # from the passthrough pool (passing it through would crash the host).
         lsblk = self.host_node.tools[Lsblk]
@@ -167,7 +167,7 @@ class LibvirtDevicePool(BaseDevicePool):
         # Root could be on a SATA SSD (sda), HDD (sda), or virtio disk (vda)
         # — none of which are NVMe PCI devices, so skip exclusion.
         if not root_disk.name.startswith("nvme"):
-            return []
+            return ""
 
         # Resolve the PCI address of the NVMe device via sysfs.
         readlink = self.host_node.tools[Readlink]
@@ -313,12 +313,12 @@ class LibvirtDevicePool(BaseDevicePool):
         self,
         sysfs_path: str,
         context: str,
-    ) -> List[str]:
+    ) -> str:
         if not sysfs_path:
             self.host_node.log.debug(
                 f"Sysfs path for {context} is empty; skipping IOMMU exclusion."
             )
-            return []
+            return ""
 
         pci_address = PurePosixPath(sysfs_path).name
         try:
@@ -328,11 +328,23 @@ class LibvirtDevicePool(BaseDevicePool):
                 f"Sysfs path for {context} does not resolve to a PCI device; "
                 f"skipping IOMMU exclusion. Path: {sysfs_path or '<empty>'}"
             )
-            return []
+            return ""
 
         device = self._get_pci_address_instance(domain, bus, slot, fn)
         iommu_grp = self._get_device_iommu_group(device)
-        return [iommu_grp]
+        return iommu_grp
+
+    def _get_iommu_groups_to_exclude(self) -> List[str]:
+        # Always exclude both the primary NIC and rootfs NVMe IOMMU groups
+        # regardless of pool type
+        excluded: List[str] = []
+        nic_iommu = self.get_primary_nic_iommu_group()
+        if nic_iommu:
+            excluded.append(nic_iommu)
+        nvme_iommu = self.get_rootfs_nvme_iommu_group()
+        if nvme_iommu:
+            excluded.append(nvme_iommu)
+        return excluded
 
     def _get_passthrough_device_candidates(
         self,
@@ -353,15 +365,7 @@ class LibvirtDevicePool(BaseDevicePool):
         else:
             return []
 
-        primary_nic_iommu = (
-            self.get_primary_nic_id() if pool_type == HostDevicePoolType.PCI_NIC else []
-        )
-        rootfs_nvme_iommu = (
-            self.get_rootfs_nvme_id()
-            if pool_type == HostDevicePoolType.PCI_NVME
-            else []
-        )
-        excluded_iommu = primary_nic_iommu + rootfs_nvme_iommu
+        excluded_iommu = self._get_iommu_groups_to_exclude()
         candidates: List[str] = []
         for pool_device in pool_devices:
             domain, bus, slot, fn = self._parse_pci_address_str(pool_device.slot)
@@ -384,9 +388,7 @@ class LibvirtDevicePool(BaseDevicePool):
         bdf_list: List[str],
     ) -> None:
         iommu_grp_of_used_devices = []
-        primary_nic_iommu = self.get_primary_nic_id()
-        rootfs_nvme_iommu = self.get_rootfs_nvme_id()
-        excluded_iommu = primary_nic_iommu + rootfs_nvme_iommu
+        excluded_iommu = self._get_iommu_groups_to_exclude()
         for bdf in bdf_list:
             domain, bus, slot, fn = self._parse_pci_address_str(bdf)
             dev = self._get_pci_address_instance(domain, bus, slot, fn)
