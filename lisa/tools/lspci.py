@@ -225,16 +225,11 @@ class Lspci(Tool):
         return devices_slots
 
     # Returns device slot ids for given device type based on controller ids.
-    # This method cannot distinguish between different device types which uses same
-    # controller id. For example, NVME and ASAP devices use same controller id for.
-    # In such cases, use 'get_device_names_by_device_id' method.
+    # For NVME, ASAP devices share the same controller id (0108) and are
+    # excluded by filtering on their device ids.
     def get_device_names_by_type(
         self, device_type: str, force_run: bool = False
     ) -> List[str]:
-        # NVME devices are searched based on device ids as 'ASAP' devices use same
-        # controller id.
-        if device_type.upper() in [constants.DEVICE_TYPE_NVME]:
-            return self.get_device_names_by_device_id(device_type, force_run)
         if device_type.upper() not in CONTROLLER_ID_DICT.keys():
             raise LisaException(f"pci_type '{device_type}' is not recognized.")
         devices_list = self.get_devices(force_run)
@@ -242,6 +237,12 @@ class Lspci(Tool):
 
         for device in devices_list:
             if device.controller_id in CONTROLLER_ID_DICT[device_type.upper()]:
+                # ASAP devices use the same controller id as NVME (0108).
+                # Exclude them so they are not mistaken for local NVMe disks.
+                if device.device_id in DEVICE_ID_DICT.get(
+                    constants.DEVICE_TYPE_ASAP, []
+                ):
+                    continue
                 devices_slots.append(device.slot)
         return devices_slots
 
@@ -266,10 +267,6 @@ class Lspci(Tool):
     def get_devices_by_type(
         self, device_type: str, force_run: bool = False
     ) -> List[PciDevice]:
-        # NVME devices are searched based on device ids as 'ASAP' devices use same
-        # controller id.
-        if device_type.upper() in [constants.DEVICE_TYPE_NVME]:
-            return self.get_devices_by_device_id(device_type, force_run)
         if device_type.upper() not in CONTROLLER_ID_DICT.keys():
             raise LisaException(
                 f"pci_type '{device_type}' is not supported to be searched."
@@ -278,6 +275,12 @@ class Lspci(Tool):
         device_type_list = []
         for device in devices_list:
             if device.controller_id in CONTROLLER_ID_DICT[device_type.upper()]:
+                # ASAP devices use the same controller id as NVME (0108).
+                # Exclude them so they are not mistaken for local NVMe disks.
+                if device.device_id in DEVICE_ID_DICT.get(
+                    constants.DEVICE_TYPE_ASAP, []
+                ):
+                    continue
                 device_type_list.append(device)
 
         return device_type_list
