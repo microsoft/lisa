@@ -280,7 +280,7 @@ class StressNgTestSuite(TestSuite):
             )
             for node in nodes:
                 self._check_serial_console_panic(node, test_result)
-            raise execution_error
+            raise
 
         finally:
             self._report_test_results(
@@ -328,7 +328,7 @@ class StressNgTestSuite(TestSuite):
                 )
                 if getattr(node, "log", None):
                     node.log.error(f"Failed to prepare stress job: {deployment_error}")
-                raise deployment_error
+                raise
 
         for node_index, (node, remote_job_file) in enumerate(prepared_jobs):
             try:
@@ -347,7 +347,7 @@ class StressNgTestSuite(TestSuite):
                 )
                 if getattr(node, "log", None):
                     node.log.error(f"Failed to start stress job: {deployment_error}")
-                raise deployment_error
+                raise
 
     def _check_serial_console_panic(
         self, node: RemoteNode, test_result: Optional[TestResult] = None
