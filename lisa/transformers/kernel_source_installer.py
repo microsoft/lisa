@@ -281,13 +281,31 @@ class SourceInstaller(BaseInstaller):
                 isinstance(node.os, Ubuntu)
                 and lscpu.get_architecture() == CpuArchitecture.ARM64
             ):
-                fk_check = node.execute(
-                    "flash-kernel --supported",
-                    sudo=True,
+                # Pre-check: only run the --supported probe when the
+                # flash-kernel binary is actually present. This keeps the
+                # log message honest on images that never installed
+                # flash-kernel (where hooks don't exist anyway), and avoids
+                # emitting a misleading "machine not supported" line for
+                # what is really a "tool not installed" situation.
+                fk_present = node.execute(
+                    "command -v flash-kernel",
                     shell=True,
                     no_error_log=True,
                 )
-                if fk_check.exit_code != 0:
+                if fk_present.exit_code != 0:
+                    self._log.debug(
+                        "flash-kernel not installed; skipping hook disable"
+                    )
+                    fk_check_exit_code = 0  # nothing to disable
+                else:
+                    fk_check = node.execute(
+                        "flash-kernel --supported",
+                        sudo=True,
+                        shell=True,
+                        no_error_log=True,
+                    )
+                    fk_check_exit_code = fk_check.exit_code
+                if fk_check_exit_code != 0:
                     self._log.info(
                         "Disabling flash-kernel hooks (machine not supported "
                         "by flash-kernel)"
