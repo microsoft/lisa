@@ -288,7 +288,8 @@ class SourceInstaller(BaseInstaller):
                 # emitting a misleading "machine not supported" line for
                 # what is really a "tool not installed" situation.
                 fk_present = node.execute(
-                    "command -v flash-kernel",
+                    "command -v flash-kernel || test -x /usr/sbin/flash-kernel",
+                    sudo=True,
                     shell=True,
                     no_error_log=True,
                 )
