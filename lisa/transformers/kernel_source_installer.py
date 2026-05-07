@@ -293,10 +293,8 @@ class SourceInstaller(BaseInstaller):
                     no_error_log=True,
                 )
                 if fk_present.exit_code != 0:
-                    self._log.debug(
-                        "flash-kernel not installed; skipping hook disable"
-                    )
-                    fk_check_exit_code = 0  # nothing to disable
+                    self._log.debug("flash-kernel not installed; skipping hook disable")
+                    fk_check_exit_code: Optional[int] = 0  # nothing to disable
                 else:
                     fk_check = node.execute(
                         "flash-kernel --supported",
@@ -305,7 +303,9 @@ class SourceInstaller(BaseInstaller):
                         no_error_log=True,
                     )
                     fk_check_exit_code = fk_check.exit_code
-                if fk_check_exit_code != 0:
+                # Treat a missing exit code (None) the same as "supported": do
+                # nothing. We only disable hooks on an explicit non-zero exit.
+                if fk_check_exit_code not in (None, 0):
                     self._log.info(
                         "Disabling flash-kernel hooks (machine not supported "
                         "by flash-kernel)"
