@@ -438,10 +438,10 @@ def perf_ntttcp(  # noqa: C901
         max_server_threads = 64
         # On large VMs (>64 CPUs) the default 10s ntttcp run is too short for
         # throughput to stabilize across all queues, leading to noisy results.
-        # Use a 60s run time on these SKUs and keep the default 10s elsewhere
+        # Use a 120s run time on these SKUs and keep the default 10s elsewhere
         # to avoid lengthening every test.
         client_core_count = client.tools[Lscpu].get_core_count()
-        run_time_seconds = 60 if client_core_count > 64 else 10
+        run_time_seconds = 120 if client_core_count > 64 else 10
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
