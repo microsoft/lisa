@@ -380,6 +380,7 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
+        parallel_tests_num: str = "",
     ) -> None:
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
@@ -393,6 +394,7 @@ class CloudHypervisorTests(Tool):
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
+        extra_env_vars = self._get_parallel_integration_env(parallel_tests_num)
 
         try:
             result = self._run_with_enhanced_diagnostics(
@@ -400,6 +402,7 @@ class CloudHypervisorTests(Tool):
                 timeout=self.CMD_TIME_OUT,
                 test_name=test_name,
                 numa_cmd="",
+                extra_env_vars=extra_env_vars,
             )
         except Exception:
             # Check for kernel panic before re-raising
@@ -910,6 +913,7 @@ class CloudHypervisorTests(Tool):
         timeout: int,
         test_name: str = "ch_test",
         numa_cmd: str = "",
+        extra_env_vars: Optional[Dict[str, str]] = None,
     ) -> ExecutableResult:
         """
         Run Cloud Hypervisor tests with enhanced Rust diagnostics, core dumps,
@@ -933,6 +937,8 @@ class CloudHypervisorTests(Tool):
                 "CH_CHECK_INTERVAL": str(check_interval),
             }
         )
+        if extra_env_vars:
+            enhanced_env_vars.update(extra_env_vars)
 
         # --- 2 & 3) Core dumps + inactivity watchdog + tee'd logs ---
         # Writes artifacts in the working directory:
@@ -1191,6 +1197,22 @@ exit $ec
         )
 
         return result
+
+    def _get_parallel_integration_env(self, parallel_tests_num: str) -> Dict[str, str]:
+        parallel_tests_num = parallel_tests_num.strip()
+        if not parallel_tests_num:
+            return {}
+        if not parallel_tests_num.isdigit() or int(parallel_tests_num) <= 0:
+            raise LisaException(
+                "ch integration parallelism must be a positive integer. "
+                f"Received '{parallel_tests_num}'."
+            )
+
+        self._log.info(
+            "Setting PARALLEL_INTEGRATION_TESTS_NUM="
+            f"{parallel_tests_num} for Cloud Hypervisor integration tests"
+        )
+        return {"PARALLEL_INTEGRATION_TESTS_NUM": parallel_tests_num}
 
     def _copy_back_artifacts(self, log_path: Path, test_name: str) -> None:
         """

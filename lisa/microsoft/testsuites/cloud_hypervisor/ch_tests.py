@@ -86,6 +86,9 @@ class CloudHypervisorTestSuite(TestSuite):
         include_list, exclude_list = get_test_list(
             variables, "ch_integration_tests_included", "ch_integration_tests_excluded"
         )
+        parallel_tests_num = str(
+            variables.get("ch_integration_parallel_tests_num", "1")
+        ).strip()
         ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
         ch_tests.run_tests(
             result,
@@ -95,6 +98,7 @@ class CloudHypervisorTestSuite(TestSuite):
             ref,
             include_list,
             exclude_list,
+            parallel_tests_num,
         )
 
     @TestCaseMetadata(
@@ -125,6 +129,9 @@ class CloudHypervisorTestSuite(TestSuite):
             "ch_live_migration_tests_included",
             "ch_live_migration_tests_excluded",
         )
+        parallel_tests_num = str(
+            variables.get("ch_live_migration_parallel_tests_num", "")
+        ).strip()
         ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
         ch_tests.run_tests(
             result,
@@ -134,6 +141,7 @@ class CloudHypervisorTestSuite(TestSuite):
             ref,
             include_list,
             exclude_list,
+            parallel_tests_num,
         )
 
     @TestCaseMetadata(
