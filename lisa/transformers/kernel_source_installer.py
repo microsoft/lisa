@@ -339,6 +339,7 @@ class SourceInstaller(BaseInstaller):
                             overwrite=True,
                             sudo=True,
                         )
+                        self._log.info(f"Disabled flash-kernel hook: {hook_path}")
             make.make(arguments="install", cwd=code_path, sudo=True)
 
         # The build for Redhat needs extra steps than RPM package. So put it
