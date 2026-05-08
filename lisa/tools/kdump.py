@@ -898,6 +898,32 @@ class KdumpCheck(Tool):
         # We should clean up the vmcore file since the test is passed
         self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
+        # The sysrq-triggered panic is intentional for this test. Suppress the
+        # post-case panic check so it doesn't flag the expected crash as a
+        # failure when SerialConsole.check_panic re-scans the boot diagnostics.
+        self._suppress_expected_sysrq_panic()
+
+    def _suppress_expected_sysrq_panic(self) -> None:
+        from lisa.features import SerialConsole
+
+        if not self.node.features.is_supported(SerialConsole):
+            return
+        serial_console = self.node.features[SerialConsole]
+        # Patterns matching the panic this test intentionally triggered via sysrq.
+        expected_patterns: List[re.Pattern[str]] = [
+            re.compile(
+                r"^(.*Kernel panic - not syncing: sysrq triggered crash.*)$",
+                re.MULTILINE,
+            ),
+            re.compile(r"^(.*sysrq: SysRq : Trigger a crash.*)$", re.MULTILINE),
+            # The RIP line accompanies the sysrq-triggered panic.
+            re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
+        ]
+        # Shadow the class attribute on the instance so other nodes are unaffected.
+        existing = list(serial_console.panic_ignorable_patterns)
+        existing.extend(expected_patterns)
+        serial_console.panic_ignorable_patterns = existing
+
     def trigger_kdump_on_specified_cpu(self, cpu_num: int, log_path: Path) -> None:
         lscpu = self.node.tools[Lscpu]
         thread_count = lscpu.get_thread_count()
