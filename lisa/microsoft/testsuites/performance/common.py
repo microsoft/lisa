@@ -203,7 +203,15 @@ def cleanup_process(environment: Environment, process_name: str) -> None:
 
     # use cleanup function
     def do_cleanup(node: Node) -> None:
-        node.tools[Kill].by_name(process_name)
+        try:
+            if not node.is_connected:
+                return
+            node.tools[Kill].by_name(process_name)
+        except Exception as cleanup_error:
+            node.log.debug(
+                f"Skip cleanup '{process_name}' on node {node.name}: "
+                f"{cleanup_error}"
+            )
 
     # to run parallel cleanup for processes
     run_in_parallel([partial(do_cleanup, node) for node in nodes])
@@ -364,6 +372,7 @@ def perf_ntttcp(  # noqa: C901
     server_lagscope = None
     client_ntttcp = None
     server_ntttcp = None
+    pending_exception: Optional[Exception] = None
 
     try:
         client_ntttcp, server_ntttcp = run_in_parallel(
@@ -636,25 +645,62 @@ def perf_ntttcp(  # noqa: C901
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
     except Exception as ex:
+        pending_exception = ex
         client.log.info(f"Exception during ntttcp performance test: {ex}")
         raise
     finally:
-        error_msg = ""
-        throw_error = False
+        unreachable_nodes: List[str] = []
         for node in [client, server]:
-            if not node.is_connected:
-                error_msg += f" VM {node.name} can't be connected, "
-                throw_error = True
-        if throw_error:
-            error_msg += "probably due to VM stuck on reboot stage."
-            raise LisaException(error_msg)
+            if node.is_connected:
+                continue
+
+            # A node may be transiently disconnected during setup_system reboot.
+            # Probe reconnect before declaring hard failure.
+            recovered = False
+            for attempt in range(1, 4):
+                try:
+                    node.close()
+                    node.execute(
+                        "echo connected",
+                        shell=True,
+                        timeout=20,
+                        no_info_log=True,
+                    )
+                    recovered = True
+                    break
+                except Exception as reconnect_error:
+                    client.log.debug(
+                        f"Reconnect probe failed for {node.name} "
+                        f"(attempt {attempt}/3): {reconnect_error}"
+                    )
+                    if attempt < 3:
+                        time.sleep(5)
+
+            if not recovered:
+                unreachable_nodes.append(node.name)
+
         if client_ntttcp and server_ntttcp:
             for ntttcp in [client_ntttcp, server_ntttcp]:
-                ntttcp.restore_system(udp_mode)
+                if ntttcp.node.is_connected:
+                    ntttcp.restore_system(udp_mode)
         if client_lagscope and server_lagscope:
             for lagscope in [client_lagscope, server_lagscope]:
-                lagscope.kill()
-                lagscope.restore_busy_poll()
+                if lagscope.node.is_connected:
+                    lagscope.kill()
+                    lagscope.restore_busy_poll()
+        if unreachable_nodes:
+            error_msg = (
+                " ".join(
+                    f"VM {node_name} can't be connected,"
+                    for node_name in unreachable_nodes
+                )
+                + " probably due to VM stuck on reboot stage."
+            )
+            if pending_exception is None:
+                raise LisaException(error_msg)
+            client.log.error(
+                f"{error_msg} Preserve original test exception: {pending_exception}"
+            )
     return perf_ntttcp_message_list
 
 
