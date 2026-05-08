@@ -118,44 +118,35 @@ class CPU(TestSuite):
                 self._verify_node_mapping(node, effective_numa_node_size)
                 return
 
-        # For all other cases, check L3 cache mapping with socket awareness
-        cpu_info = lscpu.get_cpu_info()
+        # Generic L3 cache topology validation for all processor types.
+        # This handles both traditional 1:1 NUMA-to-L3 mapping (e.g. Intel)
+        # and multi-L3-per-NUMA topologies (e.g. AMD EPYC where a NUMA node
+        # spans multiple CCDs, each with its own L3 cache).
+        #
+        # The universal invariants verified are:
+        # 1. L3 caches must not be shared across sockets
+        # 2. Cross-NUMA L3 sharing is only valid within the same socket
+        try:
+            cpu_info = lscpu.get_cpu_info()
+        except AssertionError as e:
+            # get_cpu_info() fails when lscpu doesn't report L3 cache info.
+            # This happens on:
+            # - VMs where no cache hierarchy is exposed (lscpu shows "-")
+            # - ARM64 VMs that only have L1d/L1i/L2 (no L3)
+            # - Partially allocated VMs where some NUMA nodes lack L3
+            raise SkippedException(
+                f"Cannot validate L3 cache topology: lscpu output format "
+                f"not supported (missing L3 cache info). Details: {e}"
+            ) from e
 
-        # Build a mapping of socket -> NUMA nodes and socket -> L3 caches
-        socket_to_numa_nodes: dict[int, set[int]] = {}
+        # Build a mapping of socket -> L3 caches
         socket_to_l3_caches: dict[int, set[int]] = {}
-
         for cpu in cpu_info:
-            socket = cpu.socket
-            numa_node = cpu.numa_node
-            l3_cache = cpu.l3_cache
+            if cpu.socket not in socket_to_l3_caches:
+                socket_to_l3_caches[cpu.socket] = set()
+            socket_to_l3_caches[cpu.socket].add(cpu.l3_cache)
 
-            # Track NUMA nodes per socket
-            if socket not in socket_to_numa_nodes:
-                socket_to_numa_nodes[socket] = set()
-            socket_to_numa_nodes[socket].add(numa_node)
-
-            # Track L3 caches per socket
-            if socket not in socket_to_l3_caches:
-                socket_to_l3_caches[socket] = set()
-            socket_to_l3_caches[socket].add(l3_cache)
-
-        # Check if this is a simple 1:1 mapping (traditional case)
-        all_numa_nodes = set()
-        all_l3_caches = set()
-        for numa_nodes in socket_to_numa_nodes.values():
-            all_numa_nodes.update(numa_nodes)
-        for l3_caches in socket_to_l3_caches.values():
-            all_l3_caches.update(l3_caches)
-
-        # Check if this is a simple 1:1 mapping or socket-aware mapping
-        # If NUMA nodes and L3 caches are identical sets, use simple verification
-        if self._is_one_to_one_mapping(socket_to_numa_nodes, socket_to_l3_caches):
-            self._verify_one_to_one_mapping(cpu_info, log)
-        else:
-            self._verify_socket_aware_mapping(
-                cpu_info, socket_to_numa_nodes, socket_to_l3_caches, log
-            )
+        self._verify_l3_cache_topology(cpu_info, socket_to_l3_caches, log)
 
     @TestCaseMetadata(
         description="""
@@ -298,7 +289,13 @@ class CPU(TestSuite):
             process.kill()
 
     def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
-        cpu_info = node.tools[Lscpu].get_cpu_info()
+        try:
+            cpu_info = node.tools[Lscpu].get_cpu_info()
+        except AssertionError as e:
+            raise SkippedException(
+                f"Cannot validate L3 cache topology: lscpu output format "
+                f"not supported (missing L3 cache info). Details: {e}"
+            ) from e
         cpu_info.sort(key=lambda cpu: cpu.cpu)
         for i, cpu in enumerate(cpu_info):
             numa_node_id = i // numa_node_size
@@ -308,89 +305,72 @@ class CPU(TestSuite):
                 "associated with the core.",
             ).is_equal_to(numa_node_id)
 
-    def _is_one_to_one_mapping(
-        self,
-        socket_to_numa_nodes: dict[int, set[int]],
-        socket_to_l3_caches: dict[int, set[int]],
-    ) -> bool:
-        """Check if NUMA nodes and L3 caches have a 1:1 mapping."""
-        all_numa_nodes = set()
-        all_l3_caches = set()
-        for numa_nodes in socket_to_numa_nodes.values():
-            all_numa_nodes.update(numa_nodes)
-        for l3_caches in socket_to_l3_caches.values():
-            all_l3_caches.update(l3_caches)
-
-        return all_numa_nodes == all_l3_caches
-
-    def _verify_one_to_one_mapping(self, cpu_info: list[Any], log: Logger) -> None:
-        """Verify traditional 1:1 mapping between NUMA nodes and L3 caches."""
-        log.debug("Detected 1:1 mapping between NUMA nodes and L3 caches")
-        for cpu in cpu_info:
-            assert_that(
-                cpu.l3_cache,
-                "L3 cache of each core must be mapped to the NUMA node "
-                "associated with the core.",
-            ).is_equal_to(cpu.numa_node)
-
-    def _verify_socket_aware_mapping(
+    def _verify_l3_cache_topology(
         self,
         cpu_info: list[Any],
-        socket_to_numa_nodes: dict[int, set[int]],
         socket_to_l3_caches: dict[int, set[int]],
         log: Logger,
     ) -> None:
-        """Verify shared L3 cache mapping within sockets."""
-        log.debug("Detected shared L3 cache within sockets")
+        """Verify L3 cache topology is correct for any processor type.
 
-        # Verify consistency: all CPUs in same NUMA node should have same L3 cache
-        self._verify_numa_consistency(cpu_info)
+        This is a generic validation that works for all topologies:
+        - Traditional 1:1 NUMA-to-L3 (e.g. Intel, older AMD)
+        - Multi-L3-per-NUMA (e.g. AMD EPYC where NUMA spans multiple CCDs)
+        - Multi-NUMA-per-L3 (e.g. large VMs with sub-NUMA clustering where
+          the hypervisor splits a socket into sub-NUMA domains but the
+          physical L3 cache spans both NUMAs within the socket)
 
-        # Verify isolation: L3 caches should not be shared across sockets
-        self._verify_socket_isolation(socket_to_numa_nodes, socket_to_l3_caches, log)
-
-    def _verify_numa_consistency(self, cpu_info: list[Any]) -> None:
-        """Verify all CPUs in the same NUMA node have the same L3 cache."""
-        numa_to_l3_mapping = {}
+        The invariants verified are:
+        1. L3 caches must not be shared across sockets
+        2. If an L3 cache is shared across NUMA nodes, those NUMA nodes
+           must be on the same socket
+        """
+        # Build helper mappings
+        numa_to_l3_caches: dict[int, set[int]] = {}
+        numa_to_sockets: dict[int, set[int]] = {}
+        l3_to_numas: dict[int, set[int]] = {}
+        l3_to_sockets: dict[int, set[int]] = {}
         for cpu in cpu_info:
-            if cpu.numa_node not in numa_to_l3_mapping:
-                numa_to_l3_mapping[cpu.numa_node] = cpu.l3_cache
-            else:
-                # Verify consistency: all CPUs in same NUMA node should have same L3
-                assert_that(
-                    cpu.l3_cache,
-                    f"All CPUs in NUMA node {cpu.numa_node} should have the same "
-                    f"L3 cache mapping, expected "
-                    f"{numa_to_l3_mapping[cpu.numa_node]} "
-                    f"but found {cpu.l3_cache} for CPU {cpu.cpu}",
-                ).is_equal_to(numa_to_l3_mapping[cpu.numa_node])
+            numa_to_l3_caches.setdefault(cpu.numa_node, set()).add(cpu.l3_cache)
+            numa_to_sockets.setdefault(cpu.numa_node, set()).add(cpu.socket)
+            l3_to_numas.setdefault(cpu.l3_cache, set()).add(cpu.numa_node)
+            l3_to_sockets.setdefault(cpu.l3_cache, set()).add(cpu.socket)
 
-    def _verify_socket_isolation(
-        self,
-        socket_to_numa_nodes: dict[int, set[int]],
-        socket_to_l3_caches: dict[int, set[int]],
-        log: Logger,
-    ) -> None:
-        """Verify L3 caches are not shared across sockets."""
-        for socket, numa_nodes in socket_to_numa_nodes.items():
-            l3_caches_in_socket = socket_to_l3_caches[socket]
-
-            # Get L3 caches used by other sockets
-            other_socket_l3_caches = set()
-            for other_socket, other_l3_caches in socket_to_l3_caches.items():
-                if other_socket != socket:
-                    other_socket_l3_caches.update(other_l3_caches)
-
-            # Verify no L3 cache is shared across sockets
-            shared_l3_caches = l3_caches_in_socket.intersection(other_socket_l3_caches)
+        # 1. Verify no L3 cache is shared across sockets
+        for l3_cache, sockets in l3_to_sockets.items():
             assert_that(
-                len(shared_l3_caches),
-                f"L3 caches should not be shared across sockets. "
-                f"Socket {socket} shares L3 cache(s) {shared_l3_caches} with "
-                f"other sockets",
-            ).is_equal_to(0)
+                len(sockets),
+                f"L3 cache {l3_cache} must not span multiple sockets, "
+                f"but is present on sockets {sorted(sockets)}",
+            ).is_equal_to(1)
 
+        # 2. If an L3 is shared across NUMA nodes, verify those NUMAs
+        #    are on the same socket (sub-NUMA clustering is valid)
+        for l3_cache, numas in l3_to_numas.items():
+            if len(numas) <= 1:
+                continue
+            # Get all sockets these NUMA nodes belong to
+            sockets_for_shared_l3: set[int] = set()
+            for numa in numas:
+                sockets_for_shared_l3.update(numa_to_sockets[numa])
+            assert_that(
+                len(sockets_for_shared_l3),
+                f"L3 cache {l3_cache} is shared across NUMA nodes "
+                f"{sorted(numas)}, but they span multiple sockets "
+                f"{sorted(sockets_for_shared_l3)}. L3 sharing across "
+                f"NUMA nodes is only valid within the same socket.",
+            ).is_equal_to(1)
+
+        # Log the topology for debugging
+        for numa_node, l3_caches in sorted(numa_to_l3_caches.items()):
+            sockets = sorted(numa_to_sockets[numa_node])
             log.debug(
-                f"Socket {socket}: NUMA nodes {sorted(numa_nodes)} use "
-                f"L3 cache(s) {sorted(l3_caches_in_socket)}"
+                f"NUMA node {numa_node} (socket {sockets}): "
+                f"{len(l3_caches)} L3 cache(s) {sorted(l3_caches)}"
             )
+        for l3_cache, numas in sorted(l3_to_numas.items()):
+            if len(numas) > 1:
+                log.debug(
+                    f"L3 cache {l3_cache}: shared across NUMA nodes "
+                    f"{sorted(numas)} (sub-NUMA clustering)"
+                )
