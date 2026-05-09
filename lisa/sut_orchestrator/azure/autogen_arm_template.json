@@ -109,19 +109,7 @@
           ],
           "output": {
             "type": "object",
-            "value": {
-              "name": "[format('{0}-osDisk', parameters('node').name)]",
-              "managedDisk": {
-                "securityProfile": "[if(or(empty(parameters('node').security_profile), not(equals(parameters('node').security_profile.security_type, 'ConfidentialVM'))), null(), __bicep.getSecurityProfileForOSDisk(parameters('node')))]"
-              },
-              "diffDiskSettings": {
-                "option": "local",
-                "placement": "[parameters('node').ephemeral_disk_placement_type]"
-              },
-              "caching": "ReadOnly",
-              "createOption": "FromImage",
-              "diskSizeGB": "[parameters('node').osdisk_size_in_gb]"
-            }
+            "value": "[shallowMerge(createArray(createObject('name', format('{0}-osDisk', parameters('node').name)), if(or(empty(parameters('node').security_profile), not(equals(parameters('node').security_profile.security_type, 'ConfidentialVM'))), createObject(), createObject('managedDisk', createObject('securityProfile', __bicep.getSecurityProfileForOSDisk(parameters('node'))))), createObject('diffDiskSettings', createObject('option', 'local', 'placement', parameters('node').ephemeral_disk_placement_type), 'caching', 'ReadOnly', 'createOption', 'FromImage', 'diskSizeGB', parameters('node').osdisk_size_in_gb)))]"
           }
         },
         "getCreateDisk": {
