@@ -211,7 +211,6 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskEphemeral(),
-            supported_features=[CvmDisabled()],  # TODO: Fix disk deployment for CVM
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(

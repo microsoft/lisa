@@ -111,6 +111,11 @@ func getLinuxConfiguration(keyPath string, publicKeyData string, disable_passwor
 
 func getEphemeralOSImage(node object) object => {
   name: '${node.name}-osDisk'
+  ...((empty(node.security_profile) || (node.security_profile.security_type != 'ConfidentialVM')) ? {} : {
+    managedDisk: {
+      securityProfile: getSecurityProfileForOSDisk(node)
+    }
+  })
   diffDiskSettings: {
       option: 'local'
       placement: node.ephemeral_disk_placement_type
