@@ -657,7 +657,8 @@ def perf_ntttcp(  # noqa: C901
             # A node may be transiently disconnected during setup_system reboot.
             # Probe reconnect before declaring hard failure.
             recovered = False
-            for attempt in range(1, 4):
+            max_reconnect_attempts = 3
+            for attempt in range(1, max_reconnect_attempts + 1):
                 try:
                     node.close()
                     node.execute(
@@ -669,11 +670,12 @@ def perf_ntttcp(  # noqa: C901
                     recovered = True
                     break
                 except Exception as reconnect_error:
-                    client.log.debug(
+                    node.log.debug(
                         f"Reconnect probe failed for {node.name} "
-                        f"(attempt {attempt}/3): {reconnect_error}"
+                        f"(attempt {attempt}/{max_reconnect_attempts}): "
+                        f"{reconnect_error}"
                     )
-                    if attempt < 3:
+                    if attempt < max_reconnect_attempts:
                         time.sleep(5)
 
             if not recovered:
