@@ -37,3 +37,9 @@ dist
 notes
 
 selftests/test_runbook.yml
+
+# MCP local/temp files
+mcp/tmp/
+mcp/.env
+mcp/**/*.log
+mcp/test-results/
