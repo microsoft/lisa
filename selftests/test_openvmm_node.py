@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
+    OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
     OpenVmmUefiSchema,
@@ -26,14 +27,17 @@ class OpenVmmNodeTestCase(TestCase):
         shell_copy = MagicMock()
         kill_by_pid = MagicMock()
         guest_log = MagicMock()
+        # execute() returns a result with exit_code=0 so that cache freshness
+        # checks (test -f ...) appear to succeed and the cache is reused.
+        execute_result = SimpleNamespace(exit_code=0, stderr="", stdout="")
         host_node = SimpleNamespace(
             is_remote=True,
+            execute=MagicMock(return_value=execute_result),
             get_pure_path=PurePosixPath,
             shell=SimpleNamespace(copy=shell_copy),
             tools={Kill: SimpleNamespace(by_pid=kill_by_pid)},
         )
-        guest_node = SimpleNamespace(parent=host_node, log=guest_log)
-        controller = OpenVmmController(cast(Any, guest_node))
+        controller = OpenVmmController(cast(Any, host_node), cast(Any, guest_log))
         return controller, shell_copy, kill_by_pid, guest_log
 
     def test_resolve_guest_artifact_path_uses_unique_names(self) -> None:
@@ -62,6 +66,26 @@ class OpenVmmNodeTestCase(TestCase):
 
         self.assertNotEqual(first_destination, second_destination)
         self.assertEqual(2, shell_copy.call_count)
+
+    def test_resolve_guest_artifact_path_reuses_host_cache(self) -> None:
+        controller, shell_copy, _, _ = self._create_controller()
+        with TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "guest.raw"
+            source.write_text("disk")
+
+            first_destination = controller.resolve_guest_artifact_path(
+                str(source),
+                is_remote_path=False,
+                working_path=PurePath("/var/tmp/openvmm/g0"),
+            )
+            second_destination = controller.resolve_guest_artifact_path(
+                str(source),
+                is_remote_path=False,
+                working_path=PurePath("/var/tmp/openvmm/g1"),
+            )
+
+        self.assertNotEqual(first_destination, second_destination)
+        self.assertEqual(1, shell_copy.call_count)
 
     def test_stop_node_kills_process_after_wait_timeout(self) -> None:
         controller, _, kill_by_pid, guest_log = self._create_controller()
@@ -125,6 +149,36 @@ class OpenVmmNodeTestCase(TestCase):
             cwd=PurePosixPath("/var/tmp/openvmm-host-g0"),
             sudo=False,
         )
+
+    def test_create_effective_network_derives_unique_tap_settings(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap0",
+            bridge_name="ovmbr0",
+            tap_host_cidr="10.0.0.1/24",
+            guest_address="10.0.0.2",
+            consomme_cidr="10.0.0.0/24",
+            forward_ssh_port=True,
+            forwarded_port=60022,
+        )
+
+        first_guest_network = controller.create_effective_network(network, 0)
+        third_guest_network = controller.create_effective_network(network, 2)
+
+        self.assertEqual("tap0", first_guest_network.tap_name)
+        self.assertEqual("ovmbr0", first_guest_network.bridge_name)
+        self.assertEqual("10.0.0.1/24", first_guest_network.tap_host_cidr)
+        self.assertEqual("10.0.0.2", first_guest_network.guest_address)
+        self.assertEqual(60022, first_guest_network.forwarded_port)
+        self.assertEqual("tap2", third_guest_network.tap_name)
+        self.assertEqual("ovmbr2", third_guest_network.bridge_name)
+        self.assertEqual("10.0.2.1/24", third_guest_network.tap_host_cidr)
+        self.assertEqual("10.0.2.2", third_guest_network.guest_address)
+        self.assertEqual("10.0.2.0/24", third_guest_network.consomme_cidr)
+        self.assertEqual(60024, third_guest_network.forwarded_port)
+        self.assertEqual("tap0", network.tap_name)
+        self.assertEqual("10.0.0.1/24", network.tap_host_cidr)
 
     def test_provision_uses_host_pure_path_for_working_directory(self) -> None:
         host_node = SimpleNamespace(
