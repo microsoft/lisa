@@ -593,9 +593,7 @@ class Provisioning(TestSuite):
                 )
 
             # if node cannot be connected after reboot, it should be failed.
-            if isinstance(e, TcpConnectionException):
-                raise BadEnvironmentStateException(f"after reboot, {e}")
-            raise PassedException(e)
+            raise BadEnvironmentStateException(f"after reboot, {e}") from e
         return timer.elapsed()
 
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
