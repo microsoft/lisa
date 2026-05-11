@@ -10,15 +10,21 @@ from unittest.mock import MagicMock, patch
 
 import yaml
 
+from lisa import schema
+from lisa.features import SerialConsole as SerialConsoleFeature
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
+    OpenVmmSerialSchema,
     OpenVmmUefiSchema,
 )
-from lisa.tools import Ip, Kill, Mkdir
+from lisa.sut_orchestrator.openvmm.serial_console import (
+    SerialConsole as OpenVmmSerialConsole,
+)
+from lisa.tools import Cat, Ip, Kill, Mkdir
 from lisa.util import LisaException
 
 
@@ -204,6 +210,79 @@ class OpenVmmNodeTestCase(TestCase):
                     mode=OPENVMM_NETWORK_MODE_TAP,
                     **invalid_network,
                 )
+
+    def test_supported_features_include_serial_console(self) -> None:
+        supported_feature_names = [
+            feature.name() for feature in OpenVmmController.supported_features()
+        ]
+
+        self.assertIn(SerialConsoleFeature.name(), supported_feature_names)
+
+    def test_serial_console_reads_openvmm_host_console_log(self) -> None:
+        cat = SimpleNamespace(
+            read=MagicMock(return_value="\x1b[31mKernel panic\x1b[0m")
+        )
+        host_node = SimpleNamespace(tools={Cat: cat})
+        with TemporaryDirectory() as temp_dir:
+            node_context = NodeContext(
+                host=cast(Any, host_node),
+                console_log_file_path="/var/tmp/openvmm-host-g0/openvmm-console.log",
+            )
+            node = SimpleNamespace(
+                name="g0",
+                get_context=MagicMock(return_value=node_context),
+                local_log_path=Path(temp_dir),
+                log=MagicMock(),
+            )
+            serial_console = OpenVmmSerialConsole(
+                schema.FeatureSettings.create(SerialConsoleFeature.name()),
+                cast(Any, node),
+                MagicMock(),
+            )
+            serial_console.initialize()
+
+            console_log = serial_console.get_console_log()
+
+        self.assertEqual("Kernel panic", console_log)
+        cat.read.assert_called_once_with(
+            "/var/tmp/openvmm-host-g0/openvmm-console.log",
+            force_run=True,
+            no_debug_log=True,
+        )
+
+    def test_serial_console_reads_openvmm_stderr_console_log(self) -> None:
+        cat = SimpleNamespace(read=MagicMock(return_value="Kernel panic"))
+        host_node = SimpleNamespace(tools={Cat: cat})
+        with TemporaryDirectory() as temp_dir:
+            node_context = NodeContext(
+                host=cast(Any, host_node),
+                console_log_file_path="/var/tmp/openvmm-host-g0/openvmm-console.log",
+                launcher_stderr_log_file_path=(
+                    "/var/tmp/openvmm-host-g0/openvmm-launcher.stderr.log"
+                ),
+            )
+            node = SimpleNamespace(
+                name="g0",
+                get_context=MagicMock(return_value=node_context),
+                local_log_path=Path(temp_dir),
+                log=MagicMock(),
+                runbook=SimpleNamespace(serial=OpenVmmSerialSchema(mode="stderr")),
+            )
+            serial_console = OpenVmmSerialConsole(
+                schema.FeatureSettings.create(SerialConsoleFeature.name()),
+                cast(Any, node),
+                MagicMock(),
+            )
+            serial_console.initialize()
+
+            console_log = serial_console.get_console_log()
+
+        self.assertEqual("Kernel panic", console_log)
+        cat.read.assert_called_once_with(
+            "/var/tmp/openvmm-host-g0/openvmm-launcher.stderr.log",
+            force_run=True,
+            no_debug_log=True,
+        )
 
     def test_enable_ssh_forwarding_allows_openvmm_guest_subnet_routing(
         self,

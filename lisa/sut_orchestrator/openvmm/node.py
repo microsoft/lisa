@@ -41,6 +41,7 @@ from .schema import (
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
 )
+from .serial_console import SerialConsole
 from .start_stop import StartStop
 
 # Allow slower guest boot and reconnect paths on loaded L1 hosts.
@@ -182,7 +183,7 @@ class OpenVmmController:
 
     @classmethod
     def supported_features(cls) -> List[Type[Any]]:
-        return [StartStop]
+        return [StartStop, SerialConsole]
 
     def resolve_guest_artifact_path(
         self, source_path: str, is_remote_path: bool, working_path: PurePath
