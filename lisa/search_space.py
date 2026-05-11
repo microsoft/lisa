@@ -543,8 +543,9 @@ def check_setspace(
                         f" but VM supports [{capability}]"
                     )
             else:
-                inter_set: Set[Any] = requirement.intersection(capability)
-                if len(inter_set) > 0:
+                remaining = capability - requirement
+                if len(remaining) == 0:
+                    inter_set: Set[Any] = requirement.intersection(capability)
                     names = [
                         x.value if isinstance(x, Enum) else str(x)
                         for x in inter_set
