@@ -277,23 +277,31 @@ def perf_tcp_pps(
         # set server and client from environment, if not set explicitly
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
+    server_node: RemoteNode = server
+    client_node: RemoteNode = client
 
     client_netperf, server_netperf = run_in_parallel(
-        [lambda: client.tools[Netperf], lambda: server.tools[Netperf]]  # type: ignore
+        [lambda: client_node.tools[Netperf], lambda: server_node.tools[Netperf]]
+    )
+    run_in_parallel(
+        [
+            lambda: client_node.tools[Kill].by_name("netperf", ignore_not_exist=True),
+            lambda: server_node.tools[Kill].by_name("netserver", ignore_not_exist=True),
+        ]
     )
 
     server_interface_ip: str = ""
     client_interface_ip: str = ""
     if use_internal_address:
-        assert server.internal_address, "Server Node: internal address is not set"
-        assert client.internal_address, "Client Node: internal address is not set"
-        server_interface_ip = server.internal_address
-        client_interface_ip = client.internal_address
+        assert server_node.internal_address, "Server Node: internal address is not set"
+        assert client_node.internal_address, "Client Node: internal address is not set"
+        server_interface_ip = server_node.internal_address
+        client_interface_ip = client_node.internal_address
 
-    cpu = client.tools[Lscpu]
+    cpu = client_node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
     if "maxpps" == test_type:
-        ssh = client.tools[Ssh]
+        ssh = client_node.tools[Ssh]
         ssh.set_max_session()
         ports = range(30000, 30032)
     else:
@@ -304,13 +312,13 @@ def perf_tcp_pps(
         # Use server.internal_address as target since netperf client needs
         # the server's IP (which may differ from the interface it binds to)
         client_netperf.run_as_client_async(
-            server_ip=server.internal_address,
+            server_ip=server_node.internal_address,
             core_count=thread_count,
             port=port,
             interface_ip=client_interface_ip,
         )
-    client_sar = client.tools[Sar]
-    server_sar = server.tools[Sar]
+    client_sar = client_node.tools[Sar]
+    server_sar = server_node.tools[Sar]
     server_sar.get_statistics_async()
     result = client_sar.get_statistics()
     pps_message = client_sar.create_pps_performance_messages(
