@@ -270,6 +270,76 @@ class SourceInstaller(BaseInstaller):
             result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
             result.assert_exit_code()
         else:
+            # On Ubuntu ARM64, the flash-kernel package hooks into both
+            # initramfs post-update and kernel postinst. On environments
+            # without a recognized ARM board/DTB (e.g., Azure VMs), these
+            # hooks fail and block make install. Only disable them when
+            # flash-kernel reports the machine is unsupported, so that
+            # bare-metal boards that rely on flash-kernel remain bootable.
+            lscpu = node.tools[Lscpu]
+            if (
+                isinstance(node.os, Ubuntu)
+                and lscpu.get_architecture() == CpuArchitecture.ARM64
+            ):
+                # Pre-check: only run the --supported probe when the
+                # flash-kernel binary is actually present. This keeps the
+                # log message honest on images that never installed
+                # flash-kernel (where hooks don't exist anyway), and avoids
+                # emitting a misleading "machine not supported" line for
+                # what is really a "tool not installed" situation.
+                fk_present = node.execute(
+                    "command -v flash-kernel || test -x /usr/sbin/flash-kernel",
+                    sudo=True,
+                    shell=True,
+                    no_error_log=True,
+                )
+                if fk_present.exit_code != 0:
+                    self._log.debug("flash-kernel not installed; skipping hook disable")
+                    fk_check_exit_code: Optional[int] = 0  # nothing to disable
+                else:
+                    fk_check = node.execute(
+                        "flash-kernel --supported",
+                        sudo=True,
+                        shell=True,
+                        no_error_log=True,
+                    )
+                    fk_check_exit_code = fk_check.exit_code
+                # Treat a missing exit code (None) the same as "supported": do
+                # nothing. We only disable hooks on an explicit non-zero exit.
+                if fk_check_exit_code not in (None, 0):
+                    self._log.info(
+                        "Disabling flash-kernel hooks (machine not supported "
+                        "by flash-kernel)"
+                    )
+                    mv = node.tools[Mv]
+                    for hook_path in [
+                        "/etc/initramfs/post-update.d/flash-kernel",
+                        "/etc/kernel/postinst.d/zz-flash-kernel",
+                    ]:
+                        # Check existence and rename in two distinct steps so
+                        # that a missing hook is silently skipped (expected on
+                        # images without flash-kernel installed) but any other
+                        # mv failure (permissions, read-only fs, etc.) is
+                        # surfaced rather than swallowed by `|| true`.
+                        exists_check = node.execute(
+                            f"test -f {hook_path}",
+                            sudo=True,
+                            shell=True,
+                            no_error_log=True,
+                        )
+                        if exists_check.exit_code != 0:
+                            self._log.debug(
+                                f"flash-kernel hook not present, skipping: "
+                                f"{hook_path}"
+                            )
+                            continue
+                        mv.move(
+                            hook_path,
+                            f"{hook_path}.disabled",
+                            overwrite=True,
+                            sudo=True,
+                        )
+                        self._log.info(f"Disabled flash-kernel hook: {hook_path}")
             make.make(arguments="install", cwd=code_path, sudo=True)
 
         # The build for Redhat needs extra steps than RPM package. So put it
