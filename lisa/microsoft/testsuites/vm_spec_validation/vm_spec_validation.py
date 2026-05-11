@@ -185,7 +185,7 @@ class VmSpecValidation(TestSuite):
         2. Query the VM's actual vCPU count via ``lscpu``.
         3. Assert they are equal.
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(),
     )
     def verify_vm_cpu_count(self, node: Node, log: Logger) -> None:
@@ -218,7 +218,7 @@ class VmSpecValidation(TestSuite):
         3. Assert the actual value is within 5% of expected (and not
            greater than the declared value).
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(),
     )
     def verify_vm_memory(self, node: Node, log: Logger) -> None:
@@ -253,7 +253,7 @@ class VmSpecValidation(TestSuite):
         2. Query GPU PCI devices via ``lspci``.
         3. Assert the GPU device count matches.
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(min_gpu_count=1),
     )
     def verify_vm_gpu_count(self, node: Node, log: Logger) -> None:
@@ -289,7 +289,7 @@ class VmSpecValidation(TestSuite):
         5. Query VF devices via ``lspci``.
         6. Assert VF count matches expected.
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
@@ -340,7 +340,7 @@ class VmSpecValidation(TestSuite):
         4. Run initialize_nic_info to validate NIC/IP assignment.
         5. Assert total NIC count matches expected.
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -385,7 +385,7 @@ class VmSpecValidation(TestSuite):
         3. Discover all attached raw data disks inside the guest.
         4. Assert the attached disk count matches.
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
@@ -425,7 +425,7 @@ class VmSpecValidation(TestSuite):
         3. Discover local NVMe namespaces inside the guest.
         4. Assert the NVMe disk count matches.
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(
             supported_features=[
                 NvmeSettings(
@@ -469,7 +469,7 @@ class VmSpecValidation(TestSuite):
         4. Run fio random-read 4K across all NVMe disks.
         5. Assert the aggregate IOPS >= expected (with tolerance).
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(
             unsupported_os=[BSD, Windows],
             supported_features=[
@@ -534,7 +534,7 @@ class VmSpecValidation(TestSuite):
         4. Run fio random-read 4K across all disks simultaneously.
         5. Assert the aggregate IOPS >= expected (with tolerance).
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(
             unsupported_os=[BSD, Windows],
             disk=schema.DiskOptionSettings(
@@ -604,7 +604,7 @@ class VmSpecValidation(TestSuite):
         5. Convert measured throughput from MiB/s to MBps.
         6. Assert throughput is within tolerance of expected.
         """,
-        priority=5,
+        priority=4,
         requirement=simple_requirement(
             unsupported_os=[BSD, Windows],
             disk=schema.DiskOptionSettings(
