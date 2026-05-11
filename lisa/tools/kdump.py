@@ -923,6 +923,10 @@ class KdumpCheck(Tool):
         existing = list(serial_console.panic_ignorable_patterns)
         existing.extend(expected_patterns)
         serial_console.panic_ignorable_patterns = existing
+        self._log.info(
+            "Ignoring sysrq-triggered kernel panic in post-case panic check; "
+            "this crash was intentionally triggered by the kdump test."
+        )
 
     def trigger_kdump_on_specified_cpu(self, cpu_num: int, log_path: Path) -> None:
         lscpu = self.node.tools[Lscpu]
