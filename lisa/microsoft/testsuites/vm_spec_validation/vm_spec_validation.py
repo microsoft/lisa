@@ -4,14 +4,19 @@
 """
 VM Specification Validation Test Suite
 
+Each test reads the expected hardware specification from the VM size's
+Azure container policy (the ``resource_sku`` capabilities published by
+the platform) instead of from runbook variables / CSV. After the
+platform provisions the VM, the suite asserts that what the guest
+actually sees matches what the container policy declared.
+
 Usage
 =====
-See the accompanying ``lisa/microsoft/runbook/examples/vm_spec_validation.yml`` runbook
-and ``lisa/microsoft/runbook/examples/vm_specs.csv`` sample for a ready-to-run example.
+See the accompanying ``lisa/microsoft/runbook/examples/vm_spec_validation.yml``
+runbook for a ready-to-run example.
 """
 
-import re
-from typing import Any, Dict, cast
+from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
 
@@ -19,7 +24,6 @@ from lisa import (
     Environment,
     Logger,
     Node,
-    RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -36,92 +40,158 @@ from lisa.microsoft.testsuites.network.common import (
     sriov_basic_test,
 )
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Fio, Free, Kill, Lscpu, Lspci, Ntttcp
+from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.tools import Fio, Free, Lscpu, Lspci
 from lisa.util import constants
 
-# ---------------------------------------------------------------------------
-# Variable name constants - must match the runbook variable definitions.
-# ---------------------------------------------------------------------------
-VAR_VM_SIZE = "vm_size"
-VAR_EXPECTED_CPU = "expected_cpu_count"
-VAR_EXPECTED_MEMORY_GB = "expected_memory_gb"
-VAR_EXPECTED_GPU_COUNT = "expected_gpu_count"
-VAR_EXPECTED_NIC_COUNT = "expected_nic_count"
-VAR_EXPECTED_MAX_DISKS = "expected_max_disks"
-VAR_EXPECTED_MAX_IOPS = "expected_max_iops"
-VAR_NVME_EXPECTED_MAX_DISKS = "nvme_expected_max_disks"
-VAR_NVME_EXPECTED_MAX_IOPS = "nvme_expected_max_iops"
-VAR_EXPECTED_NETWORK_BW = "expected_network_bw"
-VAR_EXPECTED_STORAGE_THROUGHPUT = "expected_storage_throughput"
-
-# Percentage tolerance for memory comparison.
-# Azure VMs typically report slightly less memory than the nominal value
-# because the hypervisor and firmware reserve a portion.
+# Percentage tolerance for memory comparison. Hypervisor / firmware
+# reserve a portion of RAM that is not visible to the OS.
 _MEMORY_TOLERANCE_PERCENT = 5
 
-# Percentage tolerance for bandwidth / IOPS comparisons.
+# Percentage tolerance for IOPS / throughput comparisons.
 _PERF_TOLERANCE_PERCENT = 7
 
 # Number of iterations for performance tests; the best result is used.
 _PERF_ITERATIONS = 3
 
 
-def _get_int_var(variables: Dict[str, Any], name: str) -> int:
-    """Return an integer variable, raising ``SkippedException`` if missing or zero."""
-    raw = variables.get(name)
-    if raw is None or str(raw).strip() == "":
-        raise SkippedException(f"Variable '{name}' is not set - skipping check.")
-    # Strip any non-digit characters (e.g. commas, units, spaces) before parsing.
-    digits_only = re.sub(r"[^\d]", "", str(raw))
-    if not digits_only:
+def _vm_size(node: Node) -> str:
+    """Return the Azure VM size string for log labels (best-effort)."""
+    try:
+        return node.capability.get_extended_runbook(
+            AzureNodeSchema, AZURE
+        ).vm_size or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _get_azure_raw_caps(
+    environment: Environment, node: Node, log: Logger
+) -> Dict[str, str]:
+    """
+    Return the raw Azure SKU capability map (container policy) for the
+    VM size that backs ``node``.
+
+    Skips the test when the platform is not Azure or when no capability
+    information is available for the VM size.
+    """
+    platform = environment.platform
+    if platform is None or platform.type_name() != AZURE:
         raise SkippedException(
-            f"Variable '{name}' contains no digits - skipping check."
+            "Azure container policy is only available on the Azure platform."
         )
-    value = int(digits_only)
+    azure_platform = cast(AzurePlatform, platform)
+    node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    location_info = azure_platform.get_location_info(node_runbook.location, log)
+    capability = location_info.capabilities.get(node_runbook.vm_size)
+    if capability is None:
+        raise SkippedException(
+            f"No SKU capability info available for vm size "
+            f"{node_runbook.vm_size} in {node_runbook.location}."
+        )
+    return {
+        cap["name"]: cap["value"]
+        for cap in capability.resource_sku.get("capabilities", [])
+    }
+
+
+def _required_int_cap(caps: Dict[str, str], name: str) -> int:
+    """Return ``caps[name]`` as an int, or skip if missing / non-positive."""
+    raw = caps.get(name)
+    if raw is None or str(raw).strip() == "":
+        raise SkippedException(
+            f"Container policy does not publish '{name}' for this VM size."
+        )
+    try:
+        value = int(str(raw).strip())
+    except ValueError as exc:
+        raise SkippedException(
+            f"Container policy '{name}' value {raw!r} is not an integer."
+        ) from exc
     if value <= 0:
         raise SkippedException(
-            f"Variable '{name}' is {value} (zero or negative) - skipping check."
+            f"Container policy '{name}' is {value} (zero or negative)."
         )
     return value
+
+
+def _resolved_int(value: Any, name: str) -> int:
+    """
+    Return a concrete int from a NodeSpace capability field.
+
+    NodeSpace fields use ``search_space.CountSpace`` (int or IntRange).
+    After the platform resolves a node, these fields should be concrete
+    ints; if not, skip with a clear message.
+    """
+    if isinstance(value, bool):
+        raise SkippedException(f"Capability '{name}' is a bool, expected int.")
+    if isinstance(value, int):
+        return value
+    raise SkippedException(
+        f"Capability '{name}' is not a concrete integer (got {value!r})."
+    )
+
+
+def _expected_max_nic_count(node: Node) -> int:
+    """Return the resolved max NIC count from the node capability."""
+    nic = node.capability.network_interface
+    if nic is None:
+        raise SkippedException(
+            "node.capability.network_interface is not set - cannot determine "
+            "expected NIC count from container policy."
+        )
+    return _resolved_int(nic.max_nic_count, "network_interface.max_nic_count")
+
+
+def _expected_max_data_disk_count(node: Node) -> int:
+    """Return the resolved max data disk count from the node capability."""
+    disk = node.capability.disk
+    if disk is None:
+        raise SkippedException(
+            "node.capability.disk is not set - cannot determine expected "
+            "max data disk count from container policy."
+        )
+    return _resolved_int(disk.max_data_disk_count, "disk.max_data_disk_count")
 
 
 @TestSuiteMetadata(
     area="vm_spec_validation",
     category="functional",
     description="""
-    Validates that a provisioned VM matches the hardware specification
-    declared in runbook variables (CPU count, memory, NIC count, max
-    disks, local NVMe disks, and optionally IOPS / bandwidth).
+    Validates that a provisioned Azure VM matches the hardware
+    specification published by its container policy (Azure SKU
+    capabilities): CPU count, memory, GPU count, NIC count, max data
+    disks, local NVMe disks, and disk IOPS / throughput.
 
-    Designed to be driven by runbook variables so that each iteration
-    provisions and validates one VM size.
+    Expected values are read directly from the platform's capability
+    map at runtime; no runbook variables or CSV files are required.
     """,
 )
 class VmSpecValidation(TestSuite):
-    """Validate VM hardware against runbook-declared specifications."""
+    """Validate VM hardware against the Azure container policy."""
 
     # ------------------------------------------------------------------
     # CPU validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
         description="""
-        Verify that the VM's vCPU count matches the expected value from
-        the runbook variables.
+        Verify that the VM's vCPU count matches the value published by
+        the VM size's container policy.
 
         Steps:
-        1. Read expected_cpu_count from the runbook variables.
+        1. Read expected vCPU count from ``node.capability.core_count``.
         2. Query the VM's actual vCPU count via ``lscpu``.
         3. Assert they are equal.
         """,
         priority=5,
         requirement=simple_requirement(),
     )
-    def verify_vm_cpu_count(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
-    ) -> None:
-        expected_cpu = _get_int_var(variables, VAR_EXPECTED_CPU)
+    def verify_vm_cpu_count(self, node: Node, log: Logger) -> None:
+        expected_cpu = _resolved_int(node.capability.core_count, "core_count")
         actual_cpu = node.tools[Lscpu].get_thread_count()
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+        vm_size = _vm_size(node)
         log.info(
             f"VM size: {vm_size} - expected CPUs: {expected_cpu}, "
             f"actual CPUs: {actual_cpu}"
@@ -137,39 +207,35 @@ class VmSpecValidation(TestSuite):
     @TestCaseMetadata(
         description="""
         Verify that the VM's total memory is within an acceptable range
-        of the expected value from the runbook variables.
+        of the value published by the VM size's container policy.
 
         A tolerance of 5% is allowed because the hypervisor and
         firmware reserve a portion of RAM that is not visible to the OS.
 
         Steps:
-        1. Read expected_memory_gb from the runbook variables.
-        2. Convert expected GB to MB (*1024).
-        3. Query actual total memory in KiB, convert to MiB.
-        4. Assert the actual value is within 5% of expected.
+        1. Read expected memory (MB) from ``node.capability.memory_mb``.
+        2. Query actual total memory via ``free``.
+        3. Assert the actual value is within 5% of expected (and not
+           greater than the declared value).
         """,
         priority=5,
         requirement=simple_requirement(),
     )
-    def verify_vm_memory(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
-    ) -> None:
-        expected_memory_gb = _get_int_var(variables, VAR_EXPECTED_MEMORY_GB)
-        expected_memory_mb = expected_memory_gb * 1024
+    def verify_vm_memory(self, node: Node, log: Logger) -> None:
+        expected_memory_mb = _resolved_int(node.capability.memory_mb, "memory_mb")
         actual_memory_mb = node.tools[Free].get_free_memory_mb()
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+        vm_size = _vm_size(node)
         log.info(
-            f"VM size: {vm_size} - expected memory: {expected_memory_gb} GB "
-            f"({expected_memory_mb} MB), actual memory: {actual_memory_mb} MB"
+            f"VM size: {vm_size} - expected memory: {expected_memory_mb} MB, "
+            f"actual memory: {actual_memory_mb} MB"
         )
         lower_bound = int(expected_memory_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100)
-        # VM sizes typically report slightly less memory than the nominal value
-        # due to hypervisor/firmware reservations, so we allow the actual memory
-        # to be up to the expected value but not above it.
+        # VMs typically report slightly less memory than the nominal value
+        # due to hypervisor/firmware reservations, so we allow the actual
+        # memory to be up to the expected value but not above it.
         upper_bound = expected_memory_mb
         assert_that(actual_memory_mb).described_as(
-            f"VM size {vm_size}: expected ~{expected_memory_gb} GB "
-            f"({expected_memory_mb} MB) memory "
+            f"VM size {vm_size}: expected ~{expected_memory_mb} MB memory "
             f"but found {actual_memory_mb} MB "
             f"(tolerance {_MEMORY_TOLERANCE_PERCENT}%)"
         ).is_between(lower_bound, upper_bound)
@@ -179,24 +245,20 @@ class VmSpecValidation(TestSuite):
     # ------------------------------------------------------------------
     @TestCaseMetadata(
         description="""
-        Verify that the VM exposes the expected number of GPU devices.
-
-        This test is skipped when the ``expected_gpu_count`` variable
-        is empty or zero.
+        Verify that the VM exposes the expected number of GPU devices
+        as published by the container policy.
 
         Steps:
-        1. Read expected_gpu_count from the runbook variables.
+        1. Read expected GPU count from ``node.capability.gpu_count``.
         2. Query GPU PCI devices via ``lspci``.
-        3. Assert the GPU device count matches expected_gpu_count.
+        3. Assert the GPU device count matches.
         """,
         priority=5,
         requirement=simple_requirement(min_gpu_count=1),
     )
-    def verify_vm_gpu_count(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
-    ) -> None:
-        expected_gpu_count = _get_int_var(variables, VAR_EXPECTED_GPU_COUNT)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+    def verify_vm_gpu_count(self, node: Node, log: Logger) -> None:
+        expected_gpu_count = _resolved_int(node.capability.gpu_count, "gpu_count")
+        vm_size = _vm_size(node)
 
         gpu_devices = node.tools[Lspci].get_gpu_devices(force_run=True)
         actual_gpu_count = len(gpu_devices)
@@ -220,10 +282,12 @@ class VmSpecValidation(TestSuite):
 
         Steps:
         1. Provision the VM with max SR-IOV NICs (choose_max_value).
-        2. Run initialize_nic_info to validate NIC/IP/VF pairing.
-        3. Run sriov_basic_test to verify SR-IOV modules and VFs.
-        4. Query VF devices via ``lspci``.
-        5. Assert VF count matches expected_nic_count.
+        2. Read expected NIC count from
+           ``node.capability.network_interface.max_nic_count``.
+        3. Run initialize_nic_info to validate NIC/IP/VF pairing.
+        4. Run sriov_basic_test to verify SR-IOV modules and VFs.
+        5. Query VF devices via ``lspci``.
+        6. Assert VF count matches expected.
         """,
         priority=5,
         requirement=simple_requirement(
@@ -234,14 +298,10 @@ class VmSpecValidation(TestSuite):
         ),
     )
     def verify_vm_sriov_nic_count(
-        self,
-        environment: Environment,
-        node: Node,
-        log: Logger,
-        variables: Dict[str, Any],
+        self, environment: Environment, node: Node, log: Logger
     ) -> None:
-        expected_nic_count = _get_int_var(variables, VAR_EXPECTED_NIC_COUNT)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+        expected_nic_count = _expected_max_nic_count(node)
+        vm_size = _vm_size(node)
 
         # Validate SR-IOV NIC info: IP assignment + VF pairing
         initialize_nic_info(environment, is_sriov=True)
@@ -274,9 +334,11 @@ class VmSpecValidation(TestSuite):
 
         Steps:
         1. Provision the VM with max synthetic NICs (choose_max_value).
-        2. Skip if the VM has no synthetic NIC devices.
-        3. Run initialize_nic_info to validate NIC/IP assignment.
-        4. Assert total NIC count matches expected_nic_count.
+        2. Read expected NIC count from
+           ``node.capability.network_interface.max_nic_count``.
+        3. Skip if the VM has no synthetic NIC devices.
+        4. Run initialize_nic_info to validate NIC/IP assignment.
+        5. Assert total NIC count matches expected.
         """,
         priority=5,
         requirement=simple_requirement(
@@ -287,14 +349,10 @@ class VmSpecValidation(TestSuite):
         ),
     )
     def verify_vm_synthetic_nic_count(
-        self,
-        environment: Environment,
-        node: Node,
-        log: Logger,
-        variables: Dict[str, Any],
+        self, environment: Environment, node: Node, log: Logger
     ) -> None:
-        expected_nic_count = _get_int_var(variables, VAR_EXPECTED_NIC_COUNT)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+        expected_nic_count = _expected_max_nic_count(node)
+        vm_size = _vm_size(node)
 
         skip_if_no_synthetic_nics(node)
         # Validate synthetic NIC info: IP assignment
@@ -322,9 +380,10 @@ class VmSpecValidation(TestSuite):
 
         Steps:
         1. Provision the VM with max data disks (choose_max_value).
-        2. Read expected_max_disks from the runbook variables.
+        2. Read expected max disks from
+           ``node.capability.disk.max_data_disk_count``.
         3. Discover all attached raw data disks inside the guest.
-        4. Assert the attached disk count matches expected_max_disks.
+        4. Assert the attached disk count matches.
         """,
         priority=5,
         requirement=simple_requirement(
@@ -334,11 +393,9 @@ class VmSpecValidation(TestSuite):
             ),
         ),
     )
-    def verify_vm_max_premium_ssd_disk_count(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
-    ) -> None:
-        expected_max_disks = _get_int_var(variables, VAR_EXPECTED_MAX_DISKS)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+    def verify_vm_max_premium_ssd_disk_count(self, node: Node, log: Logger) -> None:
+        expected_max_disks = _expected_max_data_disk_count(node)
+        vm_size = _vm_size(node)
 
         # Discover all raw data disks visible inside the guest
         data_disks = node.features[Disk].get_raw_data_disks()
@@ -363,9 +420,10 @@ class VmSpecValidation(TestSuite):
 
         Steps:
         1. Provision the VM with max local NVMe disks.
-        2. Read nvme_expected_max_disks from the runbook variables.
+        2. Read expected NVMe disk count from the resolved
+           ``NvmeSettings`` feature on ``node.capability``.
         3. Discover local NVMe namespaces inside the guest.
-        4. Assert the NVMe disk count matches nvme_expected_max_disks.
+        4. Assert the NVMe disk count matches.
         """,
         priority=5,
         requirement=simple_requirement(
@@ -376,11 +434,9 @@ class VmSpecValidation(TestSuite):
             ],
         ),
     )
-    def verify_vm_nvme_disk_count(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
-    ) -> None:
-        expected_nvme_disks = _get_int_var(variables, VAR_NVME_EXPECTED_MAX_DISKS)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+    def verify_vm_nvme_disk_count(self, node: Node, log: Logger) -> None:
+        expected_nvme_disks = _expected_nvme_disk_count(node)
+        vm_size = _vm_size(node)
 
         nvme_disks = node.features[Nvme].get_raw_nvme_disks()
         actual_disk_count = len(nvme_disks)
@@ -403,12 +459,12 @@ class VmSpecValidation(TestSuite):
         disk count and running a ``fio`` random-read benchmark across
         all NVMe namespaces simultaneously.
 
-        This test is skipped when the ``nvme_expected_max_iops`` variable
-        is empty.
+        Expected IOPS is read from the container policy's
+        ``UncachedDiskIOPS`` capability.
 
         Steps:
         1. Provision the VM with max local NVMe disks.
-        2. Read nvme_expected_max_iops from the runbook variables.
+        2. Read ``UncachedDiskIOPS`` from the container policy.
         3. Discover all local NVMe namespaces.
         4. Run fio random-read 4K across all NVMe disks.
         5. Assert the aggregate IOPS >= expected (with tolerance).
@@ -424,10 +480,11 @@ class VmSpecValidation(TestSuite):
         ),
     )
     def verify_vm_nvme_disk_iops(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self, environment: Environment, node: Node, log: Logger
     ) -> None:
-        expected_iops = _get_int_var(variables, VAR_NVME_EXPECTED_MAX_IOPS)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+        caps = _get_azure_raw_caps(environment, node, log)
+        expected_iops = _required_int_cap(caps, "UncachedDiskIOPS")
+        vm_size = _vm_size(node)
 
         nvme_disks = node.features[Nvme].get_raw_nvme_disks()
         if not nvme_disks:
@@ -440,30 +497,9 @@ class VmSpecValidation(TestSuite):
             f"{nvme_disks}"
         )
 
-        # Run fio across ALL local NVMe disks simultaneously
-        filename = ":".join(nvme_disks)
-        fio = node.tools[Fio]
-        best_iops = 0
-        for i in range(_PERF_ITERATIONS):
-            result = fio.launch(
-                name=f"nvme_iops_all_disks_{i}",
-                filename=filename,
-                mode="randread",
-                iodepth=64,
-                numjob=4,
-                block_size="4K",
-                size_gb=8192,
-                time=120,
-                overwrite=True,
-            )
-            iops = int(result.iops)
-            log.info(
-                f"VM size: {vm_size} - NVMe IOPS iteration "
-                f"{i + 1}/{_PERF_ITERATIONS}: {iops}"
-            )
-            best_iops = max(best_iops, iops)
-
-        measured_iops = best_iops
+        measured_iops = _run_fio_iops(
+            node, log, vm_size, nvme_disks, label="NVMe", numjob=4
+        )
         # Allow tolerance below the declared max
         iops_floor = int(expected_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
@@ -484,16 +520,16 @@ class VmSpecValidation(TestSuite):
     @TestCaseMetadata(
         description="""
         Verify that the VM can achieve at least the expected disk IOPS
-        declared in the runbook variables by provisioning with the
-        maximum number of data disks allowed by the VM size and running
-        a ``fio`` random-read benchmark across all of them.
+        published by the container policy by provisioning with the
+        maximum number of data disks and running a ``fio`` random-read
+        benchmark across all of them.
 
-        This test is skipped when the ``expected_max_iops`` variable
-        is empty.
+        Expected IOPS is read from the container policy's
+        ``UncachedDiskIOPS`` capability.
 
         Steps:
         1. Provision the VM with max data disks (choose_max_value).
-        2. Read expected_max_iops from the runbook variables.
+        2. Read ``UncachedDiskIOPS`` from the container policy.
         3. Discover all attached raw data disks.
         4. Run fio random-read 4K across all disks simultaneously.
         5. Assert the aggregate IOPS >= expected (with tolerance).
@@ -509,10 +545,11 @@ class VmSpecValidation(TestSuite):
         ),
     )
     def verify_vm_premium_ssd_iops(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self, environment: Environment, node: Node, log: Logger
     ) -> None:
-        expected_iops = _get_int_var(variables, VAR_EXPECTED_MAX_IOPS)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+        caps = _get_azure_raw_caps(environment, node, log)
+        expected_iops = _required_int_cap(caps, "UncachedDiskIOPS")
+        vm_size = _vm_size(node)
 
         # Discover all raw data disks attached by the platform
         data_disks = node.features[Disk].get_raw_data_disks()
@@ -526,33 +563,10 @@ class VmSpecValidation(TestSuite):
             f"{data_disks}"
         )
 
-        # Run fio across ALL data disks simultaneously using
-        # colon-separated filenames.
-        filename = ":".join(data_disks)
-        fio = node.tools[Fio]
-        cpu = node.tools[Lscpu]
-        thread_count = cpu.get_thread_count()
-        best_iops = 0
-        for i in range(_PERF_ITERATIONS):
-            result = fio.launch(
-                name=f"iops_all_disks_{i}",
-                filename=filename,
-                mode="randread",
-                iodepth=64,
-                numjob=thread_count,
-                block_size="4K",
-                size_gb=8192,
-                time=120,
-                overwrite=True,
-            )
-            iops = int(result.iops)
-            log.info(
-                f"VM size: {vm_size} - disk IOPS iteration "
-                f"{i + 1}/{_PERF_ITERATIONS}: {iops}"
-            )
-            best_iops = max(best_iops, iops)
-
-        measured_iops = best_iops
+        thread_count = node.tools[Lscpu].get_thread_count()
+        measured_iops = _run_fio_iops(
+            node, log, vm_size, data_disks, label="disk", numjob=thread_count
+        )
         # Allow tolerance below the declared max
         iops_floor = int(expected_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
@@ -573,26 +587,22 @@ class VmSpecValidation(TestSuite):
     @TestCaseMetadata(
         description="""
         Verify that the VM can achieve at least the expected storage
-        throughput declared in the runbook variables by provisioning
+        throughput published by the container policy by provisioning
         with the maximum number of data disks and running a ``fio``
         sequential-read benchmark with 1024K block size across all
         of them.
 
-        With ``block_size=1024K`` each I/O transfers 1 MiB.  The raw
-        IOPS figure is converted from MiB/s to MBps
-        (1 MiB/s = 1.048576 MBps) so that all comparisons use the
-        same unit as the runbook specification.
-
-        This test is skipped when the ``expected_storage_throughput``
-        variable is empty or zero.
+        Expected throughput is read from the container policy's
+        ``UncachedDiskBytesPerSecond`` capability (bytes/s) and
+        converted to MBps for comparison.
 
         Steps:
         1. Provision the VM with max data disks (choose_max_value).
-        2. Read expected_storage_throughput (MBps) from runbook variables.
+        2. Read ``UncachedDiskBytesPerSecond`` from the container policy.
         3. Discover all attached raw data disks.
         4. Run fio sequential-read 1024K across all disks.
         5. Convert measured throughput from MiB/s to MBps.
-        6. Assert throughput >= expected (with tolerance).
+        6. Assert throughput is within tolerance of expected.
         """,
         priority=5,
         requirement=simple_requirement(
@@ -605,10 +615,15 @@ class VmSpecValidation(TestSuite):
         ),
     )
     def verify_vm_premium_ssd_throughput(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self, environment: Environment, node: Node, log: Logger
     ) -> None:
-        expected_bw = _get_int_var(variables, VAR_EXPECTED_STORAGE_THROUGHPUT)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
+        caps = _get_azure_raw_caps(environment, node, log)
+        expected_bytes_per_second = _required_int_cap(
+            caps, "UncachedDiskBytesPerSecond"
+        )
+        # Convert bytes/s -> MBps (1,000,000 bytes/s).
+        expected_bw = expected_bytes_per_second // 1_000_000
+        vm_size = _vm_size(node)
 
         # Discover all raw data disks attached by the platform
         data_disks = node.features[Disk].get_raw_data_disks()
@@ -627,8 +642,7 @@ class VmSpecValidation(TestSuite):
         # With block_size=1024K each IOP = 1 MiB; convert to MBps below.
         filename = ":".join(data_disks)
         fio = node.tools[Fio]
-        cpu = node.tools[Lscpu]
-        thread_count = cpu.get_thread_count()
+        thread_count = node.tools[Lscpu].get_thread_count()
         best_bw_mbps = 0
         for i in range(_PERF_ITERATIONS):
             result = fio.launch(
@@ -642,8 +656,8 @@ class VmSpecValidation(TestSuite):
                 time=120,
                 overwrite=True,
             )
-            # fio IOPS with 1024K blocks = MiB/s; convert to MBps
-            # 1 MiB/s = 1,048,576 / 1,000,000 MBps ((1024 * 1024) / (1000 * 1000))
+            # fio IOPS with 1024K blocks = MiB/s; convert MiB/s -> MBps
+            # (1 MiB = 1,048,576 bytes; 1 MB = 1,000,000 bytes).
             bw_mbps = int(int(result.iops) * 1048576 / 1000000)
             log.info(
                 f"VM size: {vm_size} - storage throughput "
@@ -671,119 +685,48 @@ class VmSpecValidation(TestSuite):
             f"{measured_bw} MBps"
         ).is_between(bw_floor, bw_ceiling)
 
-    # ------------------------------------------------------------------
-    # Network bandwidth validation — ntttcp between two nodes
-    # ------------------------------------------------------------------
-    @TestCaseMetadata(
-        description="""
-        Verify that the VM can achieve at least the expected network
-        throughput declared in the runbook variables by running an
-        ``ntttcp`` bandwidth test between two nodes in the same
-        environment.
 
-        This test is skipped when the ``expected_network_bw`` variable
-        is empty or zero.
-
-        Steps:
-        1. Provision two nodes (sender + receiver) in the same environment.
-        2. Read expected_network_bw (Mbps) from the runbook variables.
-        3. Run ntttcp from the sender to the receiver.
-        4. Assert measured throughput >= expected (with tolerance).
-        """,
-        priority=5,
-        requirement=simple_requirement(
-            min_count=2,
-            unsupported_os=[BSD, Windows],
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Sriov,
-            ),
-        ),
+def _expected_nvme_disk_count(node: Node) -> int:
+    """Return NVMe disk count from the resolved NvmeSettings on the node."""
+    features = getattr(node.capability, "features", None)
+    if features:
+        for setting in features:
+            if isinstance(setting, NvmeSettings):
+                return _resolved_int(setting.disk_count, "NvmeSettings.disk_count")
+    raise SkippedException(
+        "NvmeSettings is not present on node.capability - cannot determine "
+        "expected local NVMe disk count from container policy."
     )
-    def verify_vm_network_bandwidth(
-        self,
-        environment: Environment,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        expected_bw_mbps = _get_int_var(variables, VAR_EXPECTED_NETWORK_BW)
-        vm_size = variables.get(VAR_VM_SIZE, "unknown")
 
-        server_node = cast(RemoteNode, environment.nodes[0])
-        client_node = cast(RemoteNode, environment.nodes[1])
 
-        # Resolve NIC names for ntttcp.
-        server_node.nics.reload()
-        client_node.nics.reload()
-        server_nic_name = server_node.nics.get_primary_nic().pci_device_name
-        client_nic_name = client_node.nics.get_primary_nic().pci_device_name
-
-        server_ntttcp = server_node.tools[Ntttcp]
-        client_ntttcp = client_node.tools[Ntttcp]
-
-        # Use thread count to saturate the NIC, capped at 64 to avoid
-        # diminishing returns from excessive thread overhead.
-        cpu = client_node.tools[Lscpu]
-        thread_count = cpu.get_thread_count()
-        # 64 ports max — beyond this ntttcp shows diminishing returns
-        ports_count = min(thread_count, 64)
-
-        # Start ntttcp iterations and take the best result
-        best_bw_mbps = 0
-
-        server_ntttcp.setup_system()
-        client_ntttcp.setup_system()
-        try:
-            for i in range(_PERF_ITERATIONS):
-                server_process = server_ntttcp.run_as_server_async(
-                    server_nic_name,
-                    run_time_seconds=60,
-                    ports_count=ports_count,
-                )
-
-                try:
-                    client_ntttcp.run_as_client(
-                        client_nic_name,
-                        server_ip=server_node.internal_address,
-                        threads_count=1,
-                        run_time_seconds=60,
-                        ports_count=ports_count,
-                    )
-                finally:
-                    server_node.tools[Kill].by_name(server_ntttcp.command)
-
-                server_executable_result = server_process.wait_result()
-                server_result = server_ntttcp.create_ntttcp_result(
-                    server_executable_result
-                )
-                bw_mbps = int(server_result.throughput_in_gbps * 1000)
-                log.info(
-                    f"VM size: {vm_size} - network bandwidth "
-                    f"iteration {i + 1}/{_PERF_ITERATIONS}: "
-                    f"{bw_mbps} Mbps"
-                )
-                best_bw_mbps = max(best_bw_mbps, bw_mbps)
-        finally:
-            server_node.tools[Kill].by_name(server_ntttcp.command)
-            server_ntttcp.restore_system()
-            client_ntttcp.restore_system()
-
-        # ntttcp reports throughput in Gbps — convert to Mbps
-        measured_bw_mbps = best_bw_mbps
-
-        # Allow tolerance around the declared max
-        bw_floor_mbps = int(expected_bw_mbps * (100 - _PERF_TOLERANCE_PERCENT) / 100)
-        bw_ceiling_mbps = int(expected_bw_mbps * (100 + _PERF_TOLERANCE_PERCENT) / 100)
-        log.info(
-            f"VM size: {vm_size} — ntttcp network bandwidth: "
-            f"measured {measured_bw_mbps} Mbps, "
-            f"expected {bw_floor_mbps}-{bw_ceiling_mbps} Mbps "
-            f"(declared: {expected_bw_mbps} Mbps, "
-            f"tolerance: {_PERF_TOLERANCE_PERCENT}%)"
+def _run_fio_iops(
+    node: Node,
+    log: Logger,
+    vm_size: str,
+    disks: List[str],
+    label: str,
+    numjob: int,
+) -> int:
+    """Run ``fio`` random-read 4K across ``disks`` and return the best IOPS."""
+    filename = ":".join(disks)
+    fio = node.tools[Fio]
+    best_iops = 0
+    for i in range(_PERF_ITERATIONS):
+        result = fio.launch(
+            name=f"{label.lower()}_iops_all_disks_{i}",
+            filename=filename,
+            mode="randread",
+            iodepth=64,
+            numjob=numjob,
+            block_size="4K",
+            size_gb=8192,
+            time=120,
+            overwrite=True,
         )
-        assert_that(measured_bw_mbps).described_as(
-            f"VM size {vm_size}: expected network throughput "
-            f"between {bw_floor_mbps} and {bw_ceiling_mbps} Mbps "
-            f"(declared {expected_bw_mbps} Mbps with "
-            f"{_PERF_TOLERANCE_PERCENT}% tolerance) but measured "
-            f"{measured_bw_mbps} Mbps"
-        ).is_between(bw_floor_mbps, bw_ceiling_mbps)
+        iops = int(result.iops)
+        log.info(
+            f"VM size: {vm_size} - {label} IOPS iteration "
+            f"{i + 1}/{_PERF_ITERATIONS}: {iops}"
+        )
+        best_iops = max(best_iops, iops)
+    return best_iops
