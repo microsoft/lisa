@@ -527,19 +527,31 @@ def check_setspace(
         result.add_reason("capability shouldn't be None")
     else:
         if requirement is not None:
-            has_met_check = False
             if not isinstance(capability, SetSpace):
                 capability = SetSpace[T](is_allow_set=True, items=[capability])
             if not isinstance(requirement, SetSpace):
                 requirement = SetSpace[T](is_allow_set=True, items=[requirement])
-            for item in requirement:
-                if item in capability:
-                    has_met_check = True
-                    break
-            if not has_met_check:
-                result.add_reason(
-                    f"requires [{requirement}]" f" but VM supports [{capability}]"
-                )
+            if requirement.is_allow_set:
+                has_met_check = False
+                for item in requirement:
+                    if item in capability:
+                        has_met_check = True
+                        break
+                if not has_met_check:
+                    result.add_reason(
+                        f"requires [{requirement}]"
+                        f" but VM supports [{capability}]"
+                    )
+            else:
+                inter_set: Set[Any] = requirement.intersection(capability)
+                if len(inter_set) > 0:
+                    names = [
+                        x.value if isinstance(x, Enum) else str(x)
+                        for x in inter_set
+                    ]
+                    result.add_reason(
+                        f"requirements excludes {', '.join(names)}"
+                    )
     return result
 
 
@@ -568,9 +580,14 @@ def choose_value_setspace_by_priority(
     # Find min capability
     min_cap: Optional[T] = None
     for item in priority_list:
-        if item in requirement and item in capability:
-            min_cap = item
-            break
+        if requirement.is_allow_set:
+            if item in requirement and item in capability:
+                min_cap = item
+                break
+        else:
+            if item not in requirement and item in capability:
+                min_cap = item
+                break
     assert min_cap is not None, (
         "Cannot find min capability, "
         f"requirement: '{requirement}', "
@@ -604,9 +621,14 @@ def intersect_setspace_by_priority(
         requirement = SetSpace[T](items=[requirement])
 
     # Find min capability
-    for item in requirement:
-        if item in capability:
-            value.add(item)
+    if requirement.is_allow_set:
+        for item in requirement:
+            if item in capability:
+                value.add(item)
+    else:
+        for item in capability:
+            if item not in requirement:
+                value.add(item)
 
     return value
 
