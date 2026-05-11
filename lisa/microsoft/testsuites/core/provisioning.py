@@ -592,8 +592,12 @@ class Provisioning(TestSuite):
                     saved_path=log_path, stage="reboot", force_run=True
                 )
 
-            # if node cannot be connected after reboot, it should be failed.
-            raise BadEnvironmentStateException(f"after reboot, {e}") from e
+            # any reboot error should fail and mark the environment as bad.
+            raise BadEnvironmentStateException(
+                f"reboot failed on node '{node.name}': {e}. "
+                f"Check serial console logs under '{log_path}' and verify the node is "
+                "reachable."
+            ) from e
         return timer.elapsed()
 
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
