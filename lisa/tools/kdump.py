@@ -913,8 +913,8 @@ class KdumpCheck(Tool):
         # Sample sysrq generated crash from Ubuntu 24.04:
         # [   17.519224] sysrq: Trigger a crash
         # [   17.519617] Kernel panic - not syncing: sysrq triggered crash
-        # [   17.519964] CPU: 18 UID: 0 PID: 8948 Comm: echo Kdump: loaded Not tainted 6.17.0-1008-azure #8~24.04.1-Ubuntu VOLUNTARY 
-        # [   17.520541] Hardware name: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS Hyper-V UEFI Release v4.1 02/25/2026
+        # [   17.519964] CPU: 18 UID: 0 PID: 8948 Comm: echo Kdump: loaded Not tainted 6.17.0-1008-azure #8~24.04.1-Ubuntu VOLUNTARY # noqa: E501
+        # [   17.520541] Hardware name: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS Hyper-V UEFI Release v4.1 02/25/2026 # noqa: E501
         # [   17.521245] Call Trace:
         # [   17.521366]  <TASK>
         # [   17.521510]  dump_stack_lvl+0x27/0x70
@@ -963,15 +963,15 @@ class KdumpCheck(Tool):
         # [   17.531957]  ? exc_page_fault+0x84/0x150
         # [   17.532196]  entry_SYSCALL_64_after_hwframe+0x76/0x7e
         # [   17.532453] RIP: 0033:0x75f94711c5a4
-        # [   17.532661] Code: c7 00 16 00 00 00 b8 ff ff ff ff c3 66 2e 0f 1f 84 00 00 00 00 00 f3 0f 1e fa 80 3d a5 ea 0e 00 00 74 13 b8 01 00 00 00 0f 05 <48> 3d 00 f0 ff ff 77 54 c3 0f 1f 00 55 48 89 e5 48 83 ec 20 48 89
-        # [   17.533822] RSP: 002b:00007ffe3b627158 EFLAGS: 00000202 ORIG_RAX: 0000000000000001
-        # [   17.534173] RAX: ffffffffffffffda RBX: 0000000000000002 RCX: 000075f94711c5a4
-        # [   17.534609] RDX: 0000000000000002 RSI: 000063539a6b10b0 RDI: 0000000000000001
-        # [   17.535042] RBP: 00007ffe3b627180 R08: 0000000000000000 R09: 0000000000000410
-        # [   17.535587] R10: 0000000000000001 R11: 0000000000000202 R12: 0000000000000002
-        # [   17.536028] R13: 000063539a6b10b0 R14: 000075f9472045c0 R15: 000075f947201ee0
+        # [   17.532661] Code: c7 00 16 00 00 00 b8 ff ff ff ff c3 66 2e 0f 1f 84 00 00 00 00 00 f3 0f 1e fa 80 3d a5 ea 0e 00 00 74 13 b8 01 00 00 00 0f 05 <48> 3d 00 f0 ff ff 77 54 c3 0f 1f 00 55 48 89 e5 48 83 ec 20 48 89  # noqa: E501
+        # [   17.533822] RSP: 002b:00007ffe3b627158 EFLAGS: 00000202 ORIG_RAX: 0000000000000001 # noqa: E501
+        # [   17.534173] RAX: ffffffffffffffda RBX: 0000000000000002 RCX: 000075f94711c5a4 # noqa: E501
+        # [   17.534609] RDX: 0000000000000002 RSI: 000063539a6b10b0 RDI: 0000000000000001 # noqa: E501
+        # [   17.535042] RBP: 00007ffe3b627180 R08: 0000000000000000 R09: 0000000000000410 # noqa: E501
+        # [   17.535587] R10: 0000000000000001 R11: 0000000000000202 R12: 0000000000000002 # noqa: E501
+        # [   17.536028] R13: 000063539a6b10b0 R14: 000075f9472045c0 R15: 000075f947201ee0 # noqa: E501
         # [   17.536469]  </TASK>
-        # [   17.542975] Kernel Offset: 0x28200000 from 0xffffffff81000000 (relocation range: 0xffffffff80000000-0xffffffffbfffffff)
+        # [   17.542975] Kernel Offset: 0x28200000 from 0xffffffff81000000 (relocation range: 0xffffffff80000000-0xffffffffbfffffff) # noqa: E501
 
         expected_patterns: List[re.Pattern[str]] = [
             re.compile(
