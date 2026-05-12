@@ -1805,19 +1805,28 @@ class Fedora(RPMDistro):
     @retry(tries=5, delay=5)  # type: ignore
     def _initialize_package_installation(self) -> None:
         self._log.debug("Refreshing DNF cache before package installation")
-        self._node.execute(
+        result = self._node.execute(
             f"{self._dnf_tool()} clean metadata",
             sudo=True,
             timeout=300,
         )
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to clean DNF metadata: {result.stdout} "
+                f"exit_code: {result.exit_code}, stderr: {result.stderr}"
+            )
+
         result = self._node.execute(
             f"{self._dnf_tool()} makecache",
             sudo=True,
             timeout=300,
         )
         if result.exit_code != 0:
-            raise LisaException(f"Failed to refresh DNF cache: {result.stdout}")
-        self._log.debug("Fedora: DNF cache refreshed successfully.")
+            raise LisaException(
+                f"Failed to refresh DNF cache: {result.stdout} "
+                f"exit_code: {result.exit_code}, stderr: {result.stderr}"
+            )
+        self._log.debug("DNF cache refreshed successfully.")
 
     def install_epel(self) -> None:
         # Extra Packages for Enterprise Linux (EPEL) is a special interest group
