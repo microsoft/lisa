@@ -50,7 +50,7 @@ from lisa.util import constants
 
 # Percentage tolerance for memory comparison. Hypervisor / firmware
 # reserve a portion of RAM that is not visible to the OS.
-_MEMORY_TOLERANCE_PERCENT = 5
+_MEMORY_TOLERANCE_PERCENT = 2
 
 # Percentage tolerance for IOPS / throughput comparisons.
 _PERF_TOLERANCE_PERCENT = 7
