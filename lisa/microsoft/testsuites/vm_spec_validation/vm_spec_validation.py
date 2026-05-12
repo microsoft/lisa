@@ -43,7 +43,9 @@ from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Fio, Free, Lscpu, Lspci
+import re
+
+from lisa.tools import Dmesg, Fio, Lscpu, Lspci
 from lisa.util import constants
 
 # Percentage tolerance for memory comparison. Hypervisor / firmware
@@ -214,7 +216,10 @@ class VmSpecValidation(TestSuite):
 
         Steps:
         1. Read expected memory (MB) from ``node.capability.memory_mb``.
-        2. Query actual total memory via ``free``.
+        2. Read actual total memory from the kernel boot line
+           ``Memory: <available>K/<total>K available`` reported by
+           ``dmesg`` (the second number is the total memory the kernel
+           saw from BIOS / firmware).
         3. Assert the actual value is within 5% of expected (and not
            greater than the declared value).
         """,
@@ -223,7 +228,7 @@ class VmSpecValidation(TestSuite):
     )
     def verify_vm_memory(self, node: Node, log: Logger) -> None:
         expected_memory_mb = _resolved_int(node.capability.memory_mb, "memory_mb")
-        actual_memory_mb = node.tools[Free].get_free_memory_mb()
+        actual_memory_mb = _read_total_memory_mb_from_dmesg(node)
         vm_size = _vm_size(node)
         log.info(
             f"VM size: {vm_size} - expected memory: {expected_memory_mb} MB, "
@@ -684,6 +689,31 @@ class VmSpecValidation(TestSuite):
             f"{len(data_disks)} disk(s) but measured "
             f"{measured_bw} MBps"
         ).is_between(bw_floor, bw_ceiling)
+
+
+# Match e.g. "Memory: 8102528K/8383228K available (...)" - case-insensitive K
+# to also match older kernels that emit lowercase "k".
+_DMESG_MEMORY_PATTERN = re.compile(
+    r"Memory:\s+\d+[Kk]/(?P<total>\d+)[Kk]\s+available"
+)
+
+
+def _read_total_memory_mb_from_dmesg(node: Node) -> int:
+    """
+    Return the total kernel-visible memory (MiB) parsed from the dmesg
+    boot line ``Memory: <available>K/<total>K available``.
+    """
+    dmesg_output = node.tools[Dmesg].get_output(force_run=True)
+    match = _DMESG_MEMORY_PATTERN.search(dmesg_output)
+    if match is None:
+        raise SkippedException(
+            "Could not find 'Memory: <avail>K/<total>K available' line in dmesg "
+            "- cannot determine total memory."
+        )
+    total_kib = int(match.group("total"))
+    # Kernel reports kibibytes; convert to mebibytes (the same unit as
+    # node.capability.memory_mb, which is also in MiB despite the name).
+    return total_kib // 1024
 
 
 def _expected_nvme_disk_count(node: Node) -> int:
