@@ -10,9 +10,8 @@ the platform). After the platform provisions the VM, the suite asserts
 that what the guest actually sees matches what the container policy declared.
 """
 
-from typing import Any, Dict, List, cast
-
 import re
+from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
 
