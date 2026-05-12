@@ -2037,6 +2037,19 @@ class AzurePlatform(Platform):
             )
             node_space.network_interface.max_nic_count = sku_nic_count
 
+        # VMNetworkBandwidthMbps is exposed by the Azure Resource SKUs API as the
+        # expected aggregate VM network bandwidth (in Mbps). It is not present for
+        # every SKU; default to 0 so requirement filtering treats it as "unknown".
+        vm_network_bandwidth_mbps = azure_raw_capabilities.get(
+            "VMNetworkBandwidthMbps", None
+        )
+        if vm_network_bandwidth_mbps:
+            node_space.network_interface.max_network_bandwidth_mbps = int(
+                vm_network_bandwidth_mbps
+            )
+        else:
+            node_space.network_interface.max_network_bandwidth_mbps = 0
+
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
             node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
             node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
