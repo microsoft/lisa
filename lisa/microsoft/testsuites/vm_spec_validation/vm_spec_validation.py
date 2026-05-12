@@ -16,7 +16,7 @@ See the accompanying ``lisa/microsoft/runbook/examples/vm_spec_validation.yml``
 runbook for a ready-to-run example.
 """
 
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Tuple, cast
 
 from assertpy import assert_that
 
@@ -42,11 +42,12 @@ from lisa.microsoft.testsuites.network.common import (
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 import re
 
-from lisa.tools import Dmesg, Fio, Lscpu, Lspci
-from lisa.util import constants
+from lisa.tools import Dmesg, Fio, Lscpu, Lsblk, Lspci
+from lisa.util import LisaException, constants
 
 # Percentage tolerance for memory comparison. Hypervisor / firmware
 # reserve a portion of RAM that is not visible to the OS.
@@ -57,6 +58,27 @@ _PERF_TOLERANCE_PERCENT = 7
 
 # Number of iterations for performance tests; the best result is used.
 _PERF_ITERATIONS = 3
+
+# fio run time (seconds) for sustained performance tests.
+_PERF_RUN_TIME_SECONDS = 120
+
+# fio run time (seconds) for burst performance tests. Premium SSD burst
+# credits sustain peak performance for ~30 minutes, but a short window is
+# used so the run completes well inside the burst budget.
+_BURST_RUN_TIME_SECONDS = 30
+
+# Number of iterations for burst tests. A single iteration captures the
+# burst window; extra iterations would consume / deplete burst credits
+# and skew later results.
+_BURST_ITERATIONS = 1
+
+# Possible Azure SKU capability names for VM-level burst IOPS and
+# burst bandwidth. The first one present in the container policy wins.
+_BURST_IOPS_CAP_NAMES = ("MaxBurstIops", "UncachedDiskBurstIOPS")
+_BURST_BW_CAP_NAMES = (
+    "MaxBurstBandwidthMBps",
+    "UncachedDiskBurstBytesPerSecond",
+)
 
 
 def _vm_size(node: Node) -> str:
@@ -117,6 +139,28 @@ def _required_int_cap(caps: Dict[str, str], name: str) -> int:
             f"Container policy '{name}' is {value} (zero or negative)."
         )
     return value
+
+
+def _first_present_int_cap(
+    caps: Dict[str, str], names: Tuple[str, ...]
+) -> Tuple[str, int]:
+    """
+    Return ``(name, value)`` for the first name in ``names`` that is
+    published as a positive integer in ``caps``. Skip if none match.
+    """
+    for name in names:
+        raw = caps.get(name)
+        if raw is None or str(raw).strip() == "":
+            continue
+        try:
+            value = int(str(raw).strip())
+        except ValueError:
+            continue
+        if value > 0:
+            return name, value
+    raise SkippedException(
+        f"Container policy does not publish any of {names} for this VM size."
+    )
 
 
 def _resolved_int(value: Any, name: str) -> int:
@@ -643,35 +687,11 @@ class VmSpecValidation(TestSuite):
             f"{data_disks}"
         )
 
-        # Run fio sequential read with 1024K block size across all disks.
-        # With block_size=1024K each IOP = 1 MiB; convert to MBps below.
-        filename = ":".join(data_disks)
-        fio = node.tools[Fio]
         thread_count = node.tools[Lscpu].get_thread_count()
-        best_bw_mbps = 0
-        for i in range(_PERF_ITERATIONS):
-            result = fio.launch(
-                name=f"storage_throughput_all_disks_{i}",
-                filename=filename,
-                mode="read",
-                iodepth=64,
-                numjob=thread_count,
-                block_size="1024K",
-                size_gb=8192,
-                time=120,
-                overwrite=True,
-            )
-            # fio IOPS with 1024K blocks = MiB/s; convert MiB/s -> MBps
-            # (1 MiB = 1,048,576 bytes; 1 MB = 1,000,000 bytes).
-            bw_mbps = int(int(result.iops) * 1048576 / 1000000)
-            log.info(
-                f"VM size: {vm_size} - storage throughput "
-                f"iteration {i + 1}/{_PERF_ITERATIONS}: "
-                f"{bw_mbps} MBps"
-            )
-            best_bw_mbps = max(best_bw_mbps, bw_mbps)
+        measured_bw = _run_fio_throughput_mbps(
+            node, log, vm_size, data_disks, label="disk", numjob=thread_count
+        )
 
-        measured_bw = best_bw_mbps
         bw_floor = int(expected_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100)
         bw_ceiling = int(expected_bw * (100 + _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
@@ -689,6 +709,302 @@ class VmSpecValidation(TestSuite):
             f"{len(data_disks)} disk(s) but measured "
             f"{measured_bw} MBps"
         ).is_between(bw_floor, bw_ceiling)
+
+    # ------------------------------------------------------------------
+    # Burst IOPS validation - short-duration fio inside burst window
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM can momentarily achieve at least its declared
+        burst IOPS by running a short ``fio`` random-read benchmark
+        across all data disks. The run is kept short so the entire
+        measurement fits inside the VM's burst credit window.
+
+        Expected burst IOPS is read from the container policy via the
+        first available of: ``MaxBurstIops``,
+        ``UncachedDiskBurstIOPS``. Skipped when none are published.
+
+        Steps:
+        1. Provision the VM with max data disks (choose_max_value).
+        2. Read burst IOPS from the container policy.
+        3. Discover all attached raw data disks.
+        4. Run a short fio random-read 4K burst across all disks.
+        5. Assert the aggregate IOPS >= burst expected (with tolerance).
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def verify_vm_premium_ssd_burst_iops(
+        self, environment: Environment, node: Node, log: Logger
+    ) -> None:
+        caps = _get_azure_raw_caps(environment, node, log)
+        cap_name, expected_burst_iops = _first_present_int_cap(
+            caps, _BURST_IOPS_CAP_NAMES
+        )
+        vm_size = _vm_size(node)
+
+        data_disks = node.features[Disk].get_raw_data_disks()
+        if not data_disks:
+            raise SkippedException(
+                "No data disks found after provisioning "
+                "- skipping burst IOPS check."
+            )
+
+        log.info(
+            f"VM size: {vm_size} - discovered {len(data_disks)} data disk(s): "
+            f"{data_disks}; burst IOPS source: {cap_name}={expected_burst_iops}"
+        )
+
+        thread_count = node.tools[Lscpu].get_thread_count()
+        measured_iops = _run_fio_iops(
+            node,
+            log,
+            vm_size,
+            data_disks,
+            label="burst-disk",
+            numjob=thread_count,
+            run_time_seconds=_BURST_RUN_TIME_SECONDS,
+            iterations=_BURST_ITERATIONS,
+        )
+        iops_floor = int(
+            expected_burst_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100
+        )
+        log.info(
+            f"VM size: {vm_size} - burst fio across {len(data_disks)} disk(s): "
+            f"measured {measured_iops} IOPS, "
+            f"expected >= {iops_floor} (declared burst: {expected_burst_iops})"
+        )
+        assert_that(measured_iops).described_as(
+            f"VM size {vm_size}: expected burst disk IOPS >= {iops_floor} "
+            f"(declared burst {expected_burst_iops} via {cap_name} with "
+            f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
+            f"{len(data_disks)} disk(s) but measured only {measured_iops}"
+        ).is_greater_than_or_equal_to(iops_floor)
+
+    # ------------------------------------------------------------------
+    # Burst throughput validation - short-duration fio inside burst window
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM can momentarily achieve at least its declared
+        burst storage throughput by running a short ``fio`` sequential-
+        read 1024K benchmark across all data disks. The run is kept
+        short so the entire measurement fits inside the VM's burst
+        credit window.
+
+        Expected burst throughput is read from the container policy via
+        the first available of: ``MaxBurstBandwidthMBps``,
+        ``UncachedDiskBurstBytesPerSecond``. The latter is bytes/s
+        and is converted to MBps. Skipped when none are published.
+
+        Steps:
+        1. Provision the VM with max data disks (choose_max_value).
+        2. Read burst throughput from the container policy.
+        3. Discover all attached raw data disks.
+        4. Run a short fio sequential-read 1024K burst across disks.
+        5. Assert throughput is within tolerance of burst expected.
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def verify_vm_premium_ssd_burst_throughput(
+        self, environment: Environment, node: Node, log: Logger
+    ) -> None:
+        caps = _get_azure_raw_caps(environment, node, log)
+        cap_name, raw_value = _first_present_int_cap(caps, _BURST_BW_CAP_NAMES)
+        # Normalize to MBps. ``UncachedDiskBurstBytesPerSecond`` is
+        # bytes/s; ``MaxBurstBandwidthMBps`` is already MBps.
+        if cap_name == "UncachedDiskBurstBytesPerSecond":
+            expected_burst_bw = raw_value // 1_000_000
+        else:
+            expected_burst_bw = raw_value
+        vm_size = _vm_size(node)
+
+        data_disks = node.features[Disk].get_raw_data_disks()
+        if not data_disks:
+            raise SkippedException(
+                "No data disks found after provisioning "
+                "- skipping burst throughput check."
+            )
+
+        log.info(
+            f"VM size: {vm_size} - discovered {len(data_disks)} data disk(s): "
+            f"{data_disks}; burst throughput source: "
+            f"{cap_name}={raw_value} (~{expected_burst_bw} MBps)"
+        )
+
+        thread_count = node.tools[Lscpu].get_thread_count()
+        measured_bw = _run_fio_throughput_mbps(
+            node,
+            log,
+            vm_size,
+            data_disks,
+            label="burst-disk",
+            numjob=thread_count,
+            run_time_seconds=_BURST_RUN_TIME_SECONDS,
+            iterations=_BURST_ITERATIONS,
+        )
+        bw_floor = int(expected_burst_bw * (100 - _PERF_TOLERANCE_PERCENT) / 100)
+        bw_ceiling = int(expected_burst_bw * (100 + _PERF_TOLERANCE_PERCENT) / 100)
+        log.info(
+            f"VM size: {vm_size} - burst fio seq read across "
+            f"{len(data_disks)} disk(s): "
+            f"measured {measured_bw} MBps, "
+            f"expected {bw_floor}-{bw_ceiling} MBps "
+            f"(declared burst: {expected_burst_bw} MBps)"
+        )
+        assert_that(measured_bw).described_as(
+            f"VM size {vm_size}: expected burst storage throughput "
+            f"between {bw_floor} and {bw_ceiling} MBps "
+            f"(declared burst {expected_burst_bw} MBps via {cap_name} with "
+            f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
+            f"{len(data_disks)} disk(s) but measured "
+            f"{measured_bw} MBps"
+        ).is_between(bw_floor, bw_ceiling)
+
+    # ------------------------------------------------------------------
+    # Resource (temp) disk size validation
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the size of the local resource (temp) disk attached
+        to the VM matches the value published by the container policy
+        (``MaxResourceVolumeMB``).
+
+        Skipped when the VM size has no resource disk or when the
+        capability is not published.
+
+        Steps:
+        1. Provision the VM and require a resource disk.
+        2. Read ``MaxResourceVolumeMB`` from the container policy.
+        3. Locate the resource disk in the guest via
+           ``Disk.get_resource_disk_mount_point()`` + ``lsblk``.
+        4. Assert the actual size is within 5% of expected.
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+            disk=AzureDiskOptionSettings(has_resource_disk=True),
+        ),
+    )
+    def verify_vm_resource_disk_size(
+        self, environment: Environment, node: Node, log: Logger
+    ) -> None:
+        caps = _get_azure_raw_caps(environment, node, log)
+        expected_mb = _required_int_cap(caps, "MaxResourceVolumeMB")
+        vm_size = _vm_size(node)
+
+        actual_mb = _get_resource_disk_size_mb(node)
+        log.info(
+            f"VM size: {vm_size} - expected resource disk size: "
+            f"{expected_mb} MB, actual: {actual_mb} MB"
+        )
+
+        # Filesystem and partition overhead make the visible disk size
+        # slightly smaller than the raw capacity advertised by Azure;
+        # cap the actual at the expected value and allow a 5% tolerance
+        # below.
+        lower_bound = int(expected_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100)
+        upper_bound = expected_mb
+        assert_that(actual_mb).described_as(
+            f"VM size {vm_size}: expected ~{expected_mb} MB resource disk "
+            f"but found {actual_mb} MB "
+            f"(tolerance {_MEMORY_TOLERANCE_PERCENT}%)"
+        ).is_between(lower_bound, upper_bound)
+
+    # ------------------------------------------------------------------
+    # Resource (temp) disk IOPS validation
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the local resource (temp) disk can deliver the IOPS
+        published by the container policy via
+        ``CombinedTempDiskAndCachedIOPS``.
+
+        Note: this Azure capability is the *combined* limit across the
+        temp disk and the cached data-disk path. The measured
+        resource-disk IOPS is therefore checked against this value as
+        an upper bound (with tolerance), not as a guaranteed floor.
+
+        Skipped when the VM size has no SCSI resource disk or when the
+        capability is not published.
+
+        Steps:
+        1. Provision the VM and require a resource disk.
+        2. Read ``CombinedTempDiskAndCachedIOPS`` from the container
+           policy.
+        3. Locate the resource disk's mount point.
+        4. Run ``fio`` random-read 4K against a file on the resource
+           disk.
+        5. Assert the measured IOPS does not exceed the combined limit
+           by more than the tolerance.
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+            disk=AzureDiskOptionSettings(has_resource_disk=True),
+        ),
+    )
+    def verify_vm_resource_disk_iops(
+        self, environment: Environment, node: Node, log: Logger
+    ) -> None:
+        caps = _get_azure_raw_caps(environment, node, log)
+        expected_iops = _required_int_cap(caps, "CombinedTempDiskAndCachedIOPS")
+        vm_size = _vm_size(node)
+
+        disk_feature = node.features[Disk]
+        if disk_feature.get_resource_disk_type() != schema.ResourceDiskType.SCSI:
+            raise SkippedException(
+                "Resource disk IOPS test only supports SCSI resource disks."
+            )
+        if not disk_feature.get_resource_disks():
+            raise SkippedException(
+                "No resource disks visible on this VM - skipping resource "
+                "disk IOPS check."
+            )
+        mount_point = disk_feature.get_resource_disk_mount_point()
+        fio_filename = f"{mount_point}/fiodata"
+
+        thread_count = node.tools[Lscpu].get_thread_count()
+        measured_iops = _run_fio_iops(
+            node,
+            log,
+            vm_size,
+            [fio_filename],
+            label="resource-disk",
+            numjob=thread_count,
+        )
+
+        iops_ceiling = int(
+            expected_iops * (100 + _PERF_TOLERANCE_PERCENT) / 100
+        )
+        log.info(
+            f"VM size: {vm_size} - resource disk fio at {fio_filename}: "
+            f"measured {measured_iops} IOPS, "
+            f"combined limit (temp+cached): {expected_iops} "
+            f"(ceiling with tolerance: {iops_ceiling})"
+        )
+        assert_that(measured_iops).described_as(
+            f"VM size {vm_size}: measured resource-disk IOPS "
+            f"({measured_iops}) exceeds combined temp+cached limit "
+            f"{expected_iops} (with {_PERF_TOLERANCE_PERCENT}% tolerance "
+            f"= {iops_ceiling}); the temp disk should not exceed the "
+            f"combined SKU limit."
+        ).is_less_than_or_equal_to(iops_ceiling)
 
 
 # Match e.g. "Memory: 8102528K/8383228K available (...)" - case-insensitive K
@@ -716,6 +1032,32 @@ def _read_total_memory_mb_from_dmesg(node: Node) -> int:
     return total_kib // 1024
 
 
+def _get_resource_disk_size_mb(node: Node) -> int:
+    """
+    Return the size (MiB) of the local resource disk attached to the VM.
+
+    Uses ``Disk.get_resource_disk_mount_point()`` to locate the mount
+    point and ``lsblk`` to read its total size. Skips when no resource
+    disk is present.
+    """
+    disk_feature = node.features[Disk]
+    resource_disks = disk_feature.get_resource_disks()
+    if not resource_disks:
+        raise SkippedException(
+            "No resource disks visible on this VM - cannot determine "
+            "resource disk size."
+        )
+    mount_point = disk_feature.get_resource_disk_mount_point()
+    lsblk = node.tools[Lsblk]
+    try:
+        disk_info = lsblk.find_disk_by_mountpoint(mount_point, force_run=True)
+    except LisaException as exc:
+        raise SkippedException(
+            f"Could not locate resource disk by mountpoint {mount_point}: {exc}"
+        ) from exc
+    return disk_info.size_in_gb * 1024
+
+
 def _expected_nvme_disk_count(node: Node) -> int:
     """Return NVMe disk count from the resolved NvmeSettings on the node."""
     features = getattr(node.capability, "features", None)
@@ -736,12 +1078,14 @@ def _run_fio_iops(
     disks: List[str],
     label: str,
     numjob: int,
+    run_time_seconds: int = _PERF_RUN_TIME_SECONDS,
+    iterations: int = _PERF_ITERATIONS,
 ) -> int:
     """Run ``fio`` random-read 4K across ``disks`` and return the best IOPS."""
     filename = ":".join(disks)
     fio = node.tools[Fio]
     best_iops = 0
-    for i in range(_PERF_ITERATIONS):
+    for i in range(iterations):
         result = fio.launch(
             name=f"{label.lower()}_iops_all_disks_{i}",
             filename=filename,
@@ -750,13 +1094,53 @@ def _run_fio_iops(
             numjob=numjob,
             block_size="4K",
             size_gb=8192,
-            time=120,
+            time=run_time_seconds,
             overwrite=True,
         )
         iops = int(result.iops)
         log.info(
             f"VM size: {vm_size} - {label} IOPS iteration "
-            f"{i + 1}/{_PERF_ITERATIONS}: {iops}"
+            f"{i + 1}/{iterations}: {iops}"
         )
         best_iops = max(best_iops, iops)
     return best_iops
+
+
+def _run_fio_throughput_mbps(
+    node: Node,
+    log: Logger,
+    vm_size: str,
+    disks: List[str],
+    label: str,
+    numjob: int,
+    run_time_seconds: int = _PERF_RUN_TIME_SECONDS,
+    iterations: int = _PERF_ITERATIONS,
+) -> int:
+    """
+    Run ``fio`` sequential-read 1024K across ``disks`` and return the
+    best throughput, converted from MiB/s to MBps.
+    """
+    filename = ":".join(disks)
+    fio = node.tools[Fio]
+    best_bw_mbps = 0
+    for i in range(iterations):
+        result = fio.launch(
+            name=f"{label.lower()}_throughput_all_disks_{i}",
+            filename=filename,
+            mode="read",
+            iodepth=64,
+            numjob=numjob,
+            block_size="1024K",
+            size_gb=8192,
+            time=run_time_seconds,
+            overwrite=True,
+        )
+        # fio IOPS with 1024K blocks = MiB/s; convert MiB/s -> MBps
+        # (1 MiB = 1,048,576 bytes; 1 MB = 1,000,000 bytes).
+        bw_mbps = int(int(result.iops) * 1048576 / 1000000)
+        log.info(
+            f"VM size: {vm_size} - {label} throughput iteration "
+            f"{i + 1}/{iterations}: {bw_mbps} MBps"
+        )
+        best_bw_mbps = max(best_bw_mbps, bw_mbps)
+    return best_bw_mbps
