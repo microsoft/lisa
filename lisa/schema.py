@@ -774,6 +774,15 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             allow_none=True, decoder=search_space.decode_count_space
         ),
     )
+    # max_network_bandwidth_mbps reflects the VM size's expected aggregate
+    # network bandwidth in Mbps (Azure SKU capability "VMNetworkBandwidthMbps").
+    # It can be used as a requirement (e.g. {min: 10000}) to filter SKUs.
+    max_network_bandwidth_mbps: search_space.CountSpace = field(
+        default_factory=partial(search_space.IntRange, min=0),
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
+    )
 
     def __eq__(self, o: object) -> bool:
         if not super().__eq__(o):
@@ -785,12 +794,14 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             and self.data_path == o.data_path
             and self.nic_count == o.nic_count
             and self.max_nic_count == o.max_nic_count
+            and self.max_network_bandwidth_mbps == o.max_network_bandwidth_mbps
         )
 
     def __repr__(self) -> str:
         return (
             f"data_path:{self.data_path}, nic_count:{self.nic_count},"
-            f" max_nic_count:{self.max_nic_count}"
+            f" max_nic_count:{self.max_nic_count},"
+            f" max_network_bandwidth_mbps:{self.max_network_bandwidth_mbps}"
         )
 
     def __str__(self) -> str:
@@ -802,7 +813,7 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
     def _get_key(self) -> str:
         return (
             f"{super()._get_key()}/{self.data_path}/{self.nic_count}"
-            f"/{self.max_nic_count}"
+            f"/{self.max_nic_count}/{self.max_network_bandwidth_mbps}"
         )
 
     def check(self, capability: Any) -> search_space.ResultReason:
@@ -832,6 +843,13 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
             "max_nic_count",
         )
 
+        result.merge(
+            search_space.check_countspace(
+                self.max_network_bandwidth_mbps, capability.max_network_bandwidth_mbps
+            ),
+            "max_network_bandwidth_mbps",
+        )
+
         return result
 
     def _call_requirement_method(
@@ -848,6 +866,12 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
 
         value.max_nic_count = getattr(search_space, f"{method.value}_countspace")(
             self.max_nic_count, capability.max_nic_count
+        )
+
+        value.max_network_bandwidth_mbps = getattr(
+            search_space, f"{method.value}_countspace"
+        )(
+            self.max_network_bandwidth_mbps, capability.max_network_bandwidth_mbps
         )
 
         if self.nic_count or capability.nic_count:
