@@ -32,7 +32,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk, Nvme
+from lisa.features import Disk, Infiniband, Nvme
 from lisa.features.nvme import NvmeSettings
 from lisa.microsoft.testsuites.network.common import (
     initialize_nic_info,
@@ -376,6 +376,54 @@ class VmSpecValidation(TestSuite):
             f"VM size {vm_size}: expected {expected_nic_count} synthetic NICs "
             f"but found {actual_nic_count}"
         ).is_equal_to(expected_nic_count)
+
+    # ------------------------------------------------------------------
+    # InfiniBand / RDMA NIC count validation
+    # ------------------------------------------------------------------
+    @TestCaseMetadata(
+        description="""
+        Verify that the VM exposes at least one InfiniBand / RDMA NIC
+        when the VM size's container policy advertises ``RdmaEnabled =
+        True``, and log the number of RDMA NICs available.
+
+        Steps:
+        1. Read ``RdmaEnabled`` from the container policy; skip if the
+           SKU does not advertise RDMA.
+        2. Enumerate InfiniBand PCI devices via ``lspci`` using the
+           ``DEVICE_TYPE_INFINIBAND`` Mellanox device-id mapping.
+        3. Assert at least one IB device is present and log the count.
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+            supported_features=[Infiniband],
+        ),
+    )
+    def verify_vm_infiniband_nic_count(
+        self, environment: Environment, node: Node, log: Logger
+    ) -> None:
+        caps = _get_azure_raw_caps(environment, node, log)
+        rdma_enabled = str(caps.get("RdmaEnabled", "")).strip().lower() == "true"
+        vm_size = _vm_size(node)
+        if not rdma_enabled:
+            raise SkippedException(
+                f"VM size {vm_size}: container policy does not advertise "
+                f"RdmaEnabled=True - skipping InfiniBand NIC check."
+            )
+
+        lspci = node.tools[Lspci]
+        ib_slots = lspci.get_device_names_by_type(
+            constants.DEVICE_TYPE_INFINIBAND, force_run=True
+        )
+        ib_nic_count = len(ib_slots)
+        log.info(
+            f"VM size: {vm_size} - found {ib_nic_count} RDMA / InfiniBand "
+            f"NIC(s) via lspci (slots: {ib_slots})"
+        )
+        assert_that(ib_nic_count).described_as(
+            f"VM size {vm_size}: container policy advertises RdmaEnabled=True "
+            f"but no InfiniBand PCI devices were found via lspci."
+        ).is_greater_than_or_equal_to(1)
 
     # ------------------------------------------------------------------
     # Max data disk count validation — provision with max disks
