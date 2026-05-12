@@ -6,17 +6,13 @@ VM Specification Validation Test Suite
 
 Each test reads the expected hardware specification from the VM size's
 Azure container policy (the ``resource_sku`` capabilities published by
-the platform) instead of from runbook variables / CSV. After the
-platform provisions the VM, the suite asserts that what the guest
-actually sees matches what the container policy declared.
-
-Usage
-=====
-See the accompanying ``lisa/microsoft/runbook/examples/vm_spec_validation.yml``
-runbook for a ready-to-run example.
+the platform). After the platform provisions the VM, the suite asserts
+that what the guest actually sees matches what the container policy declared.
 """
 
 from typing import Any, Dict, List, cast
+
+import re
 
 from assertpy import assert_that
 
@@ -44,9 +40,7 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-import re
-
-from lisa.tools import Dmesg, Fio, Lscpu, Lsblk, Lspci
+from lisa.tools import Dmesg, Fio, Lsblk, Lscpu, Lspci
 from lisa.util import LisaException, constants
 
 # Percentage tolerance for memory comparison. Hypervisor / firmware
