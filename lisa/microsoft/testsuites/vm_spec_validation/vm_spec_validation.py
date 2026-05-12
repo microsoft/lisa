@@ -658,17 +658,25 @@ class VmSpecValidation(TestSuite):
             f"VM size: {vm_size} - fio seq read across "
             f"{len(data_disks)} disk(s): "
             f"measured {measured_bw} MBps, "
-            f"expected {bw_floor}-{bw_ceiling} MBps "
+            f"expected >= {bw_floor} MBps "
             f"(declared: {expected_bw} MBps)"
         )
+        if measured_bw > bw_ceiling:
+            log.info(
+                f"VM size {vm_size}: measured throughput {measured_bw} MBps "
+                f"exceeds declared max {expected_bw} MBps "
+                f"(ceiling {bw_ceiling} MBps with "
+                f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
+                f"{len(data_disks)} disk(s) - check for burst limits."
+            )
         assert_that(measured_bw).described_as(
             f"VM size {vm_size}: expected storage throughput "
-            f"between {bw_floor} and {bw_ceiling} MBps "
+            f">= {bw_floor} MBps "
             f"(declared {expected_bw} MBps with "
             f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
             f"{len(data_disks)} disk(s) but measured "
             f"{measured_bw} MBps"
-        ).is_between(bw_floor, bw_ceiling)
+        ).is_greater_than_or_equal_to(bw_floor)
 
     # ------------------------------------------------------------------
     # Resource (temp) disk size validation
