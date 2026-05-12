@@ -578,11 +578,20 @@ class VmSpecValidation(TestSuite):
         )
         # Allow tolerance below the declared max
         iops_floor = int(expected_iops * (100 - _PERF_TOLERANCE_PERCENT) / 100)
+        iops_ceiling = int(expected_iops * (100 + _PERF_TOLERANCE_PERCENT) / 100)
         log.info(
             f"VM size: {vm_size} - fio across {len(data_disks)} disk(s): "
             f"measured {measured_iops} IOPS, "
             f"expected >= {iops_floor} (declared max: {expected_iops})"
         )
+        if measured_iops > iops_ceiling:
+            log.info(
+                f"VM size {vm_size}: measured aggregate disk IOPS "
+                f"{measured_iops} exceeds declared max {expected_iops} "
+                f"(ceiling {iops_ceiling} with "
+                f"{_PERF_TOLERANCE_PERCENT}% tolerance) across "
+                f"{len(data_disks)} disk(s) - check for burst limits."
+            )
         assert_that(measured_iops).described_as(
             f"VM size {vm_size}: expected aggregate disk IOPS >= {iops_floor} "
             f"(declared max {expected_iops} with "
