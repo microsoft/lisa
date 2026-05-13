@@ -53,37 +53,43 @@ environment.
 
 ### 3. Tag protection (recommended)
 
-**Settings → Tags → Add rule** → pattern `v*.*.*`, restrict push to release
-managers. Prevents accidental tag-based releases.
+**Settings → Tags → Add rule** → pattern `2[0-9][0-9][0-9][0-9][0-9][0-9][0-9].*`,
+restrict push to release managers. Prevents accidental tag-based releases.
 
 ---
 
 ## Cutting a release
 
+LISA uses **CalVer** tags in the form `YYYYMMDD.N` (e.g. `20260420.1`,
+`20260420.2`). `setuptools_scm` derives the package version directly from the
+tag, so the PyPI version equals the tag (no `v` prefix).
+
 1. Make sure `main` is green.
-2. Decide the version using semver (`vMAJOR.MINOR.PATCH`).
+2. Pick today's date and the next sequence number for that day.
 3. Update `CHANGELOG.md` (or release notes draft) and merge.
 4. Tag and push:
    ```bash
    git checkout main
    git pull --ff-only
-   git tag -a v3.13.0 -m "v3.13.0"
-   git push origin v3.13.0
+   TAG=$(date +%Y%m%d).1          # bump .1 -> .2 if a tag for today exists
+   git tag -a "$TAG" -m "$TAG"
+   git push origin "$TAG"
    ```
 5. Watch **Actions → Publish to PyPI**.
 6. After the `publish-testpypi` job succeeds, smoke test in a clean venv:
    ```powershell
+   $TAG = "20260513.1"   # use the tag you just pushed
    py -3.12 -m venv C:\tmp\mslisa-rc
    & C:\tmp\mslisa-rc\Scripts\python.exe -m pip install `
        --index-url https://test.pypi.org/simple/ `
        --extra-index-url https://pypi.org/simple/ `
-       "mslisa[azure]==3.13.0"
+       "mslisa[azure]==$TAG"
    & C:\tmp\mslisa-rc\Scripts\lisa.exe --help
    ```
 7. Approve the `pypi` environment in the workflow run.
 8. Verify the live release:
    ```bash
-   pip install --upgrade "mslisa==3.13.0"
+   pip install --upgrade "mslisa==20260513.1"
    lisa --version
    ```
 
