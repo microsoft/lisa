@@ -1,0 +1,79 @@
+name: Publish to PyPI
+
+# Publishes mslisa to PyPI when a version tag (vX.Y.Z) is pushed.
+# Uses PyPI Trusted Publishing (OIDC) — no API tokens stored.
+#
+# Bootstrap (one-time, see RELEASE.md):
+#   1. Add a pending publisher on PyPI:
+#      project=mslisa, owner=microsoft, repo=lisa,
+#      workflow=publish.yml, environment=pypi
+#   2. Add a pending publisher on TestPyPI with environment=testpypi
+#   3. Create GitHub Environments "testpypi" and "pypi";
+#      put required reviewers on "pypi".
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:   # manual run for build-only smoke tests
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # setuptools_scm needs full tag history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tooling
+        run: python -m pip install --upgrade build twine
+      - name: Build distributions
+        run: python -m build
+      - name: Validate metadata
+        run: python -m twine check dist/*
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required for OIDC
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/mslisa/
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: pypi   # add required reviewers here for human approval gate
+      url: https://pypi.org/project/mslisa/
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
