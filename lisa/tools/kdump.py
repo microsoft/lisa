@@ -980,7 +980,7 @@ class KdumpCheck(Tool):
             ),
             re.compile(r"^(.*sysrq: SysRq : Trigger a crash.*)$", re.MULTILINE),
             # The RIP line accompanies the sysrq-triggered panic.
-            re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
+            re.compile(r"^(.*RIP: 0033:.*)$", re.MULTILINE),
         ]
         # Shadow the class attribute on the instance so other nodes are unaffected.
         existing = list(serial_console.panic_ignorable_patterns)
