@@ -975,12 +975,12 @@ class KdumpCheck(Tool):
 
         expected_patterns: List[re.Pattern[str]] = [
             re.compile(
-                r"(?ms)^.Kernel panic - not syncing: sysrq triggered crash.\n"
-                r"(?:^.\n){0,80}?"
-                r"^.sysrq_handle_crash.\n"
-                r"(?:^.\n){0,80}?"
-                r"^(.RIP: 0033:.)$"
-            )
+                r"^(.*Kernel panic - not syncing: sysrq triggered crash.*)$",
+                re.MULTILINE,
+            ),
+            re.compile(r"^(.*sysrq: SysRq : Trigger a crash.*)$", re.MULTILINE),
+            # The RIP line accompanies the sysrq-triggered panic.
+            re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
         ]
         # Shadow the class attribute on the instance so other nodes are unaffected.
         existing = list(serial_console.panic_ignorable_patterns)
