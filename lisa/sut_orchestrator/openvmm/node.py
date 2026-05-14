@@ -64,6 +64,14 @@ def _get_tap_host_interface_name(network: OpenVmmNetworkSchema) -> str:
     return network.bridge_name or network.tap_name
 
 
+def _should_grow_raw_disk(disk_img_path: str, min_raw_disk_size_gb: int) -> bool:
+    return (
+        bool(disk_img_path)
+        and min_raw_disk_size_gb > 0
+        and Path(disk_img_path).suffix.lower() == ".raw"
+    )
+
+
 def _countspace_to_int(value: search_space.CountSpace) -> int:
     chosen = search_space.choose_value_countspace(value, value)
     if not isinstance(chosen, int):
@@ -304,7 +312,7 @@ class OpenVmmController:
     ) -> None:
         if not disk_img_path or min_raw_disk_size_gb <= 0:
             return
-        if Path(disk_img_path).suffix.lower() != ".raw":
+        if not _should_grow_raw_disk(disk_img_path, min_raw_disk_size_gb):
             self._log.debug(
                 "Skipping OpenVMM raw disk growth for non-raw disk image "
                 f"'{disk_img_path}'."
@@ -427,7 +435,9 @@ class OpenVmmController:
         user_data: dict[str, Any] = {
             "users": ["default", user],
         }
-        if runbook.min_raw_disk_size_gb > 0:
+        if _should_grow_raw_disk(
+            node_context.disk_img_path, runbook.min_raw_disk_size_gb
+        ):
             user_data["growpart"] = {
                 "mode": "auto",
                 "devices": ["/"],
@@ -1332,24 +1342,6 @@ class OpenVmmController:
             ),
             (
                 "iptables -C FORWARD -i "
-                f"{shlex.quote(host_interface)} "
-                "-j ACCEPT "
-                "|| "
-                "iptables -I FORWARD -i "
-                f"{shlex.quote(host_interface)} "
-                "-j ACCEPT"
-            ),
-            (
-                "iptables -C FORWARD -o "
-                f"{shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT "
-                "|| "
-                "iptables -I FORWARD -o "
-                f"{shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT"
-            ),
-            (
-                "iptables -C FORWARD -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT "
                 "|| "
@@ -1447,16 +1439,6 @@ class OpenVmmController:
                 "iptables -D FORWARD -i "
                 f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} "
                 "-j ACCEPT || true"
-            ),
-            (
-                "iptables -D FORWARD -i "
-                f"{shlex.quote(host_interface)} "
-                "-j ACCEPT || true"
-            ),
-            (
-                "iptables -D FORWARD -o "
-                f"{shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
             ),
             (
                 "iptables -D FORWARD -i "
@@ -1748,10 +1730,13 @@ class OpenVmmGuestNode(RemoteNode):
                     working_path,
                 )
             )
-            self._openvmm_controller.ensure_minimum_raw_disk_size(
-                node_context.disk_img_path,
-                runbook.min_raw_disk_size_gb,
-            )
+            if _should_grow_raw_disk(
+                node_context.disk_img_path, runbook.min_raw_disk_size_gb
+            ):
+                self._openvmm_controller.ensure_minimum_raw_disk_size(
+                    node_context.disk_img_path,
+                    runbook.min_raw_disk_size_gb,
+                )
 
         if runbook.cloud_init:
             node_context.cloud_init_file_path = str(working_path / "cloud-init.iso")
