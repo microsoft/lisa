@@ -277,6 +277,8 @@ def perf_tcp_pps(
         # set server and client from environment, if not set explicitly
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
+    assert server is not None, "server must not be None before perf_tcp_pps run"
+    assert client is not None, "client must not be None before perf_tcp_pps run"
     server_node: RemoteNode = server
     client_node: RemoteNode = client
 
@@ -293,8 +295,12 @@ def perf_tcp_pps(
     server_interface_ip: str = ""
     client_interface_ip: str = ""
     if use_internal_address:
-        assert server_node.internal_address, "Server Node: internal address is not set"
-        assert client_node.internal_address, "Client Node: internal address is not set"
+        assert_that(server_node.internal_address).described_as(
+            "Server Node: internal address is not set"
+        ).is_not_empty()
+        assert_that(client_node.internal_address).described_as(
+            "Client Node: internal address is not set"
+        ).is_not_empty()
         server_interface_ip = server_node.internal_address
         client_interface_ip = client_node.internal_address
 
