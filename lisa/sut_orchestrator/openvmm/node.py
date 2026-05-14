@@ -52,6 +52,7 @@ OPENVMM_IP_DISCOVERY_TIMEOUT = 300
 OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 OPENVMM_DNS_SERVER_PORT = 53
+OPENVMM_GIBIBYTE = 1 << 30
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -1264,7 +1265,7 @@ class OpenVmmController:
         if not disk_image_path.lower().endswith(".raw"):
             return
 
-        minimum_size_bytes = minimum_size_gb * 1024 * 1024 * 1024
+        minimum_size_bytes = minimum_size_gb * OPENVMM_GIBIBYTE
         self.host_node.execute(
             (
                 f"current_size=$(stat -c %s {shlex.quote(disk_image_path)}) && "
