@@ -22,6 +22,8 @@ OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
+# Keep raw disk growth opt-in so existing OpenVMM runbooks don't mutate
+# user-supplied images unless they explicitly request it.
 OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB = 0
 OPENVMM_MAX_INTERFACE_NAME_LENGTH = 15
 OPENVMM_INTERFACE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]+$")
