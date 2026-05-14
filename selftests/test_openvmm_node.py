@@ -16,7 +16,7 @@ from lisa.sut_orchestrator.openvmm.schema import (
     OpenVmmNetworkSchema,
     OpenVmmUefiSchema,
 )
-from lisa.tools import Kill, Mkdir
+from lisa.tools import Ip, Kill, Mkdir
 from lisa.util import LisaException
 
 
@@ -179,6 +179,64 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertEqual(60024, third_guest_network.forwarded_port)
         self.assertEqual("tap0", network.tap_name)
         self.assertEqual("10.0.0.1/24", network.tap_host_cidr)
+
+    def test_enable_ssh_forwarding_allows_openvmm_guest_subnet_routing(
+        self,
+    ) -> None:
+        bridge_name = "ovmbr1"
+        guest_address = "10.0.1.2"
+        tap_host_cidr = "10.0.1.1/24"
+        execute_result = SimpleNamespace(exit_code=0, stderr="", stdout="0")
+        host_node = SimpleNamespace(
+            is_remote=True,
+            execute=MagicMock(return_value=execute_result),
+            tools={Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))},
+        )
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+        node_context = NodeContext(guest_address=guest_address, ssh_port=22)
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap1",
+            bridge_name=bridge_name,
+            tap_host_cidr=tap_host_cidr,
+            guest_address=guest_address,
+            forward_ssh_port=True,
+            forwarded_port=60023,
+        )
+
+        controller._enable_ssh_forwarding(node_context, guest_address, network)
+        controller._disable_ssh_forwarding_context(node_context, network)
+
+        commands = [call.args[0] for call in host_node.execute.call_args_list]
+        self.assertTrue(
+            any(
+                f"iptables -C FORWARD -i {bridge_name} -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD -i {bridge_name} -j ACCEPT" in command
+                for command in commands
+            )
+        )
+
+    def test_ensure_minimum_raw_disk_size_grows_raw_image(self) -> None:
+        controller, _, _, _ = self._create_controller()
+
+        controller.ensure_minimum_raw_disk_size("/var/tmp/guest.raw", 16)
+
+        execute = cast(MagicMock, controller.host_node.execute)
+        command = execute.call_args.args[0]
+        self.assertIn("stat -c %s /var/tmp/guest.raw", command)
+        self.assertIn("truncate -s 16G /var/tmp/guest.raw", command)
+
+    def test_ensure_minimum_raw_disk_size_skips_non_raw_image(self) -> None:
+        controller, _, _, _ = self._create_controller()
+
+        controller.ensure_minimum_raw_disk_size("/var/tmp/guest.vhd", 16)
+
+        cast(MagicMock, controller.host_node.execute).assert_not_called()
 
     def test_provision_uses_host_pure_path_for_working_directory(self) -> None:
         host_node = SimpleNamespace(
