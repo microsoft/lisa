@@ -1204,6 +1204,29 @@ class OpenVmmController:
         node_context.console_log_file_path = ""
         node_context.launcher_log_file_path = ""
 
+    def ensure_minimum_raw_disk_size(
+        self, disk_image_path: str, minimum_size_gb: int
+    ) -> None:
+        if not disk_image_path.lower().endswith(".raw"):
+            return
+
+        minimum_size_bytes = minimum_size_gb * 1024 * 1024 * 1024
+        self.host_node.execute(
+            (
+                f"current_size=$(stat -c %s {shlex.quote(disk_image_path)}) && "
+                f"if [ \"$current_size\" -lt {minimum_size_bytes} ]; then "
+                f"truncate -s {minimum_size_gb}G {shlex.quote(disk_image_path)}; "
+                "fi"
+            ),
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to ensure minimum OpenVMM raw disk size for "
+                f"'{disk_image_path}'"
+            ),
+        )
+
     def _get_host_public_address(self) -> str:
         if self.host_node.is_remote:
             return cast(RemoteNode, self.host_node).public_address

@@ -222,6 +222,7 @@ class OpenVmmNodeTestCase(TestCase):
         cat.read.assert_called_once_with(
             "/var/tmp/openvmm-host-g0/openvmm-console.log",
             force_run=True,
+            sudo=True,
             no_debug_log=True,
         )
 
@@ -256,6 +257,7 @@ class OpenVmmNodeTestCase(TestCase):
         cat.read.assert_called_once_with(
             "/var/tmp/openvmm-host-g0/openvmm-launcher.stderr.log",
             force_run=True,
+            sudo=True,
             no_debug_log=True,
         )
 
@@ -289,13 +291,13 @@ class OpenVmmNodeTestCase(TestCase):
         commands = [call.args[0] for call in host_node.execute.call_args_list]
         self.assertTrue(
             any(
-                f"iptables -C FORWARD -i {bridge_name} -j ACCEPT" in command
+                f"iptables -C FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
                 for command in commands
             )
         )
         self.assertTrue(
             any(
-                f"iptables -D FORWARD -i {bridge_name} -j ACCEPT" in command
+                f"iptables -D FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
                 for command in commands
             )
         )

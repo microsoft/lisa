@@ -45,6 +45,7 @@ class SerialConsole(features.SerialConsole):
         log = host_node.tools[Cat].read(
             shlex.quote(console_log_file_path),
             force_run=True,
+            sudo=True,
             no_debug_log=True,
         )
         log = re.sub("\x1b\\[[0-9;]*[mGKF]", "", log)
