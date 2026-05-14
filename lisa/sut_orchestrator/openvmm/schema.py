@@ -21,6 +21,9 @@ OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
+# Raw guest images used for OpenVMM perf runs need room for source-built tools
+# and fio payloads; 16 GiB keeps the default sparse copy modest on the host.
+OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB = 16
 
 
 @dataclass_json()
@@ -188,6 +191,13 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     uefi: Optional[OpenVmmUefiSchema] = None
     disk_img: str = ""
     disk_img_is_remote_path: bool = False
+    min_raw_disk_size_gb: int = field(
+        default=OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB,
+        metadata=schema.field_metadata(
+            field_function=schema.fields.Int,
+            validate=schema.validate.Range(min=0),
+        ),
+    )
     openvmm_binary: str = "/usr/local/bin/openvmm"
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)
