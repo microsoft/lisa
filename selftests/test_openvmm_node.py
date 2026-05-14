@@ -263,6 +263,14 @@ class OpenVmmNodeTestCase(TestCase):
         )
 
     def test_tap_network_rejects_invalid_interface_names(self) -> None:
+        valid_network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap_0:1",
+            bridge_name="br-test.0",
+        )
+        self.assertEqual("tap_0:1", valid_network.tap_name)
+        self.assertEqual("br-test.0", valid_network.bridge_name)
+
         invalid_networks = [
             {"tap_name": "tap 0"},
             {"tap_name": "tap0", "bridge_name": "br!dge0"},
@@ -348,9 +356,10 @@ class OpenVmmNodeTestCase(TestCase):
         ), patch.object(controller, "_create_iso") as create_iso:
             controller.create_node_cloud_init_iso(cast(Any, node))
 
-        user_data = yaml.safe_load(
-            create_iso.call_args.args[1][0][1].split("\n", 1)[1]
-        )
+        iso_files = create_iso.call_args.args[1]
+        user_data_file_contents = iso_files[0][1]
+        cloud_config = user_data_file_contents.split("\n", 1)[1]
+        user_data = yaml.safe_load(cloud_config)
         self.assertNotIn("growpart", user_data)
         self.assertNotIn("resize_rootfs", user_data)
         shell_copy.assert_called_once()
