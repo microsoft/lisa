@@ -1254,6 +1254,13 @@ class OpenVmmController:
     def ensure_minimum_raw_disk_size(
         self, disk_image_path: str, minimum_size_gb: int
     ) -> None:
+        """
+        Ensure a .raw OpenVMM guest disk image is at least the requested size.
+
+        Args:
+            disk_image_path: Path to the guest disk image on the OpenVMM host.
+            minimum_size_gb: Minimum image size, in GiB.
+        """
         if not disk_image_path.lower().endswith(".raw"):
             return
 
