@@ -247,6 +247,7 @@ class OpenVmmNodeTestCase(TestCase):
         cat.read.assert_called_once_with(
             "/var/tmp/openvmm-host-g0/openvmm-console.log",
             force_run=True,
+            sudo=True,
             no_debug_log=True,
         )
 
@@ -281,6 +282,7 @@ class OpenVmmNodeTestCase(TestCase):
         cat.read.assert_called_once_with(
             "/var/tmp/openvmm-host-g0/openvmm-launcher.stderr.log",
             force_run=True,
+            sudo=True,
             no_debug_log=True,
         )
 
