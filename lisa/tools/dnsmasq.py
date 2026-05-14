@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import shlex
+from typing import List, Optional
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -32,6 +33,7 @@ class Dnsmasq(Tool):
         kill_existing: bool = True,
         pid_file: str = "",
         lease_file: str = "",
+        dhcp_options: Optional[List[str]] = None,
     ) -> None:
         if stop_firewall:
             # stop firewall
@@ -49,20 +51,23 @@ class Dnsmasq(Tool):
 
         # setup dnsmasq on interface `nic_name` and listen on `nic_address`
         # assign dhcp address in `dhcp_range`
-        cmd = shlex.join(
-            [
-                "--strict-order",
-                "--except-interface=lo",
-                f"--interface={nic_name}",
-                f"--listen-address={gateway}",
-                "--bind-interfaces",
-                f"--dhcp-range={dhcp_range}",
-                "--conf-file=",
-                f"--pid-file={pid_file}",
-                f"--dhcp-leasefile={lease_file}",
-                "--dhcp-no-override",
-            ]
-        )
+        command_parts = [
+            "--strict-order",
+            "--except-interface=lo",
+            f"--interface={nic_name}",
+            f"--listen-address={gateway}",
+            "--bind-interfaces",
+            f"--dhcp-range={dhcp_range}",
+            "--conf-file=",
+            f"--pid-file={pid_file}",
+            f"--dhcp-leasefile={lease_file}",
+            "--dhcp-no-override",
+        ]
+        if dhcp_options:
+            command_parts.extend(
+                f"--dhcp-option={dhcp_option}" for dhcp_option in dhcp_options
+            )
+        cmd = shlex.join(command_parts)
 
         # start dnsmasq
         self.run(
