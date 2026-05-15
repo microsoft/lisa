@@ -8,9 +8,10 @@ from typing import Any, Tuple, cast
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+import yaml
+
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
-import yaml
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
@@ -265,15 +266,16 @@ class OpenVmmNodeTestCase(TestCase):
     def test_tap_network_rejects_invalid_interface_names(self) -> None:
         valid_network = OpenVmmNetworkSchema(
             mode=OPENVMM_NETWORK_MODE_TAP,
-            tap_name="tap_0:1",
+            tap_name="tap_0-1",
             bridge_name="br-test.0",
         )
-        self.assertEqual("tap_0:1", valid_network.tap_name)
+        self.assertEqual("tap_0-1", valid_network.tap_name)
         self.assertEqual("br-test.0", valid_network.bridge_name)
 
         invalid_networks = [
-            {"tap_name": "tap 0"},
-            {"tap_name": "tap0", "bridge_name": "br!dge0"},
+            cast(Any, {"tap_name": "tap 0"}),
+            cast(Any, {"tap_name": "tap:1"}),
+            cast(Any, {"tap_name": "tap0", "bridge_name": "br!dge0"}),
         ]
 
         for invalid_network in invalid_networks:
@@ -321,7 +323,33 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
+                f"iptables -C FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -C FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
                 f"iptables -D FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
                 for command in commands
             )
         )
@@ -340,7 +368,9 @@ class OpenVmmNodeTestCase(TestCase):
             runbook=OpenVmmGuestNodeSchema(
                 uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
                 disk_img="/tmp/guest.vhd",
-                cloud_init=SimpleNamespace(extra_user_data=[{"runcmd": ["true"]}]),
+                cloud_init=cast(
+                    Any, SimpleNamespace(extra_user_data=[{"runcmd": ["true"]}])
+                ),
                 network=OpenVmmNetworkSchema(connection_address="127.0.0.1"),
             ),
         )
@@ -371,8 +401,8 @@ class OpenVmmNodeTestCase(TestCase):
 
         execute = cast(MagicMock, controller.host_node.execute)
         command = execute.call_args.args[0]
-        self.assertIn("stat -c %s /var/tmp/guest.raw", command)
-        self.assertIn("truncate -s 16G /var/tmp/guest.raw", command)
+        self.assertIn("stat -c %s -- /var/tmp/guest.raw", command)
+        self.assertIn("truncate -s 16G -- /var/tmp/guest.raw", command)
 
     def test_ensure_minimum_raw_disk_size_skips_non_raw_image(self) -> None:
         controller, _, _, _ = self._create_controller()
