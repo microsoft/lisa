@@ -51,6 +51,7 @@ OPENVMM_IP_DISCOVERY_TIMEOUT = 300
 OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 OPENVMM_DNS_SERVER_PORT = 53
+OPENVMM_GIBIBYTE = 1024 * 1024 * 1024
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -306,31 +307,39 @@ class OpenVmmController:
         return openvmm
 
     def ensure_minimum_raw_disk_size(
-        self, disk_img_path: str, min_raw_disk_size_gb: int
+        self, disk_image_path: str, minimum_size_gb: int
     ) -> None:
-        if not disk_img_path or min_raw_disk_size_gb <= 0:
+        """
+        Ensure a .raw OpenVMM guest disk image is at least the requested size.
+
+        Args:
+            disk_image_path: Path to the guest disk image on the OpenVMM host.
+            minimum_size_gb: Minimum image size, in GiB.
+        """
+        if not disk_image_path or minimum_size_gb <= 0:
             return
-        if not _should_grow_raw_disk(disk_img_path, min_raw_disk_size_gb):
+        if not _should_grow_raw_disk(disk_image_path, minimum_size_gb):
             self._log.debug(
                 "Skipping OpenVMM raw disk growth for non-raw disk image "
-                f"'{disk_img_path}'."
+                f"'{disk_image_path}'."
             )
             return
 
-        minimum_size_bytes = min_raw_disk_size_gb * 1024 * 1024 * 1024
-        quoted_disk_img_path = shlex.quote(disk_img_path)
+        minimum_size_bytes = minimum_size_gb * OPENVMM_GIBIBYTE
+        quoted_disk_img_path = shlex.quote(disk_image_path)
         self.host_node.execute(
             (
                 f"current_size=$(stat -c %s {quoted_disk_img_path}); "
                 f'if [ "$current_size" -lt {minimum_size_bytes} ]; then '
-                f"truncate -s {min_raw_disk_size_gb}G {quoted_disk_img_path}; "
+                f"truncate -s {minimum_size_gb}G {quoted_disk_img_path}; "
                 "fi"
             ),
             shell=True,
+            sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "failed to ensure OpenVMM raw guest disk "
-                f"'{disk_img_path}' is at least {min_raw_disk_size_gb} GiB. "
+                f"'{disk_image_path}' is at least {minimum_size_gb} GiB. "
                 "Verify the host has enough free space and supports sparse files."
             ),
         )
@@ -1310,10 +1319,30 @@ class OpenVmmController:
             ),
             (
                 "iptables -C FORWARD -i "
+                f"{shlex.quote(host_interface)} ! -o "
+                f"{shlex.quote(forwarding_interface)} "
+                "-j ACCEPT "
+                "|| "
+                "iptables -I FORWARD -i "
+                f"{shlex.quote(host_interface)} ! -o "
+                f"{shlex.quote(forwarding_interface)} "
+                "-j ACCEPT"
+            ),
+            (
+                "iptables -C FORWARD -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT "
                 "|| "
                 "iptables -I FORWARD -i "
+                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT"
+            ),
+            (
+                "iptables -C FORWARD ! -i "
+                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT "
+                "|| "
+                "iptables -I FORWARD ! -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT"
             ),
@@ -1410,6 +1439,17 @@ class OpenVmmController:
             ),
             (
                 "iptables -D FORWARD -i "
+                f"{shlex.quote(host_interface)} ! -o "
+                f"{shlex.quote(forwarding_interface)} "
+                "-j ACCEPT || true"
+            ),
+            (
+                "iptables -D FORWARD -i "
+                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
+            ),
+            (
+                "iptables -D FORWARD ! -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
             ),
