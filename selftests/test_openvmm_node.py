@@ -322,7 +322,33 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
+                f"iptables -C FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -C FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
                 f"iptables -D FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
                 for command in commands
             )
         )
