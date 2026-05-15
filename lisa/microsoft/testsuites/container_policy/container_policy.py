@@ -46,6 +46,10 @@ from lisa.util import LisaException, constants
 # reserve a portion of RAM that is not visible to the OS.
 _MEMORY_TOLERANCE_PERCENT = 2
 
+# Percentage tolerance for resource disk size comparison. Filesystem
+# and partition overhead make the visible size slightly smaller.
+_RESOURCE_DISK_SIZE_TOLERANCE_PERCENT = 5
+
 # Percentage tolerance for IOPS / throughput comparisons.
 _PERF_TOLERANCE_PERCENT = 7
 
@@ -208,7 +212,7 @@ class ContainerPolicyTests(TestSuite):
         Verify that the VM's total memory is within an acceptable range
         of the value published by the VM size's container policy.
 
-        A tolerance of 5% is allowed because the hypervisor and
+        A tolerance of 2% is allowed because the hypervisor and
         firmware reserve a portion of RAM that is not visible to the OS.
 
         Steps:
@@ -217,7 +221,7 @@ class ContainerPolicyTests(TestSuite):
            ``Memory: <available>K/<total>K available`` reported by
            ``dmesg`` (the second number is the total memory the kernel
            saw from BIOS / firmware).
-        3. Assert the actual value is within 5% of expected (and not
+        3. Assert the actual value is within 2% of expected (and not
            greater than the declared value).
         """,
         priority=4,
@@ -371,7 +375,7 @@ class ContainerPolicyTests(TestSuite):
         ).is_equal_to(expected_nic_count)
 
     # ------------------------------------------------------------------
-    # InfiniBand / RDMA NIC count validation
+    # InfiniBand / RDMA validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
         description="""
@@ -770,12 +774,14 @@ class ContainerPolicyTests(TestSuite):
         # slightly smaller than the raw capacity advertised by Azure;
         # cap the actual at the expected value and allow a 5% tolerance
         # below.
-        lower_bound = int(expected_mb * (100 - _MEMORY_TOLERANCE_PERCENT) / 100)
+        lower_bound = int(
+            expected_mb * (100 - _RESOURCE_DISK_SIZE_TOLERANCE_PERCENT) / 100
+        )
         upper_bound = expected_mb
         assert_that(actual_mb).described_as(
             f"VM size {vm_size}: expected ~{expected_mb} MB resource disk "
             f"but found {actual_mb} MB "
-            f"(tolerance {_MEMORY_TOLERANCE_PERCENT}%)"
+            f"(tolerance {_RESOURCE_DISK_SIZE_TOLERANCE_PERCENT}%)"
         ).is_between(lower_bound, upper_bound)
 
     # ------------------------------------------------------------------
