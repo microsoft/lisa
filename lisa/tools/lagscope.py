@@ -482,6 +482,7 @@ class Lagscope(Tool, KillableMixin):
                 "libaio1",
                 "sysstat",
                 "cmake",
+                "build-essential",
             ]
         elif isinstance(self.node.os, Suse):
             package_list = [
