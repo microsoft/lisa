@@ -7,7 +7,7 @@ import re
 import secrets
 import shutil
 import xml.etree.ElementTree as ET  # noqa: N817
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import List, Type
 
 from lisa import schema
@@ -243,9 +243,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
     def _delete_node(self, node: Node, log: Logger) -> None:
         """
-        Override to preserve console log for every test run (not just failures).
+        Override to preserve CH logs for every test run (not just failures).
         """
         node_context = get_node_context(node)
+
+        self._preserve_ch_vmm_log(node, node_context, log)
 
         # Copy console log to node's log directory before closing it
         # This ensures we capture console output for ALL tests, not just failures
@@ -265,6 +267,64 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         # Call parent implementation to handle cleanup
         super()._delete_node(node, log)
+
+    def _preserve_ch_vmm_log(
+        self,
+        node: Node,
+        node_context: NodeContext,
+        log: Logger,
+    ) -> None:
+        ch_log_path = PurePosixPath(f"/var/log/libvirt/ch/{node_context.vm_name}.log")
+        local_ch_log_path = node.local_log_path / "ch-vmm.log"
+        remote_temp_path = PurePosixPath(
+            f"{self.host_node.working_path}/{node_context.vm_name}-ch-vmm.log"
+        )
+
+        try:
+            tail_result = self.host_node.execute(
+                (
+                    f"sudo test -f {ch_log_path} && "
+                    f"sudo tail -n 400 {ch_log_path} || true"
+                ),
+                shell=True,
+            )
+            if tail_result.stdout.strip():
+                log.info(
+                    f"CH VMM log tail for {node_context.vm_name} from {ch_log_path}:"
+                )
+                for line in tail_result.stdout.splitlines():
+                    if (
+                        "DEBUG_REBOOT" in line
+                        or "VM reset" in line
+                        or "VM reboot" in line
+                        or "virtio-net" in line
+                        or "TAP" in line
+                        or "cloud-hypervisor:" in line
+                    ):
+                        log.info(f"[ch-vmm:{node_context.vm_name}] {line}")
+                    else:
+                        log.debug(f"[ch-vmm:{node_context.vm_name}] {line}")
+
+            username = self.host_node.execute("whoami", shell=True).stdout.strip()
+            self.host_node.execute(
+                (
+                    f"sudo test -f {ch_log_path} && "
+                    f"sudo cp {ch_log_path} {remote_temp_path} && "
+                    f"sudo chown {username} {remote_temp_path} || true"
+                ),
+                shell=True,
+            )
+            if self.host_node.shell.exists(remote_temp_path):
+                local_ch_log_path.parent.mkdir(parents=True, exist_ok=True)
+                self.host_node.shell.copy_back(remote_temp_path, local_ch_log_path)
+                log.info(
+                    f"Copied CH VMM log from {ch_log_path} to {local_ch_log_path} "
+                    f"(size: {local_ch_log_path.stat().st_size} bytes)"
+                )
+        except Exception as e:
+            log.warning(
+                f"Failed to preserve CH VMM log for {node_context.vm_name}: {e}"
+            )
 
     # Create the OS disk.
     def _create_node_os_disk(
