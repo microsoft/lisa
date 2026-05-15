@@ -93,7 +93,7 @@ class Netperf(Tool):
         if isinstance(self.node.os, Redhat):
             package_list = ["sysstat", "wget", "automake"]
         elif isinstance(self.node.os, Debian):
-            package_list = ["sysstat", "automake"]
+            package_list = ["sysstat", "automake", "build-essential"]
         elif isinstance(self.node.os, Suse):
             package_list = ["sysstat", "automake"]
         elif isinstance(self.node.os, CBLMariner):
