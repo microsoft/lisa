@@ -1222,7 +1222,7 @@ class OpenVmmController:
         self.host_node.execute(
             (
                 f"current_size=$(stat -c %s {shlex.quote(disk_image_path)}) && "
-                f"if [ \"$current_size\" -lt {minimum_size_bytes} ]; then "
+                f'if [ "$current_size" -lt {minimum_size_bytes} ]; then '
                 f"truncate -s {minimum_size_gb}G {shlex.quote(disk_image_path)}; "
                 "fi"
             ),
