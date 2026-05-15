@@ -168,7 +168,7 @@ def _expected_max_data_disk_count(node: Node) -> int:
     map at runtime; no runbook variables or CSV files are required.
     """,
 )
-class VmSpecValidation(TestSuite):
+class ContainerPolicyTests(TestSuite):
     """Validate VM hardware against the Azure container policy."""
 
     # ------------------------------------------------------------------
@@ -392,7 +392,7 @@ class VmSpecValidation(TestSuite):
             supported_features=[Infiniband],
         ),
     )
-    def verify_vm_infiniband_nic_count(
+    def verify_infiniband_enabled(
         self, environment: Environment, node: Node, log: Logger
     ) -> None:
         caps = _get_azure_raw_caps(environment, node, log)
