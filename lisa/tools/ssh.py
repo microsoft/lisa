@@ -50,15 +50,31 @@ class Ssh(Tool):
 
     def get_default_sshd_config_path(self) -> str:
         file_name = "sshd_config"
-        default_path = f"/etc/ssh/{file_name}"
-        if self.node.shell.exists(self.node.get_pure_path(default_path)):
-            return default_path
+        # Check well-known locations first. SUSE/SLES 16 and other modern
+        # distros ship the vendor sshd_config under /usr/etc/ssh while
+        # /etc/ssh/sshd_config may not exist by default.
+        candidate_paths = [
+            f"/etc/ssh/{file_name}",
+            f"/usr/etc/ssh/{file_name}",
+            f"/usr/local/etc/ssh/{file_name}",
+        ]
+        for path in candidate_paths:
+            if self.node.shell.exists(self.node.get_pure_path(path)):
+                return path
+        # Fall back to a scoped find. Restrict to /etc and /usr/etc to avoid
+        # traversing /proc, /sys, /run/user/* etc. on minimal images where
+        # `find /` exits non-zero due to permission-denied warnings.
         find = self.node.tools[Find]
-        result = find.find_files(self.node.get_pure_path("/"), file_name, sudo=True)
-        if result and result[0]:
-            return result[0]
-        else:
-            raise LisaException("not find sshd_config")
+        for search_root in ("/etc", "/usr/etc", "/usr/local/etc"):
+            result = find.find_files(
+                self.node.get_pure_path(search_root),
+                file_name,
+                sudo=True,
+                ignore_not_exist=True,
+            )
+            if result and result[0]:
+                return result[0]
+        raise LisaException("not find sshd_config")
 
     def set_max_session(self, count: int = 200) -> None:
         config_path = self.get_default_sshd_config_path()
