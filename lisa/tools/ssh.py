@@ -61,9 +61,10 @@ class Ssh(Tool):
         for path in candidate_paths:
             if self.node.shell.exists(self.node.get_pure_path(path)):
                 return path
-        # Fall back to a scoped find. Restrict to /etc and /usr/etc to avoid
-        # traversing /proc, /sys, /run/user/* etc. on minimal images where
-        # `find /` exits non-zero due to permission-denied warnings.
+        # Fall back to a scoped find. Restrict to /etc, /usr/etc, and
+        # /usr/local/etc to avoid traversing /proc, /sys, /run/user/* etc.
+        # on minimal images where `find /` exits non-zero due to
+        # permission-denied warnings.
         find = self.node.tools[Find]
         for search_root in ("/etc", "/usr/etc", "/usr/local/etc"):
             result = find.find_files(
