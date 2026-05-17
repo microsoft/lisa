@@ -71,6 +71,7 @@ class Ssh(Tool):
             result = find.find_files(
                 self.node.get_pure_path(search_root),
                 file_name,
+                file_type="f",
                 sudo=True,
                 ignore_not_exist=True,
             )
