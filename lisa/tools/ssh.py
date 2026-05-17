@@ -66,7 +66,8 @@ class Ssh(Tool):
         # on minimal images where `find /` exits non-zero due to
         # permission-denied warnings.
         find = self.node.tools[Find]
-        for search_root in ("/etc", "/usr/etc", "/usr/local/etc"):
+        search_roots = ("/etc", "/usr/etc", "/usr/local/etc")
+        for search_root in search_roots:
             result = find.find_files(
                 self.node.get_pure_path(search_root),
                 file_name,
@@ -75,7 +76,14 @@ class Ssh(Tool):
             )
             if result and result[0]:
                 return result[0]
-        raise LisaException("not find sshd_config")
+        raise LisaException(
+            f"Could not locate '{file_name}'. Checked candidate paths "
+            f"{candidate_paths} and searched under {list(search_roots)}. "
+            "Verify that the OpenSSH server (sshd) package is installed "
+            "on the target node and that its configuration file exists; "
+            "if it lives under a non-standard prefix, update "
+            "get_default_sshd_config_path() to include that location."
+        )
 
     def set_max_session(self, count: int = 200) -> None:
         config_path = self.get_default_sshd_config_path()
