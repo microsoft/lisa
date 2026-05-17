@@ -91,6 +91,12 @@ class Lscpu(Tool):
         r"(?P<l1_data_cache>\d+):(?P<l1_instruction_cache>\d+):"
         r"(?P<l2_cache>\d+):(?P<l3_cache>\d+)$"
     )
+    # On some VMs (e.g. confidential VMs), cache topology is not exposed
+    # and lscpu outputs "-" instead of cache IDs:
+    # 0 0 0 -
+    _core_numa_no_cache = re.compile(
+        r"\s*(?P<cpu>\d+)\s+(?P<numa_node>\d+)\s+(?P<socket>\d+)\s+-$"
+    )
     # Model name:          Intel(R) Xeon(R) Platinum 8168 CPU @ 2.70GHz
     # Model name:          AMD EPYC 7763 64-Core Processor
     #   Model name:          AMD EPYC 7763 64-Core Processor
@@ -267,6 +273,10 @@ class Lscpu(Tool):
         # CPU NODE SOCKET L1d:L1i:L2:L3
         # 0    0        0 0:0:0:0
         # 1    0        0 0:0:0:0
+        #
+        # On some VMs (e.g. confidential VMs), cache topology is not exposed:
+        # CPU NODE SOCKET CACHE
+        # 0    0        0 -
         result = self.run(
             "--extended=cpu,node,socket,cache", expected_exit_code=0
         ).stdout
@@ -278,21 +288,37 @@ class Lscpu(Tool):
         output: List[CPUInfo] = []
         for item in mappings:
             match_result = self._core_numa_mappings.fullmatch(item)
-            assert (
-                match_result
-            ), f"lscpu NUMA node mapping is not in expected format: {item}"
-            output.append(
-                CPUInfo(
-                    cpu=int(match_result.group("cpu")),
-                    numa_node=int(match_result.group("numa_node")),
-                    socket=int(match_result.group("socket")),
-                    l1_data_cache=int(match_result.group("l1_data_cache")),
-                    l1_instruction_cache=int(
-                        match_result.group("l1_instruction_cache")
-                    ),
-                    l2_cache=int(match_result.group("l2_cache")),
-                    l3_cache=int(match_result.group("l3_cache")),
+            if match_result:
+                output.append(
+                    CPUInfo(
+                        cpu=int(match_result.group("cpu")),
+                        numa_node=int(match_result.group("numa_node")),
+                        socket=int(match_result.group("socket")),
+                        l1_data_cache=int(match_result.group("l1_data_cache")),
+                        l1_instruction_cache=int(
+                            match_result.group("l1_instruction_cache")
+                        ),
+                        l2_cache=int(match_result.group("l2_cache")),
+                        l3_cache=int(match_result.group("l3_cache")),
+                    )
                 )
+                continue
+            no_cache_match = self._core_numa_no_cache.fullmatch(item)
+            if no_cache_match:
+                output.append(
+                    CPUInfo(
+                        cpu=int(no_cache_match.group("cpu")),
+                        numa_node=int(no_cache_match.group("numa_node")),
+                        socket=int(no_cache_match.group("socket")),
+                        l1_data_cache=-1,
+                        l1_instruction_cache=-1,
+                        l2_cache=-1,
+                        l3_cache=-1,
+                    )
+                )
+                continue
+            raise AssertionError(
+                f"lscpu NUMA node mapping is not in expected format: {item}"
             )
         return output
 
