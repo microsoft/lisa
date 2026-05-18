@@ -762,14 +762,17 @@ class Ntttcp(Tool):
 
     def _install(self) -> bool:
         if isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(
-                [
-                    "kernel-headers",
-                    "binutils",
-                    "glibc-devel",
-                    "zlib-devel",
-                ]
-            )
+            packages = [
+                "kernel-headers",
+                "binutils",
+                "glibc-devel",
+            ]
+            if self.node.os.information.version >= "4.0.0":
+                # zlib-devel not available on Azure Linux 4.0
+                packages.append("zlib-ng-compat-devel")
+            else:
+                packages.append("zlib-devel")
+            self.node.os.install_packages(packages)
         elif (
             isinstance(self.node.os, Ubuntu)
             and self.node.os.information.version >= "25.10.0"

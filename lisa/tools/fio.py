@@ -420,19 +420,22 @@ class Fio(Tool):
         elif isinstance(self.node.os, CBLMariner):
             package_list = [
                 "wget",
-                "build-essential",
-                "sysstat",
                 "blktrace",
                 "libaio",
                 "bc",
+                "sysstat",
                 "libaio-devel",
                 "gcc",
                 "kernel-devel",
                 "kernel-headers",
                 "binutils",
                 "glibc-devel",
-                "zlib-devel",
             ]
+            if self.node.os.information.version >= "4.0.0":
+                # zlib-devel replaced by zlib-ng-compat-devel on Azure Linux 4.0
+                package_list.append("zlib-ng-compat-devel")
+            else:
+                package_list.extend(["build-essential", "zlib-devel"])
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."

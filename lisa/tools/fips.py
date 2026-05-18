@@ -33,11 +33,11 @@ class Fips(Tool):
         if isinstance(node.os, CBLMariner):
             if node.os.information.release == "2.0":
                 return AzlV2Fips(node, args, kwargs)
-            if node.os.information.release == "3.0":
+            if node.os.information.release in ("3.0", "4.0"):
                 return AzlV3Fips(node, args, kwargs)
 
         raise UnsupportedDistroException(
-            os=node.os, message="FIPS tool only supported on CBLMariner 2.0 and 3.0."
+            os=node.os, message="FIPS tool only supported on CBLMariner 2.0, 3.0 and 4.0."
         )
 
     def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
