@@ -32,11 +32,15 @@ class WaAgentBvt(TestSuite):
         remote machine.
         """,
         priority=1,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension],
+            unsupported_os=[FreeBSD],
+        ),
     )
     def verify_vm_agent(self, log: Logger, node: Node) -> None:
-        # Some of the most common extensions, including Custom Script, are
-        # not supported on FreeBSD so skip the test on that case.
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the unsupported_os gate.
+        # Custom Script and most common extensions are not supported on FreeBSD.
         if isinstance(node.os, FreeBSD):
             raise SkippedException(f"unsupported distro type: {type(node.os)}")
 

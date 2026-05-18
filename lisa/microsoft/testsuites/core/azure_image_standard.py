@@ -435,7 +435,10 @@ class AzureImageStandard(TestSuite):
         network manager is not installed.
         """,
         priority=3,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            supported_platform_type=[AZURE, READY, HYPERV],
+        ),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -465,7 +468,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[Fedora, CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_network_file_configuration(self, node: Node) -> None:
@@ -541,7 +545,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[Fedora],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
@@ -601,7 +606,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[CoreOs, Fedora, CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_udev_rules_moved(self, node: Node) -> None:
@@ -639,7 +645,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[Suse, CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_dhcp_file_configuration(self, node: Node) -> None:
@@ -692,7 +699,10 @@ class AzureImageStandard(TestSuite):
         present in the file.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            supported_platform_type=[AZURE, READY, HYPERV],
+        ),
     )
     def verify_yum_conf(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -738,6 +748,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            supported_os=[Debian, CBLMariner],
             supported_platform_type=[AZURE, READY, HYPERV],
             supported_features=[HyperVHostType(), CvmDisabled()],
         ),
@@ -1255,7 +1266,10 @@ class AzureImageStandard(TestSuite):
          fail the case.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_os=[CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV],
+        ),
     )
     def verify_cloud_init_error_status(self, node: Node) -> None:
         cat = node.tools[Cat]
@@ -1789,6 +1803,7 @@ class AzureImageStandard(TestSuite):
         cifs.
         """,
         priority=1,
+        requirement=simple_requirement(supported_os=[Linux]),
     )
     def verify_essential_kernel_modules(self, node: Node) -> None:
         if not isinstance(node.os, Linux):

@@ -16,7 +16,7 @@ from lisa import (
     search_space,
 )
 from lisa.operating_system import CBLMariner, Ubuntu
-from lisa.testsuite import TestResult
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
 from lisa.util import SkippedException
 
@@ -28,6 +28,7 @@ from lisa.util import SkippedException
     This test suite is for executing the tests maintained in the
     upstream cloud-hypervisor repo.
     """,
+    requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
 )
 class CloudHypervisorTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
