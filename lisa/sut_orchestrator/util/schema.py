@@ -43,6 +43,7 @@ class DeviceLocationPathIdentifier:
 @dataclass
 class HostDevicePoolSchema:
     type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
+    auto_discover: bool = False
     devices: Union[
         List[VendorDeviceIdIdentifier],
         PciAddressIdentifier,
