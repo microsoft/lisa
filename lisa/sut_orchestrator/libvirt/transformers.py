@@ -30,6 +30,7 @@ class BaseInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     force_install: bool = False
     # Optional ref/tag/version to install. If not specified, uses latest release.
     ref: str = ""
+    patch_ch_disk_image_type: bool = False
 
 
 @dataclass_json()
@@ -40,7 +41,6 @@ class SourceInstallerSchema(BaseInstallerSchema):
     ref: str = ""
     auth_token: str = ""
     igvm_repo: str = ""
-    patch_ch_disk_image_type: bool = False
 
 
 @dataclass_json
