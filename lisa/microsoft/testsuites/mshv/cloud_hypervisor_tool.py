@@ -34,7 +34,7 @@ class CloudHypervisor(Tool):
     ) -> Process:
         opt_disk_readonly = "on" if disk_readonly else "off"
         log_file_arg = f"--log-file {log_file}" if log_file else ""
-        args: str = f'--cpus boot={cpus} --memory size={memory_mb}M --disk "path={disk_path},readonly={opt_disk_readonly}" {log_file_arg} --net "tap=,mac=,ip=,mask="'  # noqa: E501
+        args: str = f'--cpus boot={cpus} --memory size={memory_mb}M --disk "path={disk_path},readonly={opt_disk_readonly},image_type=raw" {log_file_arg} --net "tap=,mac=,ip=,mask="'  # noqa: E501
 
         if guest_vm_type == "CVM":
             host_data = secrets.token_hex(32)

@@ -1159,6 +1159,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         disk.attrib["type"] = "file"
 
         disk_driver = ET.SubElement(disk, "driver")
+        disk_driver.attrib["name"] = "qemu"
         disk_driver.attrib["if"] = "virtio"
         disk_driver.attrib["type"] = "raw"
         disk_driver.attrib["queues"] = str(queues)
