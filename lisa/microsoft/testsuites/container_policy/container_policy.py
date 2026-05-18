@@ -44,11 +44,11 @@ from lisa.util import LisaException, constants
 
 # Percentage tolerance for memory comparison. Hypervisor / firmware
 # reserve a portion of RAM that is not visible to the OS.
-_MEMORY_TOLERANCE_PERCENT = 2
+_MEMORY_TOLERANCE_PERCENT = 1
 
 # Percentage tolerance for resource disk size comparison. Filesystem
 # and partition overhead make the visible size slightly smaller.
-_RESOURCE_DISK_SIZE_TOLERANCE_PERCENT = 5
+_RESOURCE_DISK_SIZE_TOLERANCE_PERCENT = 2
 
 # Percentage tolerance for IOPS / throughput comparisons.
 _PERF_TOLERANCE_PERCENT = 7
@@ -160,7 +160,7 @@ def _expected_max_data_disk_count(node: Node) -> int:
 
 
 @TestSuiteMetadata(
-    area="vm_spec_validation",
+    area="container_policy",
     category="functional",
     description="""
     Validates that a provisioned Azure VM matches the hardware
@@ -169,8 +169,9 @@ def _expected_max_data_disk_count(node: Node) -> int:
     disks, local NVMe disks, and disk IOPS / throughput.
 
     Expected values are read directly from the platform's capability
-    map at runtime; no runbook variables or CSV files are required.
+    map at runtime; no runbook variables are required.
     """,
+    requirement=simple_requirement(supported_platform_type=[AZURE]),
 )
 class ContainerPolicyTests(TestSuite):
     """Validate VM hardware against the Azure container policy."""
