@@ -40,6 +40,7 @@ class SourceInstallerSchema(BaseInstallerSchema):
     ref: str = ""
     auth_token: str = ""
     igvm_repo: str = ""
+    patch_ch_disk_image_type: bool = False
 
 
 @dataclass_json
@@ -386,12 +387,77 @@ class LibvirtSourceInstaller(LibvirtInstaller):
         result = self._node.execute("pip3 install meson", shell=True, sudo=True)
         assert not result.exit_code, "Failed to install meson"
 
+    def _patch_ch_disk_image_type(self, code_path: PurePath) -> None:
+        self._log.info(
+            "Patching Cloud Hypervisor libvirt driver to forward disk image_type."
+        )
+        patch_script = r"""
+from pathlib import Path
+
+path = Path("src/ch/ch_monitor.c")
+text = path.read_text()
+
+include_anchor = '#include "virpidfile.h"\n'
+include_patch = include_anchor + '#include "virstoragefile.h"\n'
+if '#include "virstoragefile.h"\n' not in text:
+    text = text.replace(include_anchor, include_patch)
+
+old = '''        if (diskdef->src->readonly) {
+            if (virJSONValueObjectAppendBoolean(disk, "readonly", true) < 0)
+                goto cleanup;
+        }
+        if (virJSONValueArrayAppend(disks, disk) < 0)
+            goto cleanup;
+'''
+new = '''        if (diskdef->src->readonly) {
+            if (virJSONValueObjectAppendBoolean(disk, "readonly", true) < 0)
+                goto cleanup;
+        }
+        switch (diskdef->src->format) {
+        case VIR_STORAGE_FILE_RAW:
+            if (virJSONValueObjectAppendString(disk, "image_type", "raw") < 0)
+                goto cleanup;
+            break;
+        case VIR_STORAGE_FILE_QCOW2:
+            if (virJSONValueObjectAppendString(disk, "image_type", "qcow2") < 0)
+                goto cleanup;
+            break;
+        case VIR_STORAGE_FILE_VHD:
+            if (virJSONValueObjectAppendString(disk, "image_type", "vhd") < 0)
+                goto cleanup;
+            break;
+        default:
+            break;
+        }
+        if (virJSONValueArrayAppend(disks, disk) < 0)
+            goto cleanup;
+'''
+if new not in text:
+    if old not in text:
+        raise RuntimeError("Cloud Hypervisor libvirt disk JSON block was not found")
+    text = text.replace(old, new)
+
+path.write_text(text)
+print("CH libvirt disk image_type patch applied")
+"""
+        self._node.execute(
+            f"python3 - <<'PY'\n{patch_script}\nPY",
+            cwd=code_path,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to patch Cloud Hypervisor libvirt disk image_type handling."
+            ),
+        )
+
     def install(self) -> str:
         runbook: SourceInstallerSchema = self.runbook
         self._log.info("Installing dependencies for Libvirt...")
         self._install_dependencies()
         self._log.info("Cloning source code of Libvirt...")
         code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
+        if runbook.patch_ch_disk_image_type:
+            self._patch_ch_disk_image_type(code_path)
         self._log.info("Building source code of Libvirt...")
         self._build_and_install(code_path)
         return self._get_version()
