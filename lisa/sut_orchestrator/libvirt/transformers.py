@@ -665,6 +665,11 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
         log=log,
     )
     force_install = getattr(runbook, "force_install", False)
+    if getattr(runbook, "patch_ch_disk_image_type", False) and not force_install:
+        force_install = True
+        log.info(
+            "Forcing libvirt source reinstall so CH disk image_type patch is applied."
+        )
     log.debug(f"libvirt force installation set to: {force_install}")
     if not libvirt_installer._is_installed() or force_install:
         libvirt_installer.validate()
