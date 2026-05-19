@@ -19,6 +19,19 @@ class NFSServer(Tool):
     def can_install(self) -> bool:
         return True
 
+    def _get_suse_service_name(self) -> str:
+        # SLES 15 and older expose the NFS server as ``nfsserver.service``.
+        # SLES 16 has switched to the upstream ``nfs-server.service`` unit
+        # name and the legacy alias is no longer shipped. Probe which one
+        # actually exists so the tool keeps working on both.
+        service = self.node.tools[Service]
+        for name in ("nfs-server", "nfsserver"):
+            if service.check_service_exists(name):
+                return name
+        # Fall back to the upstream name; restart will surface a clear
+        # ``Unit nfs-server.service not found`` error if NFS is missing.
+        return "nfs-server"
+
     def create_shared_dir(self, client_ips: List[str], dir_name: str) -> None:
         # create directory to share
         self.node.execute(f"chmod -R a+rwX {dir_name}", sudo=True)
@@ -51,7 +64,7 @@ class NFSServer(Tool):
             )
         elif isinstance(self.node.os, Suse):
             self.node.tools[Service].restart_service(
-                "nfsserver",
+                self._get_suse_service_name(),
             )
         else:
             raise UnsupportedDistroException(self.node.os)
@@ -63,7 +76,7 @@ class NFSServer(Tool):
         elif isinstance(self.node.os, Debian):
             return service.check_service_exists("nfs-kernel-server")
         elif isinstance(self.node.os, Suse):
-            return service.check_service_exists("nfsserver")
+            return service.check_service_exists(self._get_suse_service_name())
         else:
             raise UnsupportedDistroException(self.node.os)
 
@@ -74,7 +87,7 @@ class NFSServer(Tool):
         elif isinstance(self.node.os, Debian):
             service.stop_service("nfs-kernel-server")
         elif isinstance(self.node.os, Suse):
-            service.stop_service("nfsserver")
+            service.stop_service(self._get_suse_service_name())
         else:
             raise UnsupportedDistroException(self.node.os)
 
@@ -96,6 +109,8 @@ class NFSServer(Tool):
         elif isinstance(self.node.os, Debian):
             return self.node.tools[Service].check_service_exists("nfs-kernel-server")
         elif isinstance(self.node.os, Suse):
-            return self.node.tools[Service].check_service_exists("nfs-server")
+            return self.node.tools[Service].check_service_exists(
+                self._get_suse_service_name()
+            )
         else:
             raise UnsupportedDistroException(self.node.os)
