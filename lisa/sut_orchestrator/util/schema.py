@@ -15,6 +15,7 @@ class CloudInitSchema:
 class HostDevicePoolType(Enum):
     PCI_NIC = "pci_net"
     PCI_GPU = "pci_gpu"
+    PCI_NVME = "pci_nvme"
 
 
 @dataclass_json()
