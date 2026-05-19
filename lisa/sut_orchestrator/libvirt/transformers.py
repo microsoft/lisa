@@ -373,7 +373,7 @@ class LibvirtSourceInstaller(LibvirtInstaller):
             "-D driver_vmware=disabled  -D driver_lxc=disabled \\"
             "-D driver_libxl=disabled -D driver_vbox=disabled \\"
             "-D selinux=disabled -D system=true --prefix=/usr \\"
-            "-D git_werror=disabled",
+            "--libdir=lib64 -D git_werror=disabled",
             cwd=code_path,
             shell=True,
             sudo=True,
