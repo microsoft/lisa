@@ -352,6 +352,22 @@ class LibvirtSourceInstaller(LibvirtInstaller):
 
     def _build_and_install(self, code_path: PurePath) -> None:
         self._node.execute(
+            "python3 - <<'PY'\n"
+            "from pathlib import Path\n"
+            "path = Path('meson.build')\n"
+            "text = path.read_text()\n"
+            "text = text.replace(\"subdir('docs')\", \"# subdir('docs')\")\n"
+            "path.write_text(text)\n"
+            "print('Libvirt docs build disabled')\n"
+            "PY",
+            cwd=code_path,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to disable libvirt docs build."
+            ),
+        )
+        self._node.execute(
             "meson build -D driver_ch=enabled -D driver_qemu=disabled \\"
             "-D driver_openvz=disabled -D driver_esx=disabled \\"
             "-D driver_vmware=disabled  -D driver_lxc=disabled \\"
