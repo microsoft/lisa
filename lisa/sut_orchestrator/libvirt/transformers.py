@@ -429,6 +429,49 @@ include_patch = include_anchor + '#include "virstoragefile.h"\n'
 if '#include "virstoragefile.h"\n' not in text:
     text = text.replace(include_anchor, include_patch)
 
+pty_start = text.index('    virJSONValuePtr ptyc = virJSONValueNewObject();')
+pty_marker = '    if (virJSONValueObjectAppend(content, "console", ptyc) < 0)'
+pty_end = text.index(pty_marker, pty_start)
+pty_patch = '''    virJSONValuePtr ptyc = virJSONValueNewObject();
+    virJSONValuePtr ptys = virJSONValueNewObject();
+    bool hasConsolePty = vmdef->nconsoles &&
+        vmdef->consoles[0]->source->type == VIR_DOMAIN_CHR_TYPE_PTY;
+    bool hasSerialPty = vmdef->nserials &&
+        vmdef->serials[0]->source->type == VIR_DOMAIN_CHR_TYPE_PTY;
+
+    if (vmdef->nconsoles > 1) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Only a single console can be configured for this domain"));
+        return -1;
+    } else if (vmdef->nserials > 1) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Only a single serial can be configured for this domain"));
+        return -1;
+    }
+
+    if (hasConsolePty && hasSerialPty)
+        hasConsolePty = false;
+
+    if (hasConsolePty) {
+        if (virJSONValueObjectAppendString(ptyc, "mode", "Pty") < 0)
+            goto cleanup;
+    } else {
+        if (virJSONValueObjectAppendString(ptyc, "mode", "Null") < 0)
+            goto cleanup;
+    }
+
+    if (hasSerialPty) {
+        if (virJSONValueObjectAppendString(ptys, "mode", "Pty") < 0)
+            goto cleanup;
+    } else {
+        if (virJSONValueObjectAppendString(ptys, "mode", "Null") < 0)
+            goto cleanup;
+    }
+
+'''
+if "hasConsolePty" not in text:
+    text = text[:pty_start] + pty_patch + text[pty_end:]
+
 old = '''        if (diskdef->src->readonly) {
             if (virJSONValueObjectAppendBoolean(disk, "readonly", true) < 0)
                 goto cleanup;
@@ -442,15 +485,15 @@ new = '''        if (diskdef->src->readonly) {
         }
         switch (diskdef->src->format) {
         case VIR_STORAGE_FILE_RAW:
-            if (virJSONValueObjectAppendString(disk, "image_type", "raw") < 0)
+            if (virJSONValueObjectAppendString(disk, "image_type", "Raw") < 0)
                 goto cleanup;
             break;
         case VIR_STORAGE_FILE_QCOW2:
-            if (virJSONValueObjectAppendString(disk, "image_type", "qcow2") < 0)
+            if (virJSONValueObjectAppendString(disk, "image_type", "Qcow2") < 0)
                 goto cleanup;
             break;
         case VIR_STORAGE_FILE_VHD:
-            if (virJSONValueObjectAppendString(disk, "image_type", "vhd") < 0)
+            if (virJSONValueObjectAppendString(disk, "image_type", "FixedVhd") < 0)
                 goto cleanup;
             break;
         default:
