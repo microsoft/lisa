@@ -41,6 +41,7 @@ from .schema import (
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
 )
+from .serial_console import SerialConsole
 from .start_stop import StartStop
 
 # Allow slower guest boot and reconnect paths on loaded L1 hosts.
@@ -51,6 +52,7 @@ OPENVMM_IP_DISCOVERY_TIMEOUT = 300
 OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 OPENVMM_DNS_SERVER_PORT = 53
+OPENVMM_GIBIBYTE = 1 << 30
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -174,7 +176,7 @@ class OpenVmmController:
 
     @classmethod
     def supported_features(cls) -> List[Type[Any]]:
-        return [StartStop]
+        return [StartStop, SerialConsole]
 
     def resolve_guest_artifact_path(
         self, source_path: str, is_remote_path: bool, working_path: PurePath
@@ -1202,6 +1204,36 @@ class OpenVmmController:
         node_context.cloud_init_file_path = ""
         node_context.console_log_file_path = ""
         node_context.launcher_log_file_path = ""
+
+    def ensure_minimum_raw_disk_size(
+        self, disk_image_path: str, minimum_size_gb: int
+    ) -> None:
+        """
+        Ensure a .raw OpenVMM guest disk image is at least the requested size.
+
+        Args:
+            disk_image_path: Path to the guest disk image on the OpenVMM host.
+            minimum_size_gb: Minimum image size, in GiB.
+        """
+        if not disk_image_path.lower().endswith(".raw"):
+            return
+
+        minimum_size_bytes = minimum_size_gb * OPENVMM_GIBIBYTE
+        self.host_node.execute(
+            (
+                f"current_size=$(stat -c %s {shlex.quote(disk_image_path)}) && "
+                f'if [ "$current_size" -lt {minimum_size_bytes} ]; then '
+                f"truncate -s {minimum_size_gb}G {shlex.quote(disk_image_path)}; "
+                "fi"
+            ),
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to ensure minimum OpenVMM raw disk size for "
+                f"'{disk_image_path}'"
+            ),
+        )
 
     def _get_host_public_address(self) -> str:
         if self.host_node.is_remote:
