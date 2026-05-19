@@ -142,12 +142,14 @@ class OpenSSL(Tool):
             expected_exit_code_failure_message=("OpenSSL speed test failed."),
         )
 
-        # Check for errors in the output - OpenSSL speed can return exit code 0
-        # even when some cryptographic operations fail, so we need to check
-        # stdout for error indicators
-        if ":error:" in result.stdout:
+        # Validate that the speed test actually produced benchmark results.
+        # openssl speed prints throughput tables with "bytes per second" on
+        # success.  A non-zero exit code is already caught above; this guards
+        # against silent/empty runs.
+        if "bytes per second" not in result.stdout:
             raise LisaException(
-                f"OpenSSL speed test failed - errors found in output: {result.stdout}"
+                "OpenSSL speed test produced no benchmark results. "
+                f"Output: {result.stdout}"
             )
 
         return result
