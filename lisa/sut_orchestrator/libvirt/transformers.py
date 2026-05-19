@@ -387,6 +387,17 @@ class LibvirtSourceInstaller(LibvirtInstaller):
             expected_exit_code_failure_message="'ninja -C build' command failed.",
         )
         self._node.execute(
+            "find /usr/lib64 /usr/lib -maxdepth 1 -type f "
+            "-name 'libvirt*.so.0.*' -delete",
+            shell=True,
+            sudo=True,
+            cwd=code_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to remove stale libvirt shared libraries."
+            ),
+        )
+        self._node.execute(
             "ninja -C build install",
             shell=True,
             sudo=True,
