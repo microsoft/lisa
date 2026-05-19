@@ -417,7 +417,12 @@ class BmiDeployer:
             "internalSubnetPrefix": {"value": self._runbook.internal_subnet_prefix},
             "natPortStart": {"value": self._runbook.nat_port_start},
             "sourceAddressPrefixes": {
-                "value": self._runbook.nsg_source_address_prefixes
+                "value": [
+                    p.strip()
+                    for p in self._runbook.nsg_source_address_prefixes.split(",")
+                    if p.strip()
+                ]
+                or ["*"]
             },
             "bmiVmSize": {"value": self._runbook.bmi_vm_size},
             "bmiImageId": {"value": self._runbook.bmi_image_sig},
