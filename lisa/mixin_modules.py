@@ -20,6 +20,14 @@ import lisa.notifiers.text_result  # noqa: F401
 import lisa.runners.lisa_runner  # noqa: F401
 import lisa.sut_orchestrator.ready  # noqa: F401
 
+# BMI (Azure bare-metal instance) platform. Optional: depends on azure-mgmt-*
+# and paramiko. Imported lazily so a missing azure SDK does not break LISA
+# for users that only run other platforms.
+try:
+    import lisa.sut_orchestrator.bmi.platform_  # noqa: F401
+except ModuleNotFoundError as e:
+    print(f"bmi package is not installed. [{e}]")
+
 try:
     import lisa.notifiers.html  # noqa: F401
 except ModuleNotFoundError as e:
