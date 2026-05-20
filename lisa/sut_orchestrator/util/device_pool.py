@@ -15,7 +15,7 @@ class BaseDevicePool:
     def __init__(self) -> None:
         self.supported_pool_type: List[Any] = []
 
-    def create_device_pool(
+    def create_device_pool_from_vendor_device_id(
         self,
         pool_type: HostDevicePoolType,
         vendor_id: str,
@@ -137,7 +137,7 @@ class BaseDevicePool:
         if not device_id:
             raise LisaException("Device pool configuration has empty 'device_id'")
 
-        self.create_device_pool(
+        self.create_device_pool_from_vendor_device_id(
             pool_type=config.type,
             vendor_id=vendor_id,
             device_id=device_id,
