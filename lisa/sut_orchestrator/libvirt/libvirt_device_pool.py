@@ -67,6 +67,16 @@ class LibvirtDevicePool(BaseDevicePool):
         if not allow_unsafe_interrupt:
             raise LisaException("Allowing unsafe interrupt failed")
 
+        # Dump the initialized pool to ease debugging of passthrough issues.
+        pool_summary = {
+            pool_type.value: {
+                iommu_grp: [self._get_pci_address_str(d) for d in devices]
+                for iommu_grp, devices in groups.items()
+            }
+            for pool_type, groups in self.available_host_devices.items()
+        }
+        self.host_node.log.debug(f"Initialized device passthrough pool: {pool_summary}")
+
     def request_devices(
         self,
         pool_type: HostDevicePoolType,
