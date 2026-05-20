@@ -207,7 +207,23 @@ class LibvirtDevicePool(BaseDevicePool):
             vendor_id=vendor_id,
             device_id=device_id,
         )
-        bdf_list = [i.slot for i in device_list]
+        if not device_list:
+            raise LisaException(
+                f"Vendor:device '{vendor_id}:{device_id}' matched no PCI "
+                f"device on the host."
+            )
+
+        # Reject devices whose PCI class does not match the declared pool
+        # type, so a misconfigured runbook fails here instead of at VM boot.
+        device_bdfs = self._get_pci_bdfs_for_pool_type(pool_type)
+        mismatched = [d.slot for d in device_list if d.slot not in device_bdfs]
+        if mismatched:
+            raise LisaException(
+                f"Vendor:device '{vendor_id}:{device_id}' matched {mismatched} "
+                f"but their PCI class is not '{pool_type.value}'."
+            )
+
+        bdf_list = [d.slot for d in device_list]
         self._create_pool(pool_type, bdf_list)
 
     def create_device_pool_from_pci_addresses(
@@ -288,7 +304,14 @@ class LibvirtDevicePool(BaseDevicePool):
         ]
 
         if requested_bdf in available_iommu_devices:
-            return requested_bdf
+            # Ensure the requested BDF's PCI class matches the pool type.
+            device_bdfs = self._get_pci_bdfs_for_pool_type(pool_type)
+            if requested_bdf in device_bdfs:
+                return requested_bdf
+            raise LisaException(
+                f"PCI '{requested_bdf}' exists but is not of class "
+                f"'{pool_type.value}'"
+            )
 
         if passthrough_candidates is None:
             passthrough_candidates = self._get_passthrough_device_candidates(
@@ -361,29 +384,38 @@ class LibvirtDevicePool(BaseDevicePool):
             excluded.append(nvme_iommu)
         return excluded
 
+    def _get_pci_bdfs_for_pool_type(
+        self,
+        pool_type: HostDevicePoolType,
+    ) -> List[str]:
+        lspci = self.host_node.tools[Lspci]
+        if pool_type == HostDevicePoolType.PCI_NIC:
+            devices = lspci.get_devices_by_type(
+                constants.DEVICE_TYPE_SRIOV, force_run=True
+            )
+        elif pool_type == HostDevicePoolType.PCI_GPU:
+            devices = lspci.get_gpu_devices(force_run=True)
+        elif pool_type == HostDevicePoolType.PCI_NVME:
+            devices = lspci.get_devices_by_type(
+                constants.DEVICE_TYPE_NVME, force_run=True
+            )
+        else:
+            return []
+        return [d.slot for d in devices]
+
     def _get_passthrough_device_candidates(
         self,
         pool_type: HostDevicePoolType,
         iommu_device_paths: Optional[List[str]] = None,
     ) -> List[str]:
-        lspci = self.host_node.tools[Lspci]
-        if pool_type == HostDevicePoolType.PCI_NIC:
-            pool_devices = lspci.get_devices_by_type(
-                constants.DEVICE_TYPE_SRIOV, force_run=True
-            )
-        elif pool_type == HostDevicePoolType.PCI_GPU:
-            pool_devices = lspci.get_gpu_devices(force_run=True)
-        elif pool_type == HostDevicePoolType.PCI_NVME:
-            pool_devices = lspci.get_devices_by_type(
-                constants.DEVICE_TYPE_NVME, force_run=True
-            )
-        else:
+        device_bdfs = self._get_pci_bdfs_for_pool_type(pool_type)
+        if not device_bdfs:
             return []
 
         excluded_iommu = self._get_iommu_groups_to_exclude()
         candidates: List[str] = []
-        for pool_device in pool_devices:
-            domain, bus, slot, fn = self._parse_pci_address_str(pool_device.slot)
+        for bdf in device_bdfs:
+            domain, bus, slot, fn = self._parse_pci_address_str(bdf)
             device = self._get_pci_address_instance(domain, bus, slot, fn)
             try:
                 iommu_group = self._get_device_iommu_group(device, iommu_device_paths)
@@ -393,7 +425,7 @@ class LibvirtDevicePool(BaseDevicePool):
             if iommu_group in excluded_iommu:
                 continue
 
-            candidates.append(pool_device.slot)
+            candidates.append(bdf)
 
         return candidates
 
