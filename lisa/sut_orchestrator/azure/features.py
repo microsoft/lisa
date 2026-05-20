@@ -3600,7 +3600,9 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
-        if hasattr(self._node, "os"):
+        # Waagent is a Linux-only tool; skip on Windows nodes since the Windows
+        # guest agent enables extensions by default and exposes no equivalent CLI.
+        if hasattr(self._node, "os") and self._node.os.is_posix:
             self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 
