@@ -452,11 +452,42 @@ class LibvirtDevicePool(BaseDevicePool):
                 self.available_host_devices[pool_type].pop(iommu_group, None)
                 iommu_grp_of_used_devices.append(iommu_group)
             elif iommu_group not in excluded_iommu:
+                if (
+                    pool_type == HostDevicePoolType.PCI_NIC
+                    and not self._is_nic_cable_connected(bdf)
+                ):
+                    # Skip NICs without a cable: passing them through would
+                    # give the guest an unusable link.
+                    self.host_node.log.debug(f"Skipping NIC {bdf}: no cable connected.")
+                    continue
                 devices = self.available_host_devices[pool_type].setdefault(
                     iommu_group, []
                 )
                 if dev not in devices:
                     devices.append(dev)
+
+    def _is_nic_cable_connected(self, bdf: str) -> bool:
+        # True if any iface bound to this NIC reports carrier=1.
+        ls = self.host_node.tools[Ls]
+        net_dir = f"/sys/bus/pci/devices/{bdf}/net"
+        if not ls.path_exists(net_dir, sudo=True):
+            return False
+        ifaces = [
+            PurePosixPath(p.strip()).name
+            for p in ls.list(net_dir, sudo=True)
+            if p.strip()
+        ]
+        for iface in ifaces:
+            result = self.host_node.execute(
+                f"cat /sys/class/net/{iface}/carrier",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip() == "1":
+                return True
+        return False
 
     def _get_pci_address_instance(
         self,
