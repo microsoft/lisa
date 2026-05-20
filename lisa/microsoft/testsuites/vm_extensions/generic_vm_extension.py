@@ -37,7 +37,12 @@ class GenericVmExtension(TestSuite):
           - extension_version    (e.g. "1.0")
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension],
+            # Empty unsupported_os overrides the default `[Windows]`, allowing
+            # both Linux/Posix and Windows nodes to run this test.
+            unsupported_os=[],
+        ),
     )
     def verify_vm_extension_install_uninstall(
         self,
