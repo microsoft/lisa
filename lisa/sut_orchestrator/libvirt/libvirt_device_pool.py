@@ -195,7 +195,7 @@ class LibvirtDevicePool(BaseDevicePool):
         )
         self._create_pool(pool_type, candidates)
 
-    def create_device_pool(
+    def create_device_pool_from_vendor_device_id(
         self,
         pool_type: HostDevicePoolType,
         vendor_id: str,
