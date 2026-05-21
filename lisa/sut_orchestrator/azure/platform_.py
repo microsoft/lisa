@@ -3119,6 +3119,7 @@ class AzurePlatform(Platform):
         # capabilities.
         available_candidates: List[Any] = []
         awaitable_candidates: List[Any] = []
+        all_zero_quota_sizes: List[str] = []
 
         # get allowed vm sizes. Either it's from the runbook defined, or
         # from subscription supported.
@@ -3136,7 +3137,9 @@ class AzurePlatform(Platform):
             (
                 available_capabilities,
                 awaitable_capabilities,
+                req_zero_quota_sizes,
             ) = self._get_available_azure_capabilities(candidate_caps, log)
+            all_zero_quota_sizes.extend(req_zero_quota_sizes)
 
             # Sort available vm sizes to match. Awaitable doesn't need to be
             # sorted.
@@ -3208,6 +3211,18 @@ class AzurePlatform(Platform):
                         seen.add(r)
                         unique_reasons.append(r)
                 error = "Requirement mismatch: " + "; ".join(unique_reasons)
+            elif all_zero_quota_sizes:
+                error = (
+                    f"All {len(all_zero_quota_sizes)} candidate VM size(s) in "
+                    f"'{location}' have zero quota limit "
+                    f"(e.g. {all_zero_quota_sizes[:5]}). "
+                    f"Request quota for the required VM size family in this "
+                    f"region via the Azure portal."
+                )
+            elif error:
+                # Preserve error already set by _get_allowed_capabilities
+                # (e.g. "no vm size found in '<location>'").
+                pass
             else:
                 error = (
                     f"Test skipped on '{location}' for an unknown reason. "
@@ -3277,16 +3292,17 @@ class AzurePlatform(Platform):
 
     def _get_available_azure_capabilities(
         self, capabilities: List[AzureCapability], log: Logger
-    ) -> Tuple[List[AzureCapability], List[AzureCapability]]:
+    ) -> Tuple[List[AzureCapability], List[AzureCapability], List[str]]:
         available_capabilities: List[AzureCapability] = []
         awaitable_capabilities: List[AzureCapability] = []
+        zero_quota_sizes: List[str] = []
 
         if not capabilities:
-            return ([], [])
+            return ([], [], [])
 
         # skip because it needs call azure API.
         if is_unittest():
-            return (capabilities, [])
+            return (capabilities, [], [])
 
         # assume all vm sizes are in the same location.
         location = capabilities[0].location
@@ -3297,7 +3313,8 @@ class AzurePlatform(Platform):
             if quota:
                 remaining, limit = quota
                 if limit == 0:
-                    # no quota, doesn't need to wait
+                    # no quota allocated for this VM size family
+                    zero_quota_sizes.append(capability.vm_size)
                     continue
                 if remaining > 0:
                     available_capabilities.append(capability)
@@ -3307,7 +3324,14 @@ class AzurePlatform(Platform):
                 # not trackable vm size, assume the capability is enough.
                 available_capabilities.append(capability)
 
-        return (available_capabilities, awaitable_capabilities)
+        if zero_quota_sizes:
+            log.debug(
+                f"skipped {len(zero_quota_sizes)} VM size(s) with zero quota "
+                f"limit in '{location}': {zero_quota_sizes[:10]}"
+                f"{'...' if len(zero_quota_sizes) > 10 else ''}"
+            )
+
+        return (available_capabilities, awaitable_capabilities, zero_quota_sizes)
 
     def _check_environment_available(
         self,
