@@ -60,11 +60,11 @@ class Perf(Tool):
         if not super()._check_exists():
             return False
 
-        # Run perf to check if it exists
-        # This handles cases when perf exists, but cannot be run
-        # due to version mismatch on Debian backports
+        # Run perf to check if it exists and is functional
+        # This handles cases when perf exists in PATH but cannot be run
+        # due to version mismatch or missing kernel-specific packages
         result = self.run(force_run=True)
-        if "not found" in result.stdout:
+        if result.exit_code != 0 or "not found" in result.stdout:
             return False
 
         return True
