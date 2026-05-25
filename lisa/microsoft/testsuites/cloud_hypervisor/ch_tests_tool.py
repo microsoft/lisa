@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shlex
+import xml.etree.ElementTree as ETree  # noqa: N817
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
@@ -330,8 +331,36 @@ class CloudHypervisorTests(Tool):
         test_name: str,
     ) -> None:
         """Process test results and handle various failure scenarios."""
-        # Report subtest results and collect logs before doing any assertions.
-        results = self._extract_test_results(result.stdout, log_path, subtests)
+        # Prefer nextest JUnit output when present. If nextest was invoked
+        # but produced no JUnit output, fail with a clear diagnostic. If no
+        # JUnit and no nextest markers, fall back to the cargo stdout parser.
+        junit_files = self._collect_nextest_junit_files(log_path)
+        nextest_invoked_no_junit = not junit_files and "cargo nextest" in result.stdout
+
+        if nextest_invoked_no_junit:
+            self._save_kernel_logs(log_path)
+            self._check_test_panic_from_logs(
+                test_result=test_result,
+                content=result.stdout,
+                stage=f"{test_type} tests",
+                test_name=test_name,
+            )
+            self._handle_test_failure_with_diagnostics(
+                "cargo nextest invoked but no JUnit output produced at "
+                f"{self._get_nextest_junit_dir()}/. Check nextest config in "
+                "cloud-hypervisor repo.",
+                result,
+                test_type,
+                hypervisor,
+                log_path,
+            )
+            return  # unreachable: _handle_test_failure_with_diagnostics raises
+
+        if junit_files:
+            self._log.info(f"Parsing nextest JUnit output ({len(junit_files)} file(s))")
+            results = self._extract_test_results_from_junit(junit_files, subtests)
+        else:
+            results = self._extract_test_results(result.stdout, log_path, subtests)
         hung_tests = [r.name for r in results if r.hung]
         failures = [
             r.name
@@ -393,6 +422,17 @@ class CloudHypervisorTests(Tool):
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
+
+        # Wipe any nextest JUnit output left by a previous run on this node.
+        # The cloud-hypervisor nextest config recreates the directory as
+        # needed. This avoids stale results from a prior invocation being
+        # attributed to the current run. Tolerate non-zero exit silently
+        # since the directory may not exist on first run.
+        self.node.execute(
+            f"rm -rf {self._get_nextest_junit_dir()}",
+            shell=True,
+            no_error_log=True,
+        )
 
         try:
             result = self._run_with_enhanced_diagnostics(
@@ -1444,6 +1484,191 @@ exit $ec
             )
 
         return results
+
+    def _get_nextest_junit_dir(self) -> str:
+        """Resolve the SSH user's nextest JUnit output dir.
+
+        ``dev_cli.sh`` is invoked as the SSH user (not under sudo) and uses
+        docker, which bind-mounts the SSH user's ``$HOME/workloads`` into
+        ``/root/workloads`` inside the container. Files the container writes
+        to ``/root/workloads/junit/`` therefore appear on the host at
+        ``<ssh_user_home>/workloads/junit/``. Falls back to
+        ``/root/workloads/junit`` if ``$HOME`` cannot be resolved.
+        """
+        home_result = self.node.execute(
+            "echo $HOME",
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        home = (
+            home_result.stdout.strip().splitlines()[0].strip()
+            if home_result.stdout
+            else ""
+        )
+        if not home:
+            self._log.debug(
+                "Could not resolve $HOME for SSH user; falling back to "
+                "/root/workloads/junit for nextest output"
+            )
+            home = "/root"
+        return f"{home}/workloads/junit"
+
+    def _collect_nextest_junit_files(self, log_path: Path) -> List[Path]:
+        """Find nextest JUnit XML files on the remote node and copy them back.
+
+        The cloud-hypervisor nextest config writes per-suite JUnit XMLs
+        (e.g. common.xml, fw_cfg.xml, dbus.xml, ivshmem.xml) into
+        ``/root/workloads/junit/`` inside the dev container. ``dev_cli.sh``
+        is invoked as the SSH user (the user is in the ``docker`` group)
+        and runs the container with ``--user $(id -u):$(id -g)``, so
+        docker bind-mounts the SSH user's ``$HOME/workloads`` into the
+        container's ``/root/workloads`` and the container writes files as
+        the SSH user. The files therefore land on the host at
+        ``<ssh_user_home>/workloads/junit/`` (resolved via
+        ``_get_nextest_junit_dir``) and are readable by the SSH user
+        directly, so we can ``copy_back`` them without sudo or staging.
+
+        Returns a list of local file paths under ``log_path/junit/`` that
+        were successfully copied back. Returns an empty list when the
+        cloud-hypervisor repo has not produced any nextest JUnit output
+        (e.g. when the test run used the classic ``cargo test`` driver).
+        """
+        remote_junit_dir = self._get_nextest_junit_dir()
+        list_result = self.node.execute(
+            f"ls -1 {remote_junit_dir}/*.xml 2>/dev/null",
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        remote_files = [
+            line.strip() for line in list_result.stdout.splitlines() if line.strip()
+        ]
+        if not remote_files:
+            return []
+
+        local_junit_dir = log_path / "junit"
+        local_junit_dir.mkdir(parents=True, exist_ok=True)
+
+        local_files: List[Path] = []
+        for remote_path in remote_files:
+            basename = PurePath(remote_path).name
+            local_path = local_junit_dir / basename
+            try:
+                self.node.shell.copy_back(PurePath(remote_path), local_path)
+                local_files.append(local_path)
+            except Exception as e:
+                self._log.warning(f"Failed to copy back JUnit file {remote_path}: {e}")
+
+        self._log.info(
+            f"Collected {len(local_files)} nextest JUnit file(s) from "
+            f"{remote_junit_dir}"
+        )
+        return local_files
+
+    def _extract_test_results_from_junit(
+        self,
+        junit_files: List[Path],
+        subtests: Set[str],
+    ) -> List[CloudHypervisorTestResult]:
+        """Parse nextest JUnit XML files into per-subtest results.
+
+        Status mapping per ``<testcase>``:
+        - ``<failure>`` or ``<error>`` child element -> FAILED
+        - ``<skipped>`` child element -> SKIPPED
+        - no failure/error/skipped child -> PASSED
+
+        For tests that nextest retried (same name appears multiple times),
+        the last occurrence wins, matching nextest's final-outcome
+        reporting. Tests present in ``subtests`` but absent from every
+        JUnit file are reported as QUEUED with message
+        ``"Subtest did not start"``. Tests present in JUnit but not in the
+        expected ``subtests`` set are still surfaced as extra results so
+        no information is dropped.
+        """
+        subtest_status: Dict[str, TestStatus] = {t: TestStatus.QUEUED for t in subtests}
+        subtest_messages: Dict[str, str] = {}
+        extra_results: List[CloudHypervisorTestResult] = []
+
+        for junit_file in junit_files:
+            try:
+                tree = ETree.parse(junit_file)
+            except ETree.ParseError as e:
+                self._log.warning(
+                    f"Failed to parse JUnit file {junit_file}: {e}; skipping"
+                )
+                continue
+
+            root = tree.getroot()
+            for testcase in root.iter("testcase"):
+                raw_name = testcase.attrib.get("name", "").strip()
+                if not raw_name:
+                    continue
+                name = raw_name.lower()
+
+                failure_el = testcase.find("failure")
+                error_el = testcase.find("error")
+                skipped_el = testcase.find("skipped")
+
+                if failure_el is not None or error_el is not None:
+                    status = TestStatus.FAILED
+                    detail_el = failure_el if failure_el is not None else error_el
+                    message = self._extract_junit_detail_text(detail_el)
+                elif skipped_el is not None:
+                    status = TestStatus.SKIPPED
+                    message = self._extract_junit_detail_text(skipped_el)
+                else:
+                    status = TestStatus.PASSED
+                    message = ""
+
+                if name in subtest_status:
+                    subtest_status[name] = status
+                    if message:
+                        subtest_messages[name] = message
+                    else:
+                        # Clear any prior message when a retry passes.
+                        subtest_messages.pop(name, None)
+                else:
+                    extra_results.append(
+                        CloudHypervisorTestResult(
+                            name=name,
+                            status=status,
+                            message=message,
+                        )
+                    )
+
+        results: List[CloudHypervisorTestResult] = []
+        for subtest in subtests:
+            status = subtest_status[subtest]
+            if status == TestStatus.QUEUED:
+                message = "Subtest did not start"
+            else:
+                message = subtest_messages.get(subtest, "")
+            results.append(
+                CloudHypervisorTestResult(
+                    name=subtest,
+                    status=status,
+                    message=message,
+                )
+            )
+        results.extend(extra_results)
+        return results
+
+    def _extract_junit_detail_text(self, element: Optional[ETree.Element]) -> str:
+        """Extract a concise human-readable message from a JUnit
+        failure/error/skipped child element. Prefers the ``message``
+        attribute; falls back to element text. Truncated to keep the
+        downstream subtest result message readable.
+        """
+        if element is None:
+            return ""
+        message = element.attrib.get("message", "").strip()
+        if not message and element.text:
+            message = element.text.strip()
+        max_len = 500
+        if len(message) > max_len:
+            message = message[:max_len] + "..."
+        return message
 
     def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
         tests_list = []
