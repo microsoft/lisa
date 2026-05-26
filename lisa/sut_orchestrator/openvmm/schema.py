@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import ipaddress
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -21,6 +22,11 @@ OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
+# Keep raw disk growth opt-in so existing OpenVMM runbooks don't mutate
+# user-supplied images unless they explicitly request it.
+OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB = 0
+OPENVMM_MAX_INTERFACE_NAME_LENGTH = 15
+OPENVMM_INTERFACE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 @dataclass_json()
@@ -112,6 +118,27 @@ class OpenVmmNetworkSchema:
                 "Use an interface CIDR like '10.0.0.1/24'."
             ) from identifier
 
+    def _validate_interface_name(self, field_name: str, value: str) -> None:
+        if len(value) > OPENVMM_MAX_INTERFACE_NAME_LENGTH:
+            raise LisaException(
+                f"{field_name} '{value}' is invalid for OpenVMM tap networking. "
+                f"Use 1-{OPENVMM_MAX_INTERFACE_NAME_LENGTH} characters."
+            )
+        if not OPENVMM_INTERFACE_NAME_PATTERN.fullmatch(value):
+            raise LisaException(
+                f"{field_name} '{value}' is invalid for OpenVMM tap networking. "
+                "Use only letters, digits, '_', '-', or '.'."
+            )
+
+    def validate_tap_interface_names(self) -> None:
+        if self.mode != OPENVMM_NETWORK_MODE_TAP:
+            return
+        if not self.tap_name:
+            raise LisaException("tap_name is required when network mode is 'tap'")
+        self._validate_interface_name("tap_name", self.tap_name)
+        if self.bridge_name:
+            self._validate_interface_name("bridge_name", self.bridge_name)
+
     def __post_init__(self) -> None:
         if self.mode not in [
             OPENVMM_NETWORK_MODE_USER,
@@ -122,9 +149,9 @@ class OpenVmmNetworkSchema:
                 f"Supported values: {OPENVMM_NETWORK_MODE_USER}, "
                 f"{OPENVMM_NETWORK_MODE_TAP}"
             )
-        if self.mode == OPENVMM_NETWORK_MODE_TAP and not self.tap_name:
-            raise LisaException("tap_name is required when network mode is 'tap'")
-        self._validate_tap_host_cidr()
+        if self.mode == OPENVMM_NETWORK_MODE_TAP:
+            self.validate_tap_interface_names()
+            self._validate_tap_host_cidr()
         if self.address_mode not in [
             OPENVMM_ADDRESS_MODE_DISCOVER,
             OPENVMM_ADDRESS_MODE_STATIC,
@@ -188,6 +215,13 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     uefi: Optional[OpenVmmUefiSchema] = None
     disk_img: str = ""
     disk_img_is_remote_path: bool = False
+    min_raw_disk_size_gb: int = field(
+        default=OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB,
+        metadata=schema.field_metadata(
+            field_function=schema.fields.Int,
+            validate=schema.validate.Range(min=0),
+        ),
+    )
     openvmm_binary: str = "/usr/local/bin/openvmm"
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)

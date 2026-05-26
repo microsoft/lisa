@@ -8,6 +8,8 @@ from typing import Any, Tuple, cast
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+import yaml
+
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
 from lisa.sut_orchestrator.openvmm.context import NodeContext
@@ -261,6 +263,30 @@ class OpenVmmNodeTestCase(TestCase):
             no_debug_log=True,
         )
 
+    def test_tap_network_rejects_invalid_interface_names(self) -> None:
+        valid_network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap_0-1",
+            bridge_name="br-test.0",
+        )
+        self.assertEqual("tap_0-1", valid_network.tap_name)
+        self.assertEqual("br-test.0", valid_network.bridge_name)
+
+        invalid_networks = [
+            cast(Any, {"tap_name": "tap 0"}),
+            cast(Any, {"tap_name": "tap:1"}),
+            cast(Any, {"tap_name": "tap0", "bridge_name": "br!dge0"}),
+        ]
+
+        for invalid_network in invalid_networks:
+            with self.subTest(invalid_network=invalid_network), self.assertRaises(
+                LisaException
+            ):
+                OpenVmmNetworkSchema(
+                    mode=OPENVMM_NETWORK_MODE_TAP,
+                    **invalid_network,
+                )
+
     def test_enable_ssh_forwarding_allows_openvmm_guest_subnet_routing(
         self,
     ) -> None:
@@ -297,10 +323,76 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
+                f"iptables -C FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -C FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
                 f"iptables -D FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
                 for command in commands
             )
         )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertFalse(
+            any(
+                f"iptables -C FORWARD -i {bridge_name} -j ACCEPT" in command
+                for command in commands
+            )
+        )
+
+    def test_create_node_cloud_init_iso_skips_root_resize_for_non_raw_disk(
+        self,
+    ) -> None:
+        controller, shell_copy, _, _ = self._create_controller()
+        node = SimpleNamespace(
+            runbook=OpenVmmGuestNodeSchema(
+                uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+                disk_img="/tmp/guest.vhd",
+                cloud_init=cast(
+                    Any, SimpleNamespace(extra_user_data=[{"runcmd": ["true"]}])
+                ),
+                network=OpenVmmNetworkSchema(connection_address="127.0.0.1"),
+            ),
+        )
+        node_context = NodeContext(
+            vm_name="g0",
+            disk_img_path="/var/tmp/guest.vhd",
+            cloud_init_file_path="/var/tmp/cloud-init.iso",
+        )
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=node_context,
+        ), patch.object(controller, "_create_iso") as create_iso:
+            controller.create_node_cloud_init_iso(cast(Any, node))
+
+        iso_files = create_iso.call_args.args[1]
+        user_data_file_contents = iso_files[0][1]
+        cloud_config = user_data_file_contents.split("\n", 1)[1]
+        user_data = yaml.safe_load(cloud_config)
+        self.assertNotIn("growpart", user_data)
+        self.assertNotIn("resize_rootfs", user_data)
+        shell_copy.assert_called_once()
 
     def test_ensure_minimum_raw_disk_size_grows_raw_image(self) -> None:
         controller, _, _, _ = self._create_controller()
@@ -309,8 +401,8 @@ class OpenVmmNodeTestCase(TestCase):
 
         execute = cast(MagicMock, controller.host_node.execute)
         command = execute.call_args.args[0]
-        self.assertIn("stat -c %s /var/tmp/guest.raw", command)
-        self.assertIn("truncate -s 16G /var/tmp/guest.raw", command)
+        self.assertIn("stat -c %s -- /var/tmp/guest.raw", command)
+        self.assertIn("truncate -s 16G -- /var/tmp/guest.raw", command)
 
     def test_ensure_minimum_raw_disk_size_skips_non_raw_image(self) -> None:
         controller, _, _, _ = self._create_controller()
@@ -356,3 +448,4 @@ class OpenVmmNodeTestCase(TestCase):
         host_node.tools[Mkdir].create_directory.assert_called_once_with(
             "/var/tmp/host-g0"
         )
+        controller.ensure_minimum_raw_disk_size.assert_not_called()
