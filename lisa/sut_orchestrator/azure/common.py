@@ -2432,8 +2432,12 @@ def save_console_log(
                     resource_group_name=resource_group_name, vm_name=vm_name
                 )
             )
-        except ResourceExistsError as e:
-            log.debug(f"fail to get serial console log. {e}")
+        except Exception as ex:
+            # Broad except: boot diagnostics can fail transiently with
+            # HttpResponseError (e.g. ARM 503), ResourceNotFoundError, etc.
+            # Any such failure must not mask the caller's original deployment
+            # exception when this is invoked from a failure-handling path.
+            log.debug(f"fail to get serial console log. {ex}")
             return b""
     if saved_path:
         screenshot_raw_name = saved_path / f"{screenshot_file_name}.bmp"
