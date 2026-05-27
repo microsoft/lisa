@@ -148,3 +148,5 @@ class KernelSchema:
 class CloudHypervisorNodeSchema(BaseLibvirtNodeSchema):
     # Local or remote path to the cloud-hypervisor kernel.
     kernel: Optional[KernelSchema] = None
+    # Optional extra kernel boot parameters for the guest.
+    kernel_boot_parameters: str = ""

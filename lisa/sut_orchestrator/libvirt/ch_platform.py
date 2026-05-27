@@ -73,6 +73,9 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
         else:
             node_context.kernel_path = node_runbook.kernel.path
+        node_context.guest_kernel_boot_parameters = (
+            node_runbook.kernel_boot_parameters.strip()
+        )
         libvirt_version = self._get_libvirt_version()
         assert libvirt_version, "Can not get libvirt version"
 
@@ -153,8 +156,13 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         # - console=ttyS0,115200  : log to the ISA UART
         # - ignore_loglevel       : show all kernel messages
         # - printk.time=1         : add timestamps to kernel messages
+        # Additional guest kernel boot parameters can be supplied through runbook.
         os_cmdline = ET.SubElement(os, "cmdline")
         os_cmdline.text = "console=ttyS0,115200 ignore_loglevel printk.time=1"
+        if node_context.guest_kernel_boot_parameters:
+            os_cmdline.text = (
+                f"{os_cmdline.text} {node_context.guest_kernel_boot_parameters}"
+            )
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             attrb_type = "sev"
             attrb_host_data = "host_data"
