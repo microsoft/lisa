@@ -262,10 +262,15 @@ def _minimize_shell(shell: spur.ssh.SshShell) -> None:
 
 
 class SshShell(InitializableMixin):
-    def __init__(self, connection_info: schema.ConnectionInfo) -> None:
+    def __init__(
+        self,
+        connection_info: schema.ConnectionInfo,
+        proxy_jump_boxes: Optional[List[schema.ConnectionInfo]] = None,
+    ) -> None:
         super().__init__()
         self.is_remote = True
         self.connection_info = connection_info
+        self._proxy_jump_boxes = proxy_jump_boxes or []
         self._inner_shell: Optional[spur.SshShell] = None
         self._jump_boxes: List[Any] = []
         self._jump_box_sock: Any = None
@@ -279,15 +284,17 @@ class SshShell(InitializableMixin):
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        is_ready, tcp_error_code = wait_tcp_port_ready(
-            self.connection_info.address, self.connection_info.port
-        )
-        if not is_ready:
-            raise TcpConnectionException(
-                self.connection_info.address,
-                self.connection_info.port,
-                tcp_error_code,
+        jump_boxes_runbook = self._get_jump_boxes()
+        if not jump_boxes_runbook:
+            is_ready, tcp_error_code = wait_tcp_port_ready(
+                self.connection_info.address, self.connection_info.port
             )
+            if not is_ready:
+                raise TcpConnectionException(
+                    self.connection_info.address,
+                    self.connection_info.port,
+                    tcp_error_code,
+                )
 
         sock = self._establish_jump_boxes(
             address=self.connection_info.address,
@@ -679,7 +686,7 @@ class SshShell(InitializableMixin):
         return path
 
     def _establish_jump_boxes(self, address: str, port: int) -> Any:
-        jump_boxes_runbook = development.get_jump_boxes()
+        jump_boxes_runbook = self._get_jump_boxes()
         sock: Any = None
         is_trace_enabled = development.is_trace_enabled()
         if is_trace_enabled:
@@ -704,12 +711,14 @@ class SshShell(InitializableMixin):
             if index < len(jump_boxes_runbook) - 1:
                 next_hop = jump_boxes_runbook[index + 1]
                 dest_address = (
-                    next_hop.private_address
-                    if next_hop.private_address
+                    getattr(next_hop, "private_address", "")
+                    if getattr(next_hop, "private_address", "")
                     else next_hop.address
                 )
                 dest_port = (
-                    next_hop.private_port if next_hop.private_port else next_hop.port
+                    getattr(next_hop, "private_port", 0)
+                    if getattr(next_hop, "private_port", 0)
+                    else next_hop.port
                 )
             else:
                 dest_address = address
@@ -727,6 +736,9 @@ class SshShell(InitializableMixin):
             self._jump_boxes.append(client)
 
         return sock
+
+    def _get_jump_boxes(self) -> List[Any]:
+        return [*development.get_jump_boxes(), *self._proxy_jump_boxes]
 
     def _open_jump_box_channel(
         self,

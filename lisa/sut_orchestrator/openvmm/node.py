@@ -35,6 +35,7 @@ from lisa.util.shell import wait_tcp_port_ready
 from .. import OPENVMM
 from .context import NodeContext, get_host_context, get_node_context
 from .schema import (
+    OPENVMM_CONNECTION_MODE_HOST_PROXY,
     OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_NETWORK_MODE_TAP,
     OPENVMM_NETWORK_MODE_USER,
@@ -832,7 +833,18 @@ class OpenVmmController:
         port = network.ssh_port
         public_port = port
 
-        if network.forward_ssh_port:
+        proxy_jump_boxes = None
+        if network.connection_mode == OPENVMM_CONNECTION_MODE_HOST_PROXY:
+            self._wait_for_guest_ssh_from_host(
+                node_context, guest_address, network.ssh_port, log
+            )
+            if self.host_node.is_remote:
+                proxy_jump_boxes = [
+                    cast(RemoteNode, self.host_node)._connection_info
+                ]
+            public_address = guest_address
+            public_port = port
+        elif network.forward_ssh_port:
             self._enable_ssh_forwarding(node_context, guest_address, network)
             public_address = (
                 network.connection_address or self._get_host_public_address()
@@ -847,34 +859,75 @@ class OpenVmmController:
             private_key_file=runbook.private_key_file,
             port=port,
             public_port=public_port,
+            use_public_address=not proxy_jump_boxes,
+            proxy_jump_boxes=proxy_jump_boxes,
         )
-        try:
-            is_ready, error_code = wait_tcp_port_ready(
-                public_address,
-                public_port,
-                log=log,
-                timeout=OPENVMM_CONNECTION_TIMEOUT,
-            )
-        except LisaException as identifier:
+        if not proxy_jump_boxes:
+            try:
+                is_ready, error_code = wait_tcp_port_ready(
+                    public_address,
+                    public_port,
+                    log=log,
+                    timeout=OPENVMM_CONNECTION_TIMEOUT,
+                )
+            except LisaException as identifier:
+                raise LisaException(
+                    "OpenVMM guest SSH port readiness check failed for "
+                    f"{public_address}:{public_port}. "
+                    "Verify the guest is running, port forwarding or network "
+                    "configuration is correct, the SSH service is listening on the "
+                    "expected port, and review the OpenVMM guest and host logs for "
+                    "startup or networking errors. "
+                    f"{self._get_openvmm_failure_context(node_context, network)}"
+                ) from identifier
+            if not is_ready:
+                raise LisaException(
+                    "OpenVMM guest SSH port did not become reachable at "
+                    f"{public_address}:{public_port} "
+                    f"(error code: {error_code}). Verify the guest is running, "
+                    "port forwarding or network configuration is correct, the SSH "
+                    "service is listening on the expected port, and review the "
+                    "OpenVMM guest and host logs for startup or networking errors. "
+                    f"{self._get_openvmm_failure_context(node_context, network)}"
+                )
+
+    def _wait_for_guest_ssh_from_host(
+        self,
+        node_context: Any,
+        guest_address: str,
+        guest_port: int,
+        log: Logger,
+        timeout: int = OPENVMM_CONNECTION_TIMEOUT,
+    ) -> None:
+        command = (
+            "for i in $(seq 1 "
+            f"{timeout}); do "
+            "timeout 1 bash -c "
+            f"{shlex.quote(f'</dev/tcp/{guest_address}/{guest_port}')} "
+            ">/dev/null 2>&1 && exit 0; "
+            "sleep 1; "
+            "done; "
+            "exit 1"
+        )
+        result = self.host_node.execute(
+            command,
+            shell=True,
+            sudo=False,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+            timeout=timeout + 10,
+        )
+        if result.exit_code != 0:
             raise LisaException(
-                "OpenVMM guest SSH port readiness check failed for "
-                f"{public_address}:{public_port}. "
-                "Verify the guest is running, port forwarding or network "
-                "configuration is correct, the SSH service is listening on the "
-                "expected port, and review the OpenVMM guest and host logs for "
-                "startup or networking errors. "
-                f"{self._get_openvmm_failure_context(node_context, network)}"
-            ) from identifier
-        if not is_ready:
-            raise LisaException(
-                "OpenVMM guest SSH port did not become reachable at "
-                f"{public_address}:{public_port} "
-                f"(error code: {error_code}). Verify the guest is running, "
-                "port forwarding or network configuration is correct, the SSH "
-                "service is listening on the expected port, and review the "
-                "OpenVMM guest and host logs for startup or networking errors. "
-                f"{self._get_openvmm_failure_context(node_context, network)}"
+                "OpenVMM guest SSH port did not become reachable from the host at "
+                f"{guest_address}:{guest_port}. Verify guest networking and sshd. "
+                f"{self._get_openvmm_failure_context(node_context, None)}"
             )
+        log.debug(
+            "confirmed OpenVMM guest SSH is reachable from host at "
+            f"{guest_address}:{guest_port}"
+        )
 
     def _resolve_guest_address(
         self,

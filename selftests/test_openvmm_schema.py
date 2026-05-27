@@ -7,6 +7,8 @@ from unittest import TestCase
 from marshmallow import ValidationError
 
 from lisa.sut_orchestrator.openvmm.schema import (
+    OPENVMM_CONNECTION_MODE_HOST_PROXY,
+    OPENVMM_NETWORK_MODE_TAP,
     OPENVMM_NETWORK_MODE_USER,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
@@ -48,3 +50,17 @@ class OpenVmmSchemaTestCase(TestCase):
         )
 
         self.assertEqual(["--foo", "bar baz"], guest.extra_args)
+
+    def test_host_proxy_connection_mode_disables_forwarded_port(self) -> None:
+        network_schema = cast(Any, OpenVmmNetworkSchema).schema()
+        network = network_schema.load(
+            {
+                "mode": OPENVMM_NETWORK_MODE_TAP,
+                "connection_mode": OPENVMM_CONNECTION_MODE_HOST_PROXY,
+                "tap_name": "tap0",
+                "forwarded_port": 60022,
+            }
+        )
+
+        self.assertFalse(network.forward_ssh_port)
+        self.assertEqual(0, network.forwarded_port)

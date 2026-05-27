@@ -747,6 +747,7 @@ class RemoteNode(Node):
         username: str = "root",
         password: str = "",
         private_key_file: str = "",
+        proxy_jump_boxes: Optional[List[schema.ConnectionInfo]] = None,
     ) -> None:
         if not address and not public_address:
             raise LisaException(
@@ -774,7 +775,7 @@ class RemoteNode(Node):
             password,
             private_key_file,
         )
-        self._shell = SshShell(self._connection_info)
+        self._shell = SshShell(self._connection_info, proxy_jump_boxes)
 
         self.public_address = public_address
         self.public_port = public_port

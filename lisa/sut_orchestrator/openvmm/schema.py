@@ -21,6 +21,8 @@ OPENVMM_ADDRESS_MODE_DISCOVER = "discover"
 OPENVMM_ADDRESS_MODE_STATIC = "static"
 OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
+OPENVMM_CONNECTION_MODE_FORWARDED_PORT = "forwarded_port"
+OPENVMM_CONNECTION_MODE_HOST_PROXY = "host_proxy"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
 # Keep raw disk growth opt-in so existing OpenVMM runbooks don't mutate
@@ -93,6 +95,7 @@ class OpenVmmSerialSchema:
 @dataclass
 class OpenVmmNetworkSchema:
     mode: str = OPENVMM_NETWORK_MODE_USER
+    connection_mode: str = OPENVMM_CONNECTION_MODE_FORWARDED_PORT
     address_mode: str = OPENVMM_ADDRESS_MODE_DISCOVER
     tap_name: str = ""
     bridge_name: str = ""
@@ -154,6 +157,15 @@ class OpenVmmNetworkSchema:
             self._validate_interface_name("bridge_name", self.bridge_name)
 
     def __post_init__(self) -> None:
+        if self.connection_mode not in [
+            OPENVMM_CONNECTION_MODE_FORWARDED_PORT,
+            OPENVMM_CONNECTION_MODE_HOST_PROXY,
+        ]:
+            raise LisaException(
+                f"connection_mode '{self.connection_mode}' is not supported. "
+                f"Supported values: {OPENVMM_CONNECTION_MODE_FORWARDED_PORT}, "
+                f"{OPENVMM_CONNECTION_MODE_HOST_PROXY}"
+            )
         if self.mode not in [
             OPENVMM_NETWORK_MODE_USER,
             OPENVMM_NETWORK_MODE_TAP,
@@ -176,7 +188,14 @@ class OpenVmmNetworkSchema:
                 f"{OPENVMM_ADDRESS_MODE_STATIC}"
             )
 
-        if self.forwarded_port:
+        if self.connection_mode == OPENVMM_CONNECTION_MODE_HOST_PROXY:
+            if self.mode != OPENVMM_NETWORK_MODE_TAP:
+                raise LisaException(
+                    "host_proxy connection_mode is supported only with tap networking"
+                )
+            self.forward_ssh_port = False
+            self.forwarded_port = 0
+        elif self.forwarded_port:
             self.forward_ssh_port = True
 
         if self.forward_ssh_port:
