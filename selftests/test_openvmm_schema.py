@@ -8,6 +8,7 @@ from marshmallow import ValidationError
 
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_NETWORK_MODE_USER,
+    OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
 )
 
@@ -35,3 +36,15 @@ class OpenVmmSchemaTestCase(TestCase):
                     "ssh_port": 0,
                 }
             )
+
+    def test_guest_schema_splits_extra_args_string(self) -> None:
+        guest_schema = cast(Any, OpenVmmGuestNodeSchema).schema()
+        guest = guest_schema.load(
+            {
+                "uefi": {"firmware_path": "/firmware"},
+                "disk_img": "/disk.raw",
+                "extra_args": "--foo 'bar baz'",
+            }
+        )
+
+        self.assertEqual(["--foo", "bar baz"], guest.extra_args)

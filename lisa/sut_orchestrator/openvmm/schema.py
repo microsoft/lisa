@@ -3,6 +3,7 @@
 
 import ipaddress
 import re
+import shlex
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -27,6 +28,19 @@ OPENVMM_SERIAL_MODE_FILE = "file"
 OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB = 0
 OPENVMM_MAX_INTERFACE_NAME_LENGTH = 15
 OPENVMM_INTERFACE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _decode_extra_args(value: object) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return shlex.split(value)
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item)]
+    raise LisaException(
+        "OpenVMM extra_args must be a string or list of strings, "
+        f"not '{type(value).__name__}'"
+    )
 
 
 @dataclass_json()
@@ -225,7 +239,10 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     openvmm_binary: str = "/usr/local/bin/openvmm"
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)
-    extra_args: List[str] = field(default_factory=list)
+    extra_args: List[str] = field(
+        default_factory=list,
+        metadata=schema.field_metadata(decoder=_decode_extra_args),
+    )
 
     def __post_init__(self) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)
