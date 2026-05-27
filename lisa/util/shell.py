@@ -225,7 +225,7 @@ def try_connect(
             ):
                 sleep(1)
                 continue
-        except (NoValidConnectionsError, ConnectionResetError, TimeoutError):
+        except (NoValidConnectionsError, ConnectionResetError, TimeoutError, EOFError):
             # ssh service is not ready
             sleep(1)
             continue
