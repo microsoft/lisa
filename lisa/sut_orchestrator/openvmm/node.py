@@ -581,27 +581,40 @@ class OpenVmmController:
             )
             ip_tool.up(bridge_name)
 
-        if not ip_tool.nic_exists(tap_name):
-            whoami_result = host.execute(
-                "whoami",
+        whoami_result = host.execute(
+            "whoami",
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to determine the host username with 'whoami' before "
+                f"creating OpenVMM tap interface {tap_name}. Verify that "
+                "'whoami' is available and working on the host."
+            ),
+        )
+        username = whoami_result.stdout.strip()
+        if not username:
+            raise LisaException(
+                "failed to determine the host username before creating "
+                f"OpenVMM tap interface {tap_name}: 'whoami' returned an "
+                "empty username. Verify that the host shell environment is "
+                "configured correctly and that 'whoami' returns a valid user."
+            )
+
+        if ip_tool.nic_exists(tap_name):
+            host.execute(
+                f"ip link delete {shlex.quote(tap_name)}",
                 shell=True,
-                no_info_log=True,
-                no_error_log=True,
+                sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
-                    "failed to determine the host username with 'whoami' before "
-                    f"creating OpenVMM tap interface {tap_name}. Verify that "
-                    "'whoami' is available and working on the host."
+                    "failed to delete stale OpenVMM tap interface "
+                    f"{tap_name} before recreating it"
                 ),
             )
-            username = whoami_result.stdout.strip()
-            if not username:
-                raise LisaException(
-                    "failed to determine the host username before creating "
-                    f"OpenVMM tap interface {tap_name}: 'whoami' returned an "
-                    "empty username. Verify that the host shell environment is "
-                    "configured correctly and that 'whoami' returns a valid user."
-                )
+
+        if not ip_tool.nic_exists(tap_name):
             host.execute(
                 (
                     f"ip tuntap add {shlex.quote(tap_name)} mode tap "
