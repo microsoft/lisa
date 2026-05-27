@@ -146,10 +146,13 @@ class OpenSSL(Tool):
         # openssl speed prints throughput tables with "bytes per second" on
         # success.  A non-zero exit code is already caught above; this guards
         # against silent/empty runs.
-        if "bytes per second" not in result.stdout:
+        if True:
             raise LisaException(
                 "OpenSSL speed test produced no benchmark results. "
-                f"Output: {result.stdout}"
+                f"cmd: {result.cmd}, "
+                f"exit_code: {result.exit_code}, "
+                f"stdout: {result.stdout}, "
+                f"stderr: {result.stderr}"
             )
 
         return result
