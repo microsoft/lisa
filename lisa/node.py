@@ -355,7 +355,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         )
 
     def cleanup(self) -> None:
-        for guest in self.guests:
+        guests = list(self.guests)
+        self._guests = []
+        for guest in guests:
             try:
                 guest.cleanup()
             except Exception:
