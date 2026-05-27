@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, List, Optional, Union, cast
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
@@ -301,6 +302,36 @@ class RunnerTestCase(TestCase):
                 platform_unsupported,
                 platform_unsupported,
             ],
+            test_results=test_results,
+        )
+
+    def test_merge_req_guest_platform_type_checked(self) -> None:
+        envs = load_environments(None)
+        runner = generate_runner(None)
+        platform = test_platform.generate_platform()
+        platform.runbook.guest_enabled = True
+        platform.runbook.guests = [SimpleNamespace(type="guest-platform")]
+        runner.platform = platform
+        runner._guest_enabled = True
+
+        test_results = test_testsuite.generate_cases_result()
+        for test_result in test_results:
+            metadata = test_result.runtime_data.metadata
+            metadata.requirement = simple_requirement(
+                supported_platform_type=["guest-platform"]
+            )
+
+        runner._merge_test_requirements(
+            test_results=test_results,
+            existing_environments=envs,
+            platform_type=constants.PLATFORM_MOCK,
+        )
+
+        self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+            expected_envs=["", "", ""],
+            expected_status=[TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
+            expected_message=["", "", ""],
             test_results=test_results,
         )
 

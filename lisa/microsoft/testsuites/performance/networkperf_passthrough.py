@@ -24,7 +24,7 @@ from lisa import (
 )
 from lisa.environment import Environment, Node
 from lisa.operating_system import Windows
-from lisa.sut_orchestrator import CLOUD_HYPERVISOR
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR, OPENVMM
 from lisa.testsuite import TestResult
 from lisa.tools import Dhclient, Kill, PowerShell, Sysctl
 from lisa.tools.iperf3 import (
@@ -52,7 +52,7 @@ from lisa.util.parallel import run_in_parallel
     for various NIC passthrough scenarios.
     """,
     requirement=simple_requirement(
-        supported_platform_type=[CLOUD_HYPERVISOR],
+        supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         unsupported_os=[Windows],
     ),
 )
@@ -76,7 +76,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -114,7 +114,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -154,7 +154,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -192,7 +192,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -232,7 +232,7 @@ class NetworkPerformance(TestSuite):
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
     )
     def perf_tcp_ntttcp_passthrough_host_guest(
@@ -271,7 +271,7 @@ class NetworkPerformance(TestSuite):
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
     )
     def perf_udp_1k_ntttcp_passthrough_host_guest(
@@ -309,7 +309,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -347,7 +347,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -388,7 +388,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -427,7 +427,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
             unsupported_os=[Windows],
         ),
     )
@@ -468,7 +468,7 @@ class NetworkPerformance(TestSuite):
                 node_count=2,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
     )
     def perf_tcp_ntttcp_passthrough_two_guest(
@@ -511,7 +511,7 @@ class NetworkPerformance(TestSuite):
                 node_count=2,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
     )
     def perf_udp_1k_ntttcp_passthrough_two_guest(
@@ -554,9 +554,7 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         host_node: Optional[RemoteNode] = None,
     ) -> Tuple[RemoteNode, str]:
-        from lisa.sut_orchestrator.libvirt.context import get_node_context
-
-        ctx = get_node_context(node)
+        ctx = self._get_passthrough_context(node)
         if not ctx.passthrough_devices:
             raise SkippedException("No passthrough devices found for node")
 
@@ -686,6 +684,17 @@ class NetworkPerformance(TestSuite):
         test_node.internal_address = passthrough_nic_ip
 
         return test_node, interface_name
+
+    @staticmethod
+    def _get_passthrough_context(node: Node) -> Any:
+        if node.type_name() == OPENVMM:
+            from lisa.sut_orchestrator.openvmm.context import get_node_context
+
+            return get_node_context(node)
+
+        from lisa.sut_orchestrator.libvirt.context import get_node_context
+
+        return get_node_context(node)
 
     def _find_guest_passthrough_iface(
         self,

@@ -1,17 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import TYPE_CHECKING, Dict, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.base_tools import Cat
 from lisa.operating_system import Windows
-from lisa.sut_orchestrator import CLOUD_HYPERVISOR
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR, OPENVMM
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Lspci
 from lisa.util import LisaException, SkippedException
 
 if TYPE_CHECKING:
-    from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
     from lisa.sut_orchestrator.libvirt.schema import DeviceAddressSchema
 
 
@@ -22,7 +21,7 @@ if TYPE_CHECKING:
     This test suite is for testing device passthrough functional tests.
     """,
     requirement=simple_requirement(
-        supported_platform_type=[CLOUD_HYPERVISOR],
+        supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         unsupported_os=[Windows],
     ),
 )
@@ -61,7 +60,7 @@ class DevicePassthroughFunctionalTests(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
     )
     def verify_device_passthrough_on_guest(
@@ -71,13 +70,17 @@ class DevicePassthroughFunctionalTests(TestSuite):
         result: TestResult,
     ) -> None:
         lspci = node.tools[Lspci]
-        platform = cast("CloudHypervisorPlatform", environment.platform)
-        # Import at runtime to avoid libvirt dependency on other platforms.
-        from lisa.sut_orchestrator.libvirt.context import get_node_context
-
-        node_context = get_node_context(node)
+        node_context = self._get_passthrough_context(node)
         if not node_context.passthrough_devices:
             raise SkippedException("No passthrough devices are assigned to node")
+
+        host_node = getattr(node_context, "host", None)
+        if host_node is None and environment.platform is not None:
+            host_node = getattr(environment.platform, "host_node", None)
+        if host_node is None:
+            raise SkippedException(
+                "No host node is available for passthrough device validation"
+            )
 
         expected_devices: Dict[Tuple[str, str, str], int] = {}
         for passthrough_context in node_context.passthrough_devices:
@@ -88,7 +91,7 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 )
             for host_device in passthrough_context.device_list:
                 vendor_device_id = self._vendor_device_from_host_device(
-                    platform, host_device
+                    host_node, host_device
                 )
                 key = (
                     pool_type,
@@ -112,13 +115,24 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 )
 
     @staticmethod
+    def _get_passthrough_context(node: Node) -> Any:
+        if node.type_name() == OPENVMM:
+            from lisa.sut_orchestrator.openvmm.context import get_node_context
+
+            return get_node_context(node)
+
+        from lisa.sut_orchestrator.libvirt.context import get_node_context
+
+        return get_node_context(node)
+
+    @staticmethod
     def _vendor_device_from_host_device(
-        platform: "CloudHypervisorPlatform",
+        host_node: Node,
         device: "DeviceAddressSchema",
     ) -> Dict[str, str]:
         """Read vendor_id and device_id for an assigned host PCI device."""
         bdf = (f"{device.domain}:{device.bus}:{device.slot}.{device.function}").lower()
-        cat = platform.host_node.tools[Cat]
+        cat = host_node.tools[Cat]
         vendor_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/vendor", sudo=True).strip()
         device_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/device", sudo=True).strip()
         # Normalize to 4-digit lowercase hex used by lspci identifiers.
