@@ -787,7 +787,7 @@ class SshShell(InitializableMixin):
 
         sock = transport.open_channel(
             kind="direct-tcpip",
-            src_addr=(src_address, src_port),
+            src_addr=("127.0.0.1", 0),
             dest_addr=(dest_address, dest_port),
         )
 
