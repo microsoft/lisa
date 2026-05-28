@@ -57,7 +57,7 @@ vhd:
 >
 > **Option A — Use a Shared Image Gallery (SIG) directly** (if the VHD has already been imported into a gallery):
 > ```yaml
-> shared_image_gallery:
+> shared_gallery:
 >   subscription_id: "$(subscription_id)"
 >   resource_group_name: "my-rg"
 >   image_gallery: "myGallery"
@@ -81,11 +81,11 @@ vhd:
 >     rename:
 >       azure_sig_url: shared_gallery   # injects result as $(shared_gallery)
 > ```
-> Then reference `$(shared_gallery)` in the platform `shared_image_gallery` field.
+> Then reference `$(shared_gallery)` in the platform `shared_gallery` field.
 
 **Shared Image Gallery (SIG)** — image from Azure Compute Gallery:
 ```yaml
-shared_image_gallery:
+shared_gallery:
   subscription_id: "$(subscription_id)"
   resource_group_name: "my-rg"
   image_gallery: "myGallery"
