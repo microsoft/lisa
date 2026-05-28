@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Fedora, Posix, Windows
+from lisa.operating_system import BSD, Fedora, Linux, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import (
@@ -43,6 +43,7 @@ from lisa.sut_orchestrator.azure.features import (
 )
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
+from lisa.tools.pvcreate import Pvcreate
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
@@ -573,6 +574,31 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case validates that maximum parallel hot-add data disks are
+        usable for LVM workflows on Linux.
+        Steps:
+        1. Add maximum number of data disks to the VM in parallel.
+        2. Verify the added disks are visible in the guest.
+        3. Verify `fdisk -l` completes successfully.
+        4. Verify `pvcreate` succeeds on each newly added disk.
+        5. Remove all added disks.
+        """,
+        priority=2,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
+    )
+    def verify_hot_add_disk_parallel_pvcreate(self, log: Logger, node: Node) -> None:
+        if not isinstance(node.os, Linux):
+            raise SkippedException(
+                f"This test requires Linux; current OS is {node.os.name}."
+            )
+
+        self._hot_add_disk_parallel_with_pvcreate(
+            log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    @TestCaseMetadata(
+        description="""
         This test case will verify mount azure nfs 4.1 on guest successfully.
         Refer to https://learn.microsoft.com/en-us/azure/storage/files/files-nfs-protocol#features # noqa: E501
 
@@ -953,6 +979,106 @@ class Storage(TestSuite):
             if item not in partition_after_removing_disk
         ]
         assert_that(added_partitions, "data disks should not be present").is_length(0)
+
+    def _hot_add_disk_parallel_with_pvcreate(
+        self, log: Logger, node: Node, disk_type: DiskType, size: int
+    ) -> None:
+        disk = node.features[Disk]
+        lsblk = node.tools[Lsblk]
+
+        # Ensure LVM tools are present before validating pvcreate.
+        node.os.install_packages("lvm2")
+        pvcreate = node.tools[Pvcreate]
+
+        assert node.capability.disk
+        assert isinstance(
+            node.capability.disk.max_data_disk_count, int
+        ), f"actual type: {node.capability.disk.max_data_disk_count}"
+        max_data_disk_count = node.capability.disk.max_data_disk_count
+        log.debug(f"max_data_disk_count: {max_data_disk_count}")
+
+        assert isinstance(node.capability.disk.data_disk_count, int)
+        current_data_disk_count = node.capability.disk.data_disk_count
+        log.debug(f"current_data_disk_count: {current_data_disk_count}")
+
+        disks_to_add = max_data_disk_count - current_data_disk_count
+        if disks_to_add < 1:
+            raise SkippedException(
+                "No data disks can be added. "
+                "Consider manually setting max_data_disk_count in the runbook."
+            )
+
+        partitions_before_adding_disks = lsblk.get_disks(force_run=True)
+        disks_added = []
+        try:
+            log.debug(f"Adding {disks_to_add} managed disks")
+            disks_added = disk.add_data_disk(disks_to_add, disk_type, size)
+
+            timeout = 30
+            timer = create_timer()
+            while timeout > timer.elapsed(False):
+                partitons_after_adding_disks = lsblk.get_disks(force_run=True)
+                added_partitions = [
+                    item
+                    for item in partitons_after_adding_disks
+                    if item not in partitions_before_adding_disks
+                ]
+                if len(added_partitions) == disks_to_add:
+                    break
+                else:
+                    log.debug(f"added disks count: {len(added_partitions)}")
+                    time.sleep(1)
+
+            assert_that(
+                added_partitions, f"{disks_to_add} disks should be added"
+            ).is_length(disks_to_add)
+            for partition in added_partitions:
+                assert_that(
+                    partition.size_in_gb,
+                    f"data disk {partition.name} size should be equal to {size} GB",
+                ).is_equal_to(size)
+
+            # Validate partition table scan does not hang at max disk count.
+            node.execute(
+                "fdisk -l",
+                shell=True,
+                sudo=True,
+                timeout=180,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "fdisk -l did not complete successfully after max hot-add "
+                    "disk operations."
+                ),
+            )
+
+            for partition in added_partitions:
+                device = partition.device_name
+                log.info(f"Running pvcreate validation on {device}")
+                node.execute(
+                    f"{pvcreate.command} {device}",
+                    shell=True,
+                    sudo=True,
+                    timeout=180,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"pvcreate failed or timed out on device {device} "
+                        "after max hot-add disk operations."
+                    ),
+                )
+        finally:
+            if disks_added:
+                log.debug(f"Removing managed disks: {disks_added}")
+                disk.remove_data_disk(disks_added)
+
+            partition_after_removing_disk = lsblk.get_disks(force_run=True)
+            added_partitions = [
+                item
+                for item in partitions_before_adding_disks
+                if item not in partition_after_removing_disk
+            ]
+            assert_that(added_partitions, "data disks should not be present").is_length(
+                0
+            )
 
     def _get_managed_disk_id(self, identifier: str) -> str:
         return f"disk_{identifier}"
