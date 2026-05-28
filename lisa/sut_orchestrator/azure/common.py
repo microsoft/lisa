@@ -83,7 +83,13 @@ from azure.storage.fileshare import ShareServiceClient
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud
-from PIL import Image, UnidentifiedImageError
+try:
+    from PIL import Image, UnidentifiedImageError
+except ModuleNotFoundError:
+    Image = None
+
+    class UnidentifiedImageError(Exception):
+        pass
 from requests.exceptions import ChunkedEncodingError
 from retry import retry
 
@@ -2441,16 +2447,24 @@ def save_console_log(
             diagnostic_data.console_screenshot_blob_uri, timeout=60
         )
         screenshot_raw_name.write_bytes(screenshot_response.content)
-        try:
-            with Image.open(screenshot_raw_name) as image:
-                image.save(
-                    saved_path / f"{screenshot_file_name}.png", "PNG", optimize=True
-                )
-        except UnidentifiedImageError:
+        if Image is None:
             log.debug(
-                "The screenshot is not generated. "
-                "The reason may be the VM is not started."
+                "Skipping console screenshot conversion because Pillow is not "
+                "installed in this environment."
             )
+        else:
+            try:
+                with Image.open(screenshot_raw_name) as image:
+                    image.save(
+                        saved_path / f"{screenshot_file_name}.png",
+                        "PNG",
+                        optimize=True,
+                    )
+            except UnidentifiedImageError:
+                log.debug(
+                    "The screenshot is not generated. "
+                    "The reason may be the VM is not started."
+                )
         screenshot_raw_name.unlink()
 
     try:
