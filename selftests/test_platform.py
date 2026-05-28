@@ -9,6 +9,7 @@ from unittest.case import TestCase
 from dataclasses_json import dataclass_json
 
 import lisa
+import lisa.sut_orchestrator.ready  # noqa: F401
 from lisa import schema, search_space
 from lisa.environment import (
     Environment,
@@ -256,6 +257,45 @@ class PlatformTestCase(TestCase):
             self.assertEqual(EnvironmentStatus.Deployed, env.status)
             platform.delete_environment(env)
             self.assertEqual(EnvironmentStatus.Deleted, env.status)
+
+    def test_ready_guest_enabled_dirty_env_is_not_reused(self) -> None:
+        runbook = schema.load_by_type(
+            schema.Platform,
+            {
+                constants.TYPE: constants.PLATFORM_READY,
+                "guest_enabled": True,
+                constants.PLATFORM_READY: {"reuse_dirty_env": True},
+            },
+        )
+        platform = load_platform([runbook])
+        platform.initialize()
+        env = load_environments(generate_env_runbook(local=True))["customized_0"]
+
+        platform.prepare_environment(env)
+        env.status = EnvironmentStatus.Deployed
+        env.mark_dirty()
+        platform.delete_environment(env)
+
+        self.assertEqual(EnvironmentStatus.Deleted, env.status)
+
+    def test_ready_dirty_env_is_reused_by_default(self) -> None:
+        runbook = schema.load_by_type(
+            schema.Platform,
+            {
+                constants.TYPE: constants.PLATFORM_READY,
+                constants.PLATFORM_READY: {"reuse_dirty_env": True},
+            },
+        )
+        platform = load_platform([runbook])
+        platform.initialize()
+        env = load_environments(generate_env_runbook(local=True))["customized_0"]
+
+        platform.prepare_environment(env)
+        platform.deploy_environment(env)
+        env.mark_dirty()
+        platform.delete_environment(env)
+
+        self.assertEqual(EnvironmentStatus.Prepared, env.status)
 
     def test_initialize_guest_nodes_copies_parent_capability(self) -> None:
         runbook = schema.load_by_type(
