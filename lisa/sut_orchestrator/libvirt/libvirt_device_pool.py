@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, cast
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
-from lisa.tools import Ls, Lspci, Modprobe
+from lisa.tools import Ls, Lsblk, Lspci, Modprobe, Readlink
 from lisa.util import (
     LisaException,
     ResourceAwaitableException,
@@ -40,6 +40,7 @@ class LibvirtDevicePool(BaseDevicePool):
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
             HostDevicePoolType.PCI_GPU,
+            HostDevicePoolType.PCI_NVME,
         ]
         self.host_node = host_node
         self.platform_runbook = runbook
@@ -65,6 +66,16 @@ class LibvirtDevicePool(BaseDevicePool):
         )
         if not allow_unsafe_interrupt:
             raise LisaException("Allowing unsafe interrupt failed")
+
+        # Dump the initialized pool to ease debugging of passthrough issues.
+        pool_summary = {
+            pool_type.value: {
+                iommu_grp: [self._get_pci_address_str(d) for d in devices]
+                for iommu_grp, devices in groups.items()
+            }
+            for pool_type, groups in self.available_host_devices.items()
+        }
+        self.host_node.log.debug(f"Initialized device passthrough pool: {pool_summary}")
 
     def request_devices(
         self,
@@ -117,7 +128,7 @@ class LibvirtDevicePool(BaseDevicePool):
                 pool[iommu_grp] = pool_devices
             self.available_host_devices[pool_type] = pool
 
-    def get_primary_nic_id(self) -> List[str]:
+    def get_primary_nic_iommu_group(self) -> str:
         # This is for baremetal. For azure, we have to get private IP
         host_ip = cast(RemoteNode, self.host_node).connection_info.get("address")
         assert host_ip, "Host IP is empty"
@@ -146,35 +157,55 @@ class LibvirtDevicePool(BaseDevicePool):
                 interface_name = line.split()[1].strip()
 
         assert interface_name, "Can not find interface name"
-        result = self.host_node.execute(
-            cmd=f"readlink -f /sys/class/net/{interface_name}/device",
+        readlink = self.host_node.tools[Readlink]
+        sysfs_path = readlink.get_canonical_path(
+            f"/sys/class/net/{interface_name}/device",
             sudo=True,
-            shell=True,
+            no_error_log=True,
         )
-        stdout = result.stdout.strip()
-        pci_address = PurePosixPath(stdout).name
-        if not re.fullmatch(
-            r"[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F]",
-            pci_address,
-        ):
-            self.host_node.log.debug(
-                f"Primary interface '{interface_name}' is not backed by a PCI "
-                f"device on the libvirt host; skipping primary NIC IOMMU "
-                f"exclusion. Sysfs device path: {stdout or '<empty>'}"
+        return self._resolve_iommu_group_from_sysfs_path(
+            sysfs_path, context="primary NIC"
+        )
+
+    def get_rootfs_nvme_iommu_group(self) -> str:
+        # Find the NVMe device backing the root filesystem to exclude it
+        # from the passthrough pool (passing it through would crash the host).
+        lsblk = self.host_node.tools[Lsblk]
+        root_disk = lsblk.find_disk_by_mountpoint("/")
+
+        # Only NVMe devices have names like nvme0n1, nvme1n1, etc.
+        # Root could be on a SATA SSD (sda), HDD (sda), or virtio disk (vda)
+        # — none of which are NVMe PCI devices, so skip exclusion.
+        if not root_disk.name.startswith("nvme"):
+            return ""
+
+        # Resolve the PCI address of the NVMe device via sysfs.
+        readlink = self.host_node.tools[Readlink]
+        sysfs_path = readlink.get_canonical_path(
+            f"/sys/block/{root_disk.name}/device/device",
+            sudo=True,
+            no_error_log=True,
+        )
+        return self._resolve_iommu_group_from_sysfs_path(
+            sysfs_path, context="rootfs NVMe"
+        )
+
+    def auto_discover_pool(self, pool_type: HostDevicePoolType) -> None:
+        self.available_host_devices[pool_type] = {}
+        candidates = self._get_passthrough_device_candidates(pool_type)
+        if not candidates:
+            raise LisaException(
+                f"Auto-discovery found no eligible devices for pool type "
+                f"'{pool_type.value}' on the host. Verify that devices of "
+                f"this type exist and are not excluded (primary NIC, etc)."
             )
-            return []
+        self.host_node.log.debug(
+            f"Auto-discovered {len(candidates)} device(s) for pool "
+            f"'{pool_type.value}': {candidates}"
+        )
+        self._create_pool(pool_type, candidates)
 
-        device = DeviceAddressSchema()
-        domain, bus, slot, fn = self._parse_pci_address_str(addr=pci_address)
-        device.domain = domain
-        device.bus = bus
-        device.slot = slot
-        device.function = fn
-
-        iommu_grp = self._get_device_iommu_group(device)
-        return [iommu_grp]
-
-    def create_device_pool(
+    def create_device_pool_from_vendor_device_id(
         self,
         pool_type: HostDevicePoolType,
         vendor_id: str,
@@ -186,7 +217,23 @@ class LibvirtDevicePool(BaseDevicePool):
             vendor_id=vendor_id,
             device_id=device_id,
         )
-        bdf_list = [i.slot for i in device_list]
+        if not device_list:
+            raise LisaException(
+                f"Vendor:device '{vendor_id}:{device_id}' matched no PCI "
+                f"device on the host."
+            )
+
+        # Reject devices whose PCI class does not match the declared pool
+        # type, so a misconfigured runbook fails here instead of at VM boot.
+        device_bdfs = self._get_pci_bdfs_for_pool_type(pool_type)
+        mismatched = [d.slot for d in device_list if d.slot not in device_bdfs]
+        if mismatched:
+            raise LisaException(
+                f"Vendor:device '{vendor_id}:{device_id}' matched {mismatched} "
+                f"but their PCI class is not '{pool_type.value}'."
+            )
+
+        bdf_list = [d.slot for d in device_list]
         self._create_pool(pool_type, bdf_list)
 
     def create_device_pool_from_pci_addresses(
@@ -267,7 +314,14 @@ class LibvirtDevicePool(BaseDevicePool):
         ]
 
         if requested_bdf in available_iommu_devices:
-            return requested_bdf
+            # Ensure the requested BDF's PCI class matches the pool type.
+            device_bdfs = self._get_pci_bdfs_for_pool_type(pool_type)
+            if requested_bdf in device_bdfs:
+                return requested_bdf
+            raise LisaException(
+                f"PCI '{requested_bdf}' exists but is not of class "
+                f"'{pool_type.value}'"
+            )
 
         if passthrough_candidates is None:
             passthrough_candidates = self._get_passthrough_device_candidates(
@@ -303,37 +357,85 @@ class LibvirtDevicePool(BaseDevicePool):
             f"{', '.join(sorted(available_iommu_devices)) or 'none'}"
         )
 
+    def _resolve_iommu_group_from_sysfs_path(
+        self,
+        sysfs_path: str,
+        context: str,
+    ) -> str:
+        if not sysfs_path:
+            self.host_node.log.debug(
+                f"Sysfs path for {context} is empty; skipping IOMMU exclusion."
+            )
+            return ""
+
+        pci_address = PurePosixPath(sysfs_path).name
+        try:
+            domain, bus, slot, fn = self._parse_pci_address_str(addr=pci_address)
+        except (IndexError, ValueError):
+            self.host_node.log.debug(
+                f"Sysfs path for {context} does not resolve to a PCI device; "
+                f"skipping IOMMU exclusion. Path: {sysfs_path or '<empty>'}"
+            )
+            return ""
+
+        device = self._get_pci_address_instance(domain, bus, slot, fn)
+        iommu_grp = self._get_device_iommu_group(device)
+        return iommu_grp
+
+    def _get_iommu_groups_to_exclude(self) -> List[str]:
+        # Always exclude both the primary NIC and rootfs NVMe IOMMU groups
+        # regardless of pool type
+        excluded: List[str] = []
+        nic_iommu = self.get_primary_nic_iommu_group()
+        if nic_iommu:
+            excluded.append(nic_iommu)
+        nvme_iommu = self.get_rootfs_nvme_iommu_group()
+        if nvme_iommu:
+            excluded.append(nvme_iommu)
+        return excluded
+
+    def _get_pci_bdfs_for_pool_type(
+        self,
+        pool_type: HostDevicePoolType,
+    ) -> List[str]:
+        lspci = self.host_node.tools[Lspci]
+        if pool_type == HostDevicePoolType.PCI_NIC:
+            devices = lspci.get_devices_by_type(
+                constants.DEVICE_TYPE_SRIOV, force_run=True
+            )
+        elif pool_type == HostDevicePoolType.PCI_GPU:
+            devices = lspci.get_gpu_devices(force_run=True)
+        elif pool_type == HostDevicePoolType.PCI_NVME:
+            devices = lspci.get_devices_by_type(
+                constants.DEVICE_TYPE_NVME, force_run=True
+            )
+        else:
+            return []
+        return [d.slot for d in devices]
+
     def _get_passthrough_device_candidates(
         self,
         pool_type: HostDevicePoolType,
         iommu_device_paths: Optional[List[str]] = None,
     ) -> List[str]:
-        lspci = self.host_node.tools[Lspci]
-        if pool_type == HostDevicePoolType.PCI_NIC:
-            pool_devices = lspci.get_devices_by_type(
-                constants.DEVICE_TYPE_SRIOV, force_run=True
-            )
-        elif pool_type == HostDevicePoolType.PCI_GPU:
-            pool_devices = lspci.get_gpu_devices(force_run=True)
-        else:
+        device_bdfs = self._get_pci_bdfs_for_pool_type(pool_type)
+        if not device_bdfs:
             return []
 
-        primary_nic_iommu = (
-            self.get_primary_nic_id() if pool_type == HostDevicePoolType.PCI_NIC else []
-        )
+        excluded_iommu = self._get_iommu_groups_to_exclude()
         candidates: List[str] = []
-        for pool_device in pool_devices:
-            domain, bus, slot, fn = self._parse_pci_address_str(pool_device.slot)
+        for bdf in device_bdfs:
+            domain, bus, slot, fn = self._parse_pci_address_str(bdf)
             device = self._get_pci_address_instance(domain, bus, slot, fn)
             try:
                 iommu_group = self._get_device_iommu_group(device, iommu_device_paths)
             except LisaException:
                 continue
 
-            if iommu_group in primary_nic_iommu:
+            if iommu_group in excluded_iommu:
                 continue
 
-            candidates.append(pool_device.slot)
+            candidates.append(bdf)
 
         return candidates
 
@@ -343,7 +445,7 @@ class LibvirtDevicePool(BaseDevicePool):
         bdf_list: List[str],
     ) -> None:
         iommu_grp_of_used_devices = []
-        primary_nic_iommu = self.get_primary_nic_id()
+        excluded_iommu = self._get_iommu_groups_to_exclude()
         for bdf in bdf_list:
             domain, bus, slot, fn = self._parse_pci_address_str(bdf)
             dev = self._get_pci_address_instance(domain, bus, slot, fn)
@@ -359,12 +461,43 @@ class LibvirtDevicePool(BaseDevicePool):
                 # Remove iommu group from pool: a device in it is already in use.
                 self.available_host_devices[pool_type].pop(iommu_group, None)
                 iommu_grp_of_used_devices.append(iommu_group)
-            elif iommu_group not in primary_nic_iommu:
+            elif iommu_group not in excluded_iommu:
+                if (
+                    pool_type == HostDevicePoolType.PCI_NIC
+                    and not self._is_nic_cable_connected(bdf)
+                ):
+                    # Skip NICs without a cable: passing them through would
+                    # give the guest an unusable link.
+                    self.host_node.log.debug(f"Skipping NIC {bdf}: no cable connected.")
+                    continue
                 devices = self.available_host_devices[pool_type].setdefault(
                     iommu_group, []
                 )
                 if dev not in devices:
                     devices.append(dev)
+
+    def _is_nic_cable_connected(self, bdf: str) -> bool:
+        # True if any iface bound to this NIC reports carrier=1.
+        ls = self.host_node.tools[Ls]
+        net_dir = f"/sys/bus/pci/devices/{bdf}/net"
+        if not ls.path_exists(net_dir, sudo=True):
+            return False
+        ifaces = [
+            PurePosixPath(p.strip()).name
+            for p in ls.list(net_dir, sudo=True)
+            if p.strip()
+        ]
+        for iface in ifaces:
+            result = self.host_node.execute(
+                f"cat /sys/class/net/{iface}/carrier",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
+            if result.exit_code == 0 and result.stdout.strip() == "1":
+                return True
+        return False
 
     def _get_pci_address_instance(
         self,

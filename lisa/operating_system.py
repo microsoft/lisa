@@ -1802,6 +1802,32 @@ class Fedora(RPMDistro):
 
         return kernel_information
 
+    @retry(tries=5, delay=5)  # type: ignore
+    def _initialize_package_installation(self) -> None:
+        self._log.debug("Refreshing DNF cache before package installation")
+        result = self._node.execute(
+            f"{self._dnf_tool()} clean metadata",
+            sudo=True,
+            timeout=300,
+        )
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to clean DNF metadata: {result.stdout} "
+                f"exit_code: {result.exit_code}, stderr: {result.stderr}"
+            )
+
+        result = self._node.execute(
+            f"{self._dnf_tool()} makecache",
+            sudo=True,
+            timeout=300,
+        )
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to refresh DNF cache: {result.stdout} "
+                f"exit_code: {result.exit_code}, stderr: {result.stderr}"
+            )
+        self._log.debug("DNF cache refreshed successfully.")
+
     def install_epel(self) -> None:
         # Extra Packages for Enterprise Linux (EPEL) is a special interest group
         # (SIG) from the Fedora Project that provides a set of additional packages
@@ -2534,15 +2560,38 @@ class Suse(Linux):
             f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
         )
 
+    # Retry initialization when no repos are visible yet — the cloud
+    # registration may still be in progress.
+    @retry(exceptions=RepoNotExistException, tries=5, delay=30)  # type: ignore
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
         service = self._node.tools[Service]
         if service.check_service_exists("guestregister"):
             timeout = 120
             timer = create_timer()
+            recovered = False
             while timeout > timer.elapsed(False):
                 if service.is_service_inactive("guestregister"):
                     break
+                if not recovered and self._is_guestregister_failed():
+                    # On some SUSE images guestregister.service ends in the
+                    # "failed" state (typically "Credentials are invalid"),
+                    # leaving zypper without any cloud repositories. Force a
+                    # re-registration so repos become available before refresh.
+                    # After this, registercloudguest restarts the service, so
+                    # fall back to the wait loop until it becomes inactive.
+                    self._log.debug(
+                        "guestregister.service is in failed state; running "
+                        "'registercloudguest --force-new' to recover"
+                    )
+                    self._node.execute(
+                        "registercloudguest --force-new",
+                        sudo=True,
+                        shell=True,
+                        timeout=300,
+                    )
+                    recovered = True
+                    continue
                 time.sleep(1)
         output = self._execute_zypper_with_lock_retry(
             "zypper --non-interactive --gpg-auto-import-keys refresh",
@@ -2555,6 +2604,16 @@ class Suse(Linux):
                 self._node.os,
                 "There are no enabled repositories defined in this image.",
             )
+
+    def _is_guestregister_failed(self) -> bool:
+        result = self._node.execute(
+            "systemctl is-active guestregister",
+            sudo=True,
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        return "failed" in result.stdout
 
     def _uninstall_packages(
         self,

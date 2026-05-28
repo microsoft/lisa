@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 
 from dataclasses_json import dataclass_json
 
 from lisa.sut_orchestrator.util.schema import (
+    CloudInitSchema,
     DevicePassthroughSchema,
     HostDevicePoolSchema,
 )
@@ -12,14 +13,6 @@ from lisa.util import LisaException
 
 FIRMWARE_TYPE_BIOS = "bios"
 FIRMWARE_TYPE_UEFI = "uefi"
-
-
-# Configuration options for cloud-init ISO generation for the VM.
-@dataclass_json()
-@dataclass
-class CloudInitSchema:
-    # Additional values to apply to the cloud-init user-data file.
-    extra_user_data: Optional[Union[str, List[str]]] = None
 
 
 @dataclass_json()

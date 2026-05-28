@@ -1,6 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from __future__ import annotations
+
+import copy
 import hashlib
 import io
 import ipaddress
@@ -38,6 +41,7 @@ from .schema import (
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
 )
+from .serial_console import SerialConsole
 from .start_stop import StartStop
 
 # Allow slower guest boot and reconnect paths on loaded L1 hosts.
@@ -47,6 +51,8 @@ OPENVMM_IP_DISCOVERY_TIMEOUT = 300
 # Capture enough recent log lines to include the relevant launch or boot failure.
 OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
+OPENVMM_DNS_SERVER_PORT = 53
+OPENVMM_GIBIBYTE = 1 << 30
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -58,6 +64,10 @@ def _get_tap_host_interface_name(network: OpenVmmNetworkSchema) -> str:
     return network.bridge_name or network.tap_name
 
 
+def _is_raw_disk_image(disk_img_path: str) -> bool:
+    return Path(disk_img_path).suffix.lower() == ".raw"
+
+
 def _countspace_to_int(value: search_space.CountSpace) -> int:
     chosen = search_space.choose_value_countspace(value, value)
     if not isinstance(chosen, int):
@@ -67,6 +77,69 @@ def _countspace_to_int(value: search_space.CountSpace) -> int:
             "configuration resolves to a single integer value."
         )
     return chosen
+
+
+def _increment_name_suffix(value: str, index: int) -> str:
+    if not value or index == 0:
+        return value
+
+    suffix_start = len(value)
+    while suffix_start > 0 and value[suffix_start - 1].isdigit():
+        suffix_start -= 1
+
+    if suffix_start == len(value):
+        return f"{value}{index}"
+
+    prefix = value[:suffix_start]
+    suffix = value[suffix_start:]
+    return f"{prefix}{int(suffix) + index:0{len(suffix)}d}"
+
+
+def _shift_ip_interface_cidr(cidr: str, index: int) -> str:
+    if not cidr or index == 0:
+        return cidr
+
+    interface = ipaddress.ip_interface(cidr)
+    network = interface.network
+    network_address = int(network.network_address) + index * network.num_addresses
+    host_offset = int(interface.ip) - int(network.network_address)
+    max_address = (1 << network.max_prefixlen) - 1
+    new_ip_address = network_address + host_offset
+    if new_ip_address > max_address or (
+        network_address + network.num_addresses - 1 > max_address
+    ):
+        raise LisaException(
+            f"cannot derive OpenVMM guest network from '{cidr}' for guest index "
+            f"{index}: derived address exceeds the IP address space. Use a "
+            "larger base network or explicit per-guest network settings."
+        )
+
+    return f"{ipaddress.ip_address(new_ip_address)}/{network.prefixlen}"
+
+
+def _shift_ip_address(address: str, base_cidr: str, index: int) -> str:
+    if not address or not base_cidr or index == 0:
+        return address
+
+    base_network = ipaddress.ip_interface(base_cidr).network
+    ip_address = ipaddress.ip_address(address)
+    if ip_address not in base_network:
+        return address
+
+    host_offset = int(ip_address) - int(base_network.network_address)
+    new_network_address = int(base_network.network_address) + (
+        index * base_network.num_addresses
+    )
+    new_address = new_network_address + host_offset
+    max_address = (1 << base_network.max_prefixlen) - 1
+    if new_address > max_address:
+        raise LisaException(
+            f"cannot derive OpenVMM guest address from '{address}' for guest "
+            f"index {index}: derived address exceeds the IP address space. "
+            "Use a larger base network or explicit per-guest network settings."
+        )
+
+    return str(ipaddress.ip_address(new_address))
 
 
 class GuestIpResolver(ABC):
@@ -97,13 +170,9 @@ class StaticAddressResolver(GuestIpResolver):
 
 
 class OpenVmmController:
-    def __init__(self, node: "OpenVmmGuestNode") -> None:
-        self._node = node
-        host_node = node.parent
-        if host_node is None:
-            raise LisaException("OpenVMM guest node must have a parent host node")
+    def __init__(self, host_node: Node, log: Logger) -> None:
         self.host_node = host_node
-        self._log = node.log
+        self._log = log
 
     @classmethod
     def type_name(cls) -> str:
@@ -111,7 +180,7 @@ class OpenVmmController:
 
     @classmethod
     def supported_features(cls) -> List[Type[Any]]:
-        return [StartStop]
+        return [StartStop, SerialConsole]
 
     def resolve_guest_artifact_path(
         self, source_path: str, is_remote_path: bool, working_path: PurePath
@@ -126,11 +195,99 @@ class OpenVmmController:
         if not source.exists():
             raise LisaException(f"file does not exist: {source_path}")
 
-        source_id = hashlib.sha256(str(source.resolve()).encode("utf-8")).hexdigest()[
-            :8
-        ]
+        # Include mtime+size in the cache key so the entry is invalidated when
+        # the local file changes between calls (same path, new content).
+        source_stat = source.stat()
+        source_id = hashlib.sha256(
+            f"{source.resolve()}|{source_stat.st_mtime}|{source_stat.st_size}".encode(
+                "utf-8"
+            )
+        ).hexdigest()[:8]
         destination = working_path / f"{source.stem}-{source_id}{source.suffix}"
-        self.host_node.shell.copy(source, destination)
+        cache_directory = working_path.parent / ".openvmm-artifacts"
+        cache_path = cache_directory / f"{source.stem}-{source_id}{source.suffix}"
+        cache_key = f"{source.resolve()}|{source_stat.st_mtime}|{source_stat.st_size}"
+        copy_timer = create_timer()
+        host_context = get_host_context(self.host_node)
+
+        # Narrow the lock to the cache-miss path so that once the shared cache
+        # entry is populated, other guests can do their per-guest cp in parallel.
+        with host_context.artifact_copy_lock:
+            cached_path = host_context.artifact_cache.get(cache_key)
+
+            # Verify the cached remote path still exists; repopulate if removed.
+            if cached_path:
+                check = self.host_node.execute(
+                    f"test -f {shlex.quote(cached_path)}",
+                    shell=True,
+                    expected_exit_code=None,
+                )
+                if check.exit_code != 0:
+                    self._log.debug(
+                        f"Cached OpenVMM artifact '{cached_path}' no longer "
+                        "exists on the remote host; re-uploading."
+                    )
+                    cached_path = None
+                    del host_context.artifact_cache[cache_key]
+
+            if not cached_path:
+                self.host_node.execute(
+                    f"mkdir -p {shlex.quote(str(cache_directory))}",
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to create OpenVMM artifact cache directory "
+                        f"'{cache_directory}'"
+                    ),
+                )
+                self._log.info(
+                    f"Copying OpenVMM artifact '{source.name}' to host cache "
+                    f"'{cache_path}'."
+                )
+                self.host_node.shell.copy(source, cache_path)
+                host_context.artifact_cache[cache_key] = str(cache_path)
+                cached_path = str(cache_path)
+                self._log.info(
+                    f"Copied OpenVMM artifact '{source.name}' to host cache "
+                    f"'{cache_path}' in {copy_timer.elapsed_text()}."
+                )
+            else:
+                self._log.debug(
+                    f"Using cached OpenVMM artifact '{source.name}' from "
+                    f"'{cached_path}'."
+                )
+
+        # Per-guest copy is done outside the lock so multiple guests on the same
+        # host can proceed in parallel once the shared cache is warm.
+        # Try copy-on-write (reflink) first; fall back to a plain copy when the
+        # filesystem does not support it (e.g. ext4 without reflink patches).
+        result = self.host_node.execute(
+            f"cp --reflink=auto "
+            f"{shlex.quote(cached_path)} "
+            f"{shlex.quote(str(destination))}",
+            shell=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code != 0:
+            self._log.debug(
+                f"cp --reflink=auto failed (exit {result.exit_code}), "
+                f"attempting plain copy fallback: {result.stderr or result.stdout}"
+            )
+            self.host_node.execute(
+                f"cp -f "
+                f"{shlex.quote(cached_path)} "
+                f"{shlex.quote(str(destination))}",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"failed to clone OpenVMM artifact '{source.name}' from host "
+                    f"cache to '{destination}'"
+                ),
+            )
+        self._log.info(
+            f"Copied OpenVMM artifact '{source.name}' to host path "
+            f"'{destination}' in {copy_timer.elapsed_text()}."
+        )
         return str(destination)
 
     def get_openvmm_tool(self, binary_path: str) -> OpenVmm:
@@ -146,10 +303,98 @@ class OpenVmmController:
             openvmm.set_binary_path("openvmm")
         return openvmm
 
+    def ensure_minimum_raw_disk_size(
+        self, disk_image_path: str, minimum_size_gb: int
+    ) -> None:
+        """
+        Ensure a .raw OpenVMM guest disk image is at least the requested size.
+
+        Args:
+            disk_image_path: Path to the guest disk image on the OpenVMM host.
+            minimum_size_gb: Minimum image size, in GiB.
+        """
+        if not disk_image_path or minimum_size_gb <= 0:
+            return
+        if not _is_raw_disk_image(disk_image_path):
+            self._log.debug(
+                "Skipping OpenVMM raw disk growth for non-raw disk image "
+                f"'{disk_image_path}'."
+            )
+            return
+
+        minimum_size_bytes = minimum_size_gb * OPENVMM_GIBIBYTE
+        quoted_disk_img_path = shlex.quote(disk_image_path)
+        self.host_node.execute(
+            (
+                f"current_size=$(stat -c %s -- {quoted_disk_img_path}) && "
+                f'if [ "$current_size" -lt {minimum_size_bytes} ]; then '
+                f"truncate -s {minimum_size_gb}G -- {quoted_disk_img_path}; "
+                "fi"
+            ),
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to ensure OpenVMM raw guest disk "
+                f"'{disk_image_path}' is at least {minimum_size_gb} GiB. "
+                "Verify the host has enough free space and supports sparse files."
+            ),
+        )
+
+    def create_effective_network(
+        self, network: OpenVmmNetworkSchema, guest_index: int
+    ) -> OpenVmmNetworkSchema:
+        effective_network = copy.deepcopy(network)
+        if effective_network.mode != OPENVMM_NETWORK_MODE_TAP:
+            return effective_network
+
+        base_tap_host_cidr = effective_network.tap_host_cidr
+        effective_network.tap_name = _increment_name_suffix(
+            effective_network.tap_name, guest_index
+        )
+        effective_network.bridge_name = _increment_name_suffix(
+            effective_network.bridge_name, guest_index
+        )
+        try:
+            effective_network.validate_tap_interface_names()
+        except LisaException as identifier:
+            raise LisaException(
+                "cannot derive OpenVMM tap network interface names for guest "
+                f"index {guest_index}: {identifier}"
+            ) from identifier
+        effective_network.tap_host_cidr = _shift_ip_interface_cidr(
+            effective_network.tap_host_cidr, guest_index
+        )
+        effective_network.guest_address = _shift_ip_address(
+            effective_network.guest_address, base_tap_host_cidr, guest_index
+        )
+        effective_network.consomme_cidr = _shift_ip_interface_cidr(
+            effective_network.consomme_cidr, guest_index
+        )
+        if effective_network.forward_ssh_port:
+            effective_network.forwarded_port += guest_index
+            if effective_network.forwarded_port > 65535:
+                raise LisaException(
+                    "cannot derive OpenVMM forwarded SSH port from "
+                    f"'{network.forwarded_port}' for guest index {guest_index}: "
+                    "derived port exceeds 65535. Use a lower base forwarded_port."
+                )
+
+        return effective_network
+
+    def _get_node_network(
+        self, node: "OpenVmmGuestNode", node_context: NodeContext
+    ) -> OpenVmmNetworkSchema:
+        if node_context.effective_network:
+            return node_context.effective_network
+
+        return cast(OpenVmmGuestNodeSchema, node.runbook).network
+
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         node_context = get_node_context(node)
-        self._prepare_tap_network(runbook.network, node_context)
+        network = self._get_node_network(node, node_context)
+        self._prepare_tap_network(network, node_context)
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
             disk_img_path=node_context.disk_img_path,
@@ -160,9 +405,9 @@ class OpenVmmController:
             ),
             processors=_countspace_to_int(node.capability.core_count),
             memory_mb=_countspace_to_int(node.capability.memory_mb),
-            network_mode=runbook.network.mode,
-            tap_name=getattr(runbook.network, "tap_name", ""),
-            network_cidr=runbook.network.consomme_cidr,
+            network_mode=network.mode,
+            tap_name=getattr(network, "tap_name", ""),
+            network_cidr=network.consomme_cidr,
             serial_mode=runbook.serial.mode,
             serial_path=node_context.console_log_file_path,
             extra_args=runbook.extra_args,
@@ -175,9 +420,9 @@ class OpenVmmController:
         node_context.process_id = openvmm.launch_vm(
             launch_config,
             cwd=launch_cwd,
-            sudo=runbook.network.mode == OPENVMM_NETWORK_MODE_TAP,
+            sudo=network.mode == OPENVMM_NETWORK_MODE_TAP,
         )
-        self._ensure_process_running(node_context, runbook.network)
+        self._ensure_process_running(node_context, network)
         log.debug(
             f"Launched OpenVMM VM '{node_context.vm_name}' with pid "
             f"{node_context.process_id}"
@@ -201,6 +446,15 @@ class OpenVmmController:
         user_data: dict[str, Any] = {
             "users": ["default", user],
         }
+        if runbook.min_raw_disk_size_gb > 0 and _is_raw_disk_image(
+            node_context.disk_img_path
+        ):
+            user_data["growpart"] = {
+                "mode": "auto",
+                "devices": ["/"],
+                "ignore_growroot_disabled": False,
+            }
+            user_data["resize_rootfs"] = True
         if runbook.username == "root":
             user_data["disable_root"] = False
         if runbook.password:
@@ -238,10 +492,12 @@ class OpenVmmController:
                     ("/meta-data", meta_data_string),
                 ],
             )
-            self.host_node.shell.copy(
-                Path(iso_path),
-                self.host_node.get_pure_path(node_context.cloud_init_file_path),
-            )
+            host_context = get_host_context(self.host_node)
+            with host_context.artifact_copy_lock:
+                self.host_node.shell.copy(
+                    Path(iso_path),
+                    self.host_node.get_pure_path(node_context.cloud_init_file_path),
+                )
         finally:
             tmp_dir.cleanup()
 
@@ -378,7 +634,9 @@ class OpenVmmController:
         ip_tool.up(tap_name)
 
         if network.address_mode != OPENVMM_ADDRESS_MODE_STATIC:
-            self._ensure_tap_dhcp_input_allowed(host_interface_name, node_context)
+            self._ensure_tap_host_services_input_allowed(
+                host_interface_name, node_context
+            )
             pid_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.pid"
             lease_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.leases"
             host.execute(
@@ -404,6 +662,10 @@ class OpenVmmController:
                 kill_existing=False,
                 pid_file=pid_file,
                 lease_file=lease_file,
+                dhcp_options=[
+                    f"option:router,{tap_gateway}",
+                    f"option:dns-server,{tap_gateway}",
+                ],
             )
             node_context.tap_dnsmasq_pid_file = pid_file
             node_context.tap_dnsmasq_lease_file = lease_file
@@ -485,7 +747,7 @@ class OpenVmmController:
                 expected_exit_code_failure_message=failure_message,
             )
 
-    def _ensure_tap_dhcp_input_allowed(
+    def _ensure_tap_host_services_input_allowed(
         self, host_interface_name: str, node_context: NodeContext
     ) -> None:
         iptables_exists = self.host_node.execute(
@@ -499,31 +761,46 @@ class OpenVmmController:
         if iptables_exists.exit_code != 0:
             return
 
-        rule = (
-            f"INPUT -i {shlex.quote(host_interface_name)} -p udp -m udp "
-            f"--dport {OPENVMM_DHCP_SERVER_PORT} -j ACCEPT"
-        )
-        check_result = self.host_node.execute(
-            f"iptables -C {rule}",
-            shell=True,
-            sudo=True,
-            no_info_log=True,
-            no_error_log=True,
-            expected_exit_code=None,
-        )
-        if check_result.exit_code == 0:
-            return
+        for rule in self._get_tap_host_service_input_rules(host_interface_name):
+            check_result = self.host_node.execute(
+                f"iptables -C {rule}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=None,
+            )
+            if check_result.exit_code == 0:
+                continue
 
-        self.host_node.execute(
-            f"iptables -I {rule}",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "failed to allow DHCP traffic to the OpenVMM host interface"
+            self.host_node.execute(
+                f"iptables -I {rule}",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to allow OpenVMM DHCP/DNS traffic to the host "
+                    f"interface {host_interface_name}"
+                ),
+            )
+            node_context.tap_input_rules_added.append(rule)
+
+    def _get_tap_host_service_input_rules(self, host_interface_name: str) -> List[str]:
+        quoted_interface = shlex.quote(host_interface_name)
+        return [
+            (
+                f"INPUT -i {quoted_interface} -p udp -m udp "
+                f"--dport {OPENVMM_DHCP_SERVER_PORT} -j ACCEPT"
             ),
-        )
-        node_context.tap_dhcp_input_rule_added = True
+            (
+                f"INPUT -i {quoted_interface} -p udp -m udp "
+                f"--dport {OPENVMM_DNS_SERVER_PORT} -j ACCEPT"
+            ),
+            (
+                f"INPUT -i {quoted_interface} -p tcp -m tcp "
+                f"--dport {OPENVMM_DNS_SERVER_PORT} -j ACCEPT"
+            ),
+        ]
 
     def _get_tap_network_config(self, network: OpenVmmNetworkSchema) -> tuple[str, str]:
         host_interface = ipaddress.ip_interface(network.tap_host_cidr)
@@ -544,8 +821,8 @@ class OpenVmmController:
 
     def configure_connection(self, node: RemoteNode, log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
-        network = runbook.network
         node_context = get_node_context(node)
+        network = self._get_node_network(cast(OpenVmmGuestNode, node), node_context)
 
         guest_address = self._resolve_guest_address(node_context, network, log)
         node_context.guest_address = guest_address
@@ -586,7 +863,7 @@ class OpenVmmController:
                 "configuration is correct, the SSH service is listening on the "
                 "expected port, and review the OpenVMM guest and host logs for "
                 "startup or networking errors. "
-                f"{self._get_openvmm_failure_context(node_context, runbook.network)}"
+                f"{self._get_openvmm_failure_context(node_context, network)}"
             ) from identifier
         if not is_ready:
             raise LisaException(
@@ -596,7 +873,7 @@ class OpenVmmController:
                 "port forwarding or network configuration is correct, the SSH "
                 "service is listening on the expected port, and review the "
                 "OpenVMM guest and host logs for startup or networking errors. "
-                f"{self._get_openvmm_failure_context(node_context, runbook.network)}"
+                f"{self._get_openvmm_failure_context(node_context, network)}"
             )
 
     def _resolve_guest_address(
@@ -926,7 +1203,7 @@ class OpenVmmController:
         self._disable_ssh_forwarding(node)
         self._teardown_tap_network(
             node_context,
-            cast(OpenVmmGuestNodeSchema, node.runbook).network,
+            self._get_node_network(cast(OpenVmmGuestNode, node), node_context),
         )
 
         if wait_failure:
@@ -1046,10 +1323,30 @@ class OpenVmmController:
             ),
             (
                 "iptables -C FORWARD -i "
+                f"{shlex.quote(host_interface)} ! -o "
+                f"{shlex.quote(forwarding_interface)} "
+                "-j ACCEPT "
+                "|| "
+                "iptables -I FORWARD -i "
+                f"{shlex.quote(host_interface)} ! -o "
+                f"{shlex.quote(forwarding_interface)} "
+                "-j ACCEPT"
+            ),
+            (
+                "iptables -C FORWARD -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT "
                 "|| "
                 "iptables -I FORWARD -i "
+                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT"
+            ),
+            (
+                "iptables -C FORWARD ! -i "
+                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT "
+                "|| "
+                "iptables -I FORWARD ! -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT"
             ),
@@ -1116,7 +1413,7 @@ class OpenVmmController:
         node_context = get_node_context(node)
         self._disable_ssh_forwarding_context(
             node_context,
-            cast(OpenVmmGuestNodeSchema, node.runbook).network,
+            self._get_node_network(cast(OpenVmmGuestNode, node), node_context),
         )
 
     def _disable_ssh_forwarding_context(
@@ -1146,6 +1443,17 @@ class OpenVmmController:
             ),
             (
                 "iptables -D FORWARD -i "
+                f"{shlex.quote(host_interface)} ! -o "
+                f"{shlex.quote(forwarding_interface)} "
+                "-j ACCEPT || true"
+            ),
+            (
+                "iptables -D FORWARD -i "
+                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
+            ),
+            (
+                "iptables -D FORWARD ! -i "
                 f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
             ),
@@ -1268,19 +1576,16 @@ class OpenVmmController:
         if network.mode != OPENVMM_NETWORK_MODE_TAP:
             return
 
-        if node_context.tap_dhcp_input_rule_added:
-            host_interface_name = _get_tap_host_interface_name(network)
-            self.host_node.execute(
-                (
-                    "iptables -D INPUT -i "
-                    f"{shlex.quote(host_interface_name)} -p udp -m udp "
-                    f"--dport {OPENVMM_DHCP_SERVER_PORT} -j ACCEPT || true"
-                ),
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-            )
-            node_context.tap_dhcp_input_rule_added = False
+        if node_context.tap_input_rules_added:
+            rules_to_remove = node_context.tap_input_rules_added
+            for rule in rules_to_remove:
+                self.host_node.execute(
+                    f"iptables -D {rule} || true",
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                )
+            node_context.tap_input_rules_added.clear()
 
         if node_context.tap_dnsmasq_pid_file:
             self.host_node.execute(
@@ -1357,7 +1662,10 @@ class OpenVmmGuestNode(RemoteNode):
             encoding=encoding,
             **kwargs,
         )
-        self._openvmm_controller = OpenVmmController(self)
+        host_node = self.parent
+        if host_node is None:
+            raise LisaException("OpenVMM guest node must have a parent host node")
+        self._openvmm_controller = OpenVmmController(host_node, self.log)
         self._initialize_capability()
         self.features = Features(self, cast(Any, self._openvmm_controller))
 
@@ -1405,6 +1713,11 @@ class OpenVmmGuestNode(RemoteNode):
         node_context = get_node_context(self)
         node_context.vm_name = vm_name
         node_context.host = host_node
+        node_context.effective_network = (
+            self._openvmm_controller.create_effective_network(
+                runbook.network, self.index
+            )
+        )
 
         base_working_path = host_node.get_pure_path(runbook.lisa_working_dir)
         working_path = base_working_path / vm_name
@@ -1429,6 +1742,13 @@ class OpenVmmGuestNode(RemoteNode):
                     working_path,
                 )
             )
+            if runbook.min_raw_disk_size_gb > 0 and _is_raw_disk_image(
+                node_context.disk_img_path
+            ):
+                self._openvmm_controller.ensure_minimum_raw_disk_size(
+                    node_context.disk_img_path,
+                    runbook.min_raw_disk_size_gb,
+                )
 
         if runbook.cloud_init:
             node_context.cloud_init_file_path = str(working_path / "cloud-init.iso")

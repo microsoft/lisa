@@ -408,14 +408,16 @@ def _update_mariner_v2_config(
 
     # Param for Dom0 3.0 kernel installation
     mariner_config = "/boot/grub2/grub.cfg"
-    vmlinuz_regexp = f"vmlinuz-{current_kernel}"
-    vmlinuz_replacement = f"vmlinuz-{new_kernel}"
+    vmlinuz_regexp = f"vmlinuz-{current_kernel}\\([[:space:]]\\)"
+    vmlinuz_replacement = f"vmlinuz-{new_kernel}\\1"
     initrd_regexp = f"initramfs-{current_kernel}.img"
     initrd_replacement = f"initramfs-{new_kernel}.img"
 
     if isinstance(node.os, CBLMariner) and mariner_version <= 2:
         # Change param for Dom0 2.0 kernel installation
         mariner_config = "/boot/mariner-mshv.cfg"
+        vmlinuz_regexp = f"vmlinuz-{current_kernel}"
+        vmlinuz_replacement = f"vmlinuz-{new_kernel}"
         initrd_regexp = f"mariner_initrd_mshv=initrd.img-{current_kernel}"
         initrd_replacement = f"mariner_initrd_mshv=initrd.img-{new_kernel}"
 

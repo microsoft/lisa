@@ -4,7 +4,7 @@ import random
 import re
 import string
 import time
-from typing import Any, Pattern, cast
+from typing import Any, Dict, List, Pattern, cast
 
 from assertpy.assertpy import assert_that
 
@@ -51,6 +51,7 @@ from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
     SkippedException,
+    check_till_timeout,
     constants,
     generate_random_chars,
     get_matched_str,
@@ -856,10 +857,11 @@ class Storage(TestSuite):
             # verify that partition count is increased by 1
             # and the size of partition is correct
             partitons_after_adding_disk = lsblk.get_disks(force_run=True)
+            before_names = {d.name for d in partitions_before_adding_disk}
             added_partitions = [
                 item
                 for item in partitons_after_adding_disk
-                if item not in partitions_before_adding_disk
+                if item.name not in before_names
             ]
             log.debug(f"added_partitions: {added_partitions}")
             assert_that(added_partitions, "Data disk should be added").is_length(
@@ -872,19 +874,43 @@ class Storage(TestSuite):
             ).is_equal_to(size)
 
             # verify the lun number from linux VM
+            # Retry to allow udev to create the LUN symlink after disk attach
             linux_device_luns_after = disk.get_luns()
-            log.debug(f"linux_device_luns: {linux_device_luns}")
-            log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
-            new_device_keys = set(linux_device_luns_after) - set(linux_device_luns)
+
+            def _new_lun_detected(
+                _baseline: Dict[str, int] = linux_device_luns,
+            ) -> bool:
+                nonlocal linux_device_luns_after
+                linux_device_luns_after = disk.get_luns()
+                new_keys = set(linux_device_luns_after) - set(_baseline)
+                return len(new_keys) > 0
+
+            # 30s matches the disk-detection timeout used in
+            # _hot_add_disk_parallel for partition appearance after attach.
+            check_till_timeout(
+                _new_lun_detected,
+                timeout_message=(
+                    f"new LUN not detected after disk attach at lun {lun}, "
+                    f"luns_before: {linux_device_luns}, "
+                    f"luns_after: {linux_device_luns_after}"
+                ),
+                timeout=30,
+                interval=1,
+            )
+            new_device_keys: List[str] = list(
+                set(linux_device_luns_after) - set(linux_device_luns)
+            )
             assert_that(
-                list(new_device_keys),
-                f"Expected new device at lun {lun} but no new device "
-                f"appeared. Before: {linux_device_luns}, "
+                new_device_keys,
+                f"Expected exactly one new device at lun {lun} but found "
+                f"{len(new_device_keys)}. Before: {linux_device_luns}, "
                 f"After: {linux_device_luns_after}. This may indicate "
                 f"the VM size does not support this many data disks "
                 f"(max_data_disk_count={max_data_disk_count}).",
-            ).is_not_empty()
-            linux_device_lun_diff = linux_device_luns_after[next(iter(new_device_keys))]
+            ).is_length(1)
+            linux_device_lun_diff = linux_device_luns_after[new_device_keys[0]]
+            log.debug(f"linux_device_luns: {linux_device_luns}")
+            log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
             log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
             assert_that(linux_device_lun_diff, "New device lun mismatch").is_equal_to(
                 lun
@@ -898,10 +924,11 @@ class Storage(TestSuite):
 
         # verify that all the attached disks are removed
         partitions_after_removing_disks = lsblk.get_disks(force_run=True)
+        after_names = {d.name for d in partitions_after_removing_disks}
         partitions_available = [
             item
             for item in partitions_before_adding_disk
-            if item not in partitions_after_removing_disks
+            if item.name not in after_names
         ]
         assert_that(partitions_available, "data disks should not be present").is_length(
             0
@@ -948,10 +975,11 @@ class Storage(TestSuite):
         timer = create_timer()
         while timeout > timer.elapsed(False):
             partitons_after_adding_disks = lsblk.get_disks(force_run=True)
+            before_names = {d.name for d in partitions_before_adding_disks}
             added_partitions = [
                 item
                 for item in partitons_after_adding_disks
-                if item not in partitions_before_adding_disks
+                if item.name not in before_names
             ]
             if len(added_partitions) == disks_to_add:
                 break
@@ -973,10 +1001,11 @@ class Storage(TestSuite):
 
         # verify that partition count is decreased by disks_to_add
         partition_after_removing_disk = lsblk.get_disks(force_run=True)
+        after_names = {d.name for d in partition_after_removing_disk}
         added_partitions = [
             item
             for item in partitions_before_adding_disks
-            if item not in partition_after_removing_disk
+            if item.name not in after_names
         ]
         assert_that(added_partitions, "data disks should not be present").is_length(0)
 

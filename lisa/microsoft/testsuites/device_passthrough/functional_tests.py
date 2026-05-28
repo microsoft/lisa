@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import TYPE_CHECKING, Any, Dict, List, cast
+from typing import TYPE_CHECKING, Dict, Tuple, cast
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.base_tools import Cat
@@ -12,7 +12,7 @@ from lisa.util import LisaException, SkippedException
 
 if TYPE_CHECKING:
     from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
-    from lisa.sut_orchestrator.util.schema import HostDevicePoolType
+    from lisa.sut_orchestrator.libvirt.schema import DeviceAddressSchema
 
 
 @TestSuiteMetadata(
@@ -55,8 +55,9 @@ class DevicePassthroughFunctionalTests(TestSuite):
             value, platform will try to get devices from pool and assign it to node.
 
             Testcase will verify if needed devices are present on node by reading
-            extended runbook. It will get the vendor/device id based on 'pool_type'
-            and check how many devices are present on node for that vendor/device id.
+            the runtime passthrough device context. It will resolve vendor/device
+            ids for assigned host devices and check how many matching devices are
+            present on the guest.
         """,
         priority=4,
         requirement=simple_requirement(
@@ -71,129 +72,56 @@ class DevicePassthroughFunctionalTests(TestSuite):
     ) -> None:
         lspci = node.tools[Lspci]
         platform = cast("CloudHypervisorPlatform", environment.platform)
-        pool_vendor_device_map: Dict[str, Dict[str, str]] = {}
-        if not platform.platform_runbook.device_pools:
-            raise SkippedException("device_pools is not configured in the runbook")
-
-        from lisa.sut_orchestrator.util.schema import (
-            PciAddressIdentifier,
-            VendorDeviceIdIdentifier,
-        )
-
-        for pool in platform.platform_runbook.device_pools:
-            pool_type = str(pool.type.value)
-            if not pool.devices:
-                raise LisaException(f"No devices defined for pool type: {pool_type}")
-            if isinstance(pool.devices, list):
-                first: VendorDeviceIdIdentifier = pool.devices[0]
-                vendor_device_id = {
-                    "vendor_id": first.vendor_id,
-                    "device_id": first.device_id,
-                }
-            elif isinstance(pool.devices, PciAddressIdentifier):
-                # Resolve vendor/device IDs from host sysfs for BDF pools.
-                if not pool.devices.pci_bdf:
-                    raise LisaException(f"Pool '{pool_type}' has no pci_bdf entries")
-                vendor_device_id = self._vendor_device_from_host_bdf(
-                    platform, pool.type, pool.devices.pci_bdf[0]
-                )
-            elif isinstance(pool.devices, dict):
-                # dataclasses_json fallback: raw dict form from runbook.
-                if "pci_bdf" in pool.devices:
-                    bdf_list = self._normalize_pci_bdf_list(
-                        pool.devices["pci_bdf"], pool_type
-                    )
-                    vendor_device_id = self._vendor_device_from_host_bdf(
-                        platform, pool.type, bdf_list[0]
-                    )
-                elif "vendor_id" in pool.devices and "device_id" in pool.devices:
-                    vendor_device_id = {
-                        "vendor_id": pool.devices["vendor_id"],
-                        "device_id": pool.devices["device_id"],
-                    }
-                else:
-                    raise LisaException(
-                        f"Pool '{pool_type}' devices dict has neither 'pci_bdf' "
-                        f"nor 'vendor_id'/'device_id' keys: {pool.devices}"
-                    )
-            else:
-                raise LisaException(
-                    f"Pool '{pool_type}' has unrecognised devices type: "
-                    f"{type(pool.devices)}"
-                )
-            pool_vendor_device_map[pool_type] = vendor_device_id
-
         # Import at runtime to avoid libvirt dependency on other platforms.
-        from lisa.sut_orchestrator.libvirt.schema import BaseLibvirtNodeSchema
+        from lisa.sut_orchestrator.libvirt.context import get_node_context
 
-        node_runbook: "BaseLibvirtNodeSchema" = node.capability.get_extended_runbook(
-            BaseLibvirtNodeSchema, CLOUD_HYPERVISOR
-        )
-        if not node_runbook.device_passthrough:
-            raise SkippedException("No device-passthrough is set for node")
+        node_context = get_node_context(node)
+        if not node_context.passthrough_devices:
+            raise SkippedException("No passthrough devices are assigned to node")
 
-        for req in node_runbook.device_passthrough:
-            pool_type = str(req.pool_type.value)
-            if pool_type not in pool_vendor_device_map:
+        expected_devices: Dict[Tuple[str, str, str], int] = {}
+        for passthrough_context in node_context.passthrough_devices:
+            pool_type = str(passthrough_context.pool_type.value)
+            if not passthrough_context.device_list:
                 raise LisaException(
-                    f"Pool type '{pool_type}' not found in platform device pools"
+                    f"No devices assigned to node for pool type: {pool_type}"
                 )
-            ven_dev_id_of_pool = pool_vendor_device_map[pool_type]
-            ven_id = ven_dev_id_of_pool["vendor_id"]
-            dev_id = ven_dev_id_of_pool["device_id"]
+            for host_device in passthrough_context.device_list:
+                vendor_device_id = self._vendor_device_from_host_device(
+                    platform, host_device
+                )
+                key = (
+                    pool_type,
+                    vendor_device_id["vendor_id"],
+                    vendor_device_id["device_id"],
+                )
+                expected_devices[key] = expected_devices.get(key, 0) + 1
+
+        for (pool_type, ven_id, dev_id), expected_count in expected_devices.items():
             devices = lspci.get_devices_by_vendor_device_id(
                 vendor_id=ven_id,
                 device_id=dev_id,
                 force_run=True,
             )
-            if len(devices) < req.count:
+            if len(devices) < expected_count:
                 raise LisaException(
                     f"Passthrough device validation failed for "
                     f"pool_type '{pool_type}': Found {len(devices)} "
-                    f"device(s) but expected {req.count}. "
+                    f"device(s) but expected {expected_count}. "
                     f"Vendor/Device ID: {ven_id}:{dev_id}"
                 )
 
     @staticmethod
-    def _vendor_device_from_host_bdf(
+    def _vendor_device_from_host_device(
         platform: "CloudHypervisorPlatform",
-        pool_type: "HostDevicePoolType",
-        bdf: str,
+        device: "DeviceAddressSchema",
     ) -> Dict[str, str]:
-        """Read vendor_id and device_id for a BDF from host sysfs."""
-        resolved_bdf = platform.device_pool.resolve_requested_pci_address(
-            pool_type, bdf.strip()
-        )
+        """Read vendor_id and device_id for an assigned host PCI device."""
+        bdf = (f"{device.domain}:{device.bus}:{device.slot}.{device.function}").lower()
         cat = platform.host_node.tools[Cat]
-        vendor_raw = cat.read(
-            f"/sys/bus/pci/devices/{resolved_bdf}/vendor", sudo=True
-        ).strip()
-        device_raw = cat.read(
-            f"/sys/bus/pci/devices/{resolved_bdf}/device", sudo=True
-        ).strip()
+        vendor_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/vendor", sudo=True).strip()
+        device_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/device", sudo=True).strip()
         # Normalize to 4-digit lowercase hex used by lspci identifiers.
         vendor_id = vendor_raw.lower().replace("0x", "").zfill(4)
         device_id = device_raw.lower().replace("0x", "").zfill(4)
         return {"vendor_id": vendor_id, "device_id": device_id}
-
-    @staticmethod
-    def _normalize_pci_bdf_list(raw_value: Any, pool_type: str) -> List[str]:
-        if raw_value is None:
-            raise LisaException(f"Pool '{pool_type}' pci_bdf list is empty")
-
-        if isinstance(raw_value, str):
-            raw_values = [raw_value]
-        else:
-            try:
-                raw_values = list(raw_value)
-            except TypeError as identifier_error:
-                raise LisaException(
-                    f"Pool '{pool_type}' pci_bdf must be a string or iterable "
-                    "of strings"
-                ) from identifier_error
-
-        normalized_values = [value.strip() for value in raw_values if value.strip()]
-        if not normalized_values:
-            raise LisaException(f"Pool '{pool_type}' pci_bdf list is empty")
-
-        return normalized_values

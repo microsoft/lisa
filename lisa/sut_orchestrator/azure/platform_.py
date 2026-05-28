@@ -162,6 +162,15 @@ AZURE_INTERNAL_ERROR_PATTERN = re.compile(
     r"OSProvisioningInternalError: OS Provisioning failed "
     r"for VM.*due to an internal error."
 )
+# Matches ARM error when the requested OS disk size is smaller than the
+# image's OS disk size, e.g.
+#   "The specified disk size 30 GB is smaller than the size of the
+#    corresponding disk in the VM image: 64 GB."
+OSDISK_SIZE_TOO_SMALL_PATTERN = re.compile(
+    r"specified disk size (?P<requested>\d+)\s*GB is smaller than "
+    r"the size of the corresponding disk in the VM image:\s*(?P<required>\d+)\s*GB",
+    re.IGNORECASE,
+)
 
 VM_SIZE_FALLBACK_PATTERNS = [
     # First priority: Standard_D series with single digit
@@ -526,6 +535,12 @@ class AzurePlatform(Platform):
 
         self._private_key_lock = threading.Lock()
         self._lisa_sha_cache: Optional[str] = None
+        # Cache of OS disk size discovered at deploy time, keyed by marketplace
+        # identifier "publisher/offer/sku/version". Populated by the retry path
+        # in ``_deploy`` and consulted in ``_create_node_arm_parameters`` so
+        # subsequent environments using the same image deploy with the right
+        # size on the first try instead of failing once and retrying.
+        self._osdisk_size_cache: Dict[str, int] = {}
 
     @classmethod
     def type_name(cls) -> str:
@@ -1517,7 +1532,7 @@ class AzurePlatform(Platform):
             )
 
         # composite deployment properties
-        parameters = arm_parameters.to_dict()  # type:ignore
+        parameters = arm_parameters.to_dict()  # type: ignore
         parameters = {k: {"value": v} for k, v in parameters.items()}
         log.debug(f"parameters: {parameters}")
         deployment_properties = DeploymentProperties(
@@ -1723,6 +1738,22 @@ class AzurePlatform(Platform):
                         plan_publisher=plan_publisher,
                     )
 
+        # Apply OS disk size discovered from a previous failed deployment of
+        # the same marketplace image. Some marketplace images don't expose
+        # their disk size via the virtual_machine_images API, so
+        # ``get_image_info`` returns None and the bump above is skipped. The
+        # first deploy then fails and ``_deploy`` retries with the size from
+        # the ARM error; this cache lets subsequent environments skip that
+        # round-trip.
+        if arm_parameters.marketplace:
+            cached_size = self._osdisk_size_cache.get(
+                self._marketplace_cache_key(arm_parameters.marketplace)
+            )
+            if cached_size:
+                arm_parameters.osdisk_size_in_gb = max(
+                    arm_parameters.osdisk_size_in_gb, cached_size
+                )
+
         # Set Hyper-V Generation
         # Note: Image capability has already been merged with the VM capability
         hyperv_generation = capability._find_feature_by_type(
@@ -1829,6 +1860,7 @@ class AzurePlatform(Platform):
         deployment_parameters: Dict[str, Any],
         log: Logger,
         environment: Environment,
+        _attempt: int = 1,
     ) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
         storage_account_name = get_storage_account_name(self.subscription_id, location)
@@ -1944,8 +1976,119 @@ class AzurePlatform(Platform):
                         error_message = (
                             f"OSProvisioningTimedOut: {type(ex).__name__}: {ex}"
                         )
+                # If the deployment failed because the requested OS disk size
+                # is smaller than the image's actual OS disk size, bump the
+                # parameter to the size reported by ARM and retry once. This
+                # avoids the user having to know the image's OS disk size up
+                # front (some marketplace images don't expose it via the
+                # virtual_machine_images API).
+                if self._maybe_retry_with_bumped_osdisk_size(
+                    error_message,
+                    location,
+                    deployment_parameters,
+                    log,
+                    environment,
+                    _attempt,
+                ):
+                    return
                 plugin_manager.hook.azure_deploy_failed(error_message=error_message)
                 raise LisaException(error_message)
+
+    def _maybe_retry_with_bumped_osdisk_size(
+        self,
+        error_message: str,
+        location: str,
+        deployment_parameters: Dict[str, Any],
+        log: Logger,
+        environment: Environment,
+        attempt: int,
+    ) -> bool:
+        """Retry deployment once after bumping osdisk_size_in_gb.
+
+        Returns True if a retry was performed (caller should not raise).
+        """
+        if attempt != 1:
+            return False
+        disk_match = OSDISK_SIZE_TOO_SMALL_PATTERN.search(error_message)
+        if not disk_match:
+            return False
+        requested = int(disk_match.group("requested"))
+        image_size = int(disk_match.group("required"))
+        if not self._bump_osdisk_size_in_parameters(
+            deployment_parameters, image_size, log
+        ):
+            return False
+        log.info(
+            f"image OS disk size is {image_size} GB, "
+            f"requested {requested} GB. Bumping "
+            f"osdisk_size_in_gb to {image_size} GB "
+            f"and retrying deployment."
+        )
+        self._deploy(
+            location,
+            deployment_parameters,
+            log,
+            environment,
+            _attempt=attempt + 1,
+        )
+        return True
+
+    def _bump_osdisk_size_in_parameters(
+        self,
+        deployment_parameters: Dict[str, Any],
+        new_size_gb: int,
+        log: Logger,
+    ) -> bool:
+        """Bump every node's ``osdisk_size_in_gb`` to at least ``new_size_gb``.
+
+        Also caches the discovered size against each node's marketplace
+        identifier so future deployments of the same image skip the retry.
+
+        Returns True if any node parameter was actually changed.
+        """
+        deployment = deployment_parameters["parameters"]
+        try:
+            nodes_param = deployment.properties.parameters["nodes"]["value"]
+        except (AttributeError, KeyError, TypeError):
+            log.debug(
+                "could not locate 'nodes' parameter in deployment_parameters; "
+                "skip osdisk size bump"
+            )
+            return False
+        changed = False
+        for node in nodes_param:
+            current = int(node.get("osdisk_size_in_gb", 0) or 0)
+            if current < new_size_gb:
+                node["osdisk_size_in_gb"] = new_size_gb
+                changed = True
+            marketplace = node.get("marketplace")
+            if isinstance(marketplace, dict):
+                key = self._marketplace_cache_key(marketplace)
+                if key:
+                    prev = self._osdisk_size_cache.get(key, 0)
+                    if new_size_gb > prev:
+                        self._osdisk_size_cache[key] = new_size_gb
+        return changed
+
+    def _marketplace_cache_key(self, marketplace: Any) -> str:
+        """Build a stable cache key from a marketplace value.
+
+        Accepts either an ``AzureVmMarketplaceSchema`` instance or the
+        equivalent dict form found in ARM deployment parameters.
+        """
+        if isinstance(marketplace, dict):
+            publisher = marketplace.get("publisher", "")
+            offer = marketplace.get("offer", "")
+            sku = marketplace.get("sku", "")
+            version = marketplace.get("version", "")
+        else:
+            publisher = getattr(marketplace, "publisher", "") or ""
+            offer = getattr(marketplace, "offer", "") or ""
+            sku = getattr(marketplace, "sku", "") or ""
+            version = getattr(marketplace, "version", "") or ""
+        if not (publisher and offer and sku):
+            return ""
+        return f"{publisher}/{offer}/{sku}/{version}".lower()
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.
@@ -2966,6 +3109,38 @@ class AzurePlatform(Platform):
 
         return False
 
+    @staticmethod
+    def _collect_unmet_reasons(
+        awaitable_candidates: List[Any],
+        all_candidates: List[Any],
+    ) -> List[str]:
+        """Collect capability mismatch reasons from candidates.
+
+        First checks reasons stored by _get_meet_capabilities during its
+        iteration. If none were found (e.g. all candidates were dropped due
+        to zero quota before capability matching), falls back to running
+        capability checks against ALL allowed (pre-quota-filtered) candidates
+        to surface the real mismatch reasons.
+        """
+        unmet_reasons: List[str] = []
+        for item in awaitable_candidates:
+            if len(item) > 2 and item[2]:
+                unmet_reasons.extend(item[2])
+
+        if not unmet_reasons and all_candidates:
+            for item in all_candidates:
+                req_check, caps_check = item[0], item[1]
+                assert isinstance(req_check, schema.NodeSpace)
+                for azure_cap in caps_check:
+                    check_result = req_check.check(azure_cap.capability)
+                    if not check_result.result and check_result.reasons:
+                        unmet_reasons.extend(check_result.reasons)
+                        break
+                if unmet_reasons:
+                    break
+
+        return unmet_reasons
+
     def _get_azure_capabilities(
         self, location: str, nodes_requirement: List[schema.NodeSpace], log: Logger
     ) -> Tuple[List[Union[AzureCapability, bool]], str]:
@@ -2976,6 +3151,10 @@ class AzurePlatform(Platform):
         # capabilities.
         available_candidates: List[Any] = []
         awaitable_candidates: List[Any] = []
+        # Keep all allowed candidates (before quota filtering) so we can
+        # run capability checks on them to collect meaningful skip reasons
+        # even for VMs that were dropped due to zero quota.
+        all_candidates: List[Any] = []
 
         # get allowed vm sizes. Either it's from the runbook defined, or
         # from subscription supported.
@@ -2987,6 +3166,8 @@ class AzurePlatform(Platform):
                 # no candidate found, so try next one.
                 error = sub_error
                 continue
+
+            all_candidates.append([req, candidate_caps])
 
             # filter vm sizes and return two list. 1st is deployable, 2nd is
             # wait able for released resource.
@@ -3048,14 +3229,12 @@ class AzurePlatform(Platform):
 
         if not found:
             # Collect unmet requirement reasons that were stored by
-            # _get_meet_capabilities during its iteration. These explain
-            # exactly which test-case requirements were not satisfied by
-            # any candidate VM size, replacing the previously generic
-            # "no available quota found" message.
-            unmet_reasons: List[str] = []
-            for item in awaitable_candidates:
-                if len(item) > 2 and item[2]:
-                    unmet_reasons.extend(item[2])
+            # _get_meet_capabilities during its iteration, or fall back
+            # to checking all pre-quota-filtered candidates.
+            unmet_reasons = self._collect_unmet_reasons(
+                awaitable_candidates, all_candidates
+            )
+
             if unmet_reasons:
                 # De-duplicate while preserving order.
                 seen: Set[str] = set()

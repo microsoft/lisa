@@ -41,7 +41,7 @@ class HyperVDevicePool(BaseDevicePool):
         self._hyperv_runbook = runbook
         self.log = log
 
-    def create_device_pool(
+    def create_device_pool_from_vendor_device_id(
         self,
         pool_type: HostDevicePoolType,
         vendor_id: str,

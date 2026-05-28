@@ -37,7 +37,12 @@ class GenericVmExtension(TestSuite):
           - extension_version    (e.g. "1.0")
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension],
+            # Empty unsupported_os overrides the default `[Windows]`, allowing
+            # both Linux/Posix and Windows nodes to run this test.
+            unsupported_os=[],
+        ),
     )
     def verify_vm_extension_install_uninstall(
         self,
@@ -45,9 +50,9 @@ class GenericVmExtension(TestSuite):
         node: Node,
         variables: Dict[str, Any],
     ) -> None:
-        publisher: str = variables.get("extension_publisher", "")
-        type_: str = variables.get("extension_type", "")
-        version: str = variables.get("extension_version", "")
+        publisher: str = variables.get("extension_publisher", "").strip()
+        type_: str = variables.get("extension_type", "").strip()
+        version: str = variables.get("extension_version", "").strip()
 
         if not publisher or not type_ or not version:
             raise SkippedException(
@@ -60,6 +65,9 @@ class GenericVmExtension(TestSuite):
 
         extension = node.features[AzureExtension]
         extension_name = f"{publisher}.{type_}-{version}"
+        install_version, is_patch_version = extension.normalize_type_handler_version(
+            version
+        )
 
         # Remove any existing extension with the same handler type to avoid
         # conflicts (Azure forbids two extensions with the same publisher+type
@@ -67,7 +75,7 @@ class GenericVmExtension(TestSuite):
         self._cleanup_existing_extensions(extension, publisher, type_, log)
 
         extension_result = self._install_extension(
-            extension, extension_name, publisher, type_, version
+            extension, extension_name, publisher, type_, install_version
         )
 
         assert_that(extension_result["provisioning_state"]).described_as(
@@ -77,6 +85,18 @@ class GenericVmExtension(TestSuite):
         assert_that(self._check_exist(extension, extension_name)).described_as(
             "Expected VM extension to exist after installation"
         ).is_true()
+
+        installed_version = extension.get_installed_type_handler_version(extension_name)
+        if is_patch_version:
+            assert_that(installed_version).described_as(
+                f"Installed extension '{extension_name}' version mismatch: expected "
+                f"'{version}', actual '{installed_version}'. Verify which patch "
+                f"version Azure delivers for the requested major.minor version and "
+                f"check whether this extension version is published in the current "
+                f"region."
+            ).is_equal_to(version)
+
+        log.info(f"Installed extension '{extension_name}' version: {installed_version}")
 
         # Verify the VM is still reachable after extension operations.
         assert_that(node.test_connection()).described_as(

@@ -68,7 +68,7 @@ class RustVmmTestSuite(TestSuite):
         testcase_log = log_path / "rust_vmm_mshv.log"
         cargo = node.tools[Cargo]
         test_result: ExecutableResult = cargo.test(cwd=repo_root, sudo=True)
-        with open(testcase_log, "w") as f:
+        with open(testcase_log, "w", encoding="utf-8") as f:
             f.write(f"{test_result.stdout} {test_result.stderr}")
         self.__process_result(
             test_result.stdout,

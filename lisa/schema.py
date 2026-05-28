@@ -1464,6 +1464,20 @@ class GuestNode(Node):
     use_parent_capability: bool = True
 
 
+def _guest_node_runbook_to_dict(raw_runbook: Any) -> Dict[str, Any]:
+    if isinstance(raw_runbook, dict):
+        return cast(Dict[str, Any], raw_runbook)
+
+    to_dict = getattr(raw_runbook, "to_dict", None)
+    if not callable(to_dict):
+        raise LisaException(
+            f"guest node runbook must be a dict or support to_dict(), got "
+            f"'{type(raw_runbook).__name__}'"
+        )
+
+    return cast(Dict[str, Any], to_dict())
+
+
 def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
     """
     Load a guest-node runbook into the concrete GuestNode schema for its type.
@@ -1482,8 +1496,7 @@ def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
     if isinstance(raw_runbook, GuestNode) and type(raw_runbook) is not GuestNode:
         return raw_runbook
 
-    if not isinstance(raw_runbook, dict):
-        raw_runbook = raw_runbook.to_dict()
+    raw_runbook = _guest_node_runbook_to_dict(raw_runbook)
 
     from lisa import node as node_module
     from lisa.util import subclasses
@@ -1522,6 +1535,41 @@ def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
         )
 
     return guest_runbook
+
+
+def _get_guest_node_count(raw_runbook: Dict[str, Any]) -> int:
+    raw_capability = raw_runbook.get("capability")
+    if not isinstance(raw_capability, dict):
+        return 1
+
+    raw_node_count = raw_capability.get("node_count")
+    if raw_node_count is None:
+        return 1
+
+    node_count_space = search_space.decode_count_space(raw_node_count)
+    node_count = search_space.choose_value_countspace(
+        node_count_space, node_count_space
+    )
+    if node_count < 1:
+        raise LisaException("guest capability.node_count must be at least 1")
+
+    return node_count
+
+
+def _load_guest_node_templates(raw_runbooks: List[Any]) -> List[GuestNode]:
+    loaded_runbooks: List[GuestNode] = []
+    for raw_runbook in raw_runbooks:
+        raw_runbook = _guest_node_runbook_to_dict(raw_runbook)
+        raw_runbook = copy.deepcopy(raw_runbook)
+        node_count = _get_guest_node_count(raw_runbook)
+        for _ in range(node_count):
+            guest_runbook = copy.deepcopy(raw_runbook)
+            raw_capability = guest_runbook.get("capability")
+            if isinstance(raw_capability, dict):
+                raw_capability["node_count"] = 1
+            loaded_runbooks.append(load_typed_guest_node(guest_runbook))
+
+    return loaded_runbooks
 
 
 @dataclass_json()
@@ -1646,7 +1694,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
         add_secret(self.admin_password)
 
         if self.guests:
-            self.guests = [load_typed_guest_node(guest) for guest in self.guests]
+            self.guests = _load_guest_node_templates(self.guests)
 
         if isinstance(self.keep_environment, bool):
             if self.keep_environment:
