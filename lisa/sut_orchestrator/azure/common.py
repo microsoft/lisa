@@ -443,6 +443,22 @@ def _get_image_tags(image: Any) -> Dict[str, Any]:
     ):
         for feat in image.features:
             image_tags[feat.name] = feat.value
+
+    # Marketplace images expose plan on `plan`, while gallery/community images
+    # expose it on `purchase_plan`.
+    for plan_attr in ("plan", "purchase_plan"):
+        if hasattr(image, plan_attr):
+            image_plan = getattr(image, plan_attr)
+            if image_plan:
+                purchase_plan: Dict[str, str] = {}
+                for key in PURCHASE_PLAN_KEYS:
+                    value = getattr(image_plan, key, None)
+                    if isinstance(value, str) and value:
+                        purchase_plan[key] = value
+                if len(purchase_plan) == len(PURCHASE_PLAN_KEYS):
+                    image_tags["purchase_plan"] = purchase_plan
+                    break
+
     return image_tags
 
 
@@ -2886,6 +2902,7 @@ def check_or_create_gallery_image(
     gallery_image_hyperv_generation: int,
     gallery_image_architecture: str,
     gallery_image_features: Dict[str, Any],
+    gallery_image_purchase_plan: Optional[Dict[str, str]] = None,
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
@@ -2925,6 +2942,10 @@ def check_or_create_gallery_image(
                     }
                     for (key, value) in gallery_image_features.items()
                 ]
+
+            if gallery_image_purchase_plan:
+                image_post_body["purchase_plan"] = gallery_image_purchase_plan
+
             operation = compute_client.gallery_images.begin_create_or_update(
                 gallery_resource_group_name,
                 gallery_name,
