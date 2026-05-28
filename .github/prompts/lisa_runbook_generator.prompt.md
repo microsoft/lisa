@@ -11,6 +11,7 @@ Before generating YAML, ask:
 2. **What platform?** (azure, ready, qemu, openvmm)
 3. **What images?** (see Image Formats below)
 4. **Special requirements?** (security profile, WSL, purchase plan, disk/NIC)
+5. **Azure auth method?** (only when platform is azure — see Auth Methods below)
 
 ### Image Formats
 
@@ -44,11 +45,43 @@ marketplace:
   security_profile: ["secureboot"]
 ```
 
-**VHD** — custom OS disk from a storage blob URL:
+**VHD** — custom OS disk from a storage blob URL. Always specify `hyperv_generation` (1 or 2) and `architecture` (`x64` or `Arm64`) — LISA cannot infer these from a raw VHD:
 ```yaml
 vhd:
   vhd_path: "https://mystorageaccount.blob.core.windows.net/vhds/my-image.vhd"
+  hyperv_generation: 2      # 1 or 2; required for correct VM generation selection
+  architecture: x64         # x64 or Arm64
 ```
+
+> **ARM64 VHD limitation:** Azure does not support deploying an ARM64 VM directly from a raw VHD blob. When the VHD is ARM64, use one of two approaches:
+>
+> **Option A — Use a Shared Image Gallery (SIG) directly** (if the VHD has already been imported into a gallery):
+> ```yaml
+> shared_image_gallery:
+>   subscription_id: "$(subscription_id)"
+>   resource_group_name: "my-rg"
+>   image_gallery: "myGallery"
+>   image_definition: "myArm64ImageDef"   # definition must have architecture=Arm64
+>   image_version: "latest"
+> ```
+>
+> **Option B — Use the `azure_sig` transformer** to import the VHD into a SIG before the test runs. The transformer creates the gallery, image definition (with `gallery_image_architecture: Arm64`), and image version, then exposes the SIG URL via a renamed variable:
+> ```yaml
+> transformer:
+>   - type: azure_sig
+>     vhd: "https://mystorageaccount.blob.core.windows.net/vhds/my-arm64.vhd"
+>     gallery_resource_group_name: "my-rg"
+>     gallery_name: "myGallery"
+>     gallery_image_location:
+>       - westus3
+>     gallery_image_hyperv_generation: 2
+>     gallery_image_architecture: Arm64
+>     gallery_image_name: "my-arm64-image"
+>     gallery_image_fullname: "Microsoft Linux Arm64 1.0.0"
+>     rename:
+>       azure_sig_url: shared_gallery   # injects result as $(shared_gallery)
+> ```
+> Then reference `$(shared_gallery)` in the platform `shared_image_gallery` field.
 
 **Shared Image Gallery (SIG)** — image from Azure Compute Gallery:
 ```yaml
@@ -79,8 +112,8 @@ Top-level sections (only `platform` + `testcase` are required):
 |---------|---------|
 | `name` | Descriptive run name |
 | `include` | Inherit from other YAML files: `- path: ./azure.yml` |
-| `extension` | Extra test module paths: `- "../testsuites"` |
-| `variable` | Parameters with `$(name)` substitution. Supports `is_secret: true`, `file: ./secrets.yml` |
+| `extension` | Extra test module paths: `- "<lisa_repo_path>/lisa/microsoft/testsuites"` |
+| `variable` | Parameters with `$(name)` substitution. Supports `is_secret: true`, `is_case_visible: true`, `file: ./secrets.yml` |
 | `platform` | Where to run (azure, ready, qemu, openvmm) |
 | `testcase` | What to run — filter by priority, name, area |
 | `environment` | Node definitions (optional — platform auto-provisions) |
@@ -100,14 +133,67 @@ Variable resolution order: CLI args > runbook > included files > defaults.
 platform:
   - type: azure
     admin_username: $(admin_username)
-    admin_password: $(admin_password)
+    # Prefer admin_private_key_file over admin_password.
+    # If both are omitted, LISA generates an SSH key pair at runtime — this is the recommended default.
+    admin_private_key_file: $(admin_private_key_file)  # path to existing private key, or omit entirely
     azure:
       subscription_id: $(subscription_id)
+      credential:            # see Auth Methods below; omit to use DefaultAzureCredential
+        type: azcli
     requirement:
       azure:
         marketplace: $(marketplace_image)
         location: $(location)
         vm_size: $(vm_size)
+```
+
+### Auth Methods
+
+All auth is configured under `platform[].azure.credential`. If `credential` is omitted, LISA falls back to `DefaultAzureCredential` (env vars → managed identity → Azure CLI).
+
+| Type | When to use | Required fields |
+|------|-------------|----------------|
+| *(omit)* | Local dev with `az login`, managed identity, or env vars | — |
+| `azcli` | Explicitly use the logged-in `az` CLI session | — |
+| `secret` | Service principal with client secret (CI/CD) | `tenant_id`, `client_id`, `client_secret` |
+| `certificate` | Service principal with cert | `tenant_id`, `client_id`, `cert_path` |
+| `assertion` | Workload identity via MSI + enterprise app | `tenant_id`, `client_id`, `msi_client_id`, `enterprise_app_client_id` |
+| `workloadidentity` | OIDC federated workload identity | `tenant_id`, `client_id` |
+| `token` | Raw Bearer token | `token` |
+
+**`azcli` (recommended for interactive/local use):**
+```yaml
+azure:
+  subscription_id: $(subscription_id)
+  credential:
+    type: azcli
+```
+
+**Service principal with client secret** — mark `client_secret` as secret:
+```yaml
+variable:
+  - name: client_secret
+    is_secret: true
+    value: ""
+platform:
+  - type: azure
+    azure:
+      subscription_id: $(subscription_id)
+      credential:
+        type: secret
+        tenant_id: $(tenant_id)
+        client_id: $(client_id)
+        client_secret: $(client_secret)
+```
+
+**Workload identity (GitHub Actions / Azure Pipelines OIDC):**
+```yaml
+azure:
+  subscription_id: $(subscription_id)
+  credential:
+    type: workloadidentity
+    tenant_id: $(tenant_id)
+    client_id: $(client_id)
 ```
 
 **Ready (pre-provisioned):**
