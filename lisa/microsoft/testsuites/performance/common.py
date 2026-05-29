@@ -900,6 +900,10 @@ def perf_premium_datadisks(
     filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
+    # Reserve CPU 0 for sshd / NIC IRQs so heavy FIO completions at high
+    # iodepth don't starve them and drop the SSH session. Combined with
+    # --cpus_allowed=1-numjob in Fio._get_command, FIO uses CPUs 1..numjob.
+    fio_numjob = max(1, thread_count - 1)
     perf_disk(
         node,
         start_iodepth,
@@ -910,7 +914,7 @@ def perf_premium_datadisks(
         disk_count=disk_count,
         disk_setup_type=disk_setup_type,
         disk_type=disk_type,
-        numjob=thread_count,
+        numjob=fio_numjob,
         block_size=block_size,
         size_mb=8192,
         overwrite=True,
