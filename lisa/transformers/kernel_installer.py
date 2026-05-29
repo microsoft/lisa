@@ -189,7 +189,8 @@ class KernelInstallerTransformer(DeploymentTransformer):
                 and "fde" in installer.runbook.source
             ):
                 # set the boot entry to the installed kernel
-                efi_boot_mgr.set_boot_entry_to_new_kernel(boot_entries_before)
+                # efi_boot_mgr.set_boot_entry_to_new_kernel(boot_entries_before)
+                self._log.info("skip setting boot entry to the new kernel for fde kernel")
 
             self._log.info("rebooting")
             node.reboot(time_out=900)
