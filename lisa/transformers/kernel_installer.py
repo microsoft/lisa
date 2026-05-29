@@ -243,19 +243,25 @@ class KernelInstallerTransformer(DeploymentTransformer):
             "efibootmgr -v",
         ]
         for command in commands:
-            result = self._node.execute(
-                command,
-                shell=True,
-                sudo=True,
-                no_info_log=False,
-                timeout=120,
-            )
-            self._log.info(
-                f"[kernel-installer-debug][{label}] command: {command}\n"
-                f"exit_code: {result.exit_code}\n"
-                f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}"
-            )
+            try:
+                result = self._node.execute(
+                    command,
+                    shell=True,
+                    sudo=True,
+                    no_info_log=False,
+                    timeout=20,
+                )
+                self._log.info(
+                    f"[kernel-installer-debug][{label}] command: {command}\n"
+                    f"exit_code: {result.exit_code}\n"
+                    f"stdout:\n{result.stdout}\n"
+                    f"stderr:\n{result.stderr}"
+                )
+            except Exception as identifier:
+                self._log.info(
+                    f"[kernel-installer-debug][{label}] command failed or timed out: "
+                    f"{command}\nerror: {identifier}"
+                )
 
 
 class RepoInstaller(BaseInstaller):
