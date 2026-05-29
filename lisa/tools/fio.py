@@ -109,6 +109,7 @@ class Fio(Tool):
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
+        cpus_allowed_policy: str = "",
     ) -> FIOResult:
         cmd = self._get_command(
             name,
@@ -130,6 +131,7 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            cpus_allowed_policy,
         )
         result = self.run(
             cmd,
@@ -167,6 +169,7 @@ class Fio(Tool):
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
+        cpus_allowed_policy: str = "",
     ) -> Process:
         cmd = self._get_command(
             name,
@@ -188,6 +191,7 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            cpus_allowed_policy,
         )
         process = self.run_async(
             cmd,
@@ -338,6 +342,7 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
+        cpus_allowed_policy: str = "",
     ) -> str:
         if isinstance(self.node.os, BSD):
             ioengine = IoEngine.POSIXAIO
@@ -354,6 +359,11 @@ class Fio(Tool):
             cmd += f" --bs={block_size}"
         if numjob:
             cmd += f" --numjob={numjob}"
+            if cpus_allowed_policy:
+                # Pin each job to its own CPU so jobs don't share CPUs with IRQ
+                # handlers / sshd, which can cause SSH timeouts under heavy I/O.
+                cmd += f" --cpus_allowed=0-{numjob - 1}"
+                cmd += f" --cpus_allowed_policy={cpus_allowed_policy}"
         if direct:
             cmd += " --direct=1"
         if gtod_reduce:

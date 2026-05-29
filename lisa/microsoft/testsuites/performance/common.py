@@ -128,6 +128,7 @@ def perf_disk(
     overwrite: bool = False,
     ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
+    cpus_allowed_policy: str = "",
 ) -> None:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
@@ -163,6 +164,7 @@ def perf_disk(
                 numjob=numjob,
                 cwd=cwd,
                 ioengine=ioengine,
+                cpus_allowed_policy=cpus_allowed_policy,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
@@ -914,6 +916,9 @@ def perf_premium_datadisks(
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
+        # Pin each FIO job to a dedicated CPU; reduces I/O latency variance and
+        # avoids SSH timeouts caused by FIO jobs colliding with IRQs / sshd.
+        cpus_allowed_policy="split",
     )
 
 
