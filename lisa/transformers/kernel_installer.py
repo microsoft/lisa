@@ -147,6 +147,7 @@ class KernelInstallerTransformer(DeploymentTransformer):
         installer.validate()
 
         try:
+            self._dump_boot_debug_state("before kernel install")
             # for fde kernel installation, get the boot entries before installation
             if (
                 isinstance(installer, RepoInstaller)
@@ -162,6 +163,7 @@ class KernelInstallerTransformer(DeploymentTransformer):
             build_sucess = True
             self._information = installer.information
             self._log.info(f"installed kernel version: {installed_kernel_version}")
+            self._dump_boot_debug_state("after kernel install before boot selection")
 
             # for ubuntu cvm kernel, there is no menuentry added into grub file when
             # the installer's type is "source", it needs to add the menuentry into grub
@@ -191,9 +193,15 @@ class KernelInstallerTransformer(DeploymentTransformer):
                 # set the boot entry to the installed kernel
                 efi_boot_mgr.set_boot_entry_to_new_kernel(boot_entries_before)
 
+            self._dump_boot_debug_state("before kernel install reboot")
             self._log.info("rebooting")
-            node.reboot(time_out=900)
+            try:
+                node.reboot(time_out=900)
+            except Exception:
+                self._dump_boot_debug_state("after failed kernel install reboot")
+                raise
             boot_success = True
+            self._dump_boot_debug_state("after kernel install reboot")
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw
             self._log.info(f"kernel version after install: " f"{new_kernel_version}")
@@ -213,6 +221,41 @@ class KernelInstallerTransformer(DeploymentTransformer):
             self._information_output_name: self._information,
             self._is_success_output_name: build_sucess and boot_success,
         }
+
+    def _dump_boot_debug_state(self, label: str) -> None:
+        self._log.info(f"[kernel-installer-debug] collecting boot state: {label}")
+        commands = [
+            "uname -a",
+            "cat /proc/cmdline",
+            "who -b",
+            "uptime -s",
+            "cat /etc/default/grub",
+            "ls -la /boot /boot/grub2 /boot/efi /boot/efi/EFI",
+            (
+                "grep -R -n -E 'menuentry|linux|initrd|GRUB_DEFAULT|"
+                "GRUB_CMDLINE|set default|saved_entry' "
+                "/etc/default/grub /boot/grub2/grub.cfg "
+                "/boot/efi/EFI/*/grub.cfg /etc/grub.d/40_custom* "
+                "/boot/loader/entries/* 2>/dev/null"
+            ),
+            "grubby --default-kernel --default-index --info=ALL",
+            "bootctl status",
+            "efibootmgr -v",
+        ]
+        for command in commands:
+            result = self._node.execute(
+                command,
+                shell=True,
+                sudo=True,
+                no_info_log=False,
+                timeout=120,
+            )
+            self._log.info(
+                f"[kernel-installer-debug][{label}] command: {command}\n"
+                f"exit_code: {result.exit_code}\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
 
 
 class RepoInstaller(BaseInstaller):
