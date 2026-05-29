@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Fedora, Posix, Windows
+from lisa.operating_system import BSD, Fedora, Linux, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import (
@@ -42,7 +42,7 @@ from lisa.sut_orchestrator.azure.features import (
     FileShareProtocol,
 )
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Pvcreate, Swap, Sysctl
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
@@ -458,7 +458,8 @@ class Storage(TestSuite):
     )
     def verify_hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
-            log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+            log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB,
+            cleanup_disks=False
         )
 
     @TestCaseMetadata(
@@ -564,11 +565,41 @@ class Storage(TestSuite):
         `hot_add_disk_parallel`.
         """,
         priority=2,
+   
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
     def verify_hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_parallel(
+            log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the premium ssd data disks can be added
+        serially while the vm is running, and validates fdisk and pvcreate on
+        each added disk. Addresses E372 SAP VM scenarios where fdisk -l may hang
+        or pvcreate may fail at max disk count.
+        Steps:
+        1. Get maximum number of data disk for the current vm_size.
+        2. Get the number of data disks already added to the vm.
+        3. Add 1 premium ssd data disk to the VM serially.
+        4. Verify that the disk is available in the OS via lsblk.
+        5. Run fdisk -l to validate disk detection (180s timeout).
+        6. Run pvcreate on the disk to initialize as physical volume (180s timeout).
+        7. Repeat steps 3-6 till max disks supported by VM are attached.
+        8. Keep all disks on the VM for inspection and further validation.
+        """,
+        priority=2,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=DiskPremiumSSDLRS(), supported_os=[Linux]
+        ),
+    )
+    def verify_hot_add_disk_serial_premium_ssd_with_fdisk_pvcreate(
+        self, log: Logger, node: Node
+    ) -> None:
+        self._hot_add_disk_serial_with_fdisk_pvcreate(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
 
@@ -783,6 +814,7 @@ class Storage(TestSuite):
         disk_type: DiskType,
         size: int,
         randomize_luns: bool = False,
+        cleanup_disks: bool = True,
     ) -> None:
         disk = node.features[Disk]
         lsblk = node.tools[Lsblk]
@@ -890,23 +922,190 @@ class Storage(TestSuite):
                 lun
             )
 
-        # Remove all attached data disks
-        for disk_added in disks_added:
-            # remove data disk
-            log.debug(f"Removing managed disk: {disk_added}")
-            disk.remove_data_disk(disk_added)
+        # Remove all attached data disks if cleanup is requested
+        if cleanup_disks:
+            for disk_added in disks_added:
+                # remove data disk
+                log.debug(f"Removing managed disk: {disk_added}")
+                disk.remove_data_disk(disk_added)
 
-        # verify that all the attached disks are removed
-        partitions_after_removing_disks = lsblk.get_disks(force_run=True)
-        after_names = {d.name for d in partitions_after_removing_disks}
-        partitions_available = [
-            item
-            for item in partitions_before_adding_disk
-            if item.name not in after_names
-        ]
-        assert_that(partitions_available, "data disks should not be present").is_length(
-            0
-        )
+            # verify that all the attached disks are removed
+            partitions_after_removing_disks = lsblk.get_disks(force_run=True)
+            after_names = {d.name for d in partitions_after_removing_disks}
+            partitions_available = [
+                item
+                for item in partitions_before_adding_disk
+                if item.name not in after_names
+            ]
+            assert_that(partitions_available, "data disks should not be present").is_length(
+                0
+            )
+        else:
+            log.debug(f"Keeping {len(disks_added)} data disks on the VM for inspection")
+
+    def _hot_add_disk_serial_with_fdisk_pvcreate(
+        self,
+        log: Logger,
+        node: Node,
+        disk_type: DiskType,
+        size: int,
+    ) -> None:
+        """
+        Hot-add premium SSD disks serially, then validate each with fdisk -l and pvcreate.
+        Addresses E372 SAP VM scenarios where fdisk may hang or pvcreate may fail at max count.
+        Keeps all disks on VM for inspection (no cleanup).
+        """
+        disk = node.features[Disk]
+        lsblk = node.tools[Lsblk]
+        pvcreate = node.tools[Pvcreate]
+
+        # Ensure lvm2 is installed
+        try:
+            node.execute("which pvcreate", sudo=False, timeout=10)
+        except Exception:
+            log.info("Installing lvm2 package for pvcreate support")
+            node.execute("sudo apt-get update && sudo apt-get install -y lvm2", timeout=120)
+
+        # get max data disk count for the node
+        assert node.capability.disk
+        assert isinstance(
+            node.capability.disk.max_data_disk_count, int
+        ), f"actual type: {node.capability.disk.max_data_disk_count}"
+        max_data_disk_count = node.capability.disk.max_data_disk_count
+        log.debug(f"max_data_disk_count: {max_data_disk_count}")
+
+        # get the number of data disks already added to the vm
+        assert isinstance(node.capability.disk.data_disk_count, int)
+        current_data_disk_count = node.capability.disk.data_disk_count
+        log.debug(f"current_data_disk_count: {current_data_disk_count}")
+
+        # get partition info before adding data disks
+        partitions_before_adding_disk = lsblk.get_disks(force_run=True)
+        added_disk_count = 0
+        disks_added = []
+        added_devices = []
+        device_luns_by_path: Dict[str, int] = {}
+
+        # Assuming existing disks added sequentially from lun = 0 to (current_data_disk_count - 1)
+        free_luns = list(range(current_data_disk_count, max_data_disk_count))
+
+        if len(free_luns) < 1:
+            raise SkippedException(
+                "No data disks can be added. "
+                "Consider manually setting max_data_disk_count in the runbook."
+            )
+
+        for lun in free_luns:
+            linux_device_luns = disk.get_luns()
+            log.info(f"Adding disk #{added_disk_count + 1} at LUN {lun}")
+
+            # Add data disk
+            disks_added.append(disk.add_data_disk(1, disk_type, size, lun))
+            added_disk_count += 1
+            log.debug(f"Added managed disk #{added_disk_count} at lun {lun}")
+
+            # Verify partition count increased by 1 and size is correct
+            partitons_after_adding_disk = lsblk.get_disks(force_run=True)
+            before_names = {d.name for d in partitions_before_adding_disk}
+            added_partitions = [
+                item
+                for item in partitons_after_adding_disk
+                if item.name not in before_names
+            ]
+            log.debug(f"added_partitions: {added_partitions}")
+            assert_that(added_partitions, "Data disk should be added").is_length(
+                added_disk_count
+            )
+            assert_that(
+                added_partitions[added_disk_count - 1].size_in_gb,
+                f"data disk {added_partitions[added_disk_count - 1].name}"
+                f" size should be equal to {size} GB",
+            ).is_equal_to(size)
+
+            # Verify LUN number from linux VM with retry
+            linux_device_luns_after = disk.get_luns()
+
+            def _new_lun_detected(
+                _baseline: Dict[str, int] = linux_device_luns,
+            ) -> bool:
+                nonlocal linux_device_luns_after
+                linux_device_luns_after = disk.get_luns()
+                new_keys = set(linux_device_luns_after) - set(_baseline)
+                return len(new_keys) > 0
+
+            check_till_timeout(
+                _new_lun_detected,
+                timeout_message=(
+                    f"new LUN not detected after disk attach at lun {lun}, "
+                    f"luns_before: {linux_device_luns}, "
+                    f"luns_after: {linux_device_luns_after}"
+                ),
+                timeout=30,
+                interval=1,
+            )
+            new_device_keys: List[str] = list(
+                set(linux_device_luns_after) - set(linux_device_luns)
+            )
+            assert_that(
+                new_device_keys,
+                f"Expected exactly one new device at lun {lun} but found "
+                f"{len(new_device_keys)}. Before: {linux_device_luns}, "
+                f"After: {linux_device_luns_after}.",
+            ).is_length(1)
+            linux_device_lun_diff = linux_device_luns_after[new_device_keys[0]]
+            log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
+            assert_that(linux_device_lun_diff, "New device lun mismatch").is_equal_to(lun)
+
+            # Get device name for this LUN. Depending on controller type,
+            # get_luns() may return either a bare name (sde) or a full path
+            # (/dev/nvme1n1). Normalize to a valid absolute device path.
+            device_name = new_device_keys[0]
+            if device_name.startswith("/dev/"):
+                device_path = device_name
+            else:
+                device_path = f"/dev/{device_name.lstrip('/')}"
+            added_devices.append(device_path)
+            device_luns_by_path[device_path] = lun
+            log.info(f"Disk at LUN {lun} detected as {device_path}")
+
+            # Step 1: Run pvcreate on the disk (180s timeout)
+            log.info(f"Running pvcreate on {device_path} to initialize physical volume")
+            try:
+                pvcreate.create_pv(device_path)
+                log.info(f"pvcreate completed successfully on {device_path}")
+            except Exception as e:
+                log.error(f"pvcreate failed for {device_path}: {e}")
+                raise
+
+        # Validate the final disk state after all disks are created.
+        log.info("Running lsblk after all disk creations")
+        lsblk_result_before_fdisk = node.execute("lsblk", timeout=60, expected_exit_code=0)
+        log.info(f"lsblk output before fdisk checks:\n{lsblk_result_before_fdisk.stdout}")
+
+        log.info("Running fdisk -l after all disks were created")
+        try:
+            fdisk_result = node.execute(
+                "sudo fdisk -l",
+                timeout=180,
+                expected_exit_code=0,
+            )
+            log.info(f"fdisk -l output:\n{fdisk_result.stdout}")
+            assert_that(
+                fdisk_result.stdout,
+                "fdisk -l output should not be empty",
+            ).is_not_none()
+            log.info("fdisk -l completed successfully")
+        except Exception as e:
+            log.error(f"fdisk -l failed: {e}")
+            raise
+
+        log.info("Running lsblk after fdisk validation")
+        lsblk_result_after_fdisk = node.execute("lsblk", timeout=60, expected_exit_code=0)
+        log.info(f"lsblk output after fdisk checks:\n{lsblk_result_after_fdisk.stdout}")
+
+        log.info(f"Successfully added and validated {len(disks_added)} disks")
+        log.info(f"Added devices: {added_devices}")
+        log.info(f"Keeping all {len(disks_added)} disks on the VM for inspection")
 
     def _hot_add_disk_parallel(
         self, log: Logger, node: Node, disk_type: DiskType, size: int
