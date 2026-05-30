@@ -29,13 +29,13 @@ from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV
 from lisa.testsuite import TestResult
 from lisa.tools import Dhclient, Kill, PowerShell, Sysctl
+from lisa.tools.ip import Ip
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
     IPERF_UDP_BUFFER_LENGTHS,
     IPERF_UDP_CONCURRENCY,
 )
-from lisa.tools.ip import Ip
 from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY, Ntttcp
 from lisa.util import (
     LisaException,
@@ -1172,12 +1172,17 @@ class NetworkPerformance(TestSuite):
                     if udp_mode
                     else server_ntttcp.create_ntttcp_result(receiver_result)
                 )
-            except (AssertionError, LisaException):
-                client.log.debug(
-                    "NTTTCP receiver output was not parseable; using sender "
-                    "totals for receiver-side metrics."
-                )
-                parsed_server_result = parsed_client_result
+            except (AssertionError, LisaException) as parse_error:
+                receiver_node = "Linux guest" if udp_mode else "Windows host"
+                raise LisaException(
+                    f"Failed to parse NTTTCP receiver output from {receiver_node} "
+                    f"for {test_case_name} with {test_thread} connections. "
+                    "Verify that the receiver completed and emitted NTTTCP "
+                    "totals before publishing performance data. "
+                    f"Exit code: {receiver_result.exit_code}. "
+                    f"Stdout: {receiver_result.stdout[:2000]}. "
+                    f"Stderr: {receiver_result.stderr[:2000]}"
+                ) from parse_error
             if udp_mode:
                 perf_message = client_ntttcp.create_ntttcp_udp_performance_message(
                     parsed_server_result,

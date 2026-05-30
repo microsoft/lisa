@@ -60,6 +60,8 @@ class Reboot(Tool):
 
     def _wait_ssh_session_stable(self, time_out: int) -> None:
         timer = create_timer()
+        consecutive_successes = 0
+        last_error = ""
         while timer.elapsed(False) < time_out:
             try:
                 self.node.close()
@@ -69,21 +71,26 @@ class Reboot(Tool):
                     timeout=10,
                     no_info_log=True,
                 ).assert_exit_code()
-                sleep(10)
-                self.node.close()
-                self.node.execute(
-                    "echo lisa reboot ready",
-                    shell=True,
-                    timeout=10,
-                    no_info_log=True,
-                ).assert_exit_code()
-                return
+                consecutive_successes += 1
+                if consecutive_successes >= 2:
+                    return
             except Exception as e:
+                consecutive_successes = 0
+                last_error = str(e)
                 self._log.debug(f"waiting for stable ssh session after reboot: {e}")
-                sleep(5)
+            sleep(2)
         raise LisaException(
-            f"cannot get stable ssh session after reboot in {time_out} seconds"
+            f"cannot get stable ssh session after reboot in {time_out} seconds. "
+            f"Last error: {last_error}"
         )
+
+    def _run_reboot_command(self) -> None:
+        command_result = self.node.execute(
+            "command -v reboot", shell=True, sudo=True, no_info_log=True
+        )
+        if command_result.exit_code == 0:
+            self._command = command_result.stdout.strip()
+        self.run(force_run=True, sudo=True, timeout=10)
 
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
@@ -132,19 +139,22 @@ class Reboot(Tool):
                 "command -v systemctl", shell=True, sudo=True, no_info_log=True
             )
             if systemctl_result.exit_code == 0:
-                self.node.execute(
+                reboot_result = self.node.execute(
                     "systemctl reboot -i",
                     shell=True,
                     sudo=True,
                     timeout=10,
                 )
+                if reboot_result.exit_code != 0:
+                    self._log.debug(
+                        "systemctl reboot failed with exit code "
+                        f"{reboot_result.exit_code}; falling back to reboot. "
+                        f"stdout: {reboot_result.stdout}, "
+                        f"stderr: {reboot_result.stderr}"
+                    )
+                    self._run_reboot_command()
             else:
-                command_result = self.node.execute(
-                    "command -v reboot", shell=True, sudo=True, no_info_log=True
-                )
-                if command_result.exit_code == 0:
-                    self._command = command_result.stdout
-                self.run(force_run=True, sudo=True, timeout=10)
+                self._run_reboot_command()
         except Exception as e:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {e}")

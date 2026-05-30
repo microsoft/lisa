@@ -143,9 +143,7 @@ class DevicePassthroughFunctionalTests(TestSuite):
             }
 
         cloud_hypervisor = platform
-        bdf = (
-            f"{device.domain}:{device.bus}:{device.slot}.{device.function}"
-        ).lower()
+        bdf = f"{device.domain}:{device.bus}:{device.slot}.{device.function}".lower()
         cat = cloud_hypervisor.host_node.tools[Cat]
         vendor_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/vendor", sudo=True).strip()
         device_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/device", sudo=True).strip()

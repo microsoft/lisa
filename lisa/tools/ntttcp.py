@@ -19,7 +19,7 @@ from lisa.operating_system import BSD, CBLMariner, Ubuntu
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
 from lisa.tools.powershell import PowerShell
 from lisa.tools.taskset import TaskSet
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, check_till_timeout, constants
 from lisa.util.process import ExecutableResult, Process
 
 from .sysctl import Sysctl
@@ -245,17 +245,47 @@ class Ntttcp(Tool):
             shell=True,
             sudo=True,
         )
-        # NTTTCP for Linux 1.4.0
-        # ---------------------------------------------------------
-        # 01:16:35 INFO: no role specified. use receiver role
-        # 01:16:35 INFO: 65 threads created
-        # above output means ntttcp server is ready. In no-sync mode, the
-        # receiver may not print the same readiness line before clients start.
         if no_sync:
-            time.sleep(5)
+            self._wait_server_port_ready(process, udp_mode)
         else:
             process.wait_output("threads created")
         return process
+
+    def _wait_server_port_ready(
+        self,
+        process: Process,
+        udp_mode: bool,
+        port: int = 5001,
+    ) -> None:
+        def is_ready() -> bool:
+            if not process.is_running():
+                raise LisaException(
+                    "ntttcp receiver exited before the listen port became ready"
+                )
+            return self._is_server_port_open(udp_mode, port)
+
+        protocol = "UDP" if udp_mode else "TCP"
+        check_till_timeout(
+            is_ready,
+            timeout_message=f"wait for ntttcp {protocol} receiver port {port} open",
+            timeout=30,
+        )
+
+    def _is_server_port_open(self, udp_mode: bool, port: int) -> bool:
+        ss_options = "-lun" if udp_mode else "-ltn"
+        netstat_options = "-lnu" if udp_mode else "-ltn"
+        result = self.node.execute(
+            cmd=(
+                f"(ss {ss_options} 2>/dev/null || "
+                f"netstat {netstat_options} 2>/dev/null || true) "
+                f"| grep -E '[:.]?{port}[[:space:]]'"
+            ),
+            shell=True,
+            sudo=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        return result.exit_code == 0
 
     def run_as_server(
         self,
@@ -979,7 +1009,7 @@ class BSDNtttcp(Ntttcp):
 
 class WindowsNtttcp(Ntttcp):
     _download_url = (
-        "https://github.com/microsoft/ntttcp/releases/latest/download/ntttcp.exe"
+        "https://github.com/microsoft/ntttcp/releases/latest/download/" "ntttcp.exe"
     )
     _total_mbps_pattern = re.compile(
         r"(?im)^\s*TOTAL\s+(?P<throughput>[0-9]+(?:\.[0-9]+)?)\s*$"
@@ -1003,8 +1033,7 @@ class WindowsNtttcp(Ntttcp):
 
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         self.node.tools[PowerShell].run_cmdlet(
-            "Set-NetFirewallProfile -Profile Domain,Public,Private "
-            "-Enabled False",
+            "Set-NetFirewallProfile -Profile Domain,Public,Private " "-Enabled False",
             fail_on_error=False,
         )
 
@@ -1037,18 +1066,30 @@ class WindowsNtttcp(Ntttcp):
             shell=True,
             sudo=True,
         )
-        if udp_mode:
-            time.sleep(5)
-        else:
-            self.node.tools[PowerShell].run_cmdlet(
-                "for ($i = 0; $i -lt 10; $i++) { "
-                "if (Get-NetTCPConnection -State Listen -LocalPort 5001 "
-                "-ErrorAction SilentlyContinue) { exit 0 }; "
-                "Start-Sleep -Seconds 1 }; exit 1",
-                force_run=True,
-                timeout=15,
-            )
+        self._wait_receiver_port_ready(udp_mode)
         return process
+
+    def _wait_receiver_port_ready(
+        self,
+        udp_mode: bool,
+        port: int = 5001,
+        timeout: int = 30,
+    ) -> None:
+        endpoint_cmdlet = (
+            f"Get-NetUDPEndpoint -LocalPort {port} -ErrorAction SilentlyContinue"
+            if udp_mode
+            else f"Get-NetTCPConnection -State Listen -LocalPort {port} "
+            "-ErrorAction SilentlyContinue"
+        )
+        self.node.tools[PowerShell].run_cmdlet(
+            "$deadline = (Get-Date).AddSeconds(" + str(timeout) + "); "
+            "do { "
+            f"if ({endpoint_cmdlet}) {{ exit 0 }}; "
+            "Start-Sleep -Milliseconds 500 "
+            "} while ((Get-Date) -lt $deadline); exit 1",
+            force_run=True,
+            timeout=timeout + 5,
+        )
 
     def run_as_client(
         self,
