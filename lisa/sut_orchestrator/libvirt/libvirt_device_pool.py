@@ -477,7 +477,9 @@ class LibvirtDevicePool(BaseDevicePool):
                     devices.append(dev)
 
     def _is_nic_cable_connected(self, bdf: str) -> bool:
-        # True if any iface bound to this NIC reports carrier=1.
+        # True if any iface bound to this NIC reports carrier=1. Some
+        # Hyper-V-backed PCI NICs expose a carrier file but return EINVAL before
+        # assignment; keep them eligible because link state is unknown, not down.
         ls = self.host_node.tools[Ls]
         net_dir = f"/sys/bus/pci/devices/{bdf}/net"
         if not ls.path_exists(net_dir, sudo=True):
@@ -496,6 +498,14 @@ class LibvirtDevicePool(BaseDevicePool):
                 no_error_log=True,
             )
             if result.exit_code == 0 and result.stdout.strip() == "1":
+                return True
+            if result.exit_code != 0 and "Invalid argument" in (
+                result.stdout + result.stderr
+            ):
+                self.host_node.log.debug(
+                    f"NIC {bdf} interface {iface} does not expose carrier state; "
+                    "treating link as eligible for passthrough."
+                )
                 return True
         return False
 

@@ -1,18 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import TYPE_CHECKING, Dict, Tuple, cast
+import re
+from typing import Any, Dict, Tuple
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.base_tools import Cat
 from lisa.operating_system import Windows
-from lisa.sut_orchestrator import CLOUD_HYPERVISOR
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Lspci
 from lisa.util import LisaException, SkippedException
 
-if TYPE_CHECKING:
-    from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
-    from lisa.sut_orchestrator.libvirt.schema import DeviceAddressSchema
+SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV]
 
 
 @TestSuiteMetadata(
@@ -22,7 +21,7 @@ if TYPE_CHECKING:
     This test suite is for testing device passthrough functional tests.
     """,
     requirement=simple_requirement(
-        supported_platform_type=[CLOUD_HYPERVISOR],
+        supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
         unsupported_os=[Windows],
     ),
 )
@@ -30,8 +29,8 @@ class DevicePassthroughFunctionalTests(TestSuite):
     @TestCaseMetadata(
         description="""
             Check if passthrough device is visible to guest.
-            This testcase support only on CLOUD_HYPERVISOR
-            platform of LISA. Please refer below runbook snippet.
+            This testcase supports the CLOUD_HYPERVISOR and HYPERV platforms
+            of LISA. Please refer below runbook snippet.
 
             platform:
               - type: cloud-hypervisor
@@ -61,7 +60,7 @@ class DevicePassthroughFunctionalTests(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
         ),
     )
     def verify_device_passthrough_on_guest(
@@ -71,9 +70,18 @@ class DevicePassthroughFunctionalTests(TestSuite):
         result: TestResult,
     ) -> None:
         lspci = node.tools[Lspci]
-        platform = cast("CloudHypervisorPlatform", environment.platform)
-        # Import at runtime to avoid libvirt dependency on other platforms.
-        from lisa.sut_orchestrator.libvirt.context import get_node_context
+        platform = environment.platform
+        platform_name = platform.type_name()
+
+        if platform_name == CLOUD_HYPERVISOR:
+            # Import at runtime to avoid libvirt dependency on other platforms.
+            from lisa.sut_orchestrator.libvirt.context import get_node_context
+        elif platform_name == HYPERV:
+            from lisa.sut_orchestrator.hyperv.context import get_node_context
+        else:
+            raise SkippedException(
+                f"Device passthrough validation is not supported on '{platform_name}'"
+            )
 
         node_context = get_node_context(node)
         if not node_context.passthrough_devices:
@@ -88,7 +96,7 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 )
             for host_device in passthrough_context.device_list:
                 vendor_device_id = self._vendor_device_from_host_device(
-                    platform, host_device
+                    platform_name, platform, host_device
                 )
                 key = (
                     pool_type,
@@ -113,12 +121,32 @@ class DevicePassthroughFunctionalTests(TestSuite):
 
     @staticmethod
     def _vendor_device_from_host_device(
-        platform: "CloudHypervisorPlatform",
-        device: "DeviceAddressSchema",
+        platform_name: str,
+        platform: Any,
+        device: Any,
     ) -> Dict[str, str]:
-        """Read vendor_id and device_id for an assigned host PCI device."""
-        bdf = (f"{device.domain}:{device.bus}:{device.slot}.{device.function}").lower()
-        cat = platform.host_node.tools[Cat]
+        if platform_name == HYPERV:
+            instance_id = str(getattr(device, "instance_id", ""))
+            match = re.search(
+                r"VEN_(?P<vendor_id>[0-9A-Fa-f]{4})&"
+                r"DEV_(?P<device_id>[0-9A-Fa-f]{4})",
+                instance_id,
+            )
+            if not match:
+                raise LisaException(
+                    f"Cannot resolve vendor/device id from Hyper-V host device "
+                    f"instance id: {instance_id}"
+                )
+            return {
+                "vendor_id": match.group("vendor_id").lower(),
+                "device_id": match.group("device_id").lower(),
+            }
+
+        cloud_hypervisor = platform
+        bdf = (
+            f"{device.domain}:{device.bus}:{device.slot}.{device.function}"
+        ).lower()
+        cat = cloud_hypervisor.host_node.tools[Cat]
         vendor_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/vendor", sudo=True).strip()
         device_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/device", sudo=True).strip()
         # Normalize to 4-digit lowercase hex used by lspci identifiers.
