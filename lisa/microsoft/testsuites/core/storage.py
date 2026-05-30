@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Debian, Fedora, Posix, Suse, Ubuntu, Windows
+from lisa.operating_system import BSD, Debian, Fedora, Posix, Ubuntu, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import (
