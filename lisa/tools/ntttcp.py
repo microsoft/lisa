@@ -1009,7 +1009,7 @@ class BSDNtttcp(Ntttcp):
 
 class WindowsNtttcp(Ntttcp):
     _download_url = (
-        "https://github.com/microsoft/ntttcp/releases/latest/download/" "ntttcp.exe"
+        "https://github.com/microsoft/ntttcp/releases/latest/download/ntttcp.exe"
     )
     _total_mbps_pattern = re.compile(
         r"(?im)^\s*TOTAL\s+(?P<throughput>[0-9]+(?:\.[0-9]+)?)\s*$"
@@ -1033,7 +1033,7 @@ class WindowsNtttcp(Ntttcp):
 
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         self.node.tools[PowerShell].run_cmdlet(
-            "Set-NetFirewallProfile -Profile Domain,Public,Private " "-Enabled False",
+            "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False",
             fail_on_error=False,
         )
 

@@ -715,13 +715,17 @@ class NetworkPerformance(TestSuite):
 
     def _get_passthrough_node_context(self, node: Node) -> Any:
         try:
-            from lisa.sut_orchestrator.libvirt.context import get_node_context
+            from lisa.sut_orchestrator.libvirt.context import (
+                get_node_context as get_libvirt_node_context,
+            )
 
-            return get_node_context(node)
+            return get_libvirt_node_context(node)
         except AssertionError:
-            from lisa.sut_orchestrator.hyperv.context import get_node_context
+            from lisa.sut_orchestrator.hyperv.context import (
+                get_node_context as get_hyperv_node_context,
+            )
 
-            return get_node_context(node)
+            return get_hyperv_node_context(node)
 
     def _get_device_bdf(self, device_addr_obj: Any) -> str:
         bus = getattr(device_addr_obj, "bus", "")
@@ -1184,27 +1188,30 @@ class NetworkPerformance(TestSuite):
                     f"Stderr: {receiver_result.stderr[:2000]}"
                 ) from parse_error
             if udp_mode:
-                perf_message = client_ntttcp.create_ntttcp_udp_performance_message(
-                    parsed_server_result,
-                    parsed_client_result,
-                    str(test_thread),
-                    buffer_size,
-                    test_case_name,
-                    test_result,
-                    client_mtu,
+                notifier.notify(
+                    client_ntttcp.create_ntttcp_udp_performance_message(
+                        parsed_server_result,
+                        parsed_client_result,
+                        str(test_thread),
+                        buffer_size,
+                        test_case_name,
+                        test_result,
+                        client_mtu,
+                    )
                 )
             else:
-                perf_message = client_ntttcp.create_ntttcp_tcp_performance_message(
-                    parsed_server_result,
-                    parsed_client_result,
-                    Decimal(0),
-                    str(test_thread),
-                    buffer_size,
-                    test_case_name,
-                    test_result,
-                    client_mtu,
+                notifier.notify(
+                    client_ntttcp.create_ntttcp_tcp_performance_message(
+                        parsed_server_result,
+                        parsed_client_result,
+                        Decimal(0),
+                        str(test_thread),
+                        buffer_size,
+                        test_case_name,
+                        test_result,
+                        client_mtu,
+                    )
                 )
-            notifier.notify(perf_message)
 
     def _get_host_nic_name(self, node: RemoteNode) -> str:
         ip = node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]

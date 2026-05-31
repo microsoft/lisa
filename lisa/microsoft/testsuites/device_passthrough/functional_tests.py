@@ -71,19 +71,32 @@ class DevicePassthroughFunctionalTests(TestSuite):
     ) -> None:
         lspci = node.tools[Lspci]
         platform = environment.platform
+        if platform is None:
+            raise SkippedException(
+                "Device passthrough validation requires a LISA platform context. "
+                "Verify the runbook uses cloud-hypervisor or hyperv."
+            )
         platform_name = platform.type_name()
+        node_context: Any
 
         if platform_name == CLOUD_HYPERVISOR:
             # Import at runtime to avoid libvirt dependency on other platforms.
-            from lisa.sut_orchestrator.libvirt.context import get_node_context
+            from lisa.sut_orchestrator.libvirt.context import (
+                get_node_context as get_libvirt_node_context,
+            )
+
+            node_context = get_libvirt_node_context(node)
         elif platform_name == HYPERV:
-            from lisa.sut_orchestrator.hyperv.context import get_node_context
+            from lisa.sut_orchestrator.hyperv.context import (
+                get_node_context as get_hyperv_node_context,
+            )
+
+            node_context = get_hyperv_node_context(node)
         else:
             raise SkippedException(
                 f"Device passthrough validation is not supported on '{platform_name}'"
             )
 
-        node_context = get_node_context(node)
         if not node_context.passthrough_devices:
             raise SkippedException("No passthrough devices are assigned to node")
 
