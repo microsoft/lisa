@@ -51,7 +51,6 @@ class LtpTestsuite(TestSuite):
         requirement=simple_requirement(
             min_core_count=8,
             disk=schema.DiskOptionSettings(
-                data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
             ),
             unsupported_os=[BSD, Windows],
@@ -85,7 +84,6 @@ class LtpTestsuite(TestSuite):
         requirement=simple_requirement(
             min_core_count=8,
             disk=schema.DiskOptionSettings(
-                data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
             ),
             unsupported_os=[BSD, Windows],
