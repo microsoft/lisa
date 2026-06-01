@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any, Dict
 
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
@@ -21,19 +21,19 @@ from lisa.util import SkippedException
 class MshvHostInstallSuite(TestSuite):
     CONFIG_BINPATH = "mshv_binpath"
 
-    _test_path_init_hvix = Path("/home/cloud") / "hvix64.exe"
+    _test_path_init_hvix = PurePosixPath("/home/cloud") / "hvix64.exe"
 
-    _init_path_init_kdstub = Path("/home/cloud") / "kdstub.dll"
+    _init_path_init_kdstub = PurePosixPath("/home/cloud") / "kdstub.dll"
 
-    _init_path_init_lxhvloader = Path("/home/cloud") / "lxhvloader.dll"
+    _init_path_init_lxhvloader = PurePosixPath("/home/cloud") / "lxhvloader.dll"
 
-    _test_path_dst_hvix = Path("/boot/efi/Windows/System32") / "hvix64.exe"
+    _test_path_dst_hvix = PurePosixPath("/boot/efi/Windows/System32") / "hvix64.exe"
 
-    _test_path_dst_kdstub = Path("/boot/efi/Windows/System32") / "kdstub.dll"
+    _test_path_dst_kdstub = PurePosixPath("/boot/efi/Windows/System32") / "kdstub.dll"
 
-    _test_path_dst_lxhvloader = Path("/boot/efi") / "lxhvloader.dll"
+    _test_path_dst_lxhvloader = PurePosixPath("/boot/efi") / "lxhvloader.dll"
 
-    def _get_file_md5(self, node: Node, file_path: Path) -> str:
+    def _get_file_md5(self, node: Node, file_path: PurePath) -> str:
         """Get MD5 checksum of a file on the remote node."""
         result = node.execute(f"md5sum {file_path}", sudo=True, shell=True)
         if result.exit_code != 0:
