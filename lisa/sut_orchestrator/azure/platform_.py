@@ -189,6 +189,8 @@ VM_SIZE_FALLBACK_PATTERNS = [
     re.compile(r".*"),
 ]
 
+MIN_VM_FAMILY_TOKEN_LENGTH = 12
+
 # VM sizes that have been retired by Azure and must not be deployed.
 # Add newly retired sizes here as they are announced.
 # Reference links:
@@ -3028,10 +3030,73 @@ class AzurePlatform(Platform):
         self, name: str, location: str, log: Logger
     ) -> List[str]:
         split_vm_sizes: List[str] = [x.strip() for x in name.split(",")]
-        for index, vm_size in enumerate(split_vm_sizes):
-            split_vm_sizes[index] = self._get_normalized_vm_size(vm_size, location, log)
+        matched_vm_sizes: List[str] = []
+        for vm_size in split_vm_sizes:
+            normalized_vm_size = self._get_normalized_vm_size(vm_size, location, log)
+            if normalized_vm_size:
+                matched_vm_sizes.append(normalized_vm_size)
+                continue
 
-        return [x for x in split_vm_sizes if x]
+            # Support matching VM SKU family names in vm_size field.
+            matched_vm_sizes.extend(
+                self._get_vm_sizes_by_family(vm_size, location, log)
+            )
+
+        # De-duplicate while preserving the original matching order.
+        matched_vm_sizes = list(dict.fromkeys([x for x in matched_vm_sizes if x]))
+        log.debug(f"matched VM sizes: {matched_vm_sizes}")
+        return matched_vm_sizes
+
+    def _get_vm_sizes_by_family(
+        self, family_name: str, location: str, log: Logger
+    ) -> List[str]:
+        length_check_input = family_name.strip()
+        # "Family" is an optional suffix in family name, remove it before length check
+        # to be more flexible on input.
+        length_check_input = re.sub(
+            "family", "", length_check_input, flags=re.IGNORECASE
+        )
+        if len(length_check_input) < MIN_VM_FAMILY_TOKEN_LENGTH:
+            raise LisaException(
+                "VM SKU family name must be at least "
+                f"{MIN_VM_FAMILY_TOKEN_LENGTH} characters: "
+                f"'{family_name}'. Example: standardDSv2Family or standardDSv2"
+            )
+
+        normalized_family_name = self._get_normalized_vm_family(
+            family_name, location, log
+        )
+        if not normalized_family_name:
+            return []
+
+        location_info: AzureLocation = self.get_location_info(location, log)
+        return [
+            capability.vm_size
+            for capability in location_info.capabilities.values()
+            if capability.resource_sku.get("family", "").lower()
+            == normalized_family_name.lower()
+        ]
+
+    def _get_normalized_vm_family(
+        self, name: str, location: str, log: Logger
+    ) -> str:
+        location_info: AzureLocation = self.get_location_info(location, log)
+        matched_score: float = 0
+        matched_name: str = ""
+        matcher = SequenceMatcher(None, name.lower(), "")
+
+        family_names = {
+            capability.resource_sku.get("family", "")
+            for capability in location_info.capabilities.values()
+            if capability.resource_sku.get("family", "")
+        }
+        for family_name in family_names:
+            matcher.set_seq2(family_name.lower())
+            if name.lower() in family_name.lower() and matched_score < matcher.ratio():
+                matched_name = family_name
+                matched_score = matcher.ratio()
+
+        return matched_name
 
     def _get_normalized_vm_size(self, name: str, location: str, log: Logger) -> str:
         # find predefined vm size on all available's.
