@@ -48,6 +48,8 @@ from lisa.util.logger import get_logger
 from lisa.util.parallel import run_in_parallel
 
 SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV]
+WINDOWS_NTTTCP_MAX_SERVER_THREADS = 64
+WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
 
 
 @TestSuiteMetadata(
@@ -1079,6 +1081,10 @@ class NetworkPerformance(TestSuite):
 
     def _skip_if_windows_server(self, server: RemoteNode, tool_name: str) -> None:
         if isinstance(server.os, Windows):
+            if server in self._baremetal_hosts:
+                server.close()
+                server.cleanup()
+                self._baremetal_hosts.remove(server)
             raise SkippedException(
                 f"Host/guest passthrough performance with {tool_name} requires "
                 "Linux server tooling. Use the NTTTCP passthrough cases for "
@@ -1102,7 +1108,7 @@ class NetworkPerformance(TestSuite):
         client_ip = client.tools[Ip]
         client_mtu = client_ip.get_mtu(client_nic_name)
         connections = NTTTCP_UDP_CONCURRENCY if udp_mode else NTTTCP_TCP_CONCURRENCY
-        max_server_threads = 64
+        max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
 
         for test_thread in connections:
             if test_thread < max_server_threads:
@@ -1156,7 +1162,9 @@ class NetworkPerformance(TestSuite):
                         dev_differentiator="",
                         no_sync=use_no_sync,
                     )
-                receiver_result = receiver_process.wait_result(timeout=90)
+                receiver_result = receiver_process.wait_result(
+                    timeout=WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT
+                )
             finally:
                 server.tools[PowerShell].run_cmdlet(
                     "Stop-Process -Name ntttcp -Force -ErrorAction SilentlyContinue",

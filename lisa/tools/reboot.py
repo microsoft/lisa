@@ -178,9 +178,11 @@ class Reboot(Tool):
                 self._log.debug(f"ignorable ssh exception: {e}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
             if last_boot_time < current_boot_time:
-                self._wait_ssh_session_stable(
-                    max(30, time_out - int(timer.elapsed(False)))
+                remaining_stability_wait = max(
+                    0, time_out - int(timer.elapsed(False))
                 )
+                if remaining_stability_wait > 0:
+                    self._wait_ssh_session_stable(remaining_stability_wait)
                 break
         if last_boot_time == current_boot_time:
             if connected:

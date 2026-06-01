@@ -1032,13 +1032,36 @@ class WindowsNtttcp(Ntttcp):
         return []
 
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
+        firewall_profiles = self.node.tools[PowerShell].run_cmdlet(
+            (
+                "Get-NetFirewallProfile -Profile Domain,Public,Private "
+                "| Select-Object Name,Enabled"
+            ),
+            output_json=True,
+            fail_on_error=False,
+        )
+        if isinstance(firewall_profiles, dict):
+            firewall_profiles = [firewall_profiles]
+        self._firewall_profile_states = {
+            profile["Name"]: bool(profile["Enabled"])
+            for profile in firewall_profiles or []
+            if "Name" in profile and "Enabled" in profile
+        }
+
         self.node.tools[PowerShell].run_cmdlet(
             "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False",
             fail_on_error=False,
         )
 
     def restore_system(self, udp_mode: bool = False) -> None:
-        return
+        if self._firewall_profile_states:
+            for profile_name, enabled in self._firewall_profile_states.items():
+                enabled_value = "True" if enabled else "False"
+                self.node.tools[PowerShell].run_cmdlet(
+                    f"Set-NetFirewallProfile -Profile {profile_name} "
+                    f"-Enabled {enabled_value}",
+                    fail_on_error=False,
+                )
 
     def run_as_server_async(
         self,
@@ -1145,6 +1168,7 @@ class WindowsNtttcp(Ntttcp):
         return ntttcp_result
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._firewall_profile_states: Dict[str, bool] = {}
         self.pre_command = ""
         self.setup_system()
 
