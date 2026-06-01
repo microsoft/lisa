@@ -20,6 +20,12 @@ RUN pip install --no-cache-dir "/app/lisa/mcp[azure]"
 # Point the MCP server at the cloned repo
 ENV LISA_REPO_ROOT=/app/lisa
 
+# Drop privileges: run as a non-root user. /app must remain readable but
+# writable areas (logs, downloads) are scoped to /home/mcp at runtime.
+RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 mcp \
+    && chown -R mcp:mcp /app
+USER mcp
+
 EXPOSE 8080
 
 ENTRYPOINT ["lisa-mcp"]

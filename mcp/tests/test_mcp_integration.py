@@ -80,7 +80,7 @@ class TestMCPProtocol(unittest.TestCase):
     def test_server_starts_and_lists_tools(self) -> None:
         tools = _run(self._list_tools())
         names = {t.name for t in tools}
-        self.assertEqual(len(names), 24, f"Expected 24 tools, got {len(names)}")
+        self.assertEqual(len(names), 25, f"Expected 25 tools, got {len(names)}")
         self.assertIn("lisa_analyze_log", names)
         self.assertIn("lisa_write_test", names)
         self.assertIn("lisa_explain_concept", names)

@@ -70,12 +70,12 @@ def main() -> int:
     group.add_argument(
         "--smoke",
         action="store_true",
-        help="Quick smoke test — verify all 24 tools are registered",
+        help="Quick smoke test — verify all 25 tools are registered",
     )
     parser.add_argument(
         "--xml",
         action="store_true",
-        help="Output JUnit XML report to test-results.xml",
+        help="Output JUnit XML reports into the test-results/ directory",
     )
     parser.add_argument(
         "-v",

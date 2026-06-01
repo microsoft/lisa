@@ -55,7 +55,7 @@ def register_runbook_tools(mcp: FastMCP) -> None:  # noqa: C901
         sections.append(f"  - type: {platform}")
         sections.append('    admin_username: "$(admin_username)"')
         sections.append('    admin_private_key_file: "$(admin_private_key_file)"')
-        sections.append(f"    keep_environment: {keep_environment}")
+        sections.append(f'    keep_environment: "{keep_environment}"')
 
         if platform == "azure":
             sections.append("    azure:")
