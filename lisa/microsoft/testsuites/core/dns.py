@@ -67,6 +67,7 @@ class Dns(TestSuite):
             raise PassedException(e) from e
 
         finally:
+            node.mark_dirty()
             self._check_dns_name_resolution(node)
             node.reboot()
             self._check_dns_name_resolution(node)
