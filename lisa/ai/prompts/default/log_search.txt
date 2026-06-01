@@ -60,6 +60,9 @@ When failures indicate connection or provisioning problems (e.g., cannot connect
 **Search Tips:**
 * Return the traceback always.
 * Read at least 100 log lines on each read call.
+* IMPORTANT: You cannot assume a single read returns the whole file. Use `get_file_stats` first; always review both the HEAD (start_line_offset=1) and the TAIL (use `read_text_file_tail`) of the selected `serial_console.log`.
+* If `search_files` returns `pagination.has_more=true`, you MUST continue by calling `search_files` again with `match_offset=pagination.next_match_offset` until you either find the failure evidence or `has_more=false`.
+* For very large `serial_console.log` (total_lines >> 300), read in chunks/windows (e.g., 300 lines per call) around suspicious regions until the abnormal segment is covered.
 * Use timestamps to understand the sequence of events. Determining timing and sequence of events leading to the error.
 * Review **ALL** lines of logs above error occurrences.
 * After find one line matched the searched string, read around lines to findout more useful information.

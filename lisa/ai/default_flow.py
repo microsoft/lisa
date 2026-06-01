@@ -3,6 +3,7 @@
 
 import asyncio
 import os
+from collections import deque
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Union, cast
 
 # pylint: disable=no-name-in-module
@@ -62,6 +63,57 @@ def _truncate_text(text: str, max_chars: int) -> str:
     return f"{text[:max_chars]}\n...[truncated {truncated_count} chars]"
 
 
+def _collapse_consecutive_duplicate_lines(
+    lines: List[tuple[int, str]],
+    *,
+    max_consecutive: int = 10,
+) -> tuple[List[tuple[int, str]], int]:
+    """Collapse consecutive duplicated lines.
+
+    If the same line text repeats consecutively more than max_consecutive times,
+    keep the first max_consecutive occurrences (with their original line numbers)
+    and insert a single placeholder line indicating how many were omitted.
+
+    Returns:
+        (collapsed_lines, omitted_count)
+    """
+
+    max_consecutive = max(max_consecutive, 1)
+
+    collapsed: List[tuple[int, str]] = []
+    omitted_total = 0
+
+    i = 0
+    while i < len(lines):
+        _line_no, text = lines[i]
+
+        # Count run length.
+        run_end = i + 1
+        while run_end < len(lines) and lines[run_end][1] == text:
+            run_end += 1
+
+        run_len = run_end - i
+        if run_len <= max_consecutive:
+            collapsed.extend(lines[i:run_end])
+        else:
+            collapsed.extend(lines[i : i + max_consecutive])
+            omitted = run_len - max_consecutive
+            omitted_total += omitted
+            first_omitted_line = lines[i + max_consecutive][0]
+            last_omitted_line = lines[run_end - 1][0]
+            collapsed.append(
+                (
+                    first_omitted_line,
+                    f"...[omitted {omitted} repeated lines (same as above) "
+                    f"from line {first_omitted_line} to {last_omitted_line}]",
+                )
+            )
+
+        i = run_end
+
+    return collapsed, omitted_total
+
+
 def _load_prompt(prompt_filename: str, flow: str) -> str:
     """
     Load system prompt from the prompts directory.
@@ -94,8 +146,113 @@ class FileSearchPlugin:
         for path in paths:
             self._paths.append(os.path.normpath(path))
 
+    def get_file_stats(self, file_path: str) -> Dict[str, Any]:
+        """Return basic file stats to help the agent decide how to page/scan logs.
+
+        Args:
+            file_path: The path to the file.
+
+        Returns:
+            Dict with size_bytes, total_lines, and file_path.
+        """
+
+        valid_result = self._valid_path(file_path)
+        if valid_result:
+            return valid_result
+
+        norm_path = os.path.normpath(file_path)
+        if not os.path.exists(norm_path):
+            return {"error": f"File not found: {norm_path}"}
+        if not os.path.isfile(norm_path):
+            return {"error": f"Path is not a file: {norm_path}"}
+
+        try:
+            size_bytes = os.path.getsize(norm_path)
+            total_lines = 0
+            with open(norm_path, "r", encoding="utf-8", errors="replace") as f:
+                for _ in f:
+                    total_lines += 1
+        except Exception as e:
+            return {"error": f"Error getting file stats {norm_path}: {e}"}
+
+        return {
+            "file_path": os.path.abspath(norm_path),
+            "size_bytes": size_bytes,
+            "total_lines": total_lines,
+        }
+
+    def _iter_candidate_files_for_search(
+        self, base_path: str, allowed_extensions: List[str]
+    ) -> Any:
+        for root, dirs, files in os.walk(base_path):
+            dirs.sort()
+            files.sort()
+            for file in files:
+                file_path = os.path.join(root, file)
+
+                # Skip files that in . started path, like .nox, .vscode.
+                if os.path.relpath(file_path, base_path).startswith("."):
+                    continue
+
+                # Apply file extension filter
+                _, file_ext = os.path.splitext(file_path.lower())
+                if file_ext not in allowed_extensions:
+                    continue
+
+                yield file_path
+
+    def _scan_file_for_search(
+        self,
+        file_path: str,
+        search_string: str,
+        match_offset: int,
+        page_size: int,
+        matches_seen: int,
+        returned: int,
+    ) -> tuple[int, int, bool, List[Dict[str, Union[str, int]]]]:
+        entries: List[Dict[str, Union[str, int]]] = []
+        found_extra = False
+
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            for i, line in enumerate(f, start=1):
+                line_content = line.strip().lower()
+                if search_string not in line_content:
+                    continue
+
+                matches_seen += 1
+
+                # Skip matches until we reach the requested offset.
+                if matches_seen <= match_offset:
+                    continue
+
+                # Page full; one more match indicates another page.
+                if returned >= page_size:
+                    found_extra = True
+                    break
+
+                entries.append(
+                    {
+                        # Ensure we use the absolute, normalized path
+                        "file_path": os.path.abspath(file_path),
+                        # Use 1-based line numbers (read_text_file expects 1-based).
+                        "match_line_number": i,
+                        "matched_text": _truncate_text(
+                            line_content,
+                            MAX_MATCHED_TEXT_CHARS,
+                        ),
+                    }
+                )
+                returned += 1
+
+        return matches_seen, returned, found_extra, entries
+
     def search_files(
-        self, search_string: str, path: str, file_extensions: str
+        self,
+        search_string: str,
+        path: str,
+        file_extensions: str,
+        max_matches: int = MAX_SEARCH_CONTEXT_ITEMS,
+        match_offset: int = 0,
     ) -> Dict[str, Any]:
         """
         Searches for a specific string in both standard log files and
@@ -106,6 +263,9 @@ class FileSearchPlugin:
             path: The path to the log directory to search in
             file_extensions: Required file extension filter. Can be a single extension
                           (e.g., '.log') or multiple comma-separated extensions
+            max_matches: Maximum number of matches to return in this call (page size).
+                         The actual returned size is capped for safety.
+            match_offset: Number of matches to skip (for pagination). 0-based.
                           (e.g., '.log,.txt,.out').
 
         Returns:
@@ -124,6 +284,14 @@ class FileSearchPlugin:
         if valid_result:
             return valid_result
 
+        if match_offset < 0:
+            return {"error": f"Invalid match_offset: {match_offset}. Must be >= 0."}
+
+        max_matches = max(max_matches, 1)
+
+        # Enforce a safety cap per call.
+        page_size = min(max_matches, MAX_SEARCH_CONTEXT_ITEMS)
+
         # Combined results
         log_context: Dict[str, Any] = {"context": []}
 
@@ -135,79 +303,63 @@ class FileSearchPlugin:
 
         logger.info(
             f"Searching for '{search_string}' in {path} "
-            f"with extensions {extensions}"
+            f"with extensions {extensions} "
+            f"(match_offset={match_offset}, page_size={page_size})"
         )
 
+        matches_seen = 0
+        returned = 0
+        found_extra = False
+
         # Search both standard logs and serial logs
-        for root, _, files in os.walk(path):
-            for file in files:
-                file_path = os.path.join(root, file)
+        for file_path in self._iter_candidate_files_for_search(
+            path, allowed_extensions
+        ):
+            files_found += 1
+            try:
+                (
+                    matches_seen,
+                    returned,
+                    found_extra,
+                    entries,
+                ) = self._scan_file_for_search(
+                    file_path,
+                    search_string,
+                    match_offset,
+                    page_size,
+                    matches_seen,
+                    returned,
+                )
+                log_context["context"].extend(entries)
+            except Exception as e:
+                logger.info(f"Error processing file {file_path}: {str(e)}")
 
-                # Skip files that in . started path, like .nox, .vscode.
-                if os.path.relpath(file_path, path).startswith("."):
-                    continue
-
-                # Apply file extension filter
-                _, file_ext = os.path.splitext(file_path.lower())
-                if file_ext not in allowed_extensions:
-                    continue
-
-                files_found += 1
-
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        for i, line in enumerate(f):
-                            line_content = line.strip().lower()
-
-                            if search_string in line_content:
-                                parsed_line: Dict[str, Union[str, int]] = {}
-                                # Ensure we use the absolute, normalized path
-                                parsed_line["file_path"] = os.path.abspath(file_path)
-                                parsed_line["match_line_number"] = i
-                                parsed_line["matched_text"] = _truncate_text(
-                                    line_content,
-                                    MAX_MATCHED_TEXT_CHARS,
-                                )
-
-                                log_context["context"].append(parsed_line)
-                                if (
-                                    len(log_context["context"])
-                                    >= MAX_SEARCH_CONTEXT_ITEMS
-                                ):
-                                    logger.info(
-                                        "Reached max search context items "
-                                        f"limit of {MAX_SEARCH_CONTEXT_ITEMS}, "
-                                        f"stopping search."
-                                    )
-                                    break
-
-                        if len(log_context["context"]) >= MAX_SEARCH_CONTEXT_ITEMS:
-                            logger.info(
-                                "Reached max search context items limit of "
-                                f"{MAX_SEARCH_CONTEXT_ITEMS}, stopping search."
-                            )
-                            break
-
-                except Exception as e:
-                    logger.info(f"Error processing file {file_path}: {str(e)}")
-                    continue
-
-            if len(log_context["context"]) >= MAX_SEARCH_CONTEXT_ITEMS:
+            # Stop scanning files once we know there is another page.
+            if found_extra:
                 break
 
-        if len(log_context["context"]) >= MAX_SEARCH_CONTEXT_ITEMS:
-            logger.info(f"Search results capped at {MAX_SEARCH_CONTEXT_ITEMS} items.")
+        has_more = found_extra
+        next_match_offset = match_offset + page_size if has_more else None
 
         match_count = len(log_context["context"])
         logger.info(
             f"Searched '{search_string}', {files_found} files processed, "
             f"{match_count} matches found."
         )
+        log_context["pagination"] = {
+            "match_offset": match_offset,
+            "page_size": page_size,
+            "returned_matches": match_count,
+            "matches_seen": matches_seen,
+            "has_more": has_more,
+            "next_match_offset": next_match_offset,
+            "max_matches_per_call": MAX_SEARCH_CONTEXT_ITEMS,
+        }
         return log_context
 
     def read_text_file(
         self, start_line_offset: int, file_path: str, line_count: int
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """
         Extracts lines from a file starting from a specific line number.
 
@@ -217,10 +369,10 @@ class FileSearchPlugin:
             line_count: Number of lines to read
 
         Returns:
-            Dictionary containing either file content or error information
+            Dictionary containing either file content/metadata or error information
         """
 
-        traceback: List[str] = []
+        raw_lines: List[tuple[int, str]] = []
         norm_path = os.path.normpath(file_path)
 
         # Validate the file path
@@ -257,26 +409,111 @@ class FileSearchPlugin:
         traceback_end = traceback_start + bounded_line_count - 1
 
         try:
-            with open(norm_path, "r", encoding="utf-8") as f:
+            with open(norm_path, "r", encoding="utf-8", errors="replace") as f:
                 for i, line in enumerate(f, start=1):
                     if traceback_start <= i <= traceback_end:
-                        traceback.append(f"({i}): {line.rstrip()}")
+                        raw_lines.append((i, line.rstrip()))
                     if i > traceback_end:
                         break
 
-            logger.info(
-                f"Successfully extracted {len(traceback)} lines of context",
-            )
+            logger.info(f"Successfully extracted {len(raw_lines)} lines of context")
         except Exception as e:
             error_message = f"Error reading file {norm_path}: {str(e)}"
             logger.info(error_message)
             return {"error": error_message}
 
-        result = "\n".join(traceback)
+        collapsed_lines, omitted_repeated = _collapse_consecutive_duplicate_lines(
+            raw_lines, max_consecutive=10
+        )
+        formatted_lines = [f"({i}): {t}" for i, t in collapsed_lines]
+
+        result = "\n".join(formatted_lines)
+        was_truncated_by_chars = len(result) > MAX_READ_TEXT_CHARS
         result = _truncate_text(result, MAX_READ_TEXT_CHARS)
         logger.debug(f"read_text_file result: {result}")
 
-        return {"content": result}
+        return {
+            "content": result,
+            "metadata": {
+                "file_path": os.path.abspath(norm_path),
+                "requested_start_line": start_line_offset,
+                "effective_start_line": traceback_start,
+                "requested_line_count": line_count,
+                "effective_line_count": bounded_line_count,
+                "effective_end_line": traceback_end,
+                "max_read_line_count": MAX_READ_LINE_COUNT,
+                "max_read_text_chars": MAX_READ_TEXT_CHARS,
+                "was_truncated_by_chars": was_truncated_by_chars,
+                "collapsed_consecutive_duplicates": {
+                    "max_consecutive": 10,
+                    "omitted_repeated_lines": omitted_repeated,
+                },
+            },
+        }
+
+    def read_text_file_tail(self, file_path: str, line_count: int) -> Dict[str, Any]:
+        """Read the last N lines of a text file (bounded by MAX_READ_LINE_COUNT).
+
+        This is useful for serial console logs where the root cause often appears
+        near the end (e.g., stack traces, emergency mode, unit failures).
+        """
+
+        valid_result = self._valid_path(file_path)
+        if valid_result:
+            return valid_result
+
+        norm_path = os.path.normpath(file_path)
+        if not os.path.exists(norm_path):
+            return {"error": f"File not found: {norm_path}"}
+
+        bounded_line_count = min(max(1, line_count), MAX_READ_LINE_COUNT)
+
+        try:
+            tail: deque[tuple[int, str]] = deque(maxlen=bounded_line_count)
+            with open(norm_path, "r", encoding="utf-8", errors="replace") as f:
+                for i, line in enumerate(f, start=1):
+                    tail.append((i, line.rstrip()))
+        except Exception as e:
+            return {"error": f"Error reading file {norm_path}: {e}"}
+
+        if not tail:
+            return {
+                "content": "",
+                "metadata": {
+                    "file_path": os.path.abspath(norm_path),
+                    "requested_line_count": line_count,
+                    "effective_line_count": 0,
+                    "max_read_line_count": MAX_READ_LINE_COUNT,
+                },
+            }
+
+        collapsed_lines, omitted_repeated = _collapse_consecutive_duplicate_lines(
+            list(tail), max_consecutive=10
+        )
+
+        start_line = collapsed_lines[0][0]
+        end_line = collapsed_lines[-1][0]
+        content = "\n".join(f"({i}): {t}" for i, t in collapsed_lines)
+        was_truncated_by_chars = len(content) > MAX_READ_TEXT_CHARS
+        content = _truncate_text(content, MAX_READ_TEXT_CHARS)
+
+        return {
+            "content": content,
+            "metadata": {
+                "file_path": os.path.abspath(norm_path),
+                "requested_line_count": line_count,
+                "effective_line_count": len(tail),
+                "effective_start_line": start_line,
+                "effective_end_line": end_line,
+                "max_read_line_count": MAX_READ_LINE_COUNT,
+                "max_read_text_chars": MAX_READ_TEXT_CHARS,
+                "was_truncated_by_chars": was_truncated_by_chars,
+                "collapsed_consecutive_duplicates": {
+                    "max_consecutive": 10,
+                    "omitted_repeated_lines": omitted_repeated,
+                },
+            },
+        }
 
     def _validate_list_files_input(
         self, folder_path: str, offset: int
@@ -511,6 +748,8 @@ class FileSearchAgentBase(ChatAgent):  # type: ignore
         tools = [
             plugin.search_files,
             plugin.read_text_file,
+            plugin.read_text_file_tail,
+            plugin.get_file_stats,
             plugin.list_files,
         ]
         super().__init__(
