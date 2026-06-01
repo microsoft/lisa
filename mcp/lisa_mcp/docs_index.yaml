@@ -92,37 +92,6 @@ tools:
   # ── knowledge.py ───────────────────────────────────────────────
   lisa_explain_concept:
     primary: docs/write_test/concepts.rst
-    supplementary: []
-
-  lisa_get_api_reference:
-    primary: docs/write_test/write_case.rst
-    supplementary: []
-
-  lisa_find_examples:
-    primary: docs/write_test/write_case.rst
-    supplementary: []
-
-  lisa_list_tools:
-    primary: docs/write_test/write_case.rst
-    supplementary: []
-
-  lisa_list_features:
-    primary: docs/write_test/write_case.rst
-    supplementary: []
-
-  lisa_explain_error:
-    primary: docs/run_test/troubleshoot_failures.rst
-    supplementary: []
-
-  # ── execution.py ───────────────────────────────────────────────
-  lisa_run:
-    primary: docs/run_test/run.rst
-    supplementary:
-      - docs/run_test/command_line.rst
-
-  # ── Framework Knowledge ────────────────────────────────────────
-  lisa_explain_concept:
-    primary: docs/write_test/concepts.rst
     supplementary:
       - docs/write_test/write_case.rst
       - docs/write_test/extension.rst
@@ -145,6 +114,16 @@ tools:
   lisa_list_features:
     primary: docs/write_test/extension.rst
     supplementary: []
+
+  lisa_explain_error:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary: []
+
+  # ── execution.py ───────────────────────────────────────────────
+  lisa_run:
+    primary: docs/run_test/run.rst
+    supplementary:
+      - docs/run_test/command_line.rst
 
 
 # ── Topic index (used by explain_concept for targeted lookup) ────

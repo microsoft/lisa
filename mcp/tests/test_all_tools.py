@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-"""Comprehensive functional tests for all 24 MCP tools.
+"""Comprehensive functional tests for all 25 MCP tools.
 
 Run from the mcp/ directory:
     python -m pytest tests/test_all_tools.py -v
@@ -295,8 +295,8 @@ class TestAnalyzeLog(unittest.TestCase):
             "lisa_analyze_log",
             log_content="smoke_test | PASSED | ok\nverify_x | FAILED | boom\n",
         )
-        self.assertIn("1", result)  # 1 passed
-        self.assertIn("1", result)  # 1 failed
+        self.assertIn("passed", result.lower())
+        self.assertIn("1 failed", result.lower())
 
     def test_empty_log(self) -> None:
         result = _call("lisa_analyze_log", log_content="nothing relevant here\n")
@@ -726,7 +726,7 @@ class TestListFeatures(unittest.TestCase):
 
 
 # ======================================================================
-# Cross-cutting: verify all 24 tools are registered
+# Cross-cutting: verify all 25 tools are registered
 # ======================================================================
 
 
