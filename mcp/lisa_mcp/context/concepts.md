@@ -19,7 +19,7 @@ platform:               # one or more platform configs
   - type: azure
     admin_username: "$(admin_username)"
     admin_private_key_file: "$(admin_private_key_file)"
-    keep_environment: no  # "no", "always", or "failed"
+    keep_environment: "no"  # "no", "always", or "failed"
 
 environment:            # optional pre-defined environments
   environments:

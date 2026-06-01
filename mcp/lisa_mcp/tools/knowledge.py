@@ -8,13 +8,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from mcp.server.fastmcp import FastMCP
+
 from lisa_mcp.tools._repo import (
     find_repo_root,
     load_context_file,
     load_doc_for_topic,
     load_docs_for_tool,
 )
-from mcp.server.fastmcp import FastMCP
 
 
 def register_knowledge_tools(mcp: FastMCP) -> None:  # noqa: C901

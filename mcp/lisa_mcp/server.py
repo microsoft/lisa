@@ -6,12 +6,13 @@
 import argparse
 import logging
 
+from mcp.server.fastmcp import FastMCP
+
 from lisa_mcp.tools.execution import register_execution_tools
 from lisa_mcp.tools.knowledge import register_knowledge_tools
 from lisa_mcp.tools.log_analysis import register_log_analysis_tools
 from lisa_mcp.tools.runbook import register_runbook_tools
 from lisa_mcp.tools.test_writer import register_test_writer_tools
-from mcp.server.fastmcp import FastMCP
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("lisa-mcp")
@@ -88,19 +89,18 @@ def main() -> None:
         import os
 
         import uvicorn
+        from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.middleware import Middleware
         from starlette.middleware.trustedhost import TrustedHostMiddleware
-        from starlette.routing import Mount, Route
-
-        from mcp.server.sse import SseServerTransport
+        from starlette.routing import Mount
 
         sse = SseServerTransport("/messages/")
 
-        async def handle_sse(request):
-            async with sse.connect_sse(
-                request.scope, request.receive, request._send
-            ) as streams:
+        # Raw ASGI endpoint — avoids Starlette Request._send (private API
+        # that has changed between versions and silently breaks SSE).
+        async def handle_sse(scope, receive, send):
+            async with sse.connect_sse(scope, receive, send) as streams:
                 await mcp._mcp_server.run(
                     streams[0],
                     streams[1],
@@ -115,7 +115,7 @@ def main() -> None:
 
         app = Starlette(
             routes=[
-                Route("/sse", endpoint=handle_sse),
+                Mount("/sse", app=handle_sse),
                 Mount("/messages/", app=sse.handle_post_message),
             ],
             middleware=[
@@ -126,12 +126,18 @@ def main() -> None:
             ],
         )
 
+        # Restrict which proxy IPs may set X-Forwarded-* headers. Set
+        # FORWARDED_ALLOW_IPS to your reverse proxy's IP(s) in deployment.
+        # Defaults to loopback to prevent client-side spoofing of the
+        # forwarded client IP.
+        forwarded_allow_ips = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")
+
         uvicorn.run(
             app,
             host=args.host,
             port=args.port,
             log_level="info",
-            forwarded_allow_ips="*",
+            forwarded_allow_ips=forwarded_allow_ips,
             proxy_headers=True,
         )
     else:

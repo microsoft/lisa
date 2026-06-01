@@ -10,14 +10,16 @@ import re
 import shutil
 import tarfile
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
-from lisa_mcp.tools._repo import find_repo_root, load_context_file, load_docs_for_tool
 from mcp.server.fastmcp import FastMCP
+
+from lisa_mcp.tools._repo import find_repo_root, load_context_file, load_docs_for_tool
 
 
 def _load_ai_prompts() -> str:
@@ -394,102 +396,24 @@ def register_log_analysis_tools(mcp: FastMCP) -> None:  # noqa: C901
             url: HTTPS URL, Azure Blob URL, or Azure Portal storage URL
             auth_token: Optional bearer token for non-Azure URLs
         """
-        # Auto-convert Azure Portal URLs to blob prefix downloads
-        portal_info = _parse_portal_storage_url(url)
-        if portal_info:
-            download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
-            try:
-                result_dir, count = _download_azure_blob_prefix(
-                    portal_info["account"],
-                    portal_info["container"],
-                    portal_info["prefix"],
-                    download_dir,
-                )
-                return (
-                    f"**Downloaded** {count} file(s) → `{result_dir}`\n\n"
-                    f"Use this path with:\n"
-                    f'- `lisa_start_log_investigation(log_path="{result_dir}")`\n'
-                    f'- `lisa_search_log_files(path="{result_dir}", ...)`\n'
-                    f'- `lisa_list_log_files(folder_path="{result_dir}")`'
-                )
-            except Exception as exc:
-                shutil.rmtree(download_dir, ignore_errors=True)
-                return f"**Error:** Download failed — {type(exc).__name__}: {exc}"
-
-        parsed = urlparse(url)
-        if parsed.scheme not in ("https",):
-            return "**Error:** Only HTTPS URLs are supported."
-        if not parsed.hostname:
-            return "**Error:** Could not parse hostname from URL."
-
-        is_azure_blob = parsed.hostname and parsed.hostname.endswith(
-            ".blob.core.windows.net"
-        )
-
-        # Azure blob prefix (virtual directory) — list + download all
-        if is_azure_blob and not auth_token:
-            path_parts = [p for p in parsed.path.strip("/").split("/") if p]
-            if len(path_parts) >= 2:
-                container = path_parts[0]
-                prefix = "/".join(path_parts[1:])
-                account = parsed.hostname.split(".")[0]
-                download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
-                try:
-                    result_dir, count = _download_azure_blob_prefix(
-                        account,
-                        container,
-                        prefix,
-                        download_dir,
-                    )
-                    return (
-                        f"**Downloaded** {count} file(s) → `{result_dir}`\n\n"
-                        f"Use this path with:\n"
-                        f"- `lisa_start_log_investigation"
-                        f'(log_path="{result_dir}")`\n'
-                        f"- `lisa_search_log_files"
-                        f'(path="{result_dir}", ...)`\n'
-                        f"- `lisa_list_log_files"
-                        f'(folder_path="{result_dir}")`'
-                    )
-                except Exception as exc:
-                    shutil.rmtree(download_dir, ignore_errors=True)
-                    return (
-                        f"**Error:** Download failed — " f"{type(exc).__name__}: {exc}"
-                    )
-
-        download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
-        filename = os.path.basename(parsed.path) or "logs"
-        # Sanitize filename
-        filename = re.sub(r"[^\w.\-]", "_", filename)
-        if not filename:
-            filename = "logs"
-        download_path = os.path.join(download_dir, filename)
-
         try:
-            headers = {}
-            if auth_token:
-                headers["Authorization"] = f"Bearer {auth_token}"
-            req = Request(url, headers=headers)
-            with urlopen(req, timeout=120) as resp:  # noqa: S310
-                with open(download_path, "wb") as f:
-                    shutil.copyfileobj(resp, f)
-
-            size_mb = os.path.getsize(download_path) / (1024 * 1024)
-            result_dir = _extract_archive(download_path, download_dir)
-
-            file_count = sum(1 for _, _, files in os.walk(result_dir) for _ in files)
-
-            return (
-                f"**Downloaded** {size_mb:.1f} MB → `{result_dir}`\n"
-                f"**Files:** {file_count}\n\n"
-                f"Use this path with:\n"
-                f'- `lisa_start_log_investigation(log_path="{result_dir}")`\n'
-                f'- `lisa_search_log_files(path="{result_dir}", ...)`\n'
-                f'- `lisa_list_log_files(folder_path="{result_dir}")`'
-            )
+            result_dir, count, size_mb = _download_url_to_dir(url, auth_token)
         except Exception as exc:
-            shutil.rmtree(download_dir, ignore_errors=True)
             return f"**Error:** Download failed — {type(exc).__name__}: {exc}"
+
+        if size_mb is not None:
+            header = (
+                f"**Downloaded** {size_mb:.1f} MB → `{result_dir}`\n"
+                f"**Files:** {count}\n\n"
+            )
+        else:
+            header = f"**Downloaded** {count} file(s) → `{result_dir}`\n\n"
+        return (
+            header + "Use this path with:\n"
+            f'- `lisa_start_log_investigation(log_path="{result_dir}")`\n'
+            f'- `lisa_search_log_files(path="{result_dir}", ...)`\n'
+            f'- `lisa_list_log_files(folder_path="{result_dir}")`'
+        )
 
     @mcp.tool()
     def lisa_start_log_investigation(
@@ -543,14 +467,12 @@ def register_log_analysis_tools(mcp: FastMCP) -> None:  # noqa: C901
         """
         # Resolve log directory — either from local path or downloaded URL
         if log_url and not log_path:
-            download_result = lisa_download_logs(url=log_url, auth_token=auth_token)
-            if download_result.startswith("**Error:"):
-                return download_result
-            # Extract the path from the download result
-            path_match = re.search(r"`(/[^`]+)`", download_result)
-            if not path_match:
-                return "**Error:** Could not determine downloaded log path."
-            resolved_path = path_match.group(1)
+            try:
+                resolved_path, _count, _size_mb = _download_url_to_dir(
+                    log_url, auth_token
+                )
+            except Exception as exc:
+                return f"**Error:** Download failed — {type(exc).__name__}: {exc}"
         elif log_path:
             resolved_path = log_path
         else:
@@ -724,7 +646,10 @@ def register_log_analysis_tools(mcp: FastMCP) -> None:  # noqa: C901
             file_extensions: Comma-separated extensions to include
                              (default: ``.log,.txt,.out``)
         """
-        path_obj = Path(path)
+        resolved, err = _resolve_under_log_root(path)
+        if err:
+            return err
+        path_obj = resolved
         if not path_obj.is_dir():
             return f"**Error:** Directory not found: {path}"
 
@@ -800,7 +725,10 @@ def register_log_analysis_tools(mcp: FastMCP) -> None:  # noqa: C901
             start_line: Line number to start reading from (1-based, default 1)
             line_count: Number of lines to read (default 200, max 300)
         """
-        p = Path(file_path)
+        resolved, err = _resolve_under_log_root(file_path)
+        if err:
+            return err
+        p = resolved
         if not p.is_file():
             return f"**Error:** File not found: {file_path}"
 
@@ -859,7 +787,10 @@ def register_log_analysis_tools(mcp: FastMCP) -> None:  # noqa: C901
             recursive: Whether to search subdirectories (default True)
             max_files: Maximum number of files to return (default 200)
         """
-        p = Path(folder_path)
+        resolved, err = _resolve_under_log_root(folder_path)
+        if err:
+            return err
+        p = resolved
         if not p.is_dir():
             return f"**Error:** Directory not found: {folder_path}"
 
@@ -970,6 +901,37 @@ _MAX_LOG_SIZE = 5 * 1024 * 1024  # 5 MB
 _MAX_SEARCH_MATCHES = 200
 _MAX_READ_LINES = 300
 _MAX_READ_CHARS = 30000
+# Cap remote downloads to defend against disk exhaustion in hosted SSE mode.
+_MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+
+
+def _resolve_under_log_root(path: str) -> tuple[Optional[Path], Optional[str]]:
+    """Resolve *path* and confirm it lives under ``LISA_LOG_ROOT`` (if set).
+
+    When the env var is unset (typical for local stdio usage), the path is
+    returned unchanged. When set, any path that resolves outside the root —
+    or that doesn't exist as a child of it — is rejected. This blocks remote
+    file disclosure when the server is exposed over SSE.
+    """
+    log_root = os.environ.get("LISA_LOG_ROOT")
+    try:
+        resolved = Path(path).resolve()
+    except (OSError, RuntimeError) as exc:
+        return None, f"**Error:** Could not resolve path `{path}`: {exc}"
+    if not log_root:
+        return resolved, None
+    try:
+        root = Path(log_root).resolve()
+    except (OSError, RuntimeError) as exc:
+        return None, f"**Error:** LISA_LOG_ROOT misconfigured: {exc}"
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return None, (
+            f"**Error:** Path `{path}` is outside the configured "
+            f"LISA_LOG_ROOT (`{root}`)."
+        )
+    return resolved, None
 
 
 def _search_in_files(
@@ -1028,18 +990,23 @@ def _get_log_text(
 def _extract_test_results(text: str) -> list[dict[str, str]]:
     """Extract test result entries from LISA log output."""
     results = []
+    # Patterns are anchored at line boundaries with explicit word edges to
+    # avoid spurious matches (e.g., the substring "test" inside an
+    # identifier like "smoke_test" used to drag pattern 3 into matching the
+    # adjacent pipe character as a "test name").
     patterns = [
         re.compile(
-            r"(\w+)\s*\|\s*(PASSED|FAILED|SKIPPED|ATTEMPTED)\s*(?:\|\s*(.*))?",
-            re.IGNORECASE,
+            r"^\s*(\w+)\s*\|\s*(PASSED|FAILED|SKIPPED|ATTEMPTED)\b"
+            r"\s*(?:\|\s*(.*))?$",
+            re.IGNORECASE | re.MULTILINE,
         ),
         re.compile(
-            r"\[?(PASSED|FAILED|SKIPPED|ATTEMPTED)\]?\s+(?:test\s+)?(\w+)"
-            r"(?:\s*[:\-]\s*(.*))?",
-            re.IGNORECASE,
+            r"^\s*\[?(PASSED|FAILED|SKIPPED|ATTEMPTED)\]?\s+(?:test\s+)?"
+            r"(\w+)(?:\s*[:\-]\s*(.*))?$",
+            re.IGNORECASE | re.MULTILINE,
         ),
         re.compile(
-            r"(?:test|case)\s+(\S+)\s+.*?(PASSED|FAILED|SKIPPED|ATTEMPTED)"
+            r"\b(?:test|case)\s+(\w+)\b.*?\b(PASSED|FAILED|SKIPPED|ATTEMPTED)\b"
             r"(?:\s*[:\-]\s*(.*))?",
             re.IGNORECASE,
         ),
@@ -1272,7 +1239,8 @@ def _parse_portal_storage_url(url: str) -> Optional[dict[str, str]]:
     Returns ``None`` if the URL is not a portal storage URL.
     """
     parsed = urlparse(url)
-    if not parsed.hostname or not parsed.hostname.endswith("portal.azure.com"):
+    host = (parsed.hostname or "").rstrip(".").lower()
+    if host != "portal.azure.com":
         return None
     if not parsed.fragment:
         return None
@@ -1306,6 +1274,96 @@ def _parse_portal_storage_url(url: str) -> Optional[dict[str, str]]:
     return {"account": account, "container": container, "prefix": prefix}
 
 
+def _download_url_to_dir(  # noqa: C901
+    url: str,
+    auth_token: Optional[str],
+) -> tuple[str, int, Optional[float]]:
+    """Download *url* to a fresh temp directory and return ``(dir, count, size_mb)``.
+
+    ``size_mb`` is ``None`` for blob-prefix downloads (where individual blob
+    sizes aren't summarised). Raises on failure; the caller is responsible
+    for surfacing the error message. The temp directory is cleaned up only
+    on failure — on success the caller owns it.
+    """
+    portal_info = _parse_portal_storage_url(url)
+    if portal_info:
+        download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
+        try:
+            result_dir, count = _download_azure_blob_prefix(
+                portal_info["account"],
+                portal_info["container"],
+                portal_info["prefix"],
+                download_dir,
+            )
+            return result_dir, count, None
+        except Exception:
+            shutil.rmtree(download_dir, ignore_errors=True)
+            raise
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError("Only HTTPS URLs are supported")
+    if not parsed.hostname:
+        raise ValueError("Could not parse hostname from URL")
+
+    is_azure_blob = parsed.hostname.endswith(".blob.core.windows.net")
+    has_sas = "sig=" in (parsed.query or "")
+
+    if is_azure_blob and not auth_token and not has_sas:
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+        if len(path_parts) >= 2:
+            container = path_parts[0]
+            prefix = "/".join(path_parts[1:])
+            account = parsed.hostname.split(".")[0]
+            download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
+            try:
+                result_dir, count = _download_azure_blob_prefix(
+                    account, container, prefix, download_dir
+                )
+                return result_dir, count, None
+            except Exception:
+                shutil.rmtree(download_dir, ignore_errors=True)
+                raise
+
+    download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
+    filename = os.path.basename(parsed.path) or "logs"
+    filename = re.sub(r"[^\w.\-]", "_", filename) or "logs"
+    download_path = os.path.join(download_dir, filename)
+
+    try:
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        req = Request(url, headers=headers)
+        with urlopen(req, timeout=120) as resp:  # noqa: S310
+            content_length = resp.headers.get("Content-Length")
+            if content_length and int(content_length) > _MAX_DOWNLOAD_BYTES:
+                raise ValueError(
+                    f"Content-Length {int(content_length):,} exceeds the "
+                    f"{_MAX_DOWNLOAD_BYTES:,}-byte download limit"
+                )
+            downloaded_bytes = 0
+            with open(download_path, "wb") as f:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    downloaded_bytes += len(chunk)
+                    if downloaded_bytes > _MAX_DOWNLOAD_BYTES:
+                        raise ValueError(
+                            f"Download exceeded "
+                            f"{_MAX_DOWNLOAD_BYTES:,}-byte limit; aborted"
+                        )
+                    f.write(chunk)
+        size_mb = os.path.getsize(download_path) / (1024 * 1024)
+        result_dir = _extract_archive(download_path, download_dir)
+        file_count = sum(1 for _, _, files in os.walk(result_dir) for _ in files)
+        return result_dir, file_count, size_mb
+    except Exception:
+        shutil.rmtree(download_dir, ignore_errors=True)
+        raise
+
+
 def _download_azure_blob_prefix(
     account: str,
     container: str,
@@ -1333,7 +1391,10 @@ def _download_azure_blob_prefix(
             """Wraps a pre-fetched token for the Azure SDK."""
 
             def get_token(self, *scopes, **kwargs):  # type: ignore[override]
-                return AccessToken(storage_token, 0)
+                # Treat the injected token as valid for one hour. Setting
+                # expiry to 0 caused some SDK versions to reject it as
+                # already-expired.
+                return AccessToken(storage_token, int(time.time()) + 3600)
 
         credential = _StaticTokenCredential()
     else:
@@ -1397,25 +1458,32 @@ def _extract_archive(download_path: str, download_dir: str) -> str:
 
     if tarfile.is_tarfile(download_path):
         os.makedirs(extract_dir, exist_ok=True)
+        abs_extract = os.path.abspath(extract_dir)
         with tarfile.open(download_path) as tf:
-            safe_members = [
-                m
-                for m in tf.getmembers()
-                if not m.name.startswith(("/", "..")) and ".." not in m.name
-            ]
-            tf.extractall(extract_dir, members=safe_members)
+            safe_members = []
+            for m in tf.getmembers():
+                target = os.path.abspath(os.path.join(abs_extract, m.name))
+                if os.path.commonpath([abs_extract, target]) != abs_extract:
+                    continue
+                safe_members.append(m)
+            # filter="data" (PEP 706) blocks unsafe members (links, abs paths,
+            # device files) on Python 3.12+; older versions ignore the kwarg
+            # via the try/except.
+            try:
+                tf.extractall(extract_dir, members=safe_members, filter="data")
+            except TypeError:
+                tf.extractall(extract_dir, members=safe_members)
         os.remove(download_path)
         return extract_dir
 
     if zipfile.is_zipfile(download_path):
         os.makedirs(extract_dir, exist_ok=True)
+        abs_extract = os.path.abspath(extract_dir)
         with zipfile.ZipFile(download_path) as zf:
-            safe_names = [
-                n
-                for n in zf.namelist()
-                if not n.startswith(("/", "..")) and ".." not in n
-            ]
-            for name in safe_names:
+            for name in zf.namelist():
+                target = os.path.abspath(os.path.join(abs_extract, name))
+                if os.path.commonpath([abs_extract, target]) != abs_extract:
+                    continue
                 zf.extract(name, extract_dir)
         os.remove(download_path)
         return extract_dir
