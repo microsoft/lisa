@@ -98,6 +98,10 @@ class RunnerTestCase(TestCase):
         platform = test_platform.generate_platform()
         platform.runbook.guest_enabled = True
         platform.runbook.requirement = {"node_count": 1, "core_count": 4}
+        # guests with independent capability (use_parent_capability=False)
+        guest = schema.GuestNode()
+        guest.use_parent_capability = False
+        platform.runbook.guests = [guest]
         runner.platform = platform
         runner._guest_enabled = True
 
@@ -116,6 +120,34 @@ class RunnerTestCase(TestCase):
         test_environment = test_results[0].runtime_data.requirement.environment
         assert test_environment
         self.assertEqual(2, len(test_environment.nodes))
+
+    def test_merge_req_guest_use_parent_capability_merges_test_req(self) -> None:
+        """When guests inherit parent capability, the parent environment
+        must include the test case's resource requirements so the guest
+        environment inherits them (e.g. data_disk_count)."""
+        envs = load_environments(None)
+        runner = generate_runner(None)
+        platform = test_platform.generate_platform()
+        platform.runbook.guest_enabled = True
+        platform.runbook.requirement = {"node_count": 1, "core_count": 4}
+        guest = schema.GuestNode()
+        guest.use_parent_capability = True
+        platform.runbook.guests = [guest]
+        runner.platform = platform
+        runner._guest_enabled = True
+
+        test_results = test_testsuite.generate_cases_result()
+        runner._merge_test_requirements(
+            test_results=test_results,
+            existing_environments=envs,
+            platform_type=constants.PLATFORM_MOCK,
+        )
+
+        first_env = next(iter(envs.values()))
+        assert first_env.runbook.nodes_requirement
+        # Parent should include the test case's requirement nodes
+        # (merged with platform requirement), not just the platform.
+        self.assertGreaterEqual(len(first_env.runbook.nodes_requirement), 1)
 
     def test_merge_req_platform_features_do_not_bleed_between_nodes(self) -> None:
         runner = generate_runner(None)

@@ -845,19 +845,34 @@ class LisaRunner(BaseRunner):
                 if ignored_features:
                     cases_ignored_features[test_result.name] = ignored_features
 
-                if getattr(self, "_guest_enabled", False):
-                    environment_requirement = self._create_guest_parent_requirement(
-                        platform_requirement
+                guest_enabled = getattr(self, "_guest_enabled", False)
+                guests_use_parent = (
+                    self._guests_use_parent_capability()
+                    if guest_enabled
+                    else False
+                )
+
+                if guest_enabled and not guests_use_parent:
+                    # Guests have their own capability independent of
+                    # the parent, so the parent only needs platform
+                    # requirements.
+                    environment_requirement = (
+                        self._create_guest_parent_requirement(
+                            platform_requirement
+                        )
                     )
                 else:
+                    # Non-guest mode, or guests inherit the parent's
+                    # capability.  The parent must be provisioned with
+                    # the test-case's resource requirements so that
+                    # the guest inherits them.
                     environment_requirement = copy.deepcopy(test_req.environment)
-
-                if platform_requirement and not getattr(self, "_guest_enabled", False):
-                    self._merge_platform_requirement(
-                        environment_requirement,
-                        platform_requirement,
-                        test_result,
-                    )
+                    if platform_requirement:
+                        self._merge_platform_requirement(
+                            environment_requirement,
+                            platform_requirement,
+                            test_result,
+                        )
 
             if test_result.can_run:
                 # the requirement may be skipped by high platform requirement.
@@ -876,6 +891,18 @@ class LisaRunner(BaseRunner):
                 f"the feature(s) {ignored_features} have "
                 f"been ignored for case {case_name}"
             )
+
+    def _guests_use_parent_capability(self) -> bool:
+        """Return True if any configured guest uses the parent's capability."""
+        if not hasattr(self, "platform"):
+            return False
+        platform_runbook = cast(schema.Platform, self.platform.runbook)
+        if not platform_runbook.guests:
+            return False
+        return any(
+            getattr(g, "use_parent_capability", True)
+            for g in platform_runbook.guests
+        )
 
     def _create_guest_parent_requirement(
         self, platform_requirement: Optional[schema.NodeSpace]
