@@ -180,6 +180,30 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
+    def test_use_predefined_vm_family(self) -> None:
+        # vm_size also accepts VM SKU family names.
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="", vm_size="standardNVSv3Family")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus"],
+            expected_vm_sizes=["Standard_NV48s_v3"],
+            expected_cost=448,
+            environment=env,
+        )
+
+    def test_use_partial_vm_family_name(self) -> None:
+        # partial family name should resolve similarly to partial vm_size values.
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="", vm_size="NVSv3Family")
+        self.verify_prepared_nodes(
+            expected_result=True,
+            expected_locations=["eastus"],
+            expected_vm_sizes=["Standard_NV48s_v3"],
+            expected_cost=448,
+            environment=env,
+        )
+
     def test_predefined_not_found_vm_size(self) -> None:
         # vm size is not found
         env = self.load_environment(node_req_count=1)
