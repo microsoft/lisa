@@ -30,7 +30,7 @@ class Ntp(Tool):
         if self._check_exists():
             return True
 
-        # Canonical replaced 'ntp' with 'ntpsec' starting from Ubuntu version 2510 .
+        # Canonical replaced 'ntp' with 'ntpsec' starting from Ubuntu 2510.
         # 'ntpsec' is a modernized, security-hardened fork of 'ntp' Classic (ntpd),
         # which is the original reference implementation of the Network Time Protocol.
         # While they share the same core time-tracking algorithm, NTPsec has been
@@ -43,7 +43,7 @@ class Ntp(Tool):
                 break
 
         if not ntp_package:
-            raise LisaException("Neither ntp nor ntpsec package is found in repo.")
+            raise LisaException("Neither ntp nor ntpsec package was found in repo.")
 
         posix_os.install_packages(ntp_package)
 
