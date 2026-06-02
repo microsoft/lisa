@@ -1023,7 +1023,20 @@ class PerfEvaluation(notifier.Notifier):
             peak = state["peak_value"]
             sku_bw = state["sku_bw"]
             required = sku_bw * 0.9
-            if peak < required:
+            last_msg = state["last_msg"]
+            criteria_met = peak >= required
+            if criteria_met:
+                eval_msg = (
+                    f"\u2713 {base_metric}: peak {peak:.3f} Gbps reached "
+                    f"{(peak / sku_bw * 100):.1f}% of SKU max "
+                    f"{sku_bw:.3f} Gbps "
+                    f"(required >= {required:.3f} Gbps)"
+                )
+                self._log.info(
+                    f"[BwPeak] SKU 90% check passed for "
+                    f"{tc}.{base_metric} (VM: {vm_size}): {eval_msg}"
+                )
+            else:
                 eval_msg = (
                     f"\u2717 {base_metric}: peak {peak:.3f} Gbps did not reach "
                     f"90% of SKU max {sku_bw:.3f} Gbps "
@@ -1033,27 +1046,31 @@ class PerfEvaluation(notifier.Notifier):
                     f"[BwPeak] SKU 90% check failed for "
                     f"{tc}.{base_metric} (VM: {vm_size}): {eval_msg}"
                 )
-                last_msg = state["last_msg"]
-                result: Dict[str, Any] = {
-                    "timestamp": (str(last_msg.time) if last_msg.time else ""),
-                    "test_case_name": tc,
-                    "metric_name": base_metric,
-                    "metric_value": peak,
-                    "metric_unit": last_msg.metric_unit,
-                    "metric_relativity": (
-                        last_msg.metric_relativity.value
-                        if last_msg.metric_relativity
-                        else "NA"
-                    ),
-                    "tool": last_msg.tool,
-                    "platform": last_msg.platform,
-                    "vmsize": last_msg.vmsize,
-                    "role": last_msg.role,
-                    "criteria_defined": True,
-                    "criteria_met": False,
-                    "evaluation_message": eval_msg,
-                }
-                self._evaluation_results.append(result)
+            # SKU-90% is a per-metric aggregate verdict (no driving
+            # perf_message); _evaluate_perf_metric records per-message rows
+            # separately, so this is not a duplicate. Append for both pass
+            # and fail to keep finalize() summary counts symmetric.
+            result: Dict[str, Any] = {
+                "timestamp": (str(last_msg.time) if last_msg.time else ""),
+                "test_case_name": tc,
+                "metric_name": base_metric,
+                "metric_value": peak,
+                "metric_unit": last_msg.metric_unit,
+                "metric_relativity": (
+                    last_msg.metric_relativity.value
+                    if last_msg.metric_relativity
+                    else "NA"
+                ),
+                "tool": last_msg.tool,
+                "platform": last_msg.platform,
+                "vmsize": last_msg.vmsize,
+                "role": last_msg.role,
+                "criteria_defined": True,
+                "criteria_met": criteria_met,
+                "evaluation_message": eval_msg,
+            }
+            self._evaluation_results.append(result)
+            if not criteria_met:
                 failed: Dict[str, Any] = {
                     "metric_name": base_metric,
                     "actual_value": peak,
@@ -1062,12 +1079,6 @@ class PerfEvaluation(notifier.Notifier):
                     "vm_size": vm_size,
                 }
                 self._failed_metrics.setdefault(tc, []).append(failed)
-            else:
-                self._log.info(
-                    f"[BwPeak] SKU 90% check passed for "
-                    f"{tc}.{base_metric} (VM: {vm_size}): "
-                    f"peak {peak:.3f} >= {required:.3f} Gbps"
-                )
             keys_to_remove.append(tracker_key)
 
         for tracker_key in keys_to_remove:
