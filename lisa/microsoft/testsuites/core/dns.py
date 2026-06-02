@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from lisa import (
+    Logger,
     Node,
     TestCaseMetadata,
     TestSuite,
@@ -39,6 +41,11 @@ class Dns(TestSuite):
         r"ModuleNotFoundError: No module named \'apt_inst\'", re.M
     )
 
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        log.debug("after_case: mark node as dirty to avoid affecting other test cases")
+        node = kwargs["node"]
+        node.mark_dirty()
+
     @TestCaseMetadata(
         description="""
         This test case check DNS name resolution by ping bing.com.
@@ -67,7 +74,6 @@ class Dns(TestSuite):
             raise PassedException(e) from e
 
         finally:
-            node.mark_dirty()
             self._check_dns_name_resolution(node)
             node.reboot()
             self._check_dns_name_resolution(node)
