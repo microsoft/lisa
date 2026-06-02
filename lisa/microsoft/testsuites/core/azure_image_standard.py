@@ -719,13 +719,15 @@ class AzureImageStandard(TestSuite):
     )
     def verify_os_update(self, node: Node) -> None:
         if isinstance(node.os, Posix):
-            node.os.update_packages("")
             # After OS update some times kernel version may change.
             # When LISA is used to validate a VM image with specific kernel version,
             # changing the kernel will result in running tests with undesired kernel
             # which is not expected.
             # Marking the node dirty after OS update to avoid such issues.
-            node.mark_dirty()
+            try:
+                node.os.update_packages("")
+            finally:
+                node.mark_dirty()
             node.reboot()
         else:
             raise SkippedException(f"Unsupported OS or distro type : {type(node.os)}")
