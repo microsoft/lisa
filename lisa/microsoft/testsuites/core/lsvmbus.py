@@ -119,7 +119,8 @@ class LsVmBus(TestSuite):
                 - New logic (after Linux commit 646f071d315b75e87583de290d333478d42ccde1): # noqa: E501
                   2.1.3 If vCPU count <= 16, expected channel count = num of vCPUs.
                   2.1.4 If vCPU count > 16, expected channel count =
-                        min(64, max(16, physical core count / 2)).
+                        min(64, max(16, num_present_cpus / 2)).
+                        Note: num_present_cpus = logical CPU count (thread_count).
                   Reference:
                         https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=646f071d315b75e87583de290d333478d42ccde1
                 - Test logic:
@@ -172,13 +173,12 @@ class LsVmBus(TestSuite):
                             f"({thread_count})"
                         )
                     else:
-                        core_count = lscpu_tool.get_core_count()
                         expected_network_channel_count = min(
-                            64, max(16, core_count // 2)
+                            64, max(16, thread_count // 2)
                         )
                         log.info(
                             "Applying new logic: expected channels = min(64, "
-                            "max(16, physical_core_count // 2)) "
+                            "max(16, thread_count // 2)) "
                             f"= {expected_network_channel_count}"
                         )
                 assert_that(vmbus_device.channel_vp_map).is_length(
