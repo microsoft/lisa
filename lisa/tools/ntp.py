@@ -30,7 +30,7 @@ class Ntp(Tool):
         if self._check_exists():
             return True
 
-        # Camonical replaced 'ntp' with 'ntpsec' starting from Ubuntu version 2510 .
+        # Canonical replaced 'ntp' with 'ntpsec' starting from Ubuntu version 2510 .
         # 'ntpsec' is a modernized, security-hardened fork of 'ntp' Classic (ntpd),
         # which is the original reference implementation of the Network Time Protocol.
         # While they share the same core time-tracking algorithm, NTPsec has been
