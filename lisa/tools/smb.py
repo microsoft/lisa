@@ -115,6 +115,7 @@ class SmbServer(Tool):
         service.restart_service(self._nmb_service)
         # stop firewall to allow SMB traffic
         self.node.tools[Firewall].stop()
+        self.node.mark_dirty()
 
     def stop(self) -> None:
         """Stop SMB services."""

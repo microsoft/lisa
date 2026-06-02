@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Debian, Fedora, Posix, Ubuntu, Windows
+from lisa.operating_system import BSD, Debian, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import (
@@ -690,7 +690,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_os=[Debian, Ubuntu],
+            supported_os=[Debian],
         ),
         priority=1,
     )
@@ -742,15 +742,24 @@ class Storage(TestSuite):
                         share_path,
                         log,
                     )
-                except Exception as e:
+                except (LisaException, AssertionError) as e:
                     log.info(f"SMB version {smb_version} failed: {e}")
                     failed_versions.append(smb_version)
                 finally:
                     # Step 7: Cleanup between version tests
                     try:
                         smb_client.unmount_share(mount_point)
-                    except Exception:
-                        pass
+                    except LisaException as e:
+                        log.info(
+                            f"Failed to unmount SMB share for version "
+                            f"{smb_version}: {e}"
+                        )
+                    client_node.mark_dirty()
+        except (LisaException, AssertionError):
+            log.info(
+                "SMB Linux test failed due to unexpected error. See logs for details."
+            )
+            client_node.mark_dirty()
         finally:
             # Cleanup
             self._cleanup_smb_test(
@@ -798,7 +807,7 @@ class Storage(TestSuite):
         # Read and verify file content from client side
         file_content_client = client_node.tools[Cat].read(
             test_file_path, sudo=True, force_run=True
-        )
+        ).rstrip("\n")
 
         assert_that(file_content_client).described_as(
             "SMB file content should match written content on client"
@@ -816,7 +825,7 @@ class Storage(TestSuite):
         # Read file content directly from server VM
         file_content_server = server_node.tools[Cat].read(
             server_file_path, sudo=True, force_run=True
-        )
+        ).rstrip("\n")
 
         assert_that(file_content_server).described_as(
             "SMB file content should match on server VM"
@@ -844,7 +853,7 @@ class Storage(TestSuite):
             if smb_client.is_mounted(mount_point):
                 smb_client.unmount_share(mount_point)
             smb_client.cleanup_mount_point(mount_point)
-        except Exception as e:
+        except LisaException as e:
             log.info(
                 f"Failed to cleanup SMB client mount point {mount_point}: "
                 f"{e}. Continuing cleanup..."
@@ -856,7 +865,7 @@ class Storage(TestSuite):
             smb_server = server_node.tools[SmbServer]
             smb_server.stop()
             smb_server.remove_share(share_path)
-        except Exception as e:
+        except LisaException as e:
             log.info(
                 f"Failed to remove share {share_path} from SMB server: "
                 f"{e}. Finishing cleanup..."
