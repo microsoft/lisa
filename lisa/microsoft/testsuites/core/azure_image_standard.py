@@ -719,7 +719,7 @@ class AzureImageStandard(TestSuite):
     )
     def verify_os_update(self, node: Node) -> None:
         if isinstance(node.os, Posix):
-            # After OS update some times kernel version may change.
+            # After OS update sometimes kernel version may change.
             # When LISA is used to validate a VM image with specific kernel version,
             # changing the kernel will result in running tests with undesired kernel
             # which is not expected.
