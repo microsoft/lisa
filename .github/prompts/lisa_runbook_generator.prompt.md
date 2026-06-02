@@ -45,12 +45,12 @@ marketplace:
   security_profile: ["secureboot"]
 ```
 
-**VHD** — custom OS disk from a storage blob URL. Always specify `hyperv_generation` (1 or 2) and `architecture` (`x64` or `Arm64`) — LISA cannot infer these from a raw VHD:
+**VHD** — custom OS disk from a storage blob URL. Always specify `hyperv_generation` (1 or 2) and `architecture` (`x64`) — LISA cannot infer these from a raw VHD:
 ```yaml
 vhd:
   vhd_path: "https://mystorageaccount.blob.core.windows.net/vhds/my-image.vhd"
   hyperv_generation: 2      # 1 or 2; required for correct VM generation selection
-  architecture: x64         # x64 or Arm64
+  architecture: x64         # x64
 ```
 
 > **ARM64 VHD limitation:** Azure does not support deploying an ARM64 VM directly from a raw VHD blob. When the VHD is ARM64, use one of two approaches:
