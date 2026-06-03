@@ -1,0 +1,68 @@
+name: azure bmi environment example
+extension:
+  - "../testsuites"
+
+variable:
+  - name: service_principal_tenant_id
+    value: ""
+  - name: service_principal_client_id
+    value: ""
+  - name: service_principal_key
+    value: ""
+  - name: subscription_id
+    value: ""
+
+  - name: bmi_image
+    value: ""
+  - name: jumphost_password
+    value: ""
+  - name: bmi_location
+    value: "southeastus5"
+  - name: bmi_jumphost_image
+    value: "Canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest"
+  - name: bmi_jumphost_vm_size
+    value: "Standard_DS2_v2"
+  - name: bmi_jumphost_username
+    value: "lisatest"
+  - name: bmi_vm_size
+    value: "ND144isr_ETH_GB200_metal_v6"
+  - name: bmi_host_sku
+    value: "GPCv6GB200S186_ETH_metal-Type1"
+  - name: bmi_admin_username
+    value: "azhpcuser"
+  - name: bmi_admin_password
+    value: ""
+
+platform:
+  - type: azure
+    azure:
+      service_principal_tenant_id: $(service_principal_tenant_id)
+      service_principal_client_id: $(service_principal_client_id)
+      service_principal_key: $(service_principal_key)
+      subscription_id: $(subscription_id)
+
+transformer:
+  - type: azure_bmi_environment
+    location: $(bmi_location)
+    bmi_image: $(bmi_image)
+    bmi_count: 2
+    jumphost_username: $(bmi_jumphost_username)
+    jumphost_password: $(jumphost_password)
+    jumphost_image: $(bmi_jumphost_image)
+    jumphost_vm_size: $(bmi_jumphost_vm_size)
+    bmi_vm_size: $(bmi_vm_size)
+    bmi_host_sku: $(bmi_host_sku)
+    bmi_admin_username: $(bmi_admin_username)
+    bmi_admin_password: $(bmi_admin_password)
+    nat_start_port: 50000
+
+# The transformer exports values like:
+# - azure_bmi_environment_resource_group_name
+# - azure_bmi_environment_jumphost_public_ip
+# - azure_bmi_environment_bmi_names
+# - azure_bmi_environment_bmi_private_ips
+# - azure_bmi_environment_bmi_ssh_ports
+
+testcase:
+  - criteria:
+      area: demo
