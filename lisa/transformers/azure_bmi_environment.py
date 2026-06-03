@@ -13,6 +13,7 @@ from lisa.sut_orchestrator.azure.common import (
     check_or_create_resource_group,
     get_compute_client,
     get_network_client,
+    get_primary_ip_addresses,
     wait_operation,
 )
 from lisa.sut_orchestrator.azure.transformers import _load_platform
@@ -244,15 +245,11 @@ class AzureBmiEnvironmentTransformer(Transformer):
             internal_nic_id=jumphost_internal_nic_id,
         )
 
-        jumphost_public_ip = self._get_public_ip(
-            network_client=network_client,
+        jumphost_public_ip, jumphost_external_private_ip = self._get_vm_primary_ips(
+            platform=platform,
+            compute_client=compute_client,
             resource_group_name=rg_name,
-            public_ip_name=f"{jumphost_name}-pip",
-        )
-        jumphost_external_private_ip = self._get_nic_private_ip(
-            network_client=network_client,
-            resource_group_name=rg_name,
-            nic_name=f"{jumphost_name}-external-nic",
+            vm_name=jumphost_name,
         )
         jumphost_internal_private_ip = self._get_nic_private_ip(
             network_client=network_client,
@@ -333,10 +330,11 @@ class AzureBmiEnvironmentTransformer(Transformer):
                     admin_password=bmi_admin_password,
                 )
 
-                private_ip = self._get_nic_private_ip(
-                    network_client=network_client,
+                _, private_ip = self._get_vm_primary_ips(
+                    platform=platform,
+                    compute_client=compute_client,
                     resource_group_name=rg_name,
-                    nic_name=nic_name,
+                    vm_name=bmi_name,
                 )
 
                 next_port += 1
@@ -488,30 +486,40 @@ class AzureBmiEnvironmentTransformer(Transformer):
             raise LisaException("public ip id is not a string")
         return public_ip.id
 
-    def _get_public_ip(
+    def _get_vm_primary_ips(
         self,
-        network_client: Any,
+        platform: Any,
+        compute_client: Any,
         resource_group_name: str,
-        public_ip_name: str,
-    ) -> str:
-        public_ip: str = ""
+        vm_name: str,
+    ) -> Tuple[str, str]:
+        public_ip_address: str = ""
+        private_ip_address: str = ""
 
-        def _check_public_ip_ready() -> bool:
-            nonlocal public_ip
-            value = network_client.public_ip_addresses.get(
+        def _check_vm_ip_ready() -> bool:
+            nonlocal public_ip_address
+            nonlocal private_ip_address
+            vm = compute_client.virtual_machines.get(
                 resource_group_name=resource_group_name,
-                public_ip_address_name=public_ip_name,
+                vm_name=vm_name,
             )
-            public_ip = value.ip_address or ""
-            return bool(public_ip)
+            public_ip, private_ip = get_primary_ip_addresses(
+                platform=platform,
+                resource_group_name=resource_group_name,
+                virtual_machine=vm,
+            )
+            public_ip_address = str(public_ip or "")
+            private_ip_address = str(private_ip or "")
+            return bool(private_ip_address)
 
         check_till_timeout(
-            _check_public_ip_ready,
-            timeout_message=f"wait for public ip {public_ip_name} ready",
+            _check_vm_ip_ready,
+            timeout_message=f"wait for VM IPs ready: {vm_name}",
             timeout=300,
             interval=5,
         )
-        return public_ip
+
+        return public_ip_address, private_ip_address
 
     def _create_nic(
         self,
