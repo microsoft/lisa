@@ -1927,20 +1927,17 @@ def create_or_update_dedicated_host_group(
     platform_fault_domain_count: int,
     automatic_placement: bool,
 ) -> Any:
-    operation = compute_client.dedicated_host_groups.begin_create_or_update(
+    # dedicated_host_groups.create_or_update is a synchronous operation
+    # (no long-running poller), unlike dedicated_hosts.begin_create_or_update.
+    return compute_client.dedicated_host_groups.create_or_update(
         resource_group_name=resource_group_name,
         host_group_name=host_group_name,
         parameters={
             "location": location,
             "platform_fault_domain_count": platform_fault_domain_count,
-            "automatic_placement": automatic_placement,
+            "support_automatic_placement": automatic_placement,
         },
     )
-    wait_operation(
-        operation,
-        failure_identity=f"create host group {host_group_name}",
-    )
-    return operation.result()
 
 
 def create_or_update_dedicated_host(

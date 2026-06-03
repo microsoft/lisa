@@ -65,4 +65,5 @@ transformer:
 
 testcase:
   - criteria:
-      area: demo
+      area: ""
+      name: smoke_test

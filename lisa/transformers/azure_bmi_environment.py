@@ -188,16 +188,22 @@ class AzureBmiEnvironmentTransformer(Transformer):
         network_client = get_network_client(platform)
         compute_client = get_compute_client(platform)
 
-        vnet = self._create_network(
+        vnet = create_or_update_virtual_network(
             network_client=network_client,
             resource_group_name=rg_name,
+            virtual_network_name=vnet_name,
             location=location,
-            vnet_name=vnet_name,
-            vnet_prefix=runbook.vnet_prefix,
-            internal_subnet_name=runbook.internal_subnet_name,
-            internal_subnet_prefix=runbook.internal_subnet_prefix,
-            external_subnet_name=runbook.external_subnet_name,
-            external_subnet_prefix=runbook.external_subnet_prefix,
+            address_prefixes=[runbook.vnet_prefix],
+            subnets=[
+                {
+                    "name": runbook.external_subnet_name,
+                    "address_prefix": runbook.external_subnet_prefix,
+                },
+                {
+                    "name": runbook.internal_subnet_name,
+                    "address_prefix": runbook.internal_subnet_prefix,
+                },
+            ],
         )
         internal_subnet_id, external_subnet_id = self._get_subnet_ids(
             virtual_network=vnet,
@@ -214,11 +220,11 @@ class AzureBmiEnvironmentTransformer(Transformer):
             nat_end_port=runbook.nat_start_port + runbook.bmi_count,
         )
 
-        jumphost_public_ip_id = self._create_public_ip(
+        jumphost_public_ip_id = create_or_update_public_ip(
             network_client=network_client,
             resource_group_name=rg_name,
+            public_ip_address_name=f"{jumphost_name}-pip",
             location=location,
-            public_ip_name=f"{jumphost_name}-pip",
         )
 
         jumphost_external_nic_id = self._create_nic(
@@ -277,11 +283,13 @@ class AzureBmiEnvironmentTransformer(Transformer):
             next_hop_ip=jumphost_internal_private_ip,
         )
 
-        self._create_host_group(
+        create_or_update_dedicated_host_group(
             compute_client=compute_client,
             resource_group_name=rg_name,
-            location=location,
             host_group_name=host_group_name,
+            location=location,
+            platform_fault_domain_count=1,
+            automatic_placement=True,
         )
 
         jumphost = self._connect_jumphost(
@@ -306,13 +314,15 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 host_name = f"{bmi_name}-host"
                 nic_name = f"{bmi_name}-nic"
 
-                host_id = self._create_host(
+                host_id = create_or_update_dedicated_host(
                     compute_client=compute_client,
                     resource_group_name=rg_name,
-                    location=location,
                     host_group_name=host_group_name,
                     host_name=host_name,
+                    location=location,
                     host_sku=bmi_host_sku,
+                    platform_fault_domain=0,
+                    auto_replace_on_failure=False,
                 )
 
                 nic_id = self._create_nic(
@@ -372,36 +382,6 @@ class AzureBmiEnvironmentTransformer(Transformer):
             "host_group_name": host_group_name,
             "vnet_name": vnet_name,
         }
-
-    def _create_network(
-        self,
-        network_client: Any,
-        resource_group_name: str,
-        location: str,
-        vnet_name: str,
-        vnet_prefix: str,
-        internal_subnet_name: str,
-        internal_subnet_prefix: str,
-        external_subnet_name: str,
-        external_subnet_prefix: str,
-    ) -> Any:
-        return create_or_update_virtual_network(
-            resource_group_name=resource_group_name,
-            network_client=network_client,
-            virtual_network_name=vnet_name,
-            location=location,
-            address_prefixes=[vnet_prefix],
-            subnets=[
-                {
-                    "name": external_subnet_name,
-                    "address_prefix": external_subnet_prefix,
-                },
-                {
-                    "name": internal_subnet_name,
-                    "address_prefix": internal_subnet_prefix,
-                },
-            ],
-        )
 
     def _get_subnet_ids(
         self,
@@ -469,20 +449,6 @@ class AzureBmiEnvironmentTransformer(Transformer):
         )
 
         return nsg
-
-    def _create_public_ip(
-        self,
-        network_client: Any,
-        resource_group_name: str,
-        location: str,
-        public_ip_name: str,
-    ) -> str:
-        return create_or_update_public_ip(
-            network_client=network_client,
-            resource_group_name=resource_group_name,
-            public_ip_address_name=public_ip_name,
-            location=location,
-        )
 
     def _get_vm_primary_ips(
         self,
@@ -638,42 +604,6 @@ class AzureBmiEnvironmentTransformer(Transformer):
             virtual_network_name=vnet_name,
             subnet_name=subnet_name,
             route_table_id=route_table.id,
-        )
-
-    def _create_host_group(
-        self,
-        compute_client: Any,
-        resource_group_name: str,
-        location: str,
-        host_group_name: str,
-    ) -> None:
-        create_or_update_dedicated_host_group(
-            compute_client=compute_client,
-            resource_group_name=resource_group_name,
-            host_group_name=host_group_name,
-            location=location,
-            platform_fault_domain_count=1,
-            automatic_placement=True,
-        )
-
-    def _create_host(
-        self,
-        compute_client: Any,
-        resource_group_name: str,
-        location: str,
-        host_group_name: str,
-        host_name: str,
-        host_sku: str,
-    ) -> str:
-        return create_or_update_dedicated_host(
-            compute_client=compute_client,
-            resource_group_name=resource_group_name,
-            host_group_name=host_group_name,
-            host_name=host_name,
-            location=location,
-            host_sku=host_sku,
-            platform_fault_domain=0,
-            auto_replace_on_failure=False,
         )
 
     def _create_bmi_vm(
