@@ -169,10 +169,44 @@ class Makedumpfile(Tool):
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix)
         if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
+            # On Red Hat / Mariner, kexec-tools often provides makedumpfile, but some
+            # releases require an explicit makedumpfile package.
             self.node.os.install_packages("kexec-tools")
+            try:
+                self.node.os.install_packages("makedumpfile")
+            except Exception:
+                # The separate makedumpfile package may not exist on all distro versions.
+                # If installation fails, continue and verify the binary exists.
+                pass
         else:
             self.node.os.install_packages("makedumpfile")
         return self._check_exists()
+
+    def _check_exists(self) -> bool:
+        """
+        Verify makedumpfile is installed and executable.
+        """
+        exists, self._use_sudo = self.command_exists(self.command)
+        if exists:
+            return True
+
+        if self.node.is_posix:
+            for path in ["/usr/sbin/makedumpfile", "/usr/bin/makedumpfile", "/sbin/makedumpfile"]:
+                result = self.node.execute(
+                    f"test -x {path}", shell=True, sudo=False, no_info_log=True
+                )
+                if result.exit_code == 0:
+                    self._use_sudo = False
+                    return True
+
+                result = self.node.execute(
+                    f"test -x {path}", shell=True, sudo=True, no_info_log=True
+                )
+                if result.exit_code == 0:
+                    self._use_sudo = True
+                    return True
+
+        return False
 
 
 class KdumpBase(Tool):
@@ -812,7 +846,7 @@ class KdumpCBLMariner(KdumpBase):
         return
 
 
-class KdumpCheck(Tool):
+class  KdumpCheck(Tool):
     # This tool will be wrapperf on top of KdumpBase with pre/post check for crash
     # kernel operations. We will wrap it around virtual tool of KdumpCheck here.
     # kdump_test is the function we will expose to trigger the kernel crash.
