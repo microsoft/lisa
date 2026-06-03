@@ -1749,7 +1749,14 @@ def create_or_update_virtual_network(
     location: str,
     address_prefixes: List[str],
     subnets: List[Dict[str, Any]],
+    log: Logger,
 ) -> Any:
+    log.debug(
+        f"creating virtual network '{virtual_network_name}' in "
+        f"resource group '{resource_group_name}' (location={location}, "
+        f"address_prefixes={address_prefixes}, "
+        f"subnets={[s.get('name') for s in subnets]})"
+    )
     operation = network_client.virtual_networks.begin_create_or_update(
         resource_group_name=resource_group_name,
         virtual_network_name=virtual_network_name,
@@ -1760,6 +1767,7 @@ def create_or_update_virtual_network(
         },
     )
     wait_operation(operation, failure_identity="create virtual network")
+    log.debug(f"created virtual network '{virtual_network_name}'")
     return operation.result()
 
 
@@ -1768,13 +1776,21 @@ def create_or_update_network_security_group(
     resource_group_name: str,
     network_security_group_name: str,
     location: str,
+    log: Logger,
 ) -> Any:
+    log.debug(
+        f"creating network security group '{network_security_group_name}' "
+        f"in resource group '{resource_group_name}' (location={location})"
+    )
     operation = network_client.network_security_groups.begin_create_or_update(
         resource_group_name=resource_group_name,
         network_security_group_name=network_security_group_name,
         parameters={"location": location},
     )
     wait_operation(operation, failure_identity="create network security group")
+    log.debug(
+        f"created network security group '{network_security_group_name}'"
+    )
     return operation.result()
 
 
@@ -1785,7 +1801,12 @@ def create_or_update_network_security_rule(
     security_rule_name: str,
     security_rule_parameters: Dict[str, Any],
     failure_identity: str,
+    log: Logger,
 ) -> None:
+    log.debug(
+        f"creating NSG rule '{security_rule_name}' on "
+        f"'{network_security_group_name}' (params={security_rule_parameters})"
+    )
     operation = network_client.security_rules.begin_create_or_update(
         resource_group_name=resource_group_name,
         network_security_group_name=network_security_group_name,
@@ -1793,6 +1814,7 @@ def create_or_update_network_security_rule(
         security_rule_parameters=security_rule_parameters,
     )
     wait_operation(operation, failure_identity=failure_identity)
+    log.debug(f"created NSG rule '{security_rule_name}'")
 
 
 def create_or_update_public_ip(
@@ -1800,7 +1822,12 @@ def create_or_update_public_ip(
     resource_group_name: str,
     public_ip_address_name: str,
     location: str,
+    log: Logger,
 ) -> str:
+    log.debug(
+        f"creating public ip '{public_ip_address_name}' in "
+        f"resource group '{resource_group_name}' (location={location})"
+    )
     operation = network_client.public_ip_addresses.begin_create_or_update(
         resource_group_name=resource_group_name,
         public_ip_address_name=public_ip_address_name,
@@ -1816,6 +1843,9 @@ def create_or_update_public_ip(
         raise LisaException("public ip id cannot be empty")
     if not isinstance(public_ip.id, str):
         raise LisaException("public ip id is not a string")
+    log.debug(
+        f"created public ip '{public_ip_address_name}' (id={public_ip.id})"
+    )
     return public_ip.id
 
 
@@ -1828,7 +1858,14 @@ def create_or_update_network_interface(
     enable_ip_forwarding: bool,
     network_security_group_id: str,
     ip_configurations: List[Dict[str, Any]],
+    log: Logger,
 ) -> str:
+    log.debug(
+        f"creating network interface '{network_interface_name}' in "
+        f"resource group '{resource_group_name}' (location={location}, "
+        f"accelerated_networking={enable_accelerated_networking}, "
+        f"ip_forwarding={enable_ip_forwarding})"
+    )
     operation = network_client.network_interfaces.begin_create_or_update(
         resource_group_name=resource_group_name,
         network_interface_name=network_interface_name,
@@ -1846,6 +1883,9 @@ def create_or_update_network_interface(
         raise LisaException(f"nic id cannot be empty: {network_interface_name}")
     if not isinstance(nic.id, str):
         raise LisaException(f"nic id is not a string: {network_interface_name}")
+    log.debug(
+        f"created network interface '{network_interface_name}' (id={nic.id})"
+    )
     return nic.id
 
 
@@ -1855,13 +1895,24 @@ def create_or_update_virtual_machine(
     vm_name: str,
     parameters: Dict[str, Any],
     failure_identity: str,
+    log: Logger,
 ) -> Any:
+    vm_size = parameters.get("hardware_profile", {}).get("vm_size")
+    image_reference = parameters.get("storage_profile", {}).get(
+        "image_reference"
+    )
+    log.debug(
+        f"creating virtual machine '{vm_name}' in "
+        f"resource group '{resource_group_name}' (vm_size={vm_size}, "
+        f"image_reference={image_reference})"
+    )
     operation = compute_client.virtual_machines.begin_create_or_update(
         resource_group_name=resource_group_name,
         vm_name=vm_name,
         parameters=parameters,
     )
     wait_operation(operation, failure_identity=failure_identity)
+    log.debug(f"created virtual machine '{vm_name}'")
     return operation.result()
 
 
@@ -1870,13 +1921,19 @@ def create_or_update_route_table(
     resource_group_name: str,
     route_table_name: str,
     location: str,
+    log: Logger,
 ) -> Any:
+    log.debug(
+        f"creating route table '{route_table_name}' in "
+        f"resource group '{resource_group_name}' (location={location})"
+    )
     operation = network_client.route_tables.begin_create_or_update(
         resource_group_name=resource_group_name,
         route_table_name=route_table_name,
         parameters={"location": location},
     )
     wait_operation(operation, failure_identity="create route table")
+    log.debug(f"created route table '{route_table_name}'")
     return operation.result()
 
 
@@ -1886,7 +1943,12 @@ def create_or_update_route(
     route_table_name: str,
     route_name: str,
     route_parameters: Dict[str, Any],
+    log: Logger,
 ) -> None:
+    log.debug(
+        f"creating route '{route_name}' on route table "
+        f"'{route_table_name}' (params={route_parameters})"
+    )
     operation = network_client.routes.begin_create_or_update(
         resource_group_name=resource_group_name,
         route_table_name=route_table_name,
@@ -1894,6 +1956,7 @@ def create_or_update_route(
         route_parameters=route_parameters,
     )
     wait_operation(operation, failure_identity="create route entry")
+    log.debug(f"created route '{route_name}' on '{route_table_name}'")
 
 
 def associate_route_table_to_subnet(
@@ -1902,7 +1965,12 @@ def associate_route_table_to_subnet(
     virtual_network_name: str,
     subnet_name: str,
     route_table_id: str,
+    log: Logger,
 ) -> None:
+    log.debug(
+        f"associating route table '{route_table_id}' with subnet "
+        f"'{subnet_name}' on vnet '{virtual_network_name}'"
+    )
     subnet = network_client.subnets.get(
         resource_group_name=resource_group_name,
         virtual_network_name=virtual_network_name,
@@ -1917,6 +1985,9 @@ def associate_route_table_to_subnet(
         subnet_parameters=subnet,
     )
     wait_operation(operation, failure_identity="associate route table")
+    log.debug(
+        f"associated route table with subnet '{subnet_name}'"
+    )
 
 
 def create_or_update_dedicated_host_group(
@@ -1926,10 +1997,17 @@ def create_or_update_dedicated_host_group(
     location: str,
     platform_fault_domain_count: int,
     automatic_placement: bool,
+    log: Logger,
 ) -> Any:
+    log.debug(
+        f"creating dedicated host group '{host_group_name}' in "
+        f"resource group '{resource_group_name}' (location={location}, "
+        f"platform_fault_domain_count={platform_fault_domain_count}, "
+        f"automatic_placement={automatic_placement})"
+    )
     # dedicated_host_groups.create_or_update is a synchronous operation
     # (no long-running poller), unlike dedicated_hosts.begin_create_or_update.
-    return compute_client.dedicated_host_groups.create_or_update(
+    result = compute_client.dedicated_host_groups.create_or_update(
         resource_group_name=resource_group_name,
         host_group_name=host_group_name,
         parameters={
@@ -1938,6 +2016,8 @@ def create_or_update_dedicated_host_group(
             "support_automatic_placement": automatic_placement,
         },
     )
+    log.debug(f"created dedicated host group '{host_group_name}'")
+    return result
 
 
 def create_or_update_dedicated_host(
@@ -1949,7 +2029,14 @@ def create_or_update_dedicated_host(
     host_sku: str,
     platform_fault_domain: int,
     auto_replace_on_failure: bool,
+    log: Logger,
 ) -> str:
+    log.debug(
+        f"creating dedicated host '{host_name}' in host group "
+        f"'{host_group_name}' (location={location}, sku={host_sku}, "
+        f"platform_fault_domain={platform_fault_domain}, "
+        f"auto_replace_on_failure={auto_replace_on_failure})"
+    )
     operation = compute_client.dedicated_hosts.begin_create_or_update(
         resource_group_name=resource_group_name,
         host_group_name=host_group_name,
@@ -1967,6 +2054,7 @@ def create_or_update_dedicated_host(
         raise LisaException(f"host id cannot be empty: {host_name}")
     if not isinstance(host.id, str):
         raise LisaException(f"host id is not a string: {host_name}")
+    log.debug(f"created dedicated host '{host_name}' (id={host.id})")
     return host.id
 
 

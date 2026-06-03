@@ -204,6 +204,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
                     "address_prefix": runbook.internal_subnet_prefix,
                 },
             ],
+            log=self._log,
         )
         internal_subnet_id, external_subnet_id = self._get_subnet_ids(
             virtual_network=vnet,
@@ -225,6 +226,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
             resource_group_name=rg_name,
             public_ip_address_name=f"{jumphost_name}-pip",
             location=location,
+            log=self._log,
         )
 
         jumphost_external_nic_id = self._create_nic(
@@ -290,6 +292,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
             location=location,
             platform_fault_domain_count=1,
             automatic_placement=True,
+            log=self._log,
         )
 
         jumphost = self._connect_jumphost(
@@ -323,6 +326,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
                     host_sku=bmi_host_sku,
                     platform_fault_domain=0,
                     auto_replace_on_failure=False,
+                    log=self._log,
                 )
 
                 nic_id = self._create_nic(
@@ -337,7 +341,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 )
 
                 self._create_bmi_vm(
-                    compute_client=compute_client,
+                    platform=platform,
                     resource_group_name=rg_name,
                     location=location,
                     vm_name=bmi_name,
@@ -410,6 +414,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
             resource_group_name=resource_group_name,
             network_security_group_name=nsg_name,
             location=location,
+            log=self._log,
         )
 
         create_or_update_network_security_rule(
@@ -428,6 +433,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 "direction": "Inbound",
             },
             failure_identity="create NSG NAT rule",
+            log=self._log,
         )
 
         create_or_update_network_security_rule(
@@ -446,6 +452,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 "direction": "Inbound",
             },
             failure_identity="create NSG SSH rule",
+            log=self._log,
         )
 
         return nsg
@@ -512,6 +519,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
             enable_ip_forwarding=enable_ip_forwarding,
             network_security_group_id=nsg_id,
             ip_configurations=[ip_configuration],
+            log=self._log,
         )
 
     def _get_nic_private_ip(
@@ -567,6 +575,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 },
             },
             failure_identity=f"create jumphost vm {vm_name}",
+            log=self._log,
         )
 
     def _create_route_table(
@@ -584,6 +593,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
             resource_group_name=resource_group_name,
             route_table_name=route_table_name,
             location=location,
+            log=self._log,
         )
 
         create_or_update_route(
@@ -596,6 +606,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 "next_hop_type": "VirtualAppliance",
                 "next_hop_ip_address": next_hop_ip,
             },
+            log=self._log,
         )
 
         associate_route_table_to_subnet(
@@ -604,11 +615,12 @@ class AzureBmiEnvironmentTransformer(Transformer):
             virtual_network_name=vnet_name,
             subnet_name=subnet_name,
             route_table_id=route_table.id,
+            log=self._log,
         )
 
     def _create_bmi_vm(
         self,
-        compute_client: Any,
+        platform: Any,
         resource_group_name: str,
         location: str,
         vm_name: str,
@@ -620,45 +632,152 @@ class AzureBmiEnvironmentTransformer(Transformer):
         admin_username: str,
         admin_password: str,
     ) -> None:
-        image_reference = self._build_image_reference(image)
+        # BMI VMs (GB200, NvmeDisk ephemeral placement) require
+        # Microsoft.Compute api-version 2024-03-01 or newer. The bundled
+        # azure-mgmt-compute (30.x) only ships up to 2023-07-01, so issue
+        # the PUT directly against ARM with a pinned api-version.
+        image_reference = self._build_sig_image_reference(image)
 
-        vm_parameters: Dict[str, Any] = {
+        # camelCase keys per ARM contract (SDK normally maps these).
+        vm_body: Dict[str, Any] = {
             "location": location,
-            "hardware_profile": {"vm_size": vm_size},
-            "network_profile": {
-                "network_interfaces": [{"id": nic_id, "primary": True}],
-            },
-            "storage_profile": {
-                "image_reference": image_reference,
-                "os_disk": {
-                    "create_option": "FromImage",
-                    "delete_option": "Delete",
-                    "diff_disk_settings": {
-                        "option": "Local",
-                        "placement": "NvmeDisk",
+            "properties": {
+                "hardwareProfile": {"vmSize": vm_size},
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {"id": nic_id, "properties": {"primary": True}}
+                    ],
+                },
+                "storageProfile": {
+                    "imageReference": self._image_reference_to_arm(image_reference),
+                    "osDisk": {
+                        "createOption": "FromImage",
+                        "deleteOption": "Delete",
+                        "caching": "ReadOnly",
+                        "diffDiskSettings": {
+                            "option": "Local",
+                            "placement": "NvmeDisk",
+                        },
                     },
                 },
+                "host": {"id": host_id},
             },
-            "host": {"id": host_id},
         }
 
         if not specialized:
-            vm_parameters["os_profile"] = {
-                "computer_name": vm_name,
-                "admin_username": admin_username,
-                "linux_configuration": {
-                    "disable_password_authentication": not bool(admin_password),
+            os_profile: Dict[str, Any] = {
+                "computerName": vm_name,
+                "adminUsername": admin_username,
+                "linuxConfiguration": {
+                    "disablePasswordAuthentication": not bool(admin_password),
                 },
             }
             if admin_password:
-                vm_parameters["os_profile"]["admin_password"] = admin_password
+                os_profile["adminPassword"] = admin_password
+            vm_body["properties"]["osProfile"] = os_profile
 
-        create_or_update_virtual_machine(
-            compute_client=compute_client,
+        self._put_vm_via_rest(
+            platform=platform,
             resource_group_name=resource_group_name,
             vm_name=vm_name,
-            parameters=vm_parameters,
-            failure_identity=f"create bmi vm {vm_name}",
+            vm_body=vm_body,
+        )
+
+    def _image_reference_to_arm(
+        self, image_reference: Dict[str, str]
+    ) -> Dict[str, str]:
+        # Translate snake_case keys produced by _build_*_image_reference
+        # to the camelCase ARM contract.
+        key_map = {
+            "exact_version": "exactVersion",
+            "shared_gallery_image_id": "sharedGalleryImageId",
+            "community_gallery_image_id": "communityGalleryImageId",
+        }
+        return {key_map.get(k, k): v for k, v in image_reference.items()}
+
+    def _put_vm_via_rest(
+        self,
+        platform: Any,
+        resource_group_name: str,
+        vm_name: str,
+        vm_body: Dict[str, Any],
+    ) -> None:
+        import json
+        import time
+
+        import requests
+
+        api_version = "2024-11-01"
+        resource_manager = platform.cloud.endpoints.resource_manager.rstrip("/")
+        scope = f"{resource_manager}/.default"
+        token = platform.credential.get_token(scope).token
+        url = (
+            f"{resource_manager}/subscriptions/{platform.subscription_id}"
+            f"/resourceGroups/{resource_group_name}/providers/Microsoft.Compute"
+            f"/virtualMachines/{vm_name}?api-version={api_version}"
+        )
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        vm_size = vm_body["properties"]["hardwareProfile"]["vmSize"]
+        image_reference = vm_body["properties"]["storageProfile"]["imageReference"]
+        self._log.debug(
+            f"creating bmi vm '{vm_name}' in resource group "
+            f"'{resource_group_name}' (vm_size={vm_size}, "
+            f"image_reference={image_reference}, "
+            f"api_version={api_version})"
+        )
+
+        response = requests.put(
+            url, headers=headers, data=json.dumps(vm_body), timeout=300
+        )
+        if response.status_code not in (200, 201, 202):
+            raise LisaException(
+                f"failed to create bmi vm '{vm_name}': "
+                f"status={response.status_code} body={response.text}"
+            )
+
+        async_url = (
+            response.headers.get("Azure-AsyncOperation")
+            or response.headers.get("Location")
+        )
+        if not async_url:
+            self._log.debug(
+                f"created bmi vm '{vm_name}' (no async operation header)"
+            )
+            return
+
+        # Poll the LRO until completion.
+        deadline = time.time() + 60 * 60  # 60 minutes
+        while time.time() < deadline:
+            poll = requests.get(async_url, headers=headers, timeout=300)
+            if poll.status_code in (200, 201):
+                try:
+                    payload = poll.json()
+                except ValueError:
+                    payload = {}
+                status = str(payload.get("status") or "").lower()
+                if status in ("succeeded",):
+                    self._log.debug(f"created bmi vm '{vm_name}'")
+                    return
+                if status in ("failed", "canceled"):
+                    raise LisaException(
+                        f"failed to create bmi vm '{vm_name}': {poll.text}"
+                    )
+            elif poll.status_code == 202:
+                pass
+            else:
+                raise LisaException(
+                    f"failed polling bmi vm '{vm_name}': "
+                    f"status={poll.status_code} body={poll.text}"
+                )
+            retry_after = int(poll.headers.get("Retry-After", "10"))
+            time.sleep(max(retry_after, 5))
+
+        raise LisaException(
+            f"timed out waiting for bmi vm '{vm_name}' to be created"
         )
 
     def _build_image_reference(self, image: str) -> Dict[str, str]:
@@ -682,6 +801,32 @@ class AzureBmiEnvironmentTransformer(Transformer):
             "sku": parts[2],
             "version": parts[3],
         }
+
+    def _build_sig_image_reference(self, image: str) -> Dict[str, str]:
+        # For Shared Image Gallery (SIG) image versions, the Azure VM
+        # 'image_reference' must point at the gallery image (definition) id
+        # and pin the version via 'exact_version'. Example image input:
+        # /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/
+        #   galleries/<gallery>/images/<image>/versions/<version>
+        if image.startswith("/subscriptions/") and "/galleries/" in image:
+            marker = "/versions/"
+            version_index = image.find(marker)
+            if version_index == -1:
+                raise LisaException(
+                    f"SIG image id is missing '/versions/<version>' segment: {image}"
+                )
+            image_definition_id = image[:version_index]
+            exact_version = image[version_index + len(marker):].strip("/")
+            if not exact_version:
+                raise LisaException(
+                    f"SIG image id has empty version segment: {image}"
+                )
+            return {
+                "id": image_definition_id,
+                "exact_version": exact_version,
+            }
+
+        return self._build_image_reference(image)
 
     def _connect_jumphost(self, address: str, username: str, password: str) -> Node:
         connection = schema.RemoteNode(
