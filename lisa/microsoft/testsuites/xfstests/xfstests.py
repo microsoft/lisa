@@ -984,12 +984,22 @@ class Xfstests(Tool):
             posix_os.install_packages(
                 packages="devtoolset-7-gcc*", extra_args=["--skip-broken"]
             )
-            self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
-            self.node.execute(
-                "ln -s /usr/bin/x86_64-redhat-linux-gcc /bin/gcc",
-                sudo=True,
-                shell=True,
-            )
+            # Only redirect /bin/gcc to the SCL toolchain if devtoolset-7 actually
+            # installed and the arch-specific binary is present. CentOS 7 SCL
+            # mirrors are EOL (mirrorlist.centos.org no longer resolves) so
+            # devtoolset-7 install can silently fail with --skip-broken; in that
+            # case we must keep the base gcc rather than replace it with a
+            # dangling symlink. Also pick the right arch (aarch64 vs x86_64).
+            if posix_os.package_exists("devtoolset-7-gcc"):
+                arch = self.node.os.get_kernel_information().hardware_platform
+                scl_gcc = f"/usr/bin/{arch}-redhat-linux-gcc"
+                if self.node.shell.exists(PurePosixPath(scl_gcc)):
+                    self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
+                    self.node.execute(
+                        f"ln -s {scl_gcc} /bin/gcc",
+                        sudo=True,
+                        shell=True,
+                    )
         # fix compile issue on SLES12SP5
         if (
             isinstance(self.node.os, Suse)
