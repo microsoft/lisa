@@ -1742,6 +1742,237 @@ def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
     )
 
 
+def create_or_update_virtual_network(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    virtual_network_name: str,
+    location: str,
+    address_prefixes: List[str],
+    subnets: List[Dict[str, Any]],
+) -> Any:
+    operation = network_client.virtual_networks.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        virtual_network_name=virtual_network_name,
+        parameters={
+            "location": location,
+            "address_space": {"address_prefixes": address_prefixes},
+            "subnets": subnets,
+        },
+    )
+    wait_operation(operation, failure_identity="create virtual network")
+    return operation.result()
+
+
+def create_or_update_network_security_group(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    network_security_group_name: str,
+    location: str,
+) -> Any:
+    operation = network_client.network_security_groups.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        network_security_group_name=network_security_group_name,
+        parameters={"location": location},
+    )
+    wait_operation(operation, failure_identity="create network security group")
+    return operation.result()
+
+
+def create_or_update_network_security_rule(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    network_security_group_name: str,
+    security_rule_name: str,
+    security_rule_parameters: Dict[str, Any],
+    failure_identity: str,
+) -> None:
+    operation = network_client.security_rules.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        network_security_group_name=network_security_group_name,
+        security_rule_name=security_rule_name,
+        security_rule_parameters=security_rule_parameters,
+    )
+    wait_operation(operation, failure_identity=failure_identity)
+
+
+def create_or_update_public_ip(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    public_ip_address_name: str,
+    location: str,
+) -> str:
+    operation = network_client.public_ip_addresses.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        public_ip_address_name=public_ip_address_name,
+        parameters={
+            "location": location,
+            "sku": {"name": "Standard"},
+            "public_ip_allocation_method": "Static",
+        },
+    )
+    wait_operation(operation, failure_identity="create public ip")
+    public_ip = operation.result()
+    if not public_ip.id:
+        raise LisaException("public ip id cannot be empty")
+    if not isinstance(public_ip.id, str):
+        raise LisaException("public ip id is not a string")
+    return public_ip.id
+
+
+def create_or_update_network_interface(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    network_interface_name: str,
+    location: str,
+    enable_accelerated_networking: bool,
+    enable_ip_forwarding: bool,
+    network_security_group_id: str,
+    ip_configurations: List[Dict[str, Any]],
+) -> str:
+    operation = network_client.network_interfaces.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        network_interface_name=network_interface_name,
+        parameters={
+            "location": location,
+            "enable_accelerated_networking": enable_accelerated_networking,
+            "enable_ip_forwarding": enable_ip_forwarding,
+            "network_security_group": {"id": network_security_group_id},
+            "ip_configurations": ip_configurations,
+        },
+    )
+    wait_operation(operation, failure_identity=f"create nic {network_interface_name}")
+    nic = operation.result()
+    if not nic.id:
+        raise LisaException(f"nic id cannot be empty: {network_interface_name}")
+    if not isinstance(nic.id, str):
+        raise LisaException(f"nic id is not a string: {network_interface_name}")
+    return nic.id
+
+
+def create_or_update_virtual_machine(
+    compute_client: ComputeManagementClient,
+    resource_group_name: str,
+    vm_name: str,
+    parameters: Dict[str, Any],
+    failure_identity: str,
+) -> Any:
+    operation = compute_client.virtual_machines.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        vm_name=vm_name,
+        parameters=parameters,
+    )
+    wait_operation(operation, failure_identity=failure_identity)
+    return operation.result()
+
+
+def create_or_update_route_table(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    route_table_name: str,
+    location: str,
+) -> Any:
+    operation = network_client.route_tables.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        route_table_name=route_table_name,
+        parameters={"location": location},
+    )
+    wait_operation(operation, failure_identity="create route table")
+    return operation.result()
+
+
+def create_or_update_route(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    route_table_name: str,
+    route_name: str,
+    route_parameters: Dict[str, Any],
+) -> None:
+    operation = network_client.routes.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        route_table_name=route_table_name,
+        route_name=route_name,
+        route_parameters=route_parameters,
+    )
+    wait_operation(operation, failure_identity="create route entry")
+
+
+def associate_route_table_to_subnet(
+    network_client: NetworkManagementClient,
+    resource_group_name: str,
+    virtual_network_name: str,
+    subnet_name: str,
+    route_table_id: str,
+) -> None:
+    subnet = network_client.subnets.get(
+        resource_group_name=resource_group_name,
+        virtual_network_name=virtual_network_name,
+        subnet_name=subnet_name,
+    )
+    subnet.route_table = {"id": route_table_id}
+
+    operation = network_client.subnets.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        virtual_network_name=virtual_network_name,
+        subnet_name=subnet_name,
+        subnet_parameters=subnet,
+    )
+    wait_operation(operation, failure_identity="associate route table")
+
+
+def create_or_update_dedicated_host_group(
+    compute_client: ComputeManagementClient,
+    resource_group_name: str,
+    host_group_name: str,
+    location: str,
+    platform_fault_domain_count: int,
+    automatic_placement: bool,
+) -> Any:
+    operation = compute_client.dedicated_host_groups.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        host_group_name=host_group_name,
+        parameters={
+            "location": location,
+            "platform_fault_domain_count": platform_fault_domain_count,
+            "automatic_placement": automatic_placement,
+        },
+    )
+    wait_operation(
+        operation,
+        failure_identity=f"create host group {host_group_name}",
+    )
+    return operation.result()
+
+
+def create_or_update_dedicated_host(
+    compute_client: ComputeManagementClient,
+    resource_group_name: str,
+    host_group_name: str,
+    host_name: str,
+    location: str,
+    host_sku: str,
+    platform_fault_domain: int,
+    auto_replace_on_failure: bool,
+) -> str:
+    operation = compute_client.dedicated_hosts.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        host_group_name=host_group_name,
+        host_name=host_name,
+        parameters={
+            "location": location,
+            "sku": {"name": host_sku},
+            "platform_fault_domain": platform_fault_domain,
+            "auto_replace_on_failure": auto_replace_on_failure,
+        },
+    )
+    wait_operation(operation, failure_identity=f"create host {host_name}")
+    host = operation.result()
+    if not host.id:
+        raise LisaException(f"host id cannot be empty: {host_name}")
+    if not isinstance(host.id, str):
+        raise LisaException(f"host id is not a string: {host_name}")
+    return host.id
+
+
 def get_storage_client(
     credential: Any, subscription_id: str, cloud: Cloud
 ) -> StorageManagementClient:

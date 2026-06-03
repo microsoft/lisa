@@ -10,11 +10,21 @@ from marshmallow import validate
 from lisa import schema
 from lisa.node import Node
 from lisa.sut_orchestrator.azure.common import (
+    associate_route_table_to_subnet,
     check_or_create_resource_group,
+    create_or_update_dedicated_host,
+    create_or_update_dedicated_host_group,
+    create_or_update_network_interface,
+    create_or_update_network_security_group,
+    create_or_update_network_security_rule,
+    create_or_update_public_ip,
+    create_or_update_route,
+    create_or_update_route_table,
+    create_or_update_virtual_machine,
+    create_or_update_virtual_network,
     get_compute_client,
     get_network_client,
     get_primary_ip_addresses,
-    wait_operation,
 )
 from lisa.sut_orchestrator.azure.transformers import _load_platform
 from lisa.transformer import Transformer
@@ -375,26 +385,23 @@ class AzureBmiEnvironmentTransformer(Transformer):
         external_subnet_name: str,
         external_subnet_prefix: str,
     ) -> Any:
-        operation = network_client.virtual_networks.begin_create_or_update(
+        return create_or_update_virtual_network(
             resource_group_name=resource_group_name,
+            network_client=network_client,
             virtual_network_name=vnet_name,
-            parameters={
-                "location": location,
-                "address_space": {"address_prefixes": [vnet_prefix]},
-                "subnets": [
-                    {
-                        "name": external_subnet_name,
-                        "address_prefix": external_subnet_prefix,
-                    },
-                    {
-                        "name": internal_subnet_name,
-                        "address_prefix": internal_subnet_prefix,
-                    },
-                ],
-            },
+            location=location,
+            address_prefixes=[vnet_prefix],
+            subnets=[
+                {
+                    "name": external_subnet_name,
+                    "address_prefix": external_subnet_prefix,
+                },
+                {
+                    "name": internal_subnet_name,
+                    "address_prefix": internal_subnet_prefix,
+                },
+            ],
         )
-        wait_operation(operation, failure_identity="create virtual network")
-        return operation.result()
 
     def _get_subnet_ids(
         self,
@@ -418,15 +425,15 @@ class AzureBmiEnvironmentTransformer(Transformer):
         nat_start_port: int,
         nat_end_port: int,
     ) -> Any:
-        operation = network_client.network_security_groups.begin_create_or_update(
+        nsg = create_or_update_network_security_group(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             network_security_group_name=nsg_name,
-            parameters={"location": location},
+            location=location,
         )
-        wait_operation(operation, failure_identity="create network security group")
-        nsg = operation.result()
 
-        allow_nat = network_client.security_rules.begin_create_or_update(
+        create_or_update_network_security_rule(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             network_security_group_name=nsg_name,
             security_rule_name="AllowNatSshPorts",
@@ -440,10 +447,11 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 "priority": 100,
                 "direction": "Inbound",
             },
+            failure_identity="create NSG NAT rule",
         )
-        wait_operation(allow_nat, failure_identity="create NSG NAT rule")
 
-        allow_ssh = network_client.security_rules.begin_create_or_update(
+        create_or_update_network_security_rule(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             network_security_group_name=nsg_name,
             security_rule_name="AllowJumpHostSsh",
@@ -457,8 +465,8 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 "priority": 101,
                 "direction": "Inbound",
             },
+            failure_identity="create NSG SSH rule",
         )
-        wait_operation(allow_ssh, failure_identity="create NSG SSH rule")
 
         return nsg
 
@@ -469,22 +477,12 @@ class AzureBmiEnvironmentTransformer(Transformer):
         location: str,
         public_ip_name: str,
     ) -> str:
-        operation = network_client.public_ip_addresses.begin_create_or_update(
+        return create_or_update_public_ip(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             public_ip_address_name=public_ip_name,
-            parameters={
-                "location": location,
-                "sku": {"name": "Standard"},
-                "public_ip_allocation_method": "Static",
-            },
+            location=location,
         )
-        wait_operation(operation, failure_identity="create public ip")
-        public_ip = operation.result()
-        if not public_ip.id:
-            raise LisaException("public ip id cannot be empty")
-        if not isinstance(public_ip.id, str):
-            raise LisaException("public ip id is not a string")
-        return public_ip.id
 
     def _get_vm_primary_ips(
         self,
@@ -506,7 +504,7 @@ class AzureBmiEnvironmentTransformer(Transformer):
             public_ip, private_ip = get_primary_ip_addresses(
                 platform=platform,
                 resource_group_name=resource_group_name,
-                virtual_machine=vm,
+                vm=vm,
             )
             public_ip_address = str(public_ip or "")
             private_ip_address = str(private_ip or "")
@@ -539,24 +537,16 @@ class AzureBmiEnvironmentTransformer(Transformer):
         if public_ip_id:
             ip_configuration["public_ip_address"] = {"id": public_ip_id}
 
-        operation = network_client.network_interfaces.begin_create_or_update(
+        return create_or_update_network_interface(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             network_interface_name=nic_name,
-            parameters={
-                "location": location,
-                "enable_accelerated_networking": True,
-                "enable_ip_forwarding": enable_ip_forwarding,
-                "network_security_group": {"id": nsg_id},
-                "ip_configurations": [ip_configuration],
-            },
+            location=location,
+            enable_accelerated_networking=True,
+            enable_ip_forwarding=enable_ip_forwarding,
+            network_security_group_id=nsg_id,
+            ip_configurations=[ip_configuration],
         )
-        wait_operation(operation, failure_identity=f"create nic {nic_name}")
-        nic = operation.result()
-        if not nic.id:
-            raise LisaException(f"nic id cannot be empty: {nic_name}")
-        if not isinstance(nic.id, str):
-            raise LisaException(f"nic id is not a string: {nic_name}")
-        return nic.id
 
     def _get_nic_private_ip(
         self,
@@ -587,7 +577,8 @@ class AzureBmiEnvironmentTransformer(Transformer):
     ) -> None:
         image_reference = self._build_image_reference(image)
 
-        operation = compute_client.virtual_machines.begin_create_or_update(
+        create_or_update_virtual_machine(
+            compute_client=compute_client,
             resource_group_name=resource_group_name,
             vm_name=vm_name,
             parameters={
@@ -609,8 +600,8 @@ class AzureBmiEnvironmentTransformer(Transformer):
                     ]
                 },
             },
+            failure_identity=f"create jumphost vm {vm_name}",
         )
-        wait_operation(operation, failure_identity=f"create jumphost vm {vm_name}")
 
     def _create_route_table(
         self,
@@ -622,15 +613,15 @@ class AzureBmiEnvironmentTransformer(Transformer):
         vnet_name: str,
         next_hop_ip: str,
     ) -> None:
-        operation = network_client.route_tables.begin_create_or_update(
+        route_table = create_or_update_route_table(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             route_table_name=route_table_name,
-            parameters={"location": location},
+            location=location,
         )
-        wait_operation(operation, failure_identity="create route table")
-        route_table = operation.result()
 
-        route_operation = network_client.routes.begin_create_or_update(
+        create_or_update_route(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             route_table_name=route_table_name,
             route_name="NatRoute",
@@ -640,22 +631,14 @@ class AzureBmiEnvironmentTransformer(Transformer):
                 "next_hop_ip_address": next_hop_ip,
             },
         )
-        wait_operation(route_operation, failure_identity="create route entry")
 
-        subnet = network_client.subnets.get(
+        associate_route_table_to_subnet(
+            network_client=network_client,
             resource_group_name=resource_group_name,
             virtual_network_name=vnet_name,
             subnet_name=subnet_name,
+            route_table_id=route_table.id,
         )
-        subnet.route_table = {"id": route_table.id}
-
-        subnet_update = network_client.subnets.begin_create_or_update(
-            resource_group_name=resource_group_name,
-            virtual_network_name=vnet_name,
-            subnet_name=subnet_name,
-            subnet_parameters=subnet,
-        )
-        wait_operation(subnet_update, failure_identity="associate route table")
 
     def _create_host_group(
         self,
@@ -664,18 +647,13 @@ class AzureBmiEnvironmentTransformer(Transformer):
         location: str,
         host_group_name: str,
     ) -> None:
-        operation = compute_client.dedicated_host_groups.begin_create_or_update(
+        create_or_update_dedicated_host_group(
+            compute_client=compute_client,
             resource_group_name=resource_group_name,
             host_group_name=host_group_name,
-            parameters={
-                "location": location,
-                "platform_fault_domain_count": 1,
-                "automatic_placement": True,
-            },
-        )
-        wait_operation(
-            operation,
-            failure_identity=f"create host group {host_group_name}",
+            location=location,
+            platform_fault_domain_count=1,
+            automatic_placement=True,
         )
 
     def _create_host(
@@ -687,24 +665,16 @@ class AzureBmiEnvironmentTransformer(Transformer):
         host_name: str,
         host_sku: str,
     ) -> str:
-        operation = compute_client.dedicated_hosts.begin_create_or_update(
+        return create_or_update_dedicated_host(
+            compute_client=compute_client,
             resource_group_name=resource_group_name,
             host_group_name=host_group_name,
             host_name=host_name,
-            parameters={
-                "location": location,
-                "sku": {"name": host_sku},
-                "platform_fault_domain": 0,
-                "auto_replace_on_failure": False,
-            },
+            location=location,
+            host_sku=host_sku,
+            platform_fault_domain=0,
+            auto_replace_on_failure=False,
         )
-        wait_operation(operation, failure_identity=f"create host {host_name}")
-        host = operation.result()
-        if not host.id:
-            raise LisaException(f"host id cannot be empty: {host_name}")
-        if not isinstance(host.id, str):
-            raise LisaException(f"host id is not a string: {host_name}")
-        return host.id
 
     def _create_bmi_vm(
         self,
@@ -753,12 +723,13 @@ class AzureBmiEnvironmentTransformer(Transformer):
             if admin_password:
                 vm_parameters["os_profile"]["admin_password"] = admin_password
 
-        operation = compute_client.virtual_machines.begin_create_or_update(
+        create_or_update_virtual_machine(
+            compute_client=compute_client,
             resource_group_name=resource_group_name,
             vm_name=vm_name,
             parameters=vm_parameters,
+            failure_identity=f"create bmi vm {vm_name}",
         )
-        wait_operation(operation, failure_identity=f"create bmi vm {vm_name}")
 
     def _build_image_reference(self, image: str) -> Dict[str, str]:
         if image.startswith("/subscriptions/"):
