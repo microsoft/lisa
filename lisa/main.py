@@ -27,7 +27,7 @@ from lisa.util.logger import (
 from lisa.util.perf_timer import create_timer
 from lisa.variable import add_secrets_from_pairs
 
-_runtime_root = (Path(__file__).parent.parent / "runtime").absolute()
+_runtime_root = Path("runtime").absolute()
 
 
 def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
