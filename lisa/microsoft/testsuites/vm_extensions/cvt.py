@@ -344,7 +344,6 @@ def _run_cvt_no_extension(
     cvt_binaries_url: str,
     driver_tarball_url: str,
     cvt_script: CustomScriptBuilder,
-    data_disks: List[str],
 ) -> Optional[int]:
     """Run CVT tests without VM extensions - loads driver directly."""
     max_log_length = 200
@@ -359,10 +358,10 @@ def _run_cvt_no_extension(
     except (NotImplementedError, Exception) as e:
         log.info(f"Could not install dos2unix ({e}), using sed fallback")
 
-    # Convert to unix line endings using sed as fallback
+    # Convert to unix line endings using the public command property
+    script_path = script.command
     node.execute(
-        f"sed -i 's/\\r$//' '{script._command}'",
-        cwd=script._cwd,
+        f"sed -i 's/\\r$//' '{script_path}'",
         shell=True,
         sudo=True,
     )
@@ -481,7 +480,6 @@ class CVTTest(TestSuite):
             cvt_binaries_url=cvt_binaries_url,
             driver_tarball_url=driver_tarball_url,
             cvt_script=self._cvt_no_ext_script,
-            data_disks=self._data_disks,
         )
         log.info(f"ASR CVT (no-extension) test completed with exit code '{result}'")
         assert_that(result).described_as(

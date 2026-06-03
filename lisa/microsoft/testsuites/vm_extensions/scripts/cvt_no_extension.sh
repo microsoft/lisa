@@ -59,7 +59,8 @@ init_cvt_status()
         "kernelVersion": "$kernel_ver",
         "driverVersion": "",
         "productVersion": "",
-        "testCases": []
+        "testCases": [
+        ]
     }
 }
 EOF
@@ -118,12 +119,17 @@ update_cvt_status_testcase()
         {print}
         ' "$cvt_status_file" > "${cvt_status_file}.tmp" && mv "${cvt_status_file}.tmp" "$cvt_status_file"
     else
+        # Count existing entries to determine if we need a comma before insertion
+        local existing_count=$(grep -c '"name":' "$cvt_status_file")
+        local comma=""
+        if [ "$existing_count" -gt 0 ]; then
+            comma=","
+        fi
         # Insert new test case before the closing ] of testCases array
-        local entry="            {\"name\": \"$tc_name\", \"status\": \"$tc_status\", \"time\": \"$tc_time\"}"
-        # Find the last ] in testCases and insert before it
-        awk -v entry="$entry" '
-        /\]/ && found_cases {
-            print entry;
+        awk -v entry="            {\"name\": \"$tc_name\", \"status\": \"$tc_status\", \"time\": \"$tc_time\"}" \
+            -v comma="$comma" '
+        /^[[:space:]]*\]/ && found_cases {
+            if (comma != "") print comma entry; else print entry;
             found_cases=0
         }
         /"testCases"/ { found_cases=1 }
@@ -153,7 +159,12 @@ download_file()
     local output="$2"
 
     log "Downloading $url to $output"
-    wget --no-check-certificate -O "$output" "$url" 2>&1 | tee -a "$cvt_log_file"
+    local wget_opts="-O"
+    if [ "${SKIP_TLS_VERIFY:-0}" = "1" ]; then
+        log "WARNING: TLS certificate verification disabled via SKIP_TLS_VERIFY"
+        wget_opts="--no-check-certificate -O"
+    fi
+    wget $wget_opts "$output" "$url" 2>&1 | tee -a "$cvt_log_file"
     if [ $? -ne 0 ]; then
         log "Failed to download from $url"
         return 1
@@ -425,8 +436,19 @@ run_tests()
     umount "$mnt_path" 2>/dev/null || true
     log "Formatting target disk $tgt_disk"
     yes | mkfs "$tgt_disk" 2>&1 | tee -a "$cvt_log_file"
+    if [ ${PIPESTATUS[1]} -ne 0 ]; then
+        log "ERROR: mkfs failed on $tgt_disk"
+        blkid "$tgt_disk" 2>&1 | tee -a "$cvt_log_file"
+        exit_with_retcode "$FAILED_TEST"
+    fi
     mkdir -p "$mnt_path"
     mount "$tgt_disk" "$mnt_path"
+    if [ $? -ne 0 ]; then
+        log "ERROR: mount failed for $tgt_disk on $mnt_path"
+        blkid "$tgt_disk" 2>&1 | tee -a "$cvt_log_file"
+        mount 2>&1 | tee -a "$cvt_log_file"
+        exit_with_retcode "$FAILED_TEST"
+    fi
 
     local testcases=('mixed' '16k_random' '16k_seq' '1mb_random' '1mb_seq' '4k_random' '4k_seq' '4mb_random' '4mb_seq' '512k_random' '512k_seq' '64k_random' '64k_seq' '8mb_random' '8mb_seq' '9mb_random' '9mb_seq')
     local ntests=${#testcases[@]}
@@ -482,8 +504,14 @@ init_cvt_status
 
 # Ensure DNS is working (Azure VMs sometimes lose resolv.conf on reboot)
 if ! nslookup aka.ms >/dev/null 2>&1; then
-    log "DNS not working, adding Azure DNS"
-    echo "nameserver 168.63.129.16" >> /etc/resolv.conf
+    log "DNS not working, current resolv.conf:"
+    cat /etc/resolv.conf 2>/dev/null | tee -a "$cvt_log_file"
+    if ! grep -q "168.63.129.16" /etc/resolv.conf 2>/dev/null; then
+        echo "nameserver 168.63.129.16" >> /etc/resolv.conf
+        log "Added Azure DNS nameserver 168.63.129.16"
+    else
+        log "Azure DNS already in resolv.conf but resolution still failing"
+    fi
 fi
 
 load_driver || exit_with_retcode $?
