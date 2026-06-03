@@ -333,6 +333,111 @@ type: Optional[Union[str, List[str]]] | Default: None
 Source address prefixes for network security rules. Can be a single string, a comma-separated string, or a list of strings. When not specified, defaults to the current public IP address for security. When not provided, the platform configuration will be used for the transformer. When the VM of transformer has different network infrastructure requirements, it can be overwritten here.
 
 
+Use BMI Environment Transformer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a BMI validation topology in Azure using Azure Python SDK APIs (no Azure CLI required).
+
+The transformer provisions:
+
+- Resource group
+- Dedicated host group and dedicated hosts
+- VNet with internal/external subnets
+- NSG rules for jump-host SSH and BMI NAT SSH ports
+- Jump host VM with dual NICs and route table for internal subnet egress
+- BMI VMs pinned to dedicated hosts
+- Jump host NAT rules to expose each BMI node on a unique public SSH port
+
+Usage
+``````
+.. code:: yaml
+
+  transformer:
+    - type: azure_bmi_environment
+      location: southeastus5
+      bmi_image: /subscriptions/<image-subscription>/resourceGroups/<rg>/providers/Microsoft.Compute/galleries/<gallery>/images/<image>/versions/<version>
+      bmi_count: 2
+      jumphost_username: lisatest
+      jumphost_password: <password>
+      nat_start_port: 50000
+
+Outputs
+````````
+- azure_bmi_environment_resource_group_name
+- azure_bmi_environment_jumphost_public_ip
+- azure_bmi_environment_jumphost_username
+- azure_bmi_environment_jumphost_password
+- azure_bmi_environment_jumphost_name
+- azure_bmi_environment_bmi_names
+- azure_bmi_environment_bmi_private_ips
+- azure_bmi_environment_bmi_ssh_ports
+- azure_bmi_environment_host_group_name
+- azure_bmi_environment_vnet_name
+
+Reference
+`````````
+
+bmi_image (Required)
+^^^^^^^^^^^^^^^^^^^^
+
+type: string
+
+Image used for BMI VMs. Supported formats:
+
+- Azure image resource ID (for example, Shared Image Gallery image version ID)
+- Marketplace image string in ``publisher:offer:sku:version`` format
+- Marketplace image string in ``publisher offer sku version`` format
+
+bmi_count
+^^^^^^^^^
+
+type: int | Default: 2
+
+Number of BMI nodes to create.
+
+resource_group_name
+^^^^^^^^^^^^^^^^^^^
+
+type: string | Default: generated name
+
+Resource group to deploy the BMI environment into. If omitted, a timestamped name is generated.
+
+deployment_subscription_id
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+type: string | Default: platform subscription
+
+Optional subscription ID for deployment resources.
+
+jumphost_username
+^^^^^^^^^^^^^^^^^
+
+type: string | Default: lisatest
+
+Admin username of jump host VM.
+
+jumphost_password (Required)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+type: string
+
+Admin password of jump host VM.
+
+nat_start_port
+^^^^^^^^^^^^^^
+
+type: int | Default: 50000
+
+Starting host port for BMI SSH forwarding. BMI nodes are mapped to sequential ports beginning at ``nat_start_port + 1``.
+
+bmi_specialized_image
+^^^^^^^^^^^^^^^^^^^^^
+
+type: bool | Default: true
+
+Whether BMI image is specialized. If set to false, ``bmi_admin_username`` and ``bmi_admin_password`` can be used for generalized image provisioning.
+
+
 Use Delete Transformer
 ~~~~~~~~~~~~~~~~~~~~~~
 
