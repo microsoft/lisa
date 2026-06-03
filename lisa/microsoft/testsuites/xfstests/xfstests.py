@@ -1058,7 +1058,10 @@ class Xfstests(Tool):
         # Remove source files that have kernel header compatibility issues.
         # splice2pipe.c and rw_hint.c use kernel macros that may not exist
         # in older kernel headers (e.g., RWH_WRITE_LIFE_NOT_SET on SLES 15 SP5).
-        files_to_remove = ["splice2pipe", "rw_hint"]
+        # fs-monitor.c uses fanotify FID APIs (FAN_REPORT_FID,
+        # fanotify_event_info_fid, fanotify_event_info_header) added in Linux
+        # 5.1 / glibc 2.31, missing on RHEL/Rocky/CentOS 8 (glibc 2.28).
+        files_to_remove = ["splice2pipe", "rw_hint", "fs-monitor"]
         for file_name in files_to_remove:
             self.node.tools[Rm].remove_file(str(code_path / "src" / f"{file_name}.c"))
             self.node.tools[Sed].substitute(
