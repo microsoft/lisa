@@ -755,7 +755,7 @@ class Storage(TestSuite):
                             f"{smb_version}: {e}"
                         )
                     client_node.mark_dirty()
-        except (LisaException, AssertionError):
+        except (LisaException, AssertionError) as e:
             log.info(f"SMB Linux test failed due to unexpected error: {e}")
             client_node.mark_dirty()
             raise
