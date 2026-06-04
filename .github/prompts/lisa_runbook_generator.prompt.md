@@ -45,7 +45,7 @@ marketplace:
   security_profile: ["secureboot"]
 ```
 
-**VHD** — custom OS disk from a storage blob URL. Always specify `hyperv_generation` (1 or 2) and `architecture` (`x64`) — LISA cannot infer these from a raw VHD:
+**VHD** — custom OS disk from a storage blob URL. Always specify `hyperv_generation` (1 or 2) and `architecture` (`x64`; raw VHD deploy supports x64 only) — LISA cannot infer these from a raw VHD:
 ```yaml
 vhd:
   vhd_path: "https://mystorageaccount.blob.core.windows.net/vhds/my-image.vhd"
