@@ -80,10 +80,10 @@ def list_start(args: Namespace) -> int:
         # the same distro pre-filter the runner will apply.
         case_variables = {name: entry.data for name, entry in builder.variables.items()}
         gate = case_variables.get("enable_distro_pre_filtering")
-        if gate is not None and str(gate).lower() in ("false", "0", "no"):
-            target_os = None
-        else:
+        if gate is not None and str(gate).lower() in ("true", "1", "yes"):
             target_os = infer_target_os(case_variables)
+        else:
+            target_os = None
         if list_all:
             cases: Iterable[TestCaseRuntimeData] = select_testcases(target_os=target_os)
         else:
