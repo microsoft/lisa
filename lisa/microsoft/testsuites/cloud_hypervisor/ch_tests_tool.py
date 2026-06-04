@@ -150,11 +150,30 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
+        cli_test_type: Optional[str] = None,
+        only_test_prefixes: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Prepare subtests and skip arguments."""
-        subtests = self._list_subtests(hypervisor, test_type)
+        subtests = self._list_subtests(hypervisor, cli_test_type or test_type)
         # Store the ordered list for diagnostic purposes
         self._ordered_subtests = subtests.copy()
+
+        if only_test_prefixes is not None:
+            prefixed_subtests = [
+                subtest
+                for subtest in subtests
+                if any(subtest.startswith(prefix) for prefix in only_test_prefixes)
+            ]
+            if not prefixed_subtests:
+                fail(
+                    f"No Cloud Hypervisor {test_type} subtests matched prefixes "
+                    f"{only_test_prefixes}. Verify the selected Cloud Hypervisor "
+                    "ref contains those integration tests."
+                )
+            if only is None:
+                only = prefixed_subtests
+            else:
+                only = [subtest for subtest in only if subtest in prefixed_subtests]
 
         if only is not None:
             if not skip:
@@ -409,16 +428,29 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
+        cli_test_type: Optional[str] = None,
+        only_test_prefixes: Optional[List[str]] = None,
     ) -> None:
+        cli_test_type = cli_test_type or test_type
+
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
-        subtests = self._prepare_subtests(test_type, hypervisor, only, skip)
+        subtests = self._prepare_subtests(
+            test_type,
+            hypervisor,
+            only,
+            skip,
+            cli_test_type,
+            only_test_prefixes,
+        )
         self._configure_environment_if_needed(hypervisor)
 
         # Use enhanced diagnostics for better debugging and monitoring
         skip_args = subtests["skip_args"]
-        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
+        cmd_args = (
+            f"tests --hypervisor {hypervisor} --{cli_test_type} -- -- {skip_args}"
+        )
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
@@ -1379,8 +1411,8 @@ exit $ec
         except Exception as e:
             self._log.debug(f"Could not cache VMM version: {e}")
 
-    def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
-        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- --list"
+    def _list_subtests(self, hypervisor: str, cli_test_type: str) -> List[str]:
+        cmd_args = f"tests --hypervisor {hypervisor} --{cli_test_type} -- -- --list"
         # Use enhanced environment variables for consistency
         enhanced_env_vars = self.env_vars.copy()
         enhanced_env_vars.update(
