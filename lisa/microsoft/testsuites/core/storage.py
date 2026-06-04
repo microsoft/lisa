@@ -824,9 +824,11 @@ class Storage(TestSuite):
             raise LisaException(f"Test file {server_file_path} not found on server VM")
 
         # Read file content directly from server VM
-        file_content_server = server_node.tools[Cat].read(
-            server_file_path, sudo=True, force_run=True
-        ).rstrip("\n")
+        file_content_server = (
+            server_node.tools[Cat]
+            .read(server_file_path, sudo=True, force_run=True)
+            .rstrip("\n")
+        )
 
         assert_that(file_content_server.strip()).described_as(
             "SMB file content should match on server VM"
