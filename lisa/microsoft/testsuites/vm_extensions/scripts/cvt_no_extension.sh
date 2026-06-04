@@ -149,7 +149,7 @@ exit_with_retcode()
 {
     log_dmesg
     local ret=$1
-    if [ $ret -eq 0 ]; then
+    if [ "$ret" -eq 0 ]; then
         log "CVT Test succeeded"
         update_cvt_status_field "testStatus" "Succeeded"
     else
