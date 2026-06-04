@@ -529,6 +529,13 @@ class Nics(InitializableMixin):
             sriov_match = self.__nic_pci_device_regex.search(line)
             if sriov_match:
                 nic_name, lower, pci_slot = sriov_match.groups()
+                # Skip virtual master devices (VRF, bridge, bond) that own
+                # physical NICs via /sys/class/net/<master>/lower_* symlinks.
+                # These are not real interfaces and have no device/driver
+                # backing, so they must not be added to self.nics (which is
+                # iterated by _get_nics_driver, load_nics_info, etc.).
+                if nic_name not in self._nic_names:
+                    continue
                 used_module = lspci.get_used_module(pci_slot)
                 self.append(
                     NicInfo(
@@ -665,12 +672,84 @@ class Nics(InitializableMixin):
         self.default_nic, self.default_nic_route = self._node.tools[
             Ip
         ].get_default_route_info()
+        # On baremetal/VRF-enabled hosts, the default route may go via a
+        # virtual master device (VRF, bridge, bond) which has no PCI/driver
+        # backing under /sys/class/net/<name>/device. Resolve such masters to
+        # an enslaved physical NIC so downstream tools (driver lookup,
+        # datapath detection, perf tests) operate on a real interface.
+        if self.default_nic not in self._nic_names:
+            resolved = self._resolve_master_to_slave_nic(self.default_nic)
+            if resolved:
+                self._node.log.debug(
+                    f"Default route NIC '{self.default_nic}' is a virtual "
+                    f"master device; using enslaved physical NIC "
+                    f"'{resolved}' instead."
+                )
+                self.default_nic = resolved
+            else:
+                # No slave under the master (e.g. VRF with the physical NIC
+                # not enslaved). Fall back to the first physical NIC that
+                # owns a global-scope IPv4 address.
+                resolved = self._find_first_nic_with_global_ipv4()
+                if resolved:
+                    self._node.log.debug(
+                        f"Default route NIC '{self.default_nic}' is not a "
+                        f"physical interface and has no slaves; using "
+                        f"physical NIC '{resolved}' (first with global "
+                        f"IPv4) instead."
+                    )
+                    self.default_nic = resolved
         assert_that(self.default_nic in self._nic_names).described_as(
             (
                 f"ERROR: NIC name found as default {self.default_nic} "
                 f"was not in original list of nics {repr(self._nic_names)}."
             )
         ).is_true()
+
+    def _resolve_master_to_slave_nic(self, master: str) -> str:
+        # Find a physical NIC enslaved to `master` (VRF, bridge, bond).
+        # `ip -o link show` lines containing "master <name>" identify slaves.
+        # Returns the first slave that is also in self._nic_names.
+        result = self._node.execute(
+            "ip -o link show",
+            shell=True,
+            sudo=True,
+        )
+        if result.exit_code != 0:
+            return ""
+        for line in result.stdout.splitlines():
+            if f"master {master} " not in line and not line.rstrip().endswith(
+                f"master {master}"
+            ):
+                continue
+            # Line format: "<idx>: <name>[@<parent>]: <flags> ... master <m> ..."
+            parts = line.split(":", 2)
+            if len(parts) < 2:
+                continue
+            name = parts[1].strip().split("@")[0].strip()
+            if name in self._nic_names:
+                return name
+        return ""
+
+    def _find_first_nic_with_global_ipv4(self) -> str:
+        # Pick the first physical NIC carrying a global-scope IPv4 address.
+        # `ip -o -4 addr show scope global` lists one address per line:
+        #   "<idx>: <name>    inet 10.0.1.4/24 ..."
+        result = self._node.execute(
+            "ip -o -4 addr show scope global",
+            shell=True,
+            sudo=True,
+        )
+        if result.exit_code != 0:
+            return ""
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            name = parts[1].split("@")[0]
+            if name in self._nic_names:
+                return name
+        return ""
 
     def is_module_reloadable(self, module_name: str) -> bool:
         return self._node.tools[KernelConfig].is_built_as_module(

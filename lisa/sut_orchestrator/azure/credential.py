@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Type, cast
+from typing import Any, Optional, Type, cast
 
 from azure.identity import (
     AzureCliCredential,
@@ -101,7 +101,9 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         if runbook.type:
             self._credential_type = runbook.type
         else:
-            self._credential_type = AzureCredentialType.DefaultAzureCredential  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
+            self._credential_type = (
+                AzureCredentialType.DefaultAzureCredential
+            )  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
 
         self._log.debug(f"Credential type: {self._credential_type}")
         self._cloud = cloud
@@ -169,7 +171,7 @@ class AzureDefaultCredential(AzureCredential):
         return AzureCredential with related schema
         """
         additional_tenants = ["*"] if self._allow_all_tenants else None
-        return DefaultAzureCredential( # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
+        return DefaultAzureCredential(  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
             cloud=self._cloud,
             additionally_allowed_tenants=additional_tenants,
         )
@@ -427,3 +429,40 @@ class AzureCliCredentialImpl(AzureCredential):
             tenant_id=self._tenant_id,
             additionally_allowed_tenants=additionally_allowed_tenants,
         )
+
+
+def build_compute_credential(
+    *,
+    credential_schema: Optional[AzureCredentialSchema],
+    service_principal_tenant_id: str,
+    service_principal_client_id: str,
+    service_principal_key: str,
+    azure_arm_access_token: str,
+    cloud: Cloud,
+    logger: Logger,
+) -> Any:
+    """
+    Build a TokenCredential from the same auth surface AzurePlatformSchema
+    exposes (credential subobject + service-principal fields + ARM token).
+    Mirrors ``AzurePlatform._initialize_credential`` resolution order so
+    other Azure-based platforms (e.g. BMI) get identical auth behavior.
+    """
+    if credential_schema:
+        factory = subclasses.Factory[AzureCredential](AzureCredential)
+        azure_credential: AzureCredential = factory.create_by_runbook(
+            credential_schema, cloud=cloud, logger=logger
+        )
+        return azure_credential.get_credential()
+
+    if service_principal_tenant_id:
+        os.environ["AZURE_TENANT_ID"] = service_principal_tenant_id
+    if service_principal_client_id:
+        os.environ["AZURE_CLIENT_ID"] = service_principal_client_id
+    if service_principal_key:
+        os.environ["AZURE_CLIENT_SECRET"] = service_principal_key
+
+    return get_static_access_token(
+        azure_arm_access_token
+    ) or DefaultAzureCredential(  # CodeQL [SM05139] dev fallback # noqa E501
+        authority=cloud.endpoints.active_directory,
+    )
