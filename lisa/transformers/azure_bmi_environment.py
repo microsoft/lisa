@@ -53,7 +53,6 @@ RUNBOOK_VAR_BMI_VM_SIZE = "bmi_vm_size"
 RUNBOOK_VAR_BMI_HOST_SKU = "bmi_host_sku"
 RUNBOOK_VAR_BMI_ADMIN_USERNAME = "bmi_admin_username"
 RUNBOOK_VAR_BMI_ADMIN_PASSWORD = "bmi_admin_password"
-RUNBOOK_VAR_SOURCE_ADDRESS_PREFIXES = "bmi_source_address_prefixes"
 
 
 @dataclass_json
@@ -97,10 +96,6 @@ class AzureBmiEnvironmentTransformerSchema(schema.Transformer):
         default=50000,
         metadata=field_metadata(validate=validate.Range(min=1, max=65500)),
     )
-    # Allowed inbound source address prefixes for jumphost SSH and BMI NAT
-    # ports. Defaults to '*' (open to the internet). Provide a list (e.g.
-    # ['10.0.0.0/8', '192.168.1.5/32']) to restrict access.
-    source_address_prefixes: List[str] = field(default_factory=list)
 
 
 class AzureBmiEnvironmentTransformer(Transformer):
@@ -171,9 +166,9 @@ class AzureBmiEnvironmentTransformer(Transformer):
             RUNBOOK_VAR_BMI_ADMIN_PASSWORD,
             "",
         )
-        source_address_prefixes = self._resolve_source_address_prefixes(
-            runbook.source_address_prefixes
-        )
+        # Reuse the Azure platform's source_address_prefixes resolution
+        # (which falls back to the caller's public IP via get_public_ip()).
+        source_address_prefixes = platform._get_ip_addresses()
 
         if runbook.deployment_subscription_id:
             platform.subscription_id = runbook.deployment_subscription_id
@@ -886,24 +881,6 @@ class AzureBmiEnvironmentTransformer(Transformer):
         if not node:
             raise LisaException("failed to connect to jump host")
         return node
-
-    def _resolve_source_address_prefixes(
-        self, runbook_value: List[str]
-    ) -> List[str]:
-        if runbook_value:
-            return list(runbook_value)
-
-        variable = self._runbook_builder.variables.get(
-            RUNBOOK_VAR_SOURCE_ADDRESS_PREFIXES
-        )
-        if variable and variable.data:
-            data = variable.data
-            if isinstance(data, list):
-                return [str(item) for item in data if str(item)]
-            # Allow comma-separated string from CLI / env overrides.
-            return [item.strip() for item in str(data).split(",") if item.strip()]
-
-        return ["*"]
 
     def _resolve_runbook_value(
         self,
