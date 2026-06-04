@@ -805,9 +805,11 @@ class Storage(TestSuite):
         )
 
         # Read and verify file content from client side
-        file_content_client = client_node.tools[Cat].read(
-            test_file_path, sudo=True, force_run=True
-        ).rstrip("\n")
+        file_content_client = (
+            client_node.tools[Cat]
+            .read(test_file_path, sudo=True, force_run=True)
+            .rstrip("\n")
+        )
 
         assert_that(file_content_client).described_as(
             "SMB file content should match written content on client"
