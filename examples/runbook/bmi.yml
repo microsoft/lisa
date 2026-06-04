@@ -1,0 +1,73 @@
+# BMI (Bare-Metal Instance) example runbook.
+#
+# Deploys two GB200 BMIs behind a jumphost using the Bicep template at
+# ``lisa/sut_orchestrator/bmi/bmi.bicep`` (compiled to
+# ``autogen_bmi_template.json``) and runs the smoke test suite against them.
+#
+# Required variables (override via -v on the command line or env vars):
+#   - subscription_id            : Azure subscription for the RG.
+#   - bmi_image_sig              : SIG image version resource ID.
+#   - bmi_private_key_file       : SSH key whose ``.pub`` is installed on BMIs.
+#
+# Optional auth overrides:
+#   - jumphost_password          : If set, jumphost uses password auth.
+#                                  Leave empty to auto-generate an SSH
+#                                  keypair (recommended).
+#
+# Optional jumphost overrides (have sensible defaults):
+#   - jumphost_vm_size           : Jumphost VM size (default Standard_DS2_v2).
+#   - jumphost_image             : Jumphost image URN
+#                                  (publisher:offer:sku:version).
+#   - jumphost_username          : Jumphost admin user (default lisatest).
+
+name: bmi_smoke
+test_project: BMI
+test_pass: smoke
+
+import_builtin_tests: true
+
+variable:
+  - name: subscription_id
+    value: ""
+  - name: location
+    value: "southeastus5"
+  - name: bmi_vm_size
+    value: "ND144isr_ETH_GB200_metal_v6"
+  - name: bmi_host_sku
+    value: "GPCv6GB200S186_ETH_metal-Type1"
+  - name: bmi_image_sig
+    value: ""
+  - name: bmi_admin_username
+    value: "azhpcuser"
+  - name: bmi_private_key_file
+    value: "./id_rsa"
+  - name: jumphost_vm_size
+    value: "Standard_DS2_v2"
+  - name: jumphost_image
+    value: "Canonical:0001-com-ubuntu-server-jammy:22_04-lts-gen2:latest"
+  - name: jumphost_username
+    value: "lisatest"
+  - name: jumphost_password
+    value: ""
+    is_secret: true
+
+platform:
+  - type: bmi
+    bmi:
+      subscription_id: $(subscription_id)
+      location: $(location)
+      bmi_vm_size: $(bmi_vm_size)
+      bmi_host_sku: $(bmi_host_sku)
+      bmi_image_sig: $(bmi_image_sig)
+      bmi_admin_username: $(bmi_admin_username)
+      bmi_private_key_file: $(bmi_private_key_file)
+      jumphost_vm_size: $(jumphost_vm_size)
+      jumphost_image: $(jumphost_image)
+      jumphost_username: $(jumphost_username)
+      jumphost_password: $(jumphost_password)
+      delete_on_cleanup: true
+
+testcase:
+  - criteria:
+      area: provisioning
+      priority: 0

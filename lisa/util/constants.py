@@ -124,6 +124,7 @@ PLATFORM_READY = "ready"
 PLATFORM_BAREMETAL = "baremetal"
 PLATFORM_HYPERV = "hyperv"
 PLATFORM_MOCK = "mock"
+PLATFORM_BMI = "bmi"
 
 TESTCASE = "testcase"
 TESTCASE_TYPE_LISA = "lisa"

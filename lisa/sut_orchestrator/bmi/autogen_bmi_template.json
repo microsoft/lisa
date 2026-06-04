@@ -1,0 +1,563 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.34.1.11899",
+      "templateHash": "15854325197496605689"
+    }
+  },
+  "parameters": {
+    "namePrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Prefix for all resource names within the resource group."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "bmiCount": {
+      "type": "int",
+      "defaultValue": 2,
+      "minValue": 1,
+      "maxValue": 16
+    },
+    "bmiHostSku": {
+      "type": "string",
+      "defaultValue": "GPCv6GB200S186_ETH_metal-Type1"
+    },
+    "jumphostVmSize": {
+      "type": "string",
+      "defaultValue": "Standard_DS2_v2"
+    },
+    "jumphostImagePublisher": {
+      "type": "string",
+      "defaultValue": "Canonical"
+    },
+    "jumphostImageOffer": {
+      "type": "string",
+      "defaultValue": "0001-com-ubuntu-server-jammy"
+    },
+    "jumphostImageSku": {
+      "type": "string",
+      "defaultValue": "22_04-lts-gen2"
+    },
+    "jumphostImageVersion": {
+      "type": "string",
+      "defaultValue": "latest"
+    },
+    "jumphostUsername": {
+      "type": "string",
+      "defaultValue": "lisatest"
+    },
+    "jumphostPassword": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Jumphost admin password. Leave empty to use SSH key authentication via jumphostPublicKey."
+      }
+    },
+    "jumphostPublicKey": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "OpenSSH-format public key for jumphost admin user. When non-empty, key-based authentication is enabled."
+      }
+    },
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/16"
+    },
+    "externalSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.2.0/24"
+    },
+    "internalSubnetPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.1.0/24"
+    },
+    "jumphostInternalIp": {
+      "type": "string",
+      "defaultValue": "10.0.1.250",
+      "metadata": {
+        "description": "Static private IP assigned to the jumphost internal NIC; used as the next-hop for the internal subnet route table. Chosen high in the range to avoid colliding with dynamic IPs Azure allocates to BMI NICs starting at .4."
+      }
+    },
+    "natPortStart": {
+      "type": "int",
+      "defaultValue": 50001
+    },
+    "bmiVmSize": {
+      "type": "string"
+    },
+    "bmiImageId": {
+      "type": "string"
+    },
+    "hostGroupPlatformFaultDomainCount": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1
+    },
+    "hostGroupSupportAutomaticPlacement": {
+      "type": "bool",
+      "defaultValue": true
+    },
+    "publicIpSkuName": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Standard",
+        "Basic"
+      ]
+    },
+    "publicIpAllocationMethod": {
+      "type": "string",
+      "defaultValue": "Static",
+      "allowedValues": [
+        "Static",
+        "Dynamic"
+      ]
+    },
+    "publicIpAddressVersion": {
+      "type": "string",
+      "defaultValue": "IPv4",
+      "allowedValues": [
+        "IPv4",
+        "IPv6"
+      ]
+    },
+    "jumphostOsDiskStorageAccountType": {
+      "type": "string",
+      "defaultValue": "Premium_LRS",
+      "allowedValues": [
+        "Premium_LRS",
+        "StandardSSD_LRS",
+        "Standard_LRS"
+      ]
+    },
+    "jumphostComputerName": {
+      "type": "string",
+      "defaultValue": "jumphost"
+    },
+    "jumphostDisablePasswordAuthentication": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "enableAcceleratedNetworking": {
+      "type": "bool",
+      "defaultValue": true
+    },
+    "natRouteAddressPrefix": {
+      "type": "string",
+      "defaultValue": "0.0.0.0/0"
+    },
+    "natRouteNextHopType": {
+      "type": "string",
+      "defaultValue": "VirtualAppliance",
+      "allowedValues": [
+        "VirtualAppliance",
+        "VirtualNetworkGateway",
+        "VnetLocal",
+        "Internet",
+        "None"
+      ]
+    },
+    "bmiHostPlatformFaultDomain": {
+      "type": "int",
+      "defaultValue": 0,
+      "minValue": 0
+    },
+    "bmiHostAutoReplaceOnFailure": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "bmiOsDiskCreateOption": {
+      "type": "string",
+      "defaultValue": "fromImage"
+    },
+    "bmiOsDiskCaching": {
+      "type": "string",
+      "defaultValue": "ReadOnly",
+      "allowedValues": [
+        "None",
+        "ReadOnly",
+        "ReadWrite"
+      ]
+    },
+    "bmiOsDiskDeleteOption": {
+      "type": "string",
+      "defaultValue": "Delete",
+      "allowedValues": [
+        "Delete",
+        "Detach"
+      ]
+    },
+    "bmiEphemeralDiskOption": {
+      "type": "string",
+      "defaultValue": "Local"
+    },
+    "bmiEphemeralDiskPlacement": {
+      "type": "string",
+      "defaultValue": "NvmeDisk",
+      "allowedValues": [
+        "CacheDisk",
+        "ResourceDisk",
+        "NvmeDisk"
+      ]
+    }
+  },
+  "variables": {
+    "hostGroupName": "[format('{0}_hostgroup', parameters('namePrefix'))]",
+    "vnetName": "[format('{0}_vnet', parameters('namePrefix'))]",
+    "nsgName": "[format('{0}_nsg', parameters('namePrefix'))]",
+    "routeTableName": "[format('{0}_nat_routetable', parameters('namePrefix'))]",
+    "jumphostName": "[format('{0}_jumphost', parameters('namePrefix'))]",
+    "jumphostPublicIpName": "[format('{0}_jumphostPublicIP', parameters('namePrefix'))]",
+    "jumphostExtNicName": "[format('{0}_jumphostVMNic', parameters('namePrefix'))]",
+    "jumphostIntNicName": "[format('{0}_jumphost_internal_nic', parameters('namePrefix'))]",
+    "externalSubnetName": "external_subnet",
+    "internalSubnetName": "internal_subnet",
+    "natPortEnd": "[sub(add(parameters('natPortStart'), parameters('bmiCount')), 1)]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/hostGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('hostGroupName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "platformFaultDomainCount": "[parameters('hostGroupPlatformFaultDomainCount')]",
+        "supportAutomaticPlacement": "[parameters('hostGroupSupportAutomaticPlacement')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": []
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[parameters('vnetAddressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('externalSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('externalSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              }
+            }
+          },
+          {
+            "name": "[variables('internalSubnetName')]",
+            "properties": {
+              "addressPrefix": "[parameters('internalSubnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('jumphostPublicIpName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('publicIpSkuName')]"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "[parameters('publicIpAllocationMethod')]",
+        "publicIPAddressVersion": "[parameters('publicIpAddressVersion')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('jumphostExtNicName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('jumphostPublicIpName'))]"
+              },
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('externalSubnetName'))]"
+              },
+              "primary": true
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('jumphostPublicIpName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('jumphostIntNicName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAddress": "[parameters('jumphostInternalIp')]",
+              "privateIPAllocationMethod": "Static",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('internalSubnetName'))]"
+              },
+              "primary": true
+            }
+          }
+        ],
+        "enableAcceleratedNetworking": "[parameters('enableAcceleratedNetworking')]",
+        "enableIPForwarding": true,
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/routeTables",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('routeTableName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "routes": [
+          {
+            "name": "NATRoute",
+            "properties": {
+              "addressPrefix": "[parameters('natRouteAddressPrefix')]",
+              "nextHopType": "[parameters('natRouteNextHopType')]",
+              "nextHopIpAddress": "[parameters('jumphostInternalIp')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}/{1}', variables('vnetName'), variables('internalSubnetName'))]",
+      "properties": {
+        "addressPrefix": "[parameters('internalSubnetPrefix')]",
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+        },
+        "routeTable": {
+          "id": "[resourceId('Microsoft.Network/routeTables', variables('routeTableName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/routeTables', variables('routeTableName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('jumphostName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('jumphostVmSize')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[parameters('jumphostImagePublisher')]",
+            "offer": "[parameters('jumphostImageOffer')]",
+            "sku": "[parameters('jumphostImageSku')]",
+            "version": "[parameters('jumphostImageVersion')]"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "[parameters('jumphostOsDiskStorageAccountType')]"
+            }
+          }
+        },
+        "osProfile": {
+          "computerName": "[parameters('jumphostComputerName')]",
+          "adminUsername": "[parameters('jumphostUsername')]",
+          "adminPassword": "[if(empty(parameters('jumphostPassword')), null(), parameters('jumphostPassword'))]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": "[if(empty(parameters('jumphostPassword')), true(), parameters('jumphostDisablePasswordAuthentication'))]",
+            "ssh": "[if(empty(parameters('jumphostPublicKey')), null(), createObject('publicKeys', createArray(createObject('path', format('/home/{0}/.ssh/authorized_keys', parameters('jumphostUsername')), 'keyData', parameters('jumphostPublicKey')))))]"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('jumphostExtNicName'))]",
+              "properties": {
+                "primary": true
+              }
+            },
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('jumphostIntNicName'))]",
+              "properties": {
+                "primary": false
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('jumphostExtNicName'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('jumphostIntNicName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "bmiHosts",
+        "count": "[length(range(0, parameters('bmiCount')))]"
+      },
+      "type": "Microsoft.Compute/hostGroups/hosts",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}/{1}', variables('hostGroupName'), format('{0}_bmi_{1}_host', parameters('namePrefix'), add(range(0, parameters('bmiCount'))[copyIndex()], 1)))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('bmiHostSku')]"
+      },
+      "properties": {
+        "platformFaultDomain": "[parameters('bmiHostPlatformFaultDomain')]",
+        "autoReplaceOnFailure": "[parameters('bmiHostAutoReplaceOnFailure')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/hostGroups', variables('hostGroupName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "bmiNics",
+        "count": "[length(range(0, parameters('bmiCount')))]"
+      },
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}_bmi_{1}_internal_nic', parameters('namePrefix'), add(range(0, parameters('bmiCount'))[copyIndex()], 1))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('internalSubnetName'))]"
+              },
+              "primary": true
+            }
+          }
+        ],
+        "enableAcceleratedNetworking": "[parameters('enableAcceleratedNetworking')]",
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "bmiVms",
+        "count": "[length(range(0, parameters('bmiCount')))]"
+      },
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2024-11-01",
+      "name": "[format('{0}_bmi_{1}', parameters('namePrefix'), add(range(0, parameters('bmiCount'))[copyIndex()], 1))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('bmiVmSize')]"
+        },
+        "host": {
+          "id": "[resourceId('Microsoft.Compute/hostGroups/hosts', variables('hostGroupName'), format('{0}_bmi_{1}_host', parameters('namePrefix'), add(range(0, parameters('bmiCount'))[range(0, parameters('bmiCount'))[copyIndex()]], 1)))]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "id": "[parameters('bmiImageId')]"
+          },
+          "osDisk": {
+            "createOption": "[parameters('bmiOsDiskCreateOption')]",
+            "caching": "[parameters('bmiOsDiskCaching')]",
+            "deleteOption": "[parameters('bmiOsDiskDeleteOption')]",
+            "diffDiskSettings": {
+              "option": "[parameters('bmiEphemeralDiskOption')]",
+              "placement": "[parameters('bmiEphemeralDiskPlacement')]"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}_bmi_{1}_internal_nic', parameters('namePrefix'), add(range(0, parameters('bmiCount'))[range(0, parameters('bmiCount'))[copyIndex()]], 1)))]",
+              "properties": {
+                "primary": true
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/hostGroups/hosts', variables('hostGroupName'), format('{0}_bmi_{1}_host', parameters('namePrefix'), add(range(0, parameters('bmiCount'))[range(0, parameters('bmiCount'))[copyIndex()]], 1)))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', format('{0}_bmi_{1}_internal_nic', parameters('namePrefix'), add(range(0, parameters('bmiCount'))[range(0, parameters('bmiCount'))[copyIndex()]], 1)))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "jumphostPublicIpName": {
+      "type": "string",
+      "value": "[variables('jumphostPublicIpName')]"
+    },
+    "jumphostName": {
+      "type": "string",
+      "value": "[variables('jumphostName')]"
+    },
+    "bmiNamePrefix": {
+      "type": "string",
+      "value": "[format('{0}_bmi_', parameters('namePrefix'))]"
+    },
+    "bmiCount": {
+      "type": "int",
+      "value": "[parameters('bmiCount')]"
+    }
+  }
+}
