@@ -19,7 +19,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, CBLMariner, Ubuntu
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.sut_orchestrator.azure.common import (
     add_system_assign_identity,
     assign_access_policy,
@@ -97,7 +97,9 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[AzureExtension], unsupported_os=[BSD]
+            # This test is enabled for Ubuntu & CBLMariner.
+            supported_os=[Ubuntu, CBLMariner],
+            supported_features=[AzureExtension],
         ),
     )
     def verify_key_vault_extension(

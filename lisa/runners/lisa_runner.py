@@ -47,22 +47,24 @@ def _resolve_target_os(
 ) -> Optional[type]:
     """Return the target OS class if distro pre-filtering is enabled.
 
-    The ``enable_distro_pre_filtering`` runbook variable (default ``true``)
-    controls whether the pre-filter is active.  When set to ``false`` the
-    function returns ``None`` and all test cases are kept.
+    The ``enable_distro_pre_filtering`` runbook variable (default ``false``)
+    controls whether the pre-filter is active.  When set to ``true`` the
+    function infers the target OS and filters test cases.  When missing or
+    set to ``false`` the function returns ``None`` and all test cases are kept.
     """
     # Accept both raw dicts and VariableEntry-style mappings.
     if isinstance(variables, dict):
         raw = variables
     else:
         raw = {}
-    # Check for the gate variable.  Treat missing / empty as "true".
+    # Check for the gate variable.  Treat missing / empty as "false".
     gate = raw.get("enable_distro_pre_filtering")
-    if gate is not None:
-        # VariableEntry wraps the real value in .data; plain dicts don't.
-        val = getattr(gate, "data", gate)
-        if str(val).lower() in ("false", "0", "no"):
-            return None
+    if gate is None:
+        return None
+    # VariableEntry wraps the real value in .data; plain dicts don't.
+    val = getattr(gate, "data", gate)
+    if str(val).lower() not in ("true", "1", "yes"):
+        return None
     return infer_target_os(variables)
 
 
@@ -74,15 +76,15 @@ class LisaRunner(BaseRunner):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
 
-        # select test cases. When the user specifies a target_os variable, or
-        # when one can be inferred from a marketplace / gallery / vhd image
-        # variable, drop cases whose declared supported_os/unsupported_os
-        # requirement makes them inapplicable to that distro. This avoids the
-        # overhead of deploying an environment just to mark cases as Skipped.
+        # select test cases. When the target OS can be inferred from a
+        # marketplace / gallery / vhd image variable, drop cases whose declared
+        # supported_os/unsupported_os requirement makes them inapplicable to
+        # that distro. This avoids the overhead of deploying an environment
+        # just to mark cases as Skipped.
         # Use the full runbook variable pool (not ``self._case_variables``,
         # which only contains ``is_case_visible=True`` entries) so the
         # prefilter sees standard runbook variables like ``marketplace_image``
-        # and ``target_os`` even when they are not marked case-visible.
+        # even when they are not marked case-visible.
         variables_pool = (
             getattr(self._runbook_builder, "variables", None) or self._case_variables
         )

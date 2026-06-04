@@ -66,11 +66,16 @@ _OS_ALIASES: Dict[str, str] = {
 # inferred.
 _IMAGE_VAR_KEYS = (
     "marketplace_image",
-    "shared_gallery_image",
+    "shared_gallery",
     "community_gallery_image",
     "vhd",
     "image",
 )
+
+# Aliases shorter than this length must appear at a token boundary in the
+# original image string to avoid false positives from plain substring matches
+# (e.g. 'ol' inside 'golden-image.vhd').
+_SHORT_ALIAS_LEN_THRESHOLD = 4
 
 
 def _normalize(name: str) -> str:
@@ -132,10 +137,21 @@ def _infer_from_image_string(image: str) -> Optional[Type[OperatingSystem]]:
     # Sort aliases by length (longest first) so 'cblmariner' wins over
     # 'mariner' if both happen to be present, and 'almalinux' wins over 'alma'.
     for alias in sorted(_OS_ALIASES.keys(), key=len, reverse=True):
-        if alias in normalized_text:
-            cls = resolve_os_class(alias)
-            if cls is not None:
-                return cls
+        if len(alias) < _SHORT_ALIAS_LEN_THRESHOLD:
+            # Short aliases (e.g. 'ol', 'azl', 'bsd') are too prone to false
+            # hits via plain substring match (e.g. 'golden-image.vhd' contains
+            # 'ol'). Require them to appear at a token boundary in the
+            # original text: preceded by start-of-string or a non-alphanumeric
+            # separator, and followed by a digit, separator, or end-of-string
+            # so common prefixes like 'ol9-lvm-gen2' still match.
+            pattern = rf"(?:^|[^a-z0-9]){re.escape(alias)}(?:[0-9]|[^a-z0-9]|$)"
+            if not re.search(pattern, text):
+                continue
+        elif alias not in normalized_text:
+            continue
+        cls = resolve_os_class(alias)
+        if cls is not None:
+            return cls
     return None
 
 

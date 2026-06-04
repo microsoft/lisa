@@ -178,6 +178,35 @@ class InferFromImageTestCase(TestCase):
         self.assertIsNone(_infer_from_image_string(""))
         self.assertIsNone(_infer_from_image_string("private-image-v1"))
 
+    def test_short_aliases_require_token_boundary(self) -> None:
+        # Short aliases ('ol', 'azl', 'bsd') must not match as midword
+        # substrings inside unrelated names.
+        false_positive_cases = [
+            "golden-image.vhd",  # contains 'ol' inside 'golden'
+            "polkit-base-v1.vhd",  # contains 'ol' inside 'polkit'
+            "lambsdale.vhd",  # contains 'bsd' inside 'lambsdale'
+        ]
+        for image in false_positive_cases:
+            self.assertIsNone(
+                _infer_from_image_string(image),
+                msg=f"unexpected match for image={image}",
+            )
+
+        # Legitimate prefix uses (alias followed by version digits or a
+        # separator) must still match.
+        legitimate_cases = {
+            "ol9-lvm-gen2": Oracle,
+            "ol-base.vhd": Oracle,
+            "azl3-base": CBLMariner,
+            "azl-image.vhd": CBLMariner,
+        }
+        for image, expected in legitimate_cases.items():
+            self.assertIs(
+                _infer_from_image_string(image),
+                expected,
+                msg=f"image={image}",
+            )
+
     def test_infer_vhd_strings(self) -> None:
         cases = {
             "https://storage.blob.core.windows.net/vhds/ubuntu-22.04.vhd": Ubuntu,
