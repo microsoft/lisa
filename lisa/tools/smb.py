@@ -102,7 +102,7 @@ class SmbServer(Tool):
 
         # Write SMB configuration
         self.node.tools[Echo].write_to_file(
-            smb_config, PurePosixPath(self.SMB_CONF_FILE), sudo=True
+            smb_config, PurePosixPath(self.SMB_CONF_FILE), sudo=True, ignore_error=False
         )
 
         # Start SMB services

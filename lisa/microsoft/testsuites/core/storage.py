@@ -760,6 +760,7 @@ class Storage(TestSuite):
                 "SMB Linux test failed due to unexpected error. See logs for details."
             )
             client_node.mark_dirty()
+            raise
         finally:
             # Cleanup
             self._cleanup_smb_test(
