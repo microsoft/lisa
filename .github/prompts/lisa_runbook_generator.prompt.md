@@ -50,7 +50,7 @@ marketplace:
 vhd:
   vhd_path: "https://mystorageaccount.blob.core.windows.net/vhds/my-image.vhd"
   hyperv_generation: 2      # 1 or 2; required for correct VM generation selection
-  architecture: x64         # x64
+  architecture: x64         # required; raw VHD deploy supports x64 only
 ```
 
 > **ARM64 VHD limitation:** Azure does not support deploying an ARM64 VM directly from a raw VHD blob. When the VHD is ARM64, use one of two approaches:
