@@ -40,13 +40,17 @@ log_dmesg()
 
 init_cvt_status()
 {
-    local vm_name=$(hostname)
+    local vm_name
+    vm_name=$(hostname)
     local os_name=""
     if [ -f /etc/os-release ]; then
+        # shellcheck disable=SC1091
         os_name=$(. /etc/os-release && echo "$NAME $VERSION")
     fi
-    local kernel_ver=$(uname -r)
-    local start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local kernel_ver
+    kernel_ver=$(uname -r)
+    local start_time
+    start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     cat > "$cvt_status_file" <<EOF
 {
@@ -72,7 +76,8 @@ update_cvt_status_field()
     # Update a top-level or testDetails field using sed (no python dependency)
     local key="$1"
     local value="$2"
-    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     if [ ! -f "$cvt_status_file" ]; then
         return
@@ -97,7 +102,8 @@ update_cvt_status_testcase()
     local tc_name="$1"
     local tc_status="$2"
     local tc_time="$3"
-    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     if [ ! -f "$cvt_status_file" ]; then
         return
@@ -120,7 +126,8 @@ update_cvt_status_testcase()
         ' "$cvt_status_file" > "${cvt_status_file}.tmp" && mv "${cvt_status_file}.tmp" "$cvt_status_file"
     else
         # Count existing entries to determine if we need a comma before insertion
-        local existing_count=$(grep -c '"name":' "$cvt_status_file")
+        local existing_count
+        existing_count=$(grep -c '"name":' "$cvt_status_file")
         local comma=""
         if [ "$existing_count" -gt 0 ]; then
             comma=","
@@ -159,15 +166,17 @@ download_file()
     local output="$2"
 
     log "Downloading $url to $output"
-    local wget_opts="-O"
     if [ "${SKIP_TLS_VERIFY:-0}" = "1" ]; then
         log "WARNING: TLS certificate verification disabled via SKIP_TLS_VERIFY"
-        wget_opts="--no-check-certificate -O"
-    fi
-    wget $wget_opts "$output" "$url" 2>&1 | tee -a "$cvt_log_file"
-    if [ $? -ne 0 ]; then
-        log "Failed to download from $url"
-        return 1
+        if ! wget --no-check-certificate -O "$output" "$url" 2>&1 | tee -a "$cvt_log_file"; then
+            log "Failed to download from $url"
+            return 1
+        fi
+    else
+        if ! wget -O "$output" "$url" 2>&1 | tee -a "$cvt_log_file"; then
+            log "Failed to download from $url"
+            return 1
+        fi
     fi
     return 0
 }
@@ -187,7 +196,8 @@ is_driver_loaded()
 ensure_device_node()
 {
     # Ensure /dev/involflt is a char device with the correct major number
-    local maj_num=$(cat /proc/devices | grep involflt | awk '{print $1}')
+    local maj_num
+    maj_num=$(grep involflt /proc/devices | awk '{print $1}')
     if [ -z "$maj_num" ]; then
         log "Cannot find involflt in /proc/devices"
         return 1
@@ -199,7 +209,7 @@ ensure_device_node()
     fi
 
     rm -f /dev/involflt 2>/dev/null
-    mknod /dev/involflt c $maj_num 0
+    mknod /dev/involflt c "$maj_num" 0
     chmod 666 /dev/involflt
     log "Filter device /dev/involflt created (major=$maj_num)"
     return 0
@@ -222,14 +232,14 @@ load_driver()
     local driver_tarball="$test_dir/drivers.tar.gz"
     download_file "$driver_tarball_url" "$driver_tarball" || return 1
 
-    tar -xzf "$driver_tarball" -C "$test_dir" 2>&1 | tee -a "$cvt_log_file"
-    if [ $? -ne 0 ]; then
+    if ! tar -xzf "$driver_tarball" -C "$test_dir" 2>&1 | tee -a "$cvt_log_file"; then
         log "Failed to extract driver tarball"
         return 1
     fi
 
     # Find the involflt.ko matching current kernel
-    local ker_ver=$(uname -r)
+    local ker_ver
+    ker_ver=$(uname -r)
     local k_dir="/lib/modules/$ker_ver/kernel/drivers/char"
     mkdir -p "$k_dir"
 
@@ -283,8 +293,7 @@ download_cvt_binaries()
     local archive="$test_dir/cvt_binaries.tar.gz"
     download_file "$cvt_binaries_url" "$archive" || return 1
 
-    tar -xzf "$archive" -C "$test_dir" 2>&1 | tee -a "$cvt_log_file"
-    if [ $? -ne 0 ]; then
+    if ! tar -xzf "$archive" -C "$test_dir" 2>&1 | tee -a "$cvt_log_file"; then
         log "Failed to extract CVT binaries archive"
         return 1
     fi
@@ -292,8 +301,10 @@ download_cvt_binaries()
     # Verify binaries exist
     if [ ! -f "$test_dir/indskflt_ct" ] || [ ! -f "$test_dir/inm_dmit" ]; then
         # Try finding them in subdirectories
-        local found_ct=$(find "$test_dir" -name "indskflt_ct" -type f 2>/dev/null | head -1)
-        local found_dmit=$(find "$test_dir" -name "inm_dmit" -type f 2>/dev/null | head -1)
+        local found_ct
+        found_ct=$(find "$test_dir" -name "indskflt_ct" -type f 2>/dev/null | head -1)
+        local found_dmit
+        found_dmit=$(find "$test_dir" -name "inm_dmit" -type f 2>/dev/null | head -1)
         if [ -n "$found_ct" ]; then
             cp -f "$found_ct" "$test_dir/indskflt_ct"
         fi
@@ -320,10 +331,13 @@ download_cvt_binaries()
 identify_source_and_target_disk()
 {
     log "Identifying data disks by size..."
-    local all_disks=$(fdisk -l 2>/dev/null | grep "^Disk /dev/" | grep -v "loop\|ram" | awk '{print $2}' | sed 's/://')
+    local all_disks
+    all_disks=$(fdisk -l 2>/dev/null | grep "^Disk /dev/" | grep -v "loop\|ram" | awk '{print $2}' | sed 's/://')
 
+    local disk
     for disk in $all_disks; do
-        local disk_size=$(blockdev --getsize64 "$disk" 2>/dev/null)
+        local disk_size
+        disk_size=$(blockdev --getsize64 "$disk" 2>/dev/null)
         if [ "$disk_size" = "1073741824" ]; then
             src_disk=$disk
             log "Source disk (1 GB): $src_disk"
@@ -347,9 +361,12 @@ identify_source_and_target_disk()
 get_testname()
 {
     TESTNAME="barrierhonourwithouttag"
-    local curr_kernel=$(uname -r)
-    local major_ver=$(echo "$curr_kernel" | cut -f1 -d'.')
-    local minor_ver=$(echo "$curr_kernel" | cut -f2 -d'.')
+    local curr_kernel
+    curr_kernel=$(uname -r)
+    local major_ver
+    major_ver=$(echo "$curr_kernel" | cut -f1 -d'.')
+    local minor_ver
+    minor_ver=$(echo "$curr_kernel" | cut -f2 -d'.')
 
     if [ "$major_ver" -gt 5 ]; then
         return
@@ -411,8 +428,8 @@ startcvt()
     time "$test_dir/indskflt_ct" \
         --tc="$testname" \
         --loggerPath="$cvt_logs_dir" \
-        --pair[ -type=d-f -sd="$source_dev" -td="$target_dir/target_file.tgt" \
-        -subtest="$subtestname" -log="$cvt_log" ] >> "$cvt_op" 2>&1
+        "--pair[" -type=d-f -sd="$source_dev" -td="$target_dir/target_file.tgt" \
+        -subtest="$subtestname" -log="$cvt_log" "]" >> "$cvt_op" 2>&1
 
     kill $dmit_pid 2>/dev/null
     wait $dmit_pid 2>/dev/null
@@ -436,14 +453,13 @@ run_tests()
     umount "$mnt_path" 2>/dev/null || true
     log "Formatting target disk $tgt_disk"
     yes | mkfs "$tgt_disk" 2>&1 | tee -a "$cvt_log_file"
-    if [ ${PIPESTATUS[1]} -ne 0 ]; then
+    if [ "${PIPESTATUS[1]}" -ne 0 ]; then
         log "ERROR: mkfs failed on $tgt_disk"
         blkid "$tgt_disk" 2>&1 | tee -a "$cvt_log_file"
         exit_with_retcode "$FAILED_TEST"
     fi
     mkdir -p "$mnt_path"
-    mount "$tgt_disk" "$mnt_path"
-    if [ $? -ne 0 ]; then
+    if ! mount "$tgt_disk" "$mnt_path"; then
         log "ERROR: mount failed for $tgt_disk on $mnt_path"
         blkid "$tgt_disk" 2>&1 | tee -a "$cvt_log_file"
         mount 2>&1 | tee -a "$cvt_log_file"
@@ -463,7 +479,8 @@ run_tests()
     for testcase in "${testcases[@]}"; do
         log "[$ctests/$ntests] Starting $testcase test"
         update_cvt_status_testcase "$testcase" "Running" "0"
-        local test_start_time=$(date +%s)
+        local test_start_time
+        test_start_time=$(date +%s)
 
         startcvt "$src_disk" "$mnt_path" "$testcase" "$TESTNAME" > "$test_dir/$testcase.log" 2>&1
         failed=$?
@@ -475,7 +492,8 @@ run_tests()
         fi
         ((ctests++))
 
-        local test_end_time=$(date +%s)
+        local test_end_time
+        test_end_time=$(date +%s)
         local execution_time=$((test_end_time - test_start_time))
 
         if [ $failed -ne 0 ]; then

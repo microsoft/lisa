@@ -355,7 +355,7 @@ def _run_cvt_no_extension(
     # Install dos2unix if possible; skip gracefully for unrecognized distros
     try:
         posix_os.install_packages("dos2unix")
-    except (NotImplementedError, Exception) as e:
+    except Exception as e:
         log.info(f"Could not install dos2unix ({e}), using sed fallback")
 
     # Convert to unix line endings using the public command property
@@ -491,9 +491,9 @@ class CVTTest(TestSuite):
         node = kwargs["node"]
         self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
 
-        self._cvt_binaries_url = variables.get(
-            "cvt_binaries_url", ""
-        ) or _CVT_BINARIES_DEFAULT_URL
+        self._cvt_binaries_url = (
+            variables.get("cvt_binaries_url", "") or _CVT_BINARIES_DEFAULT_URL
+        )
         self._driver_tarball_url = variables.get(
             "driver_tarball_url", ""
         ) or _get_driver_url(node, log)
