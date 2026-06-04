@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Tuple, Type
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.tools import GrubConfig
+from lisa.tools import Cat, GrubConfig
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -66,7 +66,38 @@ class HostKernelBootParameters(DeploymentTransformer):
             f"(timeout: {runbook.reboot_timeout}s)"
         )
         self._node.reboot(time_out=runbook.reboot_timeout)
+        self._validate_parameters_applied(kernel_parameters)
         return {}
+
+    def _validate_parameters_applied(
+        self, kernel_parameters: List[Tuple[str, str]]
+    ) -> None:
+        cmdline = (
+            self._node.tools[Cat]
+            .read("/proc/cmdline", sudo=True, force_run=True)
+            .strip()
+        )
+        cmdline_tokens = set(cmdline.split())
+        expected_parameters = [
+            f"{parameter_name}={parameter_value}"
+            for parameter_name, parameter_value in kernel_parameters
+        ]
+        missing_parameters = [
+            parameter
+            for parameter in expected_parameters
+            if parameter not in cmdline_tokens
+        ]
+        if missing_parameters:
+            raise LisaException(
+                "Host kernel boot parameters were not applied after reboot. "
+                f"Missing parameters: {', '.join(missing_parameters)}. "
+                f"Actual /proc/cmdline: {cmdline}"
+            )
+
+        self._log.info(
+            "Validated host kernel boot parameters in /proc/cmdline: "
+            f"{', '.join(expected_parameters)}"
+        )
 
     def _parse_parameters(self, raw_parameters: str) -> List[Tuple[str, str]]:
         raw_parameters = raw_parameters.strip()
