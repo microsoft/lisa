@@ -136,7 +136,7 @@ class CloudHypervisorTestSuite(TestSuite):
             only=include_list,
             skip=exclude_list,
             cli_test_type="integration",
-            only_test_prefixes=["live_migration::"],
+            cli_test_filter="live_migration",
         )
 
     @TestCaseMetadata(

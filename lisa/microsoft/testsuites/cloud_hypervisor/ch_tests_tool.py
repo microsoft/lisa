@@ -144,6 +144,32 @@ class CloudHypervisorTests(Tool):
         """Sanitize names for filenames: keep alphanumeric, dot, dash, underscore."""
         return re.sub(r"[^A-Za-z0-9_.-]", "_", s)
 
+    @staticmethod
+    def _escape_nextest_filter_matcher(matcher: str) -> str:
+        return matcher.replace("\\", "\\\\").replace(")", "\\)")
+
+    def _build_nextest_filterset(
+        self,
+        base_filter: str,
+        only: Optional[List[str]],
+        skip: Optional[List[str]],
+    ) -> str:
+        filterset = f"test(~{self._escape_nextest_filter_matcher(base_filter)})"
+
+        if only:
+            included_tests = "|".join(
+                f"test(={self._escape_nextest_filter_matcher(test_name)})"
+                for test_name in only
+            )
+            filterset = f"({filterset}&({included_tests}))"
+
+        if skip:
+            for skipped_test in skip:
+                skipped_filter = self._escape_nextest_filter_matcher(skipped_test)
+                filterset = f"{filterset}-test(={skipped_filter})"
+
+        return f"--filterset={filterset}"
+
     def _prepare_subtests(
         self,
         test_type: str,
@@ -430,27 +456,44 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         cli_test_type: Optional[str] = None,
         only_test_prefixes: Optional[List[str]] = None,
+        cli_test_filter: Optional[str] = None,
     ) -> None:
         cli_test_type = cli_test_type or test_type
 
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
-        subtests = self._prepare_subtests(
-            test_type,
-            hypervisor,
-            only,
-            skip,
-            cli_test_type,
-            only_test_prefixes,
-        )
+        if cli_test_filter:
+            subtests: Dict[str, Any] = {"subtest_set": set(), "skip_args": ""}
+        else:
+            subtests = self._prepare_subtests(
+                test_type,
+                hypervisor,
+                only,
+                skip,
+                cli_test_type,
+                only_test_prefixes,
+            )
         self._configure_environment_if_needed(hypervisor)
 
         # Use enhanced diagnostics for better debugging and monitoring
         skip_args = subtests["skip_args"]
-        cmd_args = (
-            f"tests --hypervisor {hypervisor} --{cli_test_type} -- -- {skip_args}"
-        )
+        if cli_test_filter:
+            nextest_filter = self._build_nextest_filterset(
+                cli_test_filter,
+                only,
+                skip,
+            )
+            test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
+            cmd_args = (
+                f"tests --hypervisor {hypervisor} --{cli_test_type} -- "
+                f"{test_script_args}"
+            )
+        else:
+            cmd_args = (
+                f"tests --hypervisor {hypervisor} --{cli_test_type} -- -- "
+                f"{skip_args}"
+            )
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
