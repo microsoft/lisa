@@ -22,7 +22,7 @@ class GrubConfig(Tool):
         if isinstance(node.os, CBLMariner):
             if node.os.information.release == "2.0":
                 return GrubConfigAzl2(node, args, kwargs)
-            if node.os.information.release == "3.0":
+            if node.os.information.release in ("3.0", "4.0"):
                 return GrubConfigAzl3(node, args, kwargs)
         elif isinstance(node.os, Debian):
             return GrubConfigDebian(node, args, kwargs)
@@ -31,7 +31,7 @@ class GrubConfig(Tool):
 
         raise UnsupportedDistroException(
             os=node.os,
-            message="Grub tool only supported on CBLMariner 2.0/3.0, "
+            message="Grub tool only supported on CBLMariner 2.0, 3.0 and 4.0, "
             "Debian-based distributions, and RHEL-based distributions.",
         )
 
