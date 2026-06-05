@@ -39,7 +39,7 @@ class OpenVmmPlatformSuite(TestSuite):
         This case validates that an OpenVMM guest is reachable over SSH and that
         the guest booted successfully.
         """,
-        priority=0,
+        priority=5,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
         ),
@@ -57,7 +57,7 @@ class OpenVmmPlatformSuite(TestSuite):
         This case validates that platform restart keeps the OpenVMM guest
         reachable after the restart.
         """,
-        priority=0,
+        priority=5,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[StartStop],
@@ -79,7 +79,7 @@ class OpenVmmPlatformSuite(TestSuite):
         This case validates that platform stop/start keeps the OpenVMM guest
         reachable for subsequent command execution.
         """,
-        priority=0,
+        priority=5,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[StartStop],
