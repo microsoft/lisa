@@ -148,6 +148,16 @@ class CloudHypervisorTests(Tool):
     def _escape_nextest_filter_matcher(matcher: str) -> str:
         return matcher.replace("\\", "\\\\").replace(")", "\\)")
 
+    @staticmethod
+    def _quote_bash_arg(arg: str) -> str:
+        escaped = (
+            arg.replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("$", "\\$")
+            .replace("`", "\\`")
+        )
+        return f'"{escaped}"'
+
     def _build_nextest_filterset(
         self,
         base_filter: str,
@@ -484,7 +494,7 @@ class CloudHypervisorTests(Tool):
                 only,
                 skip,
             )
-            test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
+            test_script_args = f"--test-filter {self._quote_bash_arg(nextest_filter)}"
             cmd_args = (
                 f"tests --hypervisor {hypervisor} --{cli_test_type} -- "
                 f"{test_script_args}"
