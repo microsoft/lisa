@@ -263,10 +263,10 @@ class FileSearchPlugin:
             path: The path to the log directory to search in
             file_extensions: Required file extension filter. Can be a single extension
                           (e.g., '.log') or multiple comma-separated extensions
+                          (e.g., '.log,.txt,.out').
             max_matches: Maximum number of matches to return in this call (page size).
                          The actual returned size is capped for safety.
             match_offset: Number of matches to skip (for pagination). 0-based.
-                          (e.g., '.log,.txt,.out').
 
         Returns:
             Dictionary containing structured results with file paths and line numbers
@@ -405,7 +405,7 @@ class FileSearchPlugin:
             return {"error": error_message}
 
         traceback_start = max(1, start_line_offset)
-        bounded_line_count = min(line_count, MAX_READ_LINE_COUNT)
+        bounded_line_count = min(max(1, line_count), MAX_READ_LINE_COUNT)
         traceback_end = traceback_start + bounded_line_count - 1
 
         try:
@@ -422,8 +422,15 @@ class FileSearchPlugin:
             logger.info(error_message)
             return {"error": error_message}
 
+        read_line_count = len(raw_lines)
+        read_end_line = raw_lines[-1][0] if raw_lines else traceback_start - 1
+
         collapsed_lines, omitted_repeated = _collapse_consecutive_duplicate_lines(
             raw_lines, max_consecutive=10
+        )
+        returned_line_count = len(collapsed_lines)
+        returned_end_line = (
+            collapsed_lines[-1][0] if collapsed_lines else traceback_start - 1
         )
         formatted_lines = [f"({i}): {t}" for i, t in collapsed_lines]
 
@@ -439,8 +446,17 @@ class FileSearchPlugin:
                 "requested_start_line": start_line_offset,
                 "effective_start_line": traceback_start,
                 "requested_line_count": line_count,
-                "effective_line_count": bounded_line_count,
-                "effective_end_line": traceback_end,
+                # NOTE: "effective_*" reflects what the tool actually returned,
+                # not the idealized request window. This makes paging/tool limits
+                # observable even when EOF is reached early or duplicates collapse.
+                "effective_line_count": returned_line_count,
+                "effective_end_line": returned_end_line,
+                # Preserve additional observability for debugging.
+                "requested_end_line": traceback_end,
+                "bounded_requested_line_count": bounded_line_count,
+                "read_line_count": read_line_count,
+                "read_end_line": read_end_line,
+                "returned_end_line": returned_end_line,
                 "max_read_line_count": MAX_READ_LINE_COUNT,
                 "max_read_text_chars": MAX_READ_TEXT_CHARS,
                 "was_truncated_by_chars": was_truncated_by_chars,
@@ -483,6 +499,8 @@ class FileSearchPlugin:
                     "file_path": os.path.abspath(norm_path),
                     "requested_line_count": line_count,
                     "effective_line_count": 0,
+                    "effective_start_line": 0,
+                    "effective_end_line": 0,
                     "max_read_line_count": MAX_READ_LINE_COUNT,
                 },
             }
@@ -490,6 +508,12 @@ class FileSearchPlugin:
         collapsed_lines, omitted_repeated = _collapse_consecutive_duplicate_lines(
             list(tail), max_consecutive=10
         )
+
+        read_line_count = len(tail)
+        read_start_line = tail[0][0]
+        read_end_line = tail[-1][0]
+        returned_line_count = len(collapsed_lines)
+        returned_end_line = collapsed_lines[-1][0] if collapsed_lines else read_end_line
 
         start_line = collapsed_lines[0][0]
         end_line = collapsed_lines[-1][0]
@@ -502,9 +526,16 @@ class FileSearchPlugin:
             "metadata": {
                 "file_path": os.path.abspath(norm_path),
                 "requested_line_count": line_count,
-                "effective_line_count": len(tail),
+                # "effective_*" reflects what the tool actually returned.
+                "effective_line_count": returned_line_count,
                 "effective_start_line": start_line,
                 "effective_end_line": end_line,
+                "read_line_count": read_line_count,
+                "read_start_line": read_start_line,
+                "read_end_line": read_end_line,
+                "returned_end_line": returned_end_line,
+                "collapsed_display_start_line": start_line,
+                "collapsed_display_end_line": end_line,
                 "max_read_line_count": MAX_READ_LINE_COUNT,
                 "max_read_text_chars": MAX_READ_TEXT_CHARS,
                 "was_truncated_by_chars": was_truncated_by_chars,
