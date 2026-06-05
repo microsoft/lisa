@@ -493,16 +493,18 @@ data_disk_types: List[DiskType] = [
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
-    os_disk_type: Optional[
-        Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            items=os_disk_types,
-        ),
-        metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
-        ),
+    os_disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = (
+        field(  # type: ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                items=os_disk_types,
+            ),
+            metadata=field_metadata(
+                decoder=partial(
+                    search_space.decode_set_space_by_type, base_type=DiskType
+                )
+            ),
+        )
     )
     os_disk_size: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
@@ -510,20 +512,20 @@ class DiskOptionSettings(FeatureSettings):
             allow_none=True, decoder=search_space.decode_count_space
         ),
     )
-    data_disk_type: Optional[
-        Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            items=data_disk_types,
-        ),
-        metadata=field_metadata(
-            decoder=partial(
-                search_space.decode_nullable_set_space,
-                base_type=DiskType,
-                default_values=data_disk_types,
-            )
-        ),
+    data_disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = (
+        field(  # type: ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                items=data_disk_types,
+            ),
+            metadata=field_metadata(
+                decoder=partial(
+                    search_space.decode_nullable_set_space,
+                    base_type=DiskType,
+                    default_values=data_disk_types,
+                )
+            ),
+        )
     )
     data_disk_count: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
@@ -567,7 +569,7 @@ class DiskOptionSettings(FeatureSettings):
     )
     disk_controller_type: Optional[
         Union[search_space.SetSpace[DiskControllerType], DiskControllerType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=[DiskControllerType.SCSI, DiskControllerType.NVME],
@@ -1579,7 +1581,8 @@ class WslNode(GuestNode):
     # wsl_version can be "prerelease" or "stable"
     wsl_version: str = "prerelease"
     # force to reinstall
-    distro: str = "Ubuntu"
+    # Use Ubuntu-24.04 explicitly to avoid Ubuntu-26.04 compatibility issues with LTP
+    distro: str = "Ubuntu-24.04"
     # set to new kernel path, if it needs to specify kernel.
     kernel: str = ""
     # debug console
