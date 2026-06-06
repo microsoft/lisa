@@ -495,7 +495,7 @@ class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
     os_disk_type: Optional[
         Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=os_disk_types,
@@ -512,7 +512,7 @@ class DiskOptionSettings(FeatureSettings):
     )
     data_disk_type: Optional[
         Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=data_disk_types,
@@ -567,7 +567,7 @@ class DiskOptionSettings(FeatureSettings):
     )
     disk_controller_type: Optional[
         Union[search_space.SetSpace[DiskControllerType], DiskControllerType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=[DiskControllerType.SCSI, DiskControllerType.NVME],
@@ -1579,7 +1579,8 @@ class WslNode(GuestNode):
     # wsl_version can be "prerelease" or "stable"
     wsl_version: str = "prerelease"
     # force to reinstall
-    distro: str = "Ubuntu"
+    # Use Ubuntu-24.04 explicitly to avoid Ubuntu-26.04 compatibility issues with LTP
+    distro: str = "Ubuntu-24.04"
     # set to new kernel path, if it needs to specify kernel.
     kernel: str = ""
     # debug console
