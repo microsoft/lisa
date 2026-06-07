@@ -203,8 +203,14 @@ class Ip(Tool):
         )
 
     def add_ipv4_address(self, nic_name: str, ip: str, persist: bool = True) -> None:
+        # force_run=True is required because this is a state-changing
+        # operation; without it, repeated calls with the same arguments
+        # return the cached result without actually re-adding the address
+        # (e.g. after the interface was deleted and re-created between
+        # test cases that share an environment).
         self.run(
             f"addr add {ip} dev {nic_name}",
+            force_run=True,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
