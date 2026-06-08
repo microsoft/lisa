@@ -516,9 +516,7 @@ class KdumpRedhat(KdumpBase):
         # kdumpctl command was split out of the kexec-tools package into a
         # separate kdump-utils package. Install it when kdumpctl is still
         # missing and the package is available in the repos.
-        if not self._check_exists() and self.node.os.is_package_in_repo(
-            "kdump-utils"
-        ):
+        if not self._check_exists() and self.node.os.is_package_in_repo("kdump-utils"):
             self.node.os.install_packages("kdump-utils")
         return self._check_exists()
 
