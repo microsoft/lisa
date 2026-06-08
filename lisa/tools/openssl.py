@@ -149,7 +149,10 @@ class OpenSSL(Tool):
         if "bytes per second" not in result.stdout:
             raise LisaException(
                 "OpenSSL speed test produced no benchmark results. "
-                f"Output: {result.stdout}"
+                f"cmd: {result.cmd}, "
+                f"exit_code: {result.exit_code}, "
+                f"stdout: {result.stdout}, "
+                f"stderr: {result.stderr}"
             )
 
         return result
