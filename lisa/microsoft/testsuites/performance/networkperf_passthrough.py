@@ -1105,121 +1105,127 @@ class NetworkPerformance(TestSuite):
         client_ntttcp.setup_system(udp_mode)
         server_ntttcp.setup_system(udp_mode, set_task_max=False)
 
-        client_ip = client.tools[Ip]
-        client_mtu = client_ip.get_mtu(client_nic_name)
-        connections = NTTTCP_UDP_CONCURRENCY if udp_mode else NTTTCP_TCP_CONCURRENCY
-        max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
+        try:
+            client_ip = client.tools[Ip]
+            client_mtu = client_ip.get_mtu(client_nic_name)
+            connections = NTTTCP_UDP_CONCURRENCY if udp_mode else NTTTCP_TCP_CONCURRENCY
+            max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
 
-        for test_thread in connections:
-            if test_thread < max_server_threads:
-                num_threads_p = test_thread
-                num_threads_n = 1
-            else:
-                num_threads_p = max_server_threads
-                num_threads_n = int(test_thread / num_threads_p)
-            buffer_size = int(1024 / 1024) if udp_mode else int(65536 / 1024)
-            if not udp_mode and num_threads_p == 1 and num_threads_n == 1:
-                buffer_size = int(1048576 / 1024)
-            use_no_sync = True
+            for test_thread in connections:
+                if test_thread < max_server_threads:
+                    num_threads_p = test_thread
+                    num_threads_n = 1
+                else:
+                    num_threads_p = max_server_threads
+                    num_threads_n = int(test_thread / num_threads_p)
+                # UDP uses a 1 KB buffer; TCP uses 64 KB, except for single-stream
+                # which uses 1 MB to maximize per-connection throughput.
+                buffer_size = 1 if udp_mode else 64  # KB
+                if not udp_mode and num_threads_p == 1 and num_threads_n == 1:
+                    buffer_size = 1024  # 1 MB for single-stream TCP
+                use_no_sync = True
 
-            receiver_process = (
-                client_ntttcp.run_as_server_async(
-                    client_nic_name,
-                    ports_count=num_threads_p,
-                    buffer_size=buffer_size,
-                    udp_mode=True,
-                    dev_differentiator="",
-                    no_sync=use_no_sync,
-                )
-                if udp_mode
-                else server_ntttcp.run_as_server_async(
-                    "",
-                    ports_count=num_threads_p,
-                    buffer_size=buffer_size,
-                    server_ip=server.internal_address,
-                    dev_differentiator="",
-                    no_sync=use_no_sync,
-                )
-            )
-            try:
-                if udp_mode:
-                    sender_result = server_ntttcp.run_as_client(
-                        "",
-                        client.internal_address,
-                        threads_count=num_threads_n,
+                receiver_process = (
+                    client_ntttcp.run_as_server_async(
+                        client_nic_name,
                         ports_count=num_threads_p,
                         buffer_size=buffer_size,
                         udp_mode=True,
-                        no_sync=use_no_sync,
-                    )
-                else:
-                    sender_result = client_ntttcp.run_as_client(
-                        client_nic_name,
-                        server.internal_address,
-                        threads_count=num_threads_n,
-                        ports_count=num_threads_p,
-                        buffer_size=buffer_size,
                         dev_differentiator="",
                         no_sync=use_no_sync,
                     )
-                receiver_result = receiver_process.wait_result(
-                    timeout=WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT
-                )
-            finally:
-                server.tools[PowerShell].run_cmdlet(
-                    "Stop-Process -Name ntttcp -Force -ErrorAction SilentlyContinue",
-                    force_run=True,
-                    fail_on_error=False,
-                    timeout=30,
-                )
-
-            parsed_client_result = (
-                server_ntttcp.create_ntttcp_result(sender_result, role="client")
-                if udp_mode
-                else client_ntttcp.create_ntttcp_result(sender_result, role="client")
-            )
-            try:
-                parsed_server_result = (
-                    client_ntttcp.create_ntttcp_result(receiver_result)
                     if udp_mode
-                    else server_ntttcp.create_ntttcp_result(receiver_result)
-                )
-            except (AssertionError, LisaException) as parse_error:
-                receiver_node = "Linux guest" if udp_mode else "Windows host"
-                raise LisaException(
-                    f"Failed to parse NTTTCP receiver output from {receiver_node} "
-                    f"for {test_case_name} with {test_thread} connections. "
-                    "Verify that the receiver completed and emitted NTTTCP "
-                    "totals before publishing performance data. "
-                    f"Exit code: {receiver_result.exit_code}. "
-                    f"Stdout: {receiver_result.stdout[:2000]}. "
-                    f"Stderr: {receiver_result.stderr[:2000]}"
-                ) from parse_error
-            if udp_mode:
-                notifier.notify(
-                    client_ntttcp.create_ntttcp_udp_performance_message(
-                        parsed_server_result,
-                        parsed_client_result,
-                        str(test_thread),
-                        buffer_size,
-                        test_case_name,
-                        test_result,
-                        client_mtu,
+                    else server_ntttcp.run_as_server_async(
+                        "",
+                        ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        server_ip=server.internal_address,
+                        dev_differentiator="",
+                        no_sync=use_no_sync,
                     )
                 )
-            else:
-                notifier.notify(
-                    client_ntttcp.create_ntttcp_tcp_performance_message(
-                        parsed_server_result,
-                        parsed_client_result,
-                        Decimal(0),
-                        str(test_thread),
-                        buffer_size,
-                        test_case_name,
-                        test_result,
-                        client_mtu,
+                try:
+                    if udp_mode:
+                        sender_result = server_ntttcp.run_as_client(
+                            "",
+                            client.internal_address,
+                            threads_count=num_threads_n,
+                            ports_count=num_threads_p,
+                            buffer_size=buffer_size,
+                            udp_mode=True,
+                            no_sync=use_no_sync,
+                        )
+                    else:
+                        sender_result = client_ntttcp.run_as_client(
+                            client_nic_name,
+                            server.internal_address,
+                            threads_count=num_threads_n,
+                            ports_count=num_threads_p,
+                            buffer_size=buffer_size,
+                            dev_differentiator="",
+                            no_sync=use_no_sync,
+                        )
+                    receiver_result = receiver_process.wait_result(
+                        timeout=WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT
                     )
+                finally:
+                    server.tools[PowerShell].run_cmdlet(
+                        "Stop-Process -Name ntttcp -Force -ErrorAction SilentlyContinue",
+                        force_run=True,
+                        fail_on_error=False,
+                        timeout=30,
+                    )
+
+                parsed_client_result = (
+                    server_ntttcp.create_ntttcp_result(sender_result, role="client")
+                    if udp_mode
+                    else client_ntttcp.create_ntttcp_result(sender_result, role="client")
                 )
+                try:
+                    parsed_server_result = (
+                        client_ntttcp.create_ntttcp_result(receiver_result)
+                        if udp_mode
+                        else server_ntttcp.create_ntttcp_result(receiver_result)
+                    )
+                except (AssertionError, LisaException) as parse_error:
+                    receiver_node = "Linux guest" if udp_mode else "Windows host"
+                    raise LisaException(
+                        f"Failed to parse NTTTCP receiver output from {receiver_node} "
+                        f"for {test_case_name} with {test_thread} connections. "
+                        "Verify that the receiver completed and emitted NTTTCP "
+                        "totals before publishing performance data. "
+                        f"Exit code: {receiver_result.exit_code}. "
+                        f"Stdout: {receiver_result.stdout[:2000]}. "
+                        f"Stderr: {receiver_result.stderr[:2000]}"
+                    ) from parse_error
+                if udp_mode:
+                    notifier.notify(
+                        client_ntttcp.create_ntttcp_udp_performance_message(
+                            parsed_server_result,
+                            parsed_client_result,
+                            str(test_thread),
+                            buffer_size,
+                            test_case_name,
+                            test_result,
+                            client_mtu,
+                        )
+                    )
+                else:
+                    notifier.notify(
+                        client_ntttcp.create_ntttcp_tcp_performance_message(
+                            parsed_server_result,
+                            parsed_client_result,
+                            Decimal(0),
+                            str(test_thread),
+                            buffer_size,
+                            test_case_name,
+                            test_result,
+                            client_mtu,
+                        )
+                    )
+        finally:
+            client_ntttcp.restore_system(udp_mode)
+            server_ntttcp.restore_system(udp_mode)
 
     def _get_host_nic_name(self, node: RemoteNode) -> str:
         ip = node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]

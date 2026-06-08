@@ -59,9 +59,12 @@ class Reboot(Tool):
         return last_boot_time
 
     def _wait_ssh_session_stable(self, time_out: int) -> None:
+        from lisa.node import RemoteNode
+
         timer = create_timer()
         consecutive_successes = 0
         last_error = ""
+        remote_node = cast(RemoteNode, self.node)
         while timer.elapsed(False) < time_out:
             try:
                 self.node.close()
@@ -78,7 +81,18 @@ class Reboot(Tool):
                 consecutive_successes = 0
                 last_error = str(e)
                 self._log.debug(f"waiting for stable ssh session after reboot: {e}")
-            sleep(2)
+            remaining = max(0, int(time_out - timer.elapsed(False)))
+            if remaining > 0:
+                wait_tcp_port_ready(
+                    address=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+                    ],
+                    port=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_PORT
+                    ],
+                    log=self._log,
+                    timeout=min(2, remaining),
+                )
         raise LisaException(
             f"cannot get stable ssh session after reboot in {time_out} seconds. "
             f"Last error: {last_error}"

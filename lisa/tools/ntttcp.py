@@ -1033,21 +1033,25 @@ class WindowsNtttcp(Ntttcp):
         return []
 
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
-        firewall_profiles = self.node.tools[PowerShell].run_cmdlet(
-            (
-                "Get-NetFirewallProfile -Profile Domain,Public,Private "
-                "| Select-Object Name,Enabled"
-            ),
-            output_json=True,
-            fail_on_error=False,
-        )
-        if isinstance(firewall_profiles, dict):
-            firewall_profiles = [firewall_profiles]
-        self._firewall_profile_states = {
-            profile["Name"]: bool(profile["Enabled"])
-            for profile in firewall_profiles or []
-            if "Name" in profile and "Enabled" in profile
-        }
+        # Only snapshot the original firewall state on the first call so that
+        # subsequent calls (e.g. explicit caller + _initialize) do not overwrite
+        # the snapshot with already-disabled profiles.
+        if not self._firewall_profile_states:
+            firewall_profiles = self.node.tools[PowerShell].run_cmdlet(
+                (
+                    "Get-NetFirewallProfile -Profile Domain,Public,Private "
+                    "| Select-Object Name,Enabled"
+                ),
+                output_json=True,
+                fail_on_error=False,
+            )
+            if isinstance(firewall_profiles, dict):
+                firewall_profiles = [firewall_profiles]
+            self._firewall_profile_states = {
+                profile["Name"]: bool(profile["Enabled"])
+                for profile in firewall_profiles or []
+                if "Name" in profile and "Enabled" in profile
+            }
 
         self.node.tools[PowerShell].run_cmdlet(
             "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False",
@@ -1079,8 +1083,16 @@ class WindowsNtttcp(Ntttcp):
         udp_mode: bool = False,
         no_sync: bool = False,
     ) -> Process:
+        self._log.debug(
+            "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
+            "use_epoll and dev_differentiator are not supported in Windows ntttcp"
+        )
         receiver_name = server_ip if server_ip else "*"
-        cmd = f"-r -m {ports_count},*,{receiver_name} -p 5001 -t {run_time_seconds}"
+        # buffer_size is in KB; Windows ntttcp -b expects bytes
+        cmd = (
+            f"-r -m {ports_count},*,{receiver_name} -p 5001"
+            f" -t {run_time_seconds} -b {buffer_size * 1024}"
+        )
         if udp_mode:
             cmd += " -u"
         if no_sync:
@@ -1131,7 +1143,15 @@ class WindowsNtttcp(Ntttcp):
         tolerance_seconds: int = 60,
         no_sync: bool = False,
     ) -> ExecutableResult:
-        cmd = f"-s -m {ports_count},*,{server_ip} -t {run_time_seconds}"
+        self._log.debug(
+            "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
+            "use_epoll and dev_differentiator are not supported in Windows ntttcp"
+        )
+        # buffer_size is in KB; Windows ntttcp -b expects bytes
+        cmd = (
+            f"-s -m {ports_count},*,{server_ip}"
+            f" -t {run_time_seconds} -b {buffer_size * 1024}"
+        )
         if udp_mode:
             cmd += " -u"
         if no_sync:
