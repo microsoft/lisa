@@ -1008,6 +1008,7 @@ class BSDNtttcp(Ntttcp):
 
 
 class WindowsNtttcp(Ntttcp):
+    _firewall_profile_states: Dict[str, bool]
     _download_url = (
         "https://github.com/microsoft/ntttcp/releases/latest/download/ntttcp.exe"
     )
@@ -1168,7 +1169,7 @@ class WindowsNtttcp(Ntttcp):
         return ntttcp_result
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._firewall_profile_states: Dict[str, bool] = {}
+        self._firewall_profile_states = {}
         self.pre_command = ""
         self.setup_system()
 

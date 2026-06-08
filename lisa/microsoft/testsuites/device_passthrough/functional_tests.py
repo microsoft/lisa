@@ -1,15 +1,30 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Tuple, Union, cast
 
 from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.base_tools import Cat
 from lisa.operating_system import Windows
+from lisa.platform_ import Platform
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Lspci
 from lisa.util import LisaException, SkippedException
+
+if TYPE_CHECKING:
+    from lisa.sut_orchestrator.hyperv.schema import (
+        DeviceAddressSchema as HypervDeviceAddressSchema,
+    )
+    from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
+    from lisa.sut_orchestrator.libvirt.schema import (
+        DeviceAddressSchema as LibvirtDeviceAddressSchema,
+    )
+
+    HostDeviceAddressSchema = Union[
+        HypervDeviceAddressSchema,
+        LibvirtDeviceAddressSchema,
+    ]
 
 SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV]
 
@@ -109,7 +124,7 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 )
             for host_device in passthrough_context.device_list:
                 vendor_device_id = self._vendor_device_from_host_device(
-                    platform_name, platform, host_device
+                    platform, host_device
                 )
                 key = (
                     pool_type,
@@ -134,12 +149,13 @@ class DevicePassthroughFunctionalTests(TestSuite):
 
     @staticmethod
     def _vendor_device_from_host_device(
-        platform_name: str,
-        platform: Any,
-        device: Any,
+        platform: Platform,
+        device: "HostDeviceAddressSchema",
     ) -> Dict[str, str]:
+        platform_name = platform.type_name()
         if platform_name == HYPERV:
-            instance_id = str(getattr(device, "instance_id", ""))
+            hyperv_device = cast("HypervDeviceAddressSchema", device)
+            instance_id = hyperv_device.instance_id
             match = re.search(
                 r"VEN_(?P<vendor_id>[0-9A-Fa-f]{4})&"
                 r"DEV_(?P<device_id>[0-9A-Fa-f]{4})",
@@ -155,8 +171,18 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 "device_id": match.group("device_id").lower(),
             }
 
-        cloud_hypervisor = platform
-        bdf = f"{device.domain}:{device.bus}:{device.slot}.{device.function}".lower()
+        if platform_name != CLOUD_HYPERVISOR:
+            raise LisaException(
+                f"Device passthrough host device lookup is not supported on "
+                f"'{platform_name}'. Use a cloud-hypervisor or hyperv platform."
+            )
+
+        cloud_hypervisor = cast("CloudHypervisorPlatform", platform)
+        libvirt_device = cast("LibvirtDeviceAddressSchema", device)
+        bdf = (
+            f"{libvirt_device.domain}:{libvirt_device.bus}:"
+            f"{libvirt_device.slot}.{libvirt_device.function}"
+        ).lower()
         cat = cloud_hypervisor.host_node.tools[Cat]
         vendor_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/vendor", sudo=True).strip()
         device_raw = cat.read(f"/sys/bus/pci/devices/{bdf}/device", sudo=True).strip()
