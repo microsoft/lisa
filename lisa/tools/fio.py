@@ -360,11 +360,9 @@ class Fio(Tool):
         if numjob:
             cmd += f" --numjob={numjob}"
             if cpus_allowed_policy:
-                # Pin each job to its own CPU and reserve CPU 0 for sshd / NIC
-                # IRQs. Without this, heavy libaio completion load at high
-                # iodepth starves sshd and causes SSH timeouts.
-                # Caller must ensure numjob <= (online_cpus - 1).
-                cmd += f" --cpus_allowed=1-{numjob}"
+                # Pin each job to its own CPU to avoid jobs sharing CPUs,
+                # which can cause I/O latency variance and SSH timeouts.
+                cmd += f" --cpus_allowed=0-{numjob - 1}"
                 cmd += f" --cpus_allowed_policy={cpus_allowed_policy}"
         if direct:
             cmd += " --direct=1"

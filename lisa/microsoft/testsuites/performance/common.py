@@ -60,35 +60,6 @@ from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
 
 
-def _precondition_disks_for_writes(
-    node: Node,
-    filename: str,
-    numjob: int,
-    size_mb: int,
-) -> None:
-    # Lazily-provisioned Azure disks (StandardSSD, PremiumV2, etc.) allocate
-    # backend storage on first write. Hitting 60 fresh disks with random
-    # writes from many jobs simultaneously stalls the storage path long
-    # enough for the VM management network to drop. Touch each LBA the perf
-    # loop will use with one write pass first (SNIA SSS PTS practice). Use
-    # the same job count / pinning as the perf loop so layout completes in
-    # roughly the same wall time as one perf iteration.
-    fio = node.tools[Fio]
-    fio.launch(
-        name="precondition",
-        filename=filename,
-        mode="write",
-        iodepth=64,
-        numjob=numjob,
-        time=0,
-        block_size="1M",
-        size_gb=size_mb,
-        overwrite=False,
-        ioengine=IoEngine.LIBAIO,
-        cpus_allowed_policy="split",
-    )
-
-
 def perf_nvme(
     node: Node,
     result: TestResult,
@@ -929,13 +900,6 @@ def perf_premium_datadisks(
     filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
-    # Reserve CPU 0 for sshd / NIC IRQs so heavy FIO completions at high
-    # iodepth don't starve them and drop the SSH session. Combined with
-    # --cpus_allowed=1-numjob in Fio._get_command, FIO uses CPUs 1..numjob.
-    fio_numjob = max(1, thread_count - 1)
-    _precondition_disks_for_writes(
-        node, filename, numjob=fio_numjob, size_mb=8192
-    )
     perf_disk(
         node,
         start_iodepth,
@@ -946,14 +910,14 @@ def perf_premium_datadisks(
         disk_count=disk_count,
         disk_setup_type=disk_setup_type,
         disk_type=disk_type,
-        numjob=fio_numjob,
+        numjob=thread_count,
         block_size=block_size,
         size_mb=8192,
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
-        # Pin each FIO job to a dedicated CPU; reduces I/O latency variance and
-        # avoids SSH timeouts caused by FIO jobs colliding with IRQs / sshd.
+        # Pin each FIO job to a dedicated CPU so jobs don't share CPUs,
+        # avoiding I/O latency variance and SSH timeouts.
         cpus_allowed_policy="split",
     )
 
