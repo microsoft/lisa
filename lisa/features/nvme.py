@@ -4,7 +4,7 @@
 import re
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, List, Pattern, Type
+from typing import Any, Dict, List, Pattern, Type
 
 from dataclasses_json import dataclass_json
 
@@ -149,16 +149,39 @@ class Nvme(Feature):
     # Azure remote NVMe disks use "MSFT NVMe Accelerator" model name.
     _REMOTE_NVME_MODEL = "MSFT NVMe Accelerator"
 
+    def _is_os_nvme_entry(
+        self,
+        disk: str,
+        os_disk_nvme_namespace: str,
+        os_disk_nvme_controller: str,
+    ) -> bool:
+        return disk in {os_disk_nvme_namespace, os_disk_nvme_controller}
+
+    def _is_remote_nvme_entry(self, disk: str, disk_model_map: Dict[str, str]) -> bool:
+        model = disk_model_map.get(disk, "")
+        if self._REMOTE_NVME_MODEL in model:
+            return True
+
+        # Controller nodes are reported as /dev/nvmeX while model data is keyed
+        # by namespaces (/dev/nvmeXnY). Match by exact controller prefix so
+        # nvme1 doesn't accidentally consume nvme10.* entries.
+        controller_namespace_prefix = f"{disk}n"
+        return any(
+            namespace.startswith(controller_namespace_prefix)
+            and self._REMOTE_NVME_MODEL in namespace_model
+            for namespace, namespace_model in disk_model_map.items()
+        )
+
     def _remove_nvme_remote_disks(self, disk_list: List[str]) -> List[str]:
         # When disk controller type is NVMe, both remote and local disks appear
-        # as NVMe devices. Use the model name to distinguish them:
-        # - Remote disks: "MSFT NVMe Accelerator"
-        # - Local disks: "Microsoft NVMe Direct Disk"
+        # as NVMe devices and they may span multiple controllers. Filter the
+        # exact OS namespace/controller entry and classify remote disks by model.
         if (
             self._node.features[Disk].get_os_disk_controller_type()
             == schema.DiskControllerType.NVME
         ):
-            os_disk_nvme_device = self._get_os_disk_nvme_device()
+            os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
+            os_disk_nvme_controller = self.get_nvme_os_disk_controller()
             nvme_cli = self._node.tools[Nvmecli]
             disk_model_map = nvme_cli.get_disk_model_map()
             self._log.debug(
@@ -168,13 +191,12 @@ class Nvme(Feature):
             removed_os = []
             removed_remote = []
             for disk in disk_list:
-                # Remove OS disk/device
-                if os_disk_nvme_device and os_disk_nvme_device in disk:
+                if self._is_os_nvme_entry(
+                    disk, os_disk_nvme_namespace, os_disk_nvme_controller
+                ):
                     removed_os.append(disk)
                     continue
-                # Remove remote disks (MSFT NVMe Accelerator)
-                model = disk_model_map.get(disk, "")
-                if self._REMOTE_NVME_MODEL in model:
+                if self._is_remote_nvme_entry(disk, disk_model_map):
                     removed_remote.append(disk)
                     continue
                 filtered.append(disk)
