@@ -126,6 +126,7 @@ class CPU(TestSuite):
         # The universal invariants verified are:
         # 1. L3 caches must not be shared across sockets
         # 2. Cross-NUMA L3 sharing is only valid within the same socket
+        # 3. L3 cache IDs must not be unique per CPU (indicates L3=CPU_ID bug)
         try:
             cpu_info = lscpu.get_cpu_info()
         except AssertionError as e:
@@ -324,6 +325,8 @@ class CPU(TestSuite):
         1. L3 caches must not be shared across sockets
         2. If an L3 cache is shared across NUMA nodes, those NUMA nodes
            must be on the same socket
+        3. L3 cache IDs must not be unique per CPU within a NUMA node
+           (which would indicate L3 is incorrectly mapped to CPU ID)
         """
         # Build helper mappings
         numa_to_l3_caches: dict[int, set[int]] = {}
@@ -360,6 +363,24 @@ class CPU(TestSuite):
                 f"{sorted(sockets_for_shared_l3)}. L3 sharing across "
                 f"NUMA nodes is only valid within the same socket.",
             ).is_equal_to(1)
+
+        # 3. Sanity check: if every CPU in a NUMA node has a unique L3
+        #    cache, the L3 IDs are likely incorrectly mapped to CPU IDs
+        #    instead of shared cache IDs. Valid multi-CCD topologies have
+        #    fewer L3 caches than CPUs (e.g. 32 CPUs sharing 4 L3s).
+        numa_to_cpus: dict[int, list[int]] = {}
+        for cpu in cpu_info:
+            numa_to_cpus.setdefault(cpu.numa_node, []).append(cpu.cpu)
+        for numa_node, l3_caches in numa_to_l3_caches.items():
+            cpu_count = len(numa_to_cpus.get(numa_node, []))
+            if cpu_count > 1 and len(l3_caches) == cpu_count:
+                assert_that(
+                    len(l3_caches),
+                    f"NUMA node {numa_node} has {cpu_count} CPUs each with "
+                    f"a unique L3 cache ID {sorted(l3_caches)}, which "
+                    f"indicates incorrect cache mapping (L3 should be "
+                    f"shared across cores, not unique per CPU).",
+                ).is_less_than(cpu_count)
 
         # Log the topology for debugging
         for numa_node, l3_caches in sorted(numa_to_l3_caches.items()):
