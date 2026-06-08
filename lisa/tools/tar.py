@@ -1,12 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Callable, List, Optional, Type
+from typing import Callable, List, Optional, Type, cast
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import Suse
+from lisa.operating_system import Posix, Suse
 from lisa.tools.bzip2 import Bzip2
 from lisa.tools.mkdir import Mkdir
 
@@ -16,12 +16,22 @@ class Tar(Tool):
     def command(self) -> str:
         return "tar"
 
+    @property
+    def can_install(self) -> bool:
+        return True
+
     def _check_exists(self) -> bool:
         if isinstance(self.node.os, Suse):
             # ensure that bzip2 is installed on Suse
             _ = self.node.tools[Bzip2]
 
-        return True
+        exists, self._use_sudo = self.command_exists(self.command)
+        return exists
+
+    def _install(self) -> bool:
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages("tar")
+        return self._check_exists()
 
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
@@ -135,6 +145,12 @@ class Tar(Tool):
 
 
 class WindowsTar(Tar):
+    @property
+    def can_install(self) -> bool:
+        # tar ships with modern Windows; do not attempt the POSIX
+        # package install path inherited from Tar.
+        return False
+
     def extract(
         self,
         file: str,

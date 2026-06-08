@@ -117,6 +117,8 @@ def hibernation_before_case(node: Node, log: Logger) -> None:
     Common before_case logic for hibernation tests.
     Validates OS support and prepares the environment.
     """
+    # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+    # may misclassify the node and bypass the supported_os gate.
     if isinstance(node.os, BSD) or isinstance(node.os, Windows):
         raise SkippedException(f"{node.os} is not supported.")
 

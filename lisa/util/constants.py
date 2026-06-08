@@ -3,6 +3,7 @@
 
 import re
 from pathlib import Path, PurePath
+from typing import Any
 
 # config types
 CONFIG_RUNBOOK = "runbook"
@@ -18,7 +19,7 @@ CONCURRENCY = "concurrency"
 
 RUNBOOK_FILE: Path
 RUNBOOK_PATH: Path
-RUNBOOK: str = ""
+RUNBOOK: Any = ""
 # a global cache path for all runs
 CACHE_PATH: Path
 # The physical path of current run.

@@ -1,13 +1,21 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Union, cast
+from typing import List, Optional, Union, cast
 
 from dataclasses_json import dataclass_json
+
+
+@dataclass_json()
+@dataclass
+class CloudInitSchema:
+    # Additional values to apply to the cloud-init user-data file.
+    extra_user_data: Optional[Union[str, List[str]]] = None
 
 
 class HostDevicePoolType(Enum):
     PCI_NIC = "pci_net"
     PCI_GPU = "pci_gpu"
+    PCI_NVME = "pci_nvme"
 
 
 @dataclass_json()
@@ -36,6 +44,7 @@ class DeviceLocationPathIdentifier:
 @dataclass
 class HostDevicePoolSchema:
     type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
+    auto_discover: bool = False
     devices: Union[
         List[VendorDeviceIdIdentifier],
         PciAddressIdentifier,

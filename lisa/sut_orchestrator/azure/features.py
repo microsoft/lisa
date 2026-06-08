@@ -2246,18 +2246,30 @@ class Disk(AzureFeatureMixin, features.Disk):
                     f"Disk {disk} is OS disk namespace, not a remote data disk"
                 )
                 return False
-            # Use model name to distinguish remote vs local NVMe disks.
-            # Remote disks use "MSFT NVMe Accelerator" model, local disks
-            # use "Microsoft NVMe Direct Disk" model. This works regardless
-            # of which NVMe controller the disks are on.
+
+            # First, try model-based detection. Azure remote disks (OS + data)
+            # use "MSFT NVMe Accelerator" model, while local NVMe resource disks
+            # use "Microsoft NVMe Direct Disk". This handles VM types where
+            # remote data disks are on different controllers than the OS disk.
             nvme_cli = self._node.tools[Nvmecli]
-            disk_model_map = nvme_cli.get_disk_model_map()
+            disk_model_map = nvme_cli.get_device_models()
+            if not disk_model_map:
+                disk_model_map = nvme_cli.get_disk_model_map()
+
             model = disk_model_map.get(disk, "")
-            is_remote = self._REMOTE_NVME_MODEL in model
+            is_remote = self._REMOTE_NVME_MODEL.lower() in model.lower()
             self._log.debug(
                 f"Disk {disk}: model='{model}', is_remote={is_remote}"
             )
-            return is_remote
+            if model:
+                return is_remote
+
+            # Fallback: legacy behavior — assume all remote disks share
+            # the same NVMe controller as the OS disk.
+            os_disk_controller = nvme.get_nvme_os_disk_controller()
+            if disk.startswith(os_disk_controller):
+                return True
+            return False
 
         # If disk_controller_type == SCSI
         azure_scsi_disks = self._get_scsi_data_disks()
@@ -2490,6 +2502,82 @@ class Resize(AzureFeatureMixin, features.Resize):
             return False
         return True
 
+    def _get_actual_disk_controller_type(
+        self,
+    ) -> Optional[schema.DiskControllerType]:
+        # Get the actual disk controller type the VM is using (from Azure API,
+        # works even when VM is stopped). This may differ from the VM SIZE's
+        # supported types — e.g. a size supports {SCSI, NVMe} but the deployed
+        # VM uses SCSI. We must ensure the candidate also supports the actual
+        # controller type, not just any overlapping type.
+        try:
+            node_disk = self._node.features[features.Disk]
+            hw_dc_type = node_disk.get_hardware_disk_controller_type()
+            if hw_dc_type:
+                dc_type = schema.DiskControllerType(hw_dc_type)
+                self._log.debug(f"actual hardware disk controller type: {dc_type}")
+                return dc_type
+        except (
+            LisaException,
+            ValueError,
+            AttributeError,
+            HttpResponseError,
+            ResourceNotFoundError,
+            ClientAuthenticationError,
+        ) as e:
+            self._log.debug(
+                f"could not determine actual disk controller type, "
+                f"falling back to VM size capability comparison: {e}"
+            )
+        return None
+
+    def _check_actual_disk_controller_type(
+        self,
+        candidate_size: "AzureCapability",
+        actual_disk_controller_type: Optional[schema.DiskControllerType],
+    ) -> bool:
+        # Check against the actual hardware disk controller type.
+        # The capability comparison checks for overlap between VM SIZE
+        # capabilities (e.g. current supports {SCSI,NVMe} and candidate
+        # supports {NVMe} -> overlap exists). But if the VM is actually
+        # using SCSI, resizing to an NVMe-only size will fail.
+        if not actual_disk_controller_type:
+            return True
+
+        candidate_dc_types = getattr(
+            candidate_size.capability.disk, "disk_controller_type", None
+        )
+        if not candidate_dc_types:
+            return True
+
+        if isinstance(candidate_dc_types, search_space.SetSpace):
+            return actual_disk_controller_type in candidate_dc_types
+        if isinstance(candidate_dc_types, schema.DiskControllerType):
+            return candidate_dc_types == actual_disk_controller_type
+
+        return True
+
+    def _is_candidate_size_valid(
+        self,
+        candidate_size: "AzureCapability",
+        current_vm_size: "AzureCapability",
+        resize_action: ResizeAction,
+        actual_disk_controller_type: Optional[schema.DiskControllerType],
+    ) -> bool:
+        return (
+            self._compare_architecture(candidate_size, current_vm_size)
+            and all(
+                self._compare_disk_property(candidate_size, current_vm_size, prop)
+                for prop in ["disk_controller_type", "os_disk_type", "data_disk_type"]
+            )
+            and self._check_actual_disk_controller_type(
+                candidate_size, actual_disk_controller_type
+            )
+            and self._compare_size_generation(candidate_size, current_vm_size)
+            and self._compare_network_interface(candidate_size, current_vm_size)
+            and self._compare_core_count(candidate_size, current_vm_size, resize_action)
+        )
+
     def _select_vm_size(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[str, "AzureCapability"]:
@@ -2505,16 +2593,20 @@ class Resize(AzureFeatureMixin, features.Resize):
         # Get list of vm sizes available in the current location
         location_info = platform.get_location_info(node_runbook.location, self._log)
         capabilities = [value for _, value in location_info.capabilities.items()]
-        filter_capabilities = []
-        # Filter out the vm sizes that are not available for IaaS deployment
-        for capability in capabilities:
+        # Filter out the vm sizes that are not available for IaaS deployment.
+        # Without this filter, SKUs such as ``Standard_D1_v2_Internal`` may
+        # be picked as resize targets and the subsequent VM update fails with
+        # ``does not support IaaS deployments``.
+        filter_capabilities = [
+            capability
+            for capability in capabilities
             if any(
                 cap
                 for cap in capability.resource_sku["capabilities"]
                 if cap["name"] == "VMDeploymentTypes" and "IaaS" in cap["value"]
-            ):
-                filter_capabilities.append(capability)
-        sorted_sizes = platform.get_sorted_vm_sizes(capabilities, self._log)
+            )
+        ]
+        sorted_sizes = platform.get_sorted_vm_sizes(filter_capabilities, self._log)
 
         current_vm_size = next(
             (x for x in sorted_sizes if x.vm_size == node_runbook.vm_size),
@@ -2544,52 +2636,19 @@ class Resize(AzureFeatureMixin, features.Resize):
         ).is_instance_of(int)
         assert current_vm_size.capability.features
 
-        # Loop removes candidate vm sizes if they can't be resized to or if the
-        # change in cores resulting from the resize is undesired
-        for candidate_size in avail_eligible_intersect[:]:
-            if not self._compare_architecture(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
+        actual_disk_controller_type = self._get_actual_disk_controller_type()
 
-            # List of disk properties to compare
-            disk_properties_to_compare = [
-                "disk_controller_type",
-                "os_disk_type",
-                "data_disk_type",
-            ]
-            # Flag to track whether the candidate passed all disk property checks
-            candidate_passed_all_checks = True
-            for prop in disk_properties_to_compare:
-                # compare the current property between the candidate size
-                # and the current VM size
-                if not self._compare_disk_property(
-                    candidate_size, current_vm_size, prop
-                ):
-                    # If the comparison fails (returns False)
-                    # mark the candidate as failing all checks
-                    candidate_passed_all_checks = False
-                    break
-            # If the candidate failed any of the checks (disk properties did not match)
-            if not candidate_passed_all_checks:
-                # Remove the candidate size from the list of available eligible sizes
-                avail_eligible_intersect.remove(candidate_size)
-                # Continue to the next candidate size in the loop
-                # without checking further
-                continue
-
-            if not self._compare_size_generation(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            if not self._compare_network_interface(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            if not self._compare_core_count(
-                candidate_size, current_vm_size, resize_action
-            ):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
+        # Filter candidate vm sizes that can't be resized to
+        avail_eligible_intersect = [
+            candidate
+            for candidate in avail_eligible_intersect
+            if self._is_candidate_size_valid(
+                candidate,
+                current_vm_size,
+                resize_action,
+                actual_disk_controller_type,
+            )
+        ]
 
         if not avail_eligible_intersect:
             raise LisaException(
@@ -3339,6 +3398,9 @@ class Nfs(AzureFeatureMixin, features.Nfs):
 
 class AzureExtension(AzureFeatureMixin, Feature):
     RESOURCE_NOT_FOUND = re.compile(r"ResourceNotFound", re.M)
+    _TYPE_HANDLER_VERSION_PATTERN = re.compile(
+        r"^(?P<major>\d+)\.(?P<minor>\d+)(?:\.(?P<patch>\d+))?$"
+    )
 
     @classmethod
     def create_setting(
@@ -3359,6 +3421,41 @@ class AzureExtension(AzureFeatureMixin, Feature):
             expand="instanceView",
         )
         return extension
+
+    def normalize_type_handler_version(self, version: str) -> Tuple[str, bool]:
+        """
+        Normalize a requested extension version for installation.
+
+        Returns:
+            Tuple[str, bool]:
+            - normalized Major.Minor version for installation
+            - True if the original version was Major.Minor.Patch
+        """
+        requested_version = version.strip()
+        matched = self._TYPE_HANDLER_VERSION_PATTERN.fullmatch(requested_version)
+        if not matched:
+            raise LisaException(
+                "Invalid extension_version format. Expected 'Major.Minor' "
+                f"or 'Major.Minor.Patch', got '{version}'."
+            )
+
+        normalized_version = f"{matched.group('major')}.{matched.group('minor')}"
+        is_patch_version = matched.group("patch") is not None
+        return normalized_version, is_patch_version
+
+    def get_installed_type_handler_version(self, name: str) -> str:
+        extension_obj = self.get(name=name)
+
+        instance_view = getattr(extension_obj, "instance_view", None)
+        version = getattr(instance_view, "type_handler_version", None)
+        if version:
+            return str(version)
+
+        version = getattr(extension_obj, "type_handler_version", None)
+        if version:
+            return str(version)
+
+        return str(getattr(extension_obj, "type_handler_version_name", "unknown"))
 
     def create_or_update(
         self,
@@ -3514,7 +3611,9 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
-        if hasattr(self._node, "os"):
+        # Waagent is a Linux-only tool; skip on Windows nodes since the Windows
+        # guest agent enables extensions by default and exposes no equivalent CLI.
+        if hasattr(self._node, "os") and self._node.os.is_posix:
             self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 

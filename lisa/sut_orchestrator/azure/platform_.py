@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import re
+import subprocess
 import sys
 import threading
 from copy import deepcopy
@@ -31,7 +32,7 @@ from typing import (
 )
 
 import requests
-from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
+from azure.core.exceptions import AzureError, HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
     CommunityGalleryImage,
@@ -161,6 +162,15 @@ AZURE_INTERNAL_ERROR_PATTERN = re.compile(
     r"OSProvisioningInternalError: OS Provisioning failed "
     r"for VM.*due to an internal error."
 )
+# Matches ARM error when the requested OS disk size is smaller than the
+# image's OS disk size, e.g.
+#   "The specified disk size 30 GB is smaller than the size of the
+#    corresponding disk in the VM image: 64 GB."
+OSDISK_SIZE_TOO_SMALL_PATTERN = re.compile(
+    r"specified disk size (?P<requested>\d+)\s*GB is smaller than "
+    r"the size of the corresponding disk in the VM image:\s*(?P<required>\d+)\s*GB",
+    re.IGNORECASE,
+)
 
 VM_SIZE_FALLBACK_PATTERNS = [
     # First priority: Standard_D series with single digit
@@ -236,6 +246,7 @@ KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
+KEY_LISA_SHA = "lisa_sha"
 ATTRIBUTE_FEATURES = "features"
 
 
@@ -382,6 +393,9 @@ class AzurePlatformSchema:
     # Enable logging of MANA driver/device information in test results
     log_mana_information: bool = field(default=False)
 
+    # Enable capturing the LISA git commit SHA in test results
+    log_lisa_sha: bool = field(default=False)
+
     # VM sizes to block from deployment in addition to RETIRED_VM_SIZES.
     # Useful for temporarily blocking sizes that are known to be problematic
     # or have been retired but are not yet in the hardcoded list.
@@ -520,6 +534,13 @@ class AzurePlatform(Platform):
         }
 
         self._private_key_lock = threading.Lock()
+        self._lisa_sha_cache: Optional[str] = None
+        # Cache of OS disk size discovered at deploy time, keyed by marketplace
+        # identifier "publisher/offer/sku/version". Populated by the retry path
+        # in ``_deploy`` and consulted in ``_create_node_arm_parameters`` so
+        # subsequent environments using the same image deploy with the right
+        # size on the first try instead of failing once and retrying.
+        self._osdisk_size_cache: Dict[str, int] = {}
 
     @classmethod
     def type_name(cls) -> str:
@@ -626,9 +647,14 @@ class AzurePlatform(Platform):
                     "vm size", "No available quota, try to deploy later."
                 )
             else:
-                raise NotMeetRequirementException(
-                    f"{errors}, runbook: {environment.runbook}."
+                error_message = (
+                    "; ".join(errors)
+                    if errors
+                    else (
+                        "no eligible VM configuration found" f" in {allowed_locations}"
+                    )
                 )
+                raise NotMeetRequirementException(error_message)
 
         # resolve Latest to specified version
         if is_success:
@@ -771,7 +797,7 @@ class AzurePlatform(Platform):
                 check_panic(log_response_content.decode("utf-8"), "provision", log)
                 check_rootfs_failure(log_response_content.decode("utf-8"), log)
 
-    def _get_node_information(self, node: Node) -> Dict[str, str]:
+    def _get_node_information(self, node: Node) -> Dict[str, str]:  # noqa: C901
         platform_runbook = cast(schema.Platform, self.runbook)
         information: Dict[str, Any] = {}
         if platform_runbook.capture_vm_information is False:
@@ -796,7 +822,9 @@ class AzurePlatform(Platform):
 
             # Guest nodes (like WslContainerNode) don't have features attribute
             # Skip security profile collection for guest nodes
-            if hasattr(node, "features"):
+            if hasattr(node, "features") and node.features.is_supported(
+                SecurityProfile
+            ):
                 security_profile = node.features[SecurityProfile].get_settings()
             else:
                 security_profile = None
@@ -850,6 +878,12 @@ class AzurePlatform(Platform):
         if self._azure_runbook.log_mana_information and node.is_connected:
             self._collect_mana_information(node, information)
 
+        # Log LISA SHA if enabled in runbook
+        if self._azure_runbook.log_lisa_sha:
+            lisa_sha = self._get_lisa_sha()
+            if lisa_sha:
+                information[KEY_LISA_SHA] = lisa_sha
+
         return information
 
     def _collect_mana_information(
@@ -868,6 +902,74 @@ class AzurePlatform(Platform):
             )
         except Exception as e:
             node.log.debug(f"error detecting MANA information: {e}")
+
+    def _get_lisa_sha(self) -> str:
+        # The LISA SHA is a property of the local checkout, not the node.
+        # Cache it to avoid spawning a git process per node.
+        if self._lisa_sha_cache is not None:
+            return self._lisa_sha_cache
+
+        result: str = ""
+        try:
+            file_dir = str(Path(__file__).resolve().parent)
+            toplevel_result = subprocess.run(
+                ["git", "-c", "safe.directory=*", "rev-parse", "--show-toplevel"],
+                cwd=file_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            lisa_repo_path = toplevel_result.stdout.strip()
+            git_command = [
+                "git",
+                "-c",
+                f"safe.directory={lisa_repo_path}",
+                "rev-parse",
+                "--short",
+                "HEAD",
+            ]
+            completed = subprocess.run(
+                git_command,
+                cwd=lisa_repo_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            result = completed.stdout.strip()
+        except FileNotFoundError as ex:
+            # git not installed — permanent, cache empty to avoid retrying
+            self._lisa_sha_cache = result
+            self._log.debug(
+                f"error on getting LISA SHA (FileNotFoundError): "
+                f"{type(ex).__name__}: {ex}"
+            )
+        except subprocess.CalledProcessError as ex:
+            # git command failed (e.g., not a git repo) — permanent
+            self._lisa_sha_cache = result
+            self._log.debug(
+                f"error on getting LISA SHA (CalledProcessError): "
+                f"{type(ex).__name__}: {ex}"
+            )
+        except subprocess.TimeoutExpired as ex:
+            # git command timed out — transient, don't cache
+            self._log.debug(
+                f"error on getting LISA SHA (TimeoutExpired): "
+                f"{type(ex).__name__}: {ex}"
+            )
+        except Exception as ex:
+            # unexpected error — transient, don't cache
+            self._log.debug(
+                f"unexpected error on getting LISA SHA ({type(ex).__name__}): {ex}"
+            )
+        if result and re.fullmatch(r"[0-9a-f]{7,40}", result):
+            self._lisa_sha_cache = result
+        else:
+            result = ""
+        return result
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
@@ -888,7 +990,11 @@ class AzurePlatform(Platform):
             linux_information = node.tools[Uname].get_linux_information()
             result = linux_information.kernel_version_raw
         elif not node.is_connected or node.is_posix:
-            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+            if (
+                not result
+                and hasattr(node, ATTRIBUTE_FEATURES)
+                and node.features.is_supported(features.SerialConsole)
+            ):
                 # try to get kernel version in Azure. use it, when uname doesn't work
                 node.log.debug("detecting kernel version from serial log...")
                 serial_console = node.features[features.SerialConsole]
@@ -924,7 +1030,11 @@ class AzurePlatform(Platform):
             node.log.debug(f"error on run waagent: {e}")
 
         if not node.is_connected or node.is_posix:
-            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+            if (
+                not result
+                and hasattr(node, ATTRIBUTE_FEATURES)
+                and node.features.is_supported(features.SerialConsole)
+            ):
                 node.log.debug("detecting wala agent version from serial log...")
                 serial_console = node.features[features.SerialConsole]
                 result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
@@ -1422,7 +1532,7 @@ class AzurePlatform(Platform):
             )
 
         # composite deployment properties
-        parameters = arm_parameters.to_dict()  # type:ignore
+        parameters = arm_parameters.to_dict()  # type: ignore
         parameters = {k: {"value": v} for k, v in parameters.items()}
         log.debug(f"parameters: {parameters}")
         deployment_properties = DeploymentProperties(
@@ -1628,6 +1738,22 @@ class AzurePlatform(Platform):
                         plan_publisher=plan_publisher,
                     )
 
+        # Apply OS disk size discovered from a previous failed deployment of
+        # the same marketplace image. Some marketplace images don't expose
+        # their disk size via the virtual_machine_images API, so
+        # ``get_image_info`` returns None and the bump above is skipped. The
+        # first deploy then fails and ``_deploy`` retries with the size from
+        # the ARM error; this cache lets subsequent environments skip that
+        # round-trip.
+        if arm_parameters.marketplace:
+            cached_size = self._osdisk_size_cache.get(
+                self._marketplace_cache_key(arm_parameters.marketplace)
+            )
+            if cached_size:
+                arm_parameters.osdisk_size_in_gb = max(
+                    arm_parameters.osdisk_size_in_gb, cached_size
+                )
+
         # Set Hyper-V Generation
         # Note: Image capability has already been merged with the VM capability
         hyperv_generation = capability._find_feature_by_type(
@@ -1734,6 +1860,7 @@ class AzurePlatform(Platform):
         deployment_parameters: Dict[str, Any],
         log: Logger,
         environment: Environment,
+        _attempt: int = 1,
     ) -> None:
         resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
         storage_account_name = get_storage_account_name(self.subscription_id, location)
@@ -1785,6 +1912,30 @@ class AzurePlatform(Platform):
             assert e.error, f"HttpResponseError: {e}"
 
             error_message = "\n".join(self._parse_detail_errors(e.error))
+            # When Azure returns a generic deployment failure message without
+            # actionable per-resource details (e.g. truncated aggregated error,
+            # ResourceDeploymentFailure with only a tracking id, or any other
+            # *DeploymentFailed* code with no nested details), fall back to
+            # listing deployment operations to surface the real sub-resource
+            # errors.
+            top_code = getattr(e.error, "code", "") or ""
+            has_details = bool(getattr(e.error, "details", None))
+            if "aggregated deployment error is too large" in error_message or (
+                not has_details
+                and (
+                    "ResourceDeploymentFailure" in top_code
+                    or "DeploymentFailed" in top_code
+                )
+            ):
+                op_errors = self._collect_deployment_operation_errors(
+                    resource_group_name, log
+                )
+                if op_errors:
+                    log.error(
+                        "deployment failed sub-resource errors:\n"
+                        + "\n".join(op_errors)
+                    )
+                    error_message = error_message + "\n" + "\n".join(op_errors)
             if (
                 self._azure_runbook.ignore_provisioning_error
                 and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
@@ -1825,8 +1976,119 @@ class AzurePlatform(Platform):
                         error_message = (
                             f"OSProvisioningTimedOut: {type(ex).__name__}: {ex}"
                         )
+                # If the deployment failed because the requested OS disk size
+                # is smaller than the image's actual OS disk size, bump the
+                # parameter to the size reported by ARM and retry once. This
+                # avoids the user having to know the image's OS disk size up
+                # front (some marketplace images don't expose it via the
+                # virtual_machine_images API).
+                if self._maybe_retry_with_bumped_osdisk_size(
+                    error_message,
+                    location,
+                    deployment_parameters,
+                    log,
+                    environment,
+                    _attempt,
+                ):
+                    return
                 plugin_manager.hook.azure_deploy_failed(error_message=error_message)
                 raise LisaException(error_message)
+
+    def _maybe_retry_with_bumped_osdisk_size(
+        self,
+        error_message: str,
+        location: str,
+        deployment_parameters: Dict[str, Any],
+        log: Logger,
+        environment: Environment,
+        attempt: int,
+    ) -> bool:
+        """Retry deployment once after bumping osdisk_size_in_gb.
+
+        Returns True if a retry was performed (caller should not raise).
+        """
+        if attempt != 1:
+            return False
+        disk_match = OSDISK_SIZE_TOO_SMALL_PATTERN.search(error_message)
+        if not disk_match:
+            return False
+        requested = int(disk_match.group("requested"))
+        image_size = int(disk_match.group("required"))
+        if not self._bump_osdisk_size_in_parameters(
+            deployment_parameters, image_size, log
+        ):
+            return False
+        log.info(
+            f"image OS disk size is {image_size} GB, "
+            f"requested {requested} GB. Bumping "
+            f"osdisk_size_in_gb to {image_size} GB "
+            f"and retrying deployment."
+        )
+        self._deploy(
+            location,
+            deployment_parameters,
+            log,
+            environment,
+            _attempt=attempt + 1,
+        )
+        return True
+
+    def _bump_osdisk_size_in_parameters(
+        self,
+        deployment_parameters: Dict[str, Any],
+        new_size_gb: int,
+        log: Logger,
+    ) -> bool:
+        """Bump every node's ``osdisk_size_in_gb`` to at least ``new_size_gb``.
+
+        Also caches the discovered size against each node's marketplace
+        identifier so future deployments of the same image skip the retry.
+
+        Returns True if any node parameter was actually changed.
+        """
+        deployment = deployment_parameters["parameters"]
+        try:
+            nodes_param = deployment.properties.parameters["nodes"]["value"]
+        except (AttributeError, KeyError, TypeError):
+            log.debug(
+                "could not locate 'nodes' parameter in deployment_parameters; "
+                "skip osdisk size bump"
+            )
+            return False
+        changed = False
+        for node in nodes_param:
+            current = int(node.get("osdisk_size_in_gb", 0) or 0)
+            if current < new_size_gb:
+                node["osdisk_size_in_gb"] = new_size_gb
+                changed = True
+            marketplace = node.get("marketplace")
+            if isinstance(marketplace, dict):
+                key = self._marketplace_cache_key(marketplace)
+                if key:
+                    prev = self._osdisk_size_cache.get(key, 0)
+                    if new_size_gb > prev:
+                        self._osdisk_size_cache[key] = new_size_gb
+        return changed
+
+    def _marketplace_cache_key(self, marketplace: Any) -> str:
+        """Build a stable cache key from a marketplace value.
+
+        Accepts either an ``AzureVmMarketplaceSchema`` instance or the
+        equivalent dict form found in ARM deployment parameters.
+        """
+        if isinstance(marketplace, dict):
+            publisher = marketplace.get("publisher", "")
+            offer = marketplace.get("offer", "")
+            sku = marketplace.get("sku", "")
+            version = marketplace.get("version", "")
+        else:
+            publisher = getattr(marketplace, "publisher", "") or ""
+            offer = getattr(marketplace, "offer", "") or ""
+            sku = getattr(marketplace, "sku", "") or ""
+            version = getattr(marketplace, "version", "") or ""
+        if not (publisher and offer and sku):
+            return ""
+        return f"{publisher}/{offer}/{sku}/{version}".lower()
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.
@@ -1844,6 +2106,74 @@ class AzurePlatform(Platform):
             except Exception:
                 # load failed, it should be a real error message string
                 errors = [f"{error.code}: {error.message}"]
+        return errors
+
+    def _collect_deployment_operation_errors(
+        self, resource_group_name: str, log: Logger
+    ) -> List[str]:
+        """Fetch per-resource errors from a failed ARM deployment.
+
+        Used as a fallback when the top-level HttpResponseError does not
+        already carry actionable per-resource details. Callers in ``_deploy``
+        invoke this helper for any of the following cases:
+
+        * The aggregated "deployment error is too large" message, where ARM
+          truncates the nested error tree.
+        * ``ResourceDeploymentFailure`` errors with no nested
+          ``error.details`` (e.g. transient internal server errors that
+          carry only a tracking id).
+        * ``DeploymentFailed`` errors that arrive without any nested
+          ``details`` populated.
+
+        When the top-level error already carries actionable nested
+        ``details``, callers skip this helper to avoid an extra ARM call
+        and duplicated/noisy output.
+
+        In all of these cases, listing the deployment operations is the
+        only way to surface the underlying per-resource failure messages.
+        """
+        errors: List[str] = []
+        try:
+            # Azure SDK calls share auth state via files on disk; serialize
+            # access to avoid intermittent failures during parallel runs.
+            # See common.py global_credential_access_lock for context.
+            with global_credential_access_lock:
+                operations = list(
+                    self._rm_client.deployment_operations.list(
+                        resource_group_name=resource_group_name,
+                        deployment_name=AZURE_DEPLOYMENT_NAME,
+                    )
+                )
+            for op in operations:
+                props = getattr(op, "properties", None)
+                if not props:
+                    continue
+                provisioning_state = getattr(props, "provisioning_state", None) or ""
+                if provisioning_state.lower() != "failed":
+                    continue
+                target = getattr(props, "target_resource", None)
+                resource_type = getattr(target, "resource_type", "") if target else ""
+                resource_name = getattr(target, "resource_name", "") if target else ""
+                status = getattr(props, "status_message", None)
+                inner = getattr(status, "error", None) if status else None
+                if inner is not None:
+                    errors.extend(
+                        f"{resource_type}/{resource_name}: {msg}"
+                        for msg in self._parse_detail_errors(inner)
+                    )
+                else:
+                    errors.append(f"{resource_type}/{resource_name}: {status}")
+        except (AzureError, ValueError, TypeError, AttributeError) as ex:
+            # Keep the original error path intact: never let this helper raise.
+            # Catch Azure SDK errors (AzureError covers HttpResponseError /
+            # ResourceNotFoundError) plus common parsing/shape mismatches
+            # (ValueError, TypeError, AttributeError). Programming errors
+            # outside this set will still propagate so they remain visible.
+            # Log with traceback so failures here are still debuggable.
+            log.debug(
+                f"failed to collect deployment operation errors: {ex}",
+                exc_info=True,
+            )
         return errors
 
     # the VM may not be queried after deployed. use retry to mitigate it.
@@ -2779,6 +3109,38 @@ class AzurePlatform(Platform):
 
         return False
 
+    @staticmethod
+    def _collect_unmet_reasons(
+        awaitable_candidates: List[Any],
+        all_candidates: List[Any],
+    ) -> List[str]:
+        """Collect capability mismatch reasons from candidates.
+
+        First checks reasons stored by _get_meet_capabilities during its
+        iteration. If none were found (e.g. all candidates were dropped due
+        to zero quota before capability matching), falls back to running
+        capability checks against ALL allowed (pre-quota-filtered) candidates
+        to surface the real mismatch reasons.
+        """
+        unmet_reasons: List[str] = []
+        for item in awaitable_candidates:
+            if len(item) > 2 and item[2]:
+                unmet_reasons.extend(item[2])
+
+        if not unmet_reasons and all_candidates:
+            for item in all_candidates:
+                req_check, caps_check = item[0], item[1]
+                assert isinstance(req_check, schema.NodeSpace)
+                for azure_cap in caps_check:
+                    check_result = req_check.check(azure_cap.capability)
+                    if not check_result.result and check_result.reasons:
+                        unmet_reasons.extend(check_result.reasons)
+                        break
+                if unmet_reasons:
+                    break
+
+        return unmet_reasons
+
     def _get_azure_capabilities(
         self, location: str, nodes_requirement: List[schema.NodeSpace], log: Logger
     ) -> Tuple[List[Union[AzureCapability, bool]], str]:
@@ -2789,6 +3151,10 @@ class AzurePlatform(Platform):
         # capabilities.
         available_candidates: List[Any] = []
         awaitable_candidates: List[Any] = []
+        # Keep all allowed candidates (before quota filtering) so we can
+        # run capability checks on them to collect meaningful skip reasons
+        # even for VMs that were dropped due to zero quota.
+        all_candidates: List[Any] = []
 
         # get allowed vm sizes. Either it's from the runbook defined, or
         # from subscription supported.
@@ -2800,6 +3166,8 @@ class AzurePlatform(Platform):
                 # no candidate found, so try next one.
                 error = sub_error
                 continue
+
+            all_candidates.append([req, candidate_caps])
 
             # filter vm sizes and return two list. 1st is deployable, 2nd is
             # wait able for released resource.
@@ -2861,14 +3229,12 @@ class AzurePlatform(Platform):
 
         if not found:
             # Collect unmet requirement reasons that were stored by
-            # _get_meet_capabilities during its iteration. These explain
-            # exactly which test-case requirements were not satisfied by
-            # any candidate VM size, replacing the previously generic
-            # "no available quota found" message.
-            unmet_reasons: List[str] = []
-            for item in awaitable_candidates:
-                if len(item) > 2 and item[2]:
-                    unmet_reasons.extend(item[2])
+            # _get_meet_capabilities during its iteration, or fall back
+            # to checking all pre-quota-filtered candidates.
+            unmet_reasons = self._collect_unmet_reasons(
+                awaitable_candidates, all_candidates
+            )
+
             if unmet_reasons:
                 # De-duplicate while preserving order.
                 seen: Set[str] = set()
