@@ -41,6 +41,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.sut_orchestrator import AZURE, HYPERV, QEMU, READY
+from lisa.sut_orchestrator.azure.common import is_cloud_init_enabled
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import (
@@ -434,7 +435,10 @@ class AzureImageStandard(TestSuite):
         network manager is not installed.
         """,
         priority=3,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            supported_platform_type=[AZURE, READY, HYPERV],
+        ),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -464,7 +468,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[Fedora, CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_network_file_configuration(self, node: Node) -> None:
@@ -540,7 +545,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[Fedora],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
@@ -600,7 +606,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[CoreOs, Fedora, CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_udev_rules_moved(self, node: Node) -> None:
@@ -638,7 +645,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_os=[Suse, CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
         ),
     )
     def verify_dhcp_file_configuration(self, node: Node) -> None:
@@ -691,7 +699,10 @@ class AzureImageStandard(TestSuite):
         present in the file.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            supported_platform_type=[AZURE, READY, HYPERV],
+        ),
     )
     def verify_yum_conf(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -718,10 +729,18 @@ class AzureImageStandard(TestSuite):
     )
     def verify_os_update(self, node: Node) -> None:
         if isinstance(node.os, Posix):
-            node.os.update_packages("")
+            # After OS update sometimes kernel version may change.
+            # When LISA is used to validate a VM image with specific kernel version,
+            # changing the kernel will result in running tests with undesired kernel
+            # which is not expected.
+            # Marking the node dirty after OS update to avoid such issues.
+            try:
+                node.os.update_packages("")
+            finally:
+                node.mark_dirty()
+            node.reboot()
         else:
             raise SkippedException(f"Unsupported OS or distro type : {type(node.os)}")
-        node.reboot()
 
     @TestCaseMetadata(
         description="""
@@ -737,6 +756,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            supported_os=[Debian, CBLMariner],
             supported_platform_type=[AZURE, READY, HYPERV],
             supported_features=[HyperVHostType(), CvmDisabled()],
         ),
@@ -1254,7 +1274,10 @@ class AzureImageStandard(TestSuite):
          fail the case.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_os=[CBLMariner],
+            supported_platform_type=[AZURE, READY, HYPERV],
+        ),
     )
     def verify_cloud_init_error_status(self, node: Node) -> None:
         cat = node.tools[Cat]
@@ -1463,8 +1486,16 @@ class AzureImageStandard(TestSuite):
             assert_that(folder_exists, f"{fold_path} should be present").is_true()
 
         # verify DATALOSS_WARNING_README.txt file exists
+        # This file is created by waagent, not cloud-init. When cloud-init
+        # manages the resource disk, the file will not be present.
         file_path = f"{resource_disk_mount_point}/DATALOSS_WARNING_README.txt"
         file_exists = node.tools[Ls].path_exists(file_path, sudo=True)
+        if not file_exists and is_cloud_init_enabled(node):
+            raise SkippedException(
+                f"{file_path} is not present. DATALOSS_WARNING_README.txt is"
+                " created by waagent, not cloud-init. Skipping on cloud-init"
+                " managed resource disk."
+            )
         assert_that(file_exists, f"{file_path} should be present").is_true()
 
         # verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
@@ -1780,6 +1811,7 @@ class AzureImageStandard(TestSuite):
         cifs.
         """,
         priority=1,
+        requirement=simple_requirement(supported_os=[Linux]),
     )
     def verify_essential_kernel_modules(self, node: Node) -> None:
         if not isinstance(node.os, Linux):

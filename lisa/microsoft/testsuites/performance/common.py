@@ -486,7 +486,15 @@ def cleanup_process(environment: Environment, process_name: str) -> None:
 
     # use cleanup function
     def do_cleanup(node: Node) -> None:
-        node.tools[Kill].by_name(process_name)
+        try:
+            if not node.is_connected:
+                return
+            node.tools[Kill].by_name(process_name)
+        except Exception as cleanup_error:
+            node.log.debug(
+                f"Skip cleanup '{process_name}' on node {node.name}: "
+                f"{cleanup_error}"
+            )
 
     # to run parallel cleanup for processes
     run_in_parallel([partial(do_cleanup, node) for node in nodes])
@@ -560,23 +568,37 @@ def perf_tcp_pps(
         # set server and client from environment, if not set explicitly
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
+    assert server is not None, "server must not be None before perf_tcp_pps run"
+    assert client is not None, "client must not be None before perf_tcp_pps run"
+    server_node: RemoteNode = server
+    client_node: RemoteNode = client
 
     client_netperf, server_netperf = run_in_parallel(
-        [lambda: client.tools[Netperf], lambda: server.tools[Netperf]]  # type: ignore
+        [lambda: client_node.tools[Netperf], lambda: server_node.tools[Netperf]]
+    )
+    run_in_parallel(
+        [
+            lambda: client_node.tools[Kill].by_name("netperf", ignore_not_exist=True),
+            lambda: server_node.tools[Kill].by_name("netserver", ignore_not_exist=True),
+        ]
     )
 
     server_interface_ip: str = ""
     client_interface_ip: str = ""
     if use_internal_address:
-        assert server.internal_address, "Server Node: internal address is not set"
-        assert client.internal_address, "Client Node: internal address is not set"
-        server_interface_ip = server.internal_address
-        client_interface_ip = client.internal_address
+        assert_that(server_node.internal_address).described_as(
+            "Server Node: internal address is not set"
+        ).is_not_empty()
+        assert_that(client_node.internal_address).described_as(
+            "Client Node: internal address is not set"
+        ).is_not_empty()
+        server_interface_ip = server_node.internal_address
+        client_interface_ip = client_node.internal_address
 
-    cpu = client.tools[Lscpu]
+    cpu = client_node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
     if "maxpps" == test_type:
-        ssh = client.tools[Ssh]
+        ssh = client_node.tools[Ssh]
         ssh.set_max_session()
         ports = range(30000, 30032)
     else:
@@ -587,13 +609,13 @@ def perf_tcp_pps(
         # Use server.internal_address as target since netperf client needs
         # the server's IP (which may differ from the interface it binds to)
         client_netperf.run_as_client_async(
-            server_ip=server.internal_address,
+            server_ip=server_node.internal_address,
             core_count=thread_count,
             port=port,
             interface_ip=client_interface_ip,
         )
-    client_sar = client.tools[Sar]
-    server_sar = server.tools[Sar]
+    client_sar = client_node.tools[Sar]
+    server_sar = server_node.tools[Sar]
     server_sar.get_statistics_async()
     result = client_sar.get_statistics()
     pps_message = client_sar.create_pps_performance_messages(
@@ -647,6 +669,7 @@ def perf_ntttcp(  # noqa: C901
     server_lagscope = None
     client_ntttcp = None
     server_ntttcp = None
+    pending_exception: Optional[Exception] = None
 
     try:
         client_ntttcp, server_ntttcp = run_in_parallel(
@@ -919,25 +942,64 @@ def perf_ntttcp(  # noqa: C901
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
     except Exception as ex:
+        pending_exception = ex
         client.log.info(f"Exception during ntttcp performance test: {ex}")
         raise
     finally:
-        error_msg = ""
-        throw_error = False
+        unreachable_nodes: List[str] = []
         for node in [client, server]:
-            if not node.is_connected:
-                error_msg += f" VM {node.name} can't be connected, "
-                throw_error = True
-        if throw_error:
-            error_msg += "probably due to VM stuck on reboot stage."
-            raise LisaException(error_msg)
+            if node.is_connected:
+                continue
+
+            # A node may be transiently disconnected during setup_system reboot.
+            # Probe reconnect before declaring hard failure.
+            recovered = False
+            max_reconnect_attempts = 3
+            for attempt in range(1, max_reconnect_attempts + 1):
+                try:
+                    node.close()
+                    node.execute(
+                        "echo connected",
+                        shell=True,
+                        timeout=20,
+                        no_info_log=True,
+                    )
+                    recovered = True
+                    break
+                except Exception as reconnect_error:
+                    node.log.debug(
+                        f"Reconnect probe failed for {node.name} "
+                        f"(attempt {attempt}/{max_reconnect_attempts}): "
+                        f"{reconnect_error}"
+                    )
+                    if attempt < max_reconnect_attempts:
+                        time.sleep(5)
+
+            if not recovered:
+                unreachable_nodes.append(node.name)
+
         if client_ntttcp and server_ntttcp:
             for ntttcp in [client_ntttcp, server_ntttcp]:
-                ntttcp.restore_system(udp_mode)
+                if ntttcp.node.is_connected:
+                    ntttcp.restore_system(udp_mode)
         if client_lagscope and server_lagscope:
             for lagscope in [client_lagscope, server_lagscope]:
-                lagscope.kill()
-                lagscope.restore_busy_poll()
+                if lagscope.node.is_connected:
+                    lagscope.kill()
+                    lagscope.restore_busy_poll()
+        if unreachable_nodes:
+            error_msg = (
+                " ".join(
+                    f"VM {node_name} can't be connected,"
+                    for node_name in unreachable_nodes
+                )
+                + " probably due to VM stuck on reboot stage."
+            )
+            if pending_exception is None:
+                raise LisaException(error_msg)
+            client.log.error(
+                f"{error_msg} Preserve original test exception: {pending_exception}"
+            )
     return perf_ntttcp_message_list
 
 

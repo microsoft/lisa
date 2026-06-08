@@ -27,6 +27,7 @@ from lisa import (
 from lisa.features import Disk, HibernationEnabled, Sriov, Synthetic
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
+from lisa.operating_system import Linux
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.testsuite import simple_requirement
@@ -40,6 +41,7 @@ from lisa.util.perf_timer import create_timer
     description="""
         This test suite is to test hibernation in guest VM.
     """,
+    requirement=simple_requirement(supported_os=[Linux]),
 )
 class Power(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

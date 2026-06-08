@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import PurePath
@@ -22,6 +23,8 @@ from lisa.util import (
 )
 from lisa.util.logger import Logger
 from lisa.util.process import ExecutableResult
+
+CLOUD_HYPERVISOR_RELEASE_REF_PATTERN = re.compile(r"^v\d+(?:\.\d+)*(?:[-+].*)?$")
 
 
 @dataclass_json()
@@ -193,9 +196,60 @@ class CloudHypervisorInstallerTransformer(Transformer):
             # Only use variable if it has a value and runbook ref is not already set
             if ref_value and runbook.installer.ref == "":
                 runbook.installer.ref = ref_value
+                runbook.installer.force_install = True
                 self._log.info(
                     f"Using cloudhypervisor_installer_ref variable: {ref_value}"
                 )
+                if (
+                    runbook.installer.type == CloudHypervisorBinaryInstaller.type_name()
+                    and not _is_cloud_hypervisor_release_ref(ref_value)
+                ):
+                    use_ms_clh_repo = self._get_variable_value("use_ms_clh_repo")
+                    if use_ms_clh_repo != "yes":
+                        raise LisaException(
+                            "cloudhypervisor_installer_ref "
+                            f"'{ref_value}' is not a release tag, and the binary "
+                            "installer can only download release binaries. Set "
+                            "use_ms_clh_repo=yes with ms_access_token, ms_clh_repo, "
+                            "and ms_igvm_repo to build the MS Cloud Hypervisor "
+                            "source, or configure the installer as type 'source' "
+                            "with a repo."
+                        )
+
+                    ms_access_token = self._get_variable_value("ms_access_token")
+                    ms_clh_repo = self._get_variable_value("ms_clh_repo")
+                    ms_igvm_repo = self._get_variable_value("ms_igvm_repo")
+                    missing_variables = [
+                        variable_name
+                        for variable_name, variable_value in [
+                            ("ms_access_token", ms_access_token),
+                            ("ms_clh_repo", ms_clh_repo),
+                            ("ms_igvm_repo", ms_igvm_repo),
+                        ]
+                        if not variable_value
+                    ]
+                    if missing_variables:
+                        missing_text = ", ".join(missing_variables)
+                        raise LisaException(
+                            "Missing required variables for MS Cloud Hypervisor "
+                            f"source install: {missing_text}. Cannot install "
+                            f"cloud-hypervisor ref '{ref_value}' from the MS repo. "
+                            "Provide the missing variable values in the runbook or "
+                            "command line."
+                        )
+
+                    runbook.installer = SourceInstallerSchema(
+                        type=CloudHypervisorMsftSourceInstaller.type_name(),
+                        force_install=True,
+                        ref=ref_value,
+                        repo=ms_clh_repo,
+                        auth_token=ms_access_token,
+                        igvm_repo=ms_igvm_repo,
+                    )
+                    self._log.info(
+                        "cloudhypervisor_installer_ref is not a release tag; "
+                        "building cloud-hypervisor from source"
+                    )
 
         node = quick_connect(runbook.connection, "cloudhypervisor_installer_node")
 
@@ -220,6 +274,12 @@ class CloudHypervisorInstallerTransformer(Transformer):
             _install_libvirt(runbook.libvirt, node, self._log)
 
         return {}
+
+    def _get_variable_value(self, name: str) -> str:
+        if name in self._runbook_builder.variables:
+            value = self._runbook_builder.variables[name].data
+            return str(value) if value else ""
+        return ""
 
 
 class LibvirtPackageInstaller(LibvirtInstaller):
@@ -399,8 +459,15 @@ class LibvirtSourceInstaller(LibvirtInstaller):
 
 class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
     _distro_package_mapping = {
-        Ubuntu.__name__: ["gcc"],
-        CBLMariner.__name__: ["gcc", "binutils", "glibc-devel"],
+        Ubuntu.__name__: ["gcc", "make"],
+        CBLMariner.__name__: [
+            "gcc",
+            "binutils",
+            "glibc-devel",
+            "make",
+            "perl",
+            "perl-FindBin",
+        ],
     }
     _build_cmd: str = "cargo build --release"
 
@@ -589,6 +656,10 @@ def _get_source_code(
         auth_token=runbook.auth_token,
     )
     return code_path
+
+
+def _is_cloud_hypervisor_release_ref(ref: str) -> bool:
+    return bool(CLOUD_HYPERVISOR_RELEASE_REF_PATTERN.match(ref.strip()))
 
 
 def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> None:

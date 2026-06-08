@@ -3,6 +3,8 @@
 import json
 import os
 import re
+import shlex
+import xml.etree.ElementTree as ETree  # noqa: N817
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
@@ -55,6 +57,7 @@ class CloudHypervisorTests(Tool):
     # 6 Hrs of timeout for perf tests and 2400 seconds for other operations
     PERF_CASE_TIME_OUT = 21600 + 2400
     PERF_CMD_TIME_OUT = 1200
+    METRICS_REPORT_FILE = "lisa_metrics_report.json"
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
     env_vars = {
@@ -83,8 +86,6 @@ class CloudHypervisorTests(Tool):
     """
     pmem_config = "memmap=8G!64G"
     disable_disk_cache = ""
-    mibps_block_size_kb = ""
-    iops_block_size_kb = ""
 
     cmd_path: PurePath
     vdpa_script_path: PurePath
@@ -330,8 +331,36 @@ class CloudHypervisorTests(Tool):
         test_name: str,
     ) -> None:
         """Process test results and handle various failure scenarios."""
-        # Report subtest results and collect logs before doing any assertions.
-        results = self._extract_test_results(result.stdout, log_path, subtests)
+        # Prefer nextest JUnit output when present. If nextest was invoked
+        # but produced no JUnit output, fail with a clear diagnostic. If no
+        # JUnit and no nextest markers, fall back to the cargo stdout parser.
+        junit_files = self._collect_nextest_junit_files(log_path)
+        nextest_invoked_no_junit = not junit_files and "cargo nextest" in result.stdout
+
+        if nextest_invoked_no_junit:
+            self._save_kernel_logs(log_path)
+            self._check_test_panic_from_logs(
+                test_result=test_result,
+                content=result.stdout,
+                stage=f"{test_type} tests",
+                test_name=test_name,
+            )
+            self._handle_test_failure_with_diagnostics(
+                "cargo nextest invoked but no JUnit output produced at "
+                f"{self._get_nextest_junit_dir()}/. Check nextest config in "
+                "cloud-hypervisor repo.",
+                result,
+                test_type,
+                hypervisor,
+                log_path,
+            )
+            return  # unreachable: _handle_test_failure_with_diagnostics raises
+
+        if junit_files:
+            self._log.info(f"Parsing nextest JUnit output ({len(junit_files)} file(s))")
+            results = self._extract_test_results_from_junit(junit_files, subtests)
+        else:
+            results = self._extract_test_results(result.stdout, log_path, subtests)
         hung_tests = [r.name for r in results if r.hung]
         failures = [
             r.name
@@ -351,7 +380,6 @@ class CloudHypervisorTests(Tool):
 
         self._check_test_panic_from_logs(
             test_result=test_result,
-            log_path=log_path,
             content=result.stdout,
             stage=f"{test_type} tests",
             test_name=test_name,
@@ -395,11 +423,21 @@ class CloudHypervisorTests(Tool):
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
 
+        # Wipe any nextest JUnit output left by a previous run on this node.
+        # The cloud-hypervisor nextest config recreates the directory as
+        # needed. This avoids stale results from a prior invocation being
+        # attributed to the current run. Tolerate non-zero exit silently
+        # since the directory may not exist on first run.
+        self.node.execute(
+            f"rm -rf {self._get_nextest_junit_dir()}",
+            shell=True,
+            no_error_log=True,
+        )
+
         try:
             result = self._run_with_enhanced_diagnostics(
                 cmd_args=cmd_args,
                 timeout=self.CMD_TIME_OUT,
-                log_path=log_path,
                 test_name=test_name,
                 numa_cmd="",
             )
@@ -430,8 +468,8 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         log_path: Path,
         ref: str = "",
-        only: Optional[List[str]] = None,
-        skip: Optional[List[str]] = None,
+        only: Optional[str] = None,
+        skip: Optional[str] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
         # Reset per-run state in case this Tool instance is reused across runs.
@@ -440,33 +478,69 @@ class CloudHypervisorTests(Tool):
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
-        subtests = self._prepare_metrics_subtests(hypervisor, only, skip)
         # Pick disk first so warmup targets the actual metrics disk (pmem vs nvme)
         self._setup_disk_for_metrics(log_path)
 
         # Initialize perf-stable profile (one-time per metrics test run)
         # Metrics tests always use perf-stable setup
-        if not self._host_setup_done:
-            self._initialize_perf_stable_profile()
-            # One-time host setup (CPU, THP, irqbalance, storage, network)
-            self._setup_host_perf_policies()
-            self._setup_storage_hygiene()
-            self._setup_network_hygiene()
-            # Best-effort settle phase to reduce variance from background services.
-            # Run it as part of the one-time host preparation (after policies are
-            # applied) so we don't pay the settle cost for every metrics run.
-            if self.perf_stable_enabled and self.perf_system_settle_enabled:
-                self._settle_system()
-            if self.perf_stable_enabled:
-                self._read_back_and_log_host_state()
-                self._run_warmup()
-            self._host_setup_done = True
+        self._ensure_host_setup()
+
         failed_testcases: List[str] = []
 
-        for testcase in subtests:
-            status, metrics, trace = self._run_single_metrics_test(
-                testcase, hypervisor, log_path, subtest_timeout
+        cmd_args = self._build_metrics_cmd_args(hypervisor, subtest_timeout, only, skip)
+        cmd_timeout = self.PERF_CASE_TIME_OUT
+        test_name = f"ch_metrics_all_{hypervisor}"
+
+        numa_cmd = ""
+        if self.perf_stable_enabled:
+            numa_cmd = self._get_numa_prefix()
+
+        result = None
+        try:
+            result = self._run_with_enhanced_diagnostics(
+                cmd_args=cmd_args,
+                timeout=cmd_timeout,
+                test_name=test_name,
+                numa_cmd=numa_cmd,
             )
+        finally:
+            self._copy_back_artifacts(log_path, test_name)
+
+        # Copy back the JSON report file from the remote node.
+        remote_report = self.repo_root / self.METRICS_REPORT_FILE
+        local_report = log_path / self.METRICS_REPORT_FILE
+        per_test_results: Dict[str, Any] = {}
+        report_error = ""
+        try:
+            self.node.shell.copy_back(remote_report, local_report)
+            per_test_results = self._parse_metrics_report(local_report)
+        except Exception as e:
+            report_error = f"Failed to retrieve metrics report: {e}"
+
+        if not report_error and not per_test_results:
+            report_error = "Metrics report does not contain any test results."
+
+        if report_error:
+            diagnostic_info = self._extract_diagnostic_info(log_path, test_name, result)
+            if diagnostic_info:
+                report_error = f"{report_error} | {diagnostic_info}"
+
+            self._check_test_panic_from_logs(
+                test_result=test_result,
+                content=result.stdout,
+                stage="metrics tests",
+                test_name="run_metrics_tests",
+            )
+            self._save_kernel_logs(log_path)
+
+            if self.node.features.is_supported(SerialConsole):
+                self.node.features[SerialConsole].check_panic(
+                    saved_path=log_path, force_run=True, test_result=test_result
+                )
+            fail(report_error)
+
+        for testcase, entry in per_test_results.items():
+            status, metrics, trace = self._classify_test_result(testcase, entry)
 
             if status == TestStatus.FAILED:
                 failed_testcases.append(testcase)
@@ -474,15 +548,21 @@ class CloudHypervisorTests(Tool):
             self._send_metrics_test_result(
                 test_result, testcase, status, metrics, trace
             )
-            self._write_testcase_log(log_path, testcase, trace)
 
-            self._check_test_panic_from_logs(
-                test_result=test_result,
-                log_path=log_path,
-                content=trace,
-                stage=f"metrics test {testcase}",
-                test_name=testcase,
+        if len(failed_testcases) > 0:
+            diagnostic_info = self._extract_diagnostic_info(log_path, test_name, result)
+
+            self._log.error(
+                f"Test cases failed: {failed_testcases} "
+                f"Diagnostics: {diagnostic_info}"
             )
+
+        self._check_test_panic_from_logs(
+            test_result=test_result,
+            content=result.stdout,
+            stage="metrics tests",
+            test_name="run_metrics_tests",
+        )
 
         self._save_kernel_logs(log_path)
 
@@ -498,6 +578,30 @@ class CloudHypervisorTests(Tool):
 
         # Mark node as dirty after metrics tests to prevent affecting other tests
         self.node.mark_dirty()
+
+    def _ensure_host_setup(self) -> None:
+        """One-time host preparation for metrics tests.
+
+        Applies CPU, THP, irqbalance, storage, and network policies,
+        settles the system, and runs warmup.  Subsequent calls are no-ops.
+        """
+        if self._host_setup_done:
+            return
+
+        self._initialize_perf_stable_profile()
+        self._setup_host_perf_policies()
+        self._setup_storage_hygiene()
+        self._setup_network_hygiene()
+        self._apply_network_test_policy()
+        # Best-effort settle phase to reduce variance from background services.
+        # Run it as part of the one-time host preparation (after policies are
+        # applied) so we don't pay the settle cost for every metrics run.
+        if self.perf_stable_enabled and self.perf_system_settle_enabled:
+            self._settle_system()
+        if self.perf_stable_enabled:
+            self._read_back_and_log_host_state()
+            self._run_warmup()
+        self._host_setup_done = True
 
     def _setup_disk_for_metrics(self, log_path: Path) -> None:
         """Setup disk for metrics tests if needed."""
@@ -520,99 +624,10 @@ class CloudHypervisorTests(Tool):
             )
             self._save_kernel_logs(log_path)
 
-    def _prepare_metrics_subtests(
-        self, hypervisor: str, only: Optional[List[str]], skip: Optional[List[str]]
-    ) -> List[str]:
-        """Prepare subtests for metrics testing."""
-        subtests = self._list_perf_metrics_tests(hypervisor=hypervisor)
-
-        if only is not None:
-            only_set = set(only)
-            subtests = [testcase for testcase in subtests if testcase in only_set]
-        if skip is not None:
-            skip_set = set(skip)
-            subtests = [testcase for testcase in subtests if testcase not in skip_set]
-
-        self._log.debug(f"Final Subtests list to run: {subtests}")
-        return subtests
-
-    def _run_single_metrics_test(
-        self,
-        testcase: str,
-        hypervisor: str,
-        log_path: Path,
-        subtest_timeout: Optional[int],
-    ) -> Tuple[TestStatus, str, str]:
-        """Run a single metrics test and return status, metrics, trace."""
-        status: TestStatus = TestStatus.QUEUED
-        metrics: str = ""
-        trace: str = ""
-        result = None
-
-        # Apply per-test policies (block vs net vs other). Avoid applying cache
-        # policies to network tests to prevent confusing log noise.
-        self._apply_per_test_policies(testcase)
-
-        self._set_block_size_env_var(testcase)
-        cmd_args = self._build_metrics_cmd_args(testcase, hypervisor, subtest_timeout)
-
-        try:
-            cmd_timeout = self._get_metrics_timeout()
-            safe_tc = self._sanitize_name(testcase)
-            test_name = f"ch_metrics_{safe_tc}_{hypervisor}"
-
-            # Build NUMA prefix for perf-stable profile (metrics tests only)
-            numa_cmd = ""
-            if self.perf_stable_enabled:
-                numa_cmd = self._get_numa_prefix()
-
-            try:
-                result = self._run_with_enhanced_diagnostics(
-                    cmd_args=cmd_args,
-                    timeout=cmd_timeout,
-                    log_path=log_path,
-                    test_name=test_name,
-                    numa_cmd=numa_cmd,
-                )
-            finally:
-                self._copy_back_artifacts(log_path, test_name)
-
-            status, metrics, trace = self._process_metrics_result(
-                result, testcase, log_path, test_name
-            )
-
-        except Exception as e:
-            self._log.info(f"Testcase failed, tescase name: {testcase}")
-            status = TestStatus.FAILED
-            trace = str(e)
-            result = None
-
-            # Check for kernel panic when test fails
-            if self.node.features.is_supported(SerialConsole):
-                panic_info = self.node.features[SerialConsole].check_panic(
-                    saved_path=log_path, force_run=True
-                )
-                if panic_info:
-                    # Append panic information to the trace
-                    panic_msg = (
-                        f"Kernel Panic Detected: {panic_info.panic_type} "
-                        f"({panic_info.error_codes})"
-                    )
-                    trace = f"{trace}\n{panic_msg}"
-
-        # Store result for log writing
-        self._last_result = result
-        return status, metrics, trace
-
-    def _is_net_test(self, testcase: str) -> bool:
-        tl = testcase.lower()
-        return tl.startswith("net_") or tl.startswith("virtio_net")
-
-    def _apply_network_test_policy(self, testcase: str) -> None:
+    def _apply_network_test_policy(self) -> None:
         # Stability-first (least invasive): keep irqbalance ON, keep MTU
         # consistent, and do a tiny per-test warmup to reduce variance from
         # cold start effects (ARP/route cache, initial softirq scheduling).
-        _ = testcase
         warmup_seconds = 8
         numa_prefix = self._get_numa_prefix()
 
@@ -650,65 +665,78 @@ class CloudHypervisorTests(Tool):
                 timeout=10,
             )
 
-    def _apply_per_test_policies(self, testcase: str) -> None:
-        if not self.perf_stable_enabled:
-            return
-
-        # Block tests: no extra cache policy here because CH perf uses fio.
-        # with --direct=1 (host-side caching knobs would be misleading noise).
-        if self._is_net_test(testcase):
-            self._apply_network_test_policy(testcase)
-
     def _build_metrics_cmd_args(
-        self, testcase: str, hypervisor: str, subtest_timeout: Optional[int]
+        self,
+        hypervisor: str,
+        subtest_timeout: Optional[int],
+        only: Optional[str] = None,
+        skip: Optional[str] = None,
     ) -> str:
-        """Build command arguments for metrics test."""
         cmd_args = (
             f"tests --hypervisor {hypervisor} --metrics -- --"
-            f" --test-filter {testcase}"
+            " --continue-on-failure"
+            f" --report-file /cloud-hypervisor/{self.METRICS_REPORT_FILE}"
         )
-
-        # Use subtest_timeout if provided, otherwise check for MQ test extension
+        if only:
+            cmd_args = f"{cmd_args} --test-filter {shlex.quote(only)}"
+        if skip:
+            cmd_args = f"{cmd_args} --test-exclude {shlex.quote(skip)}"
         if subtest_timeout:
             cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
-        elif self._is_multi_queue_test(testcase):
-            # Lengthen measure window for MQ tests to ~90s
-            # This reduces influence of transient queue skew
-            mq_timeout = self.perf_mq_test_timeout
-            if mq_timeout > 0:
-                cmd_args = f"{cmd_args} --timeout {mq_timeout}"
-
         return cmd_args
 
-    def _get_metrics_timeout(self) -> int:
-        """Get timeout for metrics tests."""
-        cmd_timeout = self.PERF_CMD_TIME_OUT
-        if self.clh_guest_vm_type == "CVM":
-            cmd_timeout = cmd_timeout + 300
-        return cmd_timeout
+    def _parse_metrics_report(self, report_path: Path) -> Dict[str, Any]:
+        """Parse a metrics JSON report file into per-test result dicts.
 
-    def _process_metrics_result(
-        self, result: ExecutableResult, testcase: str, log_path: Path, test_name: str
+        The report file is a well-formed JSON document produced by the
+        Cloud Hypervisor performance-metrics binary (via --report-file).
+        Its structure is::
+
+            {
+              "git_human_readable": "...",
+              "git_revision": "...",
+              "git_commit_date": "...",
+              "date": "...",
+              "results": [
+                {"name": "boot_time_ms", "status": "PASSED",
+                 "mean": ..., "std_dev": ..., "max": ..., "min": ...},
+                ...
+              ]
+            }
+
+        Each entry in ``results`` includes a ``status`` field whose value is
+        either ``"PASSED"`` or ``"FAILED"``.
+
+        Returns a dict mapping *test_name* to the raw result entry dict.
+        """
+        with open(report_path, "r") as f:
+            report = json.load(f)
+
+        per_test: Dict[str, Any] = {}
+        for entry in report.get("results", []):
+            name = entry.get("name", "")
+            if name:
+                per_test[name] = entry
+        return per_test
+
+    def _classify_test_result(
+        self,
+        testcase: str,
+        result_entry: Dict[str, Any],
     ) -> Tuple[TestStatus, str, str]:
-        """Process the result of a metrics test."""
-        if result.exit_code == 0:
-            status = TestStatus.PASSED
-            metrics = self._process_perf_metric_test_result(result.stdout)
-            trace = ""
-        else:
-            status = TestStatus.FAILED
-            metrics = ""
-            # Get enhanced diagnostic information for better error reporting
-            diagnostic_info = self._extract_diagnostic_info(log_path, test_name, result)
-            if diagnostic_info:
-                trace = f"Testcase '{testcase}' failed: {diagnostic_info}"
-            else:
-                trace = (
-                    f"Testcase '{testcase}' failed with exit code "
-                    f"{result.exit_code}"
-                )
+        """Determine pass/fail for a single test from the metrics run.
 
-        return status, metrics, trace
+        Returns (status, metrics, trace).
+        """
+        if result_entry.get("status") == "FAILED":
+            return (
+                TestStatus.FAILED,
+                "",
+                f"Testcase '{testcase}' reported status FAILED.",
+            )
+
+        metrics = f'"results": [{json.dumps(result_entry)}]'
+        return TestStatus.PASSED, metrics, ""
 
     def _send_metrics_test_result(
         self,
@@ -726,19 +754,6 @@ class CloudHypervisorTests(Tool):
             test_status=status,
             test_message=msg,
         )
-
-    def _write_testcase_log(self, log_path: Path, testcase: str, trace: str) -> None:
-        """Write testcase log to file."""
-        testcase_log_file = log_path.joinpath(f"{testcase}.log")
-        with open(testcase_log_file, "w") as f:
-            if hasattr(self, "_last_result") and self._last_result is not None:
-                if self._last_result.stdout:
-                    f.write(self._last_result.stdout)
-                if self._last_result.stderr:
-                    f.write("\n=== STDERR ===\n")
-                    f.write(self._last_result.stderr)
-            else:
-                f.write(f"Test failed before execution: {trace}")
 
     def _extract_diagnostic_info(
         self, log_path: Path, test_name: str, result: Any
@@ -775,7 +790,6 @@ class CloudHypervisorTests(Tool):
     def _check_test_panic_from_logs(
         self,
         test_result: TestResult,
-        log_path: Path,
         content: str,
         stage: str,
         test_name: str,
@@ -934,10 +948,9 @@ class CloudHypervisorTests(Tool):
         self,
         cmd_args: str,
         timeout: int,
-        log_path: Path,
         test_name: str = "ch_test",
         numa_cmd: str = "",
-    ) -> Any:
+    ) -> ExecutableResult:
         """
         Run Cloud Hypervisor tests with enhanced Rust diagnostics, core dumps,
         inactivity watchdog, and comprehensive logging.
@@ -983,7 +996,6 @@ echo "[env] CH_IDLE_SECS=${{CH_IDLE_SECS:-600}}"
 echo "[env] CH_HANG_KILL_SECS=${{CH_HANG_KILL_SECS:-1800}}"
 echo "[env] CH_CHECK_INTERVAL=${{CH_CHECK_INTERVAL:-30}}"
 echo "[env] MIGRATABLE_VERSION=${{MIGRATABLE_VERSION:-not_set}}"
-test -x scripts/dev_cli.sh || {{ echo "[error] scripts/dev_cli.sh missing"; exit 98; }}
 
 # repo-local artifact names so LISA will collect them
 log_file="{test_name}.log"
@@ -1021,7 +1033,7 @@ while kill -0 $pid 2>/dev/null; do
   if [ "$size" -eq "$last_size" ]; then
     idle=$((idle + check_interval))
   else
-    total_idle=$((total_idle + idle))
+    total_idle=0
     idle=0
     last_size=$size
   fi
@@ -1473,6 +1485,191 @@ exit $ec
 
         return results
 
+    def _get_nextest_junit_dir(self) -> str:
+        """Resolve the SSH user's nextest JUnit output dir.
+
+        ``dev_cli.sh`` is invoked as the SSH user (not under sudo) and uses
+        docker, which bind-mounts the SSH user's ``$HOME/workloads`` into
+        ``/root/workloads`` inside the container. Files the container writes
+        to ``/root/workloads/junit/`` therefore appear on the host at
+        ``<ssh_user_home>/workloads/junit/``. Falls back to
+        ``/root/workloads/junit`` if ``$HOME`` cannot be resolved.
+        """
+        home_result = self.node.execute(
+            "echo $HOME",
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        home = (
+            home_result.stdout.strip().splitlines()[0].strip()
+            if home_result.stdout
+            else ""
+        )
+        if not home:
+            self._log.debug(
+                "Could not resolve $HOME for SSH user; falling back to "
+                "/root/workloads/junit for nextest output"
+            )
+            home = "/root"
+        return f"{home}/workloads/junit"
+
+    def _collect_nextest_junit_files(self, log_path: Path) -> List[Path]:
+        """Find nextest JUnit XML files on the remote node and copy them back.
+
+        The cloud-hypervisor nextest config writes per-suite JUnit XMLs
+        (e.g. common.xml, fw_cfg.xml, dbus.xml, ivshmem.xml) into
+        ``/root/workloads/junit/`` inside the dev container. ``dev_cli.sh``
+        is invoked as the SSH user (the user is in the ``docker`` group)
+        and runs the container with ``--user $(id -u):$(id -g)``, so
+        docker bind-mounts the SSH user's ``$HOME/workloads`` into the
+        container's ``/root/workloads`` and the container writes files as
+        the SSH user. The files therefore land on the host at
+        ``<ssh_user_home>/workloads/junit/`` (resolved via
+        ``_get_nextest_junit_dir``) and are readable by the SSH user
+        directly, so we can ``copy_back`` them without sudo or staging.
+
+        Returns a list of local file paths under ``log_path/junit/`` that
+        were successfully copied back. Returns an empty list when the
+        cloud-hypervisor repo has not produced any nextest JUnit output
+        (e.g. when the test run used the classic ``cargo test`` driver).
+        """
+        remote_junit_dir = self._get_nextest_junit_dir()
+        list_result = self.node.execute(
+            f"ls -1 {remote_junit_dir}/*.xml 2>/dev/null",
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        remote_files = [
+            line.strip() for line in list_result.stdout.splitlines() if line.strip()
+        ]
+        if not remote_files:
+            return []
+
+        local_junit_dir = log_path / "junit"
+        local_junit_dir.mkdir(parents=True, exist_ok=True)
+
+        local_files: List[Path] = []
+        for remote_path in remote_files:
+            basename = PurePath(remote_path).name
+            local_path = local_junit_dir / basename
+            try:
+                self.node.shell.copy_back(PurePath(remote_path), local_path)
+                local_files.append(local_path)
+            except Exception as e:
+                self._log.warning(f"Failed to copy back JUnit file {remote_path}: {e}")
+
+        self._log.info(
+            f"Collected {len(local_files)} nextest JUnit file(s) from "
+            f"{remote_junit_dir}"
+        )
+        return local_files
+
+    def _extract_test_results_from_junit(
+        self,
+        junit_files: List[Path],
+        subtests: Set[str],
+    ) -> List[CloudHypervisorTestResult]:
+        """Parse nextest JUnit XML files into per-subtest results.
+
+        Status mapping per ``<testcase>``:
+        - ``<failure>`` or ``<error>`` child element -> FAILED
+        - ``<skipped>`` child element -> SKIPPED
+        - no failure/error/skipped child -> PASSED
+
+        For tests that nextest retried (same name appears multiple times),
+        the last occurrence wins, matching nextest's final-outcome
+        reporting. Tests present in ``subtests`` but absent from every
+        JUnit file are reported as QUEUED with message
+        ``"Subtest did not start"``. Tests present in JUnit but not in the
+        expected ``subtests`` set are still surfaced as extra results so
+        no information is dropped.
+        """
+        subtest_status: Dict[str, TestStatus] = {t: TestStatus.QUEUED for t in subtests}
+        subtest_messages: Dict[str, str] = {}
+        extra_results: List[CloudHypervisorTestResult] = []
+
+        for junit_file in junit_files:
+            try:
+                tree = ETree.parse(junit_file)
+            except ETree.ParseError as e:
+                self._log.warning(
+                    f"Failed to parse JUnit file {junit_file}: {e}; skipping"
+                )
+                continue
+
+            root = tree.getroot()
+            for testcase in root.iter("testcase"):
+                raw_name = testcase.attrib.get("name", "").strip()
+                if not raw_name:
+                    continue
+                name = raw_name.lower()
+
+                failure_el = testcase.find("failure")
+                error_el = testcase.find("error")
+                skipped_el = testcase.find("skipped")
+
+                if failure_el is not None or error_el is not None:
+                    status = TestStatus.FAILED
+                    detail_el = failure_el if failure_el is not None else error_el
+                    message = self._extract_junit_detail_text(detail_el)
+                elif skipped_el is not None:
+                    status = TestStatus.SKIPPED
+                    message = self._extract_junit_detail_text(skipped_el)
+                else:
+                    status = TestStatus.PASSED
+                    message = ""
+
+                if name in subtest_status:
+                    subtest_status[name] = status
+                    if message:
+                        subtest_messages[name] = message
+                    else:
+                        # Clear any prior message when a retry passes.
+                        subtest_messages.pop(name, None)
+                else:
+                    extra_results.append(
+                        CloudHypervisorTestResult(
+                            name=name,
+                            status=status,
+                            message=message,
+                        )
+                    )
+
+        results: List[CloudHypervisorTestResult] = []
+        for subtest in subtests:
+            status = subtest_status[subtest]
+            if status == TestStatus.QUEUED:
+                message = "Subtest did not start"
+            else:
+                message = subtest_messages.get(subtest, "")
+            results.append(
+                CloudHypervisorTestResult(
+                    name=subtest,
+                    status=status,
+                    message=message,
+                )
+            )
+        results.extend(extra_results)
+        return results
+
+    def _extract_junit_detail_text(self, element: Optional[ETree.Element]) -> str:
+        """Extract a concise human-readable message from a JUnit
+        failure/error/skipped child element. Prefers the ``message``
+        attribute; falls back to element text. Truncated to keep the
+        downstream subtest result message readable.
+        """
+        if element is None:
+            return ""
+        message = element.attrib.get("message", "").strip()
+        if not message and element.text:
+            message = element.text.strip()
+        max_len = 500
+        if len(message) > max_len:
+            message = message[:max_len] + "..."
+        return message
+
     def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
         tests_list = []
         result = self.run(
@@ -1500,41 +1697,6 @@ exit $ec
 
         self._log.debug(f"Testcases found: {tests_list}")
         return tests_list
-
-    def _process_perf_metric_test_result(self, output: str) -> str:
-        # Sample Output
-        # "git_human_readable": "v27.0",
-        # "git_revision": "2ba6a9bfcfd79629aecf77504fa554ab821d138e",
-        # "git_commit_date": "Thu Sep 29 17:56:21 2022 +0100",
-        # "date": "Wed Oct 12 03:51:38 UTC 2022",
-        # "results": [
-        #     {
-        #     "name": "block_multi_queue_read_MiBps",
-        #     "mean": 158.64382311768824,
-        #     "std_dev": 7.685502103050337,
-        #     "max": 173.9743994350565,
-        #     "min": 154.10646435356466
-        #     }
-        # ]
-        # }
-        # real    1m39.856s
-        # user    0m6.376s
-        # sys     2m32.973s
-        # + RES=0
-        # + exit 0
-
-        output = output.replace("\n", "")
-        regex = '\\"results\\"\\: (.*?)\\]'
-        result = re.search(regex, output)
-
-        if result:
-            return result.group(0)
-        return ""
-
-    def _is_multi_queue_test(self, testcase: str) -> bool:
-        """Check if test is a multi-queue test."""
-        tc_lower = testcase.lower()
-        return "multi_queue" in tc_lower or "multi-queue" in tc_lower
 
     def _save_kernel_logs(self, log_path: Path) -> None:
         # Use serial console if available. Serial console logs can be obtained
@@ -1662,20 +1824,6 @@ exit $ec
         if not datadisk_name:
             raise LisaException("No unmounted data disk (/dev/sdX) found")
         return datadisk_name
-
-    def _set_block_size_env_var(self, testcase: str) -> None:
-        block_size_env_var = "PERF_BLOCK_SIZE_KB"
-        if block_size_env_var in self.env_vars:
-            del self.env_vars[block_size_env_var]
-        if "block" in testcase:
-            block_size = ""
-            if "MiBps" in testcase:
-                block_size = self.mibps_block_size_kb
-            elif "IOPS" in testcase:
-                block_size = self.iops_block_size_kb
-
-            if block_size:
-                self.env_vars[block_size_env_var] = block_size
 
     # ========== PERF-STABLE PROFILE IMPLEMENTATION ==========
     #
@@ -2221,9 +2369,6 @@ exit $ec
             timeout=warmup_seconds + 10,
         )
 
-        # Note: Cache policy is applied per-test in _run_single_metrics_test()
-        # to provide consistent cache state for each individual test
-
     def _get_numa_prefix(self) -> str:
         """
         Get NUMA binding prefix for perf-stable profile.
@@ -2248,24 +2393,3 @@ exit $ec
 
         # Strict NUMA binding: pin both CPU and memory to selected node
         return f"numactl --cpunodebind={self._numa_node} --membind={self._numa_node}"
-
-
-def extract_jsons(input_string: str) -> List[Any]:
-    json_results: List[Any] = []
-    start_index = input_string.find("{")
-    search_index = start_index
-    while start_index != -1:
-        end_index = input_string.find("}", search_index) + 1
-        if end_index == 0:
-            start_index = input_string.find("{", start_index + 1)
-            search_index = start_index
-            continue
-        json_string = input_string[start_index:end_index]
-        try:
-            result = json.loads(json_string)
-            json_results.append(result)
-            start_index = input_string.find("{", end_index)
-            search_index = start_index
-        except json.decoder.JSONDecodeError:
-            search_index = end_index
-    return json_results

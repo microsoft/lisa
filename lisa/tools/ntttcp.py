@@ -816,7 +816,7 @@ class Ntttcp(Tool):
             )
         if need_reboot:
             self._log.debug("reboot vm to make sure TasksMax change take effect")
-            self.node.reboot()
+            self.node.reboot(time_out=600)
 
 
 class BSDNtttcp(Ntttcp):

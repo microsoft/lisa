@@ -7,9 +7,11 @@ import datetime
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, NoReturn, Union
+from urllib.parse import unquote, urlparse
 
 from openai import AsyncAzureOpenAI
 from retry import retry
@@ -59,6 +61,15 @@ class EvaluationResult:
     generated_summary: str
     ground_truth_summary: str
     processing_time: float
+
+
+@dataclass
+class StorageLogLinkInfo:
+    subscription_id: str
+    resource_group: str
+    storage_account: str
+    container: str
+    blob_prefix: str
 
 
 def _load_test_data() -> List[Dict[str, str]]:
@@ -349,12 +360,265 @@ def _get_keywords(answer: Union[Dict[str, List[str]], List[str], str]) -> str:
     else:
         # ground_truth is a string
         keywords = [answer]
-
     assert isinstance(keywords, list), f"Expected list, got {type(keywords)}"
     # Sort alphabetically and join.
     keywords_str = ", ".join(sorted(keywords))
 
     return keywords_str
+
+
+def _parse_lisa_storage_log_link(log_link: str) -> StorageLogLinkInfo:
+    """
+    Parse a LISA-generated Azure Portal storage container link.
+
+    Expected fragment format after URL decoding:
+    .../storageAccountId//subscriptions/<sub>/resourceGroups/<rg>/
+    providers/Microsoft.Storage/storageAccounts/<account>/path/<container>/<prefix>
+    """
+
+    parsed = urlparse(log_link)
+    if not parsed.fragment:
+        raise ValueError("Invalid log link: missing URL fragment.")
+
+    decoded_fragment = unquote(parsed.fragment)
+    if "/storageAccountId/" not in decoded_fragment or "/path/" not in decoded_fragment:
+        raise ValueError(
+            "Invalid log link: expected '/storageAccountId/.../path/...' pattern."
+        )
+
+    storage_and_path = decoded_fragment.split("/storageAccountId/", 1)[1]
+    storage_id_part, path_part = storage_and_path.split("/path/", 1)
+
+    storage_id = storage_id_part.strip("/")
+    path_value = path_part.strip("/")
+    if not path_value:
+        raise ValueError("Invalid log link: missing storage path after '/path/'.")
+
+    segments = [seg for seg in storage_id.split("/") if seg]
+
+    try:
+        sub_idx = segments.index("subscriptions")
+        rg_idx = segments.index("resourceGroups")
+        sa_idx = segments.index("storageAccounts")
+    except ValueError as identifier:
+        raise ValueError(
+            "Invalid log link: missing one of subscriptions/resourceGroups/"
+            "storageAccounts in storageAccountId."
+        ) from identifier
+
+    if len(segments) <= max(sub_idx + 1, rg_idx + 1, sa_idx + 1):
+        raise ValueError("Invalid log link: incomplete storageAccountId fields.")
+
+    subscription_id = segments[sub_idx + 1]
+    resource_group = segments[rg_idx + 1]
+    storage_account = segments[sa_idx + 1]
+
+    path_parts = [part for part in path_value.split("/") if part]
+    if not path_parts:
+        raise ValueError("Invalid log link: storage path is empty.")
+
+    container = path_parts[0]
+    blob_prefix = "/".join(path_parts[1:])
+
+    if not re.fullmatch(r"[0-9a-fA-F-]{36}", subscription_id):
+        raise ValueError("Invalid log link: subscription id is not a GUID.")
+
+    if not re.fullmatch(r"[a-z0-9]{3,24}", storage_account):
+        raise ValueError(
+            "Invalid log link: storage account name does not match Azure rules."
+        )
+
+    return StorageLogLinkInfo(
+        subscription_id=subscription_id,
+        resource_group=resource_group,
+        storage_account=storage_account,
+        container=container,
+        blob_prefix=blob_prefix,
+    )
+
+
+def _get_storage_credential() -> Any:
+    """
+    Get Azure Storage credential using AAD only.
+    """
+    try:
+        from azure.identity import DefaultAzureCredential
+    except ModuleNotFoundError as e:
+        _raise_missing_azure_dependency_error("azure.identity", e)
+
+    logger.info("Using DefaultAzureCredential (AAD) for storage access.")
+    return DefaultAzureCredential()
+
+
+def _raise_missing_azure_dependency_error(
+    module_name: str, error: ModuleNotFoundError
+) -> NoReturn:
+    raise ModuleNotFoundError(
+        "Missing Azure SDK dependencies required for --log-link. "
+        f"Failed to import '{module_name}'. "
+        "Install the repo Azure optional dependencies and retry. "
+        "From the lisa package root, run: pip install -e .[azure]"
+    ) from error
+
+
+def _to_local_fs_path(path: str) -> str:
+    absolute_path = os.path.abspath(path)
+    if os.name == "nt" and not absolute_path.startswith("\\\\?\\"):
+        return "\\\\?\\" + absolute_path
+    return absolute_path
+
+
+def _resolve_safe_local_blob_path(
+    root_path: str, relative_blob_path: str, source_blob_name: str
+) -> str:
+    # Blob names should be relative and use '/' as separators.
+    if not relative_blob_path:
+        raise ValueError(
+            f"Invalid blob path: empty relative path for '{source_blob_name}'"
+        )
+    if relative_blob_path.startswith(("/", "\\")):
+        raise ValueError(
+            f"Invalid blob path: absolute path is not allowed: '{source_blob_name}'"
+        )
+    if re.match(r"^[a-zA-Z]:", relative_blob_path):
+        raise ValueError(
+            f"Invalid blob path: drive letter is not allowed: '{source_blob_name}'"
+        )
+    if os.name == "nt" and "\\" in relative_blob_path:
+        raise ValueError(
+            f"Invalid blob path: backslash is not allowed on Windows: "
+            f"'{source_blob_name}'."
+        )
+
+    safe_parts = [
+        part for part in relative_blob_path.split("/") if part and part != "."
+    ]
+    if any(part == ".." for part in safe_parts):
+        raise ValueError(
+            f"Invalid blob path: parent directory traversal is not allowed: "
+            f"'{source_blob_name}'."
+        )
+
+    if not safe_parts:
+        raise ValueError(
+            f"Invalid blob path: no valid path segments in '{source_blob_name}'."
+        )
+
+    root_abs = os.path.abspath(root_path)
+    destination_abs = os.path.abspath(os.path.join(root_abs, *safe_parts))
+    if os.path.commonpath([root_abs, destination_abs]) != root_abs:
+        raise ValueError(
+            f"Invalid blob path: resolved outside destination root: "
+            f"'{source_blob_name}'."
+        )
+
+    return destination_abs
+
+
+def _download_blobs_to_local(
+    container_client: Any,
+    blobs: List[Any],
+    prefix_with_sep: str,
+    local_selected_root: str,
+) -> int:
+    downloaded_count = 0
+    for blob in blobs:
+        blob_name = blob.name
+        relative_blob_name = blob_name
+        if prefix_with_sep and blob_name.startswith(prefix_with_sep):
+            relative_blob_name = blob_name[len(prefix_with_sep) :]
+        if not relative_blob_name:
+            continue
+
+        local_blob_path = _resolve_safe_local_blob_path(
+            root_path=local_selected_root,
+            relative_blob_path=relative_blob_name,
+            source_blob_name=blob_name,
+        )
+        local_blob_path_fs = _to_local_fs_path(local_blob_path)
+        local_parent_fs = os.path.dirname(local_blob_path_fs)
+        os.makedirs(local_parent_fs, exist_ok=True)
+
+        with open(local_blob_path_fs, "wb") as output_file:
+            stream = container_client.download_blob(blob_name)
+            for chunk in stream.chunks():
+                output_file.write(chunk)
+        downloaded_count += 1
+    return downloaded_count
+
+
+def _download_logs_from_link(log_link: str) -> str:
+    """
+    Download logs from an Azure Storage portal link to lisa/ai/logs.
+
+    Returns the local folder path used for analysis.
+    """
+
+    try:
+        from azure.storage.blob import BlobServiceClient
+    except ModuleNotFoundError as e:
+        _raise_missing_azure_dependency_error("azure.storage.blob", e)
+
+    link_info = _parse_lisa_storage_log_link(log_link)
+    logger.info(
+        "Parsed log link: "
+        f"subscription={link_info.subscription_id}, "
+        f"resource_group={link_info.resource_group}, "
+        f"account={link_info.storage_account}, "
+        f"container={link_info.container}, "
+        f"prefix={link_info.blob_prefix}"
+    )
+
+    credential = _get_storage_credential()
+    account_url = f"https://{link_info.storage_account}.blob.core.windows.net"
+    blob_service_client = BlobServiceClient(
+        account_url=account_url, credential=credential
+    )
+    container_client = blob_service_client.get_container_client(link_info.container)
+
+    if not container_client.exists():
+        raise ValueError(
+            f"Storage container '{link_info.container}' does not exist in "
+            f"account '{link_info.storage_account}'."
+        )
+
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    local_root = os.path.join(
+        get_current_directory(),
+        "logs",
+        f"d_{timestamp}",
+    )
+    os.makedirs(_to_local_fs_path(local_root), exist_ok=True)
+
+    starts_with = link_info.blob_prefix
+    if starts_with and not starts_with.endswith("/"):
+        starts_with = f"{starts_with}/"
+
+    blobs = list(container_client.list_blobs(name_starts_with=starts_with))
+    if not blobs:
+        raise ValueError(
+            f"No blobs found in '{link_info.container}/{link_info.blob_prefix}'."
+        )
+
+    normalized_prefix = link_info.blob_prefix.strip("/")
+    prefix_with_sep = f"{normalized_prefix}/" if normalized_prefix else ""
+
+    selected_root_name = (
+        normalized_prefix.rsplit("/", maxsplit=1)[-1]
+        if normalized_prefix
+        else link_info.container
+    )
+    local_selected_root = os.path.join(local_root, selected_root_name)
+
+    downloaded_count = _download_blobs_to_local(
+        container_client, blobs, prefix_with_sep, local_selected_root
+    )
+
+    logger.info(
+        f"Downloaded {downloaded_count} blob(s) from "
+        f"'{link_info.container}/{link_info.blob_prefix}' to: {local_selected_root}"
+    )
+    return local_selected_root
 
 
 @retry(tries=3, delay=2)  # type: ignore
@@ -435,10 +699,20 @@ def _offline_analyze(args: argparse.Namespace, config: Config) -> None:
     if custom_code_path:
         config.code_path = custom_code_path
 
+    log_folders = list(args.log_folders) if args.log_folders else []
+    if getattr(args, "log_link", None):
+        downloaded_path = _download_logs_from_link(args.log_link)
+        log_folders.append(downloaded_path)
+
+    if not log_folders:
+        raise ValueError(
+            "Either --log-folders (-l) or --log-link (-ll) must be provided."
+        )
+
     analyze(
         azure_openai_endpoint=config.azure_openai_endpoint,
         code_path=config.code_path,
-        log_folder_path=args.log_folders,
+        log_folder_path=log_folders,
         error_message=args.error_message,
         azure_openai_api_key=config.azure_openai_api_key,
         general_deployment_name=config.general_deployment_name,
@@ -641,8 +915,17 @@ def parse_args() -> argparse.Namespace:
         "-l",
         "--log-folders",
         nargs="+",
-        required=True,
+        required=False,
         help="List of log folder paths to analyze",
+    )
+    analyze_parser.add_argument(
+        "-ll",
+        "--log-link",
+        default=None,
+        help=(
+            "LISA Azure Storage portal log link. If provided, logs are downloaded "
+            "to lisa/ai/logs and analyzed from the downloaded local path."
+        ),
     )
     analyze_parser.add_argument(
         "-e",

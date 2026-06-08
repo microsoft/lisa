@@ -1,11 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import logging
 import re
+from typing import TextIO, cast
 from unittest.case import TestCase
+from unittest.mock import patch
 
 from lisa.secret import PATTERN_GUID, add_secret, mask, reset
-from lisa.util.logger import get_logger
+from lisa.util.logger import LogWriter, get_logger
 
 
 class SecretTestCase(TestCase):
@@ -71,8 +74,10 @@ class SecretTestCase(TestCase):
         add_secret("t1", sub="*")
         add_secret("t1t2", sub="**")
 
-        with self.assertLogs("lisa") as cm:
-            print("t1t2 2")
+        stdout = cast(TextIO, LogWriter(get_logger("stdout"), logging.INFO))
+        with patch("sys.stdout", new=stdout):
+            with self.assertLogs("lisa") as cm:
+                print("t1t2 2")
         self.assertListEqual(["INFO:lisa.stdout:** 2"], cm.output)
 
     def test_log_with_args(self) -> None:

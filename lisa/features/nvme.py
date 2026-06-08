@@ -183,10 +183,22 @@ class Nvme(Feature):
             os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
             os_disk_nvme_controller = self.get_nvme_os_disk_controller()
             nvme_cli = self._node.tools[Nvmecli]
-            disk_model_map = nvme_cli.get_disk_model_map()
-            self._log.debug(
-                f"NVMe disk model map: {disk_model_map}"
-            )
+            disk_model_map = nvme_cli.get_device_models()
+
+            # Fall back to the legacy model helper if needed for older callers
+            # or nvme-cli output variants.
+            if not disk_model_map:
+                disk_model_map = nvme_cli.get_disk_model_map()
+
+            self._log.debug(f"NVMe disk model map: {disk_model_map}")
+
+            if not disk_model_map:
+                os_disk_nvme_device = self._get_os_disk_nvme_device()
+                for disk in disk_list.copy():
+                    if os_disk_nvme_device and os_disk_nvme_device in disk:
+                        disk_list.remove(disk)
+                return disk_list
+
             filtered = []
             removed_os = []
             removed_remote = []

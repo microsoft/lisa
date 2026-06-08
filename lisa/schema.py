@@ -495,7 +495,7 @@ class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
     os_disk_type: Optional[
         Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=os_disk_types,
@@ -512,7 +512,7 @@ class DiskOptionSettings(FeatureSettings):
     )
     data_disk_type: Optional[
         Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=data_disk_types,
@@ -567,7 +567,7 @@ class DiskOptionSettings(FeatureSettings):
     )
     disk_controller_type: Optional[
         Union[search_space.SetSpace[DiskControllerType], DiskControllerType]
-    ] = field(  # type:ignore
+    ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
             items=[DiskControllerType.SCSI, DiskControllerType.NVME],
@@ -891,8 +891,11 @@ class VirtualizationSettings(FeatureSettings):
     )
 
     def __eq__(self, o: object) -> bool:
+        if not super().__eq__(o):
+            return False
+
         assert isinstance(o, VirtualizationSettings), f"actual: {type(o)}"
-        return super().__eq__(o) and self.host_type == o.host_type
+        return self.host_type == o.host_type
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -1458,6 +1461,115 @@ class RemoteNode(Node):
 @dataclass
 class GuestNode(Node):
     reinstall: bool = False
+    use_parent_capability: bool = True
+
+
+def _guest_node_runbook_to_dict(raw_runbook: Any) -> Dict[str, Any]:
+    if isinstance(raw_runbook, dict):
+        return cast(Dict[str, Any], raw_runbook)
+
+    to_dict = getattr(raw_runbook, "to_dict", None)
+    if not callable(to_dict):
+        raise LisaException(
+            f"guest node runbook must be a dict or support to_dict(), got "
+            f"'{type(raw_runbook).__name__}'"
+        )
+
+    return cast(Dict[str, Any], to_dict())
+
+
+def load_typed_guest_node(raw_runbook: Any) -> GuestNode:
+    """
+    Load a guest-node runbook into the concrete GuestNode schema for its type.
+
+    Accepts an already-instantiated GuestNode subclass, a raw dict, or an
+    object that can be converted with ``to_dict()``. Subclass instances are
+    returned unchanged so any type-specific state is preserved. Otherwise, this
+    helper initializes the node factory, resolves the schema from the runbook
+    ``type`` field, and rejects unknown fields exposed through
+    ``extended_schemas``.
+
+    Raises:
+        LisaException: If the node type cannot be resolved, if unknown fields
+            are present, or if the resolved schema is not a GuestNode.
+    """
+    if isinstance(raw_runbook, GuestNode) and type(raw_runbook) is not GuestNode:
+        return raw_runbook
+
+    raw_runbook = _guest_node_runbook_to_dict(raw_runbook)
+
+    from lisa import node as node_module
+    from lisa.util import subclasses
+
+    if not node_module.Node._factory:
+        node_module.Node._factory = subclasses.Factory[node_module.Node](
+            node_module.Node
+        )
+
+    node_module.Node._factory.initialize()
+    node_type_name = raw_runbook.get(constants.TYPE)
+    if not node_type_name:
+        raise LisaException(
+            f"guest node runbook is missing the required '{constants.TYPE}' field. "
+            "Each guest node entry must specify a 'type' to identify the "
+            "orchestrator (e.g. 'openvmm')."
+        )
+    node_type = node_module.Node._factory.get(node_type_name)
+    if node_type is None:
+        raise LisaException(
+            f"cannot find guest node type '{node_type_name}'. "
+            "Make sure the node type is imported in mixin_modules.py or the "
+            "extension is loaded."
+        )
+
+    guest_schema_type = cast(Any, node_type).type_schema()
+    guest_runbook = load_by_type(guest_schema_type, raw_runbook)
+    if hasattr(guest_runbook, "extended_schemas") and guest_runbook.extended_schemas:
+        raise LisaException(f"found unknown fields: {guest_runbook.extended_schemas}")
+
+    if not isinstance(guest_runbook, GuestNode):
+        raise LisaException(
+            f"guest node type '{node_type_name}' must use a "
+            "GuestNode schema, "
+            f"but loaded '{type(guest_runbook).__name__}'"
+        )
+
+    return guest_runbook
+
+
+def _get_guest_node_count(raw_runbook: Dict[str, Any]) -> int:
+    raw_capability = raw_runbook.get("capability")
+    if not isinstance(raw_capability, dict):
+        return 1
+
+    raw_node_count = raw_capability.get("node_count")
+    if raw_node_count is None:
+        return 1
+
+    node_count_space = search_space.decode_count_space(raw_node_count)
+    node_count = search_space.choose_value_countspace(
+        node_count_space, node_count_space
+    )
+    if node_count < 1:
+        raise LisaException("guest capability.node_count must be at least 1")
+
+    return node_count
+
+
+def _load_guest_node_templates(raw_runbooks: List[Any]) -> List[GuestNode]:
+    loaded_runbooks: List[GuestNode] = []
+    for raw_runbook in raw_runbooks:
+        raw_runbook = _guest_node_runbook_to_dict(raw_runbook)
+        raw_runbook = copy.deepcopy(raw_runbook)
+        node_count = _get_guest_node_count(raw_runbook)
+        for _ in range(node_count):
+            guest_runbook = copy.deepcopy(raw_runbook)
+            raw_capability = guest_runbook.get("capability")
+            if isinstance(raw_capability, dict):
+                raw_capability["node_count"] = 1
+            loaded_runbooks.append(load_typed_guest_node(guest_runbook))
+
+    return loaded_runbooks
 
 
 @dataclass_json()
@@ -1467,7 +1579,8 @@ class WslNode(GuestNode):
     # wsl_version can be "prerelease" or "stable"
     wsl_version: str = "prerelease"
     # force to reinstall
-    distro: str = "Ubuntu"
+    # Use Ubuntu-24.04 explicitly to avoid Ubuntu-26.04 compatibility issues with LTP
+    distro: str = "Ubuntu-24.04"
     # set to new kernel path, if it needs to specify kernel.
     kernel: str = ""
     # debug console
@@ -1555,7 +1668,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     admin_private_key_file: str = ""
 
     guest_enabled: bool = False
-    guests: List[Node] = field(default_factory=list)
+    guests: List[Any] = field(default_factory=list)
 
     # no/False: means to delete the environment regardless case fail or pass
     # yes/always/True: means to keep the environment regardless case fail or pass
@@ -1580,6 +1693,9 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
+
+        if self.guests:
+            self.guests = _load_guest_node_templates(self.guests)
 
         if isinstance(self.keep_environment, bool):
             if self.keep_environment:

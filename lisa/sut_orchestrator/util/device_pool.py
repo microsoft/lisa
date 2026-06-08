@@ -15,7 +15,7 @@ class BaseDevicePool:
     def __init__(self) -> None:
         self.supported_pool_type: List[Any] = []
 
-    def create_device_pool(
+    def create_device_pool_from_vendor_device_id(
         self,
         pool_type: HostDevicePoolType,
         vendor_id: str,
@@ -46,9 +46,6 @@ class BaseDevicePool:
             f"Location-path identifiers are not supported by "
             f"{type(self).__name__} for pool type '{pool_type}'."
         )
-
-    def get_primary_nic_id(self) -> List[str]:
-        raise NotImplementedError()
 
     def request_devices(
         self,
@@ -85,6 +82,10 @@ class BaseDevicePool:
                 )
 
     def _configure_passthrough_pool(self, config: HostDevicePoolSchema) -> None:
+        if config.auto_discover:
+            self.auto_discover_pool(config.type)
+            return
+
         devices = config.devices
         if self._is_vendor_device_id_list(devices):
             vendor_device_list = cast(List[VendorDeviceIdIdentifier], devices)
@@ -101,6 +102,9 @@ class BaseDevicePool:
         raise LisaException(
             f"Unknown device identifier of type: {type(devices)}" f", value: {devices}"
         )
+
+    def auto_discover_pool(self, pool_type: HostDevicePoolType) -> None:
+        raise NotImplementedError()
 
     def _is_vendor_device_id_list(self, devices: Any) -> bool:
         if not isinstance(devices, list):
@@ -133,7 +137,7 @@ class BaseDevicePool:
         if not device_id:
             raise LisaException("Device pool configuration has empty 'device_id'")
 
-        self.create_device_pool(
+        self.create_device_pool_from_vendor_device_id(
             pool_type=config.type,
             vendor_id=vendor_id,
             device_id=device_id,

@@ -55,6 +55,7 @@ class NodeContext:
     vm_name: str = ""
     kernel_source_path: str = ""
     kernel_path: str = ""
+    guest_kernel_boot_parameters: str = ""
     host_data: str = ""
     is_host_data_base64: bool = False
     guest_vm_type: GuestVmType = field(default_factory=lambda: GuestVmType.Standard)

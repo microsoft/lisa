@@ -55,6 +55,7 @@ class NvmeFeatureTestCase(TestCase):
         )
 
         nvme_cli = Mock()
+        nvme_cli.get_device_models.return_value = disk_model_map
         nvme_cli.get_disk_model_map.return_value = disk_model_map
 
         node = Mock()

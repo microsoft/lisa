@@ -140,7 +140,7 @@ class Nics(InitializableMixin):
         "mlx5_core": ModuleInformation(["mlx5_ib"], "CONFIG_MLX5_CORE"),
         "mlx4_core": ModuleInformation(["mlx4_en", "mlx4_ib"], "CONFIG_MLX4_CORE"),
         "mana": ModuleInformation(
-            ["mana", "mana_en", "mana_ib"], "CONFIG_MICROSOFT_MANA"
+            ["mana_en", "mana_ib", "mana"], "CONFIG_MICROSOFT_MANA"
         ),
     }
 
@@ -682,7 +682,7 @@ class Nics(InitializableMixin):
         module_list = [
             m
             for m in self._device_module_map[module_name].drivers
-            if modprobe.module_exists(m)
+            if modprobe.is_module_loaded(m, force_run=True)
         ]
         modprobe.remove(module_list)
         return module_list

@@ -565,3 +565,56 @@ reboot
 type: bool | Default: false
 
 Reboot the node after script execution.
+
+
+Use Host Kernel Boot Parameters Transformer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This transformer sets kernel boot parameters on a host node, reboots the node,
+and validates that the requested parameters are present in ``/proc/cmdline``
+after reboot. It uses the OS-specific ``GrubConfig`` tool to update the boot
+loader configuration.
+
+Usage
+``````
+.. code:: yaml
+
+  transformer:
+    - type: host_kernel_boot_parameters
+      phase: expanded
+      connection:
+        address: $(host_address)
+        private_key_file: $(admin_private_key_file)
+      parameters: "intel_iommu=on iommu=pt"
+      reboot_timeout: 900
+
+Outputs
+````````
+This transformer does not generate output variables.
+
+Reference
+`````````
+
+connection
+^^^^^^^^^^
+type: RemoteNode | Default: None
+
+SSH connection information for the host node. This is required when the
+transformer is not running with an already connected deployment node.
+
+parameters
+^^^^^^^^^^
+type: string | Default: ""
+
+Whitespace-separated kernel boot parameters in ``name=value`` format. Parameter
+names may contain letters, numbers, underscores, dots, and hyphens. Parameter
+values may contain letters, numbers, underscores, dots, commas, colons, slashes,
+plus signs, percent signs, at signs, equals signs, and hyphens. If no parameters
+are provided, the transformer exits without changing the node.
+
+reboot_timeout
+^^^^^^^^^^^^^^
+type: int | Default: 900
+
+Maximum time, in seconds, to wait for the node to reboot after updating the boot
+loader configuration.

@@ -26,7 +26,27 @@ class Ntp(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages("ntp")
+
+        if self._check_exists():
+            return True
+
+        # Canonical replaced 'ntp' with 'ntpsec' starting from Ubuntu 2510.
+        # 'ntpsec' is a modernized, security-hardened fork of 'ntp' Classic (ntpd),
+        # which is the original reference implementation of the Network Time Protocol.
+        # While they share the same core time-tracking algorithm, NTPsec has been
+        # heavily redesigned to eliminate legacy security flaws, optimize the codebase,
+        # and implement newer internet security standards.
+        ntp_package = ""
+        for candidate in ["ntp", "ntpsec"]:
+            if posix_os.is_package_in_repo(candidate):
+                ntp_package = candidate
+                break
+
+        if not ntp_package:
+            raise LisaException("Neither ntp nor ntpsec package was found in repo.")
+
+        posix_os.install_packages(ntp_package)
+
         return self._check_exists()
 
     @retry(tries=300, delay=1)  # type: ignore

@@ -144,6 +144,7 @@ class VmResize(TestSuite):
                     or "AllocationFailed" in str(e)
                     or "PropertyChangeNotAllowed" in str(e)
                     or "cannot boot Hypervisor Generation" in str(e)
+                    or "cannot boot with DiskControllerType" in str(e)
                     or "due to different CPU Architectures" in str(e)
                     or "An existing connection was forcibly closed by the remote host"
                     in str(e)

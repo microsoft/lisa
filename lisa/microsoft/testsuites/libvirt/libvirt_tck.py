@@ -7,7 +7,7 @@ from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Ubuntu
-from lisa.testsuite import TestResult
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Dmesg, Journalctl, Lscpu
 from lisa.util import SkippedException
 
@@ -22,10 +22,13 @@ from lisa.util import SkippedException
 
     More info: https://gitlab.com/libvirt/libvirt-tck/-/blob/master/README.rst
     """,
+    requirement=simple_requirement(supported_os=[Ubuntu, CBLMariner]),
 )
 class LibvirtTckSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+        # Defense-in-depth: catches custom VHD/SIG images whose OS detection
+        # may misclassify the node and bypass the supported_os gate.
         if not isinstance(node.os, (Ubuntu, CBLMariner)):
             raise SkippedException(
                 f"Libvirt TCK suite is not implemented in LISA for {node.os.name}"

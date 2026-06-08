@@ -1802,6 +1802,32 @@ class Fedora(RPMDistro):
 
         return kernel_information
 
+    @retry(tries=5, delay=5)  # type: ignore
+    def _initialize_package_installation(self) -> None:
+        self._log.debug("Refreshing DNF cache before package installation")
+        result = self._node.execute(
+            f"{self._dnf_tool()} clean metadata",
+            sudo=True,
+            timeout=300,
+        )
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to clean DNF metadata: {result.stdout} "
+                f"exit_code: {result.exit_code}, stderr: {result.stderr}"
+            )
+
+        result = self._node.execute(
+            f"{self._dnf_tool()} makecache",
+            sudo=True,
+            timeout=300,
+        )
+        if result.exit_code != 0:
+            raise LisaException(
+                f"Failed to refresh DNF cache: {result.stdout} "
+                f"exit_code: {result.exit_code}, stderr: {result.stderr}"
+            )
+        self._log.debug("DNF cache refreshed successfully.")
+
     def install_epel(self) -> None:
         # Extra Packages for Enterprise Linux (EPEL) is a special interest group
         # (SIG) from the Fedora Project that provides a set of additional packages
@@ -2036,15 +2062,95 @@ class CentOs(Redhat):
 
     def _initialize_package_installation(self) -> None:
         information = self._get_information()
-        if 8 == information.version.major:
-            # refer https://www.centos.org/centos-linux-eol/ CentOS 8 is EOL,
-            # old repo mirror was moved to vault.centos.org
-            # CentOS-AppStream.repo, CentOS-Base.repo may contain non-existed
-            # repo use skip_if_unavailable to avoid installation issues brought
-            #  in by above issue
+        if information.version.major in (7, 8):
+            # refer https://www.centos.org/centos-linux-eol/ - both CentOS 7
+            # and CentOS 8 are EOL and their repo mirrors were moved to
+            # vault.centos.org. mirror.centos.org returns 404 and
+            # olcentgbl.trafficmanager.net no longer resolves, so rewrite the
+            # stock repo files to point at vault.centos.org before any package
+            # operation. Use "|| true" so a missing repo file does not fail
+            # the whole command.
+            fix_commands = [
+                # Disable mirrorlist entries (vault does not serve mirrorlist)
+                "sed -i 's/^mirrorlist=/#mirrorlist=/g' "
+                "/etc/yum.repos.d/CentOS-*.repo || true",
+                # Point baseurl to vault.centos.org. Preserve the original
+                # scheme (http or https) via back-reference so images that
+                # ship with either scheme are handled correctly.
+                "sed -i -E 's|^#?baseurl=(https?)://mirror.centos.org|"
+                "baseurl=\\1://vault.centos.org|g' "
+                "/etc/yum.repos.d/CentOS-*.repo || true",
+                # Some CentOS images ship a second baseurl pointing at
+                # olcentgbl.trafficmanager.net which no longer resolves. The
+                # URL often appears on a continuation line (no "baseurl="
+                # prefix) and may live in a file that does not match
+                # CentOS-*.repo (e.g. OpenLogic.repo), so rewrite the host
+                # across every repo file.
+                #
+                # IMPORTANT: only rewrite when the path starts with
+                # "/centos/" (CentOS 7) or literal "/$contentdir/"
+                # (CentOS 8, where $contentdir is a yum variable that
+                # expands to "centos"). vault.centos.org only mirrors the
+                # /centos/<ver>/... tree (base/extras/updates). Other
+                # olcentgbl paths (notably /openlogic/*) have no
+                # vault.centos.org equivalent and rewriting them produces
+                # a stable 404. Those repos are left untouched and will
+                # be disabled below.
+                #
+                # Use plain (BRE) sed with literal strings — extended
+                # regex with alternation and "\$contentdir" inside a
+                # single-quoted "sh -c" argument has been observed to
+                # silently no-op on some images.
+                "sed -i 's|olcentgbl\\.trafficmanager\\.net/centos/"
+                "|vault.centos.org/centos/|g' "
+                "/etc/yum.repos.d/*.repo || true",
+                # Note: in sed BRE, "$" is the end-of-line anchor, so the
+                # literal yum variable "$contentdir" must be escaped as
+                # "\$contentdir" in the search pattern. The replacement
+                # side has no such anchor semantics, so "$contentdir" is
+                # already literal there.
+                "sed -i 's|olcentgbl\\.trafficmanager\\.net/\\$contentdir/"
+                "|vault.centos.org/$contentdir/|g' "
+                "/etc/yum.repos.d/*.repo || true",
+                # The OpenLogic repo (shipped on Azure marketplace
+                # CentOS 7 images) points at olcentgbl.trafficmanager.net
+                # /openlogic/... which no longer resolves and has no
+                # vault.centos.org equivalent. Disable the repo file by
+                # renaming it so yum stops trying to contact it. Use a
+                # case-insensitive glob via a "for" loop because the
+                # filename casing varies across images.
+                "for f in /etc/yum.repos.d/[Oo]pen[Ll]ogic*.repo; do "
+                '[ -f "$f" ] && mv -f "$f" "$f.disabled"; '
+                "done || true",
+            ]
+            for cmd in fix_commands:
+                self._node.execute(cmd, shell=True, sudo=True, timeout=30)
+            # Some stock repo files still reference unreachable hosts
+            # (e.g. olcentgbl.trafficmanager.net for the OpenLogic repo,
+            # which has no vault.centos.org equivalent). Allow yum to skip
+            # them so a single broken repo does not block the whole install.
+            #
+            # Setting skip_if_unavailable on the global [main] section is
+            # not enough: per-repo skip_if_unavailable overrides the global
+            # value and the stock CentOS repo files set it to False per
+            # repo. So we additionally apply skip_if_unavailable=true to
+            # every repo that failed in `yum repolist -v` output. Lines
+            # look like:
+            #   failure: repodata/repomd.xml from openlogic: [Errno 256] ...
             cmd_results = self._node.execute("yum repolist -v", sudo=True)
             if 0 != cmd_results.exit_code:
-                self._node.tools[YumConfigManager].set_opt("skip_if_unavailable=true")
+                yum_config_manager = self._node.tools[YumConfigManager]
+                yum_config_manager.set_opt("skip_if_unavailable=true")
+                failed_repos = sorted(
+                    set(
+                        re.findall(
+                            r"failure:\s+\S+\s+from\s+([\w.\-]+):",
+                            cmd_results.stdout,
+                        )
+                    )
+                )
+                for repo in failed_repos:
+                    yum_config_manager.set_opt(f"{repo}.skip_if_unavailable=true")
 
 
 class Oracle(Redhat):
@@ -2454,15 +2560,38 @@ class Suse(Linux):
             f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
         )
 
+    # Retry initialization when no repos are visible yet — the cloud
+    # registration may still be in progress.
+    @retry(exceptions=RepoNotExistException, tries=5, delay=30)  # type: ignore
     def _initialize_package_installation(self) -> None:
         self.wait_running_process("zypper")
         service = self._node.tools[Service]
         if service.check_service_exists("guestregister"):
             timeout = 120
             timer = create_timer()
+            recovered = False
             while timeout > timer.elapsed(False):
                 if service.is_service_inactive("guestregister"):
                     break
+                if not recovered and self._is_guestregister_failed():
+                    # On some SUSE images guestregister.service ends in the
+                    # "failed" state (typically "Credentials are invalid"),
+                    # leaving zypper without any cloud repositories. Force a
+                    # re-registration so repos become available before refresh.
+                    # After this, registercloudguest restarts the service, so
+                    # fall back to the wait loop until it becomes inactive.
+                    self._log.debug(
+                        "guestregister.service is in failed state; running "
+                        "'registercloudguest --force-new' to recover"
+                    )
+                    self._node.execute(
+                        "registercloudguest --force-new",
+                        sudo=True,
+                        shell=True,
+                        timeout=300,
+                    )
+                    recovered = True
+                    continue
                 time.sleep(1)
         output = self._execute_zypper_with_lock_retry(
             "zypper --non-interactive --gpg-auto-import-keys refresh",
@@ -2475,6 +2604,16 @@ class Suse(Linux):
                 self._node.os,
                 "There are no enabled repositories defined in this image.",
             )
+
+    def _is_guestregister_failed(self) -> bool:
+        result = self._node.execute(
+            "systemctl is-active guestregister",
+            sudo=True,
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        return "failed" in result.stdout
 
     def _uninstall_packages(
         self,
@@ -2523,10 +2662,12 @@ class Suse(Linux):
             timeout=timeout,
         )
 
-        # zypper exit codes that indicate dependency/resolution issues:
-        # 1: ZYPPER_EXIT_ERR_BUG - Unexpected situation
-        # 4: ZYPPER_EXIT_INF_CAP_NOT_FOUND - Capability not found or dependency problem
-        # 100: ZYPPER_EXIT_INF_UPDATE_NEEDED - Updates available
+        # zypper exit codes:
+        # 0: ZYPPER_EXIT_OK - Success
+        # 1: ZYPPER_EXIT_ERR_BUG - Unexpected situation (internal error)
+        # 4: ZYPPER_EXIT_ERR_ZYPP - A libzypp error (e.g. dependency conflict)
+        # 100: ZYPPER_EXIT_INF_UPDATE_NEEDED - Updates available (install may succeed)
+        # 104: ZYPPER_EXIT_INF_CAP_NOT_FOUND - Requested package/capability not found
         # If installation failed due to dependency conflicts, retry with
         # --force-resolution to allow zypper to automatically resolve conflicts
         if install_result.exit_code in (1, 4, 100):
@@ -2551,6 +2692,8 @@ class Suse(Linux):
                 f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
                 f"stdout: {install_result.stdout}, stderr: {install_result.stderr}"
             )
+        elif install_result.exit_code == 104:
+            raise MissingPackagesException(packages)
         elif install_result.exit_code == 0:
             self._log.debug(f"{packages} is/are installed successfully.")
         else:

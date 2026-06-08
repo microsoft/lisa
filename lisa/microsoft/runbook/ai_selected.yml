@@ -1,0 +1,19 @@
+name: AI selected test cases
+include:
+  - path: ./azure.yml
+extension:
+  - ../testsuites
+variable:
+  - name: subscription_id
+    value: ""
+  - name: tier
+    value: 0
+  - name: test_case_name
+    value: ""
+  - name: marketplace_image
+    value: ""
+  - name: location
+    value: "westus3"
+testcase:
+  - criteria:
+      name: $(test_case_name)

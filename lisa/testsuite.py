@@ -282,7 +282,12 @@ class TestResult:
         if is_unittest():
             return
 
-        assert self._log_file_handler, "Log file handler is not set"
+        # The handler may not have been created if subscribe_log raised before
+        # create_file_handler ran (e.g. log path could not be created). In that
+        # case there is nothing to detach; skip rather than mask the real error
+        # with an AssertionError from the surrounding finally block.
+        if not self._log_file_handler:
+            return
         remove_handler(self._log_file_handler, log)
 
     def get_case_log_path(self) -> Path:

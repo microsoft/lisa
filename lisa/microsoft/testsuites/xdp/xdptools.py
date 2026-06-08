@@ -121,12 +121,18 @@ class XdpTool(Tool):
                         package_list.append(package)
             else:
                 package_list.append("gcc-multilib")
-            if self.node.os.is_package_in_repo("clang-11"):
-                package_list.append("clang-11")
-                config_envs.update({"CLANG": "clang-11", "LLC": "llc-11"})
-            elif self.node.os.is_package_in_repo("clang-10"):
-                package_list.append("clang-10")
-                config_envs.update({"CLANG": "clang-10", "LLC": "llc-10"})
+            for ver in range(18, 9, -1):
+                clang_pkg = f"clang-{ver}"
+                if self.node.os.is_package_in_repo(clang_pkg):
+                    package_list.append(clang_pkg)
+                    config_envs.update({"CLANG": clang_pkg, "LLC": f"llc-{ver}"})
+                    break
+            else:
+                raise UnsupportedDistroException(
+                    self.node.os,
+                    "No clang package (clang-18 through clang-10) found in "
+                    "any configured repository.",
+                )
             self.node.os.install_packages(package_list)
 
         elif isinstance(self.node.os, Fedora):
