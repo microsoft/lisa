@@ -19,6 +19,12 @@ CpuType = Enum(
 )
 
 
+# Sentinel value used in CPUInfo cache fields when lscpu does not expose
+# cache topology (e.g. confidential VMs where lscpu outputs "-" for the
+# CACHE column instead of "L1d:L1i:L2:L3").
+UNKNOWN_CACHE_ID = -1
+
+
 class CPUInfo:
     def __init__(
         self,
@@ -310,15 +316,18 @@ class Lscpu(Tool):
                         cpu=int(no_cache_match.group("cpu")),
                         numa_node=int(no_cache_match.group("numa_node")),
                         socket=int(no_cache_match.group("socket")),
-                        l1_data_cache=-1,
-                        l1_instruction_cache=-1,
-                        l2_cache=-1,
-                        l3_cache=-1,
+                        l1_data_cache=UNKNOWN_CACHE_ID,
+                        l1_instruction_cache=UNKNOWN_CACHE_ID,
+                        l2_cache=UNKNOWN_CACHE_ID,
+                        l3_cache=UNKNOWN_CACHE_ID,
                     )
                 )
                 continue
-            raise AssertionError(
-                f"lscpu NUMA node mapping is not in expected format: {item}"
+            raise LisaException(
+                "lscpu NUMA node mapping is not in the expected format: "
+                f"{item}. Verify the output of "
+                "'lscpu --extended=cpu,node,socket,cache' on the target node "
+                "and update the parser if the format has changed."
             )
         return output
 
