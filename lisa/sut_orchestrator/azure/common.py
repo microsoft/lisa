@@ -2971,6 +2971,7 @@ def check_or_create_gallery_image_version(
     vhd_resource_group_name: str,
     vhd_storage_account_name: str,
     gallery_image_target_regions: List[str],
+    data_vhd_paths: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
@@ -2992,7 +2993,7 @@ def check_or_create_gallery_image_version(
                         "storage_account_type": storage_account_type,
                     }
                 )
-            image_version_post_body = {
+            image_version_post_body: Dict[str, Any] = {
                 "location": gallery_image_location,
                 "publishing_profile": {"target_regions": target_regions},
                 "storageProfile": {
@@ -3010,6 +3011,50 @@ def check_or_create_gallery_image_version(
                     },
                 },
             }
+
+            if data_vhd_paths:
+                data_disk_images: List[Dict[str, Any]] = []
+                assigned_luns: set[int] = set()
+                for index, data_vhd_path_item in enumerate(data_vhd_paths):
+                    lun = index
+                    raw_path = data_vhd_path_item.get("url")
+                    if not isinstance(raw_path, str) or not raw_path:
+                        continue
+                    data_vhd_path = raw_path
+
+                    raw_lun = data_vhd_path_item.get("lun")
+                    if isinstance(raw_lun, int) and raw_lun >= 0:
+                        lun = raw_lun
+                    elif isinstance(raw_lun, str) and raw_lun.strip().isdigit():
+                        lun = int(raw_lun.strip())
+
+                    if lun in assigned_luns:
+                        raise LisaException(
+                            f"duplicated data disk lun '{lun}' in data_vhd_paths"
+                        )
+                    assigned_luns.add(lun)
+
+                    data_vhd_details = get_vhd_details(platform, data_vhd_path)
+                    data_disk_images.append(
+                        {
+                            "lun": lun,
+                            "hostCaching": host_caching_type,
+                            "source": {
+                                "uri": data_vhd_path,
+                                "storageAccountId": (
+                                    f"/subscriptions/{platform.subscription_id}/"
+                                    f"resourceGroups/"
+                                    f"{data_vhd_details['resource_group_name']}"
+                                    "/providers/Microsoft.Storage/storageAccounts/"
+                                    f"{data_vhd_details['account_name']}"
+                                ),
+                            },
+                        }
+                    )
+                image_version_post_body["storageProfile"][
+                    "dataDiskImages"
+                ] = data_disk_images
+
             operation = compute_client.gallery_image_versions.begin_create_or_update(
                 gallery_resource_group_name,
                 gallery_name,
