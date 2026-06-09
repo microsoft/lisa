@@ -62,6 +62,7 @@ class NetworkPerformance(TestSuite):
     # PPS_TIMEOUT: 3000s (50 min) - shorter for PPS tests which are less intensive
     TIMEOUT = 12000
     PPS_TIMEOUT = 3000
+    NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 180  # High-fanout TCP drain.
 
     # Track baremetal host nodes for cleanup
     _baremetal_hosts: list[RemoteNode] = []
@@ -251,6 +252,12 @@ class NetworkPerformance(TestSuite):
             node, log_path, host_node=server
         )
 
+        def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
+            _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
+                node, log_path, host_node=server
+            )
+            return refreshed_client_nic_name, None
+
         perf_ntttcp(
             test_result=result,
             client=client,
@@ -258,6 +265,10 @@ class NetworkPerformance(TestSuite):
             server_nic_name=self._get_host_nic_name(server),
             client_nic_name=client_nic_name,
             skip_server_task_max=True,  # host: TasksMax reboot clears NIC DHCP state
+            post_ntttcp_setup=refresh_passthrough_nics,
+            client_ntttcp_timeout_tolerance_seconds=(
+                self.NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
+            ),
         )
 
     @TestCaseMetadata(
@@ -491,12 +502,25 @@ class NetworkPerformance(TestSuite):
             server_node, log_path
         )
 
+        def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
+            _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
+                client_node, log_path
+            )
+            _, refreshed_server_nic_name = self._configure_passthrough_nic_for_node(
+                server_node, log_path
+            )
+            return refreshed_client_nic_name, refreshed_server_nic_name
+
         perf_ntttcp(
             test_result=result,
             client=client,
             server=server,
             server_nic_name=server_nic_name,
             client_nic_name=client_nic_name,
+            post_ntttcp_setup=refresh_passthrough_nics,
+            client_ntttcp_timeout_tolerance_seconds=(
+                self.NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
+            ),
         )
 
     @TestCaseMetadata(
