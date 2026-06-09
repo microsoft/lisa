@@ -122,25 +122,14 @@ class CPU(TestSuite):
         # For all other cases, check L3 cache mapping with socket awareness
         cpu_info = lscpu.get_cpu_info()
 
-        # On some VMs (e.g. confidential VMs), cache topology is not exposed
-        # by the hypervisor, so lscpu reports "-" for all cache values.
-        # In this case, we cannot verify L3 cache mapping.
-        unknown_l3_cache_count = sum(
-            1 for cpu in cpu_info if cpu.l3_cache == UNKNOWN_CACHE_ID
-        )
-        if unknown_l3_cache_count == len(cpu_info):
-            raise SkippedException(
+        self._check_cache_topology_exposed(
+            cpu_info,
+            skip_message=(
                 "Cache topology is not exposed on this VM. "
                 "lscpu reports no cache information (likely a confidential VM "
                 "or a VM size that does not expose cache topology to the guest)."
-            )
-        if unknown_l3_cache_count:
-            raise LisaException(
-                "Inconsistent L3 cache topology reported by lscpu: "
-                f"{unknown_l3_cache_count} of {len(cpu_info)} CPUs have unknown "
-                "L3 cache IDs while others have valid values. Investigate lscpu "
-                "parsing or host cache-topology exposure on this VM."
-            )
+            ),
+        )
 
         # Build a mapping of socket -> NUMA nodes and socket -> L3 caches
         socket_to_numa_nodes: dict[int, set[int]] = {}
@@ -320,21 +309,13 @@ class CPU(TestSuite):
 
     def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
         cpu_info = node.tools[Lscpu].get_cpu_info()
-        unknown_l3_cache_count = sum(
-            1 for cpu in cpu_info if cpu.l3_cache == UNKNOWN_CACHE_ID
-        )
-        if unknown_l3_cache_count == len(cpu_info):
-            raise SkippedException(
+        self._check_cache_topology_exposed(
+            cpu_info,
+            skip_message=(
                 "Cache topology is not exposed on this VM. "
                 "lscpu reports no cache information."
-            )
-        if unknown_l3_cache_count:
-            raise LisaException(
-                "Inconsistent L3 cache topology reported by lscpu: "
-                f"{unknown_l3_cache_count} of {len(cpu_info)} CPUs have unknown "
-                "L3 cache IDs while others have valid values. Investigate lscpu "
-                "parsing or host cache-topology exposure on this VM."
-            )
+            ),
+        )
         cpu_info.sort(key=lambda cpu: cpu.cpu)
         for i, cpu in enumerate(cpu_info):
             numa_node_id = i // numa_node_size
@@ -343,6 +324,28 @@ class CPU(TestSuite):
                 "L3 cache of each core must be mapped to the NUMA node "
                 "associated with the core.",
             ).is_equal_to(numa_node_id)
+
+    def _check_cache_topology_exposed(
+        self,
+        cpu_info: list,
+        skip_message: str,
+    ) -> None:
+        # On some VMs (e.g. confidential VMs), cache topology is not exposed
+        # by the hypervisor, so lscpu reports "-" for all cache values.
+        # If all CPUs lack cache info, skip the test. If only some do, treat it
+        # as a real failure so a partial/mixed state isn't silently masked.
+        unknown_l3_cache_count = sum(
+            1 for cpu in cpu_info if cpu.l3_cache == UNKNOWN_CACHE_ID
+        )
+        if unknown_l3_cache_count == len(cpu_info):
+            raise SkippedException(skip_message)
+        if unknown_l3_cache_count:
+            raise LisaException(
+                "Inconsistent L3 cache topology reported by lscpu: "
+                f"{unknown_l3_cache_count} of {len(cpu_info)} CPUs have unknown "
+                "L3 cache IDs while others have valid values. Investigate lscpu "
+                "parsing or host cache-topology exposure on this VM."
+            )
 
     def _is_one_to_one_mapping(
         self,
