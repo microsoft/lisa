@@ -327,7 +327,7 @@ class CPU(TestSuite):
 
     def _check_cache_topology_exposed(
         self,
-        cpu_info: list,
+        cpu_info: list[Any],
         skip_message: str,
     ) -> None:
         # On some VMs (e.g. confidential VMs), cache topology is not exposed
