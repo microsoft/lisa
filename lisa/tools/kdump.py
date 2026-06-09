@@ -169,7 +169,15 @@ class Makedumpfile(Tool):
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix)
         if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
+            # On Red Hat / Mariner, makedumpfile is historically bundled in the
+            # kexec-tools package. On newer releases it may be shipped as a
+            # standalone makedumpfile package instead, so fall back to it when
+            # the binary is still missing and the package is available.
             self.node.os.install_packages("kexec-tools")
+            if not self._check_exists() and self.node.os.is_package_in_repo(
+                "makedumpfile"
+            ):
+                self.node.os.install_packages("makedumpfile")
         else:
             self.node.os.install_packages("makedumpfile")
         return self._check_exists()
