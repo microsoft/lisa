@@ -898,6 +898,99 @@ class KdumpCheck(Tool):
         # We should clean up the vmcore file since the test is passed
         self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
+        # The sysrq-triggered panic is intentional for this test. Suppress the
+        # post-case panic check so it doesn't flag the expected crash as a
+        # failure when SerialConsole.check_panic re-scans the boot diagnostics.
+        self._suppress_expected_sysrq_panic()
+
+    def _suppress_expected_sysrq_panic(self) -> None:
+        from lisa.features import SerialConsole
+
+        if not self.node.features.is_supported(SerialConsole):
+            return
+        serial_console = self.node.features[SerialConsole]
+        # Patterns matching the panic this test intentionally triggered via sysrq.
+        # Sample sysrq generated crash from Ubuntu 24.04:
+        # [   17.519224] sysrq: Trigger a crash
+        # [   17.519617] Kernel panic - not syncing: sysrq triggered crash
+        # [   17.519964] CPU: 18 UID: 0 PID: 8948 Comm: echo Kdump: loaded Not tainted 6.17.0-1008-azure #8~24.04.1-Ubuntu VOLUNTARY # noqa: E501
+        # [   17.520541] Hardware name: Microsoft Corporation Virtual Machine/Virtual Machine, BIOS Hyper-V UEFI Release v4.1 02/25/2026 # noqa: E501
+        # [   17.521245] Call Trace:
+        # [   17.521366]  <TASK>
+        # [   17.521510]  dump_stack_lvl+0x27/0x70
+        # [   17.521758]  dump_stack+0x10/0x20
+        # [   17.521996]  vpanic+0x31f/0x3b0
+        # [   17.522236]  panic+0x5f/0x60
+        # [   17.522468]  sysrq_handle_crash+0x15/0x20
+        # [   17.522726]  __handle_sysrq+0xe0/0x250
+        # [   17.522931]  write_sysrq_trigger+0x5c/0x80
+        # [   17.523182]  proc_reg_write+0x5e/0xa0
+        # [   17.523443]  ? __cond_resched+0x1a/0x50
+        # [   17.523654]  vfs_write+0xf9/0x440
+        # [   17.523868]  ? srso_return_thunk+0x5/0x5f
+        # [   17.524077]  ? xas_load+0x17/0x100
+        # [   17.524290]  ? get_page_from_freelist+0x471/0x6c0
+        # [   17.524601]  ? srso_return_thunk+0x5/0x5f
+        # [   17.524808]  ? __cond_resched+0x1a/0x50
+        # [   17.525025]  ? srso_return_thunk+0x5/0x5f
+        # [   17.525234]  ? mutex_lock+0x12/0x40
+        # [   17.525444]  ksys_write+0x71/0xf0
+        # [   17.525625]  __x64_sys_write+0x19/0x20
+        # [   17.525791]  x64_sys_call+0x79/0x20d0
+        # [   17.526007]  do_syscall_64+0x7b/0xb70
+        # [   17.526173]  ? srso_return_thunk+0x5/0x5f
+        # [   17.526487]  ? cp_new_stat+0x141/0x170
+        # [   17.526720]  ? srso_return_thunk+0x5/0x5f
+        # [   17.526958]  ? __do_sys_newfstat+0x4c/0x80
+        # [   17.527207]  ? srso_return_thunk+0x5/0x5f
+        # [   17.527499]  ? srso_return_thunk+0x5/0x5f
+        # [   17.527781]  ? arch_exit_to_user_mode_prepare.isra.0+0xd/0xc0
+        # [   17.528261]  ? srso_return_thunk+0x5/0x5f
+        # [   17.528528]  ? do_syscall_64+0xad/0xb70
+        # [   17.528740]  ? srso_return_thunk+0x5/0x5f
+        # [   17.528996]  ? count_memcg_events+0xba/0x1a0
+        # [   17.529252]  ? srso_return_thunk+0x5/0x5f
+        # [   17.529472]  ? handle_mm_fault+0x1d3/0x2d0
+        # [   17.529677]  ? srso_return_thunk+0x5/0x5f
+        # [   17.529939]  ? do_user_addr_fault+0x1b9/0x860
+        # [   17.530191]  ? srso_return_thunk+0x5/0x5f
+        # [   17.530460]  ? arch_exit_to_user_mode_prepare.isra.0+0xd/0xe0
+        # [   17.530811]  ? srso_return_thunk+0x5/0x5f
+        # [   17.531025]  ? irqentry_exit_to_user_mode+0x2d/0x1b0
+        # [   17.531283]  ? srso_return_thunk+0x5/0x5f
+        # [   17.531443]  ? irqentry_exit+0x1d/0x30
+        # [   17.531705]  ? srso_return_thunk+0x5/0x5f
+        # [   17.531957]  ? exc_page_fault+0x84/0x150
+        # [   17.532196]  entry_SYSCALL_64_after_hwframe+0x76/0x7e
+        # [   17.532453] RIP: 0033:0x75f94711c5a4
+        # [   17.532661] Code: c7 00 16 00 00 00 b8 ff ff ff ff c3 66 2e 0f 1f 84 00 00 00 00 00 f3 0f 1e fa 80 3d a5 ea 0e 00 00 74 13 b8 01 00 00 00 0f 05 <48> 3d 00 f0 ff ff 77 54 c3 0f 1f 00 55 48 89 e5 48 83 ec 20 48 89  # noqa: E501
+        # [   17.533822] RSP: 002b:00007ffe3b627158 EFLAGS: 00000202 ORIG_RAX: 0000000000000001 # noqa: E501
+        # [   17.534173] RAX: ffffffffffffffda RBX: 0000000000000002 RCX: 000075f94711c5a4 # noqa: E501
+        # [   17.534609] RDX: 0000000000000002 RSI: 000063539a6b10b0 RDI: 0000000000000001 # noqa: E501
+        # [   17.535042] RBP: 00007ffe3b627180 R08: 0000000000000000 R09: 0000000000000410 # noqa: E501
+        # [   17.535587] R10: 0000000000000001 R11: 0000000000000202 R12: 0000000000000002 # noqa: E501
+        # [   17.536028] R13: 000063539a6b10b0 R14: 000075f9472045c0 R15: 000075f947201ee0 # noqa: E501
+        # [   17.536469]  </TASK>
+        # [   17.542975] Kernel Offset: 0x28200000 from 0xffffffff81000000 (relocation range: 0xffffffff80000000-0xffffffffbfffffff) # noqa: E501
+
+        expected_patterns: List[re.Pattern[str]] = [
+            re.compile(
+                r"^(.*Kernel panic - not syncing: sysrq triggered crash.*)$",
+                re.MULTILINE,
+            ),
+            re.compile(r"^(.*sysrq: SysRq : Trigger a crash.*)$", re.MULTILINE),
+            # The RIP line accompanies the sysrq-triggered panic.
+            re.compile(r"^(.*RIP: 0033:.*)$", re.MULTILINE),
+        ]
+        # Shadow the class attribute on the instance so other nodes are unaffected.
+        existing = list(serial_console.panic_ignorable_patterns)
+        existing.extend(expected_patterns)
+        serial_console.panic_ignorable_patterns = existing
+        self._log.info(
+            "Ignoring sysrq-triggered kernel panic in post-case panic check; "
+            "this crash was intentionally triggered by the kdump test."
+        )
+
     def trigger_kdump_on_specified_cpu(self, cpu_num: int, log_path: Path) -> None:
         lscpu = self.node.tools[Lscpu]
         thread_count = lscpu.get_thread_count()
