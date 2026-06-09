@@ -130,24 +130,19 @@ class CPU(TestSuite):
         try:
             cpu_info = lscpu.get_cpu_info()
         except AssertionError as e:
-            # get_cpu_info() fails when lscpu doesn't report L3 cache info.
-            # This happens on:
+            # get_cpu_info() raises AssertionError when the lscpu output
+            # cannot be parsed into the expected cache mapping format. This
+            # happens on:
             # - VMs where no cache hierarchy is exposed (lscpu shows "-")
             # - ARM64 VMs that only have L1d/L1i/L2 (no L3)
             # - Partially allocated VMs where some NUMA nodes lack L3
+            # - Any other unexpected/empty lscpu output
             raise SkippedException(
-                f"Cannot validate L3 cache topology: lscpu output format "
-                f"not supported (missing L3 cache info). Details: {e}"
+                f"Unable to parse lscpu cache mapping; cannot validate L3 "
+                f"cache topology. Details: {e}"
             ) from e
 
-        # Build a mapping of socket -> L3 caches
-        socket_to_l3_caches: dict[int, set[int]] = {}
-        for cpu in cpu_info:
-            if cpu.socket not in socket_to_l3_caches:
-                socket_to_l3_caches[cpu.socket] = set()
-            socket_to_l3_caches[cpu.socket].add(cpu.l3_cache)
-
-        self._verify_l3_cache_topology(cpu_info, socket_to_l3_caches, log)
+        self._verify_l3_cache_topology(cpu_info, log)
 
     @TestCaseMetadata(
         description="""
@@ -294,8 +289,8 @@ class CPU(TestSuite):
             cpu_info = node.tools[Lscpu].get_cpu_info()
         except AssertionError as e:
             raise SkippedException(
-                f"Cannot validate L3 cache topology: lscpu output format "
-                f"not supported (missing L3 cache info). Details: {e}"
+                f"Unable to parse lscpu cache mapping; cannot validate L3 "
+                f"cache topology. Details: {e}"
             ) from e
         cpu_info.sort(key=lambda cpu: cpu.cpu)
         for i, cpu in enumerate(cpu_info):
@@ -309,7 +304,6 @@ class CPU(TestSuite):
     def _verify_l3_cache_topology(
         self,
         cpu_info: list[Any],
-        socket_to_l3_caches: dict[int, set[int]],
         log: Logger,
     ) -> None:
         """Verify L3 cache topology is correct for any processor type.
@@ -384,9 +378,9 @@ class CPU(TestSuite):
 
         # Log the topology for debugging
         for numa_node, l3_caches in sorted(numa_to_l3_caches.items()):
-            sockets = sorted(numa_to_sockets[numa_node])
+            sorted_sockets = sorted(numa_to_sockets[numa_node])
             log.debug(
-                f"NUMA node {numa_node} (socket {sockets}): "
+                f"NUMA node {numa_node} (socket {sorted_sockets}): "
                 f"{len(l3_caches)} L3 cache(s) {sorted(l3_caches)}"
             )
         for l3_cache, numas in sorted(l3_to_numas.items()):
