@@ -4,7 +4,7 @@ import inspect
 import pathlib
 import time
 from functools import partial
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 from assertpy import assert_that
 from retry import retry
@@ -58,6 +58,9 @@ from lisa.tools.ntttcp import (
 )
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
+
+# NTTTCP may need extra time after the requested run duration to emit totals.
+DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 60
 
 
 def perf_nvme(
@@ -353,6 +356,12 @@ def perf_ntttcp(  # noqa: C901
     client_nic_name: Optional[str] = None,
     variables: Optional[Dict[str, Any]] = None,
     skip_server_task_max: bool = False,
+    post_ntttcp_setup: Optional[
+        Callable[[], Tuple[Optional[str], Optional[str]]]
+    ] = None,
+    client_ntttcp_timeout_tolerance_seconds: int = (
+        DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
+    ),
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -414,6 +423,11 @@ def perf_ntttcp(  # noqa: C901
         client_ntttcp.setup_system(udp_mode, set_task_max)
         # skip_server_task_max: don't reboot the baremetal host (NIC DHCP state lost).
         server_ntttcp.setup_system(udp_mode, set_task_max and not skip_server_task_max)
+        if post_ntttcp_setup:
+            # Platform setup may reboot guests and drop test NIC DHCP state.
+            refreshed_client_nic_name, refreshed_server_nic_name = post_ntttcp_setup()
+            client_nic_name = refreshed_client_nic_name or client_nic_name
+            server_nic_name = refreshed_server_nic_name or server_nic_name
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         client_nic = client.nics.default_nic
@@ -556,6 +570,7 @@ def perf_ntttcp(  # noqa: C901
                         ports_count=num_threads_p,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
+                        tolerance_seconds=client_ntttcp_timeout_tolerance_seconds,
                     )
 
                     # Stop the server and collect results from both client
