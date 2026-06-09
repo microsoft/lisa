@@ -1170,7 +1170,8 @@ class NetworkPerformance(TestSuite):
                     )
                 finally:
                     server.tools[PowerShell].run_cmdlet(
-                        "Stop-Process -Name ntttcp -Force -ErrorAction SilentlyContinue",
+                        "Stop-Process -Name ntttcp -Force"
+                        " -ErrorAction SilentlyContinue",
                         force_run=True,
                         fail_on_error=False,
                         timeout=30,
@@ -1179,7 +1180,9 @@ class NetworkPerformance(TestSuite):
                 parsed_client_result = (
                     server_ntttcp.create_ntttcp_result(sender_result, role="client")
                     if udp_mode
-                    else client_ntttcp.create_ntttcp_result(sender_result, role="client")
+                    else client_ntttcp.create_ntttcp_result(
+                        sender_result, role="client"
+                    )
                 )
                 try:
                     parsed_server_result = (
