@@ -174,6 +174,24 @@ class Ltp(Tool):
                 self.node.shell.copy(PurePath(local_tmp_path), PurePosixPath(skip_file))
             finally:
                 os.unlink(local_tmp_path)
+            # Verify the skip file was actually created on the remote node.
+            # For some node types (e.g. WSL), shell.copy() may silently fail
+            # to transfer the file into the node's filesystem, causing runltp
+            # to see an empty -S argument and skip nothing.
+            if not ls.path_exists(skip_file):
+                self._log.warning(
+                    f"shell.copy() did not create {skip_file}, "
+                    "falling back to writing skip tests directly on the remote node"
+                )
+                # LTP test names are plain alphanumeric identifiers; single-quoting
+                # them is safe and avoids any shell-expansion issues.
+                quoted = " ".join(f"'{t}'" for t in skip_tests)
+                self.node.execute(
+                    f"printf '%s\\n' {quoted} | tee {skip_file} > /dev/null",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                )
             parameters += f"-S {skip_file} "
 
         # Minimum 4M swap space is needed by some mmp test
