@@ -383,10 +383,9 @@ class CPU(TestSuite):
         # 4. Strict 1:1 case: each NUMA owns exactly one L3 and each L3
         #    belongs to exactly one NUMA. Then L3 ID must equal NUMA ID.
         #    Multi-CCD and sub-NUMA clustering are excluded by this guard.
-        is_bijective = all(
-            len(l3s) == 1 for l3s in numa_to_l3_caches.values()
-        ) and all(len(numas) == 1 for numas in l3_to_numas.values())
-        if is_bijective:
+        each_numa_has_one_l3 = all(len(l3s) == 1 for l3s in numa_to_l3_caches.values())
+        each_l3_has_one_numa = all(len(numas) == 1 for numas in l3_to_numas.values())
+        if each_numa_has_one_l3 and each_l3_has_one_numa:
             for numa_node, l3_caches in numa_to_l3_caches.items():
                 l3_cache = next(iter(l3_caches))
                 assert_that(
