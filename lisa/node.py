@@ -570,7 +570,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.log.debug("mark node to dirty")
         self._is_dirty = True
 
-    def test_connection(self) -> bool:
+    def test_connection(self, timeout: int = 30) -> bool:
         if not self._shell:
             self.log.debug(
                 f"connection test failed for node '{self.name}' because its "
@@ -580,11 +580,23 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         if not self._shell.is_remote:
             return True
         self.log.debug("testing connection...")
+        # Use a shorter connection timeout for the health check so that an
+        # unreachable VM does not block for the full default (300 s).
+        is_ssh = isinstance(self._shell, SshShell)
+        saved_timeout: int = 0
+        if is_ssh:
+            assert isinstance(self._shell, SshShell)
+            saved_timeout = self._shell.connection_timeout
+            self._shell.connection_timeout = timeout
         try:
-            self.execute("echo connected", timeout=10)
+            self.execute("echo connected", timeout=min(timeout, 10))
             return True
         except Exception as e:
             self.log.debug(f"cannot access VM {self.name}, error is {e}")
+        finally:
+            if is_ssh:
+                assert isinstance(self._shell, SshShell)
+                self._shell.connection_timeout = saved_timeout
         return False
 
     def check_kernel_panic(self) -> None:

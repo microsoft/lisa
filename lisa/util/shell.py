@@ -274,13 +274,25 @@ class SshShell(InitializableMixin):
         self.bash_prompt: str = ""
         self.spawn_initialization_error_string = ""
         self.spawn_timeout: int = 20
+        # Total time budget (in seconds) for TCP port readiness and SSH
+        # handshake during _initialize(). Callers such as
+        # Node.test_connection() may lower this temporarily to avoid
+        # long hangs when a VM is unreachable.
+        self.connection_timeout: int = 300
 
         paramiko_logger = logging.getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        deadline_timer = create_timer()
+
+        def _remaining() -> int:
+            return max(1, self.connection_timeout - int(deadline_timer.elapsed(False)))
+
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            self.connection_info.address, self.connection_info.port
+            self.connection_info.address,
+            self.connection_info.port,
+            timeout=_remaining(),
         )
         if not is_ready:
             raise TcpConnectionException(
@@ -295,7 +307,9 @@ class SshShell(InitializableMixin):
         )
 
         try:
-            stdout = try_connect(self.connection_info, sock=sock)
+            stdout = try_connect(
+                self.connection_info, ssh_timeout=_remaining(), sock=sock
+            )
         except Exception as e:
             raise LisaException(
                 "failed to connect SSH port of the VM. It might be due to one of the "

@@ -594,6 +594,8 @@ class AzurePlatform(Platform):
         if not environment.runbook.nodes_requirement:
             return True
 
+        prepare_timer = create_timer()
+
         # reload requirement to match
         environment.runbook.reload_requirements()
         nodes_requirement = environment.runbook.nodes_requirement
@@ -661,6 +663,9 @@ class AzurePlatform(Platform):
             self._resolve_marketplace_image_version(
                 environment.runbook.nodes_requirement
             )
+
+        elapsed = prepare_timer.elapsed()
+        log.info(f"environment '{environment.name}' prepared in {elapsed:.1f}s")
 
         return is_success
 
