@@ -625,6 +625,7 @@ class SharedGalleryImageTransformer(Transformer):
 
         # Get features from marketplace image if specified
         features = self._get_image_features(platform, runbook.marketplace_source)
+        purchase_plan = self._get_image_purchase_plan(features)
         if features:
             runbook.gallery_image_hyperv_generation = features.pop(
                 "hyper_v_generation", runbook.gallery_image_hyperv_generation
@@ -678,6 +679,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_hyperv_generation,
             runbook.gallery_image_architecture,
             features,
+            purchase_plan,
         )
 
         check_or_create_gallery_image_version(
@@ -727,6 +729,22 @@ class SharedGalleryImageTransformer(Transformer):
             features.pop("hyper_v_generation", None)
 
         return features
+
+    def _get_image_purchase_plan(
+        self, image_features: Dict[str, Any]
+    ) -> Optional[Dict[str, str]]:
+        raw_purchase_plan = image_features.pop("purchase_plan", None)
+        if not isinstance(raw_purchase_plan, dict):
+            return None
+
+        purchase_plan: Dict[str, str] = {}
+        for key in ("name", "product", "publisher"):
+            value = raw_purchase_plan.get(key)
+            if not isinstance(value, str) or not value:
+                return None
+            purchase_plan[key] = value
+
+        return purchase_plan
 
 
 @dataclass_json

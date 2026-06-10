@@ -218,7 +218,24 @@ class TestResult:
                 node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
                     is_allow_set=True, items=type(node.os).__mro__
                 )
-                os_result = requirement.os_type.check(node_os_capability)
+                os_result = search_space.ResultReason()
+                if requirement.os_type.is_allow_set:
+                    supported_os = set(requirement.os_type)
+                    node_os_types = set(node_os_capability)
+                    if not supported_os.intersection(node_os_types):
+                        os_result.add_reason(
+                            f"requires [{requirement.os_type}] "
+                            f"but VM supports [{node_os_capability}]"
+                        )
+                else:
+                    excluded_os = set(requirement.os_type).intersection(
+                        node_os_capability
+                    )
+                    if excluded_os:
+                        names = sorted(os_type.__name__ for os_type in excluded_os)
+                        os_result.add_reason(
+                            f"requirements excludes {', '.join(names)}"
+                        )
                 # If one of OS mismatches, mark the test case is skipped. It
                 # assumes no more env can meet the requirements, instead of
                 # checking the rest envs one by one. The reason is this checking

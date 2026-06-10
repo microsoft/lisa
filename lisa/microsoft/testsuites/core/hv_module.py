@@ -15,12 +15,32 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.features.security_profile import is_cvm
 from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
 from lisa.tools.kernel_config import ModulesType
 from lisa.util import LisaException, SkippedException
+
+# CVMs do not surface emulated input devices or framebuffer/DRM over VMBus,
+# so the corresponding kernel modules are intentionally absent in CVMs.
+# Reference:
+# https://elixir.bootlin.com/linux/v7.0/source/drivers/hv/channel_mgmt.c#L31
+# In the above file only modules with ".allowed_in_isolated = true," are available
+# in CVMs.
+# Below are modules that are not exposed to a guest when running as a Confidential VM.
+# These modules should be skipped in checks for module presence and in reload tests on
+# CVMs.
+
+_CVM_UNAVAILABLE_MODULES = frozenset(
+    {
+        "hid_hyperv",
+        "hyperv_keyboard",
+        "hyperv_fb",
+        "hyperv_drm",
+    }
+)
 
 
 @TestSuiteMetadata(
@@ -95,6 +115,11 @@ class HvModule(TestSuite):
             "hyperv_keyboard": "hyperv-keyboard.ko",
         }
         skip_modules = self._get_built_in_modules(node)
+        # CVMs do not have host-emulated input/display devices, so the
+        # corresponding modules are legitimately absent from initrd. Treat
+        # them as built-in for the purposes of this check.
+        if is_cvm(node):
+            skip_modules = list(set(skip_modules) | _CVM_UNAVAILABLE_MODULES)
         hv_modules_file_names = {
             k: v
             for (k, v) in all_necessary_hv_modules_file_names.items()
@@ -194,6 +219,11 @@ class HvModule(TestSuite):
 
         if isinstance(environment.platform, AzurePlatform):
             missing_modules.discard("hid_hyperv")
+        # CVMs legitimately do not load host-emulated input or framebuffer
+        # modules, so absence is expected and must not fail this test.
+        if is_cvm(node):
+            for module in _CVM_UNAVAILABLE_MODULES:
+                missing_modules.discard(module)
         if not ("hyperv_fb" in missing_modules and "hyperv_drm" in missing_modules):
             # as long as both of these modules are not missing, we are OK to pass.
             missing_modules.discard("hyperv_fb")
@@ -237,8 +267,15 @@ class HvModule(TestSuite):
         loadable_modules = set(
             self._get_modules_by_type(node, module_type=ModulesType.MODULE)
         )
+        node_is_cvm = is_cvm(node)
 
         for module in hv_modules:
+            if node_is_cvm and module in _CVM_UNAVAILABLE_MODULES:
+                log.debug(
+                    f"{module} is not available on Confidential VMs, skipping reload"
+                )
+                skipped_modules.append(module)
+                continue
             if module not in loadable_modules:
                 log.debug(f"{module} is not a reloadable module")
                 skipped_modules.append(module)
