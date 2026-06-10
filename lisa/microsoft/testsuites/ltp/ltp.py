@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 import os
 import re
-import tempfile
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Type
@@ -162,36 +161,20 @@ class Ltp(Tool):
             )
             parameters += f"-S {skip_file} "
         elif len(skip_tests) > 0:
-            # Write skip tests to a local temp file and copy to remote,
-            # avoiding shell quoting issues entirely.
-            skip_file_value = "\n".join(skip_tests)
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".skipfile", delete=False
-            ) as tmp:
-                tmp.write(skip_file_value)
-                local_tmp_path = tmp.name
-            try:
-                self.node.shell.copy(PurePath(local_tmp_path), PurePosixPath(skip_file))
-            finally:
-                os.unlink(local_tmp_path)
-            # Verify the skip file was actually created on the remote node.
-            # For some node types (e.g. WSL), shell.copy() may silently fail
-            # to transfer the file into the node's filesystem, causing runltp
-            # to see an empty -S argument and skip nothing.
-            if not ls.path_exists(skip_file):
-                self._log.warning(
-                    f"shell.copy() did not create {skip_file}, "
-                    "falling back to writing skip tests directly on the remote node"
-                )
-                # LTP test names are plain alphanumeric identifiers; single-quoting
-                # them is safe and avoids any shell-expansion issues.
-                quoted = " ".join(f"'{t}'" for t in skip_tests)
-                self.node.execute(
-                    f"printf '%s\\n' {quoted} | tee {skip_file} > /dev/null",
-                    sudo=True,
-                    shell=True,
-                    expected_exit_code=0,
-                )
+            # Write skip tests directly on the remote node using printf + tee.
+            # shell.copy() is unreliable for some node types (e.g. WSL): it may
+            # create the destination file but leave it empty (0 bytes), causing
+            # runltp to silently discard the -S argument (runltp checks both -r
+            # and -s on the skipfile). Writing via a remote command is reliable
+            # across all node types.  LTP test names are plain alphanumeric
+            # identifiers, so single-quoting them is safe.
+            quoted = " ".join(f"'{t}'" for t in skip_tests)
+            self.node.execute(
+                f"printf '%s\\n' {quoted} | tee {skip_file} > /dev/null",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+            )
             parameters += f"-S {skip_file} "
 
         # Minimum 4M swap space is needed by some mmp test
