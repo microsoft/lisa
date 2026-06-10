@@ -41,25 +41,37 @@ EPYC_MILAN_NUMA_NODE_SIZE = 8
 class CPU(TestSuite):
     @TestCaseMetadata(
         description="""
-        This test case will check that L3 cache is correctly mapped
-        to NUMA node.
+        This test case checks that the L3 cache is correctly mapped to NUMA
+        nodes, i.e. an L3 cache belongs to the NUMA node / socket it serves
+        and is not incorrectly mapped to individual CPU cores.
+
         Steps:
         1. Check if NUMA is disabled in commandline. If disabled,
         and kernel version is <= 2.6.37, test is skipped as hyper-v
         has no support for NUMA : https://t.ly/x8k3
         2. Get the mappings using command :
         `lscpu --extended=cpu,node,socket,cache`
-        3. Each line in the mapping corresponds to one CPU core. The L3
-        cache of each core must be mapped to the NUMA node that core
-        belongs to instead of the core itself.
+        3. Validate the L3 cache topology against these invariants
+        (works for Intel 1:1, AMD EPYC multi-CCD and sub-NUMA clustering):
+           a. An L3 cache must not span multiple sockets.
+           b. If an L3 cache is shared across NUMA nodes, those NUMA nodes
+              must be on the same socket (valid sub-NUMA clustering).
+           c. L3 cache IDs must not be unique per CPU within a NUMA node
+              (that indicates L3 is mapped to the CPU id instead of NUMA).
+           d. In a strict 1:1 NUMA-to-L3 topology, the L3 cache id must
+              equal the NUMA node id.
 
-        Example :
-        Correct mapping:
+        If lscpu does not report a parseable cache mapping (e.g. ARM64 VMs
+        without an L3 column, or partial cache reporting), the test is
+        skipped instead of failed.
+
+        Example failure modes (invariant 'd' / 'c'):
+        Correct 1:1 mapping (L3 id == NUMA id):
         CPU NODE SOCKET L1d L1i L2 L3
         8   0    0      8   8   8  0
         9   1    1      9   9   9  1
 
-        Incorrect mapping:
+        Incorrect mapping (L3 id == CPU id, not NUMA id):
         CPU NODE SOCKET L1d L1i L2 L3
         8   0    0      8   8   8  8
         9   1    1      9   9   9  9
