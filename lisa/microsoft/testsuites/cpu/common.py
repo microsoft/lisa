@@ -80,22 +80,79 @@ def get_idle_cpus(node: Node) -> List[str]:
     return idle_cpu
 
 
+def migrate_irqs_to_cpu(node: Node, target_cpu: str = "0") -> None:
+    # Best-effort: point every writable /proc/irq/N/smp_affinity_list at
+    # target_cpu so subsequent CPU offline operations don't fail with ENOSPC
+    # because an IRQ has no other CPU left in its affinity mask. This is
+    # important on very large vCPU SKUs (e.g. 300+ vCPUs) where MSI-X IRQs
+    # belonging to NIC/storage devices may be pinned to high-numbered CPUs.
+    # Managed IRQs (kernel-controlled affinity) cannot be rewritten from
+    # userspace; the write fails with EIO and is ignored. Those IRQs are
+    # shut down automatically by the kernel when the CPU goes offline, so
+    # they don't block offlining.
+    cmd = (
+        "for f in /proc/irq/*/smp_affinity_list; do "
+        f'echo {target_cpu} > "$f" 2>/dev/null || true; '
+        "done"
+    )
+    node.execute(cmd, sudo=True, shell=True)
+
+
+def offline_idle_cpus_best_effort(
+    log: Logger, node: Node, idle_cpu: List[str]
+) -> List[str]:
+    # Pin all non-managed IRQs to cpu0 so high-numbered CPUs can be offlined
+    # cleanly on large vCPU SKUs (300+ vCPUs), then take each idle CPU offline
+    # tolerating a small number of CPUs the kernel still refuses (managed IRQs
+    # on the last CPU of a NUMA node, etc.). Returns the list of CPUs that
+    # actually went offline; raises SkippedException if none did, since the
+    # caller can no longer exercise offline-CPU behavior.
+    migrate_irqs_to_cpu(node, "0")
+    offlined = set_cpu_state_serial(
+        log, node, idle_cpu, CPUState.OFFLINE, ignore_failures=True
+    )
+    log.debug(f"offlined {len(offlined)}/{len(idle_cpu)} idle cpus")
+    if not offlined:
+        raise SkippedException(
+            "no idle cpu could be taken offline; cannot exercise "
+            "channel-add on offline cpus."
+        )
+    return offlined
+
+
 def set_cpu_state_serial(
-    log: Logger, node: Node, idle_cpu: List[str], state: str
-) -> None:
+    log: Logger,
+    node: Node,
+    idle_cpu: List[str],
+    state: str,
+    ignore_failures: bool = False,
+) -> List[str]:
+    # Returns the list of CPUs that actually reached `state`.
+    # When ignore_failures=True, logs each refusal and continues; callers
+    # should treat the returned list as the authoritative set of CPUs in
+    # the requested state. This lets tests proceed when the kernel refuses
+    # to offline a small number of CPUs (e.g. the last CPU of a NUMA node
+    # still owning a managed IRQ), which is common on 300+ vCPU SKUs.
+    succeeded: List[str] = []
     for target_cpu in idle_cpu:
         log.debug(f"setting cpu{target_cpu} to {state}.")
         if state == CPUState.ONLINE:
             set_state = set_cpu_state(node, target_cpu, True)
         else:
             set_state = set_cpu_state(node, target_cpu, False)
-        if not set_state:
-            raise BadEnvironmentStateException(
-                (
-                    f"Expected cpu{target_cpu} state: {state}."
-                    f"The test failed leaving cpu{target_cpu} in a bad state."
-                ),
-            )
+        if set_state:
+            succeeded.append(target_cpu)
+            continue
+        if ignore_failures:
+            log.debug(f"cpu{target_cpu} refused to reach {state}; continuing")
+            continue
+        raise BadEnvironmentStateException(
+            (
+                f"Expected cpu{target_cpu} state: {state}."
+                f"The test failed leaving cpu{target_cpu} in a bad state."
+            ),
+        )
+    return succeeded
 
 
 def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) -> None:

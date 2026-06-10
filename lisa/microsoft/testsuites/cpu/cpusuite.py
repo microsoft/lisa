@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import random
 import time
-from typing import cast
+from typing import List, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.cpu.common import (
     CPUState,
     check_runnable,
     get_idle_cpus,
+    offline_idle_cpus_best_effort,
     set_cpu_state_serial,
     set_interrupts_assigned_cpu,
     verify_cpu_hot_plug,
@@ -224,17 +225,22 @@ class CPUSuite(TestSuite):
         # set idle cpu state offline and change channels
         # current max channel will be cpu_count - len(idle_cpus)
         # check channels of synthetic network adapter align with current setting channel
+        offlined_cpus: List[str] = []
         try:
-            # take idle cpu to offline
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.OFFLINE)
+            # On large vCPU SKUs (300+ vCPUs) the kernel can refuse to offline
+            # the last CPU still owning a non-migratable IRQ with ENOSPC.
+            # offline_idle_cpus_best_effort pins IRQs to cpu0 first and
+            # tolerates a few refusals so the test can still exercise
+            # channel-add on the CPUs that did go offline.
+            offlined_cpus = offline_idle_cpus_best_effort(log, node, idle_cpus)
 
             # get vmbus channels of synthetic network adapter. the synthetic network
             # drivers have class id "f8615163-df3e-46c5-913f-f2d2f965ed0e"
             node.tools[Lsvmbus].get_device_channels(force_run=True)
             thread_count = node.tools[Lscpu].get_thread_count()
 
-            # current max channel count need minus count of idle cpus
-            max_channel_count = thread_count - len(idle_cpus)
+            # current max channel count need minus count of offlined cpus
+            max_channel_count = thread_count - len(offlined_cpus)
 
             first_current_device_channel = (
                 node.tools[Ethtool].get_device_channels_info("eth0", True)
@@ -281,10 +287,10 @@ class CPUSuite(TestSuite):
 
                 # verify that devices do not handle interrupts on offline cpu
                 for channel_vp in channel.channel_vp_map:
-                    assert_that(channel_vp.target_cpu).is_not_in(idle_cpus)
+                    assert_that(channel_vp.target_cpu).is_not_in(offlined_cpus)
 
-            # reset idle cpu to online
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
+            # reset offlined cpus to online
+            set_cpu_state_serial(log, node, offlined_cpus, CPUState.ONLINE)
 
             # reset max and current channel count into original ones
             # by reloading hv_netvsc driver if hv_netvsc can be reload
@@ -326,8 +332,12 @@ class CPUSuite(TestSuite):
                     log.debug(f"Network synthetic channel: {channel}")
                     assert_that(channel.channel_vp_map).is_length(second_channel_count)
         finally:
-            # reset idle cpu to online
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
+            # reset idle cpu to online (best effort; writing 1 to an already
+            # online cpu is a no-op, and we don't want cleanup to mask a real
+            # test failure if one CPU still refuses).
+            set_cpu_state_serial(
+                log, node, idle_cpus, CPUState.ONLINE, ignore_failures=True
+            )
             # restore channel count into origin value
             current_device_channel = (
                 node.tools[Ethtool].get_device_channels_info("eth0", True)
