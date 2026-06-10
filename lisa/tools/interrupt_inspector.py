@@ -75,7 +75,12 @@ class InterruptInspector(Tool):
         # Note : Some IRQ numbers have single entry because they're not actually
         # CPU stats, but events count belonging to the IO-APIC controller. For
         # example, `ERR` is incremented in the case of errors in the IO-APIC bus.
-        result = self.node.tools[Cat].run("/proc/interrupts", sudo=True, force_run=True)
+        # On VMs with very large vCPU counts (e.g. 300+), streaming
+        # /proc/interrupts over SSH can take well beyond the default 600s
+        # timeout, so use an extended timeout here.
+        result = self.node.tools[Cat].run(
+            "/proc/interrupts", sudo=True, force_run=True, timeout=1800
+        )
         mappings = result.stdout.splitlines(keepends=False)[1:]
         assert mappings
 
