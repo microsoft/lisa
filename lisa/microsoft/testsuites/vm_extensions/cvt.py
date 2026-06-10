@@ -235,6 +235,14 @@ def _copy_cvt_logs(
         ignore_not_exist=True,
     )
 
+    file_list += find_tool.find_files(
+        test_dir,
+        name_pattern="*.json",
+        file_type="f",
+        sudo=True,
+        ignore_not_exist=True,
+    )
+
     for file in file_list:
         log.info(f"Copying file {file} to {log_path}")
         try:
@@ -301,6 +309,98 @@ def _run_cvt_tests(
     return result.exit_code
 
 
+_CVT_BINARIES_DEFAULT_URL = "https://aka.ms/LinuxCVTTestBinaries"
+
+_DRIVER_URLS = {
+    "UBUNTU24": "https://aka.ms/DriversPackage_UBUNTU24",
+    "SLES15": "https://aka.ms/DriversPackage_SLES15",
+}
+
+
+def _get_driver_url(node: Node, log: Logger) -> str:
+    """Determine the driver tarball URL based on distro."""
+    os_info = node.os
+    version = str(os_info.information.version)
+    name = os_info.name.lower()
+
+    if "ubuntu" in name and version.startswith("24"):
+        return _DRIVER_URLS["UBUNTU24"]
+    elif "sles" in name or "suse" in name or "sail" in name:
+        return _DRIVER_URLS["SLES15"]
+    else:
+        # Fallback: check kernel version for SUSE indicators
+        kernel = node.execute("uname -r", shell=True).stdout.strip()
+        if "150400" in kernel or "150500" in kernel or "150600" in kernel:
+            log.info(f"Detected SLES-based kernel: {kernel}")
+            return _DRIVER_URLS["SLES15"]
+        log.info(f"No default driver URL for {name} {version}")
+        return ""
+
+
+def _run_cvt_no_extension(
+    node: Node,
+    log: Logger,
+    log_path: Path,
+    cvt_binaries_url: str,
+    driver_tarball_url: str,
+    cvt_script: CustomScriptBuilder,
+) -> Optional[int]:
+    """Run CVT tests without VM extensions - loads driver directly."""
+    max_log_length = 200
+    timer = create_timer()
+
+    script: CustomScript = node.tools[cvt_script]
+    posix_os: Posix = cast(Posix, node.os)
+
+    # Install dos2unix if possible; skip gracefully for unrecognized distros
+    try:
+        posix_os.install_packages("dos2unix")
+    except Exception as e:
+        log.info(f"Could not install dos2unix ({e}), using sed fallback")
+
+    # Convert to unix line endings using the public command property
+    script_path = script.command
+    node.execute(
+        f"sed -i 's/\\r$//' '{script_path}'",
+        shell=True,
+        sudo=True,
+    )
+
+    cvt_download_dir = str(node.working_path) + "/cvt_files/"
+    node.execute(f"mkdir -p {cvt_download_dir}", shell=True, sudo=True)
+
+    # Build params: test_dir cvt_binaries_url [driver_tarball_url]
+    params = f"{cvt_download_dir} '{cvt_binaries_url}'"
+    if driver_tarball_url:
+        params += f" '{driver_tarball_url}'"
+
+    result = script.run(
+        parameters=params,
+        timeout=19800,
+        shell=True,
+        sudo=True,
+    )
+    log.info(f"CVT no-extension script finished within {timer}")
+
+    cvt_stdout = result.stdout
+    if len(cvt_stdout) > max_log_length:
+        cvt_stdout = cvt_stdout[:max_log_length]
+    cvt_stderr = result.stderr
+    if len(cvt_stderr) > max_log_length:
+        cvt_stderr = cvt_stderr[:max_log_length]
+    log.info(f"cvt script stdout : '{cvt_stdout}'")
+    log.info(f"cvt script stderr : '{cvt_stderr}'")
+    log.info(f"cvt script exit code : '{result.exit_code}'")
+
+    _copy_cvt_logs(
+        node=node,
+        log=log,
+        test_dir=Path(node.working_path),
+        log_path=log_path,
+    )
+    return result.exit_code
+
+
 @TestSuiteMetadata(
     area="cvt",
     category="functional",
@@ -333,6 +433,8 @@ class CVTTest(TestSuite):
         log: Logger,
         log_path: Path,
     ) -> None:
+        if not self._container_sas_uri:
+            raise SkippedException("cvtbinaries_sasuri is not provided.")
         os = _get_os_info_from_extension(node=node, log=log)
         if not os:
             raise SkippedException("Failed to determine the OS.")
@@ -349,18 +451,71 @@ class CVTTest(TestSuite):
         log.info(f"ASR CVT test completed with exit code '{result}'")
         assert_that(result).described_as("ASR CVT test failed").is_equal_to(0)
 
+    @TestCaseMetadata(
+        description="""
+        Validate ASR driver functionality without using VM extensions.
+        Downloads driver tarball and CVT binaries directly, loads driver
+        via insmod, and runs the CVT test suite. If the driver is already
+        loaded, skips driver download and installation.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            disk=DiskPremiumSSDLRS(),
+        ),
+    )
+    def verify_asr_by_cvt_no_extension(
+        self,
+        node: Node,
+        log: Logger,
+        log_path: Path,
+    ) -> None:
+        cvt_binaries_url = self._cvt_binaries_url
+        driver_tarball_url = self._driver_tarball_url
+
+        result = _run_cvt_no_extension(
+            node=node,
+            log=log,
+            log_path=log_path,
+            cvt_binaries_url=cvt_binaries_url,
+            driver_tarball_url=driver_tarball_url,
+            cvt_script=self._cvt_no_ext_script,
+        )
+        log.info(f"ASR CVT (no-extension) test completed with exit code '{result}'")
+        assert_that(result).described_as(
+            "ASR CVT (no-extension) test failed"
+        ).is_equal_to(0)
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         variables = kwargs["variables"]
         node = kwargs["node"]
         self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
-        if not self._container_sas_uri:
-            raise SkippedException("cvtbinaries_sasuri is not provided.")
+
+        self._cvt_binaries_url = (
+            variables.get("cvt_binaries_url", "") or _CVT_BINARIES_DEFAULT_URL
+        )
+        self._driver_tarball_url = variables.get(
+            "driver_tarball_url", ""
+        ) or _get_driver_url(node, log)
 
         self._cvt_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
         )
-        self._data_disks = _init_disk(node=node, log=log)
+        self._cvt_no_ext_script = CustomScriptBuilder(
+            Path(__file__).parent.joinpath("scripts"), ["cvt_no_extension.sh"]
+        )
+
+        # Try adding data disks; if the platform doesn't support it
+        # (e.g., ready platform), assume disks are pre-attached.
+        try:
+            self._data_disks = _init_disk(node=node, log=log)
+            self._disks_managed = True
+        except NotImplementedError:
+            log.info("Disk feature not available, assuming disks are pre-attached")
+            self._data_disks = []
+            self._disks_managed = False
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        _remove_data_disk(node=node, log=log)
+        if self._disks_managed:
+            _remove_data_disk(node=node, log=log)
