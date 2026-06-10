@@ -382,6 +382,75 @@ class NvmeTestSuite(TestSuite):
                 f"After rescan, the disabled {device_type} PCI devices should be back.",
             ).is_length(before_pci_count)
 
+    @TestCaseMetadata(
+        description="""
+        This test case combines NVMe device count validation and functionality
+        checks in a single end-to-end test.
+        1. Verify NVMe devices exist and the count from /dev/, nvme-cli, and
+           lspci are all consistent.
+        2. On Azure, verify the count matches the platform capability.
+        3. For each NVMe namespace, verify basic I/O functionality:
+           a. Record error count before operations.
+           b. Create a partition, ext4 filesystem, and mount it.
+           c. Write a test file and verify its content persists after
+              unmount/remount.
+           d. Verify error count did not increase after operations.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_features=[Nvme],
+        ),
+    )
+    def verify_nvme_count_and_function(
+        self, environment: Environment, node: Node
+    ) -> None:
+        # Step 1-2: Verify NVMe device count consistency.
+        self._verify_nvme_disk(environment, node)
+
+        # Step 3: Verify NVMe I/O functionality on each namespace.
+        nvme = node.features[Nvme]
+        nvme_namespaces = nvme.get_raw_nvme_disks()
+        nvme_cli = node.tools[Nvmecli]
+        cat = node.tools[Cat]
+        mount = node.tools[Mount]
+
+        for namespace in nvme_namespaces:
+            # 3a. Record error count before operations.
+            error_count_before = nvme_cli.get_error_count(namespace)
+
+            # 3b. Create a partition, ext4 filesystem and mount it.
+            _format_mount_disk(node, namespace, FileSystem.ext4)
+            mount_point = namespace.rpartition("/")[-1]
+
+            # 3c. Write a test file and verify content after remount.
+            node.execute(
+                f"echo TestContent > {mount_point}/testfile.txt",
+                shell=True,
+                sudo=True,
+            ).assert_exit_code(
+                message=f"Failed to create {mount_point}/testfile.txt."
+            )
+
+            mount.umount(namespace, mount_point, erase=False)
+            mount.mount(f"{namespace}p1", mount_point)
+
+            file_content = cat.run(
+                f"{mount_point}/testfile.txt", shell=True, sudo=True
+            )
+            assert_that(
+                file_content.stdout,
+                f"Content of {mount_point}/testfile.txt should persist "
+                "after unmount and remount.",
+            ).is_equal_to("TestContent")
+
+            # 3d. Verify error count did not increase.
+            error_count_after = nvme_cli.get_error_count(namespace)
+            assert_that(error_count_before).described_as(
+                "NVMe error count should not increase after I/O operations."
+            ).is_equal_to(error_count_after)
+
+            mount.umount(disk_name=namespace, point=mount_point)
+
     def _verify_nvme_disk(self, environment: Environment, node: Node) -> None:
         # 1. Get nvme devices and nvme namespaces from /dev/ folder,
         #  compare the count of nvme namespaces and nvme devices.
