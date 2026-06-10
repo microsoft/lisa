@@ -67,14 +67,14 @@ class CPU(TestSuite):
 
         Example failure modes (invariant 'd' / 'c'):
         Correct 1:1 mapping (L3 id == NUMA id):
-        CPU NODE SOCKET L1d L1i L2 L3
-        8   0    0      8   8   8  0
-        9   1    1      9   9   9  1
+        CPU NODE SOCKET L1d:L1i:L2:L3
+        8   0    0      8:8:8:0
+        9   1    1      9:9:9:1
 
         Incorrect mapping (L3 id == CPU id, not NUMA id):
-        CPU NODE SOCKET L1d L1i L2 L3
-        8   0    0      8   8   8  8
-        9   1    1      9   9   9  9
+        CPU NODE SOCKET L1d:L1i:L2:L3
+        8   0    0      8:8:8:8
+        9   1    1      9:9:9:9
         """,
         priority=1,
         # Marking this test unsupported on BSD as the neccessary info is not exposed
