@@ -118,7 +118,8 @@ class CPU(TestSuite):
                 self._verify_node_mapping(node, effective_numa_node_size)
                 return
 
-        # Generic L3 cache topology validation for all processor types.
+        # Generic L3 cache topology validation for the remaining processor
+        # types (after the known model/VM-size early returns above).
         # This handles both traditional 1:1 NUMA-to-L3 mapping (e.g. Intel)
         # and multi-L3-per-NUMA topologies (e.g. AMD EPYC where a NUMA node
         # spans multiple CCDs, each with its own L3 cache).
@@ -127,6 +128,7 @@ class CPU(TestSuite):
         # 1. L3 caches must not be shared across sockets
         # 2. Cross-NUMA L3 sharing is only valid within the same socket
         # 3. L3 cache IDs must not be unique per CPU (indicates L3=CPU_ID bug)
+        # 4. In a strict 1:1 NUMA-to-L3 topology, L3 ID must equal NUMA ID
         try:
             cpu_info = lscpu.get_cpu_info()
         except AssertionError as e:
