@@ -175,6 +175,20 @@ class Ltp(Tool):
                 shell=True,
                 expected_exit_code=0,
             )
+            # Verify the skipfile is non-empty. runltp checks both -r (readable)
+            # and -s (non-empty) before passing -S to ltp-pan; an empty file
+            # causes the skip list to be silently discarded.
+            verify = self.node.execute(
+                f"test -s {skip_file}",
+                sudo=True,
+                shell=True,
+            )
+            if verify.exit_code != 0:
+                raise LisaException(
+                    f"Skip file {skip_file} is empty after write; "
+                    "skip tests will not be applied. "
+                    f"Attempted to write: {skip_tests}"
+                )
             parameters += f"-S {skip_file} "
 
         # Minimum 4M swap space is needed by some mmp test
