@@ -321,6 +321,8 @@ class CPU(TestSuite):
            must be on the same socket
         3. L3 cache IDs must not be unique per CPU within a NUMA node
            (which would indicate L3 is incorrectly mapped to CPU ID)
+        4. In a strict 1:1 NUMA-to-L3 topology, the L3 cache ID must
+           equal the NUMA node ID
         """
         # Build helper mappings
         numa_to_l3_caches: dict[int, set[int]] = {}
@@ -375,6 +377,22 @@ class CPU(TestSuite):
                     f"indicates incorrect cache mapping (L3 should be "
                     f"shared across cores, not unique per CPU).",
                 ).is_less_than(cpu_count)
+
+        # 4. Strict 1:1 case: each NUMA owns exactly one L3 and each L3
+        #    belongs to exactly one NUMA. Then L3 ID must equal NUMA ID.
+        #    Multi-CCD and sub-NUMA clustering are excluded by this guard.
+        is_bijective = all(
+            len(l3s) == 1 for l3s in numa_to_l3_caches.values()
+        ) and all(len(numas) == 1 for numas in l3_to_numas.values())
+        if is_bijective:
+            for numa_node, l3_caches in numa_to_l3_caches.items():
+                l3_cache = next(iter(l3_caches))
+                assert_that(
+                    l3_cache,
+                    f"NUMA node {numa_node} maps 1:1 to a single L3 cache, "
+                    f"so its L3 cache ID must equal the NUMA node ID, but "
+                    f"got L3 cache ID {l3_cache}.",
+                ).is_equal_to(numa_node)
 
         # Log the topology for debugging
         for numa_node, l3_caches in sorted(numa_to_l3_caches.items()):
