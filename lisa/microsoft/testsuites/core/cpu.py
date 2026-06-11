@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-import time
 from typing import Any
 
 from assertpy.assertpy import assert_that
@@ -22,7 +21,7 @@ from lisa.operating_system import BSD, CpuArchitecture, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
+from lisa.tools import Cat, InterruptInspector, Lscpu, Uname
 
 hyperv_interrupt_substr = ["hyperv", "hypervsum", "Hypervisor", "Hyper-V"]
 
@@ -286,16 +285,31 @@ class CPU(TestSuite):
             raise LisaException("Hyper-V interrupts are not recorded.")
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
-        # Run CPU intensive workload to create hyper-v synthetic timer
-        # interrupts.
-        # Steps :
-        # 1. Run `yes` program on each vCPU in a subprocess.
-        # 2. Wait for one second to allow enough time for processing interrupts.
-        # 3. Kill the spawned subprocess.
-        for i in range(1, cpu_count):
-            process = node.tools[TaskSet].run_on_specific_cpu(i)
-            time.sleep(1)
-            process.kill()
+        # Run a short CPU-intensive workload on every vCPU to force the
+        # Hyper-V synthetic timer interrupt to fire on each CPU.
+        #
+        # The previous implementation opened one SSH channel per vCPU and
+        # serialized through them; on 300+ vCPU SKUs the paramiko transport
+        # exhausts ("SSH session not active") after ~300 channels (bug 62662205).
+        # Run the whole fan-out in a single shell command instead.
+        if cpu_count <= 1:
+            return
+        last_cpu = cpu_count - 1
+        # `timeout 1 yes > /dev/null` exits after 1 second; one process per
+        # CPU is launched in background, then `wait` blocks until they all
+        # finish. Only one SSH channel is used for the entire loop.
+        cmd = (
+            f"for i in $(seq 1 {last_cpu}); do "
+            "taskset -c $i timeout 1 yes > /dev/null & "
+            "done; wait"
+        )
+        node.execute(
+            cmd,
+            shell=True,
+            sudo=False,
+            no_debug_log=True,
+            timeout=max(60, cpu_count // 4),
+        )
 
     def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
         cpu_info = node.tools[Lscpu].get_cpu_info()

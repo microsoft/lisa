@@ -3,8 +3,12 @@
 
 from __future__ import annotations
 
+import os
 import re
+import tempfile
+import uuid
 from collections import Counter
+from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Type
 
 from lisa.executable import Tool
@@ -75,8 +79,15 @@ class InterruptInspector(Tool):
         # Note : Some IRQ numbers have single entry because they're not actually
         # CPU stats, but events count belonging to the IO-APIC controller. For
         # example, `ERR` is incremented in the case of errors in the IO-APIC bus.
-        result = self.node.tools[Cat].run("/proc/interrupts", sudo=True, force_run=True)
-        mappings = result.stdout.splitlines(keepends=False)[1:]
+        #
+        # On high-vCPU SKUs (300+ vCPUs) /proc/interrupts is hundreds of KB.
+        # Capturing it via stdout goes through spur's byte-at-a-time reader and
+        # LISA's per-line debug logging, which makes a 16-second kernel read
+        # take 60+ minutes and trip test-case timeouts (bug 62662205).
+        # To avoid that, we redirect on the node into a temp file and download
+        # it via SFTP (buffered), then read it locally.
+        raw = self._fetch_proc_interrupts()
+        mappings = raw.splitlines()[1:]
         assert mappings
 
         interrupts = []
@@ -95,6 +106,51 @@ class InterruptInspector(Tool):
             )
 
         return interrupts
+
+    def _fetch_proc_interrupts(self) -> str:
+        # Try the fast path: redirect on the node to a temp file, pull it back
+        # over SFTP, then read locally. Falls back to the original stdout-based
+        # path if either step fails (e.g. permissions, missing SFTP).
+        remote_name = f"lisa_proc_interrupts_{os.getpid()}_{uuid.uuid4().hex}.txt"
+        remote_path = PurePosixPath("/tmp") / remote_name
+        local_path = Path(tempfile.gettempdir()) / remote_name
+        try:
+            self.node.execute(
+                f"cat /proc/interrupts > {remote_path}",
+                shell=True,
+                sudo=True,
+                no_debug_log=True,
+                timeout=120,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to snapshot /proc/interrupts on node"
+                ),
+            )
+            self.node.shell.copy_back(remote_path, local_path)
+            return local_path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            # Fall back to the legacy stdout capture path. Slow on large
+            # vCPU counts but functional everywhere.
+            result = self.node.tools[Cat].run(
+                "/proc/interrupts", sudo=True, force_run=True, timeout=3600
+            )
+            return result.stdout
+        finally:
+            try:
+                if local_path.exists():
+                    local_path.unlink()
+            except OSError:
+                pass
+            try:
+                self.node.execute(
+                    f"rm -f {remote_path}",
+                    shell=True,
+                    sudo=True,
+                    no_debug_log=True,
+                    timeout=60,
+                )
+            except Exception:
+                pass
 
     def sum_cpu_counter_by_irqs(
         self,
