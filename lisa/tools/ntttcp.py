@@ -1094,6 +1094,7 @@ class WindowsNtttcp(Ntttcp):
         run_as_daemon: bool = False,
         udp_mode: bool = False,
         no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         self._log.debug(
             "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
@@ -1113,6 +1114,7 @@ class WindowsNtttcp(Ntttcp):
             f"{self.command} {cmd}",
             shell=True,
             sudo=True,
+            no_debug_log=no_debug_log,
         )
         self._wait_receiver_port_ready(udp_mode)
         return process
@@ -1154,6 +1156,7 @@ class WindowsNtttcp(Ntttcp):
         udp_mode: bool = False,
         tolerance_seconds: int = 60,
         no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         self._log.debug(
             "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
@@ -1175,6 +1178,7 @@ class WindowsNtttcp(Ntttcp):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
             timeout=run_time_seconds + tolerance_seconds,
+            no_debug_log=no_debug_log,
         )
 
     def create_ntttcp_result(
