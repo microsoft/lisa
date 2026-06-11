@@ -24,6 +24,7 @@ from lisa.util import (
     get_date_str,
     get_datetime_path,
 )
+from lisa.secret import PATTERN_URL, add_secret
 
 from .common import (
     AZURE_SHARED_RG_NAME,
@@ -481,9 +482,21 @@ class SigTransformerSchema(schema.Transformer):
               azure_sig_url: shared_gallery
     """
 
-    # raw vhd URL, it can be the blob under the same subscription of SIG
-    # or SASURL
-    vhd: str = field(default="", metadata=field_metadata(required=True))
+    # Raw VHD URL or VHD schema object. String form keeps backward compatibility:
+    #   vhd: "https://.../os.vhd"
+    # Object form supports data disk VHDs:
+    #   vhd:
+    #     vhd_path: "https://.../os.vhd"
+    #     data_vhd_paths:
+    #       - data_vhd:
+    #           lun: 0
+    #           url: "https://.../data0.vhd"
+    #       - data_vhd:
+    #           lun: 1
+    #           url: "https://.../data1.vhd"
+    vhd: Union[str, Dict[Any, Any]] = field(
+        default="", metadata=field_metadata(required=True)
+    )
     # if not specify gallery_resource_group_name, use shared resource group name
     gallery_resource_group_name: str = field(default=AZURE_SHARED_RG_NAME)
     # if not specified, will use the first location of gallery image
@@ -610,18 +623,24 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_resource_group_location = image_location
         if not runbook.gallery_location:
             runbook.gallery_location = image_location
+
+        source_vhd_path, source_data_vhd_paths = self._resolve_vhd_sources(runbook)
         vhd_path = get_deployable_storage_path(
-            platform, runbook.vhd, image_location, self._log
+            platform, source_vhd_path, image_location, self._log
         )
-        vhd_details = get_vhd_details(platform, vhd_path)
-        check_blob_exist(
-            platform=platform,
-            account_name=vhd_details["account_name"],
-            container_name=vhd_details["container_name"],
-            resource_group_name=vhd_details["resource_group_name"],
-            blob_name=vhd_details["blob_name"],
-            raise_error=True,
-        )
+        vhd_details = self._check_blob_exists(platform, vhd_path)
+
+        data_vhd_paths: List[Dict[str, Any]] = []
+        for source_data_vhd in source_data_vhd_paths:
+            source_data_vhd_path = source_data_vhd["url"]
+            data_vhd_path = get_deployable_storage_path(
+                platform, source_data_vhd_path, image_location, self._log
+            )
+            self._check_blob_exists(platform, data_vhd_path)
+            data_vhd: Dict[str, Any] = {"url": data_vhd_path}
+            if "lun" in source_data_vhd:
+                data_vhd["lun"] = source_data_vhd["lun"]
+            data_vhd_paths.append(data_vhd)
 
         # Get features from marketplace image if specified
         features = self._get_image_features(platform, runbook.marketplace_source)
@@ -696,6 +715,7 @@ class SharedGalleryImageTransformer(Transformer):
             vhd_details["resource_group_name"],
             vhd_details["account_name"],
             runbook.gallery_image_location,
+            data_vhd_paths=data_vhd_paths,
         )
 
         sig_url = (
@@ -706,6 +726,75 @@ class SharedGalleryImageTransformer(Transformer):
 
         self._log.info(f"SIG Url: {sig_url}")
         return {self.__sig_name: sig_url}
+
+    def _check_blob_exists(
+        self, platform: AzurePlatform, vhd_path: str
+    ) -> Dict[str, str]:
+        vhd_details = cast(Dict[str, str], get_vhd_details(platform, vhd_path))
+        check_blob_exist(
+            platform=platform,
+            account_name=vhd_details["account_name"],
+            container_name=vhd_details["container_name"],
+            resource_group_name=vhd_details["resource_group_name"],
+            blob_name=vhd_details["blob_name"],
+            raise_error=True,
+        )
+        return vhd_details
+
+    def _resolve_vhd_sources(
+        self, runbook: SigTransformerSchema
+    ) -> tuple[str, List[Dict[str, Any]]]:
+        data_vhd_paths: List[Dict[str, Any]] = []
+
+        def _add_data_vhd(url: str, lun: Optional[int] = None) -> None:
+            normalized_url = url.strip()
+            if not normalized_url:
+                return
+            add_secret(normalized_url, PATTERN_URL)
+            item: Dict[str, Any] = {"url": normalized_url}
+            if lun is not None:
+                item["lun"] = lun
+            data_vhd_paths.append(item)
+
+        def _parse_lun(raw_lun: Any) -> Optional[int]:
+            if isinstance(raw_lun, int) and raw_lun >= 0:
+                return raw_lun
+            if isinstance(raw_lun, str):
+                raw_lun = raw_lun.strip()
+                if raw_lun.isdigit():
+                    return int(raw_lun)
+            return None
+
+        if isinstance(runbook.vhd, str):
+            vhd_path = runbook.vhd
+        elif isinstance(runbook.vhd, dict):
+            raw_vhd_path = runbook.vhd.get("vhd_path", "")
+            vhd_path = raw_vhd_path.strip() if isinstance(raw_vhd_path, str) else ""
+
+            raw_data_vhd_paths = runbook.vhd.get("data_vhd_paths")
+            if isinstance(raw_data_vhd_paths, list):
+                for item in raw_data_vhd_paths:
+                    if not isinstance(item, dict):
+                        continue
+
+                    # Supported format:
+                    #   - data_vhd:
+                    #       lun: 0
+                    #       url: "https://.../data0.vhd"
+                    raw_data_vhd = item.get("data_vhd")
+                    if isinstance(raw_data_vhd, dict):
+                        url = raw_data_vhd.get("url")
+                        if isinstance(url, str) and url.strip():
+                            _add_data_vhd(url, _parse_lun(raw_data_vhd.get("lun")))
+        else:
+            raise LisaException(
+                f"unsupported type for transformer vhd: {type(runbook.vhd)}"
+            )
+
+        if not vhd_path:
+            raise LisaException("vhd or vhd.vhd_path must not be empty.")
+
+        return vhd_path, data_vhd_paths
 
     def _get_image_features(
         self, platform: AzurePlatform, marketplace: str
