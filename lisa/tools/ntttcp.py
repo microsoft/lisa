@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import os
 import re
 import time
 from decimal import Decimal
@@ -89,6 +90,11 @@ class NtttcpResult:
 
 class Ntttcp(Tool):
     repo = "https://github.com/microsoft/ntttcp-for-linux"
+    # Optional git ref (commit/tag/branch) to build ntttcp from. Leave empty to
+    # build the default branch (master) HEAD. Can be overridden at runtime with
+    # the NTTTCP_REF environment variable, e.g. to bisect a regression:
+    #   NTTTCP_REF=ee4f153856b0aa924205976df4af8d04ead336c4
+    ref = ""
     throughput_pattern = re.compile(r" 	 throughput	:(.+)")
     # NTTTCP output sample
     # NTTTCP for Linux 1.4.0
@@ -835,7 +841,10 @@ class Ntttcp(Tool):
 
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
+        ref = os.environ.get("NTTTCP_REF", self.ref)
+        if ref:
+            self._log.info(f"installing ntttcp from pinned ref: {ref}")
+        git.clone(self.repo, tool_path, ref=ref)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath(self.tool_path_folder)
         make.make_install(cwd=code_path)
