@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from decimal import Decimal
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
@@ -18,21 +19,24 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     node_requirement,
+    notifier,
     schema,
     search_space,
     simple_requirement,
 )
 from lisa.environment import Environment, Node
 from lisa.operating_system import Windows
-from lisa.sut_orchestrator import CLOUD_HYPERVISOR
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV
 from lisa.testsuite import TestResult
 from lisa.tools import Dhclient, Kill, PowerShell, Sysctl
+from lisa.tools.ip import Ip
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
     IPERF_UDP_BUFFER_LENGTHS,
     IPERF_UDP_CONCURRENCY,
 )
+from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY, Ntttcp
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -43,6 +47,10 @@ from lisa.util import (
 from lisa.util.logger import get_logger
 from lisa.util.parallel import run_in_parallel
 
+SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV]
+WINDOWS_NTTTCP_MAX_SERVER_THREADS = 64
+WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
+
 
 @TestSuiteMetadata(
     area="network passthrough",
@@ -52,7 +60,7 @@ from lisa.util.parallel import run_in_parallel
     for various NIC passthrough scenarios.
     """,
     requirement=simple_requirement(
-        supported_platform_type=[CLOUD_HYPERVISOR],
+        supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
         unsupported_os=[Windows],
     ),
 )
@@ -77,7 +85,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -89,6 +97,7 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
+        self._skip_if_windows_server(server, "iperf3")
 
         # Reboot guest into fresh state; never reboot the baremetal host.
         cast(RemoteNode, node).reboot()
@@ -115,7 +124,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -127,6 +136,7 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
+        self._skip_if_windows_server(server, "iperf3")
 
         # Reboot guest into fresh state; never reboot the baremetal host.
         cast(RemoteNode, node).reboot()
@@ -155,7 +165,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -167,6 +177,7 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
+        self._skip_if_windows_server(server, "netperf/sar")
 
         # Reboot guest into fresh state; never reboot the baremetal host.
         cast(RemoteNode, node).reboot()
@@ -193,7 +204,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -205,6 +216,7 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
+        self._skip_if_windows_server(server, "netperf/sar")
 
         # Reboot guest into fresh state; never reboot the baremetal host.
         cast(RemoteNode, node).reboot()
@@ -233,7 +245,7 @@ class NetworkPerformance(TestSuite):
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
         ),
     )
     def perf_tcp_ntttcp_passthrough_host_guest(
@@ -252,24 +264,35 @@ class NetworkPerformance(TestSuite):
             node, log_path, host_node=server
         )
 
-        def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
-            _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
-                node, log_path, host_node=server
+        if isinstance(server.os, Windows):
+            self._perf_ntttcp_with_windows_server(
+                test_result=result,
+                client=client,
+                server=server,
+                client_nic_name=client_nic_name,
+                udp_mode=False,
+                test_case_name="perf_tcp_ntttcp_passthrough_host_guest",
             )
-            return refreshed_client_nic_name, None
+        else:
 
-        perf_ntttcp(
-            test_result=result,
-            client=client,
-            server=server,
-            server_nic_name=self._get_host_nic_name(server),
-            client_nic_name=client_nic_name,
-            skip_server_task_max=True,  # host: TasksMax reboot clears NIC DHCP state
-            post_ntttcp_setup=refresh_passthrough_nics,
-            client_ntttcp_timeout_tolerance_seconds=(
-                self.NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
-            ),
-        )
+            def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
+                _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
+                    node, log_path, host_node=server
+                )
+                return refreshed_client_nic_name, None
+
+            perf_ntttcp(
+                test_result=result,
+                client=client,
+                server=server,
+                server_nic_name=self._get_host_nic_name(server),
+                client_nic_name=client_nic_name,
+                skip_server_task_max=True,  # host: TasksMax reboot clears NIC DHCP
+                post_ntttcp_setup=refresh_passthrough_nics,
+                client_ntttcp_timeout_tolerance_seconds=(
+                    self.NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
+                ),
+            )
 
     @TestCaseMetadata(
         description="""
@@ -282,7 +305,7 @@ class NetworkPerformance(TestSuite):
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
         ),
     )
     def perf_udp_1k_ntttcp_passthrough_host_guest(
@@ -301,15 +324,26 @@ class NetworkPerformance(TestSuite):
             node, log_path, host_node=server
         )
 
-        perf_ntttcp(
-            test_result=result,
-            client=client,
-            server=server,
-            server_nic_name=self._get_host_nic_name(server),
-            client_nic_name=client_nic_name,
-            udp_mode=True,
-            skip_server_task_max=True,  # host: TasksMax reboot clears NIC DHCP state
-        )
+        if isinstance(server.os, Windows):
+            self._perf_ntttcp_with_windows_server(
+                test_result=result,
+                client=client,
+                server=server,
+                client_nic_name=client_nic_name,
+                udp_mode=True,
+                test_case_name="perf_udp_1k_ntttcp_passthrough_host_guest",
+            )
+        else:
+            perf_ntttcp(
+                test_result=result,
+                client=client,
+                server=server,
+                server_nic_name=self._get_host_nic_name(server),
+                client_nic_name=client_nic_name,
+                udp_mode=True,
+                # host: TasksMax reboot clears NIC DHCP state
+                skip_server_task_max=True,
+            )
 
     # Network device passthrough tests between 2 guests
     @TestCaseMetadata(
@@ -320,7 +354,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -358,7 +392,7 @@ class NetworkPerformance(TestSuite):
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -399,7 +433,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -438,7 +472,7 @@ class NetworkPerformance(TestSuite):
         timeout=PPS_TIMEOUT,
         requirement=simple_requirement(
             min_count=2,
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
             unsupported_os=[Windows],
         ),
     )
@@ -479,7 +513,7 @@ class NetworkPerformance(TestSuite):
                 node_count=2,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
         ),
     )
     def perf_tcp_ntttcp_passthrough_two_guest(
@@ -535,7 +569,7 @@ class NetworkPerformance(TestSuite):
                 node_count=2,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
         ),
     )
     def perf_udp_1k_ntttcp_passthrough_two_guest(
@@ -578,9 +612,7 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         host_node: Optional[RemoteNode] = None,
     ) -> Tuple[RemoteNode, str]:
-        from lisa.sut_orchestrator.libvirt.context import get_node_context
-
-        ctx = get_node_context(node)
+        ctx = self._get_passthrough_node_context(node)
         if not ctx.passthrough_devices:
             raise SkippedException("No passthrough devices found for node")
 
@@ -588,14 +620,10 @@ class NetworkPerformance(TestSuite):
         if not passthrough_dev.device_list:
             raise LisaException("passthrough_devices[0].device_list is empty")
         device_addr_obj = passthrough_dev.device_list[0]
-        domain = self._norm_hex(device_addr_obj.domain or "0000", 4)
-        bus = self._norm_hex(device_addr_obj.bus, 2)
-        slot = self._norm_hex(device_addr_obj.slot, 2)
-        function = self._norm_hex(device_addr_obj.function, 1)
-        device_bdf = f"{domain}:{bus}:{slot}.{function}"
+        device_bdf = self._get_device_bdf(device_addr_obj)
 
         host_nic_name = ""
-        if host_node is not None:
+        if host_node is not None and device_bdf:
             _h = host_node.execute(
                 f"ls /sys/bus/pci/devices/{device_bdf}/net/ 2>/dev/null"
                 " | head -1 || true",
@@ -710,6 +738,33 @@ class NetworkPerformance(TestSuite):
         test_node.internal_address = passthrough_nic_ip
 
         return test_node, interface_name
+
+    def _get_passthrough_node_context(self, node: Node) -> Any:
+        try:
+            from lisa.sut_orchestrator.libvirt.context import (
+                get_node_context as get_libvirt_node_context,
+            )
+
+            return get_libvirt_node_context(node)
+        except AssertionError:
+            from lisa.sut_orchestrator.hyperv.context import (
+                get_node_context as get_hyperv_node_context,
+            )
+
+            return get_hyperv_node_context(node)
+
+    def _get_device_bdf(self, device_addr_obj: Any) -> str:
+        bus = getattr(device_addr_obj, "bus", "")
+        slot = getattr(device_addr_obj, "slot", "")
+        function = getattr(device_addr_obj, "function", "")
+        if not (bus and slot and function):
+            return ""
+
+        domain = self._norm_hex(getattr(device_addr_obj, "domain", "") or "0000", 4)
+        return (
+            f"{domain}:{self._norm_hex(bus, 2)}:"
+            f"{self._norm_hex(slot, 2)}.{self._norm_hex(function, 1)}"
+        )
 
     def _find_guest_passthrough_iface(
         self,
@@ -1043,18 +1098,161 @@ class NetworkPerformance(TestSuite):
 
         server.initialize()
 
-        if isinstance(server.os, Windows):
-            server.close()
-            server.cleanup()
-            raise SkippedException(
-                "Host/guest passthrough performance tests require a Linux "
-                "baremetal host; Windows baremetal hosts are not supported."
-            )
-
         # Track baremetal host for cleanup.
         if server not in self._baremetal_hosts:
             self._baremetal_hosts.append(server)
         return server
+
+    def _skip_if_windows_server(self, server: RemoteNode, tool_name: str) -> None:
+        if isinstance(server.os, Windows):
+            if server in self._baremetal_hosts:
+                server.close()
+                server.cleanup()
+                self._baremetal_hosts.remove(server)
+            raise SkippedException(
+                f"Host/guest passthrough performance with {tool_name} requires "
+                "Linux server tooling. Use the NTTTCP passthrough cases for "
+                "Windows baremetal hosts."
+            )
+
+    def _perf_ntttcp_with_windows_server(
+        self,
+        test_result: TestResult,
+        client: RemoteNode,
+        server: RemoteNode,
+        client_nic_name: str,
+        udp_mode: bool,
+        test_case_name: str,
+    ) -> None:
+        client_ntttcp = client.tools[Ntttcp]
+        server_ntttcp = server.tools[Ntttcp]
+        client_ntttcp.setup_system(udp_mode)
+        server_ntttcp.setup_system(udp_mode, set_task_max=False)
+
+        try:
+            client_ip = client.tools[Ip]
+            client_mtu = client_ip.get_mtu(client_nic_name)
+            connections = NTTTCP_UDP_CONCURRENCY if udp_mode else NTTTCP_TCP_CONCURRENCY
+            max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
+
+            for test_thread in connections:
+                if test_thread < max_server_threads:
+                    num_threads_p = test_thread
+                    num_threads_n = 1
+                else:
+                    num_threads_p = max_server_threads
+                    num_threads_n = int(test_thread / num_threads_p)
+                # UDP uses a 1 KB buffer; TCP uses 64 KB, except for single-stream
+                # which uses 1 MB to maximize per-connection throughput.
+                buffer_size = 1 if udp_mode else 64  # KB
+                if not udp_mode and num_threads_p == 1 and num_threads_n == 1:
+                    buffer_size = 1024  # 1 MB for single-stream TCP
+                use_no_sync = True
+
+                receiver_process = (
+                    client_ntttcp.run_as_server_async(
+                        client_nic_name,
+                        ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        udp_mode=True,
+                        dev_differentiator="",
+                        no_sync=use_no_sync,
+                    )
+                    if udp_mode
+                    else server_ntttcp.run_as_server_async(
+                        "",
+                        ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        server_ip=server.internal_address,
+                        dev_differentiator="",
+                        no_sync=use_no_sync,
+                    )
+                )
+                try:
+                    if udp_mode:
+                        sender_result = server_ntttcp.run_as_client(
+                            "",
+                            client.internal_address,
+                            threads_count=num_threads_n,
+                            ports_count=num_threads_p,
+                            buffer_size=buffer_size,
+                            udp_mode=True,
+                            no_sync=use_no_sync,
+                        )
+                    else:
+                        sender_result = client_ntttcp.run_as_client(
+                            client_nic_name,
+                            server.internal_address,
+                            threads_count=num_threads_n,
+                            ports_count=num_threads_p,
+                            buffer_size=buffer_size,
+                            dev_differentiator="",
+                            no_sync=use_no_sync,
+                        )
+                    receiver_result = receiver_process.wait_result(
+                        timeout=WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT
+                    )
+                finally:
+                    server.tools[PowerShell].run_cmdlet(
+                        "Stop-Process -Name ntttcp -Force"
+                        " -ErrorAction SilentlyContinue",
+                        force_run=True,
+                        fail_on_error=False,
+                        timeout=30,
+                    )
+
+                parsed_client_result = (
+                    server_ntttcp.create_ntttcp_result(sender_result, role="client")
+                    if udp_mode
+                    else client_ntttcp.create_ntttcp_result(
+                        sender_result, role="client"
+                    )
+                )
+                try:
+                    parsed_server_result = (
+                        client_ntttcp.create_ntttcp_result(receiver_result)
+                        if udp_mode
+                        else server_ntttcp.create_ntttcp_result(receiver_result)
+                    )
+                except (AssertionError, LisaException) as parse_error:
+                    receiver_node = "Linux guest" if udp_mode else "Windows host"
+                    raise LisaException(
+                        f"Failed to parse NTTTCP receiver output from {receiver_node} "
+                        f"for {test_case_name} with {test_thread} connections. "
+                        "Verify that the receiver completed and emitted NTTTCP "
+                        "totals before publishing performance data. "
+                        f"Exit code: {receiver_result.exit_code}. "
+                        f"Stdout: {receiver_result.stdout[:2000]}. "
+                        f"Stderr: {receiver_result.stderr[:2000]}"
+                    ) from parse_error
+                if udp_mode:
+                    notifier.notify(
+                        client_ntttcp.create_ntttcp_udp_performance_message(
+                            parsed_server_result,
+                            parsed_client_result,
+                            str(test_thread),
+                            buffer_size,
+                            test_case_name,
+                            test_result,
+                            client_mtu,
+                        )
+                    )
+                else:
+                    notifier.notify(
+                        client_ntttcp.create_ntttcp_tcp_performance_message(
+                            parsed_server_result,
+                            parsed_client_result,
+                            Decimal(0),
+                            str(test_thread),
+                            buffer_size,
+                            test_case_name,
+                            test_result,
+                            client_mtu,
+                        )
+                    )
+        finally:
+            client_ntttcp.restore_system(udp_mode)
+            server_ntttcp.restore_system(udp_mode)
 
     def _get_host_nic_name(self, node: RemoteNode) -> str:
         ip = node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
