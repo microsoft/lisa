@@ -21,7 +21,7 @@ from lisa.operating_system import BSD, CpuArchitecture, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, InterruptInspector, Lscpu, Uname
+from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
 
 hyperv_interrupt_substr = ["hyperv", "hypervsum", "Hypervisor", "Hyper-V"]
 
@@ -285,30 +285,23 @@ class CPU(TestSuite):
             raise LisaException("Hyper-V interrupts are not recorded.")
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
-        # Run a short CPU-intensive workload on every vCPU to force the
-        # Hyper-V synthetic timer interrupt to fire on each CPU.
+        # Force the Hyper-V synthetic timer interrupt to fire on each CPU by
+        # running a 1-second CPU-bound workload pinned to each vCPU.
         #
-        # The previous implementation opened one SSH channel per vCPU and
-        # serialized through them; on 300+ vCPU SKUs the paramiko transport
-        # exhausts ("SSH session not active") after ~300 channels (bug 62662205).
-        # Run the whole fan-out in a single shell command instead.
-        if cpu_count <= 1:
-            return
-        last_cpu = cpu_count - 1
-        # `timeout 1 yes > /dev/null` exits after 1 second; one process per
-        # CPU is launched in background, then `wait` blocks until they all
-        # finish. Only one SSH channel is used for the entire loop.
-        cmd = (
-            f"for i in $(seq 1 {last_cpu}); do "
-            "taskset -c $i timeout 1 yes > /dev/null & "
-            "done; wait"
-        )
-        node.execute(
-            cmd,
-            shell=True,
-            sudo=False,
-            no_debug_log=True,
-            timeout=max(60, cpu_count // 4),
+        # The previous implementation called ``TaskSet.run_on_specific_cpu``
+        # in a Python loop, which opened one SSH channel per CPU and
+        # serialised through them.  On 300+ vCPU SKUs the paramiko transport
+        # would exhaust after ~300 channels.  The TaskSet helper now runs
+        # the whole fan-out in a single shell command (one SSH channel).
+        #
+        # Timeout budget: each pinned process is bounded by ``timeout 1`` so
+        # the wall-clock cost is ~1s regardless of cpu_count, but kernel
+        # scheduling, taskset/exec setup, and SSH command marshalling add
+        # small per-CPU overhead.  Allow at least 60s and grow by ~1s per
+        # 4 vCPUs to leave headroom on very large SKUs (e.g. 90s for 360
+        # vCPUs); both are generous compared to observed runs (~1-2s).
+        node.tools[TaskSet].run_on_all_cpus_in_background(
+            cpu_count, timeout=max(60, cpu_count // 4)
         )
 
     def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
