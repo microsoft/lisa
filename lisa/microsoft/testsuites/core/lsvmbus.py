@@ -118,13 +118,19 @@ class LsVmBus(TestSuite):
                   => Expected channel count = min(num of vCPUs, 8).
                 - New logic (after Linux commit 646f071d315b75e87583de290d333478d42ccde1): # noqa: E501
                   2.1.3 If vCPU count <= 16, expected channel count = num of vCPUs.
-                  2.1.4 If vCPU count > 16, expected channel count =
-                        min(64, max(16, physical core count / 2)).
+                  2.1.4 If vCPU count > 16, two valid formulas exist:
+                        - Pre-646f071d: min(64, max(16, core_count // 2))
+                        - Post-646f071d: min(64, max(16, thread_count // 2))
+                        where thread_count = num_present_cpus (logical CPUs)
+                        and core_count = physical cores.
                   Reference:
                         https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=646f071d315b75e87583de290d333478d42ccde1
                 - Test logic:
                   The code will first validate against the legacy rule.
-                  If actual channel count does not match, it will then apply the new rule.
+                  If actual channel count does not match, it checks against both
+                  the pre-646f071d formula (core_count // 2) and the post-646f071d
+                  formula (thread_count // 2), accepting either as valid since
+                  different kernel versions coexist in production.
             2.2 Check expected channel count of each storvsc SCSI device is min (num of
                  vcpu/4, 64).
                 2.2.1 Calculate channel count of each storvsc SCSI device.
@@ -147,6 +153,7 @@ class LsVmBus(TestSuite):
         #  vmbus channels created and associated.
         lscpu_tool = node.tools[Lscpu]
         thread_count = lscpu_tool.get_thread_count()
+        core_count = lscpu_tool.get_core_count()
         # Each netvsc device should have "the_number_of_vCPUs" channel(s)
         #  with a cap value of 8.
         expected_network_channel_count = min(thread_count, 8)
@@ -164,23 +171,44 @@ class LsVmBus(TestSuite):
                 )
                 # Note: mismatch may occur due to kernel change (commit 646f071d315b).
                 # In that case, validate again using the new logic.
+                # Two valid formulas exist depending on kernel version:
+                #  - Pre-646f071d (Azure 6.8 etc): min(64, max(16, core_count // 2))
+                #  - Post-646f071d: min(64, max(16, thread_count // 2))
+                #    where thread_count = num_present_cpus (logical CPUs).
                 if actual_channels != expected_network_channel_count:
                     if thread_count <= 16:
                         expected_network_channel_count = thread_count
                         log.info(
-                            "Applying new logic: expected channels = core_count "
-                            f"({thread_count})"
+                            "Applying new logic: expected channels = "
+                            f"thread_count ({thread_count})"
                         )
                     else:
-                        core_count = lscpu_tool.get_core_count()
-                        expected_network_channel_count = min(
-                            64, max(16, core_count // 2)
-                        )
-                        log.info(
-                            "Applying new logic: expected channels = min(64, "
-                            "max(16, physical_core_count // 2)) "
-                            f"= {expected_network_channel_count}"
-                        )
+                        new_expected = min(64, max(16, thread_count // 2))
+                        old_expected = min(64, max(16, core_count // 2))
+                        if actual_channels == old_expected:
+                            expected_network_channel_count = old_expected
+                            log.info(
+                                "Matches pre-646f071d formula: min(64, "
+                                "max(16, core_count // 2)) "
+                                f"= {old_expected}"
+                            )
+                        elif actual_channels == new_expected:
+                            expected_network_channel_count = new_expected
+                            log.info(
+                                "Matches post-646f071d formula: min(64, "
+                                "max(16, thread_count // 2)) "
+                                f"= {new_expected}"
+                            )
+                        else:
+                            # Neither formula matches; fail with
+                            # the new expected value for diagnostics.
+                            expected_network_channel_count = new_expected
+                            log.info(
+                                f"Actual channels ({actual_channels}) "
+                                "matches neither pre-646f071d "
+                                f"({old_expected}) nor post-646f071d "
+                                f"({new_expected}) formula."
+                            )
                 assert_that(vmbus_device.channel_vp_map).is_length(
                     expected_network_channel_count
                 )
