@@ -257,10 +257,25 @@ class Process:
         if no_error_log:
             stderr_level = stdout_level
 
+        stdout_capture_stream = (
+            self.log_buffer if stdout_level == logging.NOTSET else None
+        )
+        stderr_capture_stream = (
+            self.log_buffer if stderr_level == logging.NOTSET else None
+        )
+
         self.stdout_logger = get_logger("stdout", parent=self._log)
         self.stderr_logger = get_logger("stderr", parent=self._log)
-        self._stdout_writer = LogWriter(logger=self.stdout_logger, level=stdout_level)
-        self._stderr_writer = LogWriter(logger=self.stderr_logger, level=stderr_level)
+        self._stdout_writer = LogWriter(
+            logger=self.stdout_logger,
+            level=stdout_level,
+            capture_stream=stdout_capture_stream,
+        )
+        self._stderr_writer = LogWriter(
+            logger=self.stderr_logger,
+            level=stderr_level,
+            capture_stream=stderr_capture_stream,
+        )
 
         self._log_handler = logging.StreamHandler(self.log_buffer)
         msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")

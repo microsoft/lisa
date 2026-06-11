@@ -125,6 +125,7 @@ class Iperf3(Tool):
         one_connection_only: bool = False,
         daemon: bool = True,
         interface_ip: str = "",
+        no_debug_log: bool = False,
     ) -> Process:
         # -s: run iperf3 as server mode
         # -D: run iperf3 as a daemon
@@ -145,7 +146,10 @@ class Iperf3(Tool):
         if interface_ip:
             cmd += f" -B {interface_ip} "
         process = self.node.execute_async(
-            f"{self.command} {cmd}", shell=True, sudo=True
+            f"{self.command} {cmd}",
+            shell=True,
+            sudo=True,
+            no_debug_log=no_debug_log,
         )
         if port:
             check_till_timeout(
@@ -162,6 +166,7 @@ class Iperf3(Tool):
         use_json_format: bool = False,
         one_connection_only: bool = False,
         daemon: bool = True,
+        no_debug_log: bool = False,
     ) -> None:
         # -s: run iperf3 as server mode
         # -D: run iperf3 as a daemon
@@ -177,6 +182,7 @@ class Iperf3(Tool):
             use_json_format,
             one_connection_only,
             daemon,
+            no_debug_log=no_debug_log,
         )
         process.wait_result(
             expected_exit_code=0,
@@ -199,6 +205,7 @@ class Iperf3(Tool):
         client_ip: str = "",
         ip_version: str = "",
         udp_mode: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         # -c: run iperf3 as client mode, followed by iperf3 server ip address
         # -t: run iperf3 testing for given seconds
@@ -254,7 +261,10 @@ class Iperf3(Tool):
             cmd += f" --logfile {log_file}"
 
         process = self.node.execute_async(
-            f"{self.command} {cmd}", shell=True, sudo=True
+            f"{self.command} {cmd}",
+            shell=True,
+            sudo=True,
+            no_debug_log=no_debug_log,
         )
 
         if log_file:
@@ -299,6 +309,7 @@ class Iperf3(Tool):
         client_ip: str = "",
         ip_version: str = "",
         udp_mode: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         process = self.run_as_client_async(
             server_ip,
@@ -314,6 +325,7 @@ class Iperf3(Tool):
             client_ip,
             ip_version,
             udp_mode,
+            no_debug_log,
         )
         result = process.wait_result(
             expected_exit_code=0,
