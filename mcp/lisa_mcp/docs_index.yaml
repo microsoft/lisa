@@ -1,0 +1,162 @@
+# Mapping of MCP tool names to LISA documentation files.
+#
+# The MCP server reads this manifest at startup to know which .rst / .md
+# docs to inject as context for each tool.  Paths are relative to the
+# repo root.  Files are loaded as plain text — .rst is read directly,
+# no conversion to markdown is needed.
+#
+# primary   — the main doc for the tool, always loaded
+# supplementary — additional docs loaded when extra context helps
+
+tools:
+
+  # ── test_writer.py ─────────────────────────────────────────────
+  lisa_write_test:
+    primary: .github/prompts/lisa_test_writer.prompt.md
+    supplementary:
+      - docs/write_test/write_case.rst
+      - docs/write_test/concepts.rst
+      - docs/write_test/guidelines.rst
+
+  lisa_get_test_writer_guidelines:
+    primary: .github/prompts/lisa_test_writer.prompt.md
+    supplementary:
+      - docs/write_test/write_case.rst
+
+  lisa_scaffold_test_suite:
+    primary: docs/write_test/write_case.rst
+    supplementary:
+      - docs/write_test/concepts.rst
+      - docs/write_test/guidelines.rst
+
+  lisa_scaffold_test_case:
+    primary: docs/write_test/write_case.rst
+    supplementary:
+      - docs/write_test/concepts.rst
+
+  lisa_list_test_requirements:
+    primary: docs/write_test/write_case.rst
+    supplementary: []
+
+  # ── runbook.py ─────────────────────────────────────────────────
+  lisa_generate_runbook:
+    primary: docs/run_test/runbook.rst
+    supplementary:
+      - docs/run_test/command_line.rst
+      - docs/run_test/platform.rst
+
+  lisa_validate_runbook:
+    primary: docs/run_test/runbook.rst
+    supplementary: []
+
+  lisa_fix_runbook:
+    primary: docs/run_test/runbook.rst
+    supplementary:
+      - docs/run_test/command_line.rst
+
+  # ── log_analysis.py ────────────────────────────────────────────
+  lisa_analyze_log:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary:
+      - docs/run_test/microsoft_tests.rst
+
+  lisa_explain_failure:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary: []
+
+  lisa_summarize_run:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary: []
+
+  lisa_get_log_analysis_prompts:
+    primary: lisa/ai/README.md
+    supplementary: []
+
+  lisa_search_log_files:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary: []
+
+  lisa_read_log_file:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary: []
+
+  lisa_list_log_files:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary: []
+
+  lisa_diagnose_bug:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary:
+      - docs/write_test/write_case.rst
+
+  # ── knowledge.py ───────────────────────────────────────────────
+  lisa_explain_concept:
+    primary: docs/write_test/concepts.rst
+    supplementary:
+      - docs/write_test/write_case.rst
+      - docs/write_test/extension.rst
+      - docs/run_test/runbook.rst
+      - docs/run_test/platform.rst
+
+  lisa_get_api_reference:
+    primary: docs/write_test/extension.rst
+    supplementary:
+      - docs/write_test/write_case.rst
+
+  lisa_find_examples:
+    primary: docs/write_test/write_case.rst
+    supplementary: []
+
+  lisa_list_tools:
+    primary: docs/write_test/extension.rst
+    supplementary: []
+
+  lisa_list_features:
+    primary: docs/write_test/extension.rst
+    supplementary: []
+
+  lisa_explain_error:
+    primary: docs/run_test/troubleshoot_failures.rst
+    supplementary: []
+
+  # ── execution.py ───────────────────────────────────────────────
+  lisa_run:
+    primary: docs/run_test/run.rst
+    supplementary:
+      - docs/run_test/command_line.rst
+
+
+# ── Topic index (used by explain_concept for targeted lookup) ────
+#
+# Maps topic keywords to the best doc file for that concept.
+# explain_concept searches this when the curated concepts.md
+# doesn't have a match.
+
+topics:
+  runbook:       docs/run_test/runbook.rst
+  platform:      docs/run_test/platform.rst
+  environment:   docs/write_test/concepts.rst
+  node:          docs/write_test/concepts.rst
+  feature:       docs/write_test/extension.rst
+  tool:          docs/write_test/extension.rst
+  extension:     docs/write_test/extension.rst
+  test suite:    docs/write_test/write_case.rst
+  test case:     docs/write_test/write_case.rst
+  transformer:   docs/run_test/transformers.rst
+  combinator:    docs/write_test/concepts.rst
+  variable:      docs/run_test/runbook.rst
+  notifier:      docs/write_test/extension.rst
+  requirement:   docs/write_test/concepts.rst
+  capability:    docs/write_test/concepts.rst
+  search_space:  docs/write_test/concepts.rst
+  priority:      docs/run_test/microsoft_tests.rst
+  log agent:     lisa/ai/README.md
+  log analysis:  lisa/ai/README.md
+  ai analysis:   lisa/ai/README.md
+  tier:          docs/run_test/microsoft_tests.rst
+  install:       docs/install.rst
+  authentication: docs/run_test/azure_auth.rst
+  azure:         docs/run_test/quick_run.rst
+  troubleshoot:  docs/run_test/troubleshoot_failures.rst
+  guidelines:    docs/write_test/guidelines.rst
+  contributing:  docs/contributing.rst
