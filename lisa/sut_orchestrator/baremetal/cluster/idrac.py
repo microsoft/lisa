@@ -307,11 +307,24 @@ class Idrac(Cluster):
             )
         self._log.debug(f"{operation} initiated successfully.")
 
+    @retry(tries=3, delay=5)  # type: ignore
     def get_power_state(self) -> str:
         response = self.redfish_instance.get(
             "/redfish/v1/Systems/System.Embedded.1/",
         )
-        return str(response.dict["PowerState"])
+        response_dict = response.dict
+        power_state = response_dict.get("PowerState")
+        if power_state is not None:
+            return str(power_state)
+
+        status = getattr(response, "status", "unknown")
+        response_keys = list(response_dict.keys())
+        raise LisaException(
+            "Failed to get iDRAC power state because the System endpoint response "
+            f"did not include a non-null PowerState. "
+            f"status={status}, keys={response_keys}. "
+            "Verify the iDRAC System endpoint and Lifecycle Controller health."
+        )
 
     def login(self) -> None:
         self.redfish_instance = redfish.redfish_client(
