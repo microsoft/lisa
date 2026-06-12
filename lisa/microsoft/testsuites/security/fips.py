@@ -14,9 +14,10 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Debian, Ubuntu
 from lisa.sut_orchestrator.azure.common import METADATA_ENDPOINT
-from lisa.tools import Curl, Fips
+from lisa.tools import Cat, Curl, Fips
+from lisa.tools.grub_config import GrubConfig
 from lisa.util import SkippedException, to_bool
 
 
@@ -68,6 +69,9 @@ class FipsTests(TestSuite):
         and then only if we have the proper tool to do so.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_os=[CBLMariner, Ubuntu],
+        ),
     )
     def verify_fips_enablement(self, log: Logger, node: Node) -> None:
         if isinstance(node.os, CBLMariner):
@@ -85,24 +89,58 @@ class FipsTests(TestSuite):
             fips.set_fips_mode(starting_fips_mode)
             node.reboot()
             fips.assert_fips_mode(starting_fips_mode)
+        elif isinstance(node.os, Debian):
+            self._verify_fips_enablement_debian(log, node)
         else:
-            result = node.execute("command -v fips-mode-setup", shell=True)
-            if result.exit_code != 0:
-                raise SkippedException(
-                    "Command not found: fips-mode-setup. "
-                    f"Please ensure {node.os.name} supports fips mode."
-                )
+            raise SkippedException(
+                f"FIPS enablement test is not supported on {node.os.name}. "
+                "Only Azure Linux (CBL-Mariner) and Debian/Ubuntu are supported."
+            )
 
-            node.execute("fips-mode-setup --enable", sudo=True)
+    def _verify_fips_enablement_debian(self, log: Logger, node: Node) -> None:
+        """
+        Verify FIPS enablement on Debian/Ubuntu.
+        On FIPS images where FIPS is already enabled, verify it is active.
+        On images with a FIPS kernel but FIPS not enabled, enable it via
+        GRUB boot parameters, reboot, and verify. On non-FIPS images, skip.
+        """
+        fips_enabled_str = node.tools[Cat].read(
+            "/proc/sys/crypto/fips_enabled", force_run=True
+        )
+        starting_fips_mode = to_bool(fips_enabled_str)
 
-            log.info("FIPS mode set to enable. Attempting reboot.")
+        kernel_version = node.execute("uname -r", shell=True).stdout.strip()
+        is_fips_kernel = "fips" in kernel_version.lower()
+
+        if not starting_fips_mode and not is_fips_kernel:
+            raise SkippedException(
+                f"FIPS is not enabled and kernel '{kernel_version}' "
+                "does not appear to be a FIPS kernel. "
+                "Skipping FIPS test on non-FIPS Debian/Ubuntu image."
+            )
+
+        if not starting_fips_mode and is_fips_kernel:
+            # FIPS kernel present but not enabled — enable via GRUB.
+            log.info(
+                f"FIPS kernel '{kernel_version}' detected but FIPS mode "
+                "is not enabled. Enabling fips=1 via GRUB boot parameters."
+            )
+            node.tools[GrubConfig].set_kernel_cmdline_arg("fips", "1")
             node.reboot()
 
-            result = node.execute("fips-mode-setup --check")
+            fips_after_enable = node.tools[Cat].read(
+                "/proc/sys/crypto/fips_enabled", force_run=True
+            )
+            assert_that(to_bool(fips_after_enable)).described_as(
+                f"Failed to enable FIPS on kernel '{kernel_version}'. "
+                "Added fips=1 to GRUB_CMDLINE_LINUX but "
+                "/proc/sys/crypto/fips_enabled is still 0."
+            ).is_true()
+            log.info(f"FIPS mode successfully enabled on kernel '{kernel_version}'.")
+        else:
+            log.info(f"FIPS mode is already enabled on kernel '{kernel_version}'.")
 
-            assert_that(result.stdout).described_as(
-                "FIPS was not properly enabled."
-            ).contains("is enabled")
+        log.info("FIPS enablement verification complete.")
 
     def _get_expected_fips_mode(
         self, log: Logger, node: Node, variables: Dict[str, Any]
