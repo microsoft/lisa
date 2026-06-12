@@ -4,6 +4,73 @@ You generate LISA runbook YAML files for running tests. Ask the user what scenar
 
 ---
 
+## Step 0: Locate the **executing** LISA install (do this BEFORE generating YAML)
+
+LISA's runbook loader has a built-in path: when `extension:` points to
+anything under `<lisa_root>/lisa/microsoft`, LISA rewrites the path to
+`<lisa_root>/lisa/microsoft` and forces the package name to `microsoft`.
+This is what makes cross-imports like
+`from microsoft.testsuites.xfstests.xfstests import ...` work.
+
+`<lisa_root>` is **not** an env var. It is computed at run time from
+`Path(lisa.__file__).parent.parent` of the LISA install that the `lisa`
+command actually loads. If the user has more than one LISA checkout, pip's
+entry-point may point to a different one than the runbook expects, the
+rewrite never fires, and you get `ModuleNotFoundError: No module named 'microsoft'`
+even though the path on disk looks correct.
+
+Resolve **the executing LISA root** in this order — stop at the first hit:
+
+1. **Run the verification command** (preferred — it cannot be wrong):
+
+   ```bash
+   # Linux / WSL
+   <PYTHON> -c "import lisa, pathlib; print(pathlib.Path(lisa.__file__).parent.parent)"
+   ```
+
+   ```powershell
+   # Windows
+   & '<PYTHON>' -c "import lisa, pathlib; print(pathlib.Path(lisa.__file__).parent.parent)"
+   ```
+
+   The printed path **is** `LISA_HOME`. Use it. If `<PYTHON>` is unknown,
+   take it from `/memories/session/lisa-install.md` (written by the install
+   prompt) or from the active venv (`which lisa` / `where.exe lisa` then
+   resolve the script's shebang).
+
+2. **Session memory**: `/memories/session/lisa-install.md` lists `LISA_HOME`,
+   `PYTHON`, `VENV` from the install step. Cross-check with step 1 — if they
+   disagree, **trust step 1** and update the memory file.
+3. **Ask the user** (only if both above fail): "Where is the LISA repo that
+   `lisa --version` runs from?".
+
+Use `LISA_HOME` as a literal absolute path inside the generated runbook
+(see Rule 8). Do NOT emit placeholders like `<lisa_repo_path>` in the final
+YAML.
+
+**venv reminder when presenting the run command:** if `VENV` is non-empty,
+always show the user the run command **with the venv activated or invoked
+explicitly**, e.g.:
+
+```powershell
+# Activate then run (Windows)
+& '<VENV>\Scripts\Activate.ps1'; lisa -r path\to\runbook.yml
+# — or, no activation needed —
+& '<VENV>\Scripts\python.exe' -m lisa -r path\to\runbook.yml
+```
+
+```bash
+# Activate then run (Linux/WSL)
+source '<VENV>/bin/activate' && lisa -r path/to/runbook.yml
+# — or —
+'<VENV>/bin/python' -m lisa -r path/to/runbook.yml
+```
+
+Skipping venv activation — or running a `lisa` from a different repo than
+`LISA_HOME` — are the two common causes of `ModuleNotFoundError`.
+
+---
+
 ## Step 1: Clarify the Scenario
 
 Before generating YAML, ask:
@@ -12,6 +79,8 @@ Before generating YAML, ask:
 3. **What images?** (see Image Formats below)
 4. **Special requirements?** (security profile, WSL, purchase plan, disk/NIC)
 5. **Azure auth method?** (only when platform is azure — see Auth Methods below)
+6. **Where will the runbook live?** — needed to compute the correct `extension:`
+   path (absolute is safest; see Rule 8).
 
 ### Image Formats
 
@@ -112,7 +181,8 @@ Top-level sections (only `platform` + `testcase` are required):
 |---------|---------|
 | `name` | Descriptive run name |
 | `include` | Inherit from other YAML files: `- path: ./azure.yml` |
-| `extension` | Extra test module paths: `- "<lisa_repo_path>/lisa/microsoft/testsuites"` |
+| `extension` | Optional. Extra test-module roots. For microsoft testsuites, prefer `import_builtin_tests: true` (Rule 8 option B) instead of listing `extension:` here — it removes a class of path mistakes. If you must use `extension:`, follow Rule 8. |
+| `import_builtin_tests` | Set to `true` to auto-load the microsoft testsuites bundled with the running LISA install. No path needed. |
 | `variable` | Parameters with `$(name)` substitution. Supports `is_secret: true`, `is_case_visible: true`, `file: ./secrets.yml` |
 | `platform` | Where to run (azure, ready, qemu, openvmm) |
 | `testcase` | What to run — filter by priority, name, area |
@@ -374,3 +444,89 @@ Refer to `lisa/microsoft/runbook/` for available base runbooks.
 5. **Security profiles** require Gen2 images and the marketplace **object format** — the 4-part string shorthand does not support them.
 6. **Transformer phases** run in order: `init` → `expanded` → `environment_connected` → `expanded_cleanup` → `cleanup`. Use `phase: environment_connected` for transformers that need a provisioned VM (e.g., installing components on the node). `expanded` runs before environments are created.
 7. Search `@workspace` for existing runbooks before generating — reuse patterns from `runbook/`.
+8. **Loading microsoft testsuites — pick exactly one of these patterns; never
+   invent a third one:**
+
+   **(A) Preferred when the runbook lives _inside_ the LISA repo at
+   `<LISA_HOME>/<somewhere>/<runbook>.yml` and references microsoft tests:**
+   use the canonical relative form, exactly like the shipped runbooks under
+   `lisa/microsoft/runbook/`:
+
+   ```yaml
+   extension:
+     - "../testsuites"        # when runbook is at lisa/microsoft/runbook/*.yml
+     # or
+     - "../../testsuites"     # when runbook is one level deeper
+   ```
+
+   The relative path must resolve to `<LISA_HOME>/lisa/microsoft/testsuites`
+   so LISA's `_fix_path_for_old_code_layout` rewrites the package to
+   `microsoft` and absolute imports work.
+
+   **(B) Preferred when the runbook lives _outside_ the LISA repo (e.g., a
+   user-managed `runbooks/` folder somewhere else):** drop `extension:`
+   entirely and use the built-in tests flag:
+
+   ```yaml
+   import_builtin_tests: true
+   ```
+
+   This makes LISA call `import_package(<LISA_HOME>/lisa/microsoft, "microsoft")`
+   internally — same effect as (A), but with no path to get wrong. Use this
+   for the `lisa-bug-fix` / install-prompt-generated runbooks that sit in
+   user-chosen directories.
+
+   **(C) Absolute path** — only for non-microsoft custom extensions, or as a
+   last resort when (A) and (B) don't fit. The path **must** point under
+   `<LISA_HOME>/lisa/microsoft` (verified via Step 0), otherwise the
+   auto-rewrite to package name `microsoft` does not fire and absolute
+   imports break:
+
+   ```yaml
+   extension:
+     - "/abs/path/to/<LISA_HOME>/lisa/microsoft/testsuites"
+   ```
+
+   Never emit `<lisa_repo_path>` placeholders, never use a relative path
+   anchored to CWD, and never point at a different LISA checkout than the
+   one `lisa --version` runs from — that's the bug we're trying to avoid.
+
+---
+
+## Troubleshooting
+
+### `ModuleNotFoundError: No module named 'microsoft'` (or `microsoft.testsuites`)
+
+This fails *after* LISA logs `loading Python extensions from ...`, which
+means LISA found the directory. The real cause is one of:
+
+- **Path is not under `<LISA_HOME>/lisa/microsoft`**, so the loader's
+  auto-rewrite to package name `microsoft` does not fire. Confirm with the
+  Step 0 verification command and compare against your runbook's
+  `extension:` value.
+- **Two LISA repos on disk**, pip's `lisa` entry-point points at one and
+  your runbook points at the other. Only `<LISA_HOME>/lisa/microsoft` of
+  the running repo counts. Either:
+  - delete / `pip uninstall lisa` the other checkout, or
+  - re-`pip install -e .` from the repo you actually want, or
+  - use Rule 8 option (B) `import_builtin_tests: true`, which always loads
+    from the running LISA's repo.
+- **Path is on a different filesystem from the running LISA install** (e.g.,
+  WSL `/mnt/wsl/temp/lisa` vs `/root/lisa`). Same fix as above.
+
+Fix recipe:
+
+1. Verify the running LISA's root:
+
+   ```bash
+   <PYTHON> -c "import lisa, pathlib; print(pathlib.Path(lisa.__file__).parent.parent)"
+   ```
+
+2. Compare with `LISA_HOME` from `/memories/session/lisa-install.md`. They
+   **must** be the same path. If not, fix the install (re-run the install
+   from inside the desired repo) before regenerating runbooks.
+3. Switch the runbook to `import_builtin_tests: true` (Rule 8 option B) and
+   remove the `extension:` line — simplest reliable fix.
+4. Re-run with `-d` and confirm the log shows
+   `loading Python extensions from <LISA_HOME>/lisa/microsoft` (the directory
+   above `testsuites`, not `testsuites` itself — that's the rewrite firing).

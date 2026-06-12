@@ -7,6 +7,7 @@ You are a senior LISA maintainer helping write correct, production-quality test 
 ## Step 1: Mandatory Pre-Code Workflow
 
 **Do not generate code until the user confirms your Design Plan.**
+**Do not report the task as complete until Step 9 (Lint Gate) passes.**
 
 1. **Gather**: Search `#codebase`/`@workspace` for existing Tools (`lisa/tools/`), Features (`lisa/features/`), and similar TestSuites (`lisa/microsoft/testsuites/`).
 2. **Verify**: Confirm API signatures from the codebase. **Never invent an API.** If a Tool/Feature is missing, ask the user before proceeding.
@@ -126,3 +127,70 @@ class SriovValidation(TestSuite):
         pass
 
 ```
+
+---
+
+## Step 9: Lint Gate (MANDATORY before declaring done)
+
+CI runs `black`, `isort`, `flake8`, `mypy`, `pylint`, `unittest discover` on every push/PR (see `.github/workflows/continuous-integration-workflow.yml`). **A test case is not "done" until the new file passes all of them locally.**
+
+### Rules the generated code must satisfy
+
+**Formatting (`black` + `isort`, configured in `pyproject.toml`)**
+- Line length **≤ 88** chars (hard limit).
+- Black `target-version = py38` style: double quotes, trailing commas in multi-line collections/calls, magic-trailing-comma respected.
+- `isort`: `multi_line_output = 3`, `line_length = 88`, `force_grid_wrap = 0`, `include_trailing_comma = true`, `use_parentheses = true`. Group order: stdlib → third-party → first-party (`lisa`, `microsoft`).
+
+**flake8 (`select = B, BLK, C90, E, F, I, W, N`)**
+- `BLK` — must pass `black --check` (otherwise BLK100 fires).
+- `I` — must pass `isort --check`.
+- `C90` — McCabe complexity **≤ 15**. Split deep nests / many branches into helper methods.
+- `B` (bugbear) — no mutable default args, no `assert` for runtime checks, no `except:` bare clauses.
+- `N` (pep8-naming) — `snake_case` functions/vars, `PascalCase` classes, `UPPER_CASE` module constants. *Ignored*: `N818` (exception names need not end in `Error`).
+- *Ignored*: `E203, W503, E713, E231, E702` — don't waste time satisfying these.
+
+**mypy (`strict = true, ignore_missing_imports = true`)**
+- **Every** function/method needs full type hints, including `-> None`.
+- No implicit `Optional` — write `Optional[X]` or `X | None` explicitly when a default is `None`.
+- No bare `Any` returns from public methods unless absolutely needed.
+- `**kwargs: Any` is the standard signature for `before_case` / `after_case`.
+- Imports must be resolvable in the editable `mslisa` install; new third-party imports require an entry in `pyproject.toml`.
+
+**pylint (`pylintrc`)**
+- No unused imports / variables. No wildcard imports.
+- No `print(...)` — use `log.info / log.debug`.
+- Docstrings required on `TestSuite` class and on `before_case` / `after_case` overrides.
+- Don't over-broadly catch `Exception` unless re-raising or wrapping in `LisaException`.
+
+**Test infrastructure**
+- File must be `unittest`-discoverable (real LISA test, not script). Don't add `if __name__ == "__main__":`.
+- All `time.sleep(...)` calls → `check_till_timeout()` / `retry_without_exceptions()` (CI doesn't ban it directly, but reviewers will).
+
+### Local commands the agent must run before reporting done
+
+From `lisa\` directory in the repo (`<repo>\lisa\`):
+
+```powershell
+$f = "microsoft\testsuites\<feature_area>\<test_name>.py"
+..\.venv\Scripts\python.exe -m black --check $f
+..\.venv\Scripts\python.exe -m isort --check $f
+..\.venv\Scripts\python.exe -m flake8 $f
+..\.venv\Scripts\python.exe -m mypy --ignore-missing-imports $f
+..\.venv\Scripts\python.exe -m pylint $f
+```
+
+If any command fails:
+1. **Auto-fix formatting** with `python -m black $f` and `python -m isort $f` (then re-run `--check`).
+2. **Read the actual error**, fix the source, re-run that single command.
+3. Do **not** suppress with `# noqa` / `# type: ignore` unless the rule is genuinely wrong for this code (rare). When you do, add a one-line comment explaining why.
+4. Only declare the task complete when **all five commands exit 0**.
+
+### Quick self-check before submitting
+
+- [ ] Class inherits `TestSuite`; method has `@TestCaseMetadata`
+- [ ] All params and return type are annotated
+- [ ] No `time.sleep`, no bare `except:`, no `print()`
+- [ ] Imports grouped & sorted (stdlib / third-party / `lisa` / `microsoft`)
+- [ ] Line length ≤ 88
+- [ ] `black --check`, `isort --check`, `flake8`, `mypy`, `pylint` all pass on the new file
+
