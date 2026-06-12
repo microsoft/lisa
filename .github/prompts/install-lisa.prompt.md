@@ -264,11 +264,139 @@ lisa --help
 
 ---
 
+## Capture the Install Path (so runbooks can find `microsoft.testsuites`)
+
+`microsoft/testsuites/` is loaded dynamically by LISA. The mechanism (see
+`lisa/parameter_parser/runbook.py::_fix_path_for_old_code_layout`) is:
+
+- LISA computes `<lisa_root>` from the **running** install's
+  `lisa/__init__.py` location (i.e., whatever `pip` resolved the `lisa`
+  console-script to).
+- A runbook's `extension:` path is rewritten to `<lisa_root>/lisa/microsoft`
+  and registered as the Python package `microsoft` **only when** that path
+  is already under `<lisa_root>/lisa/microsoft`.
+- If the user has two LISA checkouts on disk and pip picked one but the
+  runbook points at the other, the rewrite silently doesn't fire and the
+  run dies with `ModuleNotFoundError: No module named 'microsoft'` even
+  though the directory exists.
+
+So the install step must guarantee — and **record** — the *single* repo
+that the `lisa` command actually loads from.
+
+When install completes, do **all four** of the following:
+
+1. **Verify which repo the `lisa` command loads from** (this is the
+   authoritative `LISA_HOME`, never trust `pwd`):
+
+   ```bash
+   # Linux / WSL
+   <PYTHON> -c "import lisa, pathlib; print(pathlib.Path(lisa.__file__).parent.parent)"
+   ```
+
+   ```powershell
+   # Windows
+   & '<PYTHON>' -c "import lisa, pathlib; print(pathlib.Path(lisa.__file__).parent.parent)"
+   ```
+
+   If the printed path is **not** the repo you just installed, there is a
+   stale install winning the resolution. Fix it before continuing:
+
+   - `<PYTHON> -m pip uninstall -y lisa` until `pip show lisa` reports nothing,
+     then re-run `pip install -e .[azure]` from the desired repo, OR
+   - inside the desired repo, run `<PYTHON> -m pip install -e . --force-reinstall`,
+     OR
+   - simply delete the unused checkout from disk.
+
+2. **Print the absolute install path** at the end, on its own line:
+
+   ```text
+   LISA_HOME=<path printed by step 1, the running LISA's repo root>
+   PYTHON=<absolute path to the python interpreter that has lisa installed>
+   ```
+
+   `PYTHON` matters whenever a venv is involved (`quick-install-dev.ps1`
+   always creates one at `<install_path>\.venv`; `quick-install.sh` does
+   when invoked with `--use-venv true`). Without it, opening a fresh shell
+   that hasn't activated the venv either fails with `lisa: command not
+   found` or silently picks up a system Python that has no LISA.
+
+   Resolve `PYTHON` like this:
+   - Windows venv: `<install_path>\.venv\Scripts\python.exe`
+   - Linux/WSL venv: `<install_path>/.venv/bin/python`
+   - No venv (system / `pipx` / `--user` install): record `PYTHON=python`
+     so downstream tools know no activation is required.
+
+3. **Set the `LISA_HOME` environment variable** for the current shell. If a
+   venv was created, also tell the user how to activate it (or invoke the
+   venv python directly without activation):
+
+   ```powershell
+   # Windows (PowerShell)
+   $env:LISA_HOME = '<absolute path>'
+   [Environment]::SetEnvironmentVariable('LISA_HOME', '<absolute path>', 'User')
+
+   # If a venv exists, activate it in every new shell, OR call the venv python directly:
+   & '<install_path>\.venv\Scripts\Activate.ps1'
+   # — or —
+   & '<install_path>\.venv\Scripts\python.exe' -m lisa --help
+   ```
+
+   ```bash
+   # Linux / macOS / WSL
+   export LISA_HOME='<absolute path>'
+   echo 'export LISA_HOME="<absolute path>"' >> ~/.bashrc
+
+   # If a venv exists:
+   source '<install_path>/.venv/bin/activate'
+   # — or —
+   '<install_path>/.venv/bin/python' -m lisa --help
+   ```
+
+   Do not bake `Activate.ps1` into `$PROFILE` automatically — mention it as
+   an option, let the user opt in.
+
+4. **Record it in session memory** (so other prompts in the same workspace
+   can read it without re-asking):
+
+   - Path: `/memories/session/lisa-install.md`
+   - Content:
+
+     ```text
+     LISA_HOME=<absolute path verified by step 1>
+     PYTHON=<absolute path to venv python, or literally "python" if no venv>
+     VENV=<absolute path to the venv root, or empty if no venv>
+     ```
+
+   The `lisa_runbook_generator` prompt reads this file and trusts step 1's
+   path as authoritative — if you skip step 1 and write `pwd` here, it WILL
+   bite you the moment a runbook needs microsoft testsuites.
+
+The `microsoft/testsuites/` directory then lives at
+`$LISA_HOME/lisa/microsoft/testsuites` (note the doubled `lisa/lisa/` —
+the outer `lisa/` is the repo, the inner `lisa/` is the Python package).
+
+---
+
 ## Troubleshooting
 
 ### "lisa" command not found
 - **Windows**: Restart PowerShell to refresh PATH
 - **Linux**: Ensure `~/.local/bin` is in PATH: `export PATH="$HOME/.local/bin:$PATH"`
+- **venv install (any OS)**: the `lisa` console-script only exists inside the venv.
+  Either activate it (`.venv\Scripts\Activate.ps1` / `source .venv/bin/activate`)
+  or call it via the venv python without activation:
+  `<install_path>/.venv/bin/python -m lisa --help` (Linux) /
+  `<install_path>\.venv\Scripts\python.exe -m lisa --help` (Windows).
+  After activation, `(.venv)` should appear in the prompt and `where.exe lisa`
+  / `which lisa` should resolve into the venv directory.
+
+### Wrong Python is picked up (system Python instead of venv)
+Symptom: `python -c "import lisa; print(lisa.__file__)"` errors out, or points
+to a different LISA install than expected, even though install succeeded.
+Fix: confirm the active interpreter with `python -c "import sys; print(sys.executable)"`.
+It must match the `PYTHON` line recorded in `/memories/session/lisa-install.md`.
+If not, activate the venv first, or invoke the venv python explicitly
+(`<venv>/bin/python` / `<venv>\Scripts\python.exe`).
 
 ### Python version too old
 - Re-run the install script with `--python-version 3.12` (Linux) or `-PythonVersion "3.12"` (Windows)
@@ -281,6 +409,39 @@ lisa --help
 - Install development packages:
   - Ubuntu/Debian: `sudo apt-get install -y python3-dev build-essential libssl-dev libffi-dev`
   - RHEL/CentOS: `sudo dnf install -y python3-devel gcc openssl-devel libffi-devel`
+
+### `ModuleNotFoundError: No module named 'microsoft'` when running a runbook
+
+Symptom: `lisa -r my_runbook.yml` logs
+`loading Python extensions from <some path>` then fails with
+`ModuleNotFoundError: No module named 'microsoft'`.
+
+LISA found the directory — the failure is in the auto-rename step. The path
+you gave to `extension:` must be under the **running LISA's**
+`<lisa_root>/lisa/microsoft`, otherwise the loader keeps a generic name
+like `lisa_ext_0` and absolute imports such as
+`from microsoft.testsuites.xfstests.xfstests import ...` cannot resolve.
+
+Fix in order of preference:
+1. Re-run the **Capture the Install Path** verification step above to
+   discover the running LISA's actual root
+   (`<PYTHON> -c "import lisa, pathlib; print(pathlib.Path(lisa.__file__).parent.parent)"`).
+2. If the printed path is not the repo you intended, you have **two LISA
+   checkouts** — pip resolved the wrong one. Either `pip uninstall lisa`
+   in the unused checkout, or `pip install -e . --force-reinstall` from
+   the desired repo.
+3. In the runbook, drop `extension:` and use
+
+   ```yaml
+   import_builtin_tests: true
+   ```
+
+   instead. LISA then loads `<running_lisa_root>/lisa/microsoft` itself —
+   the path can never disagree with the install.
+4. Only if you actually need a custom (non-microsoft) extension, keep
+   `extension:` and make sure each entry is an absolute path under the
+   *running* LISA root, or a path relative to the runbook file that
+   resolves there.
 
 ### VS Code F5 hangs / debugpy traceback in `importlib.metadata`
 Symptom: hitting F5 launches `C:\Program Files\Python312\python.exe` (system Python), then debugpy stalls inside `describe_environment` reading broken package METADATA.
