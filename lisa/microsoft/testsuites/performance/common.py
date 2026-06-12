@@ -497,6 +497,17 @@ def perf_ntttcp(  # noqa: C901
             if udp_mode:
                 buffer_size = int(1024 / 1024)
 
+            # At high connection counts (e.g. 1024) the ntttcp sender/receiver
+            # TCP sync handshake can race: the sender starts the handshake
+            # before the receiver's sync socket is accepting, so the client
+            # blocks for the full test duration and the case fails/timeouts
+            # intermittently (more likely on higher core-count SKUs where the
+            # sender ramps up faster). UDP is connectionless and does not need
+            # this handshake, so for high UDP connection counts we run ntttcp in
+            # no-sync mode (-N): startup is gated on the receiver data port
+            # actually being open instead of the fragile sync exchange.
+            use_no_sync = udp_mode and test_thread >= 1024
+
             # Retry mechanism for the current connection test:
             # Each connection count (test_thread) gets up to max_retries
             # attempts. This handles transient failures like process hangs,
@@ -545,6 +556,7 @@ def perf_ntttcp(  # noqa: C901
                         buffer_size=buffer_size,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
+                        no_sync=use_no_sync,
                         no_debug_log=True,
                     )
 
@@ -574,6 +586,7 @@ def perf_ntttcp(  # noqa: C901
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                         tolerance_seconds=client_ntttcp_timeout_tolerance_seconds,
+                        no_sync=use_no_sync,
                         no_debug_log=True,
                     )
 
