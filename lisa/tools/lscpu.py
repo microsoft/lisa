@@ -19,6 +19,12 @@ CpuType = Enum(
 )
 
 
+# Sentinel value used in CPUInfo cache fields when lscpu does not expose
+# cache topology (e.g. confidential VMs where lscpu outputs "-" for the
+# CACHE column instead of "L1d:L1i:L2:L3").
+UNKNOWN_CACHE_ID = -1
+
+
 class CPUInfo:
     def __init__(
         self,
@@ -90,6 +96,12 @@ class Lscpu(Tool):
         r"\s*(?P<cpu>\d+)\s+(?P<numa_node>\d+)\s+(?P<socket>\d+)\s+"
         r"(?P<l1_data_cache>\d+):(?P<l1_instruction_cache>\d+):"
         r"(?P<l2_cache>\d+):(?P<l3_cache>\d+)$"
+    )
+    # On some VMs (e.g. confidential VMs), cache topology is not exposed
+    # and lscpu outputs "-" instead of cache IDs:
+    # 0 0 0 -
+    _core_numa_no_cache = re.compile(
+        r"\s*(?P<cpu>\d+)\s+(?P<numa_node>\d+)\s+(?P<socket>\d+)\s+-$"
     )
     # Model name:          Intel(R) Xeon(R) Platinum 8168 CPU @ 2.70GHz
     # Model name:          AMD EPYC 7763 64-Core Processor
@@ -267,6 +279,10 @@ class Lscpu(Tool):
         # CPU NODE SOCKET L1d:L1i:L2:L3
         # 0    0        0 0:0:0:0
         # 1    0        0 0:0:0:0
+        #
+        # On some VMs (e.g. confidential VMs), cache topology is not exposed:
+        # CPU NODE SOCKET CACHE
+        # 0    0        0 -
         result = self.run(
             "--extended=cpu,node,socket,cache", expected_exit_code=0
         ).stdout
@@ -278,21 +294,40 @@ class Lscpu(Tool):
         output: List[CPUInfo] = []
         for item in mappings:
             match_result = self._core_numa_mappings.fullmatch(item)
-            assert (
-                match_result
-            ), f"lscpu NUMA node mapping is not in expected format: {item}"
-            output.append(
-                CPUInfo(
-                    cpu=int(match_result.group("cpu")),
-                    numa_node=int(match_result.group("numa_node")),
-                    socket=int(match_result.group("socket")),
-                    l1_data_cache=int(match_result.group("l1_data_cache")),
-                    l1_instruction_cache=int(
-                        match_result.group("l1_instruction_cache")
-                    ),
-                    l2_cache=int(match_result.group("l2_cache")),
-                    l3_cache=int(match_result.group("l3_cache")),
+            if match_result:
+                output.append(
+                    CPUInfo(
+                        cpu=int(match_result.group("cpu")),
+                        numa_node=int(match_result.group("numa_node")),
+                        socket=int(match_result.group("socket")),
+                        l1_data_cache=int(match_result.group("l1_data_cache")),
+                        l1_instruction_cache=int(
+                            match_result.group("l1_instruction_cache")
+                        ),
+                        l2_cache=int(match_result.group("l2_cache")),
+                        l3_cache=int(match_result.group("l3_cache")),
+                    )
                 )
+                continue
+            no_cache_match = self._core_numa_no_cache.fullmatch(item)
+            if no_cache_match:
+                output.append(
+                    CPUInfo(
+                        cpu=int(no_cache_match.group("cpu")),
+                        numa_node=int(no_cache_match.group("numa_node")),
+                        socket=int(no_cache_match.group("socket")),
+                        l1_data_cache=UNKNOWN_CACHE_ID,
+                        l1_instruction_cache=UNKNOWN_CACHE_ID,
+                        l2_cache=UNKNOWN_CACHE_ID,
+                        l3_cache=UNKNOWN_CACHE_ID,
+                    )
+                )
+                continue
+            raise LisaException(
+                "lscpu NUMA node mapping is not in the expected format: "
+                f"{item}. Verify the output of "
+                "'lscpu --extended=cpu,node,socket,cache' on the target node "
+                "and update the parser if the format has changed."
             )
         return output
 
