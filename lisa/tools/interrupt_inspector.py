@@ -3,12 +3,17 @@
 
 from __future__ import annotations
 
+import os
 import re
+import tempfile
+import uuid
 from collections import Counter
+from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.tools import Cat
+from lisa.tools.rm import Rm
 
 
 class Interrupt:
@@ -75,8 +80,15 @@ class InterruptInspector(Tool):
         # Note : Some IRQ numbers have single entry because they're not actually
         # CPU stats, but events count belonging to the IO-APIC controller. For
         # example, `ERR` is incremented in the case of errors in the IO-APIC bus.
-        result = self.node.tools[Cat].run("/proc/interrupts", sudo=True, force_run=True)
-        mappings = result.stdout.splitlines(keepends=False)[1:]
+        #
+        # On high-vCPU SKUs (300+ vCPUs) /proc/interrupts is hundreds of KB.
+        # Capturing it via stdout goes through spur's byte-at-a-time reader
+        # and LISA's per-line debug logging, which makes a 16-second kernel
+        # read take 60+ minutes and trip test-case timeouts. To avoid that,
+        # we redirect on the node into a temp file and download it via SFTP
+        # (buffered), then read it locally.
+        raw = self._fetch_proc_interrupts()
+        mappings = raw.splitlines()[1:]
         assert mappings
 
         interrupts = []
@@ -95,6 +107,59 @@ class InterruptInspector(Tool):
             )
 
         return interrupts
+
+    def _fetch_proc_interrupts(self) -> str:
+        # Try the fast path: redirect on the node to a temp file, pull it back
+        # over SFTP, then read locally. Falls back to the original stdout-based
+        # path if either step fails (e.g. permissions, missing SFTP).
+        remote_name = f"lisa_proc_interrupts_{os.getpid()}_{uuid.uuid4().hex}.txt"
+        remote_path = PurePosixPath("/tmp") / remote_name
+        local_path = Path(tempfile.gettempdir()) / remote_name
+        cat = self.node.tools[Cat]
+        try:
+            # Use the Cat tool to drive the snapshot so any tool-level setup
+            # (existence check, sudo handling) is shared with the fallback.
+            cat.run(
+                f"/proc/interrupts > {remote_path}",
+                shell=True,
+                sudo=True,
+                force_run=True,
+                no_debug_log=True,
+                timeout=120,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to snapshot /proc/interrupts on node"
+                ),
+            )
+            self.node.shell.copy_back(remote_path, local_path)
+            return local_path.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:  # noqa: BLE001
+            # The fast path can legitimately fail in environments without
+            # SFTP support or with restricted /tmp permissions. Log so we
+            # can tell expected fallbacks from real bugs, then fall back to
+            # the legacy stdout capture path. The fallback is slow on large
+            # vCPU counts (the very thing we are trying to avoid) so we
+            # disable per-line debug logging to keep the cost predictable.
+            self._log.debug(
+                f"/proc/interrupts SFTP fast path failed ({exc!r}); "
+                "falling back to stdout capture"
+            )
+            return cat.read(
+                "/proc/interrupts",
+                force_run=True,
+                sudo=True,
+                no_debug_log=True,
+            )
+        finally:
+            try:
+                if local_path.exists():
+                    local_path.unlink()
+            except OSError:
+                pass
+            try:
+                self.node.tools[Rm].remove_file(str(remote_path), sudo=True)
+            except Exception:  # noqa: BLE001
+                pass
 
     def sum_cpu_counter_by_irqs(
         self,

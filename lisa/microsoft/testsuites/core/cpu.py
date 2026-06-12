@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-import time
 from typing import Any
 
 from assertpy.assertpy import assert_that
@@ -296,16 +295,24 @@ class CPU(TestSuite):
             raise LisaException("Hyper-V interrupts are not recorded.")
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
-        # Run CPU intensive workload to create hyper-v synthetic timer
-        # interrupts.
-        # Steps :
-        # 1. Run `yes` program on each vCPU in a subprocess.
-        # 2. Wait for one second to allow enough time for processing interrupts.
-        # 3. Kill the spawned subprocess.
-        for i in range(1, cpu_count):
-            process = node.tools[TaskSet].run_on_specific_cpu(i)
-            time.sleep(1)
-            process.kill()
+        # Force the Hyper-V synthetic timer interrupt to fire on each CPU by
+        # running a 1-second CPU-bound workload pinned to each vCPU.
+        #
+        # The previous implementation called ``TaskSet.run_on_specific_cpu``
+        # in a Python loop, which opened one SSH channel per CPU and
+        # serialised through them.  On 300+ vCPU SKUs the paramiko transport
+        # would exhaust after ~300 channels.  The TaskSet helper now runs
+        # the whole fan-out in a single shell command (one SSH channel).
+        #
+        # Timeout budget: each pinned process is bounded by ``timeout 1`` so
+        # the wall-clock cost is ~1s regardless of cpu_count, but kernel
+        # scheduling, taskset/exec setup, and SSH command marshalling add
+        # small per-CPU overhead.  Allow at least 60s and grow by ~1s per
+        # 4 vCPUs to leave headroom on very large SKUs (e.g. 90s for 360
+        # vCPUs); both are generous compared to observed runs (~1-2s).
+        node.tools[TaskSet].run_on_all_cpus_in_background(
+            cpu_count, timeout=max(60, cpu_count // 4)
+        )
 
     def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
         cpu_info = node.tools[Lscpu].get_cpu_info()
