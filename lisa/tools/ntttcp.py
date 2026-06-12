@@ -20,7 +20,12 @@ from lisa.operating_system import BSD, CBLMariner, Ubuntu
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
 from lisa.tools.powershell import PowerShell
 from lisa.tools.taskset import TaskSet
-from lisa.util import LisaException, check_till_timeout, constants
+from lisa.util import (
+    LisaException,
+    LisaTimeoutException,
+    check_till_timeout,
+    constants,
+)
 from lisa.util.process import ExecutableResult, Process
 
 from .sysctl import Sysctl
@@ -257,6 +262,17 @@ class Ntttcp(Tool):
             self._wait_server_port_ready(process, udp_mode)
         else:
             process.wait_output("threads created")
+            # ntttcp logs "threads created" before its listen sockets are
+            # actually accepting connections. At high connection counts
+            # (e.g. 1024) the sender can begin the sync handshake before the
+            # receiver is ready, which makes the client hang for the full test
+            # duration and the case fail intermittently (more likely on higher
+            # core-count SKUs where the sender ramps up faster). Wait until the
+            # receiver listen port is actually open before letting the caller
+            # start the client. This is best-effort (required=False): if the
+            # port cannot be confirmed we proceed as before instead of failing.
+            if not isinstance(self.node.os, BSD):
+                self._wait_server_port_ready(process, udp_mode, required=False)
         return process
 
     def _wait_server_port_ready(
@@ -264,6 +280,7 @@ class Ntttcp(Tool):
         process: Process,
         udp_mode: bool,
         port: int = 5001,
+        required: bool = True,
     ) -> None:
         def is_ready() -> bool:
             if not process.is_running():
@@ -273,11 +290,25 @@ class Ntttcp(Tool):
             return self._is_server_port_open(udp_mode, port)
 
         protocol = "UDP" if udp_mode else "TCP"
-        check_till_timeout(
-            is_ready,
-            timeout_message=f"wait for ntttcp {protocol} receiver port {port} open",
-            timeout=30,
-        )
+        try:
+            check_till_timeout(
+                is_ready,
+                timeout_message=(
+                    f"wait for ntttcp {protocol} receiver port {port} open"
+                ),
+                timeout=30,
+            )
+        except LisaTimeoutException:
+            if required:
+                raise
+            # Best-effort readiness check: the receiver process is still
+            # running but the listen port could not be confirmed open (e.g.
+            # an unexpected port layout or a tooling quirk). Proceed to start
+            # the client to preserve the previous behavior instead of failing.
+            self.node.log.debug(
+                f"ntttcp {protocol} receiver port {port} not confirmed open; "
+                "starting client anyway"
+            )
 
     def _is_server_port_open(self, udp_mode: bool, port: int) -> bool:
         ss_options = "-lun" if udp_mode else "-ltn"
