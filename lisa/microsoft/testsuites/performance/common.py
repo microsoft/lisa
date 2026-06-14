@@ -473,6 +473,14 @@ def perf_ntttcp(  # noqa: C901
             )
             dev_differentiator = "Hypervisor callback interrupts"
         max_server_threads = 64
+        # On large VMs (>64 CPUs) the default 10s ntttcp run is too short for
+        # throughput to stabilize across all queues, leading to noisy results.
+        # Use a 120s run time on these SKUs and keep the default 10s elsewhere
+        # to avoid lengthening every test.
+        client_core_count = client.tools[Lscpu].get_thread_count()
+        run_time_seconds = 120 if client_core_count > 64 else 10
+        warm_up_time_seconds = 5 if client_core_count > 64 else 1
+        cool_down_time_seconds = 5 if client_core_count > 64 else 1
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
@@ -546,6 +554,9 @@ def perf_ntttcp(  # noqa: C901
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                         no_debug_log=True,
+                        run_time_seconds=run_time_seconds,
+                        cool_down_time_seconds=cool_down_time_seconds,
+                        warm_up_time_seconds=warm_up_time_seconds,
                     )
 
                     # Start lagscope client to measure latency during the
@@ -571,6 +582,9 @@ def perf_ntttcp(  # noqa: C901
                         buffer_size=buffer_size,
                         threads_count=num_threads_n,
                         ports_count=num_threads_p,
+                        run_time_seconds=run_time_seconds,
+                        cool_down_time_seconds=cool_down_time_seconds,
+                        warm_up_time_seconds=warm_up_time_seconds,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                         tolerance_seconds=client_ntttcp_timeout_tolerance_seconds,
