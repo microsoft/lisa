@@ -138,6 +138,7 @@ from .systemd_analyze import SystemdAnalyze
 from .tar import Tar
 from .taskset import TaskSet
 from .tcpdump import TcpDump
+from .trex import Trex, TrexResult
 from .tee import Tee
 from .testlimit import TestLimit
 from .texinfo import Texinfo
@@ -306,6 +307,8 @@ __all__ = [
     "Tar",
     "TaskSet",
     "Tee",
+    "Trex",
+    "TrexResult",
     "TestLimit",
     "Texinfo",
     "TcpDump",
