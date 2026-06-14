@@ -363,8 +363,7 @@ pkt_payload = b"X" * max(
 )
 pkt = eth / ip / transport / pkt_payload
 
-# --- Multiplier string: convert Gbps to % of line-rate is not
-#     needed; STLTXCont accepts bps directly via ``bps_L1``.    ---
+# STLTXCont accepts rate in bps_L1; no conversion needed.
 rate_bps = int({rate_gbps} * 1e9)
 
 stream = STLStream(
