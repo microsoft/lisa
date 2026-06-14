@@ -462,12 +462,12 @@ class SourceInstaller(BaseInstaller):
 
         make_args = ""
         if use_ccache:
-            make_args = "CC='ccache gcc'"
-            node.execute(
-                cmd=f"export CCACHE_DIR={str(code_path.parent)}/.ccache",
-                shell=True,
-                no_error_log=True,
-            )
+            ccache_dir = code_path.parent / ".ccache"
+            if not node.shell.exists(ccache_dir):
+                node.execute(f"mkdir -p {ccache_dir}", sudo=True)
+                node.execute(f"chmod 0777 {ccache_dir}", sudo=True)
+
+            make_args = f"CC='ccache gcc' CCACHE_DIR={str(ccache_dir)}"
 
         # set timeout to 2 hours
         make.make(arguments=make_args, cwd=code_path, timeout=60 * 60 * 2)

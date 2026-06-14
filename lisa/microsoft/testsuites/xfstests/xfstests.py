@@ -77,15 +77,12 @@ Usage Example:
             test_section="cifs",
             timeout=3600,
         )
-        runner.send_deferred_notifications(results, result)  # Send notifications
         runner.aggregate_results(results)  # Raises if any failures
     finally:
         runner.cleanup_workers()
 """
 
-import random
 import re
-import time
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path, PurePath, PurePosixPath
@@ -106,13 +103,8 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Rm, Sed
-from lisa.util import (
-    LisaException,
-    UnsupportedDistroException,
-    find_patterns_in_lines,
-    generate_random_chars,
-)
+from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Pgrep, Rm, Sed
+from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 from lisa.util.parallel import run_in_parallel
 
 # =============================================================================
@@ -152,11 +144,6 @@ class XfstestsRunResult:
     Result object returned by run_test() to support parallel execution.
     Instead of raising immediately on failure, this allows callers to
     aggregate results from multiple parallel runs before deciding how to fail.
-
-    For parallel execution, raw_message and data_disk are stored to enable
-    deferred notification sending after all workers complete. This prevents
-    deadlock when multiple workers try to send SubTestResult notifications
-    concurrently to the single-threaded notifier message manager.
     """
 
     success: bool = True
@@ -166,9 +153,6 @@ class XfstestsRunResult:
     fail_info: str = ""
     run_id: str = ""
     test_section: str = ""
-    # Fields for deferred notification support (parallel execution)
-    raw_message: str = ""  # Raw xfstests output for sending notifications later
-    data_disk: str = ""  # Data disk info for notification context
 
     def get_failure_message(self) -> str:
         """Generate a formatted failure message for this run."""
@@ -223,7 +207,6 @@ class XfstestsParallelRunner:
         try:
             batches = runner.split_tests(test_list)
             results = runner.run_parallel(batches, log_path, result, "cifs", 3600)
-            runner.send_deferred_notifications(results, result)
             runner.aggregate_results(results)
         finally:
             runner.cleanup_workers()
@@ -393,31 +376,36 @@ class XfstestsParallelRunner:
             tests: List[str],
             worker_path: PurePath,
         ) -> "XfstestsRunResult":
-            """Execute xfstests for a single worker."""
+            """Execute xfstests for a single worker (execution only)."""
             run_id = f"{run_id_prefix}_{worker_id}"
             self.log.info(
                 f"Worker {worker_id}: Starting {len(tests)} tests from {worker_path}"
             )
             test_cases_str = " ".join(tests)
-            worker_result = self.xfstests.run_test(
-                test_section=test_section,
-                test_group=test_group,
-                log_path=log_path,
-                result=result,
-                test_cases=test_cases_str,
-                timeout=worker_timeout,
+
+            # Build the check command the same way run_test() does,
+            # but call _execute_test() directly - no result collection.
+            # Result collection happens in Phase 2 (sequential).
+            cmd = ""
+            if test_group:
+                cmd += f" -g {test_group}"
+            if test_section:
+                cmd += f" -s {test_section}"
+            cmd += " -E exclude.txt"
+            if test_cases_str:
+                cmd += f" {test_cases_str}"
+            console_log_name = f"xfstest_{run_id}.log"
+            cmd += f" > {console_log_name} 2>&1"
+            check_cmd = f"{worker_path}/check{cmd}"
+
+            worker_result = self.xfstests._execute_test(
+                check_cmd=check_cmd,
+                working_path=worker_path,
                 run_id=run_id,
-                raise_on_failure=False,
-                xfstests_path=worker_path,
-                send_notifications=False,  # Defer notifications to avoid deadlock
+                test_section=test_section,
+                timeout=worker_timeout,
             )
-            # Log completion with result summary at INFO level for console visibility
-            status = "PASSED" if worker_result.success else "FAILED"
-            self.log.info(
-                f"Worker {worker_id}: {status} - "
-                f"{worker_result.total_count} tests, "
-                f"{worker_result.fail_count} failed"
-            )
+            self.log.info(f"Worker {worker_id}: Execution completed")
             return worker_result
 
         # Create task list for parallel execution
@@ -431,12 +419,65 @@ class XfstestsParallelRunner:
                     f"{batch[:3]}{'...' if len(batch) > 3 else ''}"
                 )
 
-        # Execute all workers in parallel
+        # Phase 1: Execute all workers in parallel (no SSH-heavy result collection)
         self.log.info(f"Starting {len(tasks)} parallel xfstests workers...")
-        worker_results = run_in_parallel(tasks, log=self.log)
-        self.log.info("All parallel workers completed")
+        execution_results = list(run_in_parallel(tasks, log=self.log))
+        self.log.info(
+            "All parallel workers completed execution. "
+            "Collecting results sequentially..."
+        )
 
-        return worker_results
+        # Phase 2: Collect results sequentially to avoid SSH channel deadlock.
+        # check_test_results() makes many SSH calls (shell.exists, Cat.run,
+        # shell.copy_back) that deadlock when multiple threads compete for
+        # SSH channels. Running them one at a time is safe.
+        # Log names and worker paths are reconstructed from run_id and the
+        # runner's worker_paths list - no need to store them in the result.
+        final_results: List["XfstestsRunResult"] = []
+        for idx, exec_result in enumerate(execution_results):
+            if not exec_result.success:
+                # Execution error occurred - skip result collection
+                self.log.warning(
+                    f"[{exec_result.run_id}] Skipping result collection "
+                    f"due to execution error: {exec_result.fail_info}"
+                )
+                final_results.append(exec_result)
+                continue
+
+            # Reconstruct paths from run_id and worker index
+            worker_path = self.worker_paths[idx]
+            console_log_name = f"xfstest_{exec_result.run_id}.log"
+            check_log_name = f"check_{exec_result.run_id}.log"
+
+            # Collect results sequentially for this worker
+            try:
+                self.log.debug(
+                    f"[{exec_result.run_id}] Collecting results from {worker_path}"
+                )
+                final_result = self.xfstests.check_test_results(
+                    log_path=log_path,
+                    test_section=test_section or "generic",
+                    result=result,
+                    console_log_name=console_log_name,
+                    check_log_name=check_log_name,
+                    run_id=exec_result.run_id,
+                    xfstests_path=worker_path,
+                )
+                status = "PASSED" if final_result.success else "FAILED"
+                self.log.info(
+                    f"Worker {exec_result.run_id}: {status} - "
+                    f"{final_result.total_count} tests, "
+                    f"{final_result.fail_count} failed"
+                )
+                final_results.append(final_result)
+            except Exception as e:
+                self.log.error(f"[{exec_result.run_id}] Result collection failed: {e}")
+                exec_result.success = False
+                exec_result.fail_info = f"Result collection error: {e}"
+                final_results.append(exec_result)
+
+        self.log.info(f"Result collection complete for {len(final_results)} workers")
+        return final_results
 
     def aggregate_results(
         self,
@@ -500,48 +541,6 @@ class XfstestsParallelRunner:
             )
 
         return total_passed, total_failed, any_failures
-
-    def send_deferred_notifications(
-        self,
-        worker_results: List["XfstestsRunResult"],
-        result: "TestResult",
-    ) -> None:
-        """
-        Send deferred SubTestResult notifications for all worker results.
-
-        This method should be called AFTER run_parallel() completes and before
-        aggregate_results(). It sends all the SubTestResult messages that were
-        deferred during parallel execution to avoid deadlock in the notification
-        system.
-
-        When workers run in parallel and each tries to send SubTestResult
-        notifications concurrently, the single-threaded message manager can
-        deadlock due to thread contention. By deferring notifications until
-        after parallel execution completes, we can send them sequentially
-        from the main thread.
-
-        Args:
-            worker_results: List of results from run_parallel()
-            result: LISA TestResult object for subtest reporting
-        """
-        self.log.info(
-            f"Sending deferred notifications for {len(worker_results)} workers..."
-        )
-
-        for worker_result in worker_results:
-            if worker_result.raw_message:
-                # We have deferred notification data - send it now
-                self.log.debug(
-                    f"Sending deferred notification for {worker_result.run_id}"
-                )
-                self.xfstests.create_send_subtest_msg(
-                    test_result=result,
-                    raw_message=worker_result.raw_message,
-                    test_section=worker_result.run_id,  # Use run_id as section
-                    data_disk=worker_result.data_disk,
-                )
-
-        self.log.info("Deferred notifications sent successfully")
 
 
 class Xfstests(Tool):
@@ -753,11 +752,7 @@ class Xfstests(Tool):
         data_disk: str = "",
         test_cases: str = "",
         timeout: int = 14400,
-        run_id: str = "",
-        raise_on_failure: bool = True,
-        xfstests_path: Optional[PurePath] = None,
-        send_notifications: bool = True,
-    ) -> XfstestsRunResult:
+    ) -> None:
         """About: This method runs XFSTest on a given node with the specified
         test group and test cases
         Parameters:
@@ -784,22 +779,7 @@ class Xfstests(Tool):
             test cases from different file systems, example xfs tests and generic tests.
         timeout(int): The time in seconds after which the test run will be timed out.
             Defaults to 4 hours.
-        run_id(str): (Optional)Unique identifier for this test run. Used to create
-            unique log filenames to support multiple concurrent xfstests instances.
-            If not provided, defaults to test_section or generates a random ID.
-        raise_on_failure(bool): (Optional)If True (default), raises LisaException when
-            tests fail. If False, returns XfstestsRunResult without raising, allowing
-            callers to aggregate results from multiple parallel runs before failing.
-        xfstests_path(PurePath): (Optional)Custom xfstests directory path. Used for
-            parallel worker execution where each worker needs its own directory copy
-            to avoid shared state conflicts. If not provided, uses the default
-            installation path from get_xfstests_path().
-        Returns:
-            XfstestsRunResult: Object containing success status, failure counts, and
-            failure details. When raise_on_failure=True and tests fail, raises
-            LisaException instead of returning.
         Example:
-        # Traditional usage (raises on failure):
         xfstest.run_test(
             log_path=Path("/tmp/xfstests"),
             result=test_result,
@@ -808,62 +788,78 @@ class Xfstests(Tool):
             data_disk="/dev/sdd",
             test_cases="generic/001 generic/002",
             timeout=14400,
-            run_id="ext4_run1",
         )
-
-        # Parallel execution usage (collect results, fail later):
-        result1 = xfstest.run_test(..., raise_on_failure=False)
-        result2 = xfstest.run_test(..., raise_on_failure=False)
-        if not result1.success or not result2.success:
-            combined = result1.get_failure_message() + result2.get_failure_message()
-            raise LisaException(combined)
-
-        # Parallel execution with worker copies:
-        worker_path = xfstest.create_worker_copy(worker_id=1)
-        result = xfstest.run_test(..., xfstests_path=worker_path)
         """
         # Note : the sequence is important here.
         # Do not rearrange !!!!!
         # Refer to xfstests-dev guide on https://github.com/kdave/xfstests
 
-        # Use custom path if provided, otherwise use default installation path
-        working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
-
-        # Generate unique run_id if not provided to support multiple concurrent runs.
-        # This creates unique log filenames preventing conflicts when multiple
-        # xfstests instances run on the same machine.
-        if not run_id:
-            run_id = test_section if test_section else generate_random_chars()
-
-        # Use unique log filenames based on run_id to prevent conflicts
-        # when multiple xfstests instances run concurrently
-        console_log_name = f"xfstest_{run_id}.log"
-        check_log_name = f"check_{run_id}.log"
-
-        # Build command line arguments for xfstests check script.
-        # Always include -E exclude.txt - xfstests handles missing/empty gracefully.
-        # This avoids SSH exists() check which blocks in parallel execution.
+        # Test if exclude.txt exists
+        xfstests_path = self.get_xfstests_path()
+        exclude_file_path = xfstests_path.joinpath("exclude.txt")
+        if self.node.shell.exists(exclude_file_path):
+            exclude_file = True
+        else:
+            exclude_file = False
         cmd = ""
         if test_group:
             cmd += f" -g {test_group}"
         if test_section:
             cmd += f" -s {test_section}"
-        cmd += " -E exclude.txt"
+        if exclude_file:
+            cmd += " -E exclude.txt"
         if test_cases:
             cmd += f" {test_cases}"
-        # Redirect output to unique log file based on run_id
-        cmd += f" > {console_log_name} 2>&1"
+        # Finally
+        cmd += " > xfstest.log 2>&1"
 
-        # Build the check command with proper path for worker directories.
-        # We use node.execute() directly instead of self.run() because self.run()
-        # always prepends self.command (the original installation path), which
-        # would run from the wrong directory when using worker copies.
-        # The check script must run from its own directory to find its configs.
-        check_cmd = f"{working_path}/check{cmd}"
+        # run ./check command
+        self.run_async(
+            cmd,
+            sudo=True,
+            shell=True,
+            force_run=True,
+            cwd=self.get_xfstests_path(),
+        )
 
+        pgrep = self.node.tools[Pgrep]
+        # this is the actual process name, when xfstests runs.
+        # monitor till process completes or timesout
+        try:
+            pgrep.wait_processes("check", timeout=timeout)
+        finally:
+            run_result = self.check_test_results(
+                log_path=log_path,
+                test_section=test_section if test_section else "generic",
+                result=result,
+                data_disk=data_disk,
+            )
+        if not run_result.success:
+            raise LisaException(
+                f"Fail {run_result.fail_count} cases of total "
+                f"{run_result.total_count}, "
+                f"\n\nfail cases: {run_result.fail_cases}, "
+                f"\n\ndetails: \n\n{run_result.fail_info}, \n\nplease investigate."
+            )
+
+    def _execute_test(
+        self,
+        check_cmd: str,
+        working_path: PurePath,
+        run_id: str,
+        test_section: str,
+        timeout: int,
+    ) -> XfstestsRunResult:
+        """Execute the xfstests check command and return a basic result.
+
+        This is the execution-only portion: it runs the command and captures
+        whether execution itself succeeded. It does NOT collect/parse results
+        (that's check_test_results()). This separation allows run_parallel()
+        to execute all workers in parallel, then collect results sequentially
+        to avoid SSH channel deadlock.
+        """
         run_result = XfstestsRunResult(run_id=run_id, test_section=test_section)
         try:
-            # Log the command being executed for debugging parallel execution
             self._log.debug(
                 f"[{run_id}] Executing xfstests: {check_cmd[:100]}..."
                 if len(check_cmd) > 100
@@ -879,39 +875,8 @@ class Xfstests(Tool):
             self._log.debug(f"[{run_id}] xfstests execution completed")
         except Exception as e:
             self._log.error(f"[{run_id}] xfstests execution failed: {e}")
-            raise
-        finally:
-            # Add random delay (1-5 seconds) to stagger check_test_results() calls
-            # when parallel workers complete around the same time. This prevents
-            # SSH connection pool contention that can cause indefinite blocking.
-            delay = random.uniform(1.0, 5.0)
-            self._log.debug(
-                f"[{run_id}] Waiting {delay:.1f}s before checking results..."
-            )
-            time.sleep(delay)
-            self._log.debug(f"[{run_id}] Checking test results...")
-            run_result = self.check_test_results(
-                log_path=log_path,
-                test_section=test_section if test_section else "generic",
-                result=result,
-                data_disk=data_disk,
-                console_log_name=console_log_name,
-                check_log_name=check_log_name,
-                run_id=run_id,
-                xfstests_path=working_path,
-                send_notifications=send_notifications,
-            )
-
-        # Raise exception if tests failed and raise_on_failure is True
-        # This maintains backward compatibility with existing callers
-        if not run_result.success and raise_on_failure:
-            raise LisaException(
-                f"Fail {run_result.fail_count} cases of total "
-                f"{run_result.total_count}, "
-                f"\n\nfail cases: {run_result.fail_cases}, "
-                f"\n\ndetails: \n\n{run_result.fail_info}, \n\nplease investigate."
-            )
-
+            run_result.success = False
+            run_result.fail_info = f"Execution error: {e}"
         return run_result
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -1168,24 +1133,29 @@ class Xfstests(Tool):
 
         self._log.debug(f"Creating worker {worker_id} xfstests copy at {worker_path}")
 
-        # Remove existing directory if present
-        self.node.execute(f"rm -rf {worker_path}", sudo=True)
-
-        # Create directory and copy xfstests
-        # Using cp -a to preserve permissions and symlinks
-        self.node.execute(f"mkdir -p {base_dir}", sudo=True)
+        # Combine all setup commands into a single SSH session to minimize
+        # concurrent SSH channel usage. When create_workers() runs all workers
+        # in parallel via run_in_parallel(), each separate node.execute() call
+        # opens a new SSH channel. With 8 workers × 4 commands = 32 simultaneous
+        # channels, this exceeds the SSH server's MaxSessions limit (default 10),
+        # causing ChannelException(2, 'Connect failed').
+        # By combining into one command, each worker uses only 1 channel.
+        combined_cmd = (
+            f"rm -rf {worker_path} && "
+            f"mkdir -p {base_dir} && "
+            f"cp -a {source_path} {worker_path} && "
+            f"chmod -R a+rwx {worker_path}"
+        )
         result = self.node.execute(
-            f"cp -a {source_path} {worker_path}",
+            combined_cmd,
             sudo=True,
+            shell=True,
             timeout=300,  # Copy can take time for large directories
         )
         if result.exit_code != 0:
             raise LisaException(
                 f"Failed to create worker {worker_id} copy: {result.stderr}"
             )
-
-        # Ensure proper permissions for the worker directory
-        self.node.execute(f"chmod -R a+rwx {worker_path}", sudo=True)
 
         self._log.debug(f"Worker {worker_id} xfstests copy created at {worker_path}")
         return worker_path
@@ -1349,6 +1319,7 @@ class Xfstests(Tool):
         raw_message: str,
         test_section: str,
         data_disk: str,
+        xfstests_path: Optional[PurePath] = None,
     ) -> None:
         """
         About:This method is internal to LISA and is not intended for direct calls.
@@ -1358,6 +1329,8 @@ class Xfstests(Tool):
         raw_message: The raw message from the xfstests output
         test_section: The test group name used for testing
         data_disk: The data disk used for testing. ( method is partially implemented )
+        xfstests_path: Optional custom xfstests directory path. Used for parallel
+            worker execution. If not provided, uses get_xfstests_path().
         """
         all_cases_match = self.__all_cases_pattern.match(raw_message)
         if not all_cases_match:
@@ -1417,7 +1390,10 @@ class Xfstests(Tool):
                 info["information"]["data_disk"] = data_disk
             info["information"]["test_details"] = str(
                 self.create_xfstest_stack_info(
-                    result.name, test_section, str(result.status.name)
+                    result.name,
+                    test_section,
+                    str(result.status.name),
+                    xfstests_path=xfstests_path,
                 )
             )
             # Parse actual test duration from xfstests output (e.g., "46s", "302s")
@@ -1480,7 +1456,6 @@ class Xfstests(Tool):
         check_log_name: str = "check.log",
         run_id: str = "",
         xfstests_path: Optional[PurePath] = None,
-        send_notifications: bool = True,
     ) -> XfstestsRunResult:
         """
         About: This method is intended to be called by run_test method only.
@@ -1502,9 +1477,6 @@ class Xfstests(Tool):
         run_id: Unique identifier for this test run (used in result object)
         xfstests_path: Optional custom xfstests directory path for worker execution.
             If not provided, uses the default path from get_xfstests_path().
-        send_notifications: If True (default), send SubTestResult notifications
-            immediately. If False, store raw_message in the result for deferred
-            notification sending (used for parallel execution to avoid deadlock).
         Returns:
             XfstestsRunResult: Object containing success status and failure details.
         """
@@ -1536,17 +1508,13 @@ class Xfstests(Tool):
                 log_result.assert_exit_code()
                 ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
                 raw_message = ansi_escape.sub("", log_result.stdout)
-                if send_notifications:
-                    self.create_send_subtest_msg(
-                        test_result=result,
-                        raw_message=raw_message,
-                        test_section=test_section,
-                        data_disk=data_disk,
-                    )
-                else:
-                    # Store for deferred notification (parallel execution)
-                    run_result.raw_message = raw_message
-                    run_result.data_disk = data_disk
+                self.create_send_subtest_msg(
+                    test_result=result,
+                    raw_message=raw_message,
+                    test_section=test_section,
+                    data_disk=data_disk,
+                    xfstests_path=working_path,
+                )
 
             # Use _file_exists_with_timeout instead of shell.exists() to avoid
             # indefinite blocking in parallel execution scenarios
@@ -1733,6 +1701,7 @@ class Xfstests(Tool):
         case: str,
         test_section: str,
         test_status: str,
+        xfstests_path: Optional[PurePath] = None,
     ) -> str:
         """
         About:This method is used to look up the xfstests results directory and extract
@@ -1742,6 +1711,9 @@ class Xfstests(Tool):
         case: The test case name for which the stack info is needed
         test_section: The test group name used for testing
         test_status: The test status for the given test case
+        xfstests_path: Optional custom xfstests directory path. Used for parallel
+            worker execution where results are in worker-specific directories.
+            If not provided, uses get_xfstests_path() (default installation path).
         Returns:
         The method returns the stack info message for the given test case
         Example:
@@ -1758,10 +1730,11 @@ class Xfstests(Tool):
         """
 
         # Get XFSTest current path. we are looking at results/{test_type} directory here
-        xfstests_path = self.get_xfstests_path()
+        # Use provided path for worker execution, or default installation path
+        working_path = xfstests_path if xfstests_path else self.get_xfstests_path()
         test_class = case.split("/")[0]
         test_id = case.split("/")[1]
-        result_path = xfstests_path / f"results/{test_section}/{test_class}"
+        result_path = working_path / f"results/{test_section}/{test_class}"
         cat_tool = self.node.tools[Cat]
         result = ""
         # note: ls tool is not used here due to performance issues.
