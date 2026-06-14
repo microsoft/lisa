@@ -18,6 +18,7 @@
 # (or the CLI wrapper used here) is then invoked to inject traffic and collect
 # statistics.
 
+import base64
 import json
 import re
 import time
@@ -290,14 +291,17 @@ class Trex(Tool):
         """
         Run a stateless traffic profile and return parsed results.
 
-        TRex is run via its built-in ``stl/udp_1pkt_simple.py`` profile for
-        UDP or ``stl/tcp_1pkt_simple.py`` for TCP.  The ``--json`` output
-        flag is used to capture structured statistics.
+        A small Python driver script is written to the node's working
+        directory and executed using TRex's ``trex_stl_lib`` Python API.
+        The script connects to the locally running TRex server via the
+        default port (4501), transmits traffic for the requested duration,
+        captures per-port statistics, and prints a JSON summary to stdout
+        which is then parsed into a :class:`TrexResult`.
 
         Parameters
         ----------
         server_ip:
-            IP of the remote traffic sink node.
+            Destination IP address for generated packets (the receiver).
         duration:
             How long (seconds) to inject traffic.
         packet_size:
@@ -307,7 +311,7 @@ class Trex(Tool):
         protocol:
             ``"UDP"`` (default) or ``"TCP"``.
         port:
-            Destination UDP/TCP port.  ``0`` uses the profile default.
+            Destination UDP/TCP port.  ``0`` uses a sensible default (12345).
 
         Returns
         -------
@@ -315,42 +319,126 @@ class Trex(Tool):
             Structured TX/RX statistics parsed from the TRex JSON output.
         """
         trex_dir = f"{_TREX_INSTALL_DIR}/{_TREX_VERSION}"
+        dst_port = port if port else 12345
 
-        # Choose the appropriate built-in profile
-        if protocol.upper() == "TCP":
-            profile = "stl/tcp_1pkt_simple.py"
-        else:
-            profile = "stl/udp_1pkt_simple.py"
+        # -----------------------------------------------------------------
+        # Build a small inline Python driver that:
+        #   1. Imports TRex's STLClient from the bundled library path
+        #   2. Connects to the locally running TRex server (localhost:4501)
+        #   3. Creates a simple stateless stream (STLStream + STLPktBuilder)
+        #   4. Runs traffic for ``duration`` seconds at ``rate_gbps`` Gbps
+        #   5. Collects statistics and prints JSON to stdout
+        # -----------------------------------------------------------------
+        driver_script = f"""\
+import sys
+import json
+import time
 
-        # Build the stl_run command
-        # -f  : profile path
-        # -d  : duration in seconds
-        # -t  : profile parameters (packet size)
-        # -m  : multiplier (Gbps)
-        # --json : emit JSON summary to stdout
-        cmd = (
-            f"python3 {trex_dir}/automation/trex_control_plane/interactive/"
-            f"trex/examples/stl/stl_run_traffic.py "
-            f"--server {server_ip} "
-            f"--duration {duration} "
-            f"--packet_size {packet_size} "
-            f"--rate {rate_gbps}g "
-            f"--protocol {protocol.upper()} "
-            f"--json"
-        )
-        if port:
-            cmd += f" --port {port}"
+# Add TRex Python API paths
+trex_dir = "{trex_dir}"
+sys.path.insert(
+    0,
+    trex_dir + "/automation/trex_control_plane/interactive",
+)
 
-        self._log.debug(f"Running TRex traffic: {cmd}")
-        result = self.node.execute(
-            cmd,
+from trex.stl.api import (
+    STLClient,
+    STLPktBuilder,
+    STLStream,
+    STLTXCont,
+)
+from scapy.layers.l2 import Ether
+from scapy.layers.inet import IP, UDP, TCP
+
+# --- Build packet ---
+eth = Ether()
+ip  = IP(dst="{server_ip}")
+if "{protocol}".upper() == "TCP":
+    transport = TCP(dport={dst_port})
+else:
+    transport = UDP(dport={dst_port})
+
+pkt_payload = b"X" * max(
+    0, {packet_size} - len(eth / ip / transport)
+)
+pkt = eth / ip / transport / pkt_payload
+
+# --- Multiplier string: convert Gbps to % of line-rate is not
+#     needed; STLTXCont accepts bps directly via ``bps_L1``.    ---
+rate_bps = int({rate_gbps} * 1e9)
+
+stream = STLStream(
+    packet=STLPktBuilder(pkt=pkt),
+    mode=STLTXCont(bps_L1=rate_bps),
+)
+
+c = STLClient()
+try:
+    c.connect()
+    c.reset()
+
+    tx_port, rx_port = 0, 1
+    c.add_streams(stream, ports=[tx_port])
+    c.clear_stats()
+    c.start(ports=[tx_port], duration={duration})
+    c.wait_on_traffic(ports=[tx_port], timeout={duration + 60})
+
+    stats = c.get_stats()
+    tx_s  = stats[tx_port]
+    rx_s  = stats[rx_port]
+
+    # bytes/sec -> Gbps: multiply bits (x8) then divide by 1e9
+    tx_bps = tx_s.get("tx_bps", 0)
+    rx_bps = rx_s.get("rx_bps", 0)
+
+    summary = {{
+        "tx_gbps":  tx_bps * 8 / 1e9,
+        "rx_gbps":  rx_bps * 8 / 1e9,
+        "tx_pps":   tx_s.get("tx_pps",   0),
+        "rx_pps":   rx_s.get("rx_pps",   0),
+        "tx_pkts":  tx_s.get("opackets", 0),
+        "rx_pkts":  rx_s.get("ipackets", 0),
+    }}
+    tx_pkts = summary["tx_pkts"]
+    rx_pkts = summary["rx_pkts"]
+    if tx_pkts > 0:
+        summary["drop_pct"] = (tx_pkts - rx_pkts) / tx_pkts * 100
+    else:
+        summary["drop_pct"] = 0.0
+
+    print(json.dumps(summary))
+
+finally:
+    c.disconnect()
+"""
+
+        # Write the driver script using base64 to avoid shell quoting issues.
+        # The script content is dynamically generated with the target IP, port,
+        # packet size, rate, protocol, and duration baked in as literals.
+        script_path = str(self.node.working_path / "trex_run.py")
+        encoded = base64.b64encode(driver_script.encode()).decode()
+        self.node.execute(
+            f"python3 -c \""
+            f"import base64; "
+            f"open('{script_path}', 'w').write("
+            f"base64.b64decode('{encoded}').decode())"
+            f"\"",
             shell=True,
             sudo=True,
-            timeout=duration + 120,
+        )
+
+        self._log.debug(f"Executing TRex stateless driver: {script_path}")
+        run_result = self.node.execute(
+            f"python3 {script_path}",
+            shell=True,
+            sudo=True,
+            timeout=duration + 180,
             cwd=trex_dir,
         )
 
-        return self._parse_result(result.stdout, protocol, packet_size, duration)
+        return self._parse_result(
+            run_result.stdout, protocol, packet_size, duration
+        )
 
     # ------------------------------------------------------------------
     # Performance message helpers
