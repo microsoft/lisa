@@ -18,7 +18,7 @@ from lisa.environment import EnvironmentStatus
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.secret import add_secret
 from lisa.testsuite import TestResult
-from lisa.tools import Ls, Uname
+from lisa.tools import Ls, Lscpu, Uname
 from lisa.tools.usermod import Usermod
 from lisa.util import LisaException, SkippedException
 
@@ -147,9 +147,13 @@ class OpenVmmUpstreamTestSuite(TestSuite):
                 "OpenVMM upstream vmm_tests currently require a Linux x64 host"
             )
 
+        virtualization_enabled = host.tools[Lscpu].is_virtualization_enabled()
         ls = host.tools[Ls]
         has_kvm = ls.path_exists(path="/dev/kvm", sudo=True)
         has_mshv = ls.path_exists(path="/dev/mshv", sudo=True)
+        if not virtualization_enabled and not has_kvm and not has_mshv:
+            raise SkippedException("Virtualization is not enabled in hardware")
+
         if not has_kvm and not has_mshv:
             raise SkippedException(
                 "OpenVMM upstream vmm_tests require /dev/kvm or /dev/mshv on the host"
