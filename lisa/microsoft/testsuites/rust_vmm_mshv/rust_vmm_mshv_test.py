@@ -10,7 +10,7 @@ from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import BSD, Linux, Windows
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Cargo, Dmesg, Git, Ls, RemoteCopy
+from lisa.tools import Cargo, Dmesg, Git, Ls, Lscpu, RemoteCopy
 from lisa.util import SkippedException
 from lisa.util.process import ExecutableResult
 
@@ -30,6 +30,10 @@ class RustVmmTestSuite(TestSuite):
         # may misclassify the node and bypass the supported_os gate.
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
+
+        virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
+        if not virtualization_enabled:
+            raise SkippedException("Virtualization is not enabled in hardware")
 
         mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
         if not mshv_exists:
