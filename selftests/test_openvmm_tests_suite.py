@@ -12,7 +12,7 @@ from lisa.microsoft.testsuites.openvmm.openvmm_tests import (
     _get_openvmm_tests_type,
 )
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import _JUnitSummary
-from lisa.operating_system import Ubuntu
+from lisa.operating_system import CBLMariner
 from lisa.tools import Ls, Uname
 from lisa.tools.usermod import Usermod
 from lisa.util import SkippedException
@@ -147,7 +147,7 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         host.tools = {openvmm_tests_type: tool}
 
         def initialize_host() -> None:
-            host.os = object.__new__(Ubuntu)
+            host.os = object.__new__(CBLMariner)
 
         host.initialize.side_effect = initialize_host
 

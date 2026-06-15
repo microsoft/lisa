@@ -10,7 +10,7 @@ from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Posix, Ubuntu
+from lisa.operating_system import CBLMariner, Posix
 from lisa.tools import Cargo, Curl, Git, Ls
 from lisa.util import LisaException, UnsupportedDistroException
 
@@ -62,7 +62,6 @@ class OpenVmmTests(Tool):
     command_group = ""
 
     _distro_package_mapping = {
-        Ubuntu.__name__: ["libssl-dev", "perl", "pkg-config"],
         CBLMariner.__name__: [
             "gcc",
             "openssl-devel",
