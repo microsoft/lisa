@@ -49,6 +49,9 @@ class MshvHostTestSuite(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
+        if not node.tools[Ls].path_exists("/dev/mshv", sudo=True):
+            raise SkippedException("This suite is for MSHV root partition only")
+
         if not node.tools[KernelConfig].is_enabled("CONFIG_MSHV_DIAG"):
             raise SkippedException("MSHV_DIAG not enabled, skip")
 
