@@ -72,14 +72,14 @@ class Iperf3(Tool):
     _repo = "https://github.com/esnet/iperf"
     _branch = "3.10.1"
     # iperf3 versions >= 3.14.0 have been observed to segfault in UDP mode
-    # with high parallelism (-P 64+), so versions in that range are replaced
-    # with a source build from _branch (the last known-good release for the
-    # workloads exercised by LISA).
+    # with high parallelism (-P 64+) on the workloads LISA exercises. Such
+    # versions are replaced with a source build from _branch (the last
+    # known-good release).
     #
-    # Upstream tracking: https://github.com/esnet/iperf/issues  (link the
-    # specific issue/commit here once filed).
-    # First fixed release: TBD - bump _buggy_version_min to that version, or
-    # remove this workaround entirely, once the upstream fix is confirmed.
+    # TODO: file an upstream issue at https://github.com/esnet/iperf and
+    # replace this TODO with the specific issue link plus the first-fixed
+    # release. When the fix is confirmed, bump _buggy_version_min to that
+    # release (or remove this workaround entirely).
     _buggy_version_min = VersionInfo(3, 14, 0)
     _version_pattern = re.compile(
         r"iperf\s+(?P<major>\d+)\.(?P<minor>\d+)\.?(?P<patch>\d*)"
