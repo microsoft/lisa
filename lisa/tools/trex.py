@@ -21,7 +21,6 @@
 import base64
 import json
 import re
-import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, List, Type, cast
@@ -38,7 +37,7 @@ from lisa.messages import (
 )
 from lisa.operating_system import Posix
 from lisa.tools.hugepages import HugePageSize, Hugepages
-from lisa.util import LisaException
+from lisa.util import LisaException, LisaTimeoutException, check_till_timeout
 
 from lisa.base_tools import Wget
 from lisa.tools.mkdir import Mkdir
@@ -56,6 +55,12 @@ _TREX_INSTALL_DIR = "/opt/trex"
 
 # Minimum 2 GB of 2 MB hugepages for DPDK
 _HUGEPAGES_MIN_GB = 2
+
+# TRex stateless RPC (ZMQ) port the interactive server listens on.
+_TREX_RPC_PORT = 4501
+# Maximum time (seconds) to wait for the TRex server to finish DPDK init and
+# start listening on the RPC port before giving up.
+_TREX_SERVER_READY_TIMEOUT = 90
 
 
 @dataclass
@@ -173,7 +178,16 @@ class Trex(Tool):
         # ----------------------------------------------------------------
         try:
             posix_os.install_packages(
-                ["python3", "python3-pip", "pciutils", "python3-yaml"]
+                [
+                    "python3",
+                    "python3-pip",
+                    "pciutils",
+                    "python3-yaml",
+                    # Modern six (>= 1.16) is required to work around the
+                    # vendored six in TRex's bundled scapy 2.4.3, which relies
+                    # on the meta-path finder API removed in Python 3.12+.
+                    "python3-six",
+                ]
             )
         except Exception as e:
             self._log.debug(f"Some TRex dependencies could not be installed: {e}")
@@ -211,6 +225,14 @@ class Trex(Tool):
         # ----------------------------------------------------------------
         self._setup_hugepages()
 
+        # ----------------------------------------------------------------
+        # 6. Work around the bundled scapy 2.4.3 / Python 3.12+ incompatibility
+        #    - replace the vendored six (six.moves meta-path finder removed)
+        #    - provide an ``imp`` shim (the ``imp`` module removed in 3.12)
+        # ----------------------------------------------------------------
+        self._replace_bundled_six()
+        self._install_imp_shim()
+
         return self._check_exists()
 
     # ------------------------------------------------------------------
@@ -246,17 +268,23 @@ class Trex(Tool):
         if extra_args:
             cmd += f" {extra_args}"
 
-        # Start as a background daemon; ignore stdout/stderr to the shell
+        # Start as a background daemon; ignore stdout/stderr to the shell.
+        # The t-rex-64 launcher invokes its helper scripts (e.g. ``trex-cfg``)
+        # using relative paths, so it must run with the TRex install directory
+        # as the working directory or it fails with
+        # "./trex-cfg: No such file or directory".
+        trex_dir = f"{_TREX_INSTALL_DIR}/{_TREX_VERSION}"
         self._log.debug(f"Starting TRex server: {cmd}")
         self.node.execute_async(
-            f"nohup {cmd} > /tmp/trex_server.log 2>&1 &",
+            f"cd {trex_dir} && nohup {cmd} > /tmp/trex_server.log 2>&1 &",
             shell=True,
             sudo=True,
         )
 
-        # Give the server a few seconds to initialise DPDK before clients
-        # try to connect.
-        time.sleep(5)
+        # DPDK initialisation (port binding, hugepage mapping) can take a
+        # variable amount of time, so poll until the RPC port is listening
+        # instead of using a fixed sleep that races with slow startups.
+        self._wait_for_server_ready()
 
     def stop_server(self) -> None:
         """
@@ -271,8 +299,23 @@ class Trex(Tool):
             shell=True,
             sudo=True,
         )
-        # Brief pause to let DPDK release NIC resources
-        time.sleep(2)
+        # Wait (bounded) for the process to exit so DPDK releases NIC
+        # resources before we free the hugepages it had mapped.
+        check_till_timeout(
+            lambda: "running"
+            not in self.node.execute(
+                "pgrep -f t-rex-64 >/dev/null && echo running || echo stopped",
+                shell=True,
+                sudo=True,
+            ).stdout,
+            timeout_message=(
+                "TRex server process did not exit after pkill; DPDK NIC "
+                "resources may still be held. Check for a stuck t-rex-64 "
+                "process on the node."
+            ),
+            timeout=30,
+            interval=1,
+        )
         self._release_hugepages()
 
     # ------------------------------------------------------------------
@@ -435,9 +478,35 @@ finally:
             cwd=trex_dir,
         )
 
-        return self._parse_result(
+        # A non-zero exit code means the TRex Python driver crashed (e.g. the
+        # bundled scapy failed to import, DPDK ports could not be bound, or the
+        # server connection failed). Without this check a crashed run would be
+        # silently parsed into an all-zero TrexResult and reported as a PASS.
+        if run_result.exit_code != 0:
+            raise LisaException(
+                f"TRex stateless driver failed with exit code "
+                f"{run_result.exit_code}. The traffic run did not complete, so "
+                f"no throughput was measured. Inspect the driver output below "
+                f"and /tmp/trex_server.log on the node to investigate.\n"
+                f"{run_result.stdout}"
+            )
+
+        result = self._parse_result(
             run_result.stdout, protocol, packet_size, duration
         )
+
+        # On success the driver prints a JSON statistics summary. If none was
+        # found, the run produced no usable measurement and must not be treated
+        # as a passing result.
+        if not result.raw_json:
+            raise LisaException(
+                "TRex stateless driver exited successfully but did not emit a "
+                "JSON statistics summary, so no throughput was measured. Verify "
+                "TRex generated traffic and that both ports are bound to DPDK. "
+                f"Driver output:\n{run_result.stdout}"
+            )
+
+        return result
 
     # ------------------------------------------------------------------
     # Performance message helpers
@@ -543,6 +612,185 @@ finally:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _replace_bundled_six(self) -> None:
+        """
+        Replace TRex's vendored scapy ``six.py`` with the system ``six``.
+
+        TRex v3.04 bundles scapy 2.4.3, whose vendored ``six`` registers
+        ``six.moves`` through the legacy ``find_module``/``load_module``
+        meta-path API that was removed in Python 3.12.  On Python 3.12+ this
+        breaks with ``ModuleNotFoundError: No module named
+        'scapy.modules.six.moves'`` as soon as the Python traffic driver
+        imports the TRex stateless API.
+
+        The system ``six`` (installed as a tool dependency) implements the
+        modern ``find_spec`` API, so overwriting the bundled copy makes the
+        bundled scapy import cleanly without any per-run shimming.
+        """
+        bundled_six = (
+            f"{_TREX_INSTALL_DIR}/{_TREX_VERSION}/external_libs/"
+            "scapy-2.4.3/scapy/modules/six.py"
+        )
+
+        # Locate the system six module installed via the OS package.
+        result = self.node.execute(
+            "python3 -c 'import six; print(six.__file__)'",
+            shell=True,
+        )
+        system_six = result.stdout.strip()
+        if result.exit_code != 0 or not system_six:
+            self._log.debug(
+                "System six not found; leaving bundled scapy six in place. "
+                "TRex traffic driver may fail on Python 3.12+."
+            )
+            return
+
+        self.node.execute(
+            f"cp -f {system_six} {bundled_six}",
+            shell=True,
+            sudo=True,
+        )
+        self._log.debug(
+            f"Replaced bundled scapy six with system six from {system_six}"
+        )
+
+    def _install_imp_shim(self) -> None:
+        """
+        Drop an ``imp`` compatibility shim into TRex's interactive path.
+
+        TRex v3.04's ``trex_stl_streams.py`` (and a few other bundled modules)
+        still ``import imp``, a standard-library module that was removed in
+        Python 3.12.  On Ubuntu 24.04 / Python 3.12+ this fails with
+        ``ModuleNotFoundError: No module named 'imp'`` while importing the TRex
+        stateless API.
+
+        The TRex traffic driver prepends
+        ``automation/trex_control_plane/interactive`` to ``sys.path``, so
+        placing an ``imp.py`` there makes every ``import imp`` in the bundled
+        code resolve to this shim.  Only ``imp.reload`` is actually exercised
+        by the stateless path, but the shim re-implements the small, commonly
+        used subset of the legacy API on top of ``importlib`` for safety.
+        """
+        shim_dir = (
+            f"{_TREX_INSTALL_DIR}/{_TREX_VERSION}/automation/"
+            "trex_control_plane/interactive"
+        )
+        shim_path = f"{shim_dir}/imp.py"
+        shim_source = (
+            '"""Minimal ``imp`` shim for Python 3.12+ (imp module removed)."""\n'
+            "import importlib\n"
+            "import importlib.machinery\n"
+            "import importlib.util\n"
+            "import sys\n"
+            "import types\n"
+            "\n"
+            "PY_SOURCE = 1\n"
+            "PY_COMPILED = 2\n"
+            "C_EXTENSION = 3\n"
+            "PKG_DIRECTORY = 5\n"
+            "\n"
+            "\n"
+            "def reload(module):\n"
+            "    return importlib.reload(module)\n"
+            "\n"
+            "\n"
+            "def new_module(name):\n"
+            "    return types.ModuleType(name)\n"
+            "\n"
+            "\n"
+            "def acquire_lock():\n"
+            "    pass\n"
+            "\n"
+            "\n"
+            "def release_lock():\n"
+            "    pass\n"
+            "\n"
+            "\n"
+            "def load_source(name, pathname, file=None):\n"
+            "    loader = importlib.machinery.SourceFileLoader(name, pathname)\n"
+            "    spec = importlib.util.spec_from_file_location(\n"
+            "        name, pathname, loader=loader\n"
+            "    )\n"
+            "    module = importlib.util.module_from_spec(spec)\n"
+            "    sys.modules[name] = module\n"
+            "    loader.exec_module(module)\n"
+            "    return module\n"
+            "\n"
+            "\n"
+            "def find_module(name, path=None):\n"
+            "    if path is None:\n"
+            "        spec = importlib.util.find_spec(name)\n"
+            "    else:\n"
+            "        spec = importlib.machinery.PathFinder.find_spec(name, path)\n"
+            "    if spec is None:\n"
+            "        raise ImportError(f'No module named {name!r}')\n"
+            "    return None, spec.origin, ('', '', PY_SOURCE)\n"
+            "\n"
+            "\n"
+            "def load_module(name, file, pathname, description):\n"
+            "    return load_source(name, pathname, file)\n"
+        )
+
+        encoded = base64.b64encode(shim_source.encode()).decode()
+        self.node.execute(
+            f'python3 -c "'
+            f"import base64; "
+            f"open('{shim_path}', 'w').write("
+            f"base64.b64decode('{encoded}').decode())"
+            f'"',
+            shell=True,
+            sudo=True,
+        )
+        self._log.debug(f"Installed imp compatibility shim at {shim_path}")
+
+    def _wait_for_server_ready(
+        self, timeout: int = _TREX_SERVER_READY_TIMEOUT
+    ) -> None:
+        """
+        Block until the TRex server is listening on its RPC port.
+
+        DPDK initialisation (port binding, hugepage mapping) takes a variable
+        amount of time, so instead of a fixed sleep we poll until the
+        ``t-rex-64`` process has bound the stateless RPC port.  If the server
+        never becomes ready, the tail of ``/tmp/trex_server.log`` is included
+        in the raised exception to make DPDK/hugepage failures diagnosable.
+        """
+
+        def _is_listening() -> bool:
+            result = self.node.execute(
+                f"ss -ltn '( sport = :{_TREX_RPC_PORT} )' | "
+                f"grep -q ':{_TREX_RPC_PORT}' && echo ready || echo waiting",
+                shell=True,
+                sudo=True,
+            )
+            return "ready" in result.stdout
+
+        try:
+            check_till_timeout(
+                _is_listening,
+                timeout_message=(
+                    f"TRex server did not start listening on RPC port "
+                    f"{_TREX_RPC_PORT} within {timeout}s"
+                ),
+                timeout=timeout,
+                interval=2,
+            )
+        except LisaTimeoutException:
+            server_log = self.node.execute(
+                "tail -n 40 /tmp/trex_server.log 2>/dev/null || true",
+                shell=True,
+                sudo=True,
+            ).stdout
+            raise LisaException(
+                f"TRex server failed to start listening on RPC port "
+                f"{_TREX_RPC_PORT} within {timeout}s. DPDK port binding or "
+                f"hugepage allocation likely failed. Inspect the server log "
+                f"below and /tmp/trex_server.log on the node.\n{server_log}"
+            )
+        self._log.debug(
+            f"TRex server is ready and listening on RPC port {_TREX_RPC_PORT}"
+        )
 
     def _setup_hugepages(self) -> None:
         """Allocate 2 MB hugepages required by DPDK / TRex."""
