@@ -73,8 +73,13 @@ class Iperf3(Tool):
     _branch = "3.10.1"
     # iperf3 versions >= 3.14.0 have been observed to segfault in UDP mode
     # with high parallelism (-P 64+), so versions in that range are replaced
-    # with a source build from _branch.  When the upstream fix is confirmed,
-    # update or remove this workaround.
+    # with a source build from _branch (the last known-good release for the
+    # workloads exercised by LISA).
+    #
+    # Upstream tracking: https://github.com/esnet/iperf/issues  (link the
+    # specific issue/commit here once filed).
+    # First fixed release: TBD - bump _buggy_version_min to that version, or
+    # remove this workaround entirely, once the upstream fix is confirmed.
     _buggy_version_min = VersionInfo(3, 14, 0)
     _version_pattern = re.compile(
         r"iperf\s+(?P<major>\d+)\.(?P<minor>\d+)\.?(?P<patch>\d*)"
@@ -132,9 +137,19 @@ class Iperf3(Tool):
                 install_from_src = True
             else:
                 # iperf3 >= 3.14 segfaults in UDP mode with high parallelism.
-                # Force a source build from a known-good version.
+                # Force a source build from a known-good version. If the
+                # version cannot be parsed, fail safe and rebuild so the
+                # mitigation cannot be silently bypassed by an unexpected
+                # `iperf3 -v` output format.
                 version = self.get_version()
-                if version and version >= self._buggy_version_min:
+                if version is None:
+                    self._log.warning(
+                        "could not parse iperf3 version output; "
+                        f"rebuilding from source ({self._branch}) as a "
+                        "precaution against the known UDP segfault"
+                    )
+                    install_from_src = True
+                elif version >= self._buggy_version_min:
                     self._log.info(
                         f"iperf3 {version} has known UDP segfault, "
                         f"rebuilding from source ({self._branch})"
@@ -634,7 +649,12 @@ class Iperf3(Tool):
         result_matched = get_matched_str(result, self._json_pattern)
         if not result_matched:
             raise LisaException(
-                f"Failed to parse iperf3 JSON output. "
+                "Failed to parse iperf3 JSON output. This usually means "
+                "iperf3 produced non-JSON output - common causes include "
+                "the command not being invoked with -J / JSON mode, an "
+                "iperf3 crash or segfault (check the exit code and "
+                "stderr/logfile), or truncated output. Verify the iperf3 "
+                "command and version, and inspect the full stdout/stderr.\n"
                 f"Raw output (first 500 chars): {result[:500]}"
             )
         return result_matched
