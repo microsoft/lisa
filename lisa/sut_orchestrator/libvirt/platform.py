@@ -89,6 +89,10 @@ class _HostCapabilities:
 class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     LIBVIRTD_CONF_PATH = PurePosixPath("/etc/libvirt/libvirtd.conf")
     LIBVIRT_DEBUG_LOG_PATH = PurePosixPath("/var/log/libvirt/libvirtd.log")
+    LIBVIRT_KEEPALIVE_CONFIG_FILE_MARKER = "lisa-libvirt-keepalive"
+    # Disable daemon-side keepalive while LISA owns the host; CH domain starts can
+    # block longer than libvirt's default 30-second keepalive window.
+    LIBVIRT_KEEPALIVE_INTERVAL = -1
     # A marker that identifies lines added by lisa in a config file. This can be
     # appended as a comment and then used to identify the line to delete during
     # cleanup.
@@ -186,8 +190,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if self.platform_runbook.capture_libvirt_debug_logs:
             self._enable_libvirt_debug_log()
 
+        self._configure_libvirt_keepalive()
+
         self.__init_libvirt_conn_string()
-        self.libvirt_conn = libvirt.open(self.libvirt_conn_str)
+        self.libvirt_conn = self._open_libvirt_connection()
 
         self.device_pool = LibvirtDevicePool(self.host_node, self.platform_runbook)
         # If Device_passthrough is set in runbook,
@@ -246,6 +252,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     def _cleanup(self) -> None:
         if self.platform_runbook.capture_libvirt_debug_logs:
             self._disable_libvirt_debug_log()
+
+        self._disable_libvirt_keepalive()
 
         self._capture_libvirt_logs()
 
@@ -688,7 +696,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         # Create libvirt domain (i.e. VM).
         xml = self._create_node_domain_xml(environment, log, node)
         log.debug(f"Domain xml for {node_context.vm_name} - {xml}")
-        node_context.domain = self.libvirt_conn.defineXML(xml)
+        node_context.domain = self._define_domain(xml, node_context.vm_name, log)
 
         log.debug(f"Creating libvirt domain - {node_context.vm_name}")
         self._create_domain_and_attach_logger(
@@ -725,7 +733,17 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 # In the libvirt API, "destroy" means "stop".
                 node_context.domain.destroy()
             except libvirt.libvirtError as ex:
-                log.warning(f"VM stop failed. {ex}")
+                if self._is_libvirt_connection_closed_error(ex):
+                    try:
+                        node_context.domain = self._lookup_domain_after_reconnect(
+                            node_context.vm_name, log
+                        )
+                        if node_context.domain:
+                            node_context.domain.destroy()
+                    except libvirt.libvirtError as retry_ex:
+                        log.debug(f"VM stop failed. {retry_ex}")
+                else:
+                    log.debug(f"VM stop failed. {ex}")
 
         # Wait for console log to close.
         # Note: libvirt can deadlock if you try to undefine the VM while the stream
@@ -741,7 +759,19 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             try:
                 node_context.domain.undefineFlags(self._get_domain_undefine_flags())
             except libvirt.libvirtError as ex:
-                log.warning(f"VM delete failed. {ex}")
+                if self._is_libvirt_connection_closed_error(ex):
+                    try:
+                        node_context.domain = self._lookup_domain_after_reconnect(
+                            node_context.vm_name, log
+                        )
+                        if node_context.domain:
+                            node_context.domain.undefineFlags(
+                                self._get_domain_undefine_flags()
+                            )
+                    except libvirt.libvirtError as retry_ex:
+                        log.debug(f"VM delete failed. {retry_ex}")
+                else:
+                    log.debug(f"VM delete failed. {ex}")
 
             node_context.domain = None
 
@@ -1225,7 +1255,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     ) -> Optional[str]:
         node_context = get_node_context(node)
 
-        domain = self.libvirt_conn.lookupByName(node_context.vm_name)
+        domain = self._lookup_domain(node_context.vm_name, log)
 
         # Acquire IP address from libvirt's DHCP server.
         interfaces = domain.interfaceAddresses(
@@ -1352,6 +1382,59 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         self.libvirt_conn_str = f"{hypervisor}{transport}://{host_addr}/system{params}"
 
+    def _open_libvirt_connection(self) -> libvirt.virConnect:
+        conn = libvirt.open(self.libvirt_conn_str)
+        try:
+            result = conn.setKeepAlive(0, 0)
+            if result not in (0, None):
+                self._log.debug(
+                    "libvirt conn.setKeepAlive returned non-zero; client keepalive "
+                    "may be unsupported for this transport."
+                )
+        except libvirt.libvirtError as ex:
+            self._log.debug(f"Failed to configure libvirt client keepalive: {ex}")
+        return conn
+
+    def _reopen_libvirt_connection(self, log: Logger) -> None:
+        log.debug("Reopening libvirt connection after closed client socket.")
+        try:
+            self.libvirt_conn.close()
+        except libvirt.libvirtError as ex:
+            log.debug(f"Failed to close stale libvirt connection: {ex}")
+        self.libvirt_conn = self._open_libvirt_connection()
+
+    def _is_libvirt_connection_closed_error(self, ex: libvirt.libvirtError) -> bool:
+        message = str(ex).lower()
+        return (
+            "client socket is closed" in message
+            or "connection closed due to keepalive timeout" in message
+        )
+
+    def _define_domain(self, xml: str, vm_name: str, log: Logger) -> libvirt.virDomain:
+        try:
+            return self.libvirt_conn.defineXML(xml)
+        except libvirt.libvirtError as ex:
+            if not self._is_libvirt_connection_closed_error(ex):
+                raise
+            self._reopen_libvirt_connection(log)
+            log.debug(f"Retrying libvirt domain definition for {vm_name}.")
+            return self.libvirt_conn.defineXML(xml)
+
+    def _lookup_domain(self, vm_name: str, log: Logger) -> libvirt.virDomain:
+        try:
+            return self.libvirt_conn.lookupByName(vm_name)
+        except libvirt.libvirtError as ex:
+            if not self._is_libvirt_connection_closed_error(ex):
+                raise
+            return self._lookup_domain_after_reconnect(vm_name, log)
+
+    def _lookup_domain_after_reconnect(
+        self, vm_name: str, log: Logger
+    ) -> libvirt.virDomain:
+        self._reopen_libvirt_connection(log)
+        log.debug(f"Retrying libvirt domain lookup for {vm_name}.")
+        return self.libvirt_conn.lookupByName(vm_name)
+
     def __platform_runbook_type(self) -> type:
         platform_runbook_type: type = type(self).platform_runbook_type()
         assert issubclass(platform_runbook_type, BaseLibvirtPlatformSchema)
@@ -1418,6 +1501,25 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         )
 
         self.host_node.tools[Service].restart_service("libvirtd")
+
+    def _configure_libvirt_keepalive(self) -> None:
+        self._disable_libvirt_keepalive(restart_service=False)
+        self.host_node.tools[Sed].append(
+            f"keepalive_interval = {self.LIBVIRT_KEEPALIVE_INTERVAL} "
+            f"# {self.LIBVIRT_KEEPALIVE_CONFIG_FILE_MARKER}",
+            str(self.LIBVIRTD_CONF_PATH),
+            sudo=True,
+        )
+        self.host_node.tools[Service].restart_service("libvirtd")
+
+    def _disable_libvirt_keepalive(self, restart_service: bool = True) -> None:
+        self.host_node.tools[Sed].delete_lines(
+            self.LIBVIRT_KEEPALIVE_CONFIG_FILE_MARKER,
+            self.LIBVIRTD_CONF_PATH,
+            sudo=True,
+        )
+        if restart_service:
+            self.host_node.tools[Service].restart_service("libvirtd")
 
     def _disable_libvirt_debug_log(self) -> None:
         self.host_node.tools[Sed].delete_lines(
