@@ -97,6 +97,10 @@ class Ltp(Tool):
             # default binary_file install path is /tmp/ltp
             self._command_path = "/tmp/ltp" if self._binary_file else "/opt/ltp"
 
+    # Maximum number of test names per printf command to avoid exceeding
+    # SSH/WSL command-line length limits on remote nodes.
+    _SKIP_BATCH_SIZE = 50
+
     def _write_skip_tests_to_remote(
         self, skip_file: str, skip_tests: List[str]
     ) -> None:
@@ -106,14 +110,27 @@ class Ltp(Tool):
         is unreliable for some node types (e.g. WSL): it may create the
         destination file but leave it empty (0 bytes), causing runltp to
         silently discard the ``-S`` argument.
+
+        When the skip list is large (300+ entries), the command is split into
+        batches to stay within SSH/WSL command-line length limits.
         """
-        quoted = " ".join(f"'{t}'" for t in skip_tests)
-        self.node.execute(
-            f"printf '%s\\n' {quoted} | sudo tee {skip_file} > /dev/null",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-        )
+        for i in range(0, len(skip_tests), self._SKIP_BATCH_SIZE):
+            batch = skip_tests[i : i + self._SKIP_BATCH_SIZE]
+            quoted = " ".join(f"'{t}'" for t in batch)
+            if i == 0:
+                # First batch: truncate the file
+                cmd = f"printf '%s\\n' {quoted}" f" | sudo tee {skip_file} > /dev/null"
+            else:
+                # Subsequent batches: append
+                cmd = (
+                    f"printf '%s\\n' {quoted}" f" | sudo tee -a {skip_file} > /dev/null"
+                )
+            self.node.execute(
+                cmd,
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+            )
         self._assert_skip_file_non_empty(skip_file, skip_tests)
 
     def _verify_or_rewrite_skip_file(self, skip_file: str, local_path: str) -> None:
