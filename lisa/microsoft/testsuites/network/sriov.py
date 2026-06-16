@@ -723,7 +723,11 @@ class Sriov(TestSuite):
             ).exit_code
             != 0
         ):
-            raise SkippedException("irqbalance is not installed")
+            if not isinstance(
+                server_node.os, Posix
+            ) or not server_node.os.is_package_in_repo("irqbalance"):
+                raise SkippedException("irqbalance is not available")
+            server_node.os.install_packages("irqbalance")
 
         # Get the irqbalance version if we can
         if isinstance(server_node.os, Posix):
