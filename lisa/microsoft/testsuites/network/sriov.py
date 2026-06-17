@@ -746,7 +746,14 @@ class Sriov(TestSuite):
 
         server_node.tools[Service].stop_service("irqbalance")
 
-        irqbalance = server_node.execute_async("irqbalance --debug", sudo=True)
+        # Run irqbalance unbuffered (stdbuf -o0) so its debug output is flushed
+        # to the pipe as it is produced. Otherwise stdout is block buffered and
+        # the most recent output (which can include the "Selecting irq ... for
+        # rebalancing" lines) is discarded when the process is later killed with
+        # SIGKILL, causing a false negative.
+        irqbalance = server_node.execute_async(
+            "stdbuf -o0 irqbalance --debug", sudo=True
+        )
 
         server_iperf3 = server_node.tools[Iperf3]
         client_iperf3 = client_node.tools[Iperf3]
@@ -772,12 +779,17 @@ class Sriov(TestSuite):
         # before waiting for the result, so wait_result() does not time out.
         server_node.tools[Kill].by_name("irqbalance", ignore_not_exist=True)
         result = irqbalance.wait_result(raise_on_timeout=False)
-        assert re.search(
-            "Selecting irq [0-9]+ for rebalancing",
-            result.stdout,
-        ), (
-            "irqbalance is not rebalancing irqs" + err_msg
-        )
+        # irqbalance may emit its debug output on either stdout or stderr
+        # depending on the distro's build, so check both streams for the
+        # rebalancing message.
+        irqbalance_output = f"{result.stdout}\n{result.stderr}"
+        assert_that(
+            re.search("Selecting irq [0-9]+ for rebalancing", irqbalance_output)
+        ).described_as(
+            "irqbalance debug output should contain a 'Selecting irq <n> for "
+            "rebalancing' line, which indicates irqbalance is rebalancing IRQs "
+            f"under heavy network load.{err_msg}"
+        ).is_not_none()
 
     @TestCaseMetadata(
         description="""
