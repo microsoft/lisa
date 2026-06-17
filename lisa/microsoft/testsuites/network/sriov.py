@@ -746,17 +746,33 @@ class Sriov(TestSuite):
 
         server_node.tools[Service].stop_service("irqbalance")
 
-        # Start irqbalance in debug mode.
+        # irqbalance only logs "Selecting irq ... for rebalancing" from its
+        # load-balancing path, and that path requires an overloaded CPU that
+        # owns MORE THAN ONE irq (see move_candidate_irqs / migrate_overloaded_
+        # irqs in irqbalance). On a VM where the NIC's RSS already spreads
+        # interrupts roughly one-per-CPU, irqbalance correctly has nothing to
+        # migrate and never logs that line, producing a false negative.
+        #
+        # To deterministically exercise the rebalancing path, restrict
+        # irqbalance to just two CPUs (CPU0 and CPU1) by banning the rest. This
+        # forces multiple irqs onto each of the two CPUs, so the ">1 irq"
+        # condition is met, and the uneven, bursty traffic between the two CPUs
+        # under load triggers irqbalance to migrate irqs and emit the message.
+        cpu_count = server_node.tools[Lscpu].get_thread_count()
+        banned_cpus_env = ""
+        if cpu_count > 2:
+            # Leave CPU0 and CPU1 active; ban CPU2..CPU(n-1).
+            banned_cpus_env = f"IRQBALANCE_BANNED_CPULIST=2-{cpu_count - 1} "
+
         # - stdbuf -o0: run unbuffered so the debug output is flushed to the
         #   pipe as it is produced; otherwise the block-buffered tail is lost
         #   when the process is killed with SIGKILL.
         # - "-t 1": scan and rebalance every 1 second instead of the default
-        #   10 seconds. irqbalance only logs "Selecting irq ... for rebalancing"
-        #   from a scan cycle that detects a load imbalance, so a short interval
-        #   gives many more opportunities to observe rebalancing during the
-        #   traffic window and avoids false negatives.
+        #   10 seconds, giving many more opportunities to observe rebalancing
+        #   during the traffic window.
         irqbalance = server_node.execute_async(
-            "stdbuf -o0 irqbalance --debug -t 1", sudo=True
+            f"env {banned_cpus_env}stdbuf -o0 irqbalance --debug -t 1",
+            sudo=True,
         )
 
         server_iperf3 = server_node.tools[Iperf3]
