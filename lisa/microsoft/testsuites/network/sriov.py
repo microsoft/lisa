@@ -746,13 +746,17 @@ class Sriov(TestSuite):
 
         server_node.tools[Service].stop_service("irqbalance")
 
-        # Run irqbalance unbuffered (stdbuf -o0) so its debug output is flushed
-        # to the pipe as it is produced. Otherwise stdout is block buffered and
-        # the most recent output (which can include the "Selecting irq ... for
-        # rebalancing" lines) is discarded when the process is later killed with
-        # SIGKILL, causing a false negative.
+        # Start irqbalance in debug mode.
+        # - stdbuf -o0: run unbuffered so the debug output is flushed to the
+        #   pipe as it is produced; otherwise the block-buffered tail is lost
+        #   when the process is killed with SIGKILL.
+        # - "-t 1": scan and rebalance every 1 second instead of the default
+        #   10 seconds. irqbalance only logs "Selecting irq ... for rebalancing"
+        #   from a scan cycle that detects a load imbalance, so a short interval
+        #   gives many more opportunities to observe rebalancing during the
+        #   traffic window and avoids false negatives.
         irqbalance = server_node.execute_async(
-            "stdbuf -o0 irqbalance --debug", sudo=True
+            "stdbuf -o0 irqbalance --debug -t 1", sudo=True
         )
 
         server_iperf3 = server_node.tools[Iperf3]
