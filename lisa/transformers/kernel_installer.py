@@ -261,9 +261,13 @@ class RepoInstaller(BaseInstaller):
                 repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
             elif "proposed2" in self.repo_url:
                 repo_entry = "ppa:canonical-kernel-team/proposed2"
-            else:
+            elif "proposed" in self.repo_url:
                 version_name = f"{release}-proposed"
                 repo_entry = "ppa:canonical-kernel-team/proposed"
+            else:
+                # use 'main' repo component for all other repositories
+                repo_component = "main"
+                repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
         else:
             repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
 
@@ -321,7 +325,12 @@ class RepoInstaller(BaseInstaller):
             r"(?P<kernel_version>[^.]+\.[^.]+\.[^.-]+[.-][^.]+)\..*installed.*[\r\n]+",
             re.M,
         )
-        result = node.execute(f"apt search {source}", shell=True)
+        # Pipe through `cat` so apt's stdout is not a TTY. Otherwise `apt search`
+        # sends its output to an interactive pager (less) that waits for input,
+        # causing the command to hang until it times out.
+        result = node.execute(
+            f"apt search {source} 2>&1 | cat", sudo=True, shell=True
+        )
         result_output = filter_ansi_escape(result.stdout)
         kernel_version = get_matched_str(result_output, kernel_version_package_pattern)
         assert kernel_version, (
