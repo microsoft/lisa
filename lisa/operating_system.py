@@ -2174,7 +2174,7 @@ class CBLMariner(RPMDistro):
 
     def __init__(self, node: Any) -> None:
         super().__init__(node)
-        self._dnf_tool_name: str
+        self._dnf_tool_name: Optional[str] = None
 
     def _initialize_package_installation(self) -> None:
         self.set_kill_user_processes()
@@ -2187,6 +2187,8 @@ class CBLMariner(RPMDistro):
         self._dnf_tool_name = "tdnf -q"
 
     def _dnf_tool(self) -> str:
+        if not self._dnf_tool_name:
+            self._initialize_package_installation()
         return self._dnf_tool_name
 
     def _package_exists(self, package: str) -> bool:
