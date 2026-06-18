@@ -17,6 +17,7 @@ from typing import (
     Optional,
     Pattern,
     Sequence,
+    Set,
     Type,
     Union,
 )
@@ -354,6 +355,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     def __init__(self, node: Any) -> None:
         super().__init__(node, is_posix=True)
         self._first_time_installation: bool = True
+        self._package_metadata_refresh_retried: Set[str] = set()
 
     @classmethod
     def type_name(cls) -> str:
@@ -1237,6 +1239,19 @@ class Debian(Linux):
         result = self._node.execute(command, sudo=True, shell=True)
         matched = get_matched_str(result.stdout, self._package_candidate_pattern)
         if matched:
+            if package not in self._package_metadata_refresh_retried:
+                self._log.debug(
+                    f"Package '{package}' was not found in apt metadata. "
+                    "Refreshing metadata before retrying package lookup."
+                )
+                self._initialize_package_installation()
+                self._package_metadata_refresh_retried.add(package)
+                result = self._node.execute(command, sudo=True, shell=True)
+                matched = get_matched_str(
+                    result.stdout, self._package_candidate_pattern
+                )
+                if not matched:
+                    return True
             return False
         return True
 
