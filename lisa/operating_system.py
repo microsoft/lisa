@@ -2243,13 +2243,35 @@ class CBLMariner(RPMDistro):
     # Disable KillUserProcesses to avoid test processes being terminated when
     # the SSH session is reset
     def set_kill_user_processes(self) -> None:
+        service = self._node.tools[Service]
+        if not service.check_service_exists("systemd-logind"):
+            self._log.debug(
+                "Skipping restart because systemd-logind service is absent."
+            )
+            return
+
+        if self.information.version.major >= 4:
+            from lisa.tools import Mkdir, Tee
+
+            drop_in_dir = self._node.get_pure_path("/etc/systemd/logind.conf.d")
+            drop_in_file = drop_in_dir / "90-lisa.conf"
+
+            self._node.tools[Mkdir].create_directory(str(drop_in_dir), sudo=True)
+            self._node.tools[Tee].write_to_file(
+                value="[Login]\nKillUserProcesses=no",
+                file=drop_in_file,
+                sudo=True,
+            )
+            service.restart_service("systemd-logind")
+            return
+
         sed = self._node.tools[Sed]
         sed.append(
             text="KillUserProcesses=no",
             file="/etc/systemd/logind.conf",
             sudo=True,
         )
-        self._node.tools[Service].restart_service("systemd-logind")
+        service.restart_service("systemd-logind")
 
     def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
