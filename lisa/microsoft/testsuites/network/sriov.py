@@ -747,33 +747,53 @@ class Sriov(TestSuite):
         server_node.tools[Service].stop_service("irqbalance")
 
         # irqbalance only logs "Selecting irq ... for rebalancing" from its
-        # load-balancing path, and that path requires an overloaded CPU that
-        # owns MORE THAN ONE irq (see move_candidate_irqs / migrate_overloaded_
-        # irqs in irqbalance). On a VM where the NIC's RSS already spreads
-        # interrupts roughly one-per-CPU, irqbalance correctly has nothing to
-        # migrate and never logs that line, producing a false negative.
+        # load-balancing path, which fires only when BOTH of these are true
+        # (see move_candidate_irqs / migrate_overloaded_irqs in irqbalance):
+        #   (a) the overloaded CPU owns MORE THAN ONE irq in irqbalance's
+        #       model, and
+        #   (b) that CPU is measurably more loaded than another CPU.
+        # On a multi-CPU Azure VM the NIC interrupts are spread ~evenly, so the
+        # system is already balanced and the line is never logged. Simply
+        # banning down to two CPUs is not enough either: heavy uniform traffic
+        # then saturates both remaining CPUs equally, so condition (b) is still
+        # never met (confirmed on hardware: both CPUs reached full load but no
+        # migration happened).
         #
-        # To deterministically exercise the rebalancing path, restrict
-        # irqbalance to just two CPUs (CPU0 and CPU1) by banning the rest. This
-        # forces multiple irqs onto each of the two CPUs, so the ">1 irq"
-        # condition is met, and the uneven, bursty traffic between the two CPUs
-        # under load triggers irqbalance to migrate irqs and emit the message.
+        # Create both conditions deterministically:
+        #   1. Restrict irqbalance to CPU0 and CPU1 (ban the rest) so each of
+        #      the two CPUs owns several irqs in irqbalance's model -> (a).
+        #   2. While traffic flows, keep every movable irq pinned to CPU0 so
+        #      CPU0 is overloaded while CPU1 stays idle -> (b). irqbalance then
+        #      repeatedly migrates irqs from CPU0 to CPU1 and logs the message.
         cpu_count = server_node.tools[Lscpu].get_thread_count()
         banned_cpus_env = ""
         if cpu_count > 2:
             # Leave CPU0 and CPU1 active; ban CPU2..CPU(n-1).
             banned_cpus_env = f"IRQBALANCE_BANNED_CPULIST=2-{cpu_count - 1} "
 
-        # - stdbuf -o0: run unbuffered so the debug output is flushed to the
-        #   pipe as it is produced; otherwise the block-buffered tail is lost
-        #   when the process is killed with SIGKILL.
-        # - "-t 1": scan and rebalance every 1 second instead of the default
-        #   10 seconds, giving many more opportunities to observe rebalancing
-        #   during the traffic window.
+        # stdbuf -o0: run unbuffered so the debug output is flushed to the pipe
+        # as it is produced; otherwise the block-buffered tail is lost when the
+        # process is killed with SIGKILL.
         irqbalance = server_node.execute_async(
-            f"env {banned_cpus_env}stdbuf -o0 irqbalance --debug -t 1",
+            f"env {banned_cpus_env}stdbuf -o0 irqbalance --debug",
             sudo=True,
         )
+
+        # Background loop that keeps every movable irq pinned to CPU0 for the
+        # duration of the traffic window (250 iterations of ~1s each, slightly
+        # longer than the 240s iperf3 run). This sustains the CPU0/CPU1 load
+        # imbalance that irqbalance reacts to, even as irqbalance keeps trying
+        # to migrate irqs away to CPU1. Managed irqs reject the affinity write,
+        # which is expected and ignored via 2>/dev/null.
+        irq_pinner = server_node.execute_async(
+            "sh -c 'for _ in $(seq 250); do "
+            'for f in /proc/irq/*/smp_affinity_list; do echo 0 > "$f" 2>/dev/null; '
+            "done; sleep 1; done'",
+            sudo=True,
+        )
+        # Pinning irq affinity perturbs the node's interrupt configuration, so
+        # mark it dirty to avoid reuse with a non-default irq layout.
+        server_node.mark_dirty()
 
         server_iperf3 = server_node.tools[Iperf3]
         client_iperf3 = client_node.tools[Iperf3]
@@ -791,6 +811,9 @@ class Sriov(TestSuite):
             # network traffic.
             log.debug(f"iperf3 failed: {e}")
             err_msg += "\nPotential issues running iperf3, check logs for details."
+
+        # Stop the background irq pinner so it no longer fights irqbalance.
+        irq_pinner.kill()
 
         irqbalance.kill()
         # The kill() above sends SIGKILL to the spur-tracked process (the
