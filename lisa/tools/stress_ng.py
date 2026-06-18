@@ -6,6 +6,7 @@ from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Posix
+from lisa.util import LisaException, RepoNotExistException
 from lisa.util.process import Process
 
 from .git import Git
@@ -27,10 +28,19 @@ class StressNg(Tool):
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         if posix_os.is_package_in_repo(self.command):
-            posix_os.install_packages(self.command)
-        else:
-            self._install_from_src()
-        return self._check_exists()
+            try:
+                posix_os.install_packages(self.command)
+            except RepoNotExistException:
+                raise
+            except LisaException as package_error:
+                self._log.debug(
+                    f"failed to install {self.command} from package manager: "
+                    f"{package_error}"
+                )
+
+        if not self._check_exists():
+            return self._install_from_src()
+        return True
 
     def launch_vm_stressor(
         self, num_workers: int = 0, vm_bytes: str = "", timeout_in_seconds: int = 0
