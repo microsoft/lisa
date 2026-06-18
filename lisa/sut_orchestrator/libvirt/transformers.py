@@ -25,6 +25,9 @@ from lisa.util.logger import Logger
 from lisa.util.process import ExecutableResult
 
 CLOUD_HYPERVISOR_RELEASE_REF_PATTERN = re.compile(r"^v\d+(?:\.\d+)*(?:[-+].*)?$")
+# Rustup downloads the full Rust toolchain. Bare-metal lab network throughput can
+# be slow enough to exceed the generic 600-second command timeout.
+RUSTUP_INSTALL_TIMEOUT_SECONDS = 1800
 
 
 @dataclass_json()
@@ -514,8 +517,13 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             "curl https://sh.rustup.rs -sSf | sh -s -- -y",
             shell=True,
             sudo=False,
+            timeout=RUSTUP_INSTALL_TIMEOUT_SECONDS,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to install Rust & Cargo",
+            expected_exit_code_failure_message=(
+                "Failed to install Rust & Cargo. Verify rustup network "
+                "connectivity and retry if the toolchain download timed out "
+                "or was interrupted."
+            ),
         )
         self._node.execute("source ~/.cargo/env", shell=True, sudo=False)
         if isinstance(self._node.os, Ubuntu):
