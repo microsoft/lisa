@@ -408,29 +408,149 @@ Get-VM | ForEach-Object {{
     ) -> None:
         # Assign the devices to the VM
         escaped_vm_name = vm_name.replace("'", "''")
-        config_commands: List[str] = []
-        for device in devices:
-            escaped_instance_id = device.instance_id.replace("'", "''")
-            escaped_location_path = device.location_path.replace("'", "''")
-            config_commands.append(
-                f"Disable-PnpDevice -InstanceId '{escaped_instance_id}' "
-                "-Confirm:$false"
-            )
-            config_commands.append(
-                f"Dismount-VMHostAssignableDevice -Force "
-                f"-LocationPath '{escaped_location_path}'"
-            )
-            config_commands.append(
-                f"Add-VMAssignableDevice -LocationPath '{escaped_location_path}' "
-                f"-VMName '{escaped_vm_name}'"
-            )
-
+        disabled_devices: List[DeviceAddressSchema] = []
+        dismounted_devices: List[DeviceAddressSchema] = []
+        assigned_devices: List[DeviceAddressSchema] = []
         powershell = self._server.tools[PowerShell]
-        for cmd in config_commands:
+
+        try:
+            for device in devices:
+                escaped_instance_id = device.instance_id.replace("'", "''")
+                escaped_location_path = device.location_path.replace("'", "''")
+                powershell.run_cmdlet(
+                    cmdlet=(
+                        f"Disable-PnpDevice -InstanceId '{escaped_instance_id}' "
+                        "-Confirm:$false"
+                    ),
+                    force_run=True,
+                )
+                disabled_devices.append(device)
+
+                powershell.run_cmdlet(
+                    cmdlet=(
+                        f"Dismount-VMHostAssignableDevice -Force "
+                        f"-LocationPath '{escaped_location_path}'"
+                    ),
+                    force_run=True,
+                )
+                dismounted_devices.append(device)
+
+                powershell.run_cmdlet(
+                    cmdlet=(
+                        f"Add-VMAssignableDevice "
+                        f"-LocationPath '{escaped_location_path}' "
+                        f"-VMName '{escaped_vm_name}'"
+                    ),
+                    force_run=True,
+                )
+                assigned_devices.append(device)
+        except LisaException as err:
+            rollback_errors = self._rollback_dda_assignment(
+                vm_name=vm_name,
+                disabled_devices=disabled_devices,
+                dismounted_devices=dismounted_devices,
+                assigned_devices=assigned_devices,
+            )
+            if rollback_errors:
+                raise LisaException(
+                    "Failed to assign Hyper-V DDA device(s) to VM "
+                    f"'{vm_name}': {err}. Rollback also failed: "
+                    f"{'; '.join(rollback_errors)}"
+                ) from err
+            raise
+
+    def _rollback_dda_assignment(
+        self,
+        vm_name: str,
+        disabled_devices: List[DeviceAddressSchema],
+        dismounted_devices: List[DeviceAddressSchema],
+        assigned_devices: List[DeviceAddressSchema],
+    ) -> List[str]:
+        powershell = self._server.tools[PowerShell]
+        escaped_vm_name = vm_name.replace("'", "''")
+        rollback_errors: List[str] = []
+
+        self.log.info(f"Rolling back Hyper-V DDA assignment for VM '{vm_name}'")
+
+        for device in reversed(assigned_devices):
+            escaped_location_path = device.location_path.replace("'", "''")
+            error = self._run_dda_rollback_cmdlet(
+                powershell=powershell,
+                description=(
+                    f"Remove DDA device '{device.location_path}' from VM '{vm_name}'"
+                ),
+                cmdlet=(
+                    f"Remove-VMAssignableDevice "
+                    f"-LocationPath '{escaped_location_path}' "
+                    f"-VMName '{escaped_vm_name}'"
+                ),
+            )
+            if error:
+                rollback_errors.append(error)
+
+        for device in reversed(dismounted_devices):
+            escaped_location_path = device.location_path.replace("'", "''")
+            error = self._run_dda_rollback_cmdlet(
+                powershell=powershell,
+                description=f"Mount DDA device '{device.location_path}' on host",
+                cmdlet=(
+                    f"Mount-VMHostAssignableDevice "
+                    f"-LocationPath '{escaped_location_path}'"
+                ),
+            )
+            if error:
+                rollback_errors.append(error)
+
+        for device in reversed(disabled_devices):
+            escaped_instance_id = device.instance_id.replace("'", "''")
+            error = self._run_dda_rollback_cmdlet(
+                powershell=powershell,
+                description=(
+                    f"Enable PnP device '{device.instance_id}' for location path "
+                    f"'{device.location_path}'"
+                ),
+                cmdlet=(
+                    f"Enable-PnpDevice -InstanceId '{escaped_instance_id}' "
+                    "-Confirm:$false"
+                ),
+            )
+            if error:
+                rollback_errors.append(error)
+                continue
+
+            try:
+                self._wait_for_pnp_device_enabled(
+                    device.instance_id,
+                    device.location_path,
+                )
+            except LisaException as err:
+                rollback_errors.append(
+                    f"PnP device '{device.instance_id}' for location path "
+                    f"'{device.location_path}' was not enabled during rollback: "
+                    f"{err}"
+                )
+
+        for error in rollback_errors:
+            self.log.warning(error)
+
+        return rollback_errors
+
+    def _run_dda_rollback_cmdlet(
+        self,
+        powershell: PowerShell,
+        description: str,
+        cmdlet: str,
+    ) -> Optional[str]:
+        self.log.info(description)
+        try:
             powershell.run_cmdlet(
-                cmdlet=cmd,
+                cmdlet=cmdlet,
                 force_run=True,
             )
+        except LisaException as err:
+            return f"{description} failed: {err}"
+
+        return None
 
     def _set_device_passthrough_node_context(
         self,

@@ -11,6 +11,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    simple_requirement,
 )
 from lisa.operating_system import CBLMariner
 from lisa.tools import Conntrack, Ipset, Iptables, Ping
@@ -25,6 +26,7 @@ from lisa.util import LisaException, SkippedException, UnsupportedDistroExceptio
     such as conntrack, ipset, and iptables. It ensures that connection tracking,
     IP-based filtering, and custom rule management operate as expected
     """,
+    requirement=simple_requirement(supported_os=[CBLMariner]),
 )
 class NetworkComponentTest(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

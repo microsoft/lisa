@@ -3,9 +3,21 @@
 
 import re
 from functools import partial
-from typing import Callable, Dict, List, Mapping, Optional, Pattern, Set, Union, cast
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Pattern,
+    Set,
+    Type,
+    Union,
+    cast,
+)
 
 from lisa import schema
+from lisa.operating_system import OperatingSystem
 from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, get_cases_metadata
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
@@ -13,12 +25,72 @@ from lisa.util.logger import get_logger
 _get_logger = partial(get_logger, "init", "selector")
 
 
+def _is_os_compatible(case: TestCaseMetadata, target_os: Type[OperatingSystem]) -> bool:
+    """Return True if the case's declared OS requirement is compatible with
+    the target OS class. The check uses bidirectional ``issubclass`` so that
+    a case requiring a broad family (e.g. ``Linux``) accepts a specific
+    target (``Ubuntu``), and a case requiring a specific OS (``CBLMariner``)
+    is also kept when the target is broader (``Linux``).
+    """
+    requirement = getattr(case, "requirement", None)
+    if requirement is None:
+        return True
+    os_type = getattr(requirement, "os_type", None)
+    if not os_type or len(os_type) == 0:
+        return True
+
+    matched = False
+    for allowed in os_type:
+        # Skip non-class entries defensively; SetSpace items should always be
+        # OperatingSystem subclasses but we don't want a stray value to crash
+        # the entire selection.
+        if not isinstance(allowed, type):
+            continue
+        if issubclass(target_os, allowed) or issubclass(allowed, target_os):
+            matched = True
+            break
+
+    if os_type.is_allow_set:
+        return matched
+    return not matched
+
+
+def _prefilter_by_target_os(
+    full_list: Dict[str, TestCaseMetadata], target_os: Type[OperatingSystem]
+) -> Dict[str, TestCaseMetadata]:
+    """Drop cases from ``full_list`` whose ``requirement.os_type`` declares
+    they cannot run on ``target_os``. Logs a one-line summary so partners
+    can see how many cases were skipped at selection time.
+    """
+    log = _get_logger()
+    kept: Dict[str, TestCaseMetadata] = {}
+    dropped_names: List[str] = []
+    for name, metadata in full_list.items():
+        if _is_os_compatible(metadata, target_os):
+            kept[name] = metadata
+        else:
+            dropped_names.append(name)
+    if dropped_names:
+        log.info(
+            f"pre-filter: dropped {len(dropped_names)} case(s) incompatible "
+            f"with target_os={target_os.__name__}"
+        )
+        log.debug(f"pre-filter dropped cases: {dropped_names}")
+    return kept
+
+
 def select_testcases(
     filters: Optional[List[schema.TestCase]] = None,
     init_cases: Optional[List[TestCaseMetadata]] = None,
+    target_os: Optional[Type[OperatingSystem]] = None,
 ) -> List[TestCaseRuntimeData]:
     """
     based on filters to select test cases. If filters are None, return all cases.
+
+    When ``target_os`` is provided, cases whose declared ``supported_os`` /
+    ``unsupported_os`` requirement makes them inapplicable to that OS class
+    are dropped before any other filter runs. This avoids deploying
+    environments only to mark unrelated cases as Skipped at runtime.
     """
     log = _get_logger()
     if init_cases:
@@ -27,6 +99,8 @@ def select_testcases(
             full_list[item.full_name] = item
     else:
         full_list = get_cases_metadata()
+    if target_os is not None:
+        full_list = _prefilter_by_target_os(full_list, target_os)
     if filters:
         selected: Dict[str, TestCaseRuntimeData] = {}
         force_included: Set[str] = set()

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import cast
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Posix
+from lisa.operating_system import CBLMariner, Debian, Posix
 from lisa.util.process import Process
 
 from .git import Git
@@ -26,8 +26,8 @@ class StressNg(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        if posix_os.is_package_in_repo("stress-ng"):
-            posix_os.install_packages("stress-ng")
+        if posix_os.is_package_in_repo(self.command):
+            posix_os.install_packages(self.command)
         else:
             self._install_from_src()
         return self._check_exists()
@@ -102,8 +102,17 @@ class StressNg(Tool):
     def _install_required_packages(self) -> None:
         if isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(
-                ["gcc", "glibc-devel", "kernel-headers", "binutils", "make"]
+                [
+                    "gcc",
+                    "glibc-devel",
+                    "kernel-headers",
+                    "binutils",
+                    "make",
+                    "libapparmor-devel",
+                ]
             )
+        elif isinstance(self.node.os, Debian):
+            self.node.os.install_packages("libapparmor-dev")
 
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()

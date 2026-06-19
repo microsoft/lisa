@@ -99,11 +99,17 @@ class Logger(logging.Logger):
 
 
 class LogWriter(object):
-    def __init__(self, logger: Logger, level: int):
+    def __init__(
+        self,
+        logger: Logger,
+        level: int,
+        capture_stream: Optional[TextIO] = None,
+    ):
         self._level = level
         self._log = logger
         self._buffer: str = ""
         self._flushing: bool = False
+        self._capture_stream = capture_stream
 
     def write(self, message: str) -> None:
         if not self._flushing:
@@ -117,7 +123,10 @@ class LogWriter(object):
             try:
                 buffer = self._buffer
                 self._buffer = ""
-                self._log.lines(self._level, buffer)
+                if self._capture_stream:
+                    self._capture_stream.write(buffer)
+                if self._level != logging.NOTSET:
+                    self._log.lines(self._level, buffer)
             finally:
                 self._flushing = False
 

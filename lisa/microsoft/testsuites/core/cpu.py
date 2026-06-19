@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-import time
 from typing import Any
 
 from assertpy.assertpy import assert_that
@@ -23,6 +22,7 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
+from lisa.tools.lscpu import UNKNOWN_CACHE_ID
 
 hyperv_interrupt_substr = ["hyperv", "hypervsum", "Hypervisor", "Hyper-V"]
 
@@ -61,9 +61,10 @@ class CPU(TestSuite):
            d. In a strict 1:1 NUMA-to-L3 topology, the L3 cache id must
               equal the NUMA node id.
 
-        If lscpu does not report a parseable cache mapping (e.g. ARM64 VMs
-        without an L3 column, or partial cache reporting), the test is
-        skipped instead of failed.
+        If lscpu does not expose cache topology at all (e.g. confidential
+        VMs where every CPU reports "-"), the test is skipped instead of
+        failed. A partial state where only some CPUs lack cache info is
+        treated as a real failure so it is not silently masked.
 
         Example failure modes (invariant 'd' / 'c'):
         Correct 1:1 mapping (L3 id == NUMA id):
@@ -141,20 +142,21 @@ class CPU(TestSuite):
         # 2. Cross-NUMA L3 sharing is only valid within the same socket
         # 3. L3 cache IDs must not be unique per CPU (indicates L3=CPU_ID bug)
         # 4. In a strict 1:1 NUMA-to-L3 topology, L3 ID must equal NUMA ID
-        try:
-            cpu_info = lscpu.get_cpu_info()
-        except AssertionError as e:
-            # get_cpu_info() raises AssertionError when the lscpu output
-            # cannot be parsed into the expected cache mapping format. This
-            # happens on:
-            # - VMs where no cache hierarchy is exposed (lscpu shows "-")
-            # - ARM64 VMs that only have L1d/L1i/L2 (no L3)
-            # - Partially allocated VMs where some NUMA nodes lack L3
-            # - Any other unexpected/empty lscpu output
-            raise SkippedException(
-                f"Unable to parse lscpu cache mapping; cannot validate L3 "
-                f"cache topology. Details: {e}"
-            ) from e
+        cpu_info = lscpu.get_cpu_info()
+
+        # Skip (not fail) when the host does not expose cache topology at all
+        # (e.g. confidential VMs where lscpu prints "-" and get_cpu_info()
+        # returns UNKNOWN_CACHE_ID for every CPU). A partial/mixed state where
+        # only some CPUs lack cache info is treated as a real failure inside
+        # this helper so it is not silently masked.
+        self._check_cache_topology_exposed(
+            cpu_info,
+            skip_message=(
+                "Cache topology is not exposed on this VM. "
+                "lscpu reports no cache information (likely a confidential VM "
+                "or a VM size that does not expose cache topology to the guest)."
+            ),
+        )
 
         self._verify_l3_cache_topology(cpu_info, log)
 
@@ -287,25 +289,34 @@ class CPU(TestSuite):
             raise LisaException("Hyper-V interrupts are not recorded.")
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
-        # Run CPU intensive workload to create hyper-v synthetic timer
-        # interrupts.
-        # Steps :
-        # 1. Run `yes` program on each vCPU in a subprocess.
-        # 2. Wait for one second to allow enough time for processing interrupts.
-        # 3. Kill the spawned subprocess.
-        for i in range(1, cpu_count):
-            process = node.tools[TaskSet].run_on_specific_cpu(i)
-            time.sleep(1)
-            process.kill()
+        # Force the Hyper-V synthetic timer interrupt to fire on each CPU by
+        # running a 1-second CPU-bound workload pinned to each vCPU.
+        #
+        # The previous implementation called ``TaskSet.run_on_specific_cpu``
+        # in a Python loop, which opened one SSH channel per CPU and
+        # serialised through them.  On 300+ vCPU SKUs the paramiko transport
+        # would exhaust after ~300 channels.  The TaskSet helper now runs
+        # the whole fan-out in a single shell command (one SSH channel).
+        #
+        # Timeout budget: each pinned process is bounded by ``timeout 1`` so
+        # the wall-clock cost is ~1s regardless of cpu_count, but kernel
+        # scheduling, taskset/exec setup, and SSH command marshalling add
+        # small per-CPU overhead.  Allow at least 60s and grow by ~1s per
+        # 4 vCPUs to leave headroom on very large SKUs (e.g. 90s for 360
+        # vCPUs); both are generous compared to observed runs (~1-2s).
+        node.tools[TaskSet].run_on_all_cpus_in_background(
+            cpu_count, timeout=max(60, cpu_count // 4)
+        )
 
     def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
-        try:
-            cpu_info = node.tools[Lscpu].get_cpu_info()
-        except AssertionError as e:
-            raise SkippedException(
-                f"Unable to parse lscpu cache mapping; cannot validate L3 "
-                f"cache topology. Details: {e}"
-            ) from e
+        cpu_info = node.tools[Lscpu].get_cpu_info()
+        self._check_cache_topology_exposed(
+            cpu_info,
+            skip_message=(
+                "Cache topology is not exposed on this VM. "
+                "lscpu reports no cache information."
+            ),
+        )
         cpu_info.sort(key=lambda cpu: cpu.cpu)
         for i, cpu in enumerate(cpu_info):
             numa_node_id = i // numa_node_size
@@ -314,6 +325,28 @@ class CPU(TestSuite):
                 "L3 cache of each core must be mapped to the NUMA node "
                 "associated with the core.",
             ).is_equal_to(numa_node_id)
+
+    def _check_cache_topology_exposed(
+        self,
+        cpu_info: list[Any],
+        skip_message: str,
+    ) -> None:
+        # On some VMs (e.g. confidential VMs), cache topology is not exposed
+        # by the hypervisor, so lscpu reports "-" for all cache values.
+        # If all CPUs lack cache info, skip the test. If only some do, treat it
+        # as a real failure so a partial/mixed state isn't silently masked.
+        unknown_l3_cache_count = sum(
+            1 for cpu in cpu_info if cpu.l3_cache == UNKNOWN_CACHE_ID
+        )
+        if unknown_l3_cache_count == len(cpu_info):
+            raise SkippedException(skip_message)
+        if unknown_l3_cache_count:
+            raise LisaException(
+                "Inconsistent L3 cache topology reported by lscpu: "
+                f"{unknown_l3_cache_count} of {len(cpu_info)} CPUs have unknown "
+                "L3 cache IDs while others have valid values. Investigate lscpu "
+                "parsing or host cache-topology exposure on this VM."
+            )
 
     def _verify_l3_cache_topology(
         self,

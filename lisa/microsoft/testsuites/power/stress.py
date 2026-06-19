@@ -21,6 +21,7 @@ from lisa import (
 from lisa.features import HibernationEnabled, Sriov
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
+from lisa.operating_system import Linux
 from lisa.testsuite import simple_requirement
 
 
@@ -30,6 +31,7 @@ from lisa.testsuite import simple_requirement
     description="""
         This test suite is to test hibernation in guest vm under stress.
     """,
+    requirement=simple_requirement(supported_os=[Linux]),
 )
 class PowerStress(TestSuite):
     _loop = 10

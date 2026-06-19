@@ -58,6 +58,54 @@ class Reboot(Tool):
             last_boot_time = self.node.tools[Uptime].since_time()
         return last_boot_time
 
+    def _wait_ssh_session_stable(self, time_out: int) -> None:
+        from lisa.node import RemoteNode
+
+        timer = create_timer()
+        consecutive_successes = 0
+        last_error = ""
+        remote_node = cast(RemoteNode, self.node)
+        while timer.elapsed(False) < time_out:
+            try:
+                self.node.close()
+                self.node.execute(
+                    "echo lisa reboot ready",
+                    shell=True,
+                    timeout=10,
+                    no_info_log=True,
+                ).assert_exit_code()
+                consecutive_successes += 1
+                if consecutive_successes >= 2:
+                    return
+            except Exception as e:
+                consecutive_successes = 0
+                last_error = str(e)
+                self._log.debug(f"waiting for stable ssh session after reboot: {e}")
+            remaining = max(0, int(time_out - timer.elapsed(False)))
+            if remaining > 0:
+                wait_tcp_port_ready(
+                    address=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+                    ],
+                    port=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_PORT
+                    ],
+                    log=self._log,
+                    timeout=min(2, remaining),
+                )
+        raise LisaException(
+            f"cannot get stable ssh session after reboot in {time_out} seconds. "
+            f"Last error: {last_error}"
+        )
+
+    def _run_reboot_command(self) -> None:
+        command_result = self.node.execute(
+            "command -v reboot", shell=True, sudo=True, no_info_log=True
+        )
+        if command_result.exit_code == 0:
+            self._command = command_result.stdout.strip()
+        self.run(force_run=True, sudo=True, timeout=10)
+
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
             self.reboot()
@@ -96,19 +144,31 @@ class Reboot(Tool):
             sleep(wait_seconds)
             current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
-        # Get reboot execution path
-        # Not all distros have the same reboot execution path
-        command_result = self.node.execute(
-            "command -v reboot", shell=True, sudo=True, no_info_log=True
-        )
-        if command_result.exit_code == 0:
-            self._command = command_result.stdout
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         try:
             # Reboot is not reliable, and sometime stuck,
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
-            self.run(force_run=True, sudo=True, timeout=10)
+            systemctl_result = self.node.execute(
+                "command -v systemctl", shell=True, sudo=True, no_info_log=True
+            )
+            if systemctl_result.exit_code == 0:
+                reboot_result = self.node.execute(
+                    "systemctl reboot -i",
+                    shell=True,
+                    sudo=True,
+                    timeout=10,
+                )
+                if reboot_result.exit_code != 0:
+                    self._log.debug(
+                        "systemctl reboot failed with exit code "
+                        f"{reboot_result.exit_code}; falling back to reboot. "
+                        f"stdout: {reboot_result.stdout}, "
+                        f"stderr: {reboot_result.stderr}"
+                    )
+                    self._run_reboot_command()
+            else:
+                self._run_reboot_command()
         except Exception as e:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {e}")
@@ -132,6 +192,9 @@ class Reboot(Tool):
                 self._log.debug(f"ignorable ssh exception: {e}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
             if last_boot_time < current_boot_time:
+                remaining_stability_wait = max(0, time_out - int(timer.elapsed(False)))
+                if remaining_stability_wait > 0:
+                    self._wait_ssh_session_stable(remaining_stability_wait)
                 break
         if last_boot_time == current_boot_time:
             if connected:

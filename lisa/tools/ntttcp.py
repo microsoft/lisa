@@ -17,8 +17,9 @@ from lisa.messages import (
 )
 from lisa.operating_system import BSD, CBLMariner, Ubuntu
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
+from lisa.tools.powershell import PowerShell
 from lisa.tools.taskset import TaskSet
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, check_till_timeout, constants
 from lisa.util.process import ExecutableResult, Process
 
 from .sysctl import Sysctl
@@ -166,6 +167,10 @@ class Ntttcp(Tool):
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
         return BSDNtttcp
 
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        return WindowsNtttcp
+
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
@@ -214,6 +219,8 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         cmd = ""
         if server_ip:
@@ -231,19 +238,56 @@ class Ntttcp(Tool):
             cmd += f" --show-dev-interrupts {dev_differentiator} "
         if run_as_daemon:
             cmd += " -D "
+        if no_sync:
+            cmd += " -N "
 
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
+            no_debug_log=no_debug_log,
         )
-        # NTTTCP for Linux 1.4.0
-        # ---------------------------------------------------------
-        # 01:16:35 INFO: no role specified. use receiver role
-        # 01:16:35 INFO: 65 threads created
-        # above output means ntttcp server is ready
-        process.wait_output("threads created")
+        if no_sync:
+            self._wait_server_port_ready(process, udp_mode)
+        else:
+            process.wait_output("threads created")
         return process
+
+    def _wait_server_port_ready(
+        self,
+        process: Process,
+        udp_mode: bool,
+        port: int = 5001,
+    ) -> None:
+        def is_ready() -> bool:
+            if not process.is_running():
+                raise LisaException(
+                    "ntttcp receiver exited before the listen port became ready"
+                )
+            return self._is_server_port_open(udp_mode, port)
+
+        protocol = "UDP" if udp_mode else "TCP"
+        check_till_timeout(
+            is_ready,
+            timeout_message=f"wait for ntttcp {protocol} receiver port {port} open",
+            timeout=30,
+        )
+
+    def _is_server_port_open(self, udp_mode: bool, port: int) -> bool:
+        ss_options = "-lun" if udp_mode else "-ltn"
+        netstat_options = "-lnu" if udp_mode else "-ltn"
+        result = self.node.execute(
+            cmd=(
+                f"(ss {ss_options} 2>/dev/null || "
+                f"netstat {netstat_options} 2>/dev/null || true) "
+                f"| grep -E '[:.]?{port}[[:space:]]'"
+            ),
+            shell=True,
+            sudo=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        return result.exit_code == 0
 
     def run_as_server(
         self,
@@ -258,6 +302,8 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         # -rserver_ip: run as a receiver with specified server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -286,6 +332,8 @@ class Ntttcp(Tool):
             dev_differentiator,
             run_as_daemon,
             udp_mode,
+            no_sync,
+            no_debug_log,
         )
 
         return self.wait_server_result(process)
@@ -309,6 +357,8 @@ class Ntttcp(Tool):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         cmd = (
             f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
@@ -321,10 +371,13 @@ class Ntttcp(Tool):
             cmd += f" --show-dev-interrupts {dev_differentiator} "
         if run_as_daemon:
             cmd += " -D "
+        if no_sync:
+            cmd += " -N "
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
+            no_debug_log=no_debug_log,
         )
         return process
 
@@ -342,6 +395,8 @@ class Ntttcp(Tool):
         run_as_daemon: bool = False,
         udp_mode: bool = False,
         tolerance_seconds: int = 60,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -373,6 +428,8 @@ class Ntttcp(Tool):
             dev_differentiator,
             run_as_daemon,
             udp_mode,
+            no_sync,
+            no_debug_log,
         )
         return process.wait_result(
             expected_exit_code=0,
@@ -868,6 +925,8 @@ class BSDNtttcp(Ntttcp):
         dev_differentiator: str = "Hypervisor callback interrupts",
         run_as_daemon: bool = False,
         udp_mode: bool = False,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> Process:
         assert server_ip, "server ip is required for ntttcp server"
         self._log.debug(
@@ -883,12 +942,15 @@ class BSDNtttcp(Ntttcp):
             cmd += " -D "
         if udp_mode:
             raise LisaException("UDP mode is not supported in FreeBSD")
+        if no_sync:
+            cmd += " -N "
 
         # Start the server and wait for the threads to be created
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
+            no_debug_log=no_debug_log,
         )
         time.sleep(5)
 
@@ -908,6 +970,8 @@ class BSDNtttcp(Ntttcp):
         run_as_daemon: bool = False,
         udp_mode: bool = False,
         tolerance_seconds: int = 60,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
     ) -> ExecutableResult:
         self._log.debug(
             "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
@@ -921,6 +985,8 @@ class BSDNtttcp(Ntttcp):
             raise LisaException("UDP mode is not supported in FreeBSD")
         if run_as_daemon:
             cmd += " -D "
+        if no_sync:
+            cmd += " -N "
         result = self.node.execute(
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
@@ -928,6 +994,7 @@ class BSDNtttcp(Ntttcp):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
             timeout=run_time_seconds + tolerance_seconds,
+            no_debug_log=no_debug_log,
         )
         return result
 
@@ -950,3 +1017,205 @@ class BSDNtttcp(Ntttcp):
             matched_results.group("cycles_per_byte")
         )
         return ntttcp_result
+
+
+class WindowsNtttcp(Ntttcp):
+    _firewall_profile_states: Dict[str, bool]
+    _download_url = (
+        "https://github.com/microsoft/ntttcp/releases/latest/download/ntttcp.exe"
+    )
+    _total_mbps_pattern = re.compile(
+        r"(?im)^\s*TOTAL\s+(?P<throughput>[0-9]+(?:\.[0-9]+)?)\s*$"
+    )
+    _throughput_mbps_pattern = re.compile(
+        r"(?is)Bytes\(MEG\).*?Throughput\(MB/s\).*?"
+        r"=+\s+=+\s+=+\s+=+\s*\n"
+        r"\s*[0-9]+(?:\.[0-9]+)?\s+"
+        r"[0-9]+(?:\.[0-9]+)?\s+"
+        r"[0-9]+(?:\.[0-9]+)?\s+"
+        r"(?P<throughput>[0-9]+(?:\.[0-9]+)?)"
+    )
+
+    @property
+    def command(self) -> str:
+        return "ntttcp.exe"
+
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return []
+
+    def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
+        # Only snapshot the original firewall state on the first call so that
+        # subsequent calls (e.g. explicit caller + _initialize) do not overwrite
+        # the snapshot with already-disabled profiles.
+        if not self._firewall_profile_states:
+            firewall_profiles = self.node.tools[PowerShell].run_cmdlet(
+                (
+                    "Get-NetFirewallProfile -Profile Domain,Public,Private "
+                    "| Select-Object Name,Enabled"
+                ),
+                output_json=True,
+                fail_on_error=False,
+            )
+            if isinstance(firewall_profiles, dict):
+                firewall_profiles = [firewall_profiles]
+            self._firewall_profile_states = {
+                profile["Name"]: bool(profile["Enabled"])
+                for profile in firewall_profiles or []
+                if "Name" in profile and "Enabled" in profile
+            }
+
+        self.node.tools[PowerShell].run_cmdlet(
+            "Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False",
+            fail_on_error=False,
+        )
+
+    def restore_system(self, udp_mode: bool = False) -> None:
+        if self._firewall_profile_states:
+            for profile_name, enabled in self._firewall_profile_states.items():
+                enabled_value = "True" if enabled else "False"
+                self.node.tools[PowerShell].run_cmdlet(
+                    f"Set-NetFirewallProfile -Profile {profile_name} "
+                    f"-Enabled {enabled_value}",
+                    fail_on_error=False,
+                )
+
+    def run_as_server_async(
+        self,
+        nic_name: str,
+        run_time_seconds: int = 10,
+        ports_count: int = 64,
+        buffer_size: int = 64,
+        cool_down_time_seconds: int = 1,
+        warm_up_time_seconds: int = 1,
+        use_epoll: bool = True,
+        server_ip: str = "",
+        dev_differentiator: str = "Hypervisor callback interrupts",
+        run_as_daemon: bool = False,
+        udp_mode: bool = False,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
+    ) -> Process:
+        self._log.debug(
+            "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
+            "use_epoll and dev_differentiator are not supported in Windows ntttcp"
+        )
+        receiver_name = server_ip if server_ip else "*"
+        # buffer_size is in KB; Windows ntttcp -b expects bytes
+        cmd = (
+            f"-r -m {ports_count},*,{receiver_name} -p 5001"
+            f" -t {run_time_seconds} -b {buffer_size * 1024}"
+        )
+        if udp_mode:
+            cmd += " -u"
+        if no_sync:
+            cmd += " -ns"
+        process = self.node.execute_async(
+            f"{self.command} {cmd}",
+            shell=True,
+            sudo=True,
+            no_debug_log=no_debug_log,
+        )
+        self._wait_receiver_port_ready(udp_mode)
+        return process
+
+    def _wait_receiver_port_ready(
+        self,
+        udp_mode: bool,
+        port: int = 5001,
+        timeout: int = 30,
+    ) -> None:
+        endpoint_cmdlet = (
+            f"Get-NetUDPEndpoint -LocalPort {port} -ErrorAction SilentlyContinue"
+            if udp_mode
+            else f"Get-NetTCPConnection -State Listen -LocalPort {port} "
+            "-ErrorAction SilentlyContinue"
+        )
+        self.node.tools[PowerShell].run_cmdlet(
+            "$deadline = (Get-Date).AddSeconds(" + str(timeout) + "); "
+            "do { "
+            f"if ({endpoint_cmdlet}) {{ exit 0 }}; "
+            "Start-Sleep -Milliseconds 500 "
+            "} while ((Get-Date) -lt $deadline); exit 1",
+            force_run=True,
+            timeout=timeout + 5,
+        )
+
+    def run_as_client(
+        self,
+        nic_name: str,
+        server_ip: str,
+        threads_count: int,
+        run_time_seconds: int = 10,
+        ports_count: int = 64,
+        buffer_size: int = 64,
+        cool_down_time_seconds: int = 1,
+        warm_up_time_seconds: int = 1,
+        dev_differentiator: str = "Hypervisor callback interrupts",
+        run_as_daemon: bool = False,
+        udp_mode: bool = False,
+        tolerance_seconds: int = 60,
+        no_sync: bool = False,
+        no_debug_log: bool = False,
+    ) -> ExecutableResult:
+        self._log.debug(
+            "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
+            "use_epoll and dev_differentiator are not supported in Windows ntttcp"
+        )
+        # buffer_size is in KB; Windows ntttcp -b expects bytes
+        cmd = (
+            f"-s -m {ports_count},*,{server_ip}"
+            f" -t {run_time_seconds} -b {buffer_size * 1024}"
+        )
+        if udp_mode:
+            cmd += " -u"
+        if no_sync:
+            cmd += " -ns"
+        return self.node.execute(
+            f"{self.command} {cmd}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+            timeout=run_time_seconds + tolerance_seconds,
+            no_debug_log=no_debug_log,
+        )
+
+    def create_ntttcp_result(
+        self, result: ExecutableResult, role: str = "server"
+    ) -> NtttcpResult:
+        matched_results = self._total_mbps_pattern.search(result.stdout)
+        throughput_multiplier = Decimal(1) / Decimal(1000)
+        if not matched_results:
+            matched_results = self._throughput_mbps_pattern.search(result.stdout)
+            throughput_multiplier = Decimal(8) / Decimal(1000)
+        if not matched_results:
+            try:
+                return super().create_ntttcp_result(result, role)
+            except AssertionError as identifier_error:
+                raise LisaException(
+                    f"not found matched Windows ntttcp results: {result.stdout}"
+                ) from identifier_error
+
+        ntttcp_result = NtttcpResult()
+        ntttcp_result.role = role
+        ntttcp_result.throughput_in_gbps = (
+            Decimal(matched_results.group("throughput")) * throughput_multiplier
+        )
+        return ntttcp_result
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._firewall_profile_states = {}
+        self.pre_command = ""
+        self.setup_system()
+
+    def _install(self) -> bool:
+        cmdlet = f"""
+$destination = Join-Path $env:SystemRoot 'System32\\ntttcp.exe'
+if (-not (Test-Path $destination)) {{
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri '{self._download_url}' -OutFile $destination
+}}
+"""
+        self.node.tools[PowerShell].run_cmdlet(cmdlet, timeout=300)
+        return self._check_exists()
