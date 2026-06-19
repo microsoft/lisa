@@ -17,6 +17,7 @@ from lisa.messages import (
 )
 from lisa.operating_system import BSD, CBLMariner, Ubuntu
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
+from lisa.tools.ip import Ip
 from lisa.tools.powershell import PowerShell
 from lisa.tools.taskset import TaskSet
 from lisa.util import LisaException, check_till_timeout, constants
@@ -359,6 +360,7 @@ class Ntttcp(Tool):
         udp_mode: bool = False,
         no_sync: bool = False,
         no_debug_log: bool = False,
+        source_ip: str = "",
     ) -> Process:
         cmd = (
             f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
@@ -373,6 +375,10 @@ class Ntttcp(Tool):
             cmd += " -D "
         if no_sync:
             cmd += " -N "
+        if nic_name and not source_ip:
+            source_ip = self.node.tools[Ip].get_ip_address(nic_name)
+        if source_ip:
+            cmd += f" -a {source_ip} "
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
@@ -397,6 +403,7 @@ class Ntttcp(Tool):
         tolerance_seconds: int = 60,
         no_sync: bool = False,
         no_debug_log: bool = False,
+        source_ip: str = "",
     ) -> ExecutableResult:
         # -sserver_ip: run as a sender with server ip address
         # -P: Number of ports listening on receiver side [default: 16] [max: 512]
@@ -430,6 +437,7 @@ class Ntttcp(Tool):
             udp_mode,
             no_sync,
             no_debug_log,
+            source_ip,
         )
         return process.wait_result(
             expected_exit_code=0,
@@ -972,6 +980,7 @@ class BSDNtttcp(Ntttcp):
         tolerance_seconds: int = 60,
         no_sync: bool = False,
         no_debug_log: bool = False,
+        source_ip: str = "",
     ) -> ExecutableResult:
         self._log.debug(
             "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
@@ -1098,13 +1107,14 @@ class WindowsNtttcp(Ntttcp):
     ) -> Process:
         self._log.debug(
             "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
-            "use_epoll and dev_differentiator are not supported in Windows ntttcp"
+            "use_epoll and dev_differentiator are not supported in "
+            "Windows ntttcp"
         )
         receiver_name = server_ip if server_ip else "*"
-        # buffer_size is in KB; Windows ntttcp -b expects bytes
+        # buffer_size is in KB; Windows ntttcp -l expects bytes
         cmd = (
             f"-r -m {ports_count},*,{receiver_name} -p 5001"
-            f" -t {run_time_seconds} -b {buffer_size * 1024}"
+            f" -t {run_time_seconds} -l {buffer_size * 1024}"
         )
         if udp_mode:
             cmd += " -u"
@@ -1157,15 +1167,17 @@ class WindowsNtttcp(Ntttcp):
         tolerance_seconds: int = 60,
         no_sync: bool = False,
         no_debug_log: bool = False,
+        source_ip: str = "",
     ) -> ExecutableResult:
         self._log.debug(
             "Parameters nic_name, cool_down_time_seconds, warm_up_time_seconds, "
-            "use_epoll and dev_differentiator are not supported in Windows ntttcp"
+            "use_epoll and dev_differentiator are not supported in "
+            "Windows ntttcp"
         )
-        # buffer_size is in KB; Windows ntttcp -b expects bytes
+        # buffer_size is in KB; Windows ntttcp -l expects bytes
         cmd = (
             f"-s -m {ports_count},*,{server_ip}"
-            f" -t {run_time_seconds} -b {buffer_size * 1024}"
+            f" -t {run_time_seconds} -l {buffer_size * 1024}"
         )
         if udp_mode:
             cmd += " -u"

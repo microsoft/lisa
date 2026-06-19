@@ -49,6 +49,7 @@ from lisa.util.parallel import run_in_parallel
 
 SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV]
 WINDOWS_NTTTCP_MAX_SERVER_THREADS = 64
+WINDOWS_NTTTCP_MAX_MIXED_TCP_CONNECTIONS = 512
 WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
 
 
@@ -73,7 +74,7 @@ class NetworkPerformance(TestSuite):
     NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 180  # High-fanout TCP drain.
 
     # Track baremetal host nodes for cleanup
-    _baremetal_hosts: list[RemoteNode] = []
+    _baremetal_hosts: List[RemoteNode] = []
 
     # Network device passthrough tests between host and guest
     @TestCaseMetadata(
@@ -739,6 +740,55 @@ class NetworkPerformance(TestSuite):
 
         return test_node, interface_name
 
+    def _refresh_passthrough_nic_address(
+        self, node: RemoteNode, interface_name: str
+    ) -> str:
+        node.execute(
+            cmd=f"ip link set {interface_name} up",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to bring up interface {interface_name}"
+            ),
+        )
+        self._wait_for_carrier(node, interface_name)
+
+        interface_details = node.execute(
+            cmd=f"ip -4 -o addr show dev {interface_name} scope global",
+            sudo=True,
+            shell=True,
+        ).stdout
+        ip_regex = re.compile(r"\binet (?P<INTERFACE_IP>\d+\.\d+\.\d+\.\d+)/\d+\b")
+        interface_ip = find_group_in_lines(
+            lines=interface_details,
+            pattern=ip_regex,
+            single_line=False,
+        )
+        passthrough_nic_ip = interface_ip.get("INTERFACE_IP", "")
+        if not passthrough_nic_ip:
+            dhcp_result = self._run_dhcp_on_iface(node, interface_name)
+            if dhcp_result.exit_code != 0:
+                self._raise_dhcp_failure(node, interface_name, dhcp_result)
+            interface_details = node.execute(
+                cmd=f"ip -4 -o addr show dev {interface_name} scope global",
+                sudo=True,
+                shell=True,
+            ).stdout
+            interface_ip = find_group_in_lines(
+                lines=interface_details,
+                pattern=ip_regex,
+                single_line=False,
+            )
+            passthrough_nic_ip = interface_ip.get("INTERFACE_IP", "")
+            if not passthrough_nic_ip:
+                raise LisaException(
+                    f"Failed to refresh IP for passthrough interface "
+                    f"'{interface_name}'. Interface details: {interface_details[:200]}"
+                )
+
+        node.internal_address = passthrough_nic_ip
+        return passthrough_nic_ip
+
     def _get_passthrough_node_context(self, node: Node) -> Any:
         try:
             from lisa.sut_orchestrator.libvirt.context import (
@@ -887,7 +937,9 @@ class NetworkPerformance(TestSuite):
         # Run script once to catch noexec mount issues early.
         node.execute(f"'{config_script}'", sudo=True, shell=True)
 
-    def _run_dhcp_on_iface(self, node: Node, interface_name: str) -> Any:
+    def _run_dhcp_on_iface(
+        self, node: Node, interface_name: str, keep_unmanaged: bool = True
+    ) -> Any:
         """Run dhclient with safety guards and return its result."""
         # Probe which DHCP client is available via the Dhclient tool.
         # Our custom -sf hook is dhclient-specific; skip on images with only dhcpcd.
@@ -1002,13 +1054,13 @@ class NetworkPerformance(TestSuite):
                 timeout=45,
             )
         finally:
-            if _nd_was_managed:
+            if _nd_was_managed and not keep_unmanaged:
                 node.execute(
                     f"rm -f {_nd_dropin}" "; networkctl reload 2>/dev/null || true",
                     sudo=True,
                     shell=True,
                 )
-            if _nm_was_managed:
+            if _nm_was_managed and not keep_unmanaged:
                 node.execute(
                     f"nmcli device set {interface_name} managed yes"
                     " 2>/dev/null || true",
@@ -1022,8 +1074,8 @@ class NetworkPerformance(TestSuite):
         node: Node,
         interface_name: str,
         dhcp_result: Any,
-        host_node: Optional[RemoteNode],
-        host_nic_name: str,
+        host_node: Optional[RemoteNode] = None,
+        host_nic_name: str = "",
     ) -> None:
         """Gather diagnostics and raise LisaException for a DHCP failure."""
         fail_link = node.execute(
@@ -1131,11 +1183,31 @@ class NetworkPerformance(TestSuite):
 
         try:
             client_ip = client.tools[Ip]
+            self._refresh_passthrough_nic_address(client, client_nic_name)
             client_mtu = client_ip.get_mtu(client_nic_name)
-            connections = NTTTCP_UDP_CONCURRENCY if udp_mode else NTTTCP_TCP_CONCURRENCY
-            max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
+            if udp_mode:
+                connections = NTTTCP_UDP_CONCURRENCY
+                max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
+            else:
+                connections = [
+                    connection
+                    for connection in NTTTCP_TCP_CONCURRENCY
+                    if connection <= WINDOWS_NTTTCP_MAX_MIXED_TCP_CONNECTIONS
+                ]
+                max_server_threads = WINDOWS_NTTTCP_MAX_MIXED_TCP_CONNECTIONS
 
             for test_thread in connections:
+                self._refresh_passthrough_nic_address(client, client_nic_name)
+                server_data_path_ip = self._get_windows_route_source_ip(
+                    server, client.internal_address
+                )
+                client.execute(
+                    f"ip route replace {server_data_path_ip}/32 "
+                    f"dev {client_nic_name} src {client.internal_address}",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                )
                 if test_thread < max_server_threads:
                     num_threads_p = test_thread
                     num_threads_n = 1
@@ -1163,7 +1235,7 @@ class NetworkPerformance(TestSuite):
                         "",
                         ports_count=num_threads_p,
                         buffer_size=buffer_size,
-                        server_ip=server.internal_address,
+                        server_ip=server_data_path_ip,
                         dev_differentiator="",
                         no_sync=use_no_sync,
                     )
@@ -1182,12 +1254,13 @@ class NetworkPerformance(TestSuite):
                     else:
                         sender_result = client_ntttcp.run_as_client(
                             client_nic_name,
-                            server.internal_address,
+                            server_data_path_ip,
                             threads_count=num_threads_n,
                             ports_count=num_threads_p,
                             buffer_size=buffer_size,
                             dev_differentiator="",
                             no_sync=use_no_sync,
+                            source_ip=client.internal_address,
                         )
                     receiver_result = receiver_process.wait_result(
                         timeout=WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT
@@ -1253,6 +1326,40 @@ class NetworkPerformance(TestSuite):
         finally:
             client_ntttcp.restore_system(udp_mode)
             server_ntttcp.restore_system(udp_mode)
+
+    def _get_windows_route_source_ip(self, server: RemoteNode, remote_ip: str) -> str:
+        escaped_remote_ip = remote_ip.replace("'", "''")
+        source_ip = cast(
+            str,
+            server.tools[PowerShell].run_cmdlet(
+                "$route = Find-NetRoute -RemoteIPAddress "
+                f"'{escaped_remote_ip}' -ErrorAction Stop | Select-Object -First 1; "
+                "$sourceAddress = $null; "
+                "if ($route) { "
+                "  $sourceProperty = $route.PSObject.Properties['IPAddress']; "
+                "  if ($sourceProperty) { $sourceAddress = $sourceProperty.Value; } "
+                "  if (-not $sourceAddress -and $route.InterfaceIndex) { "
+                "    $sourceAddress = Get-NetIPAddress -AddressFamily IPv4 "
+                "      -InterfaceIndex $route.InterfaceIndex -ErrorAction Stop | "
+                "      Where-Object { $_.AddressState -eq 'Preferred' "
+                "        -and -not $_.SkipAsSource "
+                "        -and $_.IPAddress -ne '127.0.0.1' "
+                "        -and $_.IPAddress -notlike '169.254.*' } | "
+                "      Select-Object -First 1 -ExpandProperty IPAddress; "
+                "  } "
+                "} "
+                "if ($sourceAddress) { $sourceAddress.ToString() }",
+                fail_on_error=False,
+                force_run=True,
+            ),
+        ).strip()
+        if not source_ip:
+            raise LisaException(
+                f"Failed to resolve the Windows source IP for route to {remote_ip}. "
+                "Verify the Windows host has an IPv4 address and route on the "
+                "passthrough data-path NIC."
+            )
+        return source_ip
 
     def _get_host_nic_name(self, node: RemoteNode) -> str:
         ip = node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
