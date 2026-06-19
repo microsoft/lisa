@@ -328,7 +328,11 @@ class RepoInstaller(BaseInstaller):
         # Pipe through `cat` so apt's stdout is not a TTY. Otherwise `apt search`
         # sends its output to an interactive pager (less) that waits for input,
         # causing the command to hang until it times out.
-        result = node.execute(f"apt search {source} 2>&1 | cat", sudo=True, shell=True)
+        result = node.execute(
+            f'bash -o pipefail -c "apt search {source} 2>&1 | cat"',
+            sudo=True,
+            shell=True,
+        )
         result_output = filter_ansi_escape(result.stdout)
         kernel_version = get_matched_str(result_output, kernel_version_package_pattern)
         assert kernel_version, (
