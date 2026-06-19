@@ -231,6 +231,7 @@ class OpenVmmTests(Tool):
         return self.node.tools[Ls].path_exists(str(self.repo_root))
 
     def _prepare_repo(self, log_path: Path, ref: str) -> Dict[str, str]:
+        git = self.node.tools[Git]
         if not self._check_exists() and not self._install():
             raise LisaException(
                 f"failed to prepare OpenVMM upstream tests repository from "
@@ -240,7 +241,7 @@ class OpenVmmTests(Tool):
         cargo_env = self._get_cargo_environment()
 
         if ref and self._prepared_ref != ref:
-            self.node.tools[Git].checkout(ref, self.repo_root)
+            git.checkout(ref, self.repo_root)
             self.node.execute(
                 "git submodule update --init --recursive",
                 shell=True,
@@ -252,6 +253,12 @@ class OpenVmmTests(Tool):
                 ),
             )
             self._repo_prepared = False
+
+        openvmm_commit = git.get_current_commit_hash(self.repo_root).strip()
+        self._log.info(
+            f"OpenVMM upstream tests repository: {self.repo_url}, "
+            f"requested ref: {ref or '<default>'}, HEAD: {openvmm_commit}"
+        )
 
         if not self._repo_prepared:
             restore_command = shlex.join(
