@@ -24,6 +24,8 @@ class GrubConfig(Tool):
                 return GrubConfigAzl2(node, args, kwargs)
             if node.os.information.release == "3.0":
                 return GrubConfigAzl3(node, args, kwargs)
+            if node.os.information.version.major >= 4:
+                return GrubConfigAzl4(node, args, kwargs)
         elif isinstance(node.os, Debian):
             return GrubConfigDebian(node, args, kwargs)
         elif isinstance(node.os, Redhat):
@@ -31,7 +33,7 @@ class GrubConfig(Tool):
 
         raise UnsupportedDistroException(
             os=node.os,
-            message="Grub tool only supported on CBLMariner 2.0/3.0, "
+            message="Grub tool only supported on CBLMariner 2.0/3.0/4.0, "
             "Debian-based distributions, and RHEL-based distributions.",
         )
 
@@ -167,6 +169,13 @@ class GrubConfigDebian(GrubConfig):
 class GrubConfigRedhat(GrubConfig):
     _GRUB_CMDLINE_LINE_REGEX = r"^GRUB_CMDLINE_LINUX="
     _GRUB_DEFAULT_FILE = "/etc/default/grub"
+    _UEFI_GRUB_PATHS = [
+        "/boot/efi/EFI/redhat/grub.cfg",
+        "/boot/efi/EFI/centos/grub.cfg",
+        "/boot/efi/EFI/almalinux/grub.cfg",
+        "/boot/efi/EFI/rocky/grub.cfg",
+        "/boot/efi/EFI/BOOT/grub.cfg",
+    ]
 
     def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
         super().__init__("grub2-mkconfig", "grub2-tools", node, *args, **kwargs)
@@ -251,15 +260,7 @@ class GrubConfigRedhat(GrubConfig):
             self._log.debug("Detected UEFI system, checking for UEFI GRUB paths")
 
             # UEFI system - check common UEFI paths
-            uefi_paths = [
-                "/boot/efi/EFI/redhat/grub.cfg",
-                "/boot/efi/EFI/centos/grub.cfg",
-                "/boot/efi/EFI/almalinux/grub.cfg",
-                "/boot/efi/EFI/rocky/grub.cfg",
-                "/boot/efi/EFI/BOOT/grub.cfg",
-            ]
-
-            for path in uefi_paths:
+            for path in self._UEFI_GRUB_PATHS:
                 ls_result = ls_tool.run(path, sudo=True, force_run=True)
                 if ls_result.exit_code == 0:
                     self._log.debug(f"Found UEFI GRUB config at: {path}")
@@ -278,3 +279,11 @@ class GrubConfigRedhat(GrubConfig):
         # Default to BIOS path
         self._log.debug("Using default BIOS GRUB config path")
         return "/boot/grub2/grub.cfg"
+
+
+class GrubConfigAzl4(GrubConfigRedhat):
+    # On Azure Linux 4 the grub config is under the azurelinux EFI directory.
+    _UEFI_GRUB_PATHS = [
+        "/boot/efi/EFI/azurelinux/grub.cfg",
+        "/boot/efi/EFI/BOOT/grub.cfg",
+    ]
