@@ -14,7 +14,7 @@ import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path, PurePosixPath
 from threading import Lock, Timer
-from typing import Any, Dict, List, Optional, Tuple, Type, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, cast
 
 import libvirt
 import pycdlib
@@ -78,6 +78,8 @@ KEY_HOST_DISTRO = "host_distro"
 KEY_HOST_KERNEL = "host_kernel_version"
 KEY_LIBVIRT_VERSION = "libvirt_version"
 KEY_VMM_VERSION = "vmm_version"
+
+_LibvirtOperationResult = TypeVar("_LibvirtOperationResult")
 
 
 class _HostCapabilities:
@@ -722,48 +724,52 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
     def _destroy_domain(self, node_context: NodeContext, log: Logger) -> None:
         """Stop (destroy) the VM domain, reconnecting if the socket was closed."""
-        assert node_context.domain
+        assert node_context.domain, (
+            f"Cannot stop VM '{node_context.vm_name}' because no libvirt domain "
+            "is recorded in the node context."
+        )
+        domain = node_context.domain
+
+        def retry_destroy_domain() -> None:
+            node_context.domain = self.libvirt_conn.lookupByName(node_context.vm_name)
+            node_context.domain.destroy()
+
         try:
             # In the libvirt API, "destroy" means "stop".
-            node_context.domain.destroy()
+            self._run_libvirt_operation_with_reconnect(
+                operation=domain.destroy,
+                retry_operation=retry_destroy_domain,
+                operation_description="domain stop",
+                vm_name=node_context.vm_name,
+                log=log,
+            )
         except libvirt.libvirtError as ex:
-            if not self._is_libvirt_connection_closed_error(ex):
-                log.info(f"VM stop failed for {node_context.vm_name}. {ex}")
-                return
-
-            try:
-                node_context.domain = self._lookup_domain_after_reconnect(
-                    node_context.vm_name, log
-                )
-                if node_context.domain:
-                    node_context.domain.destroy()
-            except libvirt.libvirtError as retry_ex:
-                log.info(
-                    f"VM stop failed for {node_context.vm_name} "
-                    f"after reconnect retry. {retry_ex}"
-                )
+            log.info(f"VM stop failed for {node_context.vm_name}. {ex}")
 
     def _undefine_domain(self, node_context: NodeContext, log: Logger) -> None:
         """Undefine the VM domain, reconnecting if the socket was closed."""
-        assert node_context.domain
-        try:
-            node_context.domain.undefineFlags(self._get_domain_undefine_flags())
-        except libvirt.libvirtError as ex:
-            if not self._is_libvirt_connection_closed_error(ex):
-                log.info(f"VM delete failed for {node_context.vm_name}. {ex}")
-                return
+        assert node_context.domain, (
+            f"Cannot undefine VM '{node_context.vm_name}' because no libvirt "
+            "domain is recorded in the node context."
+        )
+        domain = node_context.domain
 
-            try:
-                node_context.domain = self._lookup_domain_after_reconnect(
-                    node_context.vm_name, log
-                )
-                if node_context.domain:
-                    node_context.domain.undefineFlags(self._get_domain_undefine_flags())
-            except libvirt.libvirtError as retry_ex:
-                log.info(
-                    f"VM delete failed for {node_context.vm_name} "
-                    f"after reconnect retry. {retry_ex}"
-                )
+        def retry_undefine_domain() -> None:
+            node_context.domain = self.libvirt_conn.lookupByName(node_context.vm_name)
+            node_context.domain.undefineFlags(self._get_domain_undefine_flags())
+
+        try:
+            self._run_libvirt_operation_with_reconnect(
+                operation=lambda: domain.undefineFlags(
+                    self._get_domain_undefine_flags()
+                ),
+                retry_operation=retry_undefine_domain,
+                operation_description="domain undefine",
+                vm_name=node_context.vm_name,
+                log=log,
+            )
+        except libvirt.libvirtError as ex:
+            log.info(f"VM delete failed for {node_context.vm_name}. {ex}")
 
     def _delete_node(self, node: Node, log: Logger) -> None:
         node_context = get_node_context(node)
@@ -1425,30 +1431,38 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             or "connection closed due to keepalive timeout" in message
         )
 
-    def _define_domain(self, xml: str, vm_name: str, log: Logger) -> libvirt.virDomain:
+    def _run_libvirt_operation_with_reconnect(
+        self,
+        operation: Callable[[], _LibvirtOperationResult],
+        operation_description: str,
+        vm_name: str,
+        log: Logger,
+        retry_operation: Optional[Callable[[], _LibvirtOperationResult]] = None,
+    ) -> _LibvirtOperationResult:
         try:
-            return self.libvirt_conn.defineXML(xml)
+            return operation()
         except libvirt.libvirtError as ex:
             if not self._is_libvirt_connection_closed_error(ex):
                 raise
             self._reopen_libvirt_connection(log)
-            log.debug(f"Retrying libvirt domain definition for {vm_name}.")
-            return self.libvirt_conn.defineXML(xml)
+            log.debug(f"Retrying libvirt {operation_description} for {vm_name}.")
+            return (retry_operation or operation)()
+
+    def _define_domain(self, xml: str, vm_name: str, log: Logger) -> libvirt.virDomain:
+        return self._run_libvirt_operation_with_reconnect(
+            operation=lambda: self.libvirt_conn.defineXML(xml),
+            operation_description="domain definition",
+            vm_name=vm_name,
+            log=log,
+        )
 
     def _lookup_domain(self, vm_name: str, log: Logger) -> libvirt.virDomain:
-        try:
-            return self.libvirt_conn.lookupByName(vm_name)
-        except libvirt.libvirtError as ex:
-            if not self._is_libvirt_connection_closed_error(ex):
-                raise
-            return self._lookup_domain_after_reconnect(vm_name, log)
-
-    def _lookup_domain_after_reconnect(
-        self, vm_name: str, log: Logger
-    ) -> libvirt.virDomain:
-        self._reopen_libvirt_connection(log)
-        log.debug(f"Retrying libvirt domain lookup for {vm_name}.")
-        return self.libvirt_conn.lookupByName(vm_name)
+        return self._run_libvirt_operation_with_reconnect(
+            operation=lambda: self.libvirt_conn.lookupByName(vm_name),
+            operation_description="domain lookup",
+            vm_name=vm_name,
+            log=log,
+        )
 
     def __platform_runbook_type(self) -> type:
         platform_runbook_type: type = type(self).platform_runbook_type()
