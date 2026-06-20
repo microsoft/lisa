@@ -124,9 +124,11 @@ class LibvirtDevicePool(BaseDevicePool):
             for device in devices_list:
                 iommu_grp = self._get_device_iommu_group(device)
                 pool_devices = pool.get(iommu_grp, [])
-                pool_devices.append(device)
+                if device not in pool_devices:
+                    pool_devices.append(device)
                 pool[iommu_grp] = pool_devices
             self.available_host_devices[pool_type] = pool
+        node_context.passthrough_devices.clear()
 
     def get_primary_nic_iommu_group(self) -> str:
         # This is for baremetal. For azure, we have to get private IP
