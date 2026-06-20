@@ -50,10 +50,13 @@ class CloudHypervisorTestResult:
 
 class CloudHypervisorTests(Tool):
     CMD_TIME_OUT = 3600
+    # dev_cli.sh test discovery may download guest images and build test binaries
+    # before cargo can list the test cases on cold lab nodes.
+    SUBTEST_DISCOVERY_TIME_OUT = 5400
     # Slightly higher case timeout to give the case a window to
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
-    CASE_TIME_OUT = CMD_TIME_OUT + 1200
+    CASE_TIME_OUT = CMD_TIME_OUT + SUBTEST_DISCOVERY_TIME_OUT + 1200
     # 6 Hrs of timeout for perf tests and 2400 seconds for other operations
     PERF_CASE_TIME_OUT = 21600 + 2400
     PERF_CMD_TIME_OUT = 1200
@@ -1392,7 +1395,7 @@ exit $ec
         )
         result = self.run(
             cmd_args,
-            timeout=self.CMD_TIME_OUT,
+            timeout=self.SUBTEST_DISCOVERY_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
             no_info_log=False,
