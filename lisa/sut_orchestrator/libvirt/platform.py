@@ -718,8 +718,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             log.warning(f"Failed to delete VM files directory: {ex}")
 
     def _delete_node_watchdog_callback(self) -> None:
-        print("VM delete watchdog timer fired.\n", file=sys.__stderr__)
-        faulthandler.dump_traceback(file=sys.__stderr__, all_threads=True)
+        stderr = sys.__stderr__
+        if stderr:
+            print("VM delete watchdog timer fired.\n", file=stderr)
+            faulthandler.dump_traceback(file=stderr, all_threads=True)
+        else:
+            faulthandler.dump_traceback(all_threads=True)
         os._exit(1)
 
     def _destroy_domain(self, node_context: NodeContext, log: Logger) -> None:
@@ -730,14 +734,17 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         )
         domain = node_context.domain
 
+        def destroy_domain() -> None:
+            domain.destroy()
+
         def retry_destroy_domain() -> None:
-            node_context.domain = self.libvirt_conn.lookupByName(node_context.vm_name)
+            node_context.domain = self._lookup_domain(node_context.vm_name, log)
             node_context.domain.destroy()
 
         try:
             # In the libvirt API, "destroy" means "stop".
             self._run_libvirt_operation_with_reconnect(
-                operation=domain.destroy,
+                operation=destroy_domain,
                 retry_operation=retry_destroy_domain,
                 operation_description="domain stop",
                 vm_name=node_context.vm_name,
@@ -754,15 +761,16 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         )
         domain = node_context.domain
 
+        def undefine_domain() -> None:
+            domain.undefineFlags(self._get_domain_undefine_flags())
+
         def retry_undefine_domain() -> None:
-            node_context.domain = self.libvirt_conn.lookupByName(node_context.vm_name)
+            node_context.domain = self._lookup_domain(node_context.vm_name, log)
             node_context.domain.undefineFlags(self._get_domain_undefine_flags())
 
         try:
             self._run_libvirt_operation_with_reconnect(
-                operation=lambda: domain.undefineFlags(
-                    self._get_domain_undefine_flags()
-                ),
+                operation=undefine_domain,
                 retry_operation=retry_undefine_domain,
                 operation_description="domain undefine",
                 vm_name=node_context.vm_name,
@@ -1276,11 +1284,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     ) -> Optional[str]:
         node_context = get_node_context(node)
 
-        domain = self._lookup_domain(node_context.vm_name, log)
-
         # Acquire IP address from libvirt's DHCP server.
-        interfaces = domain.interfaceAddresses(
-            libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE
+        interfaces = self._get_domain_interface_addresses(
+            node_context.vm_name,
+            log,
         )
         if len(interfaces) < 1:
             return None
@@ -1431,6 +1438,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             or "connection closed due to keepalive timeout" in message
         )
 
+    def _is_libvirt_domain_not_found_error(self, ex: libvirt.libvirtError) -> bool:
+        message = str(ex).lower()
+        return (
+            "domain not found" in message or "no domain with matching name" in message
+        )
+
     def _run_libvirt_operation_with_reconnect(
         self,
         operation: Callable[[], _LibvirtOperationResult],
@@ -1449,17 +1462,50 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             return (retry_operation or operation)()
 
     def _define_domain(self, xml: str, vm_name: str, log: Logger) -> libvirt.virDomain:
+        def define_domain() -> libvirt.virDomain:
+            return cast(libvirt.virDomain, self.libvirt_conn.defineXML(xml))
+
+        def retry_define_domain() -> libvirt.virDomain:
+            try:
+                return cast(libvirt.virDomain, self.libvirt_conn.lookupByName(vm_name))
+            except libvirt.libvirtError as ex:
+                if not self._is_libvirt_domain_not_found_error(ex):
+                    raise
+                return define_domain()
+
         return self._run_libvirt_operation_with_reconnect(
-            operation=lambda: self.libvirt_conn.defineXML(xml),
+            operation=define_domain,
+            retry_operation=retry_define_domain,
             operation_description="domain definition",
             vm_name=vm_name,
             log=log,
         )
 
     def _lookup_domain(self, vm_name: str, log: Logger) -> libvirt.virDomain:
+        def lookup_domain() -> libvirt.virDomain:
+            return cast(libvirt.virDomain, self.libvirt_conn.lookupByName(vm_name))
+
         return self._run_libvirt_operation_with_reconnect(
-            operation=lambda: self.libvirt_conn.lookupByName(vm_name),
+            operation=lookup_domain,
             operation_description="domain lookup",
+            vm_name=vm_name,
+            log=log,
+        )
+
+    def _get_domain_interface_addresses(
+        self, vm_name: str, log: Logger
+    ) -> Dict[str, Any]:
+        def get_interface_addresses() -> Dict[str, Any]:
+            return cast(
+                Dict[str, Any],
+                self._lookup_domain(vm_name, log).interfaceAddresses(
+                    libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE
+                ),
+            )
+
+        return self._run_libvirt_operation_with_reconnect(
+            operation=get_interface_addresses,
+            operation_description="domain interface address lookup",
             vm_name=vm_name,
             log=log,
         )
