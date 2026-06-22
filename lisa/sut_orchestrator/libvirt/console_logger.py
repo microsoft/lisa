@@ -28,12 +28,24 @@ class QemuConsoleLogger:
         self._log_file = open(log_file_path, "ab")
 
         # Open the libvirt console stream.
-        console_stream = domain.connect().newStream(libvirt.VIR_STREAM_NONBLOCK)
-        domain.openConsole(
-            None,
-            console_stream,
-            libvirt.VIR_DOMAIN_CONSOLE_FORCE | libvirt.VIR_DOMAIN_CONSOLE_SAFE,
-        )
+        console_stream: Optional[libvirt.virStream] = None
+        try:
+            console_stream = domain.connect().newStream(libvirt.VIR_STREAM_NONBLOCK)
+            domain.openConsole(
+                None,
+                console_stream,
+                libvirt.VIR_DOMAIN_CONSOLE_FORCE | libvirt.VIR_DOMAIN_CONSOLE_SAFE,
+            )
+        except libvirt.libvirtError:
+            if console_stream:
+                try:
+                    console_stream.abort()
+                except libvirt.libvirtError:
+                    pass
+            if self._log_file:
+                self._log_file.close()
+                self._log_file = None
+            raise
         self._console_stream = console_stream
 
         libvirt_events_thread.run_callback(self._register_console_callbacks)

@@ -8,7 +8,7 @@ import secrets
 import shutil
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
-from typing import List, Type
+from typing import Any, List, Type, cast
 
 from lisa import schema
 from lisa.environment import Environment
@@ -234,11 +234,27 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context: NodeContext,
     ) -> None:
         assert node_context.domain
-        node_context.domain.createWithFlags(0)
 
-        node_context.console_logger = QemuConsoleLogger()
-        node_context.console_logger.attach(
-            node_context.domain, node_context.console_log_file_path
+        def start_domain_and_attach_logger() -> None:
+            domain = cast(Any, node_context.domain)
+            assert domain is not None
+            if not domain.isActive():
+                domain.createWithFlags(0)
+            self._attach_console_logger(node_context)
+
+        def retry_start_domain_and_attach_logger() -> None:
+            node_context.domain = self._lookup_domain(
+                node_context.vm_name,
+                self._log,
+            )
+            start_domain_and_attach_logger()
+
+        self._run_libvirt_operation_with_reconnect(
+            operation=start_domain_and_attach_logger,
+            retry_operation=retry_start_domain_and_attach_logger,
+            operation_description="domain start and console attach",
+            vm_name=node_context.vm_name,
+            log=self._log,
         )
 
         if len(node_context.passthrough_devices) > 0:
@@ -248,6 +264,20 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             self.device_pool._verify_device_passthrough_post_boot(
                 node_context=node_context,
             )
+
+    def _attach_console_logger(self, node_context: NodeContext) -> None:
+        domain = cast(Any, node_context.domain)
+        assert domain is not None
+        if node_context.console_logger is not None:
+            node_context.console_logger.close()
+            node_context.console_logger = None
+
+        console_logger = QemuConsoleLogger()
+        node_context.console_logger = console_logger
+        console_logger.attach(
+            domain,
+            node_context.console_log_file_path,
+        )
 
     def _delete_node(self, node: Node, log: Logger) -> None:
         """

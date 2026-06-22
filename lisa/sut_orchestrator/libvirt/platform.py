@@ -1436,6 +1436,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return (
             "client socket is closed" in message
             or "connection closed due to keepalive timeout" in message
+            or "connection reset by peer" in message
+            or "could not proxy traffic" in message
+            or "end of file while reading data" in message
         )
 
     def _is_libvirt_domain_not_found_error(self, ex: libvirt.libvirtError) -> bool:
