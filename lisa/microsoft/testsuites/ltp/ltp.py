@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import os
 import re
-import tempfile
+import shlex
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Type
@@ -98,6 +98,81 @@ class Ltp(Tool):
             # default binary_file install path is /tmp/ltp
             self._command_path = "/tmp/ltp" if self._binary_file else "/opt/ltp"
 
+    # Maximum number of test names per printf command to avoid exceeding
+    # SSH/WSL command-line length limits on remote nodes.
+    _SKIP_BATCH_SIZE = 50
+
+    def _write_skip_tests_to_remote(
+        self, skip_file: str, skip_tests: List[str]
+    ) -> None:
+        """Write skip test names directly on the remote node.
+
+        Uses ``printf | tee`` instead of ``shell.copy()`` because the latter
+        is unreliable for some node types (e.g. WSL): it may create the
+        destination file but leave it empty (0 bytes), causing runltp to
+        silently discard the ``-S`` argument.
+
+        When the skip list is large (300+ entries), the command is split into
+        batches to stay within SSH/WSL command-line length limits.
+        """
+        skip_file_q = shlex.quote(skip_file)
+        for i in range(0, len(skip_tests), self._SKIP_BATCH_SIZE):
+            batch = skip_tests[i : i + self._SKIP_BATCH_SIZE]
+            quoted = " ".join(shlex.quote(t) for t in batch)
+            if i == 0:
+                # First batch: truncate the file.
+                # sudo=True on node.execute() already runs the whole shell as
+                # root; embedding a second 'sudo tee' is redundant and fails
+                # on nodes where sudo is not installed.
+                cmd = f"printf '%s\\n' {quoted} | tee {skip_file_q} > /dev/null"
+            else:
+                # Subsequent batches: append
+                cmd = f"printf '%s\\n' {quoted} | tee -a {skip_file_q} > /dev/null"
+            self.node.execute(
+                cmd,
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+            )
+        self._assert_skip_file_non_empty(skip_file, skip_tests)
+
+    def _verify_or_rewrite_skip_file(self, skip_file: str, local_path: str) -> None:
+        """Verify a copied skip file is non-empty; rewrite it if not."""
+        verify = self.node.execute(
+            f"test -s {shlex.quote(skip_file)}", sudo=True, shell=True
+        )
+        if verify.exit_code != 0:
+            self._log.warning(
+                f"shell.copy() left {skip_file} empty; " "rewriting via remote command"
+            )
+            with open(local_path, "r") as f:
+                lines = [line.strip() for line in f if line.strip()]
+            if not lines:
+                raise LisaException(
+                    f"Local skip file {local_path} is empty; "
+                    "cannot generate a valid skip file."
+                )
+            self._write_skip_tests_to_remote(skip_file, lines)
+
+    def _assert_skip_file_non_empty(
+        self, skip_file: str, skip_tests: List[str]
+    ) -> None:
+        """Assert the remote skip file is non-empty.
+
+        runltp checks both ``-r`` (readable) and ``-s`` (non-empty) before
+        passing ``-S`` to ltp-pan; an empty file causes the skip list to be
+        silently discarded.
+        """
+        verify = self.node.execute(
+            f"test -s {shlex.quote(skip_file)}", sudo=True, shell=True
+        )
+        if verify.exit_code != 0:
+            raise LisaException(
+                f"Skip file {skip_file} is empty after write; "
+                "skip tests will not be applied. "
+                f"Attempted to write: {skip_tests}"
+            )
+
     def run_test(
         self,
         test_result: TestResult,
@@ -160,20 +235,13 @@ class Ltp(Tool):
                 PurePath(user_input_skip_file),
                 PurePosixPath(skip_file),
             )
+            # shell.copy() is unreliable for some node types (e.g. WSL): it
+            # may create the file but leave it empty.  Fall back to writing
+            # the content via a remote command when that happens.
+            self._verify_or_rewrite_skip_file(skip_file, user_input_skip_file)
             parameters += f"-S {skip_file} "
         elif len(skip_tests) > 0:
-            # Write skip tests to a local temp file and copy to remote,
-            # avoiding shell quoting issues entirely.
-            skip_file_value = "\n".join(skip_tests)
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".skipfile", delete=False
-            ) as tmp:
-                tmp.write(skip_file_value)
-                local_tmp_path = tmp.name
-            try:
-                self.node.shell.copy(PurePath(local_tmp_path), PurePosixPath(skip_file))
-            finally:
-                os.unlink(local_tmp_path)
+            self._write_skip_tests_to_remote(skip_file, skip_tests)
             parameters += f"-S {skip_file} "
 
         # Minimum 4M swap space is needed by some mmp test
