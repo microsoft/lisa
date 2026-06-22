@@ -149,6 +149,11 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             auth_token=runbook.auth_token,
             fail_on_exists=False,
         )
+        openvmm_commit = git.get_current_commit_hash(code_path).strip()
+        self._log.info(
+            f"OpenVMM source repository: {runbook.repo}, "
+            f"requested ref: {runbook.ref or '<default>'}, HEAD: {openvmm_commit}"
+        )
 
         cargo_command = shlex.quote(cargo.command)
         cargo_bin_dir = self._node.get_str_path(

@@ -37,7 +37,10 @@ class OpenVmmInstallerTestCase(TestCase):
             command="/home/test/.cargo/bin/cargo",
             toolchain="stable",
         )
-        git = SimpleNamespace(clone=MagicMock(return_value="/tmp/work/openvmm-src"))
+        git = SimpleNamespace(
+            clone=MagicMock(return_value="/tmp/work/openvmm-src"),
+            get_current_commit_hash=MagicMock(return_value="abc1234"),
+        )
         ln = SimpleNamespace(create_link=MagicMock())
         executed_commands: List[Dict[str, Any]] = []
 
