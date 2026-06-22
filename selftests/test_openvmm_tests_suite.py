@@ -13,7 +13,7 @@ from lisa.microsoft.testsuites.openvmm.openvmm_tests import (
 )
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import _JUnitSummary
 from lisa.operating_system import CBLMariner
-from lisa.tools import Ls, Uname
+from lisa.tools import Ls, Lscpu, Uname
 from lisa.tools.usermod import Usermod
 from lisa.util import SkippedException
 
@@ -44,9 +44,11 @@ class OpenVmmTestsSuiteTestCase(TestCase):
             "/dev/kvm",
             "/dev/mshv",
         )
+        lscpu = MagicMock()
+        lscpu.is_virtualization_enabled.return_value = True
         usermod = MagicMock()
         host = MagicMock()
-        host.tools = {Uname: uname, Ls: ls, Usermod: usermod}
+        host.tools = {Uname: uname, Ls: ls, Lscpu: lscpu, Usermod: usermod}
         host.execute.side_effect = [
             SimpleNamespace(exit_code=0),
             SimpleNamespace(exit_code=1),
@@ -67,9 +69,11 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         )
         ls = MagicMock()
         ls.path_exists.side_effect = lambda path, sudo: path == "/dev/mshv"
+        lscpu = MagicMock()
+        lscpu.is_virtualization_enabled.return_value = True
         usermod = MagicMock()
         host = MagicMock()
-        host.tools = {Uname: uname, Ls: ls, Usermod: usermod}
+        host.tools = {Uname: uname, Ls: ls, Lscpu: lscpu, Usermod: usermod}
         host.execute.return_value = SimpleNamespace(exit_code=0)
 
         suite._ensure_vmm_tests_supported(host)
@@ -84,9 +88,11 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         )
         ls = MagicMock()
         ls.path_exists.side_effect = lambda path, sudo: path == "/dev/mshv"
+        lscpu = MagicMock()
+        lscpu.is_virtualization_enabled.return_value = True
         usermod = MagicMock()
         host = MagicMock()
-        host.tools = {Uname: uname, Ls: ls, Usermod: usermod}
+        host.tools = {Uname: uname, Ls: ls, Lscpu: lscpu, Usermod: usermod}
         host.execute.side_effect = [
             SimpleNamespace(exit_code=1),
             SimpleNamespace(exit_code=0),
@@ -106,15 +112,49 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         )
         ls = MagicMock()
         ls.path_exists.side_effect = lambda path, sudo: path == "/dev/kvm"
+        lscpu = MagicMock()
+        lscpu.is_virtualization_enabled.return_value = True
         usermod = MagicMock()
         host = MagicMock()
-        host.tools = {Uname: uname, Ls: ls, Usermod: usermod}
+        host.tools = {Uname: uname, Ls: ls, Lscpu: lscpu, Usermod: usermod}
         host.execute.return_value = SimpleNamespace(exit_code=1)
 
         with self.assertRaises(SkippedException) as context:
             suite._ensure_vmm_tests_supported(host)
 
         self.assertIn("cannot open either device", str(context.exception))
+
+    def test_ensure_vmm_tests_supported_checks_virtualization_first(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        call_order = []
+        uname = MagicMock()
+        uname.get_linux_information.return_value = SimpleNamespace(
+            hardware_platform="x86_64"
+        )
+        lscpu = MagicMock()
+
+        def is_virtualization_enabled() -> bool:
+            call_order.append("lscpu")
+            return False
+
+        lscpu.is_virtualization_enabled.side_effect = is_virtualization_enabled
+        ls = MagicMock()
+
+        def path_exists(path: str, sudo: bool) -> bool:
+            call_order.append(path)
+            return False
+
+        ls.path_exists.side_effect = path_exists
+        host = MagicMock()
+        host.tools = {Uname: uname, Ls: ls, Lscpu: lscpu}
+
+        with self.assertRaises(SkippedException) as context:
+            suite._ensure_vmm_tests_supported(host)
+
+        self.assertIn(
+            "Virtualization is not enabled in hardware", str(context.exception)
+        )
+        self.assertEqual("lscpu", call_order[0])
 
     def test_compose_vmm_tests_filter_excludes_pcat_on_native_linux(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)
