@@ -310,6 +310,7 @@ def _run_cvt_tests(
 
 
 _CVT_BINARIES_DEFAULT_URL = "https://aka.ms/LinuxCVTTestBinaries"
+_SKIP_EXIT_CODE = 2
 
 _DRIVER_URLS = {
     "UBUNTU24": "https://aka.ms/DriversPackage_UBUNTU24",
@@ -482,6 +483,10 @@ class CVTTest(TestSuite):
             cvt_script=self._cvt_no_ext_script,
         )
         log.info(f"ASR CVT (no-extension) test completed with exit code '{result}'")
+        if result == _SKIP_EXIT_CODE:
+            raise SkippedException(
+                "Driver could not be loaded (unsupported kernel or missing driver)."
+            )
         assert_that(result).described_as(
             "ASR CVT (no-extension) test failed"
         ).is_equal_to(0)

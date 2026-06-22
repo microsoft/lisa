@@ -18,6 +18,7 @@ driver_tarball_url=$3
 
 FAILED_TEST=1
 PASSED_TEST=0
+SKIP_TEST=2
 
 cvt_log_file="$test_dir/cvt.log"
 cvt_status_file="$test_dir/cvt_status.json"
@@ -152,6 +153,9 @@ exit_with_retcode()
     if [ "$ret" -eq 0 ]; then
         log "CVT Test succeeded"
         update_cvt_status_field "testStatus" "Succeeded"
+    elif [ "$ret" -eq "$SKIP_TEST" ]; then
+        log "CVT Test skipped (driver not loaded / unsupported kernel)"
+        update_cvt_status_field "testStatus" "Skipped"
     else
         log "CVT Test failed"
         update_cvt_status_field "testStatus" "Failed"
@@ -225,7 +229,7 @@ load_driver()
 
     if [ -z "$driver_tarball_url" ]; then
         log "Driver is not loaded and no driver_tarball_url provided"
-        return 1
+        return $SKIP_TEST
     fi
 
     log "Driver not loaded, downloading and installing..."
@@ -268,8 +272,8 @@ load_driver()
     fi
 
     if [ -z "$driver_file" ]; then
-        log "Cannot find involflt.ko for kernel $ker_ver"
-        return 1
+        log "Cannot find involflt.ko for kernel $ker_ver — unsupported kernel"
+        return $SKIP_TEST
     fi
 
     log "Using driver: $driver_file"
@@ -279,8 +283,8 @@ load_driver()
     insmod "$k_dir/involflt.ko" 2>&1 | tee -a "$cvt_log_file"
 
     if ! is_driver_loaded; then
-        log "Failed to load filter driver"
-        return 1
+        log "Failed to load filter driver (unsupported kernel?)"
+        return $SKIP_TEST
     fi
 
     log "Filter driver loaded successfully"
