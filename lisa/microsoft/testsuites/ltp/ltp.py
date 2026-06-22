@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import os
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Type
@@ -114,17 +115,19 @@ class Ltp(Tool):
         When the skip list is large (300+ entries), the command is split into
         batches to stay within SSH/WSL command-line length limits.
         """
+        skip_file_q = shlex.quote(skip_file)
         for i in range(0, len(skip_tests), self._SKIP_BATCH_SIZE):
             batch = skip_tests[i : i + self._SKIP_BATCH_SIZE]
-            quoted = " ".join(f"'{t}'" for t in batch)
+            quoted = " ".join(shlex.quote(t) for t in batch)
             if i == 0:
-                # First batch: truncate the file
-                cmd = f"printf '%s\\n' {quoted}" f" | sudo tee {skip_file} > /dev/null"
+                # First batch: truncate the file.
+                # sudo=True on node.execute() already runs the whole shell as
+                # root; embedding a second 'sudo tee' is redundant and fails
+                # on nodes where sudo is not installed.
+                cmd = f"printf '%s\\n' {quoted} | tee {skip_file_q} > /dev/null"
             else:
                 # Subsequent batches: append
-                cmd = (
-                    f"printf '%s\\n' {quoted}" f" | sudo tee -a {skip_file} > /dev/null"
-                )
+                cmd = f"printf '%s\\n' {quoted} | tee -a {skip_file_q} > /dev/null"
             self.node.execute(
                 cmd,
                 sudo=True,
@@ -135,7 +138,9 @@ class Ltp(Tool):
 
     def _verify_or_rewrite_skip_file(self, skip_file: str, local_path: str) -> None:
         """Verify a copied skip file is non-empty; rewrite it if not."""
-        verify = self.node.execute(f"test -s {skip_file}", sudo=True, shell=True)
+        verify = self.node.execute(
+            f"test -s {shlex.quote(skip_file)}", sudo=True, shell=True
+        )
         if verify.exit_code != 0:
             self._log.warning(
                 f"shell.copy() left {skip_file} empty; " "rewriting via remote command"
@@ -158,7 +163,9 @@ class Ltp(Tool):
         passing ``-S`` to ltp-pan; an empty file causes the skip list to be
         silently discarded.
         """
-        verify = self.node.execute(f"test -s {skip_file}", sudo=True, shell=True)
+        verify = self.node.execute(
+            f"test -s {shlex.quote(skip_file)}", sudo=True, shell=True
+        )
         if verify.exit_code != 0:
             raise LisaException(
                 f"Skip file {skip_file} is empty after write; "
