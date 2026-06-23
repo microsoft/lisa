@@ -1611,6 +1611,12 @@ class FreeBSD(BSD):
         )
 
 
+class Zscaler(FreeBSD):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^ZscalerOS|zscaleros$")
+
+
 class OpenBSD(BSD):
     ...
 
