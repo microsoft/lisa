@@ -103,6 +103,13 @@ class Lscpu(Tool):
     _core_numa_no_cache = re.compile(
         r"\s*(?P<cpu>\d+)\s+(?P<numa_node>\d+)\s+(?P<socket>\d+)\s+-$"
     )
+    # Some systems have no L3 cache (e.g. certain ARM / VM SKUs). lscpu then
+    # emits only three cache IDs (L1d:L1i:L2) with no L3 column:
+    # 0 0 0 0:0:0
+    _core_numa_no_l3 = re.compile(
+        r"\s*(?P<cpu>\d+)\s+(?P<numa_node>\d+)\s+(?P<socket>\d+)\s+"
+        r"(?P<l1_data_cache>\d+):(?P<l1_instruction_cache>\d+):(?P<l2_cache>\d+)$"
+    )
     # Model name:          Intel(R) Xeon(R) Platinum 8168 CPU @ 2.70GHz
     # Model name:          AMD EPYC 7763 64-Core Processor
     #   Model name:          AMD EPYC 7763 64-Core Processor
@@ -319,6 +326,26 @@ class Lscpu(Tool):
                         l1_data_cache=UNKNOWN_CACHE_ID,
                         l1_instruction_cache=UNKNOWN_CACHE_ID,
                         l2_cache=UNKNOWN_CACHE_ID,
+                        l3_cache=UNKNOWN_CACHE_ID,
+                    )
+                )
+                continue
+            no_l3_match = self._core_numa_no_l3.fullmatch(item)
+            if no_l3_match:
+                # No L3 cache level on this system: keep the L1/L2 IDs that
+                # are present and mark L3 as unknown so the L3-cache test can
+                # skip gracefully via _check_cache_topology_exposed() instead
+                # of hard-failing on an otherwise valid line.
+                output.append(
+                    CPUInfo(
+                        cpu=int(no_l3_match.group("cpu")),
+                        numa_node=int(no_l3_match.group("numa_node")),
+                        socket=int(no_l3_match.group("socket")),
+                        l1_data_cache=int(no_l3_match.group("l1_data_cache")),
+                        l1_instruction_cache=int(
+                            no_l3_match.group("l1_instruction_cache")
+                        ),
+                        l2_cache=int(no_l3_match.group("l2_cache")),
                         l3_cache=UNKNOWN_CACHE_ID,
                     )
                 )
