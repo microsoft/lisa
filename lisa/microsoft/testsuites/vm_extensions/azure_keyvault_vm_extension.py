@@ -171,119 +171,170 @@ class AzureKeyVaultExtensionBvt(TestSuite):
 
         log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
 
+        vault_url = keyvault_result.properties.vault_uri
+        cert_store_location = "/var/lib/waagent/Microsoft.Azure.KeyVault"
+
         certificates_secret_id: List[str] = []
         cert_names = [
             generate_random_chars(string.ascii_lowercase + string.digits, 6)
             for _ in range(2)
         ]
-        for cert_name in cert_names:
-            certificate_secret_id = create_certificate(
-                platform=platform,
-                vault_url=keyvault_result.properties.vault_uri,
-                log=log,
-                cert_name=cert_name,
-            )
-            log.info(f"Certificates created. Cert ID: {certificate_secret_id}, ")
-            assert_that(certificate_secret_id).described_as(
-                "First certificate created successfully"
-            ).is_not_none()
-            certificates_secret_id.append(certificate_secret_id)
+        try:
+            for cert_name in cert_names:
+                certificate_secret_id = create_certificate(
+                    platform=platform,
+                    vault_url=vault_url,
+                    log=log,
+                    cert_name=cert_name,
+                )
+                log.info(f"Certificates created. Cert ID: {certificate_secret_id}, ")
+                assert_that(certificate_secret_id).described_as(
+                    "First certificate created successfully"
+                ).is_not_none()
+                certificates_secret_id.append(certificate_secret_id)
 
-        current_user = node.tools[Whoami].get_username()
+            current_user = node.tools[Whoami].get_username()
 
-        # Extension
-        extension_name = "KeyVaultForLinux"
-        extension_publisher = "Microsoft.Azure.KeyVault"
-        extension_version = "3.0"
-        settings = {
-            "secretsManagementSettings": {
-                "autoUpgradeMinorVersion": True,
-                "enableAutomaticUpgrade": True,
-                "pollingIntervalInS": "360",
-                "certificateStoreLocation": "/var/lib/waagent/Microsoft.Azure.KeyVault",
-                "observedCertificates": [
-                    {
-                        "url": certificates_secret_id[0],
-                        "certificateStoreLocation": "/var/lib/waagent/a",
-                        "customSymbolicLinkName": "symbolinka",
-                        "acls": [{"user": current_user}],
-                    },
-                    {
-                        "url": certificates_secret_id[1],
-                        "certificateStoreLocation": "/var/lib/waagent/b",
-                        "customSymbolicLinkName": "symbolinkb",
-                        "acls": [{"user": current_user}],
-                    },
-                ],
+            # Extension
+            extension_name = "KeyVaultForLinux"
+            extension_publisher = "Microsoft.Azure.KeyVault"
+            extension_version = "3.0"
+            settings = {
+                "secretsManagementSettings": {
+                    "autoUpgradeMinorVersion": True,
+                    "enableAutomaticUpgrade": True,
+                    "pollingIntervalInS": "360",
+                    "certificateStoreLocation": cert_store_location,
+                    "observedCertificates": [
+                        {
+                            "url": certificates_secret_id[0],
+                            "certificateStoreLocation": "/var/lib/waagent/a",
+                            "customSymbolicLinkName": "symbolinka",
+                            "acls": [{"user": current_user}],
+                        },
+                        {
+                            "url": certificates_secret_id[1],
+                            "certificateStoreLocation": "/var/lib/waagent/b",
+                            "customSymbolicLinkName": "symbolinkb",
+                            "acls": [{"user": current_user}],
+                        },
+                    ],
+                }
             }
-        }
-        extension = node.features[AzureExtension]
-        extension_result = extension.create_or_update(
-            name=extension_name,
-            publisher=extension_publisher,
-            type_=extension_name,
-            type_handler_version=extension_version,
-            auto_upgrade_minor_version=True,
-            enable_automatic_upgrade=True,
-            settings=settings,
-        )
-        assert_that(extension_result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
-        # Rotate certificates
-        # Example: "https://example.vault.azure.net/secrets/Cert-123"
-        # Expected match: "Cert-123"
-        match = re.search(r"/(?P<certificate_name>[^/]+)$", certificates_secret_id[0])
-        if match:
-            cert_name = match.group("certificate_name")
-        else:
-            raise LisaException(
-                f"Failed to extract certificate name from {certificates_secret_id[0]}"
+            extension = node.features[AzureExtension]
+            extension_result = extension.create_or_update(
+                name=extension_name,
+                publisher=extension_publisher,
+                type_=extension_name,
+                type_handler_version=extension_version,
+                auto_upgrade_minor_version=True,
+                enable_automatic_upgrade=True,
+                settings=settings,
             )
-        rotate_certificate(
-            platform=platform,
-            vault_url=keyvault_result.properties.vault_uri,
-            cert_name=cert_name,
-            log=log,
-        )
+            assert_that(extension_result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
 
-        _check_system_status(node, log)
-
-        for cert_secret_id in certificates_secret_id:
+            # Rotate certificates
             # Example: "https://example.vault.azure.net/secrets/Cert-123"
-            # Expected match for 'certificate_name': "Cert-123"
-            match = re.search(r"/(?P<certificate_name>[^/]+)$", cert_secret_id)
+            # Expected match: "Cert-123"
+            match = re.search(
+                r"/(?P<certificate_name>[^/]+)$", certificates_secret_id[0]
+            )
             if match:
                 cert_name = match.group("certificate_name")
             else:
                 raise LisaException(
-                    f"Failed to extract certificate name from {cert_secret_id}"
+                    "Failed to extract certificate name from "
+                    f"{certificates_secret_id[0]}"
                 )
-            delete_certificate(
+            rotate_certificate(
                 platform=platform,
-                vault_url=keyvault_result.properties.vault_uri,
+                vault_url=vault_url,
                 cert_name=cert_name,
                 log=log,
             )
 
-            certificate_exists = check_certificate_existence(
-                log=log,
-                platform=platform,
-                vault_url=keyvault_result.properties.vault_uri,
-                cert_name=cert_name,
-            )
+            _check_system_status(node, log)
 
-            assert_that(certificate_exists).described_as(
-                f"The certificate '{cert_name}' was not deleted after 10 attempts."
+            for cert_secret_id in certificates_secret_id:
+                # Example: "https://example.vault.azure.net/secrets/Cert-123"
+                # Expected match for 'certificate_name': "Cert-123"
+                match = re.search(r"/(?P<certificate_name>[^/]+)$", cert_secret_id)
+                if match:
+                    cert_name = match.group("certificate_name")
+                else:
+                    raise LisaException(
+                        f"Failed to extract certificate name from {cert_secret_id}"
+                    )
+                delete_certificate(
+                    platform=platform,
+                    vault_url=vault_url,
+                    cert_name=cert_name,
+                    log=log,
+                )
+
+                certificate_exists = check_certificate_existence(
+                    log=log,
+                    platform=platform,
+                    vault_url=vault_url,
+                    cert_name=cert_name,
+                )
+
+                assert_that(certificate_exists).described_as(
+                    f"The certificate '{cert_name}' was not deleted "
+                    "after 10 attempts."
+                ).is_false()
+
+            # All certificates were deleted and verified above, so the finally
+            # block below has nothing left to clean up.
+            certificates_secret_id = []
+
+            # Delete VM Extension
+            extension.delete("KeyVaultForLinux")
+
+            assert_that(extension.check_exist("KeyVaultForLinux")).described_as(
+                "Found the VM Extension still exists on the VM after deletion"
             ).is_false()
+        finally:
+            # Best-effort cleanup of certificates created during the test. This
+            # runs even when the test fails before the deletion step above, so
+            # the shared Key Vault is not left with leaked certificates.
+            self._cleanup_certificates(
+                platform=platform,
+                vault_url=vault_url,
+                cert_secret_ids=certificates_secret_id,
+                log=log,
+            )
 
-        # Delete VM Extension
-        extension.delete("KeyVaultForLinux")
-
-        assert_that(extension.check_exist("KeyVaultForLinux")).described_as(
-            "Found the VM Extension still exists on the VM after deletion"
-        ).is_false()
+    def _cleanup_certificates(
+        self,
+        platform: AzurePlatform,
+        vault_url: str,
+        cert_secret_ids: List[str],
+        log: Logger,
+    ) -> None:
+        for cert_secret_id in cert_secret_ids:
+            # Example: "https://example.vault.azure.net/secrets/Cert-123"
+            # Expected match for 'certificate_name': "Cert-123"
+            match = re.search(r"/(?P<certificate_name>[^/]+)$", cert_secret_id)
+            if not match:
+                log.warning(
+                    "Failed to extract certificate name from "
+                    f"{cert_secret_id} during cleanup; skipping."
+                )
+                continue
+            cert_name = match.group("certificate_name")
+            try:
+                delete_certificate(
+                    platform=platform,
+                    vault_url=vault_url,
+                    cert_name=cert_name,
+                    log=log,
+                )
+                log.debug(f"Cleaned up certificate {cert_name}")
+            except LisaException as e:
+                log.warning(f"Failed to clean up certificate {cert_name}: {e}")
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
         supported_major_versions = {
