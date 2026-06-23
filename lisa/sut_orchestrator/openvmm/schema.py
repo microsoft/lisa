@@ -16,6 +16,8 @@ from lisa.util import LisaException
 from .. import OPENVMM
 
 OPENVMM_BOOT_MODE_UEFI = "uefi"
+OPENVMM_HYPERVISOR_KVM = "kvm"
+OPENVMM_HYPERVISOR_MSHV = "mshv"
 OPENVMM_ADDRESS_MODE_DISCOVER = "discover"
 OPENVMM_ADDRESS_MODE_STATIC = "static"
 OPENVMM_NETWORK_MODE_USER = "user"
@@ -223,6 +225,7 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
         ),
     )
     openvmm_binary: str = "/usr/local/bin/openvmm"
+    hypervisor: str = OPENVMM_HYPERVISOR_MSHV
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)
     extra_args: List[str] = field(default_factory=list)
@@ -231,10 +234,20 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
         add_secret(self.private_key_file)
+        self.hypervisor = str(self.hypervisor).strip().lower()
         if self.boot_mode != OPENVMM_BOOT_MODE_UEFI:
             raise LisaException(
                 f"boot mode '{self.boot_mode}' is not supported. "
                 f"Supported values: {OPENVMM_BOOT_MODE_UEFI}"
+            )
+        if self.hypervisor not in [
+            OPENVMM_HYPERVISOR_KVM,
+            OPENVMM_HYPERVISOR_MSHV,
+        ]:
+            raise LisaException(
+                f"hypervisor '{self.hypervisor}' is not supported. "
+                f"Supported values: {OPENVMM_HYPERVISOR_KVM}, "
+                f"{OPENVMM_HYPERVISOR_MSHV}"
             )
         if not self.uefi or not self.uefi.firmware_path:
             raise LisaException(

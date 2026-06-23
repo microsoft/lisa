@@ -30,6 +30,8 @@ variable:
     value: ""
   - name: openvmm_binary
     value: /usr/local/bin/openvmm
+  - name: openvmm_hypervisor
+    value: mshv
   - name: openvmm_install_path
     value: /usr/local/bin/openvmm
   - name: openvmm_installer_repo
@@ -83,6 +85,7 @@ platform:
           extra_user_data: $(guest_extra_user_data)
         lisa_working_dir: $(openvmm_host_working_dir)
         openvmm_binary: $(openvmm_binary)
+        hypervisor: $(openvmm_hypervisor)
         boot_mode: uefi
         capability:
           core_count: 2

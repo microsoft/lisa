@@ -12,9 +12,11 @@ import yaml
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
+from lisa.sut_orchestrator.openvmm import node as openvmm_node
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
+    OPENVMM_HYPERVISOR_KVM,
     OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
@@ -130,6 +132,7 @@ class OpenVmmNodeTestCase(TestCase):
         node = SimpleNamespace(
             runbook=SimpleNamespace(
                 openvmm_binary="/usr/local/bin/openvmm",
+                hypervisor="kvm",
                 network=SimpleNamespace(mode="user", consomme_cidr=""),
                 serial=SimpleNamespace(mode="file"),
                 extra_args=[],
@@ -157,6 +160,36 @@ class OpenVmmNodeTestCase(TestCase):
             cwd=PurePosixPath("/var/tmp/openvmm-host-g0"),
             sudo=False,
         )
+        self.assertEqual("kvm", openvmm.launch_vm.call_args.args[0].hypervisor)
+
+    def test_prepare_kvm_backend_installs_kvm_when_device_is_missing(self) -> None:
+        package_installs = []
+        fake_os = SimpleNamespace(
+            name="Azure Linux",
+            install_packages=lambda packages: package_installs.append(packages),
+        )
+        execute_results = [
+            SimpleNamespace(exit_code=1, stdout="", stderr=""),
+            SimpleNamespace(exit_code=0, stdout="", stderr=""),
+            SimpleNamespace(exit_code=0, stdout="", stderr=""),
+        ]
+        host_node = SimpleNamespace(
+            os=fake_os,
+            execute=MagicMock(side_effect=execute_results),
+        )
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+
+        with patch.dict(
+            openvmm_node.OPENVMM_KVM_PACKAGE_MAPPING,
+            {type(fake_os).__name__: ["qemu-kvm"]},
+        ):
+            controller._prepare_hypervisor_backend(OPENVMM_HYPERVISOR_KVM)
+
+        self.assertEqual([["qemu-kvm"]], package_installs)
+        commands = [call.args[0] for call in host_node.execute.call_args_list]
+        self.assertEqual(f"test -e {openvmm_node.OPENVMM_KVM_DEVICE}", commands[0])
+        self.assertIn("modprobe kvm", commands[1])
+        self.assertEqual(f"test -e {openvmm_node.OPENVMM_KVM_DEVICE}", commands[2])
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()

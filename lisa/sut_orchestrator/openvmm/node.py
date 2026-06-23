@@ -20,6 +20,7 @@ import yaml
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
+from lisa.operating_system import CBLMariner, Linux
 from lisa.tools import Dnsmasq, Ip, Kill, Mkdir, Modprobe, OpenVmm, Rm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.util import (
@@ -36,6 +37,7 @@ from .. import OPENVMM
 from .context import NodeContext, get_host_context, get_node_context
 from .schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
+    OPENVMM_HYPERVISOR_KVM,
     OPENVMM_NETWORK_MODE_TAP,
     OPENVMM_NETWORK_MODE_USER,
     OpenVmmGuestNodeSchema,
@@ -57,6 +59,18 @@ OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
     "net.bridge.bridge-nf-call-ip6tables",
+]
+OPENVMM_KVM_DEVICE = "/dev/kvm"
+OPENVMM_KVM_PACKAGE_MAPPING: Dict[str, List[str]] = {
+    CBLMariner.__name__: ["qemu-kvm"],
+}
+OPENVMM_AZURE_LINUX_KVM_REPO_PACKAGES = [
+    "azurelinux-repos-preview.noarch",
+    "azurelinux-repos-extended",
+]
+OPENVMM_MARINER_KVM_REPO_PACKAGES = [
+    "mariner-repos-preview.noarch",
+    "mariner-repos-extended",
 ]
 
 
@@ -390,13 +404,77 @@ class OpenVmmController:
 
         return cast(OpenVmmGuestNodeSchema, node.runbook).network
 
+    def _prepare_hypervisor_backend(self, hypervisor: str) -> None:
+        if hypervisor == OPENVMM_HYPERVISOR_KVM:
+            self._ensure_kvm_available()
+
+    def _ensure_kvm_available(self) -> None:
+        if self._host_path_exists(OPENVMM_KVM_DEVICE):
+            return
+
+        linux = cast(Linux, self.host_node.os)
+        package_names = OPENVMM_KVM_PACKAGE_MAPPING.get(type(linux).__name__)
+        if not package_names:
+            raise LisaException(
+                f"OpenVMM hypervisor 'kvm' requires {OPENVMM_KVM_DEVICE}, but "
+                f"automatic KVM package installation is not supported on "
+                f"'{self.host_node.os.name}'. Install KVM manually or use "
+                "hypervisor 'mshv'."
+            )
+
+        if isinstance(linux, CBLMariner):
+            distro_version = self.host_node.get_information().get("distro_version", "")
+            repo_packages = (
+                OPENVMM_AZURE_LINUX_KVM_REPO_PACKAGES
+                if distro_version == "Microsoft Azure Linux 3.0"
+                else OPENVMM_MARINER_KVM_REPO_PACKAGES
+            )
+            self._log.info(f"installing KVM repository packages: {repo_packages}")
+            linux.install_packages(repo_packages)
+
+        self._log.info(f"installing KVM packages: {package_names}")
+        linux.install_packages(package_names)
+        self.host_node.execute(
+            (
+                "modprobe kvm || true; "
+                "modprobe kvm_intel || modprobe kvm_amd || true; "
+                "udevadm trigger --subsystem-match=misc --action=add || true"
+            ),
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to load KVM kernel modules after package installation"
+            ),
+        )
+        if not self._host_path_exists(OPENVMM_KVM_DEVICE):
+            raise LisaException(
+                f"OpenVMM hypervisor 'kvm' requires {OPENVMM_KVM_DEVICE}, but the "
+                "device is still missing after installing KVM packages. Verify "
+                "nested virtualization is enabled and the KVM kernel modules can "
+                "load on the Azure Linux dom0 host."
+            )
+
+    def _host_path_exists(self, path: str) -> bool:
+        result = self.host_node.execute(
+            f"test -e {shlex.quote(path)}",
+            shell=True,
+            sudo=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        return result.exit_code == 0
+
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         node_context = get_node_context(node)
         network = self._get_node_network(node, node_context)
+        self._prepare_hypervisor_backend(runbook.hypervisor)
         self._prepare_tap_network(network, node_context)
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
+            hypervisor=runbook.hypervisor,
             disk_img_path=node_context.disk_img_path,
             dvd_disk_paths=(
                 [node_context.cloud_init_file_path]
