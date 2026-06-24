@@ -974,6 +974,30 @@ class Debian(Linux):
             keys_location=keys,
         )
 
+    def _is_package_lock_held(self) -> bool:
+        # `pidof dpkg dpkg-deb` alone misses holders such as
+        # `unattended-upgrades` and `apt-get`, which hold the apt/dpkg
+        # frontend lock without a running `dpkg` process. Check the lock
+        # files directly so we wait for those holders to finish too.
+        lock_files = " ".join(
+            [
+                "/var/lib/dpkg/lock-frontend",
+                "/var/lib/dpkg/lock",
+                "/var/lib/apt/lists/lock",
+                "/var/cache/apt/archives/lock",
+            ]
+        )
+        # `fuser` exits 0 if at least one listed file is opened by a process,
+        # and non-zero otherwise (including 127 if `fuser` is unavailable, in
+        # which case we fall back to the `pidof` check below).
+        fuser_result = self._node.execute(
+            f"fuser {lock_files}",
+            sudo=True,
+            shell=True,
+            no_info_log=True,
+        )
+        return fuser_result.exit_code == 0
+
     def wait_running_package_process(self) -> None:
         is_first_time: bool = True
         # wait for 10 minutes
@@ -983,12 +1007,15 @@ class Debian(Linux):
             # fix the dpkg, in case it's broken.
             self._node.execute("dpkg --force-all --configure -a", sudo=True)
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
-            if pidof_result.exit_code == 1:
-                # no dpkg process running, safe to exit and attempt repair.
+            dpkg_running = pidof_result.exit_code == 0
+            lock_held = self._is_package_lock_held()
+            if not dpkg_running and not lock_held:
+                # no dpkg process and no apt/dpkg lock holder; safe to exit
+                # and attempt repair.
                 break
             if is_first_time:
                 is_first_time = False
-                self._log.debug("found system dpkg process, waiting it...")
+                self._log.debug("found running package process, waiting it...")
             time.sleep(1)
 
         if timeout < timer.elapsed():
