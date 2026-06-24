@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat, Uname
-from lisa.features.security_profile import CvmDisabled
+from lisa.features.security_profile import CvmEnabled
 from lisa.operating_system import Posix
 from lisa.tools import Ls
 from lisa.util import LisaException, SkippedException, create_timer
@@ -32,7 +32,7 @@ from lisa.util import LisaException, SkippedException, create_timer
     Validates kernel's ability to load and execute a new kernel
     without going through BIOS/firmware reboot.
     """,
-    requirement=simple_requirement(supported_features=[CvmDisabled()]),
+    requirement=simple_requirement(unsupported_features=[CvmEnabled()]),
 )
 class KexecSuite(TestSuite):
     RECONNECT_TIMEOUT = 600  # 10 minutes
