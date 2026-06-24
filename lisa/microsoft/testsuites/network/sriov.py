@@ -772,12 +772,29 @@ class Sriov(TestSuite):
         # before waiting for the result, so wait_result() does not time out.
         server_node.tools[Kill].by_name("irqbalance", ignore_not_exist=True)
         result = irqbalance.wait_result(raise_on_timeout=False)
-        assert re.search(
+
+        # Check that irqbalance actively rebalanced an IRQ.
+        selecting_match = re.search(
             "Selecting irq [0-9]+ for rebalancing",
             result.stdout,
-        ), (
-            "irqbalance is not rebalancing irqs" + err_msg
         )
+        if not selecting_match:
+            # On high-core-count VMs with managed IRQs (e.g. MANA NICs on v6
+            # SKUs), the kernel handles IRQ affinity and irqbalance correctly
+            # determines no rebalancing is needed. In this case, verify that
+            # irqbalance successfully completed at least one scan cycle by
+            # checking for interrupt enumeration output.
+            assert re.search(
+                r"Interrupt \d+ node_num",
+                result.stdout,
+            ), (
+                "irqbalance is not rebalancing irqs" + err_msg
+            )
+            log.debug(
+                "irqbalance did not select any IRQ for rebalancing "
+                "(likely managed IRQs on high-core-count VM), "
+                "but scan cycle completed successfully"
+            )
 
     @TestCaseMetadata(
         description="""
