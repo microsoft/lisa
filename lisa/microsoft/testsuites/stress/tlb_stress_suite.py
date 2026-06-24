@@ -69,7 +69,7 @@ class TlbStressTestSuite(TestSuite):
         mapping/unmapping operations combined with stress-ng VM stressors.
         Validates system stability under heavy TLB activity.
         """,
-        priority=4,
+        priority=5,
         requirement=simple_requirement(min_core_count=2, min_memory_mb=1024),
         timeout=TIME_OUT,
     )
