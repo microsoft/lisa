@@ -48,10 +48,13 @@ IS_OPEN_SOURCE_OS_MASK = 0x8000_0000_0000_0000
 
 
 class HvOsPlatformInfo:
-    # HV_REGISTER_GUEST_OSID constant declared in linus kernel source:
+    # HV_REGISTER_GUEST_OSID constant declared in linux kernel source:
     # arch/{ARCH_NAME}/include/asm/hyperv-tlfs.h
+    # Only x86 is listed: this test reads the register with the x86-only
+    # rdmsr/msr-tools utilities. The register also exists on arm64
+    # (HV_REGISTER_GUEST_OSID = 0x00090002), but is read via the hypercall
+    # interface (HvGetVpRegisters) rather than rdmsr.
     HV_REGISTER_GUEST_OSID = {
-        CpuArchitecture.ARM64: "0x00090002",
         CpuArchitecture.X64: "0x40000000",
     }
     OS_ID_UNDEFINED = 0
@@ -134,6 +137,16 @@ class Msr(TestSuite):
 
         # get the msr offset to read, this constant is arch specific
         arch_id = node.tools[Lscpu].get_architecture()
+
+        # rdmsr/msr-tools and the x86 "msr" driver are x86-only. The register
+        # exists on arm64 but is read via the hypercall interface, not rdmsr,
+        # so skip early instead of failing later on the msr-tools install.
+        if arch_id == CpuArchitecture.ARM64:
+            raise SkippedException(
+                "MSR platform-id test uses rdmsr/msr-tools (x86-only); on arm64 "
+                "the register is read via hypercall, not rdmsr."
+            )
+
         try:
             arch_msr_offset = HvOsPlatformInfo.HV_REGISTER_GUEST_OSID[arch_id]
         except KeyError as missing_key:
