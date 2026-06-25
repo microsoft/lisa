@@ -1596,7 +1596,7 @@ class AzureImageStandard(TestSuite):
         3. Fail the test if the version is lower than the minimum supported version,
            otherwise pass.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
     )
     def verify_python_version(self, node: Node) -> None:
