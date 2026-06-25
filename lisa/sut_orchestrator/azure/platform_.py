@@ -1355,8 +1355,9 @@ class AzurePlatform(Platform):
             arm_parameters.availability_options,
             availability_copied_fields,
         )
-        if self._is_byoip_feature_registered():
-            arm_parameters.ip_service_tags["FirstPartyUsage"] = "/SyntheticLoad"
+        if not arm_parameters.ip_service_tags:
+            if self._is_byoip_feature_registered():
+                arm_parameters.ip_service_tags = {"FirstPartyUsage": "/SyntheticLoad"}
 
         arm_parameters.virtual_network_resource_group = (
             self._azure_runbook.virtual_network_resource_group
