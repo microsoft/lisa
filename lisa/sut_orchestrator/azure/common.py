@@ -600,6 +600,9 @@ class VhdSchema(AzureImageSchema):
                 ],
             )
             self.encrypt_disk = search_space.SetSpace(True, [False])
+        # Azure does not deploy raw VHD blobs to ARM64 VMs; default to x64.
+        if self.architecture is None:
+            self.architecture = schema.ArchitectureType.x64
 
 
 @dataclass_json()
