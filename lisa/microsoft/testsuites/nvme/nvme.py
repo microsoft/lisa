@@ -13,6 +13,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Nvme, NvmeSettings, Sriov
+from lisa.features.security_profile import CvmDisabled
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Df, Echo, Fdisk, Lspci, Mkfs, Mount, Nvmecli
@@ -363,7 +364,7 @@ class NvmeTestSuite(TestSuite):
         priority=2,
         requirement=simple_requirement(
             network_interface=Sriov(),
-            supported_features=[Nvme],
+            supported_features=[Nvme, CvmDisabled()],
         ),
     )
     def verify_nvme_sriov_rescind(self, node: Node) -> None:

@@ -26,6 +26,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import StartStop
+from lisa.features.security_profile import CvmDisabled
 from lisa.nic import NicInfo
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator import AZURE
@@ -56,7 +57,8 @@ class Stress(TestSuite):
             node=schema.NodeSpace(
                 node_count=2,
                 network_interface=features.Sriov(),
-            )
+            ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def stress_sriov_iperf(self, environment: Environment) -> None:
@@ -138,6 +140,7 @@ class Stress(TestSuite):
             min_core_count=4,
             network_interface=features.Sriov(),
             supported_platform_type=[AZURE],
+            supported_features=[CvmDisabled()],
         ),
     )
     def stress_sriov_disable_enable(self, environment: Environment) -> None:
@@ -261,6 +264,7 @@ class Stress(TestSuite):
                 nic_count=IntRange(min=2, choose_max_value=True),
                 data_path=schema.NetworkDataPath.Sriov,
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
@@ -289,6 +293,7 @@ class Stress(TestSuite):
                 nic_count=IntRange(min=2, choose_max_value=True),
                 data_path=schema.NetworkDataPath.Sriov,
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def stress_sriov_with_max_nics_reboot_from_platform(
@@ -319,7 +324,8 @@ class Stress(TestSuite):
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
                 data_path=schema.NetworkDataPath.Sriov,
-            )
+            ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def stress_sriov_with_max_nics_stop_start_from_platform(

@@ -269,6 +269,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             network_interface=Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_deployment_provision_sriov(

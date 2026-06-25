@@ -37,6 +37,7 @@ from lisa import (
 )
 from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
+from lisa.features.security_profile import CvmDisabled
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD, Posix, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
@@ -96,6 +97,7 @@ class Sriov(TestSuite):
         priority=1,
         requirement=simple_requirement(
             network_interface=features.Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_services_state(self, node: Node) -> None:
@@ -131,6 +133,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=features.Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_basic(self, environment: Environment) -> None:
@@ -156,6 +159,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=features.Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_single_vf_connection(self, environment: Environment) -> None:
@@ -184,6 +188,7 @@ class Sriov(TestSuite):
             min_count=2,
             min_core_count=64,
             network_interface=features.Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_single_vf_connection_max_cpu(
@@ -216,6 +221,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_max_vf_connection(self, environment: Environment) -> None:
@@ -247,6 +253,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_max_vf_connection_max_cpu(self, environment: Environment) -> None:
@@ -270,6 +277,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             network_interface=features.Sriov(),
             supported_platform_type=[AZURE, HYPERV],
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:
@@ -291,6 +299,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=features.Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_disable_enable_pci(self, environment: Environment) -> None:
@@ -317,6 +326,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=features.Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_disable_enable_on_guest(self, environment: Environment) -> None:
@@ -342,6 +352,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 max_nic_count=search_space.IntRange(min=8),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_add_max_nics(
@@ -389,6 +400,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_provision_with_max_nics(self, environment: Environment) -> None:
@@ -411,6 +423,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_provision_with_max_nics_reboot(
@@ -439,6 +452,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_provision_with_max_nics_reboot_from_platform(
@@ -468,6 +482,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_provision_with_max_nics_stop_start_from_platform(
@@ -499,6 +514,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:
@@ -551,6 +567,7 @@ class Sriov(TestSuite):
             ),
             # BSD is unsupported since this is testing to patches to the linux kernel
             unsupported_os=[BSD, Windows],
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_ethtool_offload_setting(self, environment: Environment) -> None:
@@ -709,6 +726,7 @@ class Sriov(TestSuite):
             min_count=2,
             min_core_count=4,
             network_interface=features.Sriov(),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_irqbalance(self, environment: Environment, log: Logger) -> None:
@@ -803,7 +821,8 @@ class Sriov(TestSuite):
                 node_count=2,
                 core_count=search_space.IntRange(min=8, max=16),
                 network_interface=features.Sriov(),
-            )
+            ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_sriov_interrupts_change(self, environment: Environment) -> None:
