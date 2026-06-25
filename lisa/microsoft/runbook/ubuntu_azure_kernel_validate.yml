@@ -1,0 +1,24 @@
+name: ubuntu azure kernel validate
+include:
+  - path: ./tiers/tier.yml
+  - path: ./azure.yml
+
+variable:
+  - name: subscription_id
+    value: ""
+  - name: tier
+    value: 0
+  - name: test_name
+    value: ""
+  - name: project
+    value: ""
+  - name: pass
+    value: ""
+  - name: marketplace_image
+    value: "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest"
+  - name: location
+    value: "westus3"
+  - name: kernel_installer_is_success
+    value: False
+  - name: vhd
+    value: ""
