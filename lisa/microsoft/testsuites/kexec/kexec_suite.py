@@ -15,8 +15,10 @@ from lisa import (
     TestResult,
     TestSuite,
     TestSuiteMetadata,
+    simple_requirement,
 )
 from lisa.base_tools import Cat, Uname
+from lisa.features.security_profile import CvmEnabled
 from lisa.operating_system import Posix
 from lisa.tools import Ls
 from lisa.util import LisaException, SkippedException, create_timer
@@ -30,6 +32,7 @@ from lisa.util import LisaException, SkippedException, create_timer
     Validates kernel's ability to load and execute a new kernel
     without going through BIOS/firmware reboot.
     """,
+    requirement=simple_requirement(unsupported_features=[CvmEnabled()]),
 )
 class KexecSuite(TestSuite):
     RECONNECT_TIMEOUT = 600  # 10 minutes
@@ -48,7 +51,7 @@ class KexecSuite(TestSuite):
         This test verifies the core kexec functionality by performing
         a controlled kernel-to-kernel reboot and validating the transition.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_kexec_reboot_systemd(
         self, node: Node, log: Logger, result: TestResult
@@ -74,7 +77,7 @@ class KexecSuite(TestSuite):
         Tests the core kexec mechanism where the new kernel is executed
         immediately without running shutdown scripts.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_kexec_reboot_direct(
         self, node: Node, log: Logger, result: TestResult
