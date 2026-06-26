@@ -411,9 +411,16 @@ class OpenVmmController:
 
     def _get_device_passthrough_args(self, node_context: NodeContext) -> List[str]:
         args: List[str] = []
+        port_index = 0
         for passthrough_context in node_context.passthrough_devices:
             for device in passthrough_context.device_list:
-                args.extend(["--vfio", _get_pci_address_str(device)])
+                args.extend(
+                    [
+                        "--vfio",
+                        f"host={_get_pci_address_str(device)},port=rp{port_index}",
+                    ]
+                )
+                port_index += 1
         return args
 
     def _get_device_pool_config_key(self, runbook: OpenVmmGuestNodeSchema) -> str:
