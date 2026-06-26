@@ -1527,12 +1527,12 @@ class OpenVmmController:
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT"
             ),
             (
-                "iptables -C FORWARD -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "iptables -C FORWARD ! -i "
+                f"{shlex.quote(host_interface)} -o {shlex.quote(host_interface)} "
                 f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT "
                 "|| "
-                "iptables -I FORWARD -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "iptables -I FORWARD ! -i "
+                f"{shlex.quote(host_interface)} -o {shlex.quote(host_interface)} "
                 f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT"
             ),
             (
@@ -1634,8 +1634,8 @@ class OpenVmmController:
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
             ),
             (
-                "iptables -D FORWARD -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
+                "iptables -D FORWARD ! -i "
+                f"{shlex.quote(host_interface)} -o {shlex.quote(host_interface)} "
                 f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT || true"
             ),
             (
