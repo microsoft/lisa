@@ -20,11 +20,13 @@ import yaml
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
+from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
 from lisa.tools import Dnsmasq, Ip, Kill, Mkdir, Modprobe, OpenVmm, Rm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
+    ResourceAwaitableException,
     check_till_timeout,
     create_timer,
     get_public_key_data,
@@ -33,7 +35,13 @@ from lisa.util.logger import Logger
 from lisa.util.shell import wait_tcp_port_ready
 
 from .. import OPENVMM
-from .context import NodeContext, get_host_context, get_node_context
+from .context import (
+    DeviceAddressSchema,
+    DevicePassthroughContext,
+    NodeContext,
+    get_host_context,
+    get_node_context,
+)
 from .schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
@@ -67,6 +75,16 @@ def _get_tap_host_interface_name(network: OpenVmmNetworkSchema) -> str:
 
 def _is_raw_disk_image(disk_img_path: str) -> bool:
     return Path(disk_img_path).suffix.lower() == ".raw"
+
+
+def _get_pci_address_str(device: DeviceAddressSchema) -> str:
+    if not device.domain or not device.bus or not device.slot or not device.function:
+        raise LisaException(
+            "OpenVMM passthrough device has an incomplete PCI address. "
+            f"domain='{device.domain}', bus='{device.bus}', "
+            f"slot='{device.slot}', function='{device.function}'."
+        )
+    return f"{device.domain}:{device.bus}:{device.slot}.{device.function}"
 
 
 def _countspace_to_int(value: search_space.CountSpace) -> int:
@@ -391,6 +409,99 @@ class OpenVmmController:
 
         return cast(OpenVmmGuestNodeSchema, node.runbook).network
 
+    def _get_device_passthrough_args(self, node_context: NodeContext) -> List[str]:
+        args: List[str] = []
+        for passthrough_context in node_context.passthrough_devices:
+            for device in passthrough_context.device_list:
+                args.extend(["--vfio", _get_pci_address_str(device)])
+        return args
+
+    def _get_device_pool_config_key(self, runbook: OpenVmmGuestNodeSchema) -> str:
+        return repr(runbook.device_pools or [])
+
+    def _get_or_create_device_pool(
+        self,
+        runbook: OpenVmmGuestNodeSchema,
+    ) -> LibvirtDevicePool:
+        host_context = get_host_context(self.host_node)
+        config_key = self._get_device_pool_config_key(runbook)
+        if host_context.device_pool is None:
+            if not runbook.device_pools:
+                raise LisaException(
+                    "OpenVMM device_passthrough requires device_pools on at "
+                    "least one OpenVMM guest runbook for the baremetal host."
+                )
+            device_pool = LibvirtDevicePool(self.host_node, cast(Any, None))
+            device_pool.configure_device_passthrough_pool(runbook.device_pools)
+            host_context.device_pool = device_pool
+            host_context.device_pool_config_key = config_key
+        elif runbook.device_pools and host_context.device_pool_config_key != config_key:
+            raise LisaException(
+                "OpenVMM guests on the same baremetal host must use the same "
+                "device_pools configuration. Define the shared host device pool "
+                "consistently for each guest that requests passthrough devices."
+            )
+
+        return cast(LibvirtDevicePool, host_context.device_pool)
+
+    def set_device_passthrough_node_context(
+        self,
+        node_context: NodeContext,
+        runbook: OpenVmmGuestNodeSchema,
+    ) -> None:
+        if not runbook.device_passthrough:
+            return
+
+        host_context = get_host_context(self.host_node)
+        with host_context.device_pool_lock:
+            device_pool = self._get_or_create_device_pool(runbook)
+            try:
+                for config in runbook.device_passthrough:
+                    if config.count <= 0:
+                        raise LisaException(
+                            "OpenVMM device_passthrough count must be greater "
+                            f"than 0 for pool type '{config.pool_type.value}'."
+                        )
+                    devices = device_pool.request_devices(
+                        config.pool_type,
+                        config.count,
+                    )
+                    device_context = DevicePassthroughContext(
+                        managed=config.managed,
+                        pool_type=config.pool_type,
+                        device_list=[
+                            DeviceAddressSchema(
+                                domain=device.domain,
+                                bus=device.bus,
+                                slot=device.slot,
+                                function=device.function,
+                            )
+                            for device in devices
+                        ],
+                    )
+                    node_context.passthrough_devices.append(device_context)
+            except (LisaException, ResourceAwaitableException):
+                if node_context.passthrough_devices:
+                    device_pool.release_devices(cast(Any, node_context))
+                    node_context.passthrough_devices.clear()
+                raise
+
+    def release_device_passthrough(self, node: "OpenVmmGuestNode") -> None:
+        node_context = get_node_context(node)
+        if not node_context.passthrough_devices:
+            return
+
+        host_context = get_host_context(self.host_node)
+        if host_context.device_pool is None:
+            node_context.passthrough_devices.clear()
+            return
+
+        with host_context.device_pool_lock:
+            cast(LibvirtDevicePool, host_context.device_pool).release_devices(
+                cast(Any, node_context)
+            )
+            node_context.passthrough_devices.clear()
+
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         node_context = get_node_context(node)
@@ -411,7 +522,8 @@ class OpenVmmController:
             network_cidr=network.consomme_cidr,
             serial_mode=runbook.serial.mode,
             serial_path=node_context.console_log_file_path,
-            extra_args=runbook.extra_args,
+            extra_args=self._get_device_passthrough_args(node_context)
+            + runbook.extra_args,
             stdout_path=node_context.launcher_log_file_path,
             stderr_path=node_context.launcher_stderr_log_file_path,
         )
@@ -1747,6 +1859,13 @@ class OpenVmmGuestNode(RemoteNode):
         except Exception as identifier:
             self.log.debug(f"failed to stop OpenVMM guest during cleanup: {identifier}")
         try:
+            self._openvmm_controller.release_device_passthrough(self)
+        except Exception as identifier:
+            self.log.debug(
+                "failed to release OpenVMM passthrough devices during cleanup: "
+                f"{identifier}"
+            )
+        try:
             self._openvmm_controller.cleanup_node_artifacts(self)
         except Exception as identifier:
             self.log.debug(
@@ -1830,6 +1949,10 @@ class OpenVmmGuestNode(RemoteNode):
         )
         node_context.console_log_file_path = str(working_path / "openvmm-console.log")
         node_context.ssh_port = runbook.network.ssh_port
+        self._openvmm_controller.set_device_passthrough_node_context(
+            node_context,
+            runbook,
+        )
 
         self._openvmm_controller.launch(self, self.log)
         self._openvmm_controller.configure_connection(self, self.log)

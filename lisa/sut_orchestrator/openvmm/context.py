@@ -80,6 +80,9 @@ class OpenVmmHostContext:
     active_bridge_netfilter_count: int = 0
     artifact_copy_lock: Lock = field(default_factory=Lock)
     artifact_cache: Dict[str, str] = field(default_factory=_new_str_dict)
+    device_pool_lock: Lock = field(default_factory=Lock)
+    device_pool: Optional[Any] = None
+    device_pool_config_key: str = ""
 
 
 def get_node_context(node: Node) -> NodeContext:
