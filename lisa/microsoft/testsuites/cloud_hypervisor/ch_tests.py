@@ -126,14 +126,17 @@ class CloudHypervisorTestSuite(TestSuite):
             "ch_live_migration_tests_excluded",
         )
         ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
+        # Cloud Hypervisor exposes live migration as integration subtests.
         ch_tests.run_tests(
             result,
             "integration-live-migration",
             hypervisor,
             log_path,
             ref,
-            include_list,
-            exclude_list,
+            only=include_list,
+            skip=exclude_list,
+            cli_test_type="integration",
+            cli_test_filter="live_migration",
         )
 
     @TestCaseMetadata(
