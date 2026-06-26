@@ -11,7 +11,18 @@ import time
 from functools import partial
 from pathlib import Path, PurePath, PureWindowsPath
 from time import sleep
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 import paramiko
 import spur
@@ -165,20 +176,21 @@ def try_connect(
     connection_info: schema.ConnectionInfo,
     ssh_timeout: int = 300,
     sock: Optional[Any] = None,
+    sock_factory: Optional[Callable[[], Any]] = None,
 ) -> Any:
-    # spur always run a posix command and will fail on Windows.
-    # So try with paramiko firstly.
-    paramiko_client = paramiko.SSHClient()
-
-    # Use base policy, do nothing on host key. The host key shouldn't be saved
-    # locally, or make any warning message. The IP addresses in cloud may be
-    # reused by different servers. If they are saved, there will be conflict
-    # error in paramiko.
-    paramiko_client.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy())
-
     # wait for ssh port to be ready
     timeout_start = time.time()
     while time.time() < timeout_start + ssh_timeout:
+        # spur always run a posix command and will fail on Windows.
+        # So try with paramiko firstly.
+        paramiko_client = paramiko.SSHClient()
+        current_sock = sock_factory() if sock_factory else sock
+
+        # Use base policy, do nothing on host key. The host key shouldn't be saved
+        # locally, or make any warning message. The IP addresses in cloud may be
+        # reused by different servers. If they are saved, there will be conflict
+        # error in paramiko.
+        paramiko_client.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy())
         try:
             paramiko_client.connect(
                 hostname=connection_info.address,
@@ -187,7 +199,7 @@ def try_connect(
                 password=connection_info.password,
                 key_filename=connection_info.private_key_file,
                 banner_timeout=10,
-                sock=sock,
+                sock=current_sock,
             )
 
             stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
@@ -218,6 +230,7 @@ def try_connect(
 
             return stdout
         except SSHException as e:
+            paramiko_client.close()
             # socket is open, but SSH service not responded
             if (
                 str(e) == "Error reading SSH protocol banner"
@@ -225,10 +238,14 @@ def try_connect(
             ):
                 sleep(1)
                 continue
-        except (NoValidConnectionsError, ConnectionResetError, TimeoutError):
+        except (NoValidConnectionsError, ConnectionResetError, TimeoutError, EOFError):
+            paramiko_client.close()
             # ssh service is not ready
             sleep(1)
             continue
+        except Exception:
+            paramiko_client.close()
+            raise
 
     # raise exception if ssh service is not ready
     raise LisaException(f"ssh connection cannot be established: {connection_info}")
@@ -262,10 +279,15 @@ def _minimize_shell(shell: spur.ssh.SshShell) -> None:
 
 
 class SshShell(InitializableMixin):
-    def __init__(self, connection_info: schema.ConnectionInfo) -> None:
+    def __init__(
+        self,
+        connection_info: schema.ConnectionInfo,
+        proxy_jump_boxes: Optional[List[schema.ConnectionInfo]] = None,
+    ) -> None:
         super().__init__()
         self.is_remote = True
         self.connection_info = connection_info
+        self._proxy_jump_boxes = proxy_jump_boxes or []
         self._inner_shell: Optional[spur.SshShell] = None
         self._jump_boxes: List[Any] = []
         self._jump_box_sock: Any = None
@@ -279,24 +301,44 @@ class SshShell(InitializableMixin):
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        is_ready, tcp_error_code = wait_tcp_port_ready(
-            self.connection_info.address, self.connection_info.port
-        )
-        if not is_ready:
-            raise TcpConnectionException(
-                self.connection_info.address,
-                self.connection_info.port,
-                tcp_error_code,
+        jump_boxes_runbook = self._get_jump_boxes()
+        if not jump_boxes_runbook:
+            is_ready, tcp_error_code = wait_tcp_port_ready(
+                self.connection_info.address, self.connection_info.port
+            )
+            if not is_ready:
+                raise TcpConnectionException(
+                    self.connection_info.address,
+                    self.connection_info.port,
+                    tcp_error_code,
+                )
+
+        sock_factory: Optional[Callable[[], Any]] = None
+        sock = None
+        if jump_boxes_runbook:
+
+            def _create_jump_box_sock() -> Any:
+                self._close_jump_boxes()
+                return self._establish_jump_boxes(
+                    address=self.connection_info.address,
+                    port=self.connection_info.port,
+                )
+
+            sock_factory = _create_jump_box_sock
+        else:
+            sock = self._establish_jump_boxes(
+                address=self.connection_info.address,
+                port=self.connection_info.port,
             )
 
-        sock = self._establish_jump_boxes(
-            address=self.connection_info.address,
-            port=self.connection_info.port,
-        )
-
         try:
-            stdout = try_connect(self.connection_info, sock=sock)
+            stdout = try_connect(
+                self.connection_info,
+                sock=sock,
+                sock_factory=sock_factory,
+            )
         except Exception as e:
+            self._close_jump_boxes()
             raise LisaException(
                 "failed to connect SSH port of the VM. It might be due to one of the "
                 "following reasons: 1. Port 22 is not open. 2. The VM denies other "
@@ -679,7 +721,7 @@ class SshShell(InitializableMixin):
         return path
 
     def _establish_jump_boxes(self, address: str, port: int) -> Any:
-        jump_boxes_runbook = development.get_jump_boxes()
+        jump_boxes_runbook = self._get_jump_boxes()
         sock: Any = None
         is_trace_enabled = development.is_trace_enabled()
         if is_trace_enabled:
@@ -704,12 +746,14 @@ class SshShell(InitializableMixin):
             if index < len(jump_boxes_runbook) - 1:
                 next_hop = jump_boxes_runbook[index + 1]
                 dest_address = (
-                    next_hop.private_address
-                    if next_hop.private_address
+                    getattr(next_hop, "private_address", "")
+                    if getattr(next_hop, "private_address", "")
                     else next_hop.address
                 )
                 dest_port = (
-                    next_hop.private_port if next_hop.private_port else next_hop.port
+                    getattr(next_hop, "private_port", 0)
+                    if getattr(next_hop, "private_port", 0)
+                    else next_hop.port
                 )
             else:
                 dest_address = address
@@ -728,6 +772,9 @@ class SshShell(InitializableMixin):
 
         return sock
 
+    def _get_jump_boxes(self) -> List[Any]:
+        return [*development.get_jump_boxes(), *self._proxy_jump_boxes]
+
     def _open_jump_box_channel(
         self,
         client: paramiko.SSHClient,
@@ -741,7 +788,7 @@ class SshShell(InitializableMixin):
 
         sock = transport.open_channel(
             kind="direct-tcpip",
-            src_addr=(src_address, src_port),
+            src_addr=("127.0.0.1", 0),
             dest_addr=(dest_address, dest_port),
         )
 

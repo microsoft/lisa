@@ -3,6 +3,7 @@
 
 import ipaddress
 import re
+import shlex
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -20,6 +21,8 @@ OPENVMM_ADDRESS_MODE_DISCOVER = "discover"
 OPENVMM_ADDRESS_MODE_STATIC = "static"
 OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
+OPENVMM_CONNECTION_MODE_FORWARDED_PORT = "forwarded_port"
+OPENVMM_CONNECTION_MODE_HOST_PROXY = "host_proxy"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
 # Keep raw disk growth opt-in so existing OpenVMM runbooks don't mutate
@@ -27,6 +30,19 @@ OPENVMM_SERIAL_MODE_FILE = "file"
 OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB = 0
 OPENVMM_MAX_INTERFACE_NAME_LENGTH = 15
 OPENVMM_INTERFACE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _decode_extra_args(value: object) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return shlex.split(value)
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item)]
+    raise LisaException(
+        "OpenVMM extra_args must be a string or list of strings, "
+        f"not '{type(value).__name__}'"
+    )
 
 
 @dataclass_json()
@@ -79,6 +95,7 @@ class OpenVmmSerialSchema:
 @dataclass
 class OpenVmmNetworkSchema:
     mode: str = OPENVMM_NETWORK_MODE_USER
+    connection_mode: str = OPENVMM_CONNECTION_MODE_FORWARDED_PORT
     address_mode: str = OPENVMM_ADDRESS_MODE_DISCOVER
     tap_name: str = ""
     bridge_name: str = ""
@@ -140,6 +157,15 @@ class OpenVmmNetworkSchema:
             self._validate_interface_name("bridge_name", self.bridge_name)
 
     def __post_init__(self) -> None:
+        if self.connection_mode not in [
+            OPENVMM_CONNECTION_MODE_FORWARDED_PORT,
+            OPENVMM_CONNECTION_MODE_HOST_PROXY,
+        ]:
+            raise LisaException(
+                f"connection_mode '{self.connection_mode}' is not supported. "
+                f"Supported values: {OPENVMM_CONNECTION_MODE_FORWARDED_PORT}, "
+                f"{OPENVMM_CONNECTION_MODE_HOST_PROXY}"
+            )
         if self.mode not in [
             OPENVMM_NETWORK_MODE_USER,
             OPENVMM_NETWORK_MODE_TAP,
@@ -162,7 +188,14 @@ class OpenVmmNetworkSchema:
                 f"{OPENVMM_ADDRESS_MODE_STATIC}"
             )
 
-        if self.forwarded_port:
+        if self.connection_mode == OPENVMM_CONNECTION_MODE_HOST_PROXY:
+            if self.mode != OPENVMM_NETWORK_MODE_TAP:
+                raise LisaException(
+                    "host_proxy connection_mode is supported only with tap networking"
+                )
+            self.forward_ssh_port = False
+            self.forwarded_port = 0
+        elif self.forwarded_port:
             self.forward_ssh_port = True
 
         if self.forward_ssh_port:
@@ -225,7 +258,10 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     openvmm_binary: str = "/usr/local/bin/openvmm"
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)
-    extra_args: List[str] = field(default_factory=list)
+    extra_args: List[str] = field(
+        default_factory=list,
+        metadata=schema.field_metadata(decoder=_decode_extra_args),
+    )
 
     def __post_init__(self) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)

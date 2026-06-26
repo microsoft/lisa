@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Type, cast
 from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.tools import Cargo, Git, Ln
+from lisa.tools import Cargo, Git, Ln, Rm
 from lisa.tools.openvmm import is_missing_command_output
 from lisa.util import LisaException, UnsupportedDistroException, subclasses
 from lisa.util.logger import Logger
@@ -132,8 +132,10 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             ),
         )
         self._node.execute(
-            f"{shlex.quote(rustup_bin)} component add rust-src --toolchain "
-            f"{shlex.quote(toolchain)}",
+            cargo.wrap_with_rustup_lock(
+                f"{shlex.quote(rustup_bin)} component add rust-src --toolchain "
+                f"{shlex.quote(toolchain)}"
+            ),
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -142,12 +144,18 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
         )
 
         git = self._node.tools[Git]
+        source_dir_name = "openvmm"
+        code_path = self._node.get_pure_path(str(self._node.working_path)).joinpath(
+            source_dir_name
+        )
+        self._log.debug(f"Refreshing OpenVMM source checkout at '{code_path}'")
+        self._node.tools[Rm].remove_directory(self._node.get_str_path(code_path))
         code_path = git.clone(
             url=runbook.repo,
             cwd=self._node.working_path,
+            dir_name=source_dir_name,
             ref=runbook.ref,
             auth_token=runbook.auth_token,
-            fail_on_exists=False,
         )
         openvmm_commit = git.get_current_commit_hash(code_path).strip()
         self._log.info(
@@ -155,9 +163,9 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             f"requested ref: {runbook.ref or '<default>'}, HEAD: {openvmm_commit}"
         )
 
-        cargo_command = shlex.quote(cargo.command)
+        cargo_command = self._resolve_cargo_command(cargo.command)
         cargo_bin_dir = self._node.get_str_path(
-            self._node.get_pure_path(cargo.command).parent
+            self._node.get_pure_path(cargo_command).parent
         )
         cargo_env = {
             "OPENSSL_NO_VENDOR": "1",
@@ -166,7 +174,7 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             "RUSTDOC": f"{cargo_bin_dir}/rustdoc",
         }
         restore_packages_cmd = (
-            f"{cargo_command} xflowey restore-packages --no-compat-igvm"
+            f"{shlex.quote(cargo_command)} xflowey restore-packages --no-compat-igvm"
         )
         restore_result = self._node.execute(
             restore_packages_cmd,
@@ -190,8 +198,10 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
                 ),
             )
             self._node.execute(
-                f"{shlex.quote(rustup_bin)} component add rust-src --toolchain "
-                f"{shlex.quote(toolchain)}",
+                cargo.wrap_with_rustup_lock(
+                    f"{shlex.quote(rustup_bin)} component add rust-src --toolchain "
+                    f"{shlex.quote(toolchain)}"
+                ),
                 shell=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
@@ -210,7 +220,7 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
                 ),
             )
 
-        build_cmd = f"{cargo_command} build --release"
+        build_cmd = f"{shlex.quote(cargo_command)} build --release"
         if runbook.features:
             feature_args = ",".join(runbook.features)
             build_cmd = f"{build_cmd} --features {shlex.quote(feature_args)}"
@@ -262,3 +272,17 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
         )
         self._create_symlink_to_usr_bin(runbook.install_path)
         return self.get_version(runbook.install_path)
+
+    def _resolve_cargo_command(self, cargo_command: str) -> str:
+        if cargo_command and self._node.get_pure_path(cargo_command).is_absolute():
+            return cargo_command
+
+        result = self._node.execute(
+            f"command -v {shlex.quote(cargo_command or 'cargo')}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to resolve cargo command path for OpenVMM build"
+            ),
+        )
+        return result.stdout.strip()

@@ -6,6 +6,7 @@ from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
+from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 from lisa.util import LisaException
 
 from .schema import OpenVmmNetworkSchema
@@ -21,6 +22,21 @@ def _new_str_list() -> List[str]:
 
 def _new_str_dict() -> Dict[str, str]:
     return {}
+
+
+@dataclass
+class DeviceAddressSchema:
+    domain: str = "0000"
+    bus: str = ""
+    slot: str = ""
+    function: str = "0"
+
+
+@dataclass
+class DevicePassthroughContext:
+    pool_type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
+    device_list: List[DeviceAddressSchema] = field(default_factory=list)
+    managed: str = ""
 
 
 @dataclass
@@ -51,6 +67,7 @@ class NodeContext:
     effective_network: Optional[OpenVmmNetworkSchema] = None
     process_id: str = ""
     command_line: str = ""
+    passthrough_devices: List[DevicePassthroughContext] = field(default_factory=list)
 
 
 @dataclass
