@@ -21,7 +21,7 @@ from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
-from lisa.tools import Dnsmasq, Ip, Kill, Mkdir, Modprobe, OpenVmm, Rm
+from lisa.tools import Dnsmasq, Echo, Ip, Kill, Ls, Lspci, Mkdir, Modprobe, OpenVmm, Rm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.util import (
     LisaException,
@@ -77,7 +77,7 @@ def _is_raw_disk_image(disk_img_path: str) -> bool:
     return Path(disk_img_path).suffix.lower() == ".raw"
 
 
-def _get_pci_address_str(device: DeviceAddressSchema) -> str:
+def _get_pci_address_str(device: Any) -> str:
     if not device.domain or not device.bus or not device.slot or not device.function:
         raise LisaException(
             "OpenVMM passthrough device has an incomplete PCI address. "
@@ -482,16 +482,164 @@ class OpenVmmController:
                                 bus=device.bus,
                                 slot=device.slot,
                                 function=device.function,
+                                original_driver=self._get_pci_device_driver(device),
                             )
                             for device in devices
                         ],
                     )
                     node_context.passthrough_devices.append(device_context)
+
+                self._bind_device_passthrough_to_vfio(node_context)
             except (LisaException, ResourceAwaitableException):
                 if node_context.passthrough_devices:
+                    try:
+                        self._restore_device_passthrough_drivers(node_context)
+                    except Exception as restore_error:
+                        self._log.debug(
+                            "failed to restore OpenVMM passthrough drivers after "
+                            f"allocation failure: {restore_error}"
+                        )
                     device_pool.release_devices(cast(Any, node_context))
                     node_context.passthrough_devices.clear()
                 raise
+
+    def _bind_device_passthrough_to_vfio(self, node_context: NodeContext) -> None:
+        managed_contexts = [
+            context
+            for context in node_context.passthrough_devices
+            if context.managed.lower() != "no"
+        ]
+        if not managed_contexts:
+            return
+
+        self.host_node.tools[Modprobe].load("vfio-pci")
+        for passthrough_context in managed_contexts:
+            for device in passthrough_context.device_list:
+                self._bind_pci_device_to_vfio(device)
+
+    def _bind_pci_device_to_vfio(self, device: DeviceAddressSchema) -> None:
+        bdf = _get_pci_address_str(device)
+        current_driver = self._get_pci_device_driver(device)
+        if not device.original_driver:
+            device.original_driver = current_driver
+        if current_driver == "vfio-pci":
+            self._verify_vfio_group_device_exists(device)
+            return
+
+        device_path = f"/sys/bus/pci/devices/{bdf}"
+        driver_override_path = f"{device_path}/driver_override"
+        if not self.host_node.tools[Ls].path_exists(driver_override_path, sudo=True):
+            raise LisaException(
+                "OpenVMM passthrough requires PCI driver_override support, but "
+                f"'{driver_override_path}' does not exist for device '{bdf}'."
+            )
+
+        self._log.debug(
+            f"Binding OpenVMM passthrough device '{bdf}' from driver "
+            f"'{current_driver or '<none>'}' to vfio-pci"
+        )
+        self._write_sysfs_value("vfio-pci", driver_override_path)
+        try:
+            if current_driver:
+                self._write_sysfs_value(bdf, f"{device_path}/driver/unbind")
+            self._write_sysfs_value(bdf, "/sys/bus/pci/drivers/vfio-pci/bind")
+        finally:
+            self._write_sysfs_value("", driver_override_path, ignore_error=True)
+
+        rebound_driver = self._get_pci_device_driver(device)
+        if rebound_driver != "vfio-pci":
+            raise LisaException(
+                f"failed to bind OpenVMM passthrough device '{bdf}' to vfio-pci. "
+                f"Current driver: '{rebound_driver or '<none>'}'."
+            )
+        self._verify_vfio_group_device_exists(device)
+
+    def _restore_device_passthrough_drivers(self, node_context: NodeContext) -> None:
+        for passthrough_context in node_context.passthrough_devices:
+            if passthrough_context.managed.lower() == "no":
+                continue
+            for device in passthrough_context.device_list:
+                self._restore_pci_device_driver(device)
+
+    def _restore_pci_device_driver(self, device: DeviceAddressSchema) -> None:
+        original_driver = device.original_driver
+        if not original_driver or original_driver == "vfio-pci":
+            return
+
+        bdf = _get_pci_address_str(device)
+        current_driver = self._get_pci_device_driver(device)
+        if current_driver == original_driver:
+            device.original_driver = ""
+            return
+
+        driver_override_path = f"/sys/bus/pci/devices/{bdf}/driver_override"
+        if self.host_node.tools[Ls].path_exists(driver_override_path, sudo=True):
+            self._write_sysfs_value(original_driver, driver_override_path)
+
+        original_bind_path = f"/sys/bus/pci/drivers/{original_driver}/bind"
+        if not self.host_node.tools[Ls].path_exists(original_bind_path, sudo=True):
+            self.host_node.tools[Modprobe].load(original_driver)
+
+        self._log.debug(
+            f"Restoring OpenVMM passthrough device '{bdf}' to driver "
+            f"'{original_driver}'"
+        )
+        try:
+            if current_driver:
+                self._write_sysfs_value(
+                    bdf, f"/sys/bus/pci/devices/{bdf}/driver/unbind"
+                )
+            self._write_sysfs_value(bdf, original_bind_path)
+        finally:
+            if self.host_node.tools[Ls].path_exists(driver_override_path, sudo=True):
+                self._write_sysfs_value("", driver_override_path, ignore_error=True)
+
+        device.original_driver = ""
+
+    def _get_pci_device_driver(self, device: DeviceAddressSchema) -> str:
+        bdf = _get_pci_address_str(device)
+        return self.host_node.tools[Lspci].get_used_module(bdf)
+
+    def _verify_vfio_group_device_exists(self, device: DeviceAddressSchema) -> None:
+        bdf = _get_pci_address_str(device)
+        group_path = f"/sys/bus/pci/devices/{bdf}/iommu_group"
+        result = self.host_node.execute(
+            f"basename $(readlink -f {shlex.quote(group_path)})",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to resolve IOMMU group for OpenVMM passthrough device "
+                f"'{bdf}'"
+            ),
+        )
+        group_id = result.stdout.strip()
+        vfio_group_path = f"/dev/vfio/{group_id}"
+        if not self.host_node.tools[Ls].path_exists(vfio_group_path, sudo=True):
+            raise LisaException(
+                f"OpenVMM passthrough device '{bdf}' is bound to vfio-pci, but "
+                f"'{vfio_group_path}' was not created. Verify host IOMMU/VFIO "
+                "configuration for this device."
+            )
+
+    def _write_sysfs_value(
+        self,
+        value: str,
+        path: str,
+        ignore_error: bool = False,
+    ) -> None:
+        try:
+            self.host_node.tools[Echo].write_to_file(
+                value,
+                self.host_node.get_pure_path(path),
+                sudo=True,
+                ignore_error=ignore_error,
+            )
+        except AssertionError as identifier:
+            raise LisaException(
+                f"failed to write '{value}' to '{path}' for OpenVMM "
+                f"passthrough: {identifier}"
+            ) from identifier
 
     def release_device_passthrough(self, node: "OpenVmmGuestNode") -> None:
         node_context = get_node_context(node)
@@ -504,10 +652,22 @@ class OpenVmmController:
             return
 
         with host_context.device_pool_lock:
-            cast(LibvirtDevicePool, host_context.device_pool).release_devices(
-                cast(Any, node_context)
-            )
-            node_context.passthrough_devices.clear()
+            restore_error: Optional[Exception] = None
+            try:
+                self._restore_device_passthrough_drivers(node_context)
+            except Exception as identifier:
+                restore_error = identifier
+            finally:
+                cast(LibvirtDevicePool, host_context.device_pool).release_devices(
+                    cast(Any, node_context)
+                )
+                node_context.passthrough_devices.clear()
+
+            if restore_error:
+                raise LisaException(
+                    "failed to restore OpenVMM passthrough device drivers: "
+                    f"{restore_error}"
+                )
 
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)

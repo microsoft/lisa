@@ -30,6 +30,7 @@ class DeviceAddressSchema:
     bus: str = ""
     slot: str = ""
     function: str = "0"
+    original_driver: str = ""
 
 
 @dataclass

@@ -93,9 +93,9 @@ class DevicePassthroughFunctionalTests(TestSuite):
         if platform is None:
             raise SkippedException(
                 "Device passthrough validation requires a LISA platform context. "
-                "Verify the runbook uses cloud-hypervisor or hyperv."
+                "Verify the runbook uses cloud-hypervisor, hyperv, or openvmm."
             )
-        platform_name = platform.type_name()
+        platform_name = self._get_platform_name(platform, node)
         node_context = self._get_passthrough_context(node, platform_name)
 
         if not node_context.passthrough_devices:
@@ -118,7 +118,7 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 )
             for host_device in passthrough_context.device_list:
                 vendor_device_id = self._vendor_device_from_host_device(
-                    platform, host_node, host_device
+                    platform_name, platform, host_node, host_device
                 )
                 key = (
                     pool_type,
@@ -140,6 +140,14 @@ class DevicePassthroughFunctionalTests(TestSuite):
                     f"device(s) but expected {expected_count}. "
                     f"Vendor/Device ID: {ven_id}:{dev_id}"
                 )
+
+    @staticmethod
+    def _get_platform_name(platform: Platform, node: Node) -> str:
+        node_type = node.type_name()
+        if node_type == OPENVMM:
+            return node_type
+
+        return platform.type_name()
 
     @staticmethod
     def _get_passthrough_context(node: Node, platform_name: str) -> Any:
@@ -170,11 +178,11 @@ class DevicePassthroughFunctionalTests(TestSuite):
 
     @staticmethod
     def _vendor_device_from_host_device(
+        platform_name: str,
         platform: Platform,
         host_node: Optional[Node],
         device: "HostDeviceAddressSchema",
     ) -> Dict[str, str]:
-        platform_name = platform.type_name()
         if platform_name == HYPERV:
             hyperv_device = cast("HypervDeviceAddressSchema", device)
             instance_id = hyperv_device.instance_id
