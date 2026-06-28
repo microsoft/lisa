@@ -13,7 +13,7 @@ import tempfile
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Protocol, Type, cast
 
 import yaml
 
@@ -69,6 +69,13 @@ OPENVMM_BRIDGE_NETFILTER_KEYS = [
 ]
 
 
+class PciAddressLike(Protocol):
+    domain: str
+    bus: str
+    slot: str
+    function: str
+
+
 def _get_tap_host_interface_name(network: OpenVmmNetworkSchema) -> str:
     return network.bridge_name or network.tap_name
 
@@ -77,7 +84,7 @@ def _is_raw_disk_image(disk_img_path: str) -> bool:
     return Path(disk_img_path).suffix.lower() == ".raw"
 
 
-def _get_pci_address_str(device: Any) -> str:
+def _get_pci_address_str(device: PciAddressLike) -> str:
     if not device.domain or not device.bus or not device.slot or not device.function:
         raise LisaException(
             "OpenVMM passthrough device has an incomplete PCI address. "
@@ -411,16 +418,25 @@ class OpenVmmController:
 
     def _get_device_passthrough_args(self, node_context: NodeContext) -> List[str]:
         args: List[str] = []
-        port_index = 0
-        for passthrough_context in node_context.passthrough_devices:
-            for device in passthrough_context.device_list:
-                args.extend(
-                    [
-                        "--vfio",
-                        f"host={_get_pci_address_str(device)},port=rp{port_index}",
-                    ]
-                )
-                port_index += 1
+        devices = [
+            device
+            for passthrough_context in node_context.passthrough_devices
+            for device in passthrough_context.device_list
+        ]
+        if not devices:
+            return args
+
+        root_complex_name = "lisa_vfio_rc0"
+        args.extend(["--pcie-root-complex", root_complex_name])
+        for port_index, device in enumerate(devices):
+            port_name = f"lisa_vfio_rp{port_index}"
+            args.extend(["--pcie-root-port", f"{root_complex_name}:{port_name}"])
+            args.extend(
+                [
+                    "--vfio",
+                    f"host={_get_pci_address_str(device)},port={port_name}",
+                ]
+            )
         return args
 
     def _get_device_pool_config_key(self, runbook: OpenVmmGuestNodeSchema) -> str:
@@ -596,7 +612,7 @@ class OpenVmmController:
 
         device.original_driver = ""
 
-    def _get_pci_device_driver(self, device: DeviceAddressSchema) -> str:
+    def _get_pci_device_driver(self, device: PciAddressLike) -> str:
         bdf = _get_pci_address_str(device)
         return self.host_node.tools[Lspci].get_used_module(bdf)
 
