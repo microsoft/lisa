@@ -342,7 +342,7 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
-                f"iptables -C FORWARD -i eth0 -o {bridge_name} "
+                f"iptables -C FORWARD ! -i {bridge_name} -o {bridge_name} "
                 f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
                 for command in commands
             )
@@ -368,7 +368,7 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
-                f"iptables -I FORWARD -i eth0 -o {bridge_name} "
+                f"iptables -I FORWARD ! -i {bridge_name} -o {bridge_name} "
                 f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
                 for command in commands
             )
@@ -394,7 +394,7 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
-                f"iptables -D FORWARD -i eth0 -o {bridge_name} "
+                f"iptables -D FORWARD ! -i {bridge_name} -o {bridge_name} "
                 f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
                 for command in commands
             )
@@ -402,6 +402,12 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertFalse(
             any(
                 f"iptables -C FORWARD -i {bridge_name} -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertFalse(
+            any(
+                f"FORWARD -i eth0 -o {bridge_name} -p tcp -d {guest_address}" in command
                 for command in commands
             )
         )

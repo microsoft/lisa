@@ -1209,16 +1209,15 @@ class OpenVmmController:
         log: Logger,
         timeout: int = OPENVMM_CONNECTION_TIMEOUT,
     ) -> None:
-        command = (
-            "for i in $(seq 1 "
-            f"{timeout}); do "
+        probe_command = (
+            "while true; do "
             "timeout 1 bash -c "
             f"{shlex.quote(f'</dev/tcp/{guest_address}/{guest_port}')} "
             ">/dev/null 2>&1 && exit 0; "
             "sleep 1; "
-            "done; "
-            "exit 1"
+            "done"
         )
+        command = f"timeout {timeout} bash -c " f"{shlex.quote(probe_command)}"
         result = self.host_node.execute(
             command,
             shell=True,
@@ -1703,8 +1702,8 @@ class OpenVmmController:
                 ),
                 (
                     "",
-                    "FORWARD -i "
-                    f"{shlex.quote(forwarding_interface)} -o "
+                    "FORWARD ! -i "
+                    f"{shlex.quote(host_interface)} -o "
                     f"{shlex.quote(host_interface)} "
                     f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT",
                 ),

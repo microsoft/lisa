@@ -11,8 +11,6 @@ from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.tools.curl import Curl
 from lisa.tools.echo import Echo
 from lisa.tools.gcc import Gcc
-from lisa.tools.ln import Ln
-from lisa.tools.rm import Rm
 from lisa.util import LisaException, UnsupportedDistroException
 from lisa.util.process import ExecutableResult
 
@@ -98,20 +96,6 @@ class Cargo(Tool):
                 expected_exit_code=0,
                 expected_exit_code_failure_message="curl fetch failed",
             )
-
-            ln = self.node.tools[Ln]
-            ln.create_link(
-                is_symbolic=True,
-                target=cargo_bin,
-                link="/usr/local/bin/cargo",
-                force=True,
-            )
-            ln.create_link(
-                is_symbolic=True,
-                target=rustup_bin,
-                link="/usr/local/bin/rustup",
-                force=True,
-            )
         else:
             raise UnsupportedDistroException(node_os)
 
@@ -126,15 +110,6 @@ class Cargo(Tool):
         self._command = cargo_bin
         self._exists = None
         is_installed = self._check_exists()
-
-        self.node.tools[Rm].remove_file(
-            "/usr/local/bin/cargo",
-            sudo=True,
-        )
-        self.node.tools[Rm].remove_file(
-            "/usr/local/bin/rustup",
-            sudo=True,
-        )
         return is_installed
 
     def wrap_with_rustup_lock(self, command: str) -> str:
