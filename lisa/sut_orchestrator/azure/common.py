@@ -3016,17 +3016,8 @@ def check_or_create_gallery_image_version(
                 data_disk_images: List[Dict[str, Any]] = []
                 assigned_luns: set[int] = set()
                 for index, data_vhd_path_item in enumerate(data_vhd_paths):
-                    lun = index
-                    raw_path = data_vhd_path_item.get("url")
-                    if not isinstance(raw_path, str) or not raw_path:
-                        continue
-                    data_vhd_path = raw_path
-
-                    raw_lun = data_vhd_path_item.get("lun")
-                    if isinstance(raw_lun, int) and raw_lun >= 0:
-                        lun = raw_lun
-                    elif isinstance(raw_lun, str) and raw_lun.strip().isdigit():
-                        lun = int(raw_lun.strip())
+                    data_vhd_path = data_vhd_path_item["url"]
+                    lun = data_vhd_path_item.get("lun", index)
 
                     if lun in assigned_luns:
                         raise LisaException(

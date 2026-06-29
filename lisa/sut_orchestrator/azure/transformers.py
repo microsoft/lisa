@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 from azure.mgmt.compute.models import GrantAccessData
 from dataclasses_json import dataclass_json
@@ -24,7 +24,6 @@ from lisa.util import (
     get_date_str,
     get_datetime_path,
 )
-from lisa.secret import PATTERN_URL, add_secret
 
 from .common import (
     AZURE_SHARED_RG_NAME,
@@ -494,7 +493,7 @@ class SigTransformerSchema(schema.Transformer):
     #       - data_vhd:
     #           lun: 1
     #           url: "https://.../data1.vhd"
-    vhd: Union[str, Dict[Any, Any]] = field(
+    vhd: Union[str, Dict[str, Any]] = field(
         default="", metadata=field_metadata(required=True)
     )
     # if not specify gallery_resource_group_name, use shared resource group name
@@ -743,49 +742,14 @@ class SharedGalleryImageTransformer(Transformer):
 
     def _resolve_vhd_sources(
         self, runbook: SigTransformerSchema
-    ) -> tuple[str, List[Dict[str, Any]]]:
+    ) -> Tuple[str, List[Dict[str, Any]]]:
         data_vhd_paths: List[Dict[str, Any]] = []
-
-        def _add_data_vhd(url: str, lun: Optional[int] = None) -> None:
-            normalized_url = url.strip()
-            if not normalized_url:
-                return
-            add_secret(normalized_url, PATTERN_URL)
-            item: Dict[str, Any] = {"url": normalized_url}
-            if lun is not None:
-                item["lun"] = lun
-            data_vhd_paths.append(item)
-
-        def _parse_lun(raw_lun: Any) -> Optional[int]:
-            if isinstance(raw_lun, int) and raw_lun >= 0:
-                return raw_lun
-            if isinstance(raw_lun, str):
-                raw_lun = raw_lun.strip()
-                if raw_lun.isdigit():
-                    return int(raw_lun)
-            return None
-
         if isinstance(runbook.vhd, str):
             vhd_path = runbook.vhd
         elif isinstance(runbook.vhd, dict):
             raw_vhd_path = runbook.vhd.get("vhd_path", "")
             vhd_path = raw_vhd_path.strip() if isinstance(raw_vhd_path, str) else ""
-
-            raw_data_vhd_paths = runbook.vhd.get("data_vhd_paths")
-            if isinstance(raw_data_vhd_paths, list):
-                for item in raw_data_vhd_paths:
-                    if not isinstance(item, dict):
-                        continue
-
-                    # Supported format:
-                    #   - data_vhd:
-                    #       lun: 0
-                    #       url: "https://.../data0.vhd"
-                    raw_data_vhd = item.get("data_vhd")
-                    if isinstance(raw_data_vhd, dict):
-                        url = raw_data_vhd.get("url")
-                        if isinstance(url, str) and url.strip():
-                            _add_data_vhd(url, _parse_lun(raw_data_vhd.get("lun")))
+            data_vhd_paths = self._extract_data_vhd_paths(runbook.vhd)
         else:
             raise LisaException(
                 f"unsupported type for transformer vhd: {type(runbook.vhd)}"
@@ -795,6 +759,54 @@ class SharedGalleryImageTransformer(Transformer):
             raise LisaException("vhd or vhd.vhd_path must not be empty.")
 
         return vhd_path, data_vhd_paths
+
+    def _extract_data_vhd_paths(
+        self, vhd_definition: Dict[Any, Any]
+    ) -> List[Dict[str, Any]]:
+        raw_data_vhd_paths = vhd_definition.get("data_vhd_paths")
+        if raw_data_vhd_paths is None:
+            return []
+        assert isinstance(raw_data_vhd_paths, list), (
+            "'data_vhd_paths' must be a list when specified, "
+            f"got: {type(raw_data_vhd_paths)}"
+        )
+
+        data_vhd_paths: List[Dict[str, Any]] = []
+        for index, item in enumerate(raw_data_vhd_paths):
+            assert isinstance(item, dict), (
+                "Each item in 'data_vhd_paths' must be a dict, "
+                f"got: {type(item)} at index {index}"
+            )
+
+            # Supported format:
+            #   - data_vhd:
+            #       lun: 0
+            #       url: "https://.../data0.vhd"
+            data_vhd_paths.append(
+                self._parse_data_vhd_item(item.get("data_vhd"), index)
+            )
+
+        return data_vhd_paths
+
+    def _parse_data_vhd_item(self, raw_data_vhd: Any, index: int) -> Dict[str, Any]:
+        assert isinstance(raw_data_vhd, dict), (
+            "'data_vhd' must be a dict inside 'data_vhd_paths', "
+            f"got: {type(raw_data_vhd)} at index {index}"
+        )
+
+        url = raw_data_vhd.get("url")
+        assert isinstance(url, str), f"invalid data_vhd.url type at index {index}"
+        normalized_url = url.strip()
+        assert normalized_url, f"'data_vhd.url' must not be empty at index {index}"
+
+        item: Dict[str, Any] = {"url": normalized_url}
+        raw_lun = raw_data_vhd.get("lun")
+        assert raw_lun is not None, f"data_vhd.lun must not be None at index {index}"
+        assert (
+            isinstance(raw_lun, int) and raw_lun >= 0
+        ), f"data_vhd.lun must be int >= 0 at index {index}"
+        item["lun"] = raw_lun
+        return item
 
     def _get_image_features(
         self, platform: AzurePlatform, marketplace: str
