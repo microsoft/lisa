@@ -169,7 +169,15 @@ class Makedumpfile(Tool):
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix)
         if isinstance(self.node.os, Redhat) or isinstance(self.node.os, CBLMariner):
+            # On Red Hat / Mariner, makedumpfile is historically bundled in the
+            # kexec-tools package. On newer releases it may be shipped as a
+            # standalone makedumpfile package instead, so fall back to it when
+            # the binary is still missing and the package is available.
             self.node.os.install_packages("kexec-tools")
+            if not self._check_exists() and self.node.os.is_package_in_repo(
+                "makedumpfile"
+            ):
+                self.node.os.install_packages("makedumpfile")
         else:
             self.node.os.install_packages("makedumpfile")
         return self._check_exists()
@@ -234,6 +242,8 @@ class KdumpBase(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
+        # Kdump requires both kexec support and makedumpfile to create the
+        # compressed vmcore during a crash.
         return [Kexec, Makedumpfile]
 
     @property
@@ -510,6 +520,12 @@ class KdumpRedhat(KdumpBase):
     def _install(self) -> bool:
         assert isinstance(self.node.os, Redhat)
         self.node.os.install_packages("kexec-tools")
+        # On newer Redhat-family releases (e.g. RHEL 10 / Fedora-derived), the
+        # kdumpctl command was split out of the kexec-tools package into a
+        # separate kdump-utils package. Install it when kdumpctl is still
+        # missing and the package is available in the repos.
+        if not self._check_exists() and self.node.os.is_package_in_repo("kdump-utils"):
+            self.node.os.install_packages("kdump-utils")
         return self._check_exists()
 
     def _get_crashkernel_cfg_file(self) -> str:
