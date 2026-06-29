@@ -48,6 +48,22 @@ class AzureHookSpec:
         """
         ...
 
+    @hookspec
+    def azure_update_ip_service_tags(
+        self, subscription_id: str, ip_service_tags: Dict[str, str]
+    ) -> None:
+        """
+        Implement it to update ip service tags in-place before deployment.
+
+        Implementations should mutate the passed-in `ip_service_tags` dict (e.g.
+        add/update keys). Rebinding the parameter won't affect the caller.
+
+        Args:
+            subscription_id: current deployment subscription id.
+            ip_service_tags: ip service tags to apply on public IP.
+        """
+        ...
+
 
 class AzureHookSpecDefaultImpl:
     __error_maps: List[Tuple[str, Pattern[str], Any]] = [

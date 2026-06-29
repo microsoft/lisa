@@ -1356,7 +1356,16 @@ class AzurePlatform(Platform):
             availability_copied_fields,
         )
         if not arm_parameters.ip_service_tags:
-            if self._is_byoip_feature_registered():
+            arm_parameters.ip_service_tags = {}
+            plugin_manager.hook.azure_update_ip_service_tags(
+                subscription_id=self.subscription_id,
+                ip_service_tags=arm_parameters.ip_service_tags,
+            )
+
+            if (
+                not arm_parameters.ip_service_tags
+                and self._is_byoip_feature_registered()
+            ):
                 arm_parameters.ip_service_tags = {"FirstPartyUsage": "/SyntheticLoad"}
 
         arm_parameters.virtual_network_resource_group = (
