@@ -118,13 +118,17 @@ class LsVmBus(TestSuite):
                   => Expected channel count = min(num of vCPUs, 8).
                 - New logic (after Linux commit 646f071d315b75e87583de290d333478d42ccde1): # noqa: E501
                   2.1.3 If vCPU count <= 16, expected channel count = num of vCPUs.
-                  2.1.4 If vCPU count > 16, expected channel count =
-                        min(64, max(16, physical core count / 2)).
+                  2.1.4 If vCPU count > 16, two valid formulas exist:
+                        - Pre-646f071d: min(64, max(16, core_count // 2))
+                        - Post-646f071d: min(64, max(16, thread_count // 2))
+                        where thread_count = num_present_cpus (logical CPUs)
+                        and core_count = physical cores.
                   Reference:
                         https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=646f071d315b75e87583de290d333478d42ccde1
                 - Test logic:
-                  The code will first validate against the legacy rule.
-                  If actual channel count does not match, it will then apply the new rule.
+                  The code computes a set of allowed channel counts covering
+                  legacy (min(vCPUs, 8)) and post-646f071d formulas, then
+                  asserts the actual count is in that set.
             2.2 Check expected channel count of each storvsc SCSI device is min (num of
                  vcpu/4, 64).
                 2.2.1 Calculate channel count of each storvsc SCSI device.
@@ -147,9 +151,7 @@ class LsVmBus(TestSuite):
         #  vmbus channels created and associated.
         lscpu_tool = node.tools[Lscpu]
         thread_count = lscpu_tool.get_thread_count()
-        # Each netvsc device should have "the_number_of_vCPUs" channel(s)
-        #  with a cap value of 8.
-        expected_network_channel_count = min(thread_count, 8)
+        core_count = lscpu_tool.get_core_count()
         # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
         #  with a cap value of 64.
         if node.nics.is_mana_device_present():
@@ -162,28 +164,24 @@ class LsVmBus(TestSuite):
                 log.info(
                     f"Device '{vmbus_device.name}' actual channels: {actual_channels}"
                 )
-                # Note: mismatch may occur due to kernel change (commit 646f071d315b).
-                # In that case, validate again using the new logic.
-                if actual_channels != expected_network_channel_count:
-                    if thread_count <= 16:
-                        expected_network_channel_count = thread_count
-                        log.info(
-                            "Applying new logic: expected channels = core_count "
-                            f"({thread_count})"
-                        )
-                    else:
-                        core_count = lscpu_tool.get_core_count()
-                        expected_network_channel_count = min(
-                            64, max(16, core_count // 2)
-                        )
-                        log.info(
-                            "Applying new logic: expected channels = min(64, "
-                            "max(16, physical_core_count // 2)) "
-                            f"= {expected_network_channel_count}"
-                        )
-                assert_that(vmbus_device.channel_vp_map).is_length(
-                    expected_network_channel_count
-                )
+                # Compute all valid channel counts across kernel versions.
+                # Legacy: min(thread_count, 8)
+                # Post-646f071d with vCPU <= 16: thread_count
+                # Post-646f071d with vCPU > 16:
+                #   pre-646f071d formula: min(64, max(16, core_count // 2))
+                #   post-646f071d formula: min(64, max(16, thread_count // 2))
+                allowed_channels = {min(thread_count, 8)}
+                if thread_count <= 16:
+                    allowed_channels.add(thread_count)
+                else:
+                    allowed_channels.add(min(64, max(16, core_count // 2)))
+                    allowed_channels.add(min(64, max(16, thread_count // 2)))
+                log.info(f"Allowed channel counts: {sorted(allowed_channels)}")
+                assert_that(actual_channels).described_as(
+                    f"netvsc channel count {actual_channels} not in allowed "
+                    f"values {sorted(allowed_channels)} "
+                    f"(thread_count={thread_count}, core_count={core_count})"
+                ).is_in(*sorted(allowed_channels))
             if vmbus_device.name == "Synthetic SCSI Controller":
                 if (
                     node.features.is_supported(Disk)
