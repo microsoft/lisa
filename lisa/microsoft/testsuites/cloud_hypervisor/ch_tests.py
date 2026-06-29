@@ -129,13 +129,12 @@ class CloudHypervisorTestSuite(TestSuite):
         # Cloud Hypervisor exposes live migration as integration subtests.
         ch_tests.run_tests(
             result,
-            "integration-live-migration",
+            "integration",
             hypervisor,
             log_path,
             ref,
             only=include_list,
             skip=exclude_list,
-            cli_test_type="integration",
             cli_test_filter="live_migration",
         )
 

@@ -148,22 +148,6 @@ class CloudHypervisorTests(Tool):
     def _escape_nextest_filter_matcher(matcher: str) -> str:
         return matcher.replace("\\", "\\\\").replace(")", "\\)")
 
-    @staticmethod
-    def _quote_bash_arg(arg: str) -> str:
-        if "'" in arg:
-            fail(
-                "Unsupported character (') in argument passed to bash. "
-                "Remove single quotes from filter values before running "
-                "Cloud Hypervisor tests."
-            )
-        escaped = (
-            arg.replace("\\", "\\\\")
-            .replace('"', '\\"')
-            .replace("$", "\\$")
-            .replace("`", "\\`")
-        )
-        return f'"{escaped}"'
-
     def _build_nextest_filterset(
         self,
         base_filter: str,
@@ -192,11 +176,10 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
-        cli_test_type: Optional[str] = None,
         only_test_prefixes: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Prepare subtests and skip arguments."""
-        subtests = self._list_subtests(hypervisor, cli_test_type or test_type)
+        subtests = self._list_subtests(hypervisor, test_type)
         # Store the ordered list for diagnostic purposes
         self._ordered_subtests = subtests.copy()
 
@@ -470,12 +453,9 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
-        cli_test_type: Optional[str] = None,
         only_test_prefixes: Optional[List[str]] = None,
         cli_test_filter: Optional[str] = None,
     ) -> None:
-        cli_test_type = cli_test_type or test_type
-
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
@@ -487,7 +467,6 @@ class CloudHypervisorTests(Tool):
                 hypervisor,
                 only,
                 skip,
-                cli_test_type,
                 only_test_prefixes,
             )
         self._configure_environment_if_needed(hypervisor)
@@ -500,15 +479,14 @@ class CloudHypervisorTests(Tool):
                 only,
                 skip,
             )
-            test_script_args = f"--test-filter {self._quote_bash_arg(nextest_filter)}"
+            test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
             cmd_args = (
-                f"tests --hypervisor {hypervisor} --{cli_test_type} -- "
+                f"tests --hypervisor {hypervisor} --{test_type} -- "
                 f"{test_script_args}"
             )
         else:
             cmd_args = (
-                f"tests --hypervisor {hypervisor} --{cli_test_type} -- -- "
-                f"{skip_args}"
+                f"tests --hypervisor {hypervisor} --{test_type} -- -- " f"{skip_args}"
             )
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
@@ -1073,7 +1051,7 @@ class CloudHypervisorTests(Tool):
 
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
-        full_cmd = f"""bash -lc '
+        script = f"""
 set -o pipefail
 
 # enable core dumps (best-effort)
@@ -1297,7 +1275,8 @@ else
 fi
 
 exit $ec
-'"""
+"""
+        full_cmd = f"bash -lc {shlex.quote(script)}"
 
         # Best-effort install gdb if not available
         try:
@@ -1470,8 +1449,8 @@ exit $ec
         except Exception as e:
             self._log.debug(f"Could not cache VMM version: {e}")
 
-    def _list_subtests(self, hypervisor: str, cli_test_type: str) -> List[str]:
-        cmd_args = f"tests --hypervisor {hypervisor} --{cli_test_type} -- -- --list"
+    def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
+        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- --list"
         # Use enhanced environment variables for consistency
         enhanced_env_vars = self.env_vars.copy()
         enhanced_env_vars.update(
