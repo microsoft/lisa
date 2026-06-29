@@ -214,6 +214,47 @@ class CloudHypervisorTests(Tool):
 
         return {"subtest_set": set(subtests), "skip_args": skip_args}
 
+    def _prepare_filtered_subtests(
+        self,
+        test_type: str,
+        hypervisor: str,
+        cli_test_filter: str,
+        only: Optional[List[str]],
+        skip: Optional[List[str]],
+        only_test_prefixes: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        subtests = self._list_subtests(hypervisor, test_type)
+        self._ordered_subtests = subtests.copy()
+
+        if only_test_prefixes is not None:
+            subtests = [
+                subtest
+                for subtest in subtests
+                if any(subtest.startswith(prefix) for prefix in only_test_prefixes)
+            ]
+
+        filtered_subtests = [
+            subtest for subtest in subtests if cli_test_filter in subtest
+        ]
+        if only is not None:
+            filtered_subtests = [
+                subtest for subtest in filtered_subtests if subtest in only
+            ]
+        if skip is not None:
+            filtered_subtests = [
+                subtest for subtest in filtered_subtests if subtest not in skip
+            ]
+
+        if not filtered_subtests:
+            fail(
+                f"No Cloud Hypervisor {test_type} subtests matched filter "
+                f"'{cli_test_filter}'. Verify the selected Cloud Hypervisor ref "
+                "contains matching tests and review include/exclude filters."
+            )
+
+        self._log.debug(f"Final Subtests list to run: {filtered_subtests}")
+        return {"subtest_set": set(filtered_subtests), "skip_args": ""}
+
     def _configure_environment_if_needed(self, hypervisor: str) -> None:
         """Configure environment specific settings if needed."""
         if isinstance(self.node.os, CBLMariner) and hypervisor == "mshv":
@@ -460,7 +501,14 @@ class CloudHypervisorTests(Tool):
             self.node.tools[Git].checkout(ref, self.repo_root)
 
         if cli_test_filter:
-            subtests: Dict[str, Any] = {"subtest_set": set(), "skip_args": ""}
+            subtests = self._prepare_filtered_subtests(
+                test_type,
+                hypervisor,
+                cli_test_filter,
+                only,
+                skip,
+                only_test_prefixes,
+            )
         else:
             subtests = self._prepare_subtests(
                 test_type,
