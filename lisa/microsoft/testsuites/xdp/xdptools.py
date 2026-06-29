@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from lisa import (
     LisaException,
@@ -11,7 +11,7 @@ from lisa import (
     UnsupportedOperationException,
 )
 from lisa.executable import Tool
-from lisa.operating_system import AlmaLinux, CentOs, Debian, Fedora
+from lisa.operating_system import AlmaLinux, CentOs, Debian, Fedora, Ubuntu
 from lisa.tools import Ethtool, Git, Make
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util import find_groups_in_lines
@@ -33,6 +33,22 @@ def can_install(node: Node) -> bool:
         )
 
     return True
+
+
+# Upstream xdp-tools tests known to fail on Ubuntu 24.04+ (Linux kernel 6.8+).
+# The upstream test harness's promiscuous-mode detection logic is incompatible
+# with the newer kernel behaviour; this is not a LISA, Azure, or driver bug.
+# Re-evaluate this allowlist whenever `_xdp_tools_tag` below is bumped past
+# v1.4.1, as the upstream fix may already be included.
+_KNOWN_UPSTREAM_FAILURES: Set[str] = {
+    "test_promiscuous_selfload",
+    "test_promiscuous_preload",
+}
+
+# `make test` exits with 2 when the build/run succeeds but tests fail.
+# Any other non-zero code indicates a runner failure (timeout, OOM, missing
+# deps, etc.) that must not be silently masked.
+_MAKE_TEST_FAILED_EXIT_CODE = 2
 
 
 class XdpTool(Tool):
@@ -71,11 +87,53 @@ class XdpTool(Tool):
         ):
             if item["result"] not in ["PASS", "SKIPPED"]:
                 abnormal_results[item["name"]] = item["result"]
-        if abnormal_results:
-            raise LisaException(f"found failed tests: {abnormal_results}")
+
+        # Always reject exit codes that don't correspond to a normal
+        # make-test run (success or tests-failed). This guards against
+        # runner crashes, timeouts, or missing dependencies being masked
+        # by the upstream-failure allowlist below.
         result.assert_exit_code(
-            0, "unknown error on xdp tests, please check log for more details."
+            [0, _MAKE_TEST_FAILED_EXIT_CODE],
+            "unknown error on xdp tests, please check log for more details.",
         )
+
+        # The upstream-failure allowlist only applies to the distro/kernel
+        # combinations where these failures are known to be benign.
+        if self._allow_known_upstream_failures():
+            known = {
+                k: v
+                for k, v in abnormal_results.items()
+                if k in _KNOWN_UPSTREAM_FAILURES
+            }
+            unexpected = {
+                k: v
+                for k, v in abnormal_results.items()
+                if k not in _KNOWN_UPSTREAM_FAILURES
+            }
+            if known:
+                self.node.log.warning(
+                    f"ignoring known upstream xdp-tools failures: {known}"
+                )
+        else:
+            unexpected = abnormal_results
+
+        if unexpected:
+            raise LisaException(f"found failed tests: {unexpected}")
+
+    def _allow_known_upstream_failures(self) -> bool:
+        # Limit the allowlist to Ubuntu running kernel 6.8 or newer, which
+        # is the only environment where the upstream issue reproduces.
+        if not isinstance(self.node.os, Ubuntu):
+            return False
+        try:
+            kernel_version = self.node.os.get_kernel_information().version
+        except Exception as ex:  # noqa: BLE001 - defensive: kernel info missing
+            self.node.log.debug(
+                f"could not detect kernel version, "
+                f"disabling xdp-tools allowlist: {ex}"
+            )
+            return False
+        return bool(kernel_version >= "6.8.0")
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
