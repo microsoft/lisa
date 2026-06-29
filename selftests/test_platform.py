@@ -98,7 +98,7 @@ class MockPlatform(Platform):
                 environment.create_node_from_requirement(node_requirement=node_space)
         for node in environment.nodes.list():
             node._is_initialized = True
-            setattr(node, "test_connection", lambda: True)
+            node.test_connection = lambda: True
         self.test_data.deployed_envs.append(environment.name)
         if self._mock_runbook.deployed_status not in [
             EnvironmentStatus.Deployed,
@@ -269,6 +269,7 @@ class PlatformTestCase(TestCase):
             },
         )
         platform = load_platform([runbook])
+        self.addCleanup(plugin_manager.unregister, plugin=platform)
         platform.initialize()
         env = load_environments(generate_env_runbook(local=True))["customized_0"]
 
@@ -288,6 +289,7 @@ class PlatformTestCase(TestCase):
             },
         )
         platform = load_platform([runbook])
+        self.addCleanup(plugin_manager.unregister, plugin=platform)
         platform.initialize()
         env = load_environments(generate_env_runbook(local=True))["customized_0"]
 

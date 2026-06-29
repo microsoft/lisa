@@ -80,7 +80,7 @@ class OpenVmmHostContext:
         default_factory=_new_str_dict
     )
     active_bridge_netfilter_count: int = 0
-    ssh_forwarding_lock: Lock = field(default_factory=RLock)
+    ssh_forwarding_lock: RLock = field(default_factory=RLock)
     artifact_copy_lock: Lock = field(default_factory=Lock)
     artifact_cache: Dict[str, str] = field(default_factory=_new_str_dict)
     device_pool_lock: Lock = field(default_factory=Lock)
