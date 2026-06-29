@@ -982,9 +982,14 @@ class Debian(Linux):
         while timeout > timer.elapsed(False):
             # fix the dpkg, in case it's broken.
             self._node.execute("dpkg --force-all --configure -a", sudo=True)
-            pidof_result = self._node.execute("pidof dpkg dpkg-deb")
+            # Also wait for apt frontends (apt-get/apt/unattended-upgrade),
+            # which hold /var/lib/dpkg/lock-frontend even when no dpkg process
+            # is running (e.g. cloud-init/unattended-upgrades on first boot).
+            pidof_result = self._node.execute(
+                "pidof dpkg dpkg-deb apt-get apt unattended-upgrade"
+            )
             if pidof_result.exit_code == 1:
-                # no dpkg process running, safe to exit and attempt repair.
+                # no dpkg/apt process running, safe to exit and attempt repair.
                 break
             if is_first_time:
                 is_first_time = False
@@ -1163,8 +1168,13 @@ class Debian(Linux):
                 package = Path(package).stem
                 packages[index] = package
         add_args = self._process_extra_package_args(extra_args)
+        # Wait up to `timeout` seconds for the dpkg/apt frontend lock instead of
+        # failing immediately. The lock can be held by a background apt-get,
+        # unattended-upgrades, or apt-daily on first boot, which only releases
+        # the frontend lock when it finishes (no dpkg process may be running).
         command = (
             f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"-o DPkg::Lock::Timeout={timeout} "
             f"-y install {' '.join(packages)}"
         )
         if not signed:
