@@ -345,7 +345,7 @@ class OpenVmmTests(Tool):
         env: Dict[str, str] = {
             "OPENSSL_NO_VENDOR": "1",
             "PATH": f"{path_prefix}:{current_env_path}",
-            "RUST_BACKTRACE": "1",
+            "RUST_BACKTRACE": "full",
             "RUST_LOG": "info",
         }
         if cargo_bin_dir:
