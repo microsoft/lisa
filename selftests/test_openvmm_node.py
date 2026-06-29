@@ -294,10 +294,15 @@ class OpenVmmNodeTestCase(TestCase):
         bridge_name = "ovmbr1"
         guest_address = "10.0.1.2"
         tap_host_cidr = "10.0.1.1/24"
-        execute_result = SimpleNamespace(exit_code=0, stderr="", stdout="0")
+
+        def _execute(command: str, *args: Any, **kwargs: Any) -> Any:
+            if command.startswith("iptables") and " -C " in command:
+                return SimpleNamespace(exit_code=1, stderr="", stdout="")
+            return SimpleNamespace(exit_code=0, stderr="", stdout="0")
+
         host_node = SimpleNamespace(
             is_remote=True,
-            execute=MagicMock(return_value=execute_result),
+            execute=MagicMock(side_effect=_execute),
             tools={Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))},
         )
         controller = OpenVmmController(cast(Any, host_node), MagicMock())
@@ -337,6 +342,39 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
+                f"iptables -C FORWARD -i eth0 -o {bridge_name} "
+                f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD -i eth0 -o {bridge_name} "
+                f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
                 f"iptables -D FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
                 for command in commands
             )
@@ -351,6 +389,13 @@ class OpenVmmNodeTestCase(TestCase):
             any(
                 f"iptables -D FORWARD ! -i eth0 -o {bridge_name} "
                 "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD -i eth0 -o {bridge_name} "
+                f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
                 for command in commands
             )
         )

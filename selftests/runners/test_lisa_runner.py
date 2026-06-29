@@ -813,7 +813,7 @@ class RunnerTestCase(TestCase):
         )
         # compare it's begin with
         actual_messages = [
-            test_results[index].message[0 : len(expected)]
+            test_results[index].message[: len(expected)]
             for index, expected in enumerate(expected_message)
         ]
         self.assertListEqual(

@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from threading import Lock
+from threading import Lock, RLock
 from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
@@ -59,6 +59,7 @@ class NodeContext:
     forwarded_port: int = 0
     forwarding_enabled: bool = False
     forwarding_interface: str = ""
+    forwarding_rules_added: List[str] = field(default_factory=_new_str_list)
     tap_created: bool = False
     tap_bridge_created: bool = False
     tap_bridge_netfilter_disabled: bool = False
@@ -79,6 +80,7 @@ class OpenVmmHostContext:
         default_factory=_new_str_dict
     )
     active_bridge_netfilter_count: int = 0
+    ssh_forwarding_lock: Lock = field(default_factory=RLock)
     artifact_copy_lock: Lock = field(default_factory=Lock)
     artifact_cache: Dict[str, str] = field(default_factory=_new_str_dict)
     device_pool_lock: Lock = field(default_factory=Lock)

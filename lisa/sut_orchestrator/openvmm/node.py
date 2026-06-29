@@ -13,14 +13,13 @@ import tempfile
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
-from typing import Any, Dict, List, Optional, Protocol, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Type, cast
 
 import yaml
 
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
-from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
 from lisa.tools import Dnsmasq, Echo, Ip, Kill, Ls, Lspci, Mkdir, Modprobe, OpenVmm, Rm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.util import (
@@ -33,6 +32,9 @@ from lisa.util import (
 )
 from lisa.util.logger import Logger
 from lisa.util.shell import wait_tcp_port_ready
+
+if TYPE_CHECKING:
+    from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
 
 from .. import OPENVMM
 from .context import (
@@ -449,6 +451,10 @@ class OpenVmmController:
         host_context = get_host_context(self.host_node)
         config_key = self._get_device_pool_config_key(runbook)
         if host_context.device_pool is None:
+            from lisa.sut_orchestrator.libvirt.libvirt_device_pool import (
+                LibvirtDevicePool,
+            )
+
             if not runbook.device_pools:
                 raise LisaException(
                     "OpenVMM device_passthrough requires device_pools on at "
@@ -465,7 +471,7 @@ class OpenVmmController:
                 "consistently for each guest that requests passthrough devices."
             )
 
-        return cast(LibvirtDevicePool, host_context.device_pool)
+        return cast("LibvirtDevicePool", host_context.device_pool)
 
     def set_device_passthrough_node_context(
         self,
@@ -674,9 +680,7 @@ class OpenVmmController:
             except Exception as identifier:
                 restore_error = identifier
             finally:
-                cast(LibvirtDevicePool, host_context.device_pool).release_devices(
-                    cast(Any, node_context)
-                )
+                host_context.device_pool.release_devices(node_context)
                 node_context.passthrough_devices.clear()
 
             if restore_error:
@@ -1629,128 +1633,102 @@ class OpenVmmController:
 
     def _enable_ssh_forwarding(
         self,
-        node_context: Any,
+        node_context: NodeContext,
         guest_address: str,
         network: OpenVmmNetworkSchema,
     ) -> None:
         host_context = get_host_context(self.host_node)
-        forwarding_interface, _ = self.host_node.tools[Ip].get_default_route_info()
-        host_interface = _get_tap_host_interface_name(network)
-        host_network = ipaddress.ip_interface(network.tap_host_cidr).network
-        guest_address = shlex.quote(guest_address)
-        guest_port = network.ssh_port
-        forwarded_port = network.forwarded_port
+        with host_context.ssh_forwarding_lock:
+            forwarding_interface, _ = self.host_node.tools[Ip].get_default_route_info()
+            host_interface = _get_tap_host_interface_name(network)
+            host_network = ipaddress.ip_interface(network.tap_host_cidr).network
+            guest_address = shlex.quote(guest_address)
+            guest_port = network.ssh_port
+            forwarded_port = network.forwarded_port
 
-        if host_context.active_forwarding_count == 0:
-            ip_forward_result = self.host_node.execute(
-                "sysctl -n net.ipv4.ip_forward",
-                shell=True,
-                sudo=True,
-                no_info_log=True,
-                no_error_log=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "failed to read current host ip_forward state for OpenVMM "
-                    "SSH forwarding"
-                ),
-            )
-            original_ip_forward_value = ip_forward_result.stdout.strip()
-            if original_ip_forward_value not in ["0", "1"]:
-                raise LisaException(
-                    "failed to parse current host ip_forward state for "
-                    "OpenVMM SSH forwarding. "
-                    f"stdout: {ip_forward_result.stdout.strip() or '<empty>'}. "
-                    f"stderr: {ip_forward_result.stderr.strip() or '<empty>'}"
+            if host_context.active_forwarding_count == 0:
+                ip_forward_result = self.host_node.execute(
+                    "sysctl -n net.ipv4.ip_forward",
+                    shell=True,
+                    sudo=True,
+                    no_info_log=True,
+                    no_error_log=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to read current host ip_forward state for OpenVMM "
+                        "SSH forwarding"
+                    ),
                 )
-            host_context.original_ip_forward_value = original_ip_forward_value
+                original_ip_forward_value = ip_forward_result.stdout.strip()
+                if original_ip_forward_value not in ["0", "1"]:
+                    raise LisaException(
+                        "failed to parse current host ip_forward state for "
+                        "OpenVMM SSH forwarding. "
+                        f"stdout: {ip_forward_result.stdout.strip() or '<empty>'}. "
+                        f"stderr: {ip_forward_result.stderr.strip() or '<empty>'}"
+                    )
+                host_context.original_ip_forward_value = original_ip_forward_value
 
-        host_context.active_forwarding_count += 1
-        node_context.forwarding_interface = forwarding_interface
-        node_context.forwarded_port = forwarded_port
-        node_context.forwarding_enabled = True
+            host_context.active_forwarding_count += 1
+            node_context.forwarding_interface = forwarding_interface
+            node_context.forwarded_port = forwarded_port
+            node_context.forwarding_enabled = True
 
-        commands = [
-            "sysctl -w net.ipv4.ip_forward=1",
-            (
-                "iptables -C FORWARD -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} "
-                "-j ACCEPT "
-                "|| "
-                "iptables -I FORWARD -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} "
-                "-j ACCEPT"
-            ),
-            (
-                "iptables -C FORWARD -i "
-                f"{shlex.quote(host_interface)} ! -o "
-                f"{shlex.quote(forwarding_interface)} "
-                "-j ACCEPT "
-                "|| "
-                "iptables -I FORWARD -i "
-                f"{shlex.quote(host_interface)} ! -o "
-                f"{shlex.quote(forwarding_interface)} "
-                "-j ACCEPT"
-            ),
-            (
-                "iptables -C FORWARD -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT "
-                "|| "
-                "iptables -I FORWARD -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT"
-            ),
-            (
-                "iptables -C FORWARD ! -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT "
-                "|| "
-                "iptables -I FORWARD ! -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT"
-            ),
-            (
-                "iptables -C FORWARD ! -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(host_interface)} "
-                f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT "
-                "|| "
-                "iptables -I FORWARD ! -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(host_interface)} "
-                f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT"
-            ),
-            (
-                "iptables -t nat -C POSTROUTING -s "
-                f"{shlex.quote(str(host_network))} "
-                f"-o {shlex.quote(forwarding_interface)} "
-                "-j MASQUERADE || "
-                "iptables -t nat -I POSTROUTING -s "
-                f"{shlex.quote(str(host_network))} "
-                f"-o {shlex.quote(forwarding_interface)} "
-                "-j MASQUERADE"
-            ),
-            (
-                "iptables -t nat -C PREROUTING -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination "
-                f"{guest_address}:{guest_port} "
-                "|| "
-                "iptables -t nat -I PREROUTING -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination "
-                f"{guest_address}:{guest_port}"
-            ),
-            (
-                "iptables -t nat -C OUTPUT -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination "
-                f"{guest_address}:{guest_port} "
-                "|| "
-                "iptables -t nat -I OUTPUT -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination "
-                f"{guest_address}:{guest_port}"
-            ),
-        ]
-        try:
-            for command in commands:
+            rules = [
+                (
+                    "",
+                    "FORWARD -i "
+                    f"{shlex.quote(host_interface)} -o "
+                    f"{shlex.quote(forwarding_interface)} -j ACCEPT",
+                ),
+                (
+                    "",
+                    "FORWARD -i "
+                    f"{shlex.quote(host_interface)} ! -o "
+                    f"{shlex.quote(forwarding_interface)} -j ACCEPT",
+                ),
+                (
+                    "",
+                    "FORWARD -i "
+                    f"{shlex.quote(forwarding_interface)} -o "
+                    f"{shlex.quote(host_interface)} -m state --state "
+                    "RELATED,ESTABLISHED -j ACCEPT",
+                ),
+                (
+                    "",
+                    "FORWARD ! -i "
+                    f"{shlex.quote(forwarding_interface)} -o "
+                    f"{shlex.quote(host_interface)} -m state --state "
+                    "RELATED,ESTABLISHED -j ACCEPT",
+                ),
+                (
+                    "",
+                    "FORWARD -i "
+                    f"{shlex.quote(forwarding_interface)} -o "
+                    f"{shlex.quote(host_interface)} "
+                    f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT",
+                ),
+                (
+                    "-t nat",
+                    "POSTROUTING -s "
+                    f"{shlex.quote(str(host_network))} -o "
+                    f"{shlex.quote(forwarding_interface)} -j MASQUERADE",
+                ),
+                (
+                    "-t nat",
+                    f"PREROUTING -p tcp --dport {forwarded_port} "
+                    f"-j DNAT --to-destination {guest_address}:{guest_port}",
+                ),
+                (
+                    "-t nat",
+                    f"OUTPUT -p tcp --dport {forwarded_port} "
+                    f"-j DNAT --to-destination {guest_address}:{guest_port}",
+                ),
+            ]
+
+            try:
                 self.host_node.execute(
-                    command,
+                    "sysctl -w net.ipv4.ip_forward=1",
                     shell=True,
                     sudo=True,
                     expected_exit_code=0,
@@ -1758,15 +1736,48 @@ class OpenVmmController:
                         "failed to configure OpenVMM SSH forwarding"
                     ),
                 )
-        except Exception:
-            try:
-                self._disable_ssh_forwarding_context(node_context, network)
-            except Exception as cleanup_identifier:
-                self._log.debug(
-                    "failed to roll back OpenVMM SSH forwarding after setup "
-                    f"error: {cleanup_identifier}"
-                )
-            raise
+                for table_args, rule in rules:
+                    self._ensure_ssh_forwarding_rule(node_context, table_args, rule)
+            except Exception:
+                try:
+                    self._disable_ssh_forwarding_context(node_context, network)
+                except Exception as cleanup_identifier:
+                    self._log.debug(
+                        "failed to roll back OpenVMM SSH forwarding after setup "
+                        f"error: {cleanup_identifier}"
+                    )
+                raise
+
+    def _ensure_ssh_forwarding_rule(
+        self,
+        node_context: NodeContext,
+        table_args: str,
+        rule: str,
+    ) -> None:
+        table_prefix = f"{table_args} " if table_args else ""
+        check_command = f"iptables {table_prefix}-C {rule}"
+        insert_command = f"iptables {table_prefix}-I {rule}"
+        result = self.host_node.execute(
+            check_command,
+            shell=True,
+            sudo=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code == 0:
+            return
+
+        self.host_node.execute(
+            insert_command,
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to configure OpenVMM SSH forwarding"
+            ),
+        )
+        node_context.forwarding_rules_added.append(f"{table_args}|{rule}")
 
     def _disable_ssh_forwarding(self, node: Node) -> None:
         node_context = get_node_context(node)
@@ -1777,7 +1788,7 @@ class OpenVmmController:
 
     def _disable_ssh_forwarding_context(
         self,
-        node_context: Any,
+        node_context: NodeContext,
         network: OpenVmmNetworkSchema,
     ) -> None:
         if (
@@ -1788,90 +1799,48 @@ class OpenVmmController:
             return
 
         host_context = get_host_context(self.host_node)
-        guest_address = shlex.quote(node_context.guest_address)
-        guest_port = node_context.ssh_port
-        forwarded_port = node_context.forwarded_port
-        forwarding_interface = node_context.forwarding_interface
-        host_interface = _get_tap_host_interface_name(network)
-        host_network = ipaddress.ip_interface(network.tap_host_cidr).network
-        commands = [
-            (
-                "iptables -D FORWARD -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(forwarding_interface)} "
-                "-j ACCEPT || true"
-            ),
-            (
-                "iptables -D FORWARD -i "
-                f"{shlex.quote(host_interface)} ! -o "
-                f"{shlex.quote(forwarding_interface)} "
-                "-j ACCEPT || true"
-            ),
-            (
-                "iptables -D FORWARD -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
-            ),
-            (
-                "iptables -D FORWARD ! -i "
-                f"{shlex.quote(forwarding_interface)} -o {shlex.quote(host_interface)} "
-                "-m state --state RELATED,ESTABLISHED -j ACCEPT || true"
-            ),
-            (
-                "iptables -D FORWARD ! -i "
-                f"{shlex.quote(host_interface)} -o {shlex.quote(host_interface)} "
-                f"-p tcp -d {guest_address} --dport {guest_port} -j ACCEPT || true"
-            ),
-            (
-                "iptables -t nat -D PREROUTING -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination "
-                f"{guest_address}:{guest_port} || true"
-            ),
-            (
-                "iptables -t nat -D OUTPUT -p tcp --dport "
-                f"{forwarded_port} -j DNAT --to-destination "
-                f"{guest_address}:{guest_port} || true"
-            ),
-            (
-                "iptables -t nat -D POSTROUTING -s "
-                f"{shlex.quote(str(host_network))} "
-                f"-o {shlex.quote(forwarding_interface)} "
-                "-j MASQUERADE || true"
-            ),
-        ]
-        for command in commands:
-            self.host_node.execute(
-                command,
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "failed to remove OpenVMM SSH forwarding"
-                ),
-            )
+        with host_context.ssh_forwarding_lock:
+            for rule_key in reversed(node_context.forwarding_rules_added):
+                table_args, rule = rule_key.split("|", 1)
+                table_prefix = f"{table_args} " if table_args else ""
+                command = f"iptables {table_prefix}-D {rule} || true"
+                self.host_node.execute(
+                    command,
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to remove OpenVMM SSH forwarding"
+                    ),
+                )
 
-        if node_context.forwarding_enabled and host_context.active_forwarding_count > 0:
-            host_context.active_forwarding_count -= 1
+            if (
+                node_context.forwarding_enabled
+                and host_context.active_forwarding_count > 0
+            ):
+                host_context.active_forwarding_count -= 1
 
-        if (
-            host_context.active_forwarding_count == 0
-            and host_context.original_ip_forward_value
-        ):
-            self.host_node.execute(
-                "sysctl -w net.ipv4.ip_forward="
-                f"{shlex.quote(host_context.original_ip_forward_value)}",
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "failed to restore host ip_forward state after OpenVMM "
-                    "SSH forwarding"
-                ),
-            )
-            host_context.original_ip_forward_value = ""
+            if (
+                host_context.active_forwarding_count == 0
+                and host_context.original_ip_forward_value
+            ):
+                self.host_node.execute(
+                    "sysctl -w net.ipv4.ip_forward="
+                    f"{shlex.quote(host_context.original_ip_forward_value)}",
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to restore host ip_forward state after OpenVMM "
+                        "SSH forwarding"
+                    ),
+                )
+                host_context.original_ip_forward_value = ""
 
-        node_context.forwarded_port = 0
-        node_context.forwarding_enabled = False
-        node_context.forwarding_interface = ""
+            node_context.forwarded_port = 0
+            node_context.forwarding_enabled = False
+            node_context.forwarding_interface = ""
+            node_context.forwarding_rules_added.clear()
 
     def _wait_for_process_exit(self, process_id: str, timeout: int = 60) -> None:
         try:
@@ -2037,6 +2006,7 @@ class OpenVmmGuestNode(RemoteNode):
         return OpenVmmGuestNodeSchema
 
     def cleanup(self) -> None:
+        passthrough_release_error: Optional[Exception] = None
         try:
             self._openvmm_controller.stop_node(self, wait=False)
         except Exception as identifier:
@@ -2044,7 +2014,8 @@ class OpenVmmGuestNode(RemoteNode):
         try:
             self._openvmm_controller.release_device_passthrough(self)
         except Exception as identifier:
-            self.log.debug(
+            passthrough_release_error = identifier
+            self.log.warning(
                 "failed to release OpenVMM passthrough devices during cleanup: "
                 f"{identifier}"
             )
@@ -2055,6 +2026,12 @@ class OpenVmmGuestNode(RemoteNode):
                 f"failed to clean OpenVMM guest artifacts during cleanup: {identifier}"
             )
         super().cleanup()
+        if passthrough_release_error:
+            raise LisaException(
+                "failed to release OpenVMM passthrough devices during cleanup. "
+                "Verify host PCI devices were restored before reusing this host: "
+                f"{passthrough_release_error}"
+            )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._provision()
