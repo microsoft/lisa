@@ -1034,7 +1034,11 @@ class Debian(Linux):
         timer = create_timer()
         while timeout > timer.elapsed(False):
             # fix the dpkg, in case it's broken.
-            self._node.execute("dpkg --force-all --configure -a", sudo=True)
+            self._node.execute(
+                "NEEDRESTART_SUSPEND=1 dpkg --force-all --configure -a",
+                sudo=True,
+                shell=True,
+            )
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
             dpkg_running = pidof_result.exit_code == 0
             lock_held = self._is_package_lock_held()
@@ -1085,8 +1089,9 @@ class Debian(Linux):
                 # After removing reinst-required packages, re-run configure
                 # to bring dpkg to a clean state.
                 final_dpkg_result = self._node.execute(
-                    "dpkg --force-all --configure -a",
+                    "NEEDRESTART_SUSPEND=1 dpkg --force-all --configure -a",
                     sudo=True,
+                    shell=True,
                 )
                 self._log.debug(
                     "final dpkg configure result after repair: "
@@ -1223,7 +1228,8 @@ class Debian(Linux):
                 packages[index] = package
         add_args = self._process_extra_package_args(extra_args)
         command = (
-            f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1 "
+            f"apt-get {add_args} "
             f"-y install {' '.join(packages)}"
         )
         if not signed:
@@ -1257,7 +1263,8 @@ class Debian(Linux):
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
         command = (
-            f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1 "
+            f"apt-get {add_args} "
             f"-y remove {' '.join(packages)}"
         )
         if not signed:
