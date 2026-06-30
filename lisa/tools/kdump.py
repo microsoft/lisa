@@ -1284,7 +1284,12 @@ class KdumpCheck(Tool):
             # After trigger kdump, the VM will reboot. We need to close the node
             self.node.close()
             saved_dumpfile_size = 0
-            max_tries = 20
+            # Avoid fixed 100s thresholds: large-memory machines can legitimately
+            # make progress slower while vmcore is being written.
+            no_file_timeout_sec = max(100, min(self.timeout_of_dump_crash // 4, 300))
+            no_growth_timeout_sec = max(100, min(self.timeout_of_dump_crash // 3, 600))
+            no_file_max_tries = math.ceil(no_file_timeout_sec / 5)
+            no_growth_max_tries = math.ceil(no_growth_timeout_sec / 5)
             check_incomplete_file_tries = 0
             check_dump_file_tries = 0
             # Check in this loop until the dump file is generated or incomplete file
@@ -1309,13 +1314,14 @@ class KdumpCheck(Tool):
                     # Hit exception, break this loop and re-try to connect the system
                     break
                 if incomplete_file:
-                    # If the incomplete file doesn't grow in 100s, then raise exception
+                    # If the incomplete file doesn't grow in a timeout window,
+                    # then raise exception.
                     if incomplete_file_size > saved_dumpfile_size:
                         saved_dumpfile_size = incomplete_file_size
                         check_incomplete_file_tries = 0
                     else:
                         check_incomplete_file_tries += 1
-                        if check_incomplete_file_tries >= max_tries:
+                        if check_incomplete_file_tries >= no_growth_max_tries:
                             serial_console.get_console_log(
                                 saved_path=log_path, force_run=True
                             )
@@ -1325,12 +1331,15 @@ class KdumpCheck(Tool):
                             raise LisaException(
                                 "The vmcore file is incomplete with file size"
                                 f" {round(incomplete_file_size / 1024 / 1024, 2)}MB. "
+                                "No size growth detected for "
+                                f"{check_incomplete_file_tries * 5}s. "
                                 f"{disk_debug_info}"
                             )
                 else:
-                    # If there is no any dump file in 100s, then raise exception
+                    # If there is no dump file in a timeout window, then raise
+                    # exception.
                     check_dump_file_tries += 1
-                    if check_dump_file_tries >= max_tries:
+                    if check_dump_file_tries >= no_file_max_tries:
                         serial_console.get_console_log(
                             saved_path=log_path, force_run=True
                         )
@@ -1340,6 +1349,7 @@ class KdumpCheck(Tool):
                         raise LisaException(
                             "No vmcore or vmcore-incomplete is found under "
                             f"{kdump.dump_path} with file size greater than 10M. "
+                            f"Waited {check_dump_file_tries * 5}s without dump files. "
                             f"{disk_debug_info}"
                         )
                 if timer.elapsed(False) > self.timeout_of_dump_crash:
