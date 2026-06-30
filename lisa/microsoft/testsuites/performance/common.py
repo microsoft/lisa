@@ -765,7 +765,7 @@ def perf_iperf(
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
     run_with_internal_address: bool = False,
-) -> None:
+) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     if server is not None or client is not None:
         assert server is not None, "server need to be specified, if client is set"
         assert client is not None, "client need to be specified, if server is set"
@@ -780,7 +780,9 @@ def perf_iperf(
         [lambda: client.tools[Iperf3], lambda: server.tools[Iperf3]]  # type: ignore
     )
     test_case_name = inspect.stack()[1][3]
-    iperf3_messages_list: List[Any] = []
+    iperf3_messages_list: List[
+        Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
+    ] = []
     server_interface_ip = ""
     client_interface_ip = ""
     if run_with_internal_address:
@@ -874,6 +876,7 @@ def perf_iperf(
                 )
     for iperf3_message in iperf3_messages_list:
         notifier.notify(iperf3_message)
+    return iperf3_messages_list
 
 
 def perf_sockperf(

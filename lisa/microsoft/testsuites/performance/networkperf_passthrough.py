@@ -4,7 +4,9 @@ import re
 from decimal import Decimal
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
+
+from assertpy import assert_that
 
 from microsoft.testsuites.performance.common import (
     perf_iperf,
@@ -25,10 +27,16 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment, Node
+from lisa.messages import (
+    MetricRelativity,
+    NetworkTCPPerformanceMessage,
+    NetworkUDPPerformanceMessage,
+    send_unified_perf_message,
+)
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV
 from lisa.testsuite import TestResult
-from lisa.tools import Dhclient, Kill, PowerShell, Sysctl
+from lisa.tools import Dhclient, Ethtool, Kill, PowerShell, Sysctl
 from lisa.tools.ip import Ip
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
@@ -51,6 +59,12 @@ SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV]
 WINDOWS_NTTTCP_MAX_SERVER_THREADS = 64
 WINDOWS_NTTTCP_MAX_MIXED_TCP_CONNECTIONS = 512
 WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
+PASSTHROUGH_LINE_RATE_THRESHOLD = Decimal("0.90")
+PASSTHROUGH_LINE_RATE_METRIC_NAME = "passthrough_line_rate_gbps"
+PASSTHROUGH_PEAK_THROUGHPUT_METRIC_NAME = "passthrough_peak_delivered_throughput_gbps"
+NetworkThroughputMessage = Union[
+    NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
+]
 
 
 @TestSuiteMetadata(
@@ -75,6 +89,185 @@ class NetworkPerformance(TestSuite):
 
     # Track baremetal host nodes for cleanup
     _baremetal_hosts: List[RemoteNode] = []
+    _link_speed_pattern = re.compile(
+        r"^(?P<speed>\d+(?:\.\d+)?)\s*(?P<unit>[GM](?:b/s|bps))$",
+        re.IGNORECASE,
+    )
+
+    def _assert_passthrough_line_rate(
+        self,
+        test_result: TestResult,
+        messages: List[NetworkThroughputMessage],
+        client: RemoteNode,
+        client_nic_name: str,
+        server: RemoteNode,
+        server_nic_name: str,
+    ) -> None:
+        line_rate_gbps = min(
+            self._get_link_rate_gbps(client, client_nic_name),
+            self._get_link_rate_gbps(server, server_nic_name),
+        )
+        threshold_gbps = line_rate_gbps * PASSTHROUGH_LINE_RATE_THRESHOLD
+        throughput_samples = self._get_delivered_throughput_samples(messages)
+        if not throughput_samples:
+            raise LisaException(
+                "No delivered Gbps throughput samples were reported for "
+                "passthrough line-rate validation."
+            )
+
+        best_sample, best_throughput_gbps, best_message = max(
+            throughput_samples, key=lambda item: item[1]
+        )
+        self._notify_passthrough_line_rate_summary(
+            test_result=test_result,
+            client=client,
+            client_nic_name=client_nic_name,
+            server=server,
+            server_nic_name=server_nic_name,
+            best_message=best_message,
+            best_sample=best_sample,
+            best_throughput_gbps=best_throughput_gbps,
+            line_rate_gbps=line_rate_gbps,
+            threshold_gbps=threshold_gbps,
+        )
+        assert_that(best_throughput_gbps).described_as(
+            f"Peak passthrough throughput [{best_throughput_gbps} Gbps] from "
+            f"sample [{best_sample}] must be at least 90% of bottleneck line "
+            f"rate [{line_rate_gbps} Gbps], threshold [{threshold_gbps} Gbps]. "
+            f"Client NIC [{client.name}:{client_nic_name}], "
+            f"server NIC [{server.name}:{server_nic_name}]."
+        ).is_greater_than_or_equal_to(threshold_gbps)
+
+    def _notify_passthrough_line_rate_summary(
+        self,
+        test_result: TestResult,
+        client: RemoteNode,
+        client_nic_name: str,
+        server: RemoteNode,
+        server_nic_name: str,
+        best_message: NetworkThroughputMessage,
+        best_sample: str,
+        best_throughput_gbps: Decimal,
+        line_rate_gbps: Decimal,
+        threshold_gbps: Decimal,
+    ) -> None:
+        test_case_name = best_message.test_case_name
+        client.log.info(
+            f"Passthrough line-rate summary for {test_case_name}: "
+            f"line_rate={line_rate_gbps} Gbps, "
+            f"threshold={threshold_gbps} Gbps, "
+            f"peak_delivered={best_throughput_gbps} Gbps, "
+            f"sample=[{best_sample}], "
+            f"client_nic={client.name}:{client_nic_name}, "
+            f"server_nic={server.name}:{server_nic_name}"
+        )
+        send_unified_perf_message(
+            node=client,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            metric_name=PASSTHROUGH_LINE_RATE_METRIC_NAME,
+            metric_value=float(line_rate_gbps),
+            metric_unit="Gbps",
+            metric_description=(
+                "Bottleneck passthrough NIC line rate used for 90% validation."
+            ),
+            metric_relativity=MetricRelativity.Parameter,
+            tool=best_message.tool,
+            protocol_type=best_message.protocol_type,
+        )
+        send_unified_perf_message(
+            node=client,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            metric_name=PASSTHROUGH_PEAK_THROUGHPUT_METRIC_NAME,
+            metric_value=float(best_throughput_gbps),
+            metric_unit="Gbps",
+            metric_description=(
+                "Peak delivered passthrough throughput sample compared with "
+                "90% of bottleneck line rate."
+            ),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+            tool=best_message.tool,
+            protocol_type=best_message.protocol_type,
+        )
+
+    def _get_link_rate_gbps(self, node: RemoteNode, nic_name: str) -> Decimal:
+        if isinstance(node.os, Windows):
+            escaped_nic_name = nic_name.replace("'", "''")
+            speed = cast(
+                str,
+                node.tools[PowerShell].run_cmdlet(
+                    f"(Get-NetAdapter -Name '{escaped_nic_name}' "
+                    "-ErrorAction Stop).LinkSpeed",
+                    fail_on_error=False,
+                    force_run=True,
+                ),
+            ).strip()
+        else:
+            speed = (
+                node.tools[Ethtool]
+                .get_device_link_settings(nic_name)
+                .link_settings.get("Speed", "")
+                .strip()
+            )
+        matched_speed = self._link_speed_pattern.match(speed)
+        if not matched_speed:
+            raise SkippedException(
+                f"Cannot determine line rate for NIC [{node.name}:{nic_name}] "
+                f"from link speed value [{speed}]."
+            )
+
+        speed_value = Decimal(matched_speed.group("speed"))
+        speed_unit = matched_speed.group("unit").lower()
+        if speed_unit in ["mb/s", "mbps"]:
+            return speed_value / Decimal(1000)
+        if speed_unit in ["gb/s", "gbps"]:
+            return speed_value
+        raise SkippedException(
+            f"Unsupported link speed unit [{speed_unit}] for NIC "
+            f"[{node.name}:{nic_name}]."
+        )
+
+    @staticmethod
+    def _get_delivered_throughput_samples(
+        messages: List[NetworkThroughputMessage],
+    ) -> List[Tuple[str, Decimal, NetworkThroughputMessage]]:
+        samples: List[Tuple[str, Decimal, NetworkThroughputMessage]] = []
+        for message in messages:
+            sample_name = (
+                f"{message.test_case_name}, connections={message.connections_num}"
+            )
+            if isinstance(message, NetworkUDPPerformanceMessage):
+                if message.rx_throughput_in_gbps > 0:
+                    samples.append(
+                        (
+                            f"{sample_name}, udp-rx",
+                            message.rx_throughput_in_gbps,
+                            message,
+                        )
+                    )
+            else:
+                if message.rx_throughput_in_gbps > 0:
+                    samples.append(
+                        (
+                            f"{sample_name}, tcp-rx",
+                            message.rx_throughput_in_gbps,
+                            message,
+                        )
+                    )
+                elif message.throughput_in_gbps > 0:
+                    samples.append(
+                        (f"{sample_name}, tcp", message.throughput_in_gbps, message)
+                    )
+                elif message.tx_throughput_in_gbps > 0:
+                    samples.append(
+                        (
+                            f"{sample_name}, tcp-tx",
+                            message.tx_throughput_in_gbps,
+                            message,
+                        )
+                    )
+        return samples
 
     # Network device passthrough tests between host and guest
     @TestCaseMetadata(
@@ -103,17 +296,21 @@ class NetworkPerformance(TestSuite):
         # Reboot guest into fresh state; never reboot the baremetal host.
         cast(RemoteNode, node).reboot()
 
-        client, _ = self._configure_passthrough_nic_for_node(
+        client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
         )
+        server_nic_name = self._get_host_nic_name(server)
 
-        perf_iperf(
+        iperf_messages = perf_iperf(
             test_result=result,
             connections=IPERF_TCP_CONCURRENCY,
             buffer_length_list=IPERF_TCP_BUFFER_LENGTHS,
             server=server,
             client=client,
             run_with_internal_address=True,
+        )
+        self._assert_passthrough_line_rate(
+            result, iperf_messages, client, client_nic_name, server, server_nic_name
         )
 
     @TestCaseMetadata(
@@ -142,11 +339,12 @@ class NetworkPerformance(TestSuite):
         # Reboot guest into fresh state; never reboot the baremetal host.
         cast(RemoteNode, node).reboot()
 
-        client, _ = self._configure_passthrough_nic_for_node(
+        client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
         )
+        server_nic_name = self._get_host_nic_name(server)
 
-        perf_iperf(
+        iperf_messages = perf_iperf(
             test_result=result,
             connections=IPERF_UDP_CONCURRENCY,
             buffer_length_list=IPERF_UDP_BUFFER_LENGTHS,
@@ -154,6 +352,9 @@ class NetworkPerformance(TestSuite):
             client=client,
             udp_mode=True,
             run_with_internal_address=True,
+        )
+        self._assert_passthrough_line_rate(
+            result, iperf_messages, client, client_nic_name, server, server_nic_name
         )
 
     @TestCaseMetadata(
@@ -266,7 +467,7 @@ class NetworkPerformance(TestSuite):
         )
 
         if isinstance(server.os, Windows):
-            self._perf_ntttcp_with_windows_server(
+            ntttcp_messages, server_nic_name = self._perf_ntttcp_with_windows_server(
                 test_result=result,
                 client=client,
                 server=server,
@@ -274,25 +475,44 @@ class NetworkPerformance(TestSuite):
                 udp_mode=False,
                 test_case_name="perf_tcp_ntttcp_passthrough_host_guest",
             )
+            self._assert_passthrough_line_rate(
+                result,
+                ntttcp_messages,
+                client,
+                client_nic_name,
+                server,
+                server_nic_name,
+            )
         else:
+            server_nic_name = self._get_host_nic_name(server)
 
             def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
+                nonlocal client_nic_name
                 _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
                     node, log_path, host_node=server
                 )
+                client_nic_name = refreshed_client_nic_name
                 return refreshed_client_nic_name, None
 
-            perf_ntttcp(
+            ntttcp_messages = perf_ntttcp(
                 test_result=result,
                 client=client,
                 server=server,
-                server_nic_name=self._get_host_nic_name(server),
+                server_nic_name=server_nic_name,
                 client_nic_name=client_nic_name,
                 skip_server_task_max=True,  # host: TasksMax reboot clears NIC DHCP
                 post_ntttcp_setup=refresh_passthrough_nics,
                 client_ntttcp_timeout_tolerance_seconds=(
                     self.NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
                 ),
+            )
+            self._assert_passthrough_line_rate(
+                result,
+                ntttcp_messages,
+                client,
+                client_nic_name,
+                server,
+                server_nic_name,
             )
 
     @TestCaseMetadata(
@@ -326,7 +546,7 @@ class NetworkPerformance(TestSuite):
         )
 
         if isinstance(server.os, Windows):
-            self._perf_ntttcp_with_windows_server(
+            ntttcp_messages, server_nic_name = self._perf_ntttcp_with_windows_server(
                 test_result=result,
                 client=client,
                 server=server,
@@ -334,16 +554,33 @@ class NetworkPerformance(TestSuite):
                 udp_mode=True,
                 test_case_name="perf_udp_1k_ntttcp_passthrough_host_guest",
             )
+            self._assert_passthrough_line_rate(
+                result,
+                ntttcp_messages,
+                client,
+                client_nic_name,
+                server,
+                server_nic_name,
+            )
         else:
-            perf_ntttcp(
+            server_nic_name = self._get_host_nic_name(server)
+            ntttcp_messages = perf_ntttcp(
                 test_result=result,
                 client=client,
                 server=server,
-                server_nic_name=self._get_host_nic_name(server),
+                server_nic_name=server_nic_name,
                 client_nic_name=client_nic_name,
                 udp_mode=True,
                 # host: TasksMax reboot clears NIC DHCP state
                 skip_server_task_max=True,
+            )
+            self._assert_passthrough_line_rate(
+                result,
+                ntttcp_messages,
+                client,
+                client_nic_name,
+                server,
+                server_nic_name,
             )
 
     # Network device passthrough tests between 2 guests
@@ -373,16 +610,23 @@ class NetworkPerformance(TestSuite):
         client_node.reboot()
         server_node.reboot()
 
-        client, _ = self._configure_passthrough_nic_for_node(client_node, log_path)
-        server, _ = self._configure_passthrough_nic_for_node(server_node, log_path)
+        client, client_nic_name = self._configure_passthrough_nic_for_node(
+            client_node, log_path
+        )
+        server, server_nic_name = self._configure_passthrough_nic_for_node(
+            server_node, log_path
+        )
 
-        perf_iperf(
+        iperf_messages = perf_iperf(
             test_result=result,
             connections=IPERF_TCP_CONCURRENCY,
             buffer_length_list=IPERF_TCP_BUFFER_LENGTHS,
             server=server,
             client=client,
             run_with_internal_address=True,
+        )
+        self._assert_passthrough_line_rate(
+            result, iperf_messages, client, client_nic_name, server, server_nic_name
         )
 
     @TestCaseMetadata(
@@ -411,10 +655,14 @@ class NetworkPerformance(TestSuite):
         client_node.reboot()
         server_node.reboot()
 
-        client, _ = self._configure_passthrough_nic_for_node(client_node, log_path)
-        server, _ = self._configure_passthrough_nic_for_node(server_node, log_path)
+        client, client_nic_name = self._configure_passthrough_nic_for_node(
+            client_node, log_path
+        )
+        server, server_nic_name = self._configure_passthrough_nic_for_node(
+            server_node, log_path
+        )
 
-        perf_iperf(
+        iperf_messages = perf_iperf(
             test_result=result,
             connections=IPERF_UDP_CONCURRENCY,
             buffer_length_list=IPERF_UDP_BUFFER_LENGTHS,
@@ -422,6 +670,9 @@ class NetworkPerformance(TestSuite):
             client=client,
             udp_mode=True,
             run_with_internal_address=True,
+        )
+        self._assert_passthrough_line_rate(
+            result, iperf_messages, client, client_nic_name, server, server_nic_name
         )
 
     @TestCaseMetadata(
@@ -538,15 +789,18 @@ class NetworkPerformance(TestSuite):
         )
 
         def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
+            nonlocal client_nic_name, server_nic_name
             _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
                 client_node, log_path
             )
             _, refreshed_server_nic_name = self._configure_passthrough_nic_for_node(
                 server_node, log_path
             )
+            client_nic_name = refreshed_client_nic_name
+            server_nic_name = refreshed_server_nic_name
             return refreshed_client_nic_name, refreshed_server_nic_name
 
-        perf_ntttcp(
+        ntttcp_messages = perf_ntttcp(
             test_result=result,
             client=client,
             server=server,
@@ -556,6 +810,9 @@ class NetworkPerformance(TestSuite):
             client_ntttcp_timeout_tolerance_seconds=(
                 self.NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
             ),
+        )
+        self._assert_passthrough_line_rate(
+            result, ntttcp_messages, client, client_nic_name, server, server_nic_name
         )
 
     @TestCaseMetadata(
@@ -593,13 +850,16 @@ class NetworkPerformance(TestSuite):
             server_node, log_path
         )
 
-        perf_ntttcp(
+        ntttcp_messages = perf_ntttcp(
             test_result=result,
             client=client,
             server=server,
             server_nic_name=server_nic_name,
             client_nic_name=client_nic_name,
             udp_mode=True,
+        )
+        self._assert_passthrough_line_rate(
+            result, ntttcp_messages, client, client_nic_name, server, server_nic_name
         )
 
     @staticmethod
@@ -1175,16 +1435,21 @@ class NetworkPerformance(TestSuite):
         client_nic_name: str,
         udp_mode: bool,
         test_case_name: str,
-    ) -> None:
+    ) -> Tuple[List[NetworkThroughputMessage], str]:
         client_ntttcp = client.tools[Ntttcp]
         server_ntttcp = server.tools[Ntttcp]
         client_ntttcp.setup_system(udp_mode)
         server_ntttcp.setup_system(udp_mode, set_task_max=False)
+        ntttcp_messages: List[NetworkThroughputMessage] = []
+        server_nic_name = ""
 
         try:
             client_ip = client.tools[Ip]
             self._refresh_passthrough_nic_address(client, client_nic_name)
             client_mtu = client_ip.get_mtu(client_nic_name)
+            server_nic_name = self._get_windows_route_interface_name(
+                server, client.internal_address
+            )
             if udp_mode:
                 connections = NTTTCP_UDP_CONCURRENCY
                 max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
@@ -1299,7 +1564,7 @@ class NetworkPerformance(TestSuite):
                         f"Stderr: {receiver_result.stderr[:2000]}"
                     ) from parse_error
                 if udp_mode:
-                    notifier.notify(
+                    ntttcp_message: NetworkThroughputMessage = (
                         client_ntttcp.create_ntttcp_udp_performance_message(
                             parsed_server_result,
                             parsed_client_result,
@@ -1311,7 +1576,7 @@ class NetworkPerformance(TestSuite):
                         )
                     )
                 else:
-                    notifier.notify(
+                    ntttcp_message = (
                         client_ntttcp.create_ntttcp_tcp_performance_message(
                             parsed_server_result,
                             parsed_client_result,
@@ -1323,9 +1588,12 @@ class NetworkPerformance(TestSuite):
                             client_mtu,
                         )
                     )
+                notifier.notify(ntttcp_message)
+                ntttcp_messages.append(ntttcp_message)
         finally:
             client_ntttcp.restore_system(udp_mode)
             server_ntttcp.restore_system(udp_mode)
+        return ntttcp_messages, server_nic_name
 
     def _get_windows_route_source_ip(self, server: RemoteNode, remote_ip: str) -> str:
         escaped_remote_ip = remote_ip.replace("'", "''")
@@ -1360,6 +1628,31 @@ class NetworkPerformance(TestSuite):
                 "passthrough data-path NIC."
             )
         return source_ip
+
+    def _get_windows_route_interface_name(
+        self, server: RemoteNode, remote_ip: str
+    ) -> str:
+        escaped_remote_ip = remote_ip.replace("'", "''")
+        interface_name = cast(
+            str,
+            server.tools[PowerShell].run_cmdlet(
+                "$route = Find-NetRoute -RemoteIPAddress "
+                f"'{escaped_remote_ip}' -ErrorAction Stop | Select-Object -First 1; "
+                "if ($route) { "
+                "  $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex "
+                "    -ErrorAction Stop; "
+                "  if ($adapter) { $adapter.Name.ToString() } "
+                "}",
+                fail_on_error=False,
+                force_run=True,
+            ),
+        ).strip()
+        if not interface_name:
+            raise SkippedException(
+                f"Cannot determine the Windows adapter for route to {remote_ip}. "
+                "Verify the Windows host has a route on the passthrough data-path NIC."
+            )
+        return interface_name
 
     def _get_host_nic_name(self, node: RemoteNode) -> str:
         ip = node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
