@@ -95,6 +95,7 @@ from lisa.util import (
     generate_random_chars,
     get_matched_str,
     set_filtered_fields,
+    sleep,
 )
 
 if TYPE_CHECKING:
@@ -1016,12 +1017,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"now set its status into [{enable}]."
                 )
                 updated_nic.enable_accelerated_networking = enable
-                network_client.network_interfaces.begin_create_or_update(
+
+                poller = network_client.network_interfaces.begin_create_or_update(
                     self._resource_group_name, updated_nic.name, updated_nic
                 )
-                updated_nic = network_client.network_interfaces.get(
-                    self._resource_group_name, nic_name
-                )
+                updated_nic = poller.result()
                 assert_that(updated_nic.enable_accelerated_networking).described_as(
                     f"fail to set network interface {nic_name}'s accelerated "
                     f"networking into status [{enable}]"
