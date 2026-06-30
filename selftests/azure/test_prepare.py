@@ -78,6 +78,70 @@ class AzurePrepareTestCase(TestCase):
             search_space.IntRange(min=0, max=32), node.disk.data_disk_count
         )
         self.assertEqual(4, node.gpu_count)
+        self.assertTrue(node.disk.has_resource_disk)
+
+    def test_has_resource_disk_nvme_only(self) -> None:
+        # VM size with NvmeDiskSizeInMiB but no MaxResourceVolumeMB
+        # should report has_resource_disk = True
+        resource_sku = ResourceSku.from_dict(
+            {
+                "resource_type": "virtualMachines",
+                "name": "Standard_L8s_v3",
+                "tier": "Standard",
+                "size": "L8s_v3",
+                "family": "standardLSv3Family",
+                "locations": ["eastus"],
+                "location_info": [
+                    {"location": "eastus", "zones": [], "zone_details": []}
+                ],
+                "capabilities": [
+                    {"name": "MaxResourceVolumeMB", "value": "0"},
+                    {"name": "NvmeDiskSizeInMiB", "value": "1788000"},
+                    {"name": "vCPUsAvailable", "value": "8"},
+                    {"name": "MemoryGB", "value": "64"},
+                    {"name": "MaxDataDiskCount", "value": "16"},
+                    {"name": "MaxNetworkInterfaces", "value": "4"},
+                    {"name": "AcceleratedNetworkingEnabled", "value": "True"},
+                ],
+                "restrictions": [],
+            }
+        )
+        node = self._platform._resource_sku_to_capability(
+            "eastus", resource_sku, self._platform._log
+        )
+        assert node.disk
+        self.assertTrue(node.disk.has_resource_disk)
+
+    def test_has_resource_disk_no_disk(self) -> None:
+        # VM size with neither MaxResourceVolumeMB nor NvmeDiskSizeInMiB
+        # should report has_resource_disk = False
+        resource_sku = ResourceSku.from_dict(
+            {
+                "resource_type": "virtualMachines",
+                "name": "Standard_D2s_v5",
+                "tier": "Standard",
+                "size": "D2s_v5",
+                "family": "standardDSv5Family",
+                "locations": ["eastus"],
+                "location_info": [
+                    {"location": "eastus", "zones": [], "zone_details": []}
+                ],
+                "capabilities": [
+                    {"name": "MaxResourceVolumeMB", "value": "0"},
+                    {"name": "vCPUsAvailable", "value": "2"},
+                    {"name": "MemoryGB", "value": "8"},
+                    {"name": "MaxDataDiskCount", "value": "4"},
+                    {"name": "MaxNetworkInterfaces", "value": "2"},
+                    {"name": "AcceleratedNetworkingEnabled", "value": "True"},
+                ],
+                "restrictions": [],
+            }
+        )
+        node = self._platform._resource_sku_to_capability(
+            "eastus", resource_sku, self._platform._log
+        )
+        assert node.disk
+        self.assertFalse(node.disk.has_resource_disk)
 
     def test_not_eligible_dropped(self) -> None:
         # if a vm size doesn't exists, it should be dropped.
