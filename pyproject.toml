@@ -193,6 +193,12 @@ use_parentheses = true
 ensure_newline_before_comments = true
 line_length = 88
 extend_skip_glob = [".nox/*", ".venv*/*"]
+# Pin classification so local (editable-installed `lisa_mcp`) and CI
+# (no install) agree on import grouping. Without this, isort treats
+# `lisa_mcp` as first-party locally but third-party in CI, which
+# flips I003/I004 between environments.
+known_first_party = ["lisa", "lisa_mcp"]
+known_third_party = ["mcp"]
 
 
 [tool.mypy]

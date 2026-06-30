@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lisa-mcp"
+version = "0.1.0"
+description = "MCP server for the LISA test automation framework"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "pyyaml>=6.0",
+    "uvicorn>=0.24.0",
+    "starlette>=0.27.0",
+]
+
+[project.optional-dependencies]
+azure = [
+    "azure-identity>=1.15.0",
+    "azure-storage-blob>=12.19.0",
+]
+
+[project.scripts]
+lisa-mcp = "lisa_mcp.server:main"
+
+[tool.setuptools]
+packages = ["lisa_mcp", "lisa_mcp.tools"]
+
+[tool.setuptools.package-data]
+lisa_mcp = ["context/*.md", "docs_index.yaml"]
