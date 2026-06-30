@@ -797,6 +797,12 @@ class DebianRepositoryInfo(RepositoryInfo):
 
 
 class Debian(Linux):
+    _apt_update_args = (
+        "-o Acquire::Languages=none "
+        "-o Acquire::GzipIndexes=true "
+        "update"
+    )
+
     # Get:5 http://azure.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [1298 kB] # noqa: E501
     _debian_repository_info_pattern = re.compile(
         r"(?P<status>\S+):(?P<id>\d+)\s+(?P<uri>\S+)\s+(?P<name>\S+)"
@@ -1027,6 +1033,13 @@ class Debian(Linux):
             no_error_log=True,
         )
 
+    def _apt_get_update(self) -> ExecutableResult:
+        return self._node.execute(
+            f"apt-get {self._apt_update_args}",
+            sudo=True,
+            timeout=1800,
+        )
+
     def wait_running_package_process(self) -> None:
         is_first_time: bool = True
         # wait for 10 minutes
@@ -1106,7 +1119,7 @@ class Debian(Linux):
 
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
-        repo_list_str = self._node.execute("apt-get update", sudo=True).stdout
+        repo_list_str = self._apt_get_update().stdout
 
         repositories: List[RepositoryInfo] = []
         for line in repo_list_str.splitlines():
@@ -1147,7 +1160,7 @@ class Debian(Linux):
 
         # Unlike add repository, remove repository doesn't trigger apt update.
         # So, it's needed to run apt update after remove repository.
-        self._node.execute("apt-get update", sudo=True)
+        self._apt_get_update()
 
     @retry(tries=10, delay=5)  # type: ignore
     def add_repository(
@@ -1170,7 +1183,7 @@ class Debian(Linux):
 
         # apt update will not be triggered on Debian during add repo
         if type(self._node.os) is Debian:
-            self._node.execute("apt-get update", sudo=True)
+            self._apt_get_update()
 
     def is_end_of_life_release(self) -> bool:
         return self.information.full_version in self.end_of_life_releases
@@ -1186,7 +1199,7 @@ class Debian(Linux):
         self._disable_unattended_upgrades()
         # wait running system package process.
         self.wait_running_package_process()
-        result = self._node.execute("apt-get update", sudo=True, timeout=1800)
+        result = self._apt_get_update()
         if result.exit_code != 0:
             not_available_keys = self._key_not_available_pattern.findall(result.stdout)
             if len(set(not_available_keys)) > 0:
@@ -1197,7 +1210,7 @@ class Debian(Linux):
                         f"--recv-keys {key}",
                         sudo=True,
                     )
-                result = self._node.execute("apt-get update", sudo=True, timeout=1800)
+                result = self._apt_get_update()
         for pattern in self._repo_not_exist_patterns:
             if pattern.search(result.stdout):
                 if self.is_end_of_life_release():
