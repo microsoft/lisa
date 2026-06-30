@@ -3,18 +3,22 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, List, Optional, Tuple, Type
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
+    DPDK_STABLE_GIT_REPO,
     DependencyInstaller,
     Downloader,
+    DpdkMpRole,
     GitDownloader,
     Installer,
     OsPackageDependencies,
     PackageManagerInstall,
+    Pmd,
     TarDownloader,
     get_debian_backport_repo_args,
+    get_dpdk_default_source_version,
     is_url_for_git_repo,
     is_url_for_tarball,
     unsupported_os_thrower,
@@ -96,22 +100,6 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
 # declare package/tool dependencies for DPDK source installation
 DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
     requirements=[
-        OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Ubuntu)
-            and x.information.codename == "bionic",
-            packages=[
-                "build-essential",
-                "libmnl-dev",
-                "libelf-dev",
-                "libnuma-dev",
-                "dpkg-dev",
-                "pkg-config",
-                "python3-pip",
-                # 18.04 doesn't need linux-modules-extra-azure
-                # since it will never have MANA support
-            ],
-            stop_on_match=True,
-        ),
         # install linux-modules-extra-azure if it's available for mana_ib
         # older debian kernels won't have mana_ib packaged,
         # so skip the check on those kernels.
@@ -403,9 +391,16 @@ class DpdkTestpmd(Tool):
 
     @property
     def command(self) -> str:
-        if not self._testpmd_install_path:
-            return "testpmd"
-        return self._testpmd_install_path
+        # if dpdk is already installed, find the binary and check the version
+        if self.find_testpmd_binary(assert_on_fail=False):
+            pkgconfig = self.node.tools[Pkgconfig]
+            if pkgconfig.package_info_exists(self._dpdk_lib_name):
+                self._dpdk_version_info = pkgconfig.get_package_version(
+                    self._dpdk_lib_name
+                )
+            return self._testpmd_install_path
+        else:
+            return "dpdk-testpmd"
 
     _rte_target = "x86_64-native-linuxapp-gcc"
 
@@ -469,7 +464,7 @@ class DpdkTestpmd(Tool):
             return False
 
     def generate_testpmd_include(
-        self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
+        self, node_nic: NicInfo, vdev_id: int, pmd: Pmd
     ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
@@ -492,42 +487,29 @@ class DpdkTestpmd(Tool):
         else:
             include_flag = "-w"
 
-        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
+        include_flag = f'{include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
-        if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
-            pmd_name = "net_failsafe"
-            pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
-        elif self.is_mana:
-            # mana selects by mac, just return the vdev info directly
-            if node_nic.module_name == "uio_hv_generic" or force_netvsc:
-                return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
-            # if mana_ib is present, use mana friendly args
-            elif self.node.tools[Modprobe].module_exists("mana_ib"):
+        if pmd == Pmd.FAILSAFE:
+            if self.is_mana:
                 return (
-                    f' --vdev="net_vdev_netvsc0,mac={node_nic.mac_addr}"'
-                    f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+                    f'--vdev="net_vdev_netvsc{vdev_id},mac={node_nic.mac_addr}"'
+                    f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}"'
                 )
             else:
-                # use eth interface for failsafe otherwise
-                # test will probably fail due to low throughput
-                pmd_name = "net_vdev_netvsc"
-                pmd_flags = f"iface={node_nic.name}"
-                # reset include flag for MANA since there is only one interface
-                include_flag = ""
-        else:
-            # mlnx setup for failsafe
-            pmd_name = "net_vdev_netvsc"
-            pmd_flags = f"iface={node_nic.name},force=1"
-        if node_nic.module_name == "hv_netvsc":
-            # primary/upper/master nic is bound to hv_netvsc
-            # when using net_failsafe implicitly or explicitly.
-            # Set up net_failsafe/net_vdev_netvsc args here
-            return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
-        elif node_nic.module_name == "uio_hv_generic":
-            # if using netvsc pmd, just let -w or -a select
-            # which device to use. No other args are needed.
-            return include_flag
+                return (
+                    f"{include_flag} "
+                    f"--vdev=net_vdev_netvsc{vdev_id},iface={node_nic.name}"
+                )
+        if pmd == Pmd.NETVSC:
+            # mana can use vports where there is only one pci device
+            # so can't use the easy mode there
+            if self.is_mana:
+                return f'--vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}"'
+            else:
+                # otherwise just include the device id
+                # it's already been set up by the earlier driver binding
+                return include_flag
         else:
             # if we're all the way through and haven't picked a pmd, something
             # has gone wrong. fail fast
@@ -544,11 +526,16 @@ class DpdkTestpmd(Tool):
         nic_to_include: List[NicInfo],
         vdev_id: int,
         mode: str,
+        pmd: Pmd,
         extra_args: str = "",
         multiple_queues: bool = False,
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
+        mp_role: Optional[DpdkMpRole] = None,
+        num_procs: int = 0,
+        proc_id: int = 0,
+        core_list: Optional[List[int]] = None,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -560,11 +547,20 @@ class DpdkTestpmd(Tool):
         #   --forward-mode=txonly \
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
+        #   --proc-id <mp process id, 0 is primary process>
+
+        if mp_role:
+            mp_args = self._generate_mp_arguments(
+                mp_role=mp_role, num_procs=num_procs, proc_id=proc_id
+            )
+        else:
+            mp_args = ""
 
         # pick amount of queues for tx/rx (txq/rxq flag)
         # our tests use equal amounts for rx and tx
+
         if multiple_queues:
-            if self.is_mana and mode == "txonly":
+            if self.is_mana and mode in ["rxonly", "5tswap"]:
                 queues = 8
             else:
                 queues = 4
@@ -577,7 +573,7 @@ class DpdkTestpmd(Tool):
         # generate the flags for which devices to include in the tests
         nic_include_infos = []
         for nic in nic_to_include:
-            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id)]
+            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id, pmd)]
             vdev_id += 1
 
         # infer core count to assign based on number of queues
@@ -604,14 +600,28 @@ class DpdkTestpmd(Tool):
         forwarding_cores = max_core_index - service_cores
 
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        if core_list:
+            # validate that the provided core list has enough cores
+            # for forwarding plus the service core(s)
+            required_cores = forwarding_cores + service_cores
+            assert_that(len(core_list)).described_as(
+                f"core_list has {len(core_list)} cores, but {required_cores} "
+                f"are required ({forwarding_cores} "
+                f"forwarding + {service_cores} service)"
+            ).is_greater_than_or_equal_to(required_cores)
+            # override forwarding_cores with the actual count from core_list
+            forwarding_cores = len(core_list) - service_cores
+            core_list_arg = f"-l {','.join(map(str, core_list))}"
+        else:
+            core_list_arg = f"-l 1-{max_core_index}"
+
         if extra_args:
             extra_args = extra_args.strip()
         else:
             extra_args = ""
         # mana pmd needs tx/rx descriptors declared.
         if self.is_mana:
-            extra_args += f" --txd={txd} --rxd={txd} --stats 2"
+            extra_args += f" --txd={txd} --rxd={txd} "
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 
@@ -661,9 +671,11 @@ class DpdkTestpmd(Tool):
         debug_logging = "--log-level netvsc,debug"
         nic_includes = " ".join(nic_include_infos)
         return (
-            f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            f"{self._testpmd_install_path} {core_list_arg} "
+            f"{nic_includes} {debug_logging} --proc-type=auto "
+            f"-- --forward-mode={mode} "
+            f"-a --stats-period 4 --nb-cores={forwarding_cores} "
+            f"{mp_args} {extra_args}"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -853,8 +865,16 @@ class DpdkTestpmd(Tool):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
-        self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        # this should be set by initialize_node_resources first,
+        # but we'll also set a default here to avoid issues if Testpmd
+        # is ever used without calling that function first.
+        self._dpdk_source = kwargs.pop("dpdk_source", DPDK_STABLE_GIT_REPO)
+        try:
+            self._dpdk_branch = kwargs.pop(
+                "dpdk_branch", get_dpdk_default_source_version(self.node)
+            )
+        except UnsupportedDistroException as err:
+            raise SkippedException(err)
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
@@ -902,6 +922,45 @@ class DpdkTestpmd(Tool):
                 self._dpdk_version_info = pkgconfig.get_package_version(
                     self._dpdk_lib_name
                 )
+
+    def _generate_mp_arguments(
+        self, mp_role: DpdkMpRole, num_procs: int, proc_id: int
+    ) -> str:
+        # Check and set multi_process arguments for testpmd.
+        mp_arguments = ""
+
+        # IFF testpmd is being invoked with multiple processes,
+        # we must check that:
+        #  primary process has a proc-id of 0
+        #  proc-id < num procs
+        #  num_procs > 1
+        # Otherwise we can omit all of these arguments
+
+        assert_that(num_procs).described_as(
+            "Test bug: dpdk mp context requires num_procs arg > 1"
+        ).is_greater_than(1)
+
+        if mp_role == DpdkMpRole.PRIMARY_PROCESS:
+            mp_arguments = f"--num-procs={num_procs} --proc-id 0"
+        elif mp_role == DpdkMpRole.SECONDARY_PROCESS:
+            # check the caller has provided a proc_id that makes sense,
+            # this would indicate a bug in the test case itself.
+            assert_that(proc_id).described_as(
+                "Test bug: dpdk proc-id argument must be > 0 for secondary process"
+            ).is_greater_than(0)
+
+            assert_that(proc_id).described_as(
+                (
+                    f"Test bug: dpdk proc-id argument ({proc_id}) "
+                    f"must be < num_procs argument ({num_procs})."
+                )
+            ).is_less_than(num_procs)
+            mp_arguments = f"--num-procs={num_procs} --proc-id {proc_id}"
+        else:
+            raise LisaException(
+                "Test bug: no mp arguments defined for " f"dpdk mp role: {str(mp_role)}"
+            )
+        return mp_arguments
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
