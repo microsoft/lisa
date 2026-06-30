@@ -2546,12 +2546,68 @@ class Resize(AzureFeatureMixin, features.Resize):
 
         return True
 
+    def _get_actual_security_profile(self) -> Optional[SecurityProfileType]:
+        # Read the security profile the source VM was actually deployed with
+        # (a concrete value), as opposed to what the SKU advertises in its
+        # capability SetSpace. Resizing a CVM-deployed VM to a SKU whose
+        # advertised SetSpace includes CVM AND Standard is fine; resizing
+        # to a SKU that only advertises Standard will be rejected by Azure
+        # with PropertyChangeNotAllowed.
+        if not self._node.capability.features:
+            return None
+        for feature in self._node.capability.features:
+            if feature.type != SecurityProfileSettings.type:
+                continue
+            if not isinstance(feature, SecurityProfileSettings):
+                continue
+            sp = feature.security_profile
+            if isinstance(sp, SecurityProfileType):
+                return sp
+            if isinstance(sp, search_space.SetSpace):
+                items = list(sp)
+                if len(items) == 1:
+                    return items[0]
+            return None
+        return None
+
+    def _compare_security_profile(
+        self,
+        candidate_size: "AzureCapability",
+        actual_security_profile: Optional[SecurityProfileType],
+    ) -> bool:
+        # The candidate SKU must support the source VM's deployed security
+        # profile (CVM, TrustedLaunch/SecureBoot, Stateless, Standard).
+        # Without this filter, the random selector can pick a non-CVM SKU as
+        # a resize target for a CVM VM, and every retry will fail with
+        # PropertyChangeNotAllowed.
+        if not actual_security_profile:
+            return True
+        assert candidate_size.capability
+        assert candidate_size.capability.features
+        candidate_sp = next(
+            (
+                feature
+                for feature in candidate_size.capability.features
+                if feature.type == SecurityProfileSettings.type
+            ),
+            None,
+        )
+        if not isinstance(candidate_sp, SecurityProfileSettings):
+            return True
+        cand_profiles = candidate_sp.security_profile
+        if isinstance(cand_profiles, search_space.SetSpace):
+            return actual_security_profile in cand_profiles
+        if isinstance(cand_profiles, SecurityProfileType):
+            return cand_profiles == actual_security_profile
+        return True
+
     def _is_candidate_size_valid(
         self,
         candidate_size: "AzureCapability",
         current_vm_size: "AzureCapability",
         resize_action: ResizeAction,
         actual_disk_controller_type: Optional[schema.DiskControllerType],
+        actual_security_profile: Optional[SecurityProfileType],
     ) -> bool:
         return (
             self._compare_architecture(candidate_size, current_vm_size)
@@ -2562,6 +2618,7 @@ class Resize(AzureFeatureMixin, features.Resize):
             and self._check_actual_disk_controller_type(
                 candidate_size, actual_disk_controller_type
             )
+            and self._compare_security_profile(candidate_size, actual_security_profile)
             and self._compare_size_generation(candidate_size, current_vm_size)
             and self._compare_network_interface(candidate_size, current_vm_size)
             and self._compare_core_count(candidate_size, current_vm_size, resize_action)
@@ -2626,6 +2683,7 @@ class Resize(AzureFeatureMixin, features.Resize):
         assert current_vm_size.capability.features
 
         actual_disk_controller_type = self._get_actual_disk_controller_type()
+        actual_security_profile = self._get_actual_security_profile()
 
         # Filter candidate vm sizes that can't be resized to
         avail_eligible_intersect = [
@@ -2636,6 +2694,7 @@ class Resize(AzureFeatureMixin, features.Resize):
                 current_vm_size,
                 resize_action,
                 actual_disk_controller_type,
+                actual_security_profile,
             )
         ]
 
