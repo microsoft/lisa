@@ -473,16 +473,18 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
       imageReference: getImageReference(nodes[i])
       osDisk:  getVMOsDisk(nodes[i])
       diskControllerType: (nodes[i].disk_controller_type == 'SCSI') ? null : nodes[i].disk_controller_type
-      dataDisks: concat(
-        map(
-          filter(range(0, length(data_disks)), j => !shouldAttachDataDisk(data_disks[j])),
-          j => getCreateDisk(data_disks[j], '${nodes[i].name}-data-disk-${j}', j)
-        ),
-        map(
-          filter(range(0, length(data_disks)), j => shouldAttachDataDisk(data_disks[j])),
-          j => getAttachDisk(data_disks[j], '${nodes[i].name}-data-disk-${j}', j)
+      dataDisks: empty(data_disks)
+        ? null
+        : concat(
+          map(
+            filter(range(0, length(data_disks)), j => !shouldAttachDataDisk(data_disks[j])),
+            j => getCreateDisk(data_disks[j], '${nodes[i].name}-data-disk-${j}', j)
+          ),
+          map(
+            filter(range(0, length(data_disks)), j => shouldAttachDataDisk(data_disks[j])),
+            j => getAttachDisk(data_disks[j], '${nodes[i].name}-data-disk-${j}', j)
+          )
         )
-      )
     }
     networkProfile: {
       networkInterfaces: [for j in range(0, nodes[i].nic_count): {
