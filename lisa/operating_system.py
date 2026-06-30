@@ -976,6 +976,57 @@ class Debian(Linux):
             keys_location=keys,
         )
 
+    def _is_package_lock_held(self) -> bool:
+        # `pidof dpkg dpkg-deb` alone misses holders such as
+        # `unattended-upgrades` and `apt-get`, which hold the apt/dpkg
+        # frontend lock without a running `dpkg` process. Check the lock
+        # files directly so we wait for those holders to finish too.
+        lock_files = " ".join(
+            [
+                "/var/lib/dpkg/lock-frontend",
+                "/var/lib/dpkg/lock",
+                "/var/lib/apt/lists/lock",
+                "/var/cache/apt/archives/lock",
+            ]
+        )
+        # `fuser` exits 0 if at least one listed file is opened by a process,
+        # and non-zero otherwise (including 127 if `fuser` is unavailable, in
+        # which case we fall back to the `pidof` check below).
+        fuser_result = self._node.execute(
+            f"fuser {lock_files}",
+            sudo=True,
+            shell=True,
+            no_info_log=True,
+        )
+        return fuser_result.exit_code == 0
+
+    def _disable_unattended_upgrades(self) -> None:
+        # Background apt jobs grab the dpkg frontend lock at boot, making the
+        # first package install fail with
+        # "Could not get lock /var/lib/dpkg/lock-frontend ... (unattended-upgr)".
+        # Mask these units so they cannot run now or after a reboot. `mask
+        # --now` is a systemd operation that also stops any in-flight run, and
+        # it does not need the dpkg lock, so it works even mid-upgrade. The
+        # `unattended-upgrade` binary stays installed, so tests that invoke it
+        # explicitly (e.g. the upgrade_packages transformer) are unaffected.
+        units = " ".join(
+            [
+                "apt-daily.timer",
+                "apt-daily.service",
+                "apt-daily-upgrade.timer",
+                "apt-daily-upgrade.service",
+                "unattended-upgrades.service",
+            ]
+        )
+        # Best effort: never fail provisioning if a unit is missing on the image.
+        self._node.execute(
+            f"systemctl mask --now {units}",
+            sudo=True,
+            shell=True,
+            timeout=120,
+            no_error_log=True,
+        )
+
     def wait_running_package_process(self) -> None:
         is_first_time: bool = True
         # wait for 10 minutes
@@ -985,12 +1036,15 @@ class Debian(Linux):
             # fix the dpkg, in case it's broken.
             self._node.execute("dpkg --force-all --configure -a", sudo=True)
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
-            if pidof_result.exit_code == 1:
-                # no dpkg process running, safe to exit and attempt repair.
+            dpkg_running = pidof_result.exit_code == 0
+            lock_held = self._is_package_lock_held()
+            if not dpkg_running and not lock_held:
+                # no dpkg process and no apt/dpkg lock holder; safe to exit
+                # and attempt repair.
                 break
             if is_first_time:
                 is_first_time = False
-                self._log.debug("found system dpkg process, waiting it...")
+                self._log.debug("found running package process, waiting it...")
             time.sleep(1)
 
         if timeout < timer.elapsed():
@@ -1122,6 +1176,9 @@ class Debian(Linux):
         skipped_exceptions=[ReleaseEndOfLifeException, RepoNotExistException],
     )
     def _initialize_package_installation(self) -> None:
+        # disable background apt jobs that grab the dpkg lock at boot, so the
+        # first install does not race with unattended-upgrades.
+        self._disable_unattended_upgrades()
         # wait running system package process.
         self.wait_running_package_process()
         result = self._node.execute("apt-get update", sudo=True, timeout=1800)
