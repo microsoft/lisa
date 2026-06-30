@@ -3,7 +3,15 @@
 from typing import List, Type, Union
 
 from lisa.executable import Tool
-from lisa.operating_system import SLES, CpuArchitecture, Oracle, Redhat, Suse, Ubuntu
+from lisa.operating_system import (
+    SLES,
+    CBLMariner,
+    CpuArchitecture,
+    Oracle,
+    Redhat,
+    Suse,
+    Ubuntu,
+)
 from lisa.tools.gcc import Gcc
 from lisa.tools.git import Git
 from lisa.util import UnsupportedDistroException
@@ -33,6 +41,11 @@ class Modetest(Tool):
     def _install(self) -> bool:
         if isinstance(self.node.os, Ubuntu):
             self.node.os.install_packages("libdrm-tests")
+        if (
+            isinstance(self.node.os, CBLMariner)
+            and self.node.os.information.version.major >= 4
+        ):
+            self.node.os.install_packages("drm-utils")
         if isinstance(self.node.os, Redhat) or isinstance(self.node.os, Suse):
             self._install_from_src()
         return self._check_exists()
