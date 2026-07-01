@@ -64,6 +64,7 @@ if TYPE_CHECKING:
 
 
 _get_init_logger = partial(get_logger, name="os")
+_CH_JAMMY_DEBUG_PACKAGE_TIMEOUT = 300
 
 
 def get_matched_os_name(cmd_result: ExecutableResult, pattern: Pattern[str]) -> str:
@@ -1029,12 +1030,15 @@ class Debian(Linux):
 
     def wait_running_package_process(self) -> None:
         is_first_time: bool = True
-        # wait for 10 minutes
-        timeout = 60 * 10
+        timeout = self._ch_jammy_debug_timeout(60 * 10)
         timer = create_timer()
         while timeout > timer.elapsed(False):
             # fix the dpkg, in case it's broken.
-            self._node.execute("dpkg --force-all --configure -a", sudo=True)
+            self._node.execute(
+                "dpkg --force-all --configure -a",
+                sudo=True,
+                timeout=self._ch_jammy_debug_timeout(600),
+            )
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
             dpkg_running = pidof_result.exit_code == 0
             lock_held = self._is_package_lock_held()
@@ -1076,6 +1080,7 @@ class Debian(Linux):
                     sudo=True,
                     shell=True,
                     no_info_log=True,
+                    timeout=self._ch_jammy_debug_timeout(600),
                 )
                 self._log.debug(
                     f"dpkg repair removal result: exit_code={remove_result.exit_code}, "
@@ -1087,6 +1092,7 @@ class Debian(Linux):
                 final_dpkg_result = self._node.execute(
                     "dpkg --force-all --configure -a",
                     sudo=True,
+                    timeout=self._ch_jammy_debug_timeout(600),
                 )
                 self._log.debug(
                     "final dpkg configure result after repair: "
@@ -1122,6 +1128,9 @@ class Debian(Linux):
     def clean_package_cache(self) -> None:
         self._node.execute("apt-get clean", sudo=True, shell=True)
 
+    def _ch_jammy_debug_timeout(self, timeout: int) -> int:
+        return min(timeout, _CH_JAMMY_DEBUG_PACKAGE_TIMEOUT)
+
     @retry(tries=10, delay=5)  # type: ignore
     def remove_repository(
         self,
@@ -1142,7 +1151,9 @@ class Debian(Linux):
 
         # Unlike add repository, remove repository doesn't trigger apt update.
         # So, it's needed to run apt update after remove repository.
-        self._node.execute("apt-get update", sudo=True)
+        self._node.execute(
+            "apt-get update", sudo=True, timeout=self._ch_jammy_debug_timeout(600)
+        )
 
     @retry(tries=10, delay=5)  # type: ignore
     def add_repository(
@@ -1165,13 +1176,15 @@ class Debian(Linux):
 
         # apt update will not be triggered on Debian during add repo
         if type(self._node.os) is Debian:
-            self._node.execute("apt-get update", sudo=True)
+            self._node.execute(
+                "apt-get update", sudo=True, timeout=self._ch_jammy_debug_timeout(600)
+            )
 
     def is_end_of_life_release(self) -> bool:
         return self.information.full_version in self.end_of_life_releases
 
     @retry_without_exceptions(
-        tries=10,
+        tries=1,
         delay=5,
         skipped_exceptions=[ReleaseEndOfLifeException, RepoNotExistException],
     )
@@ -1181,7 +1194,11 @@ class Debian(Linux):
         self._disable_unattended_upgrades()
         # wait running system package process.
         self.wait_running_package_process()
-        result = self._node.execute("apt-get update", sudo=True, timeout=1800)
+        result = self._node.execute(
+            "apt-get update",
+            sudo=True,
+            timeout=self._ch_jammy_debug_timeout(1800),
+        )
         if result.exit_code != 0:
             not_available_keys = self._key_not_available_pattern.findall(result.stdout)
             if len(set(not_available_keys)) > 0:
@@ -1192,7 +1209,11 @@ class Debian(Linux):
                         f"--recv-keys {key}",
                         sudo=True,
                     )
-                result = self._node.execute("apt-get update", sudo=True, timeout=1800)
+                result = self._node.execute(
+                    "apt-get update",
+                    sudo=True,
+                    timeout=self._ch_jammy_debug_timeout(1800),
+                )
         for pattern in self._repo_not_exist_patterns:
             if pattern.search(result.stdout):
                 if self.is_end_of_life_release():
@@ -1202,7 +1223,7 @@ class Debian(Linux):
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
     @retry_without_exceptions(
-        tries=10,
+        tries=1,
         delay=5,
         skipped_exceptions=[ReleaseEndOfLifeException, RepoNotExistException],
     )
@@ -1231,13 +1252,18 @@ class Debian(Linux):
         self.wait_running_package_process()
         if file_packages:
             self._node.execute(
-                f"dpkg -i {' '.join(file_packages)}", sudo=True, timeout=timeout
+                f"dpkg -i {' '.join(file_packages)}",
+                sudo=True,
+                timeout=self._ch_jammy_debug_timeout(timeout),
             )
             # after install package, need update the repo
             self._initialize_package_installation()
 
         install_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+            command,
+            shell=True,
+            sudo=True,
+            timeout=self._ch_jammy_debug_timeout(timeout),
         )
         # get error lines.
         install_result.assert_exit_code(
@@ -1264,7 +1290,10 @@ class Debian(Linux):
             command += " --allow-unauthenticated"
         self.wait_running_package_process()
         uninstall_result = self._node.execute(
-            command, shell=True, sudo=True, timeout=timeout
+            command,
+            shell=True,
+            sudo=True,
+            timeout=self._ch_jammy_debug_timeout(timeout),
         )
         # get error lines.
         uninstall_result.assert_exit_code(
