@@ -8,7 +8,7 @@ import secrets
 import shutil
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
-from typing import Any, List, Type, cast
+from typing import Any, List, Tuple, Type, cast
 
 from lisa import schema
 from lisa.environment import Environment
@@ -285,6 +285,8 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         """
         node_context = get_node_context(node)
 
+        self._capture_node_debug_artifacts(node, node_context, log)
+
         # Copy console log to node's log directory before closing it
         # This ensures we capture console output for ALL tests, not just failures
         if node_context.console_log_file_path:
@@ -303,6 +305,121 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         # Call parent implementation to handle cleanup
         super()._delete_node(node, log)
+
+    def _capture_node_debug_artifacts(
+        self,
+        node: Node,
+        node_context: NodeContext,
+        log: Logger,
+    ) -> None:
+        node.local_log_path.mkdir(parents=True, exist_ok=True)
+        vm_name = node_context.vm_name
+        domain_commands: List[Tuple[str, str, bool]] = [
+            (
+                "ch-virsh-domain.txt",
+                "set -x; "
+                f"virsh -c ch:///system domstate {vm_name}; "
+                f"virsh -c ch:///system dominfo {vm_name}; "
+                f"virsh -c ch:///system domblklist {vm_name} --details; "
+                f"virsh -c ch:///system domiflist {vm_name}; "
+                f"virsh -c ch:///system dommemstat {vm_name}; "
+                f"virsh -c ch:///system domstats {vm_name} --state --cpu-total "
+                "--vcpu --balloon --block --interface",
+                False,
+            ),
+            (
+                "ch-domain.xml",
+                f"virsh -c ch:///system dumpxml {vm_name}",
+                False,
+            ),
+        ]
+        host_commands: List[Tuple[str, str, bool]] = [
+            (
+                "ch-host-processes.txt",
+                "set -x; "
+                "ps -eo pid,ppid,stat,etime,pcpu,pmem,args "
+                "| grep -E 'cloud-hypervisor|libvirt|virt(ch|qemu|log)d' "
+                "| grep -v grep || true; "
+                "pgrep -af cloud-hypervisor || true; "
+                "ss -tanp 2>/dev/null | grep -E 'ssh|:22|cloud-hypervisor|libvirt' "
+                "|| true; "
+                "free -m || true; "
+                "cat /proc/meminfo || true",
+                True,
+            ),
+            (
+                "ch-host-kernel.txt",
+                "set -x; dmesg -T | tail -n 1000; "
+                "journalctl -k --no-pager -n 1000",
+                True,
+            ),
+            (
+                "ch-host-libvirt-journal.txt",
+                "journalctl -u libvirtd -u virtchd -u virtlogd -u virtqemud "
+                "--no-pager -n 1000",
+                True,
+            ),
+            (
+                "ch-host-libvirt-files.txt",
+                "set -x; "
+                "ls -lR /var/log/libvirt /var/run/libvirt 2>&1 || true; "
+                "for f in /var/log/libvirt/ch/* /var/log/libvirt/qemu/* "
+                "/var/log/libvirt/libvirtd.log; do "
+                '[ -f "$f" ] && echo "===== $f =====" && tail -n 500 "$f"; '
+                "done",
+                True,
+            ),
+        ]
+
+        for file_name, command, sudo in domain_commands:
+            self._capture_host_command_output(
+                node=node,
+                log=log,
+                file_name=file_name,
+                command=command,
+                sudo=sudo,
+            )
+
+        if getattr(self, "_ch_host_debug_artifacts_captured", False):
+            return
+        setattr(self, "_ch_host_debug_artifacts_captured", True)
+
+        for file_name, command, sudo in host_commands:
+            self._capture_host_command_output(
+                node=node,
+                log=log,
+                file_name=file_name,
+                command=command,
+                sudo=sudo,
+            )
+
+    def _capture_host_command_output(
+        self,
+        node: Node,
+        log: Logger,
+        file_name: str,
+        command: str,
+        sudo: bool,
+    ) -> None:
+        try:
+            result = self.host_node.execute(
+                command,
+                shell=True,
+                sudo=sudo,
+                timeout=120,
+                expected_exit_code=None,
+                no_error_log=True,
+            )
+            output_path = node.local_log_path / file_name
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(f"$ {command}\n")
+                f.write(f"exit_code: {result.exit_code}\n\n")
+                f.write("===== stdout =====\n")
+                f.write(result.stdout)
+                f.write("\n===== stderr =====\n")
+                f.write(result.stderr)
+        except Exception as e:
+            log.warning(f"Failed to capture CH debug artifact {file_name}: {e}")
 
     # Create the OS disk.
     def _create_node_os_disk(
