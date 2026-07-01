@@ -3165,6 +3165,9 @@ class AzurePlatform(Platform):
         # run capability checks on them to collect meaningful skip reasons
         # even for VMs that were dropped due to zero quota.
         all_candidates: List[Any] = []
+        # vm sizes that match the requirement but have zero quota (limit == 0)
+        # in this subscription/location, collected to surface a clear reason.
+        no_quota_vm_sizes: List[str] = []
 
         # get allowed vm sizes. Either it's from the runbook defined, or
         # from subscription supported.
@@ -3184,7 +3187,12 @@ class AzurePlatform(Platform):
             (
                 available_capabilities,
                 awaitable_capabilities,
+                no_quota_capabilities,
             ) = self._get_available_azure_capabilities(candidate_caps, log)
+
+            for no_quota_cap in no_quota_capabilities:
+                if no_quota_cap.vm_size not in no_quota_vm_sizes:
+                    no_quota_vm_sizes.append(no_quota_cap.vm_size)
 
             # Sort available vm sizes to match. Awaitable doesn't need to be
             # sorted.
@@ -3254,6 +3262,16 @@ class AzurePlatform(Platform):
                         seen.add(r)
                         unique_reasons.append(r)
                 error = "Requirement mismatch: " + "; ".join(unique_reasons)
+            elif not error and no_quota_vm_sizes:
+                # The vm size(s) matched the requirement but have zero quota
+                # (limit == 0) in this subscription/location, so they can never
+                # be deployed here.
+                error = (
+                    f"No quota for VM size(s) {no_quota_vm_sizes} in "
+                    f"'{location}'. The size matches the requirement but the "
+                    "subscription has a quota limit of 0 for its family in this "
+                    "location. Request a quota increase or try another location."
+                )
             elif not error:
                 # Only fall back to the generic message when no specific
                 # sub_error (e.g. "no vm size found in '<location>' for
@@ -3326,16 +3344,20 @@ class AzurePlatform(Platform):
 
     def _get_available_azure_capabilities(
         self, capabilities: List[AzureCapability], log: Logger
-    ) -> Tuple[List[AzureCapability], List[AzureCapability]]:
+    ) -> Tuple[List[AzureCapability], List[AzureCapability], List[AzureCapability]]:
         available_capabilities: List[AzureCapability] = []
         awaitable_capabilities: List[AzureCapability] = []
+        # vm sizes that match the requirement but have zero quota (limit == 0)
+        # in this subscription/location. They can never be deployed here, so
+        # they are tracked separately to surface a meaningful skip reason.
+        no_quota_capabilities: List[AzureCapability] = []
 
         if not capabilities:
-            return ([], [])
+            return ([], [], [])
 
         # skip because it needs call azure API.
         if is_unittest():
-            return (capabilities, [])
+            return (capabilities, [], [])
 
         # assume all vm sizes are in the same location.
         location = capabilities[0].location
@@ -3347,6 +3369,7 @@ class AzurePlatform(Platform):
                 remaining, limit = quota
                 if limit == 0:
                     # no quota, doesn't need to wait
+                    no_quota_capabilities.append(capability)
                     continue
                 if remaining > 0:
                     available_capabilities.append(capability)
@@ -3356,7 +3379,7 @@ class AzurePlatform(Platform):
                 # not trackable vm size, assume the capability is enough.
                 available_capabilities.append(capability)
 
-        return (available_capabilities, awaitable_capabilities)
+        return (available_capabilities, awaitable_capabilities, no_quota_capabilities)
 
     def _check_environment_available(
         self,
