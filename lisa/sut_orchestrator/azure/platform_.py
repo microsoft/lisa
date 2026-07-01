@@ -3254,7 +3254,10 @@ class AzurePlatform(Platform):
                         seen.add(r)
                         unique_reasons.append(r)
                 error = "Requirement mismatch: " + "; ".join(unique_reasons)
-            else:
+            elif not error:
+                # Only fall back to the generic message when no specific
+                # sub_error (e.g. "no vm size found in '<location>' for
+                # [...]") was already captured while building the candidates.
                 error = (
                     f"Test skipped on '{location}' for an unknown reason. "
                     "This could be due to insufficient quota, unmet hardware "
