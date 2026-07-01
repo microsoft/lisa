@@ -3,11 +3,12 @@
 import shlex
 import time
 import uuid
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 from func_timeout import FunctionTimedOut
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     RemoteNode,
@@ -90,6 +91,53 @@ class KexecSuite(TestSuite):
         """
         self._run_kexec_test(node, log, result, use_systemctl=False)
 
+    @TestCaseMetadata(
+        description="""
+        End-to-end systemd kexec reboot test while guest nodes are running.
+
+        Validates that a guest can:
+        1. Run in an environment with at least one provisioned guest node
+        2. Load a new kernel image via kexec
+        3. Execute a systemd-integrated kexec reboot
+        4. Successfully boot into the kexec'd kernel
+        5. Keep any additional provisioned guest nodes reachable
+
+        LSG-LISA can request a four-guest scenario by setting guest_node_count=4
+        in the virtstack runbook or pipeline parameters.
+        """,
+        priority=5,
+        timeout=1200,
+        requirement=simple_requirement(min_count=1),
+    )
+    def verify_kexec_reboot_systemd_with_running_guests(
+        self, environment: Environment, log: Logger, result: TestResult
+    ) -> None:
+        """
+        Test systemd kexec while the provisioned guest environment is running.
+
+        The first environment node performs kexec. Any remaining nodes are peers
+        that must stay reachable and must not reboot during the target kexec.
+        """
+        nodes = self._get_remote_posix_nodes(environment)
+        target_node = nodes[0]
+        peer_nodes = nodes[1:]
+
+        if target_node.execute("which systemctl", shell=True).exit_code != 0:
+            raise SkippedException("systemctl not available on this system")
+
+        peer_boot_ids = self._record_peer_boot_ids(peer_nodes, log)
+        log.info(
+            f"Running systemd kexec on {target_node.name} with "
+            f"{len(peer_nodes)} peer guest node(s)"
+        )
+
+        try:
+            self._run_kexec_test(target_node, log, result, use_systemctl=True)
+        finally:
+            target_node.mark_dirty()
+
+        self._validate_peer_nodes(peer_boot_ids, log)
+
     def _run_kexec_test(
         self, node: Node, log: Logger, result: TestResult, use_systemctl: bool
     ) -> None:
@@ -163,6 +211,68 @@ class KexecSuite(TestSuite):
             except Exception as e:
                 log.debug(f"Failed to capture serial console log: {e}")
             raise
+
+    def _get_remote_posix_nodes(self, environment: Environment) -> List[RemoteNode]:
+        if not environment.nodes:
+            raise SkippedException("kexec test requires at least one environment node")
+
+        remote_nodes: List[RemoteNode] = []
+        for node in environment.nodes.list():
+            if not isinstance(node, RemoteNode):
+                raise SkippedException("kexec test requires remote nodes")
+
+            if not isinstance(node.os, Posix):
+                raise SkippedException("kexec test requires Linux/Posix OS")
+
+            remote_nodes.append(node)
+
+        return remote_nodes
+
+    def _record_peer_boot_ids(
+        self, peer_nodes: List[RemoteNode], log: Logger
+    ) -> List[Tuple[RemoteNode, str]]:
+        peer_boot_ids: List[Tuple[RemoteNode, str]] = []
+        for peer_node in peer_nodes:
+            boot_id = (
+                peer_node.tools[Cat]
+                .read(
+                    "/proc/sys/kernel/random/boot_id",
+                    sudo=True,
+                    force_run=True,
+                )
+                .strip()
+            )
+            if not boot_id:
+                raise AssertionError(f"Peer node {peer_node.name} has empty boot_id")
+
+            peer_boot_ids.append((peer_node, boot_id))
+            log.info(f"Peer node {peer_node.name} is reachable before kexec")
+
+        return peer_boot_ids
+
+    def _validate_peer_nodes(
+        self, peer_boot_ids: List[Tuple[RemoteNode, str]], log: Logger
+    ) -> None:
+        for peer_node, before_boot_id in peer_boot_ids:
+            peer_node.close()
+            after_boot_id = (
+                peer_node.tools[Cat]
+                .read(
+                    "/proc/sys/kernel/random/boot_id",
+                    sudo=True,
+                    force_run=True,
+                )
+                .strip()
+            )
+
+            if after_boot_id != before_boot_id:
+                raise AssertionError(
+                    f"Peer node {peer_node.name} rebooted during target kexec. "
+                    f"Before boot_id: {before_boot_id}, "
+                    f"after boot_id: {after_boot_id}"
+                )
+
+            log.info(f"Peer node {peer_node.name} stayed reachable during kexec")
 
     def _ensure_kexec_tools_installed(self, node: RemoteNode, log: Logger) -> None:
         """
