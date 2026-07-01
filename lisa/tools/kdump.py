@@ -226,6 +226,8 @@ class KdumpBase(Tool):
         elif isinstance(node.os, Suse):
             return KdumpSuse(node)
         elif isinstance(node.os, CBLMariner):
+            if node.os.information.version.major >= 4:
+                return KdumpFedora(node)
             return KdumpCBLMariner(node)
         elif type(node.os) is Fedora:
             return KdumpFedora(node)
@@ -585,7 +587,7 @@ class KdumpFedora(KdumpBase):
         return "kdumpctl"
 
     def _install(self) -> bool:
-        assert isinstance(self.node.os, Fedora)
+        assert isinstance(self.node.os, (Fedora, CBLMariner))
         self.node.os.install_packages("kdump-utils")
         return self._check_exists()
 

@@ -5,7 +5,7 @@ from typing import Any, Optional, Type
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Fedora, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Fedora, Redhat, Suse
 from lisa.util import LisaException, UnsupportedDistroException, find_group_in_lines
 
 from .ls import Ls
@@ -71,10 +71,32 @@ class Dhclient(Tool):
             if group and not group["default"]:
                 value = int(group["number"])
                 is_default_value = False
-        elif isinstance(self.node.os, Fedora):
-            # the default value in fedora is 300
+        elif isinstance(self.node.os, (Fedora, CBLMariner)):
+            # Fedora and AZL4+ use NetworkManager for DHCP; default timeout is 300.
+            # CBLMariner < 4 is not supported here and raises below.
+            if isinstance(self.node.os, CBLMariner) and (
+                self.node.os.information.version.major < 4
+            ):
+                raise UnsupportedDistroException(
+                    os=self.node.os,
+                    message=(
+                        "CBLMariner < 4 (AZL2/3) uses dhcpcd rather than "
+                        "NetworkManager, so this NetworkManager-based timeout "
+                        "lookup does not apply. To add support, read the timeout "
+                        "from the dhcpcd configuration (e.g. /etc/dhcpcd.conf) "
+                        "instead."
+                    ),
+                )
             value = 300
-            result = self.node.execute("NetworkManager --print-config", sudo=True)
+            result = self.node.execute(
+                "NetworkManager --print-config",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to read DHCP timeout from NetworkManager. "
+                    "Ensure NetworkManager is installed and accessible."
+                ),
+            )
             group = find_group_in_lines(result.stdout, self._fedora_pattern)
             if group and value != int(group["number"]):
                 value = int(group["number"])
