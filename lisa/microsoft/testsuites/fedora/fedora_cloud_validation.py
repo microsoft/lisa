@@ -103,7 +103,9 @@ class FedoraCloudValidation(TestSuite):
         ).contains(f":fedora:{version_id}")
 
         # Installed *-release RPM version must match VERSION_ID
-        rpm_result = node.execute("rpm -qa | grep fedora-release | tail -n1", shell=True)
+        rpm_result = node.execute(
+            "rpm -qa | grep fedora-release | tail -n1", shell=True
+        )
         release_pkg = rpm_result.stdout.strip()
         if release_pkg:
             rpm_ver = node.execute(f"rpm -q --qf '%{{VERSION}}' {release_pkg}")
@@ -162,6 +164,9 @@ class FedoraCloudValidation(TestSuite):
                 no_error_log=True,
                 timeout=60,
             )
+            assert_that(curl.exit_code).described_as(
+                f"curl must succeed for {key}={url}"
+            ).is_equal_to(0)
             http_code = curl.stdout.strip()
             assert_that(http_code[:1]).described_as(
                 f"{key}={url} must return HTTP 2xx/3xx (got {http_code})"
