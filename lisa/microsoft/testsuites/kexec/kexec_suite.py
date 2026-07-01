@@ -107,7 +107,10 @@ class KexecSuite(TestSuite):
         """,
         priority=5,
         timeout=1200,
-        requirement=simple_requirement(min_count=1),
+        requirement=simple_requirement(
+            min_count=1,
+            unsupported_features=[CvmEnabled()],
+        ),
     )
     def verify_kexec_reboot_systemd_with_running_guests(
         self, environment: Environment, log: Logger, result: TestResult
