@@ -22,20 +22,19 @@ class Kill(Tool):
     def by_name(
         self, process_name: str, signum: int = SIGKILL, ignore_not_exist: bool = False
     ) -> None:
-        # Find PIDs via pgrep (matches by process name), then kill each PID
-        # individually to avoid the shell interpreting the name as a job spec.
-        pgrep = self.node.tools[Pgrep]
-        processes = pgrep.get_processes(process_name)
-        if processes:
-            for proc in processes:
-                self.by_pid(proc.id, signum, ignore_not_exist)
-            return
-
-        # Fallback: try pidof in case pgrep missed it
+        # Prefer pidof for exact-name matching to avoid regex side-effects,
+        # then fall back to pgrep for processes started via sudo/shell wrappers.
         pids = self.node.tools[Pidof].get_pids(process_name, sudo=True)
         if pids:
             for pid in pids:
                 self.by_pid(pid, signum, ignore_not_exist)
+            return
+
+        # Fallback: try pgrep in case pidof missed it (e.g. wrapper processes)
+        processes = self.node.tools[Pgrep].get_processes(process_name)
+        if processes:
+            for proc in processes:
+                self.by_pid(proc.id, signum, ignore_not_exist)
         else:
             self._log.debug(
                 f"Kill for {process_name} did not find any processes to kill."
