@@ -19,7 +19,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat, Uname
-from lisa.features.security_profile import CvmEnabled
+from lisa.features.security_profile import CvmEnabled, is_cvm
 from lisa.operating_system import Posix
 from lisa.tools import Ls
 from lisa.util import LisaException, SkippedException, create_timer
@@ -107,10 +107,7 @@ class KexecSuite(TestSuite):
         """,
         priority=5,
         timeout=1200,
-        requirement=simple_requirement(
-            min_count=1,
-            unsupported_features=[CvmEnabled()],
-        ),
+        requirement=simple_requirement(min_count=1),
     )
     def verify_kexec_reboot_systemd_with_running_guests(
         self, environment: Environment, log: Logger, result: TestResult
@@ -124,6 +121,9 @@ class KexecSuite(TestSuite):
         nodes = self._get_remote_posix_nodes(environment)
         target_node = nodes[0]
         peer_nodes = nodes[1:]
+
+        if is_cvm(target_node):
+            raise SkippedException("kexec is not supported on CVM nodes")
 
         if target_node.execute("which systemctl", shell=True).exit_code != 0:
             raise SkippedException("systemctl not available on this system")
