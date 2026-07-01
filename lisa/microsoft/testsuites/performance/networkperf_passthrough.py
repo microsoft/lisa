@@ -64,6 +64,7 @@ PASSTHROUGH_LINE_RATE_THRESHOLD = Decimal("0.90")
 PASSTHROUGH_IPERF_UDP_BITRATE_MULTIPLIER = Decimal("1.10")
 PASSTHROUGH_LINE_RATE_METRIC_NAME = "passthrough_line_rate_gbps"
 PASSTHROUGH_PEAK_THROUGHPUT_METRIC_NAME = "passthrough_peak_delivered_throughput_gbps"
+PASSTHROUGH_LINE_RATE_PERCENT_METRIC_NAME = "passthrough_line_rate_percent"
 NetworkThroughputMessage = Union[
     NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
 ]
@@ -154,11 +155,13 @@ class NetworkPerformance(TestSuite):
         threshold_gbps: Decimal,
     ) -> None:
         test_case_name = best_message.test_case_name
+        line_rate_percent = best_throughput_gbps / line_rate_gbps * Decimal(100)
         client.log.info(
             f"Passthrough line-rate summary for {test_case_name}: "
             f"line_rate={line_rate_gbps} Gbps, "
             f"threshold={threshold_gbps} Gbps, "
             f"peak_delivered={best_throughput_gbps} Gbps, "
+            f"line_rate_percent={line_rate_percent}%, "
             f"sample=[{best_sample}], "
             f"client_nic={client.name}:{client_nic_name}, "
             f"server_nic={server.name}:{server_nic_name}"
@@ -187,6 +190,21 @@ class NetworkPerformance(TestSuite):
             metric_description=(
                 "Peak delivered passthrough throughput sample compared with "
                 "90% of bottleneck line rate."
+            ),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+            tool=best_message.tool,
+            protocol_type=best_message.protocol_type,
+        )
+        send_unified_perf_message(
+            node=client,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            metric_name=PASSTHROUGH_LINE_RATE_PERCENT_METRIC_NAME,
+            metric_value=float(line_rate_percent),
+            metric_unit="%",
+            metric_description=(
+                "Peak delivered passthrough throughput as a percentage of "
+                "bottleneck NIC line rate."
             ),
             metric_relativity=MetricRelativity.HigherIsBetter,
             tool=best_message.tool,
