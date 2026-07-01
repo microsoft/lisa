@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 from assertpy import assert_that
-
 from microsoft.testsuites.performance.common import (
     perf_iperf,
     perf_ntttcp,
@@ -60,6 +59,9 @@ WINDOWS_NTTTCP_MAX_SERVER_THREADS = 64
 WINDOWS_NTTTCP_MAX_MIXED_TCP_CONNECTIONS = 512
 WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
 PASSTHROUGH_LINE_RATE_THRESHOLD = Decimal("0.90")
+# Target above line rate so UDP iperf saturates the NIC instead of using its
+# default 1 Mbit/s UDP bitrate.
+PASSTHROUGH_IPERF_UDP_BITRATE_MULTIPLIER = Decimal("1.10")
 PASSTHROUGH_LINE_RATE_METRIC_NAME = "passthrough_line_rate_gbps"
 PASSTHROUGH_PEAK_THROUGHPUT_METRIC_NAME = "passthrough_peak_delivered_throughput_gbps"
 NetworkThroughputMessage = Union[
@@ -190,6 +192,19 @@ class NetworkPerformance(TestSuite):
             tool=best_message.tool,
             protocol_type=best_message.protocol_type,
         )
+
+    def _get_iperf_udp_line_rate_bitrate_gbps(
+        self,
+        client: RemoteNode,
+        client_nic_name: str,
+        server: RemoteNode,
+        server_nic_name: str,
+    ) -> Decimal:
+        line_rate_gbps = min(
+            self._get_link_rate_gbps(client, client_nic_name),
+            self._get_link_rate_gbps(server, server_nic_name),
+        )
+        return line_rate_gbps * PASSTHROUGH_IPERF_UDP_BITRATE_MULTIPLIER
 
     def _get_link_rate_gbps(self, node: RemoteNode, nic_name: str) -> Decimal:
         if isinstance(node.os, Windows):
@@ -351,6 +366,9 @@ class NetworkPerformance(TestSuite):
             server=server,
             client=client,
             udp_mode=True,
+            udp_total_bitrate_gbps=self._get_iperf_udp_line_rate_bitrate_gbps(
+                client, client_nic_name, server, server_nic_name
+            ),
             run_with_internal_address=True,
         )
         self._assert_passthrough_line_rate(
@@ -669,6 +687,9 @@ class NetworkPerformance(TestSuite):
             server=server,
             client=client,
             udp_mode=True,
+            udp_total_bitrate_gbps=self._get_iperf_udp_line_rate_bitrate_gbps(
+                client, client_nic_name, server, server_nic_name
+            ),
             run_with_internal_address=True,
         )
         self._assert_passthrough_line_rate(

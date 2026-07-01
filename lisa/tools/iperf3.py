@@ -393,7 +393,6 @@ class Iperf3(Tool):
         test_result: "TestResult",
     ) -> NetworkUDPPerformanceMessage:
         client_udp_lost_list: List[Decimal] = []
-        client_intervals_throughput_list: List[Decimal] = []
         client_throughput_list: List[Decimal] = []
         for client_result_raw in client_result_list:
             # remove warning which will bring exception when load json
@@ -406,6 +405,7 @@ class Iperf3(Tool):
                 client_udp_lost_list.append(
                     Decimal(client_result["end"]["sum"]["lost_percent"])
                 )
+                client_intervals_throughput_list: List[Decimal] = []
                 for client_interval in client_result["intervals"]:
                     client_intervals_throughput_list.append(
                         client_interval["sum"]["bits_per_second"]
@@ -420,7 +420,6 @@ class Iperf3(Tool):
                     )
                 )
         server_udp_lost_list: List[Decimal] = []
-        server_intervals_throughput_list: List[Decimal] = []
         server_throughput_list: List[Decimal] = []
         for server_result_raw in server_result_list:
             server_result = json.loads(self._pre_handle(server_result_raw.stdout))
@@ -431,6 +430,7 @@ class Iperf3(Tool):
                 server_udp_lost_list.append(
                     Decimal(server_result["end"]["sum"]["lost_percent"])
                 )
+                server_intervals_throughput_list: List[Decimal] = []
                 for server_interval in server_result["intervals"]:
                     server_intervals_throughput_list.append(
                         server_interval["sum"]["bits_per_second"]
@@ -447,15 +447,11 @@ class Iperf3(Tool):
 
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_IPERF
-        other_fields["tx_throughput_in_gbps"] = Decimal(
-            sum(client_throughput_list) / len(client_throughput_list)
-        )
+        other_fields["tx_throughput_in_gbps"] = Decimal(sum(client_throughput_list))
         other_fields["data_loss"] = Decimal(
             sum(client_udp_lost_list) / len(client_udp_lost_list)
         )
-        other_fields["rx_throughput_in_gbps"] = Decimal(
-            sum(server_throughput_list) / len(server_throughput_list)
-        )
+        other_fields["rx_throughput_in_gbps"] = Decimal(sum(server_throughput_list))
         other_fields["send_buffer_size"] = Decimal(buffer_length)
         other_fields["connections_num"] = connections_num
 

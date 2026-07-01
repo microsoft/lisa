@@ -3,6 +3,7 @@
 import inspect
 import pathlib
 import time
+from decimal import Decimal
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
@@ -61,6 +62,20 @@ from lisa.util.process import ExecutableResult, Process
 
 # NTTTCP may need extra time after the requested run duration to emit totals.
 DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 60
+
+
+def _get_iperf_udp_bitrate(
+    udp_total_bitrate_gbps: Optional[Decimal], connections: int
+) -> str:
+    if udp_total_bitrate_gbps is None:
+        return ""
+    per_stream_bitrate_mbps = (
+        udp_total_bitrate_gbps * Decimal(1000) / Decimal(connections)
+    )
+    bitrate = format(per_stream_bitrate_mbps.normalize(), "f")
+    if "." in bitrate:
+        bitrate = bitrate.rstrip("0").rstrip(".")
+    return f"{bitrate}M"
 
 
 def perf_nvme(
@@ -762,6 +777,7 @@ def perf_iperf(
     connections: List[int],
     buffer_length_list: List[int],
     udp_mode: bool = False,
+    udp_total_bitrate_gbps: Optional[Decimal] = None,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
     run_with_internal_address: bool = False,
@@ -839,6 +855,11 @@ def perf_iperf(
                         report_unit="g",
                         port=current_client_port,
                         buffer_length=buffer_length,
+                        bitrate=(
+                            _get_iperf_udp_bitrate(udp_total_bitrate_gbps, connection)
+                            if udp_mode
+                            else ""
+                        ),
                         run_time_seconds=10,
                         parallel_number=num_threads_p,
                         ip_version="4",
