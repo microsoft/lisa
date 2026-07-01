@@ -6,6 +6,7 @@ from lisa.executable import Tool
 from lisa.util import LisaException
 from lisa.util.constants import SIGKILL
 
+from .pgrep import Pgrep
 from .pidof import Pidof
 
 
@@ -21,17 +22,19 @@ class Kill(Tool):
     def by_name(
         self, process_name: str, signum: int = SIGKILL, ignore_not_exist: bool = False
     ) -> None:
-        # attempt kill by name first
-        kill_by_name = self.run(
-            f"-s {signum} {process_name}", sudo=True, shell=True, force_run=True
-        )
-        if kill_by_name.exit_code == 0:
+        # Prefer pidof for exact-name matching to avoid regex side-effects,
+        # then fall back to pgrep for processes started via sudo/shell wrappers.
+        pids = self.node.tools[Pidof].get_pids(process_name, sudo=True)
+        if pids:
+            for pid in pids:
+                self.by_pid(pid, signum, ignore_not_exist)
             return
 
-        # fallback to kill by pid if first attempt fails for some reason
-        pids = self.node.tools[Pidof].get_pids(process_name, sudo=True)
-        for pid in pids:
-            self.by_pid(pid, signum, ignore_not_exist)
+        # Fallback: try pgrep in case pidof missed it (e.g. wrapper processes)
+        processes = self.node.tools[Pgrep].get_processes(process_name)
+        if processes:
+            for proc in processes:
+                self.by_pid(proc.id, signum, ignore_not_exist)
         else:
             self._log.debug(
                 f"Kill for {process_name} did not find any processes to kill."

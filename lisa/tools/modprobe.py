@@ -242,6 +242,11 @@ class Modprobe(Tool):
                     "\nTrying to reconnect to the remote node in 2 sec..."
                 )
                 time.sleep(2)
+                # Reset the stale SSH transport so the next retry establishes
+                # a fresh connection. Without this, the retry loop keeps
+                # reusing the broken session and every attempt fails with
+                # "cannot connect to TCP port 22".
+                self.node.close()
 
         self._log.debug(
             f"Time taken to reload {mod_name}: {timer.elapsed(False)} seconds"

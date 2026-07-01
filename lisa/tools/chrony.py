@@ -26,9 +26,7 @@ from .echo import Echo
 
 class Chrony(Tool):
     # Leap status     : Normal
-    __leap_status_pattern = re.compile(
-        r"([\w\W]*?)Leap status.*:.*Normal$", re.MULTILINE
-    )
+    __leap_status_pattern = re.compile(r"Leap status\s*:\s*Normal")
     __no_server_set = "Number of sources = 0"
     __service_not_ready = "503 No such source"
 
@@ -69,7 +67,7 @@ class Chrony(Tool):
     def check_tracking(self) -> None:
         cmd_result = self.run("tracking", force_run=True, sudo=True)
         cmd_result.assert_exit_code()
-        if not self.__leap_status_pattern.match(cmd_result.stdout):
+        if not self.__leap_status_pattern.search(cmd_result.stdout):
             raise LisaException(
                 f"Leap status of {self.command} tracking is not expected,"
                 " please check the service status of chrony."
