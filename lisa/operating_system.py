@@ -800,6 +800,7 @@ class Debian(Linux):
     _apt_update_args = (
         "-o Acquire::Languages=none "
         "-o Acquire::GzipIndexes=true "
+        "-o Acquire::IndexTargets::deb::CNF::DefaultEnabled=false "
         "update"
     )
 
