@@ -147,6 +147,32 @@ class CloudHypervisorTests(Tool):
         """Sanitize names for filenames: keep alphanumeric, dot, dash, underscore."""
         return re.sub(r"[^A-Za-z0-9_.-]", "_", s)
 
+    @staticmethod
+    def _escape_nextest_filter_matcher(matcher: str) -> str:
+        return matcher.replace("\\", "\\\\").replace(")", "\\)")
+
+    def _build_nextest_filterset(
+        self,
+        base_filter: str,
+        only: Optional[List[str]],
+        skip: Optional[List[str]],
+    ) -> str:
+        filterset = f"test(~{self._escape_nextest_filter_matcher(base_filter)})"
+
+        if only:
+            included_tests = "|".join(
+                f"test(={self._escape_nextest_filter_matcher(test_name)})"
+                for test_name in only
+            )
+            filterset = f"({filterset}&({included_tests}))"
+
+        if skip:
+            for skipped_test in skip:
+                skipped_filter = self._escape_nextest_filter_matcher(skipped_test)
+                filterset = f"{filterset}-test(={skipped_filter})"
+
+        return f"--filterset={filterset}"
+
     def _prepare_subtests(
         self,
         test_type: str,
@@ -172,6 +198,39 @@ class CloudHypervisorTests(Tool):
         self._log.debug(f"Final Subtests list to run: {subtests}")
 
         return {"subtest_set": set(subtests), "skip_args": skip_args}
+
+    def _prepare_filtered_subtests(
+        self,
+        test_type: str,
+        hypervisor: str,
+        cli_test_filter: str,
+        only: Optional[List[str]],
+        skip: Optional[List[str]],
+    ) -> Dict[str, Any]:
+        subtests = self._list_subtests(hypervisor, test_type)
+        self._ordered_subtests = subtests.copy()
+
+        filtered_subtests = [
+            subtest for subtest in subtests if cli_test_filter in subtest
+        ]
+        if only is not None:
+            filtered_subtests = [
+                subtest for subtest in filtered_subtests if subtest in only
+            ]
+        if skip is not None:
+            filtered_subtests = [
+                subtest for subtest in filtered_subtests if subtest not in skip
+            ]
+
+        if not filtered_subtests:
+            fail(
+                f"No Cloud Hypervisor {test_type} subtests matched filter "
+                f"'{cli_test_filter}'. Verify the selected Cloud Hypervisor ref "
+                "contains matching tests and review include/exclude filters."
+            )
+
+        self._log.debug(f"Final Subtests list to run: {filtered_subtests}")
+        return {"subtest_set": set(filtered_subtests), "skip_args": ""}
 
     def _configure_environment_if_needed(self, hypervisor: str) -> None:
         """Configure environment specific settings if needed."""
@@ -412,16 +471,45 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
+        cli_test_filter: Optional[str] = None,
     ) -> None:
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
-        subtests = self._prepare_subtests(test_type, hypervisor, only, skip)
+        if cli_test_filter:
+            subtests = self._prepare_filtered_subtests(
+                test_type,
+                hypervisor,
+                cli_test_filter,
+                only,
+                skip,
+            )
+        else:
+            subtests = self._prepare_subtests(
+                test_type,
+                hypervisor,
+                only,
+                skip,
+            )
         self._configure_environment_if_needed(hypervisor)
 
         # Use enhanced diagnostics for better debugging and monitoring
         skip_args = subtests["skip_args"]
-        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
+        if cli_test_filter:
+            nextest_filter = self._build_nextest_filterset(
+                cli_test_filter,
+                only,
+                skip,
+            )
+            test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
+            cmd_args = (
+                f"tests --hypervisor {hypervisor} --{test_type} -- "
+                f"{test_script_args}"
+            )
+        else:
+            cmd_args = (
+                f"tests --hypervisor {hypervisor} --{test_type} -- -- " f"{skip_args}"
+            )
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
@@ -985,7 +1073,7 @@ class CloudHypervisorTests(Tool):
 
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
-        full_cmd = f"""bash -lc '
+        script = f"""
 set -o pipefail
 
 # enable core dumps (best-effort)
@@ -1209,7 +1297,8 @@ else
 fi
 
 exit $ec
-'"""
+"""
+        full_cmd = f"bash -lc {shlex.quote(script)}"
 
         # Best-effort install gdb if not available
         try:
