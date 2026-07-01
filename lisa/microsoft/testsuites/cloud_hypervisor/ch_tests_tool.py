@@ -176,29 +176,11 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
-        only_test_prefixes: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Prepare subtests and skip arguments."""
         subtests = self._list_subtests(hypervisor, test_type)
         # Store the ordered list for diagnostic purposes
         self._ordered_subtests = subtests.copy()
-
-        if only_test_prefixes is not None:
-            prefixed_subtests = [
-                subtest
-                for subtest in subtests
-                if any(subtest.startswith(prefix) for prefix in only_test_prefixes)
-            ]
-            if not prefixed_subtests:
-                fail(
-                    f"No Cloud Hypervisor {test_type} subtests matched prefixes "
-                    f"{only_test_prefixes}. Verify the selected Cloud Hypervisor "
-                    "ref contains those integration tests."
-                )
-            if only is None:
-                only = prefixed_subtests
-            else:
-                only = [subtest for subtest in only if subtest in prefixed_subtests]
 
         if only is not None:
             if not skip:
@@ -221,17 +203,9 @@ class CloudHypervisorTests(Tool):
         cli_test_filter: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
-        only_test_prefixes: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         subtests = self._list_subtests(hypervisor, test_type)
         self._ordered_subtests = subtests.copy()
-
-        if only_test_prefixes is not None:
-            subtests = [
-                subtest
-                for subtest in subtests
-                if any(subtest.startswith(prefix) for prefix in only_test_prefixes)
-            ]
 
         filtered_subtests = [
             subtest for subtest in subtests if cli_test_filter in subtest
@@ -494,7 +468,6 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
-        only_test_prefixes: Optional[List[str]] = None,
         cli_test_filter: Optional[str] = None,
     ) -> None:
         if ref:
@@ -507,7 +480,6 @@ class CloudHypervisorTests(Tool):
                 cli_test_filter,
                 only,
                 skip,
-                only_test_prefixes,
             )
         else:
             subtests = self._prepare_subtests(
@@ -515,7 +487,6 @@ class CloudHypervisorTests(Tool):
                 hypervisor,
                 only,
                 skip,
-                only_test_prefixes,
             )
         self._configure_environment_if_needed(hypervisor)
 
