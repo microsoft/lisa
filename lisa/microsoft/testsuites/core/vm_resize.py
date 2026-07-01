@@ -127,9 +127,12 @@ class VmResize(TestSuite):
             start_stop.stop()
         retry = 1
         maxretry = 20
+        expected_vm_capability: Optional[NodeSpace] = None
+        origin_vm_size: str = ""
+        final_vm_size: str = ""
+        last_error: str = ""
         while retry < maxretry:
             try:
-                expected_vm_capability: Optional[NodeSpace] = None
                 expected_vm_capability, origin_vm_size, final_vm_size = resize.resize(
                     resize_action
                 )
@@ -150,6 +153,7 @@ class VmResize(TestSuite):
                     in str(e)
                     or "Following SKUs have failed for Capacity Restrictions" in str(e)
                 ):
+                    last_error = str(e)
                     retry = retry + 1
                 else:
                     raise e
@@ -157,7 +161,17 @@ class VmResize(TestSuite):
             finally:
                 if not hot_resize:
                     start_stop.start()
-        assert expected_vm_capability, "fail to find proper vm size"
+        if not expected_vm_capability:
+            # The retry loop exhausted without a successful resize. This is an
+            # environment limitation (no compatible candidate happened to be
+            # picked across all retries), not a defect in the system under
+            # test, so surface it as SKIPPED rather than the misleading
+            # "fail to find proper vm size" assertion.
+            raise SkippedException(
+                f"no resize-compatible VM size succeeded after {maxretry - 1} "
+                f"attempts for action {resize_action}. last Azure error: "
+                f"{last_error or 'unknown'}"
+            )
 
         test_result.information["final_vm_size"] = final_vm_size
         test_result.information["origin_vm_size"] = origin_vm_size
