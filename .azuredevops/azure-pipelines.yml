@@ -1,0 +1,339 @@
+trigger: none
+
+pr:
+  autoCancel: true
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: lisa_log_agent
+
+  - name: pythonVersion
+    value: '3.12'
+
+  # Replace with your Azure DevOps Service Connection name
+  - name: azureServiceConnection
+    value: 'lisa_connection'
+
+  # Replace with your LISA runbook
+  - name: runbook
+    value: 'lisa/microsoft/runbook/ai_selected.yml'
+
+  # Azure region
+  - name: location
+    value: 'westus3'
+
+steps:
+
+- checkout: self
+  fetchDepth: 0
+
+- task: UsePythonVersion@0
+  displayName: Use Python $(pythonVersion)
+  inputs:
+    versionSpec: $(pythonVersion)
+
+- script: |
+
+    python <<'PY'
+
+    import json
+    import os
+    import time
+    import urllib.request
+
+    repo = os.environ.get("REPO", "").strip()
+    sha = os.environ.get("SHA", "").strip()
+    self_name = os.environ.get("SELF_NAME", "").strip()
+    timeout_min = int(os.environ.get("TIMEOUT_MIN", "30"))
+    poll_sec = int(os.environ.get("POLL_SEC", "20"))
+
+    if not repo or not sha:
+        print("No repo/sha available; skipping CI wait.")
+        raise SystemExit(0)
+
+    api = (
+        f"https://api.github.com/repos/{repo}/commits/{sha}/"
+        "check-runs?per_page=100"
+    )
+    bad = {"failure", "cancelled", "timed_out", "action_required", "stale"}
+    deadline = time.time() + timeout_min * 60
+
+    def fetch():
+        req = urllib.request.Request(api)
+        req.add_header("Accept", "application/vnd.github+json")
+        req.add_header("User-Agent", "ado-lisa-pipeline")
+        with urllib.request.urlopen(req) as resp:
+            return json.load(resp).get("check_runs", [])
+
+    while True:
+        try:
+            runs = fetch()
+        except Exception as err:  # noqa: BLE001
+            print(f"Cannot read check-runs ({err}); skipping CI wait.")
+            raise SystemExit(0)
+
+        # Ignore this pipeline's own check(s) to avoid deadlock.
+        others = [
+            r for r in runs
+            if self_name.lower() not in (r.get("name") or "").lower()
+        ]
+
+        pending = [r for r in others if r.get("status") != "completed"]
+        failed = [
+            r for r in others
+            if r.get("status") == "completed"
+            and (r.get("conclusion") or "") in bad
+        ]
+
+        if failed:
+            names = ", ".join(r.get("name", "?") for r in failed)
+            print(f"Other CI checks failed: {names}")
+            raise SystemExit(1)
+
+        if not pending:
+            done = ", ".join(r.get("name", "?") for r in others) or "none"
+            print(f"All other CI checks passed: {done}")
+            raise SystemExit(0)
+
+        if time.time() >= deadline:
+            names = ", ".join(r.get("name", "?") for r in pending)
+            print(f"Timed out waiting for CI checks: {names}")
+            raise SystemExit(1)
+
+        waiting = ", ".join(r.get("name", "?") for r in pending)
+        print(f"Waiting for CI checks to complete: {waiting}")
+        time.sleep(poll_sec)
+
+    PY
+
+  displayName: Wait for other CI checks
+  condition: eq(variables['Build.Reason'], 'PullRequest')
+  env:
+    REPO: $(Build.Repository.Name)
+    SHA: $(System.PullRequest.SourceCommitId)
+    SELF_NAME: $(Build.DefinitionName)
+    TIMEOUT_MIN: '30'
+    POLL_SEC: '20'
+
+- script: |
+
+    set -euo pipefail
+
+    TARGET="$(System.PullRequest.TargetBranch)"
+    TARGET="${TARGET#refs/heads/}"
+
+    echo "Target branch: $TARGET"
+
+    git fetch origin "$TARGET"
+
+    BASE=$(git merge-base HEAD origin/$TARGET)
+
+    echo "Merge base: $BASE"
+
+    git diff --name-only "$BASE"...HEAD \
+      | tee /tmp/changed_files.txt
+
+    git diff "$BASE"...HEAD \
+      > /tmp/pr_diff.txt
+
+    echo ""
+    echo "Changed files:"
+    cat /tmp/changed_files.txt
+
+    echo ""
+
+    echo "Changed file count:"
+    wc -l /tmp/changed_files.txt
+
+    echo ""
+
+    echo "Diff size:"
+    wc -c /tmp/pr_diff.txt
+
+  displayName: Generate PR Diff
+
+- script: |
+
+    python -m pip install --quiet --upgrade pip pyyaml
+
+    export PR_CHANGED_FILES="$(cat /tmp/changed_files.txt)"
+
+    export PR_DIFF="$(head -c 30000 /tmp/pr_diff.txt)"
+
+    export RUNBOOK_OUTPUT="ai_selected_cases.yml"
+
+    python .github/scripts/ai_select_cases.py
+
+  displayName: AI Select Test Cases
+  env:
+    AZURE_OPENAI_API_KEY: $(azure_openai_api_key)
+    AZURE_OPENAI_ENDPOINT: $(azure_openai_endpoint)
+    AZURE_OPENAI_DEPLOYMENT: gpt-4o
+    AZURE_OPENAI_API_VERSION: '2024-02-15-preview'
+
+- script: |
+
+    python <<'PY'
+
+    import yaml
+
+    with open("ai_selected_cases.yml") as f:
+        rb = yaml.safe_load(f)
+
+    cases = []
+
+    image = ""
+
+    variables = rb.get("variable", [])
+
+    for v in variables:
+        if v.get("name") == "marketplace_image":
+            image = v.get("value", "")
+
+    for t in rb.get("testcase", []):
+        c = t.get("criteria", {}).get("name")
+        if c:
+            cases.append(c)
+
+    print("Selected:", cases)
+
+    print(f"##vso[task.setvariable variable=CASE_NAMES]{','.join(cases)}")
+    print(f"##vso[task.setvariable variable=CASE_COUNT]{len(cases)}")
+    print(f"##vso[task.setvariable variable=MARKETPLACE_IMAGE]{image}")
+
+    PY
+
+  displayName: Read AI Selection
+
+- script: |
+    sudo apt-get update -qq
+    sudo apt-get install -y git gcc libgirepository1.0-dev libcairo2-dev pkg-config python3-dev
+  displayName: Install system dependencies
+  condition: ne(variables['CASE_COUNT'], '0')
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install -e ".[azure]"
+  displayName: Install LISA
+  condition: ne(variables['CASE_COUNT'], '0')
+
+- task: AzureCLI@2
+  displayName: Login to Azure using OIDC
+  condition: ne(variables['CASE_COUNT'], '0')
+  inputs:
+    azureSubscription: $(azureServiceConnection)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -e
+
+      echo "Current Azure Account:"
+      az account show
+
+      SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+      ARM_TOKEN=$(az account get-access-token \
+        --resource https://management.azure.com/ \
+        --query accessToken \
+        -o tsv)
+
+      echo "##vso[task.setvariable variable=SUBSCRIPTION_ID]$SUBSCRIPTION_ID"
+      echo "##vso[task.setvariable variable=ARM_TOKEN;issecret=true]$ARM_TOKEN"
+
+- script: |
+    echo "Selected $(CASE_COUNT) test cases."
+  displayName: Summary
+
+- script: |
+    echo "No test case selected."
+    exit 0
+  displayName: Skip
+  condition: eq(variables['CASE_COUNT'], '0')
+
+- script: |
+
+    CASE_PATTERN=$(echo "$(CASE_NAMES)" | tr ',' '|')
+
+    echo "Running:"
+    echo "$CASE_PATTERN"
+
+    lisa \
+      -r $(runbook) \
+      -v "subscription_id:$(SUBSCRIPTION_ID)" \
+      -v "location:$(location)" \
+      -v "marketplace_image:$(MARKETPLACE_IMAGE)" \
+      -v "test_case_name:$CASE_PATTERN" \
+      -v "enable_tests:False" \
+      -v "auth_type:token" \
+      -v "s:azure_arm_access_token:$(ARM_TOKEN)"
+
+  displayName: Run Selected LISA Tests
+  condition: ne(variables['CASE_COUNT'], '0')
+
+- task: PublishTestResults@2
+  displayName: Publish JUnit Results
+  condition: and(always(), ne(variables['CASE_COUNT'], '0'))
+  inputs:
+    testResultsFormat: JUnit
+    testResultsFiles: '**/lisa.junit.xml'
+    failTaskOnFailedTests: false
+    testRunTitle: 'LISA Test Results'
+
+- task: PublishBuildArtifacts@1
+  displayName: Publish Runtime Artifacts
+  condition: and(always(), ne(variables['CASE_COUNT'], '0'))
+  inputs:
+    PathtoPublish: runtime
+    ArtifactName: lisa-runtime
+
+- task: PublishBuildArtifacts@1
+  displayName: Publish AI Selection
+  condition: always()
+  inputs:
+    PathtoPublish: ai_selected_cases.yml
+    ArtifactName: ai-selected-runbook
+
+- task: GitHubComment@0
+  displayName: Comment on GitHub PR (cases selected)
+  condition: >-
+    and(always(), eq(variables['Build.Reason'], 'PullRequest'),
+    ne(variables['CASE_COUNT'], '0'))
+  inputs:
+    # Name of the GitHub service connection created when the repo was
+    # connected to Azure DevOps (OAuth-based, no PAT required).
+    gitHubConnection: 'github_lisa'
+    repositoryName: $(Build.Repository.Name)
+    id: $(System.PullRequest.PullRequestNumber)
+    comment: |
+      <!-- ai-test-selection -->
+      ## AI Test Case Selection
+
+      **Selected $(CASE_COUNT) test case(s):** $(CASE_NAMES)
+
+      **Marketplace image:** `$(MARKETPLACE_IMAGE)`
+
+      **Result:** $(Agent.JobStatus)
+
+      [View full logs in Azure DevOps]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
+
+- task: GitHubComment@0
+  displayName: Comment on GitHub PR (no cases)
+  condition: >-
+    and(always(), eq(variables['Build.Reason'], 'PullRequest'),
+    eq(variables['CASE_COUNT'], '0'))
+  inputs:
+    gitHubConnection: 'github_lisa'
+    repositoryName: $(Build.Repository.Name)
+    id: $(System.PullRequest.PullRequestNumber)
+    comment: |
+      <!-- ai-test-selection -->
+      ## AI Test Case Selection
+
+      No impacted test cases were selected for this change, so the LISA test run was skipped.
+
+      [View details in Azure DevOps]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
