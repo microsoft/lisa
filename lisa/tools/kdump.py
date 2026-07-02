@@ -294,8 +294,16 @@ class KdumpBase(Tool):
             and float(total_memory.strip("M")) < 2048
         ):
             crash_kernel = "256M"
-        elif "T" in total_memory and float(total_memory.strip("T")) > 1:
-            crash_kernel = "1G"
+        elif "T" in total_memory:
+            total_memory_tb = float(total_memory.strip("T"))
+            if total_memory_tb > 8:
+                crash_kernel = "4G"
+            elif total_memory_tb > 4:
+                crash_kernel = "2G"
+            elif total_memory_tb > 1:
+                crash_kernel = "1G"
+            else:
+                crash_kernel = "512M"
         else:
             crash_kernel = "512M"
         return crash_kernel
@@ -854,8 +862,14 @@ class KdumpCheck(Tool):
             # change the dump path and increase the timeout duration
             kdump.config_resource_disk_dump_path(self._get_disk_dump_path())
             self.timeout_of_dump_crash = 1200
-            if "T" in total_memory and float(total_memory.strip("T")) > 6:
-                self.timeout_of_dump_crash = 2000
+            if "T" in total_memory:
+                total_memory_tb = float(total_memory.strip("T"))
+                if total_memory_tb > 8:
+                    self.timeout_of_dump_crash = 4800
+                elif total_memory_tb > 4:
+                    self.timeout_of_dump_crash = 3600
+                elif total_memory_tb > 1:
+                    self.timeout_of_dump_crash = 2400
 
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
@@ -866,7 +880,15 @@ class KdumpCheck(Tool):
         self.node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
 
         # Reboot system to make kdump take effect
-        self.node.reboot(time_out=600)
+        # Large memory VMs (multi-TB) need more time for memory initialization
+        reboot_timeout = 600
+        if "T" in total_memory:
+            total_memory_tb = float(total_memory.strip("T"))
+            if total_memory_tb > 4:
+                reboot_timeout = 1200
+            elif total_memory_tb > 1:
+                reboot_timeout = 900
+        self.node.reboot(time_out=reboot_timeout)
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
