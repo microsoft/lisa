@@ -2252,7 +2252,7 @@ class CBLMariner(RPMDistro):
 
     def __init__(self, node: Any) -> None:
         super().__init__(node)
-        self._dnf_tool_name: str
+        self._dnf_tool_name: str = ""
 
     def _initialize_package_installation(self) -> None:
         self.set_kill_user_processes()
@@ -2265,6 +2265,12 @@ class CBLMariner(RPMDistro):
         self._dnf_tool_name = "tdnf -q"
 
     def _dnf_tool(self) -> str:
+        # The tool name is resolved lazily by _initialize_package_installation,
+        # which runs on the install path but not on the update path. Ensure it is
+        # resolved here so callers such as _update_packages work regardless of
+        # which path runs first.
+        if not self._dnf_tool_name:
+            self._initialize_package_installation()
         return self._dnf_tool_name
 
     def _package_exists(self, package: str) -> bool:
