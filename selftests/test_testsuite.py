@@ -6,9 +6,16 @@ from unittest import TestCase
 
 from assertpy import assert_that
 
-from lisa import LisaException, PassedException, SkippedException, constants, schema
+from lisa import (
+    LisaException,
+    PassedException,
+    SkippedException,
+    constants,
+    schema,
+    search_space,
+)
 from lisa.environment import EnvironmentStatus, load_environments
-from lisa.operating_system import Posix, Windows
+from lisa.operating_system import Fedora, Posix, Redhat, Windows
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import parse_testcase_filters
 from lisa.testselector import select_testcases
@@ -19,6 +26,7 @@ from lisa.testsuite import (
     TestStatus,
     TestSuite,
     TestSuiteMetadata,
+    _check_os_type,
     get_cases_metadata,
     get_suites_metadata,
     node_requirement,
@@ -153,6 +161,39 @@ def select_and_check(
     ut.assertListEqual(expected_descriptions, [case.description for case in selected])
 
     return selected
+
+
+class OsExactMatchTestCase(TestCase):
+    def _os(self, os_class: Any) -> Any:
+        # build an OS instance without running __init__, so type() and __mro__
+        # reflect the class under test.
+        return object.__new__(os_class)
+
+    def _os_type(self, supported: Any = None, unsupported: Any = None) -> Any:
+        return search_space.create_set_space(supported, unsupported, "os")
+
+    def test_supported_mro_matches_subclass(self) -> None:
+        # default behavior: Redhat (a Fedora subclass) satisfies supported_os=[Fedora]
+        os_type = self._os_type(supported=[Fedora])
+        assert_that(_check_os_type(os_type, False, self._os(Redhat)).result).is_true()
+
+    def test_supported_exact_excludes_subclass(self) -> None:
+        os_type = self._os_type(supported=[Fedora])
+        # exact match excludes the Redhat subclass
+        assert_that(_check_os_type(os_type, True, self._os(Redhat)).result).is_false()
+        # exact match still allows the exact Fedora type
+        assert_that(_check_os_type(os_type, True, self._os(Fedora)).result).is_true()
+
+    def test_unsupported_mro_excludes_subclass(self) -> None:
+        # default behavior: unsupported_os=[Fedora] also excludes the Redhat subclass
+        os_type = self._os_type(unsupported=[Fedora])
+        assert_that(_check_os_type(os_type, False, self._os(Redhat)).result).is_false()
+
+    def test_unsupported_exact_allows_subclass(self) -> None:
+        os_type = self._os_type(unsupported=[Fedora])
+        # exact match only excludes the exact Fedora type; Redhat is allowed
+        assert_that(_check_os_type(os_type, True, self._os(Redhat)).result).is_true()
+        assert_that(_check_os_type(os_type, True, self._os(Fedora)).result).is_false()
 
 
 class TestSuiteTestCase(TestCase):

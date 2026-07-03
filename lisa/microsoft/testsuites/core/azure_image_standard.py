@@ -437,6 +437,7 @@ class AzureImageStandard(TestSuite):
         priority=3,
         requirement=simple_requirement(
             supported_os=[Fedora],
+            os_exact_match=True,
             supported_platform_type=[AZURE, READY, HYPERV],
         ),
     )
