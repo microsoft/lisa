@@ -49,6 +49,7 @@ from lisa.tools import (
     Journalctl,
     Kill,
     Lscpu,
+    Ntttcp,
     Service,
 )
 from lisa.util import (
@@ -58,6 +59,17 @@ from lisa.util import (
     check_till_timeout,
 )
 from lisa.util.shell import wait_tcp_port_ready
+
+
+def _count_cpus_with_increased_interrupts(
+    initial_by_cpu: Dict[int, int], final_by_cpu: Dict[int, int]
+) -> int:
+    # Count the vCPUs whose NIC interrupt counter increased after traffic.
+    used_cpu = 0
+    for cpu, initial_value in initial_by_cpu.items():
+        if final_by_cpu[cpu] > initial_value:
+            used_cpu += 1
+    return used_cpu
 
 
 @TestSuiteMetadata(
@@ -814,10 +826,9 @@ class Sriov(TestSuite):
 
         vm_nics = initialize_nic_info(environment)
 
-        server_iperf3 = server_node.tools[Iperf3]
-        client_iperf3 = client_node.tools[Iperf3]
-        # 1. Start iperf3 on server node.
-        server_iperf3.run_as_server_async()
+        server_ntttcp = server_node.tools[Ntttcp]
+        client_ntttcp = client_node.tools[Ntttcp]
+        client_ethtool = client_node.tools[Ethtool]
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
             if client_nic_info.is_pci_module_enabled:
@@ -865,13 +876,25 @@ class Sriov(TestSuite):
                     f" {client_nic_info.ip_addr}"
                 )
 
-                # 3. Start iperf3 for 120 seconds with 128 threads on client node.
-                client_iperf3.run_as_client(
-                    server_ip=matched_server_nic_info.ip_addr,
+                # 3. Generate TCP traffic with ntttcp using many ports and threads
+                #    so RSS spreads interrupts across all of the NIC's queues.
+                server_result = server_ntttcp.run_as_server_async(
+                    matched_server_nic_info.name,
                     run_time_seconds=120,
-                    parallel_number=128,
-                    client_ip=client_nic_info.ip_addr,
+                    ports_count=64,
                 )
+                try:
+                    client_ntttcp.run_as_client(
+                        client_nic_info.name,
+                        matched_server_nic_info.ip_addr,
+                        threads_count=16,
+                        run_time_seconds=120,
+                        ports_count=64,
+                        source_ip=client_nic_info.ip_addr,
+                    )
+                finally:
+                    server_node.tools[Kill].by_name(server_ntttcp.command)
+                    server_result.wait_result()
                 # 4. Get final interrupts sum per irq number on client node.
                 final_pci_interrupts_by_irqs = (
                     client_interrupt_inspector.sum_cpu_counter_by_irqs(
@@ -894,7 +917,7 @@ class Sriov(TestSuite):
                     # increased.
                     assert_that(final_interrupts_value).described_as(
                         f"irq {init_irq_number} didn't have an increased interrupts "
-                        " count after iperf3 run!"
+                        " count after ntttcp run!"
                     ).is_greater_than(init_interrupts_value)
                 # 6. Get final interrupts sum per cpu on client node.
                 final_pci_interrupts_by_cpus = (
@@ -911,21 +934,29 @@ class Sriov(TestSuite):
                     assert_that(len(final_pci_interrupts_by_cpus)).described_as(
                         "initial cpu count of interrupts should be equal to cpu count"
                     ).is_equal_to(client_thread_count)
-                unused_cpu = 0
-                for (
-                    cpu,
-                    init_interrupts_value,
-                ) in initial_pci_interrupts_by_cpus.items():
-                    final_interrupts_value = final_pci_interrupts_by_cpus[cpu]
-                    # 7. Collect cpus which don't have interrupts count increased.
-                    if final_interrupts_value == init_interrupts_value:
-                        unused_cpu += 1
-                # 8. Compare interrupts count changes, expected half of cpus' interrupts
-                #    increased.
-                assert_that(client_thread_count / 2).described_as(
-                    f"More than half of the vCPUs {unused_cpu} didn't have increased "
-                    "interrupt count!"
-                ).is_greater_than(unused_cpu)
+                used_cpu = _count_cpus_with_increased_interrupts(
+                    initial_pci_interrupts_by_cpus, final_pci_interrupts_by_cpus
+                )
+                # 8. The number of vCPUs that can receive NIC interrupts is bounded by
+                #    the VF's current combined channel (queue) count, not by the vCPU
+                #    count. On SKUs where channels < vCPUs / 2 (e.g. NVMe-enabled or
+                #    HPC HB-series), expecting half of the vCPUs to show interrupts is
+                #    wrong and causes false failures (bug 44366125). Base the
+                #    expectation on the device's actual channel count instead.
+                channel_count = client_ethtool.get_device_channels_info(
+                    client_nic_info.name
+                ).current_channels
+                assert_that(channel_count).described_as(
+                    "the VF should expose more than one combined channel"
+                ).is_greater_than(1)
+                expected_active_cpu = max(
+                    1, min(channel_count, client_thread_count) // 2
+                )
+                assert_that(used_cpu).described_as(
+                    "interrupts were not distributed across enough vCPUs: "
+                    f"active={used_cpu}, channels={channel_count}, "
+                    f"vCPUs={client_thread_count}"
+                ).is_greater_than_or_equal_to(expected_active_cpu)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
