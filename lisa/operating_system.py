@@ -2325,12 +2325,45 @@ class CBLMariner(RPMDistro):
     # Disable KillUserProcesses to avoid test processes being terminated when
     # the SSH session is reset
     def set_kill_user_processes(self) -> None:
-        sed = self._node.tools[Sed]
-        sed.append(
-            text="KillUserProcesses=no",
-            file="/etc/systemd/logind.conf",
-            sudo=True,
-        )
+        logind_conf = "/etc/systemd/logind.conf"
+        if self._node.shell.exists(self._node.get_pure_path(logind_conf)):
+            # The stock logind.conf already contains a [Login] section, so a
+            # bare key can be appended to it.
+            sed = self._node.tools[Sed]
+            sed.append(
+                text="KillUserProcesses=no",
+                file=logind_conf,
+                sudo=True,
+            )
+        else:
+            # On some distros (e.g. Azure Linux 4.0) /etc/systemd/logind.conf
+            # does not exist by default, so appending to it fails. Write a
+            # systemd drop-in instead, which is honored without the base file
+            # and must carry its own [Login] section header.
+            from lisa.tools import Echo
+
+            dropin_dir = "/etc/systemd/logind.conf.d"
+            dropin_file = f"{dropin_dir}/99-lisa-kill-user-processes.conf"
+            self._node.execute(
+                f"mkdir -p {dropin_dir}",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"Failed to create {dropin_dir}"
+                ),
+            )
+            echo = self._node.tools[Echo]
+            echo.write_to_file(
+                "[Login]",
+                self._node.get_pure_path(dropin_file),
+                sudo=True,
+            )
+            echo.write_to_file(
+                "KillUserProcesses=no",
+                self._node.get_pure_path(dropin_file),
+                sudo=True,
+                append=True,
+            )
         self._node.tools[Service].restart_service("systemd-logind")
 
     def _replace_default_entry(self, entry: str) -> None:
