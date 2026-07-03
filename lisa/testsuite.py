@@ -70,6 +70,47 @@ def _call_with_timeout(
         raise TimeoutError(f"time out in {timeout} seconds.")
 
 
+def _check_os_type(
+    os_type: search_space.SetSpace[Type[OperatingSystem]],
+    os_exact_match: bool,
+    os_instance: OperatingSystem,
+) -> search_space.ResultReason:
+    # use __mro__ to match any super types. for example, Ubuntu satisfies Linux
+    node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
+        is_allow_set=True, items=type(os_instance).__mro__
+    )
+    os_result = search_space.ResultReason()
+    if os_type.is_allow_set:
+        supported_os = set(os_type)
+        if os_exact_match:
+            # Match the exact OS type only, excluding subclasses. e.g.
+            # supported_os=[Fedora] with os_exact_match=True does not match
+            # Redhat/CentOS which subclass Fedora.
+            if type(os_instance) not in supported_os:
+                os_result.add_reason(
+                    f"requires exactly [{os_type}] "
+                    f"but VM is [{type(os_instance).__name__}]"
+                )
+        elif not supported_os.intersection(set(node_os_capability)):
+            os_result.add_reason(
+                f"requires [{os_type}] but VM supports [{node_os_capability}]"
+            )
+    elif os_exact_match:
+        # Exclude the exact OS type only; subclasses are still allowed. e.g.
+        # unsupported_os=[Fedora] with os_exact_match=True excludes Fedora but
+        # still allows Redhat/CentOS which subclass Fedora.
+        if type(os_instance) in set(os_type):
+            os_result.add_reason(
+                f"requirements excludes exactly {type(os_instance).__name__}"
+            )
+    else:
+        excluded_os = set(os_type).intersection(node_os_capability)
+        if excluded_os:
+            names = sorted(os_t.__name__ for os_t in excluded_os)
+            os_result.add_reason(f"requirements excludes {', '.join(names)}")
+    return os_result
+
+
 @dataclass
 class TestResult:
     # id is used to identify the unique test result
@@ -213,29 +254,11 @@ class TestResult:
                 # the UT has no OS initialized, skip the check
                 if not hasattr(node, "os"):
                     continue
-                # use __mro__ to match any super types.
-                # for example, Ubuntu satisfies Linux
-                node_os_capability = search_space.SetSpace[Type[OperatingSystem]](
-                    is_allow_set=True, items=type(node.os).__mro__
+                os_result = _check_os_type(
+                    requirement.os_type,
+                    requirement.os_exact_match,
+                    node.os,
                 )
-                os_result = search_space.ResultReason()
-                if requirement.os_type.is_allow_set:
-                    supported_os = set(requirement.os_type)
-                    node_os_types = set(node_os_capability)
-                    if not supported_os.intersection(node_os_types):
-                        os_result.add_reason(
-                            f"requires [{requirement.os_type}] "
-                            f"but VM supports [{node_os_capability}]"
-                        )
-                else:
-                    excluded_os = set(requirement.os_type).intersection(
-                        node_os_capability
-                    )
-                    if excluded_os:
-                        names = sorted(os_type.__name__ for os_type in excluded_os)
-                        os_result.add_reason(
-                            f"requirements excludes {', '.join(names)}"
-                        )
                 # If one of OS mismatches, mark the test case is skipped. It
                 # assumes no more env can meet the requirements, instead of
                 # checking the rest envs one by one. The reason is this checking
@@ -412,6 +435,10 @@ class TestCaseRequirement:
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected
     platform_type: Optional[search_space.SetSpace[str]] = None
     os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
+    # When True, supported_os matches the exact OS type only and excludes
+    # subclasses. For example, supported_os=[Fedora] with os_exact_match=True
+    # runs on Fedora but not on Redhat/CentOS which subclass Fedora.
+    os_exact_match: bool = False
 
 
 def _create_test_case_requirement(
@@ -427,6 +454,7 @@ def _create_test_case_requirement(
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+    os_exact_match: bool = False,
 ) -> TestCaseRequirement:
     if supported_features:
         node.features = search_space.SetSpace[schema.FeatureSettings](
@@ -453,6 +481,7 @@ def _create_test_case_requirement(
         platform_type=platform_types,
         os_type=os,
         environment_status=environment_status,
+        os_exact_match=os_exact_match,
     )
 
 
@@ -469,6 +498,7 @@ def node_requirement(
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+    os_exact_match: bool = False,
 ) -> TestCaseRequirement:
     return _create_test_case_requirement(
         node,
@@ -479,6 +509,7 @@ def node_requirement(
         supported_features,
         unsupported_features,
         environment_status,
+        os_exact_match,
     )
 
 
@@ -503,6 +534,7 @@ def simple_requirement(
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+    os_exact_match: bool = False,
 ) -> TestCaseRequirement:
     """
     define a simple requirement to support most test cases.
@@ -539,6 +571,7 @@ def simple_requirement(
         supported_features,
         unsupported_features,
         environment_status,
+        os_exact_match,
     )
 
 
