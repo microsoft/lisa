@@ -44,6 +44,7 @@ Documents
 -  `Command line reference <https://mslisa.rtfd.io/en/main/run_test/command_line.html>`__
 -  `Runbook reference <https://mslisa.rtfd.io/en/main/run_test/runbook.html>`__
 -  `Extend and customize LISA <https://mslisa.rtfd.io/en/main/write_test/extension.html>`__
+-  `Test Maturity Model <https://mslisa.rtfd.io/en/main/test_maturity_model.html>`__
 
 Contribute
 ----------

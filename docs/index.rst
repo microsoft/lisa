@@ -47,6 +47,7 @@ Why LISA
    Installation & Update <install>
    Run tests <run_test/run>
    Write tests <write_test/write>
+   Test Maturity Model <test_maturity_model>
    Contributing <contributing>
    Troubleshooting <troubleshooting>
 
