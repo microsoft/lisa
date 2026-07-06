@@ -3,11 +3,12 @@
 import shlex
 import time
 import uuid
-from typing import Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, cast
 
 from func_timeout import FunctionTimedOut
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     RemoteNode,
@@ -18,10 +19,14 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat, Uname
-from lisa.features.security_profile import CvmEnabled
+from lisa.features.security_profile import is_cvm
 from lisa.operating_system import Posix
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR
 from lisa.tools import Ls
 from lisa.util import LisaException, SkippedException, create_timer
+
+if TYPE_CHECKING:
+    from lisa.sut_orchestrator.libvirt.ch_platform import CloudHypervisorPlatform
 
 
 @TestSuiteMetadata(
@@ -32,11 +37,11 @@ from lisa.util import LisaException, SkippedException, create_timer
     Validates kernel's ability to load and execute a new kernel
     without going through BIOS/firmware reboot.
     """,
-    requirement=simple_requirement(unsupported_features=[CvmEnabled()]),
 )
 class KexecSuite(TestSuite):
     RECONNECT_TIMEOUT = 600  # 10 minutes
     RECONNECT_INTERVAL = 10  # Check every 10 seconds
+    RUNNING_GUESTS_TIMEOUT = 1200  # 20 minutes for multi-guest kexec validation
 
     @TestCaseMetadata(
         description="""
@@ -90,6 +95,62 @@ class KexecSuite(TestSuite):
         """
         self._run_kexec_test(node, log, result, use_systemctl=False)
 
+    @TestCaseMetadata(
+        description="""
+        End-to-end systemd kexec reboot test while guest nodes are running.
+
+        Validates that the host can:
+        1. Run with at least one provisioned guest node
+        2. Load a new kernel image via kexec
+        3. Execute a systemd-integrated kexec reboot
+        4. Successfully boot into the kexec'd kernel
+        5. Validate provisioned guest nodes when the platform preserves them
+
+        LSG-LISA can request a four-guest scenario by setting guest_node_count=4
+        in the virtstack runbook or pipeline parameters.
+        """,
+        priority=5,
+        timeout=RUNNING_GUESTS_TIMEOUT,
+        requirement=simple_requirement(min_count=1),
+    )
+    def verify_kexec_reboot_systemd_with_running_guests(
+        self, node: Node, environment: Environment, log: Logger, result: TestResult
+    ) -> None:
+        """
+        Test host systemd kexec while provisioned guest nodes are running.
+
+        The host performs kexec. Environment nodes are guest peers that must stay
+        reachable and must not reboot during the host kexec on platforms that
+        preserve guest management across the host kexec.
+        """
+        target_node = self._get_kexec_target_node(node, environment)
+        peer_nodes = self._get_peer_posix_nodes(environment, target_node)
+        if not peer_nodes:
+            raise SkippedException(
+                "kexec running-guests test requires at least one guest peer node"
+            )
+
+        if target_node.execute("which systemctl", shell=True).exit_code != 0:
+            raise SkippedException("systemctl not available on this system")
+
+        peer_boot_ids = self._record_peer_boot_ids(peer_nodes, log)
+        log.info(
+            f"Running systemd kexec on {target_node.name} with "
+            f"{len(peer_nodes)} peer guest node(s)"
+        )
+
+        self._run_kexec_test(target_node, log, result, use_systemctl=True)
+
+        if self._is_cloud_hypervisor(environment):
+            log.info(
+                "Skipping post-kexec guest reachability validation because "
+                "Cloud Hypervisor guests and SSH forwarding are managed by "
+                "the host userspace that is restarted by kexec"
+            )
+            return
+
+        self._validate_peer_nodes(peer_boot_ids, log)
+
     def _run_kexec_test(
         self, node: Node, log: Logger, result: TestResult, use_systemctl: bool
     ) -> None:
@@ -112,6 +173,9 @@ class KexecSuite(TestSuite):
 
         if not isinstance(node.os, Posix):
             raise SkippedException("kexec test requires Linux/Posix OS")
+
+        if is_cvm(node):
+            raise SkippedException("kexec is not supported on CVM nodes")
 
         # Check kexec support and ensure tools are installed
         self._ensure_kexec_tools_installed(node, log)
@@ -141,20 +205,22 @@ class KexecSuite(TestSuite):
         method = "systemctl kexec" if use_systemctl else "kexec -e"
         log.info(f"Triggering kexec reboot via {method}...")
         before_boot_id = before_state["boot_id"]
-        self._trigger_kexec_reboot(node, log, use_systemctl=use_systemctl)
-
-        # Reconnect + validation
-        log.info("Waiting for system to come back up...")
-        self._wait_for_reconnect(node, log, before_boot_id)
-
-        after_state = self._record_state(node, log, force_run=True)
-        log.info(
-            f"After state: boot_id={after_state['boot_id']}, "
-            f"kernel={after_state['uname']}, uptime={after_state['uptime']}s"
-        )
-
-        # Validate the reboot
+        kexec_triggered = False
         try:
+            self._trigger_kexec_reboot(node, log, use_systemctl=use_systemctl)
+            kexec_triggered = True
+
+            # Reconnect + validation
+            log.info("Waiting for system to come back up...")
+            self._wait_for_reconnect(node, log, before_boot_id)
+
+            after_state = self._record_state(node, log, force_run=True)
+            log.info(
+                f"After state: boot_id={after_state['boot_id']}, "
+                f"kernel={after_state['uname']}, uptime={after_state['uptime']}s"
+            )
+
+            # Validate the reboot
             self._validate_kexec_reboot(node, nonce, before_state, after_state, log)
         except Exception:
             # Capture serial console logs on validation failure for debugging
@@ -163,6 +229,97 @@ class KexecSuite(TestSuite):
             except Exception as e:
                 log.debug(f"Failed to capture serial console log: {e}")
             raise
+        finally:
+            if kexec_triggered:
+                node.mark_dirty()
+
+    def _get_kexec_target_node(
+        self, node: Node, environment: Environment
+    ) -> RemoteNode:
+        platform = environment.platform
+        if platform and platform.type_name() == CLOUD_HYPERVISOR:
+            cloud_hypervisor = cast("CloudHypervisorPlatform", platform)
+            target_node = cloud_hypervisor.host_node
+            target_node.initialize()
+        else:
+            target_node = node.parent or node
+
+        if not isinstance(target_node, RemoteNode):
+            raise SkippedException("kexec test requires a remote host node")
+
+        if not isinstance(target_node.os, Posix):
+            raise SkippedException("kexec test requires Linux/Posix host OS")
+
+        return target_node
+
+    @staticmethod
+    def _is_cloud_hypervisor(environment: Environment) -> bool:
+        platform = environment.platform
+        return bool(platform and platform.type_name() == CLOUD_HYPERVISOR)
+
+    def _get_peer_posix_nodes(
+        self, environment: Environment, target_node: Node
+    ) -> List[Node]:
+        if not environment.nodes:
+            raise SkippedException("kexec test requires at least one environment node")
+
+        peer_nodes: List[Node] = []
+        for node in environment.nodes.list():
+            if node is target_node:
+                continue
+
+            if not isinstance(node.os, Posix):
+                raise SkippedException("kexec test requires Linux/Posix guest OS")
+
+            peer_nodes.append(node)
+
+        return peer_nodes
+
+    def _record_peer_boot_ids(
+        self, peer_nodes: List[Node], log: Logger
+    ) -> List[Tuple[Node, str]]:
+        peer_boot_ids: List[Tuple[Node, str]] = []
+        for peer_node in peer_nodes:
+            boot_id = (
+                peer_node.tools[Cat]
+                .read(
+                    "/proc/sys/kernel/random/boot_id",
+                    sudo=True,
+                    force_run=True,
+                )
+                .strip()
+            )
+            if not boot_id:
+                raise AssertionError(f"Peer node {peer_node.name} has empty boot_id")
+
+            peer_boot_ids.append((peer_node, boot_id))
+            log.info(f"Peer node {peer_node.name} is reachable before kexec")
+
+        return peer_boot_ids
+
+    def _validate_peer_nodes(
+        self, peer_boot_ids: List[Tuple[Node, str]], log: Logger
+    ) -> None:
+        for peer_node, before_boot_id in peer_boot_ids:
+            peer_node.close()
+            after_boot_id = (
+                peer_node.tools[Cat]
+                .read(
+                    "/proc/sys/kernel/random/boot_id",
+                    sudo=True,
+                    force_run=True,
+                )
+                .strip()
+            )
+
+            if after_boot_id != before_boot_id:
+                raise AssertionError(
+                    f"Peer node {peer_node.name} rebooted during target kexec. "
+                    f"Before boot_id: {before_boot_id}, "
+                    f"after boot_id: {after_boot_id}"
+                )
+
+            log.info(f"Peer node {peer_node.name} stayed reachable during kexec")
 
     def _ensure_kexec_tools_installed(self, node: RemoteNode, log: Logger) -> None:
         """
