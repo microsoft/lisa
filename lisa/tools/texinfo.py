@@ -26,11 +26,23 @@ class Texinfo(Tool):
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         try:
-            posix_os.install_packages("texinfo", timeout=2000)
+            if posix_os.is_package_in_repo("texinfo"):
+                posix_os.install_packages("texinfo", timeout=2000)
+            else:
+                self._install_from_src_with_dependencies(posix_os)
         except MissingPackagesException:
-            posix_os.install_packages(["perl", "perl-Data-Dumper"])
-            self._install_from_src()
+            self._install_from_src_with_dependencies(posix_os)
         return self._check_exists()
+
+    def _install_from_src_with_dependencies(self, posix_os: Posix) -> None:
+        source_packages = [
+            package
+            for package in ["perl", "perl-Data-Dumper"]
+            if posix_os.is_package_in_repo(package)
+        ]
+        if source_packages:
+            posix_os.install_packages(source_packages)
+        self._install_from_src()
 
     def _install_from_src(self) -> None:
         tool_path = self.get_tool_path()
