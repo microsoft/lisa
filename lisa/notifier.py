@@ -119,6 +119,8 @@ def notify(message: MessageBase) -> None:
         # if time is not set, set it to now
         message.time = datetime.now(timezone.utc)
 
+    message = copy.deepcopy(message)
+
     _message_manager.submit_task(
         Task(
             task_id=0,
