@@ -409,9 +409,19 @@ def skip_if_no_synthetic_nics(node: Node) -> None:
 
 
 def skip_if_pci_only_nics(environment: Environment) -> None:
-    """Skip test if any node has PCI-only NICs (AN without synthetic pairing)."""
+    """Skip test if any node has PCI-only NICs (AN without synthetic pairing).
+
+    InfiniBand NICs are PCI passthrough by design and are not part of the
+    SRIOV/AN Ethernet disable/enable path, so they are excluded from this check.
+    """
     for node in environment.nodes.list():
         for nic in node.nics.nics.values():
+            # InfiniBand NICs are always PCI-only (no synthetic pairing) and are
+            # not the target of SRIOV disable/enable tests. Skipping on them would
+            # incorrectly skip VMs that also have a valid synthetic+VF Ethernet
+            # pair, so exclude them here (consistent with get_pci_nics(exclude_ib)).
+            if nic.is_infiniband:
+                continue
             if nic.is_pci_only_nic:
                 raise SkippedException(
                     f"SRIOV disable/enable test not applicable for "
