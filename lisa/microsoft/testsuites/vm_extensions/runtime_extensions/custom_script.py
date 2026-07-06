@@ -133,21 +133,22 @@ class CustomScriptTests(TestSuite):
         extension = node.features[AzureExtension]
         extension.delete(name=extension_name, ignore_not_found=True)
 
-        log.info(f"Installing extension '{extension_name}'...")
-        result = extension.create_or_update(
-            name=extension_name,
-            publisher=publisher,
-            type_=extension_type,
-            type_handler_version=version,
-            auto_upgrade_minor_version=True,
-            settings=settings,
-        )
+        try:
+            log.info(f"Installing extension '{extension_name}'...")
+            result = extension.create_or_update(
+                name=extension_name,
+                publisher=publisher,
+                type_=extension_type,
+                type_handler_version=version,
+                auto_upgrade_minor_version=True,
+                settings=settings,
+            )
 
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
-        extension.delete(name=extension_name, ignore_not_found=True)
+            assert_that(result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+        finally:
+            extension.delete(name=extension_name, ignore_not_found=True)
 
     @TestCaseMetadata(
         description="""
