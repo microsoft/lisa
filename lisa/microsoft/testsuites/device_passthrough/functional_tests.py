@@ -47,7 +47,9 @@ SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV, OPENVMM]
 class DevicePassthroughFunctionalTests(TestSuite):
     @TestCaseMetadata(
         description="""
-            Check if passthrough device is visible to guest.
+            Check if all passthrough devices requested in the runbook are visible
+            to the guest.
+
             This testcase supports the CLOUD_HYPERVISOR, HYPERV, and OPENVMM
             platforms of LISA. Please refer below runbook snippet.
 
@@ -68,14 +70,15 @@ class DevicePassthroughFunctionalTests(TestSuite):
 
             We will check if sufficient devices are visible to guest or not.
             Platform will create device pool based on given device/vendor id.
-            'device_passthrough' section will tell platform to create node
-            with appropriate num of devices being passthrough. Based on pool_type
-            value, platform will try to get devices from pool and assign it to node.
+            The 'device_passthrough' section tells the platform how many devices
+            to assign. Based on the pool_type value, the platform gets devices
+            from the pool and assigns them to the node.
+            The count can be any positive value supported by the device pool.
 
-            Testcase will verify if needed devices are present on node by reading
-            the runtime passthrough device context. It will resolve vendor/device
-            ids for assigned host devices and check how many matching devices are
-            present on the guest.
+            Testcase verifies every device assigned by the platform. It reads the
+            runtime passthrough device context, resolves the vendor/device ids for
+            all assigned host devices, and checks that the guest contains at least
+            the same number of matching devices.
         """,
         priority=4,
         requirement=simple_requirement(
@@ -109,37 +112,69 @@ class DevicePassthroughFunctionalTests(TestSuite):
                 "No host node is available for passthrough device validation"
             )
 
-        expected_devices: Dict[Tuple[str, str, str], int] = {}
+        expected_devices: Dict[Tuple[str, str], Dict[str, int]] = {}
+        pool_counts: Dict[str, Dict[str, int]] = {}
         for passthrough_context in node_context.passthrough_devices:
             pool_type = str(passthrough_context.pool_type.value)
-            if not passthrough_context.device_list:
+            requested_count = passthrough_context.requested_count
+            assigned_count = len(passthrough_context.device_list)
+            if requested_count <= 0:
                 raise LisaException(
-                    f"No devices assigned to node for pool type: {pool_type}"
+                    f"Invalid requested device count '{requested_count}' for "
+                    f"pool type '{pool_type}'. Set device_passthrough.count to "
+                    "a positive value in the runbook."
                 )
+            if assigned_count < requested_count:
+                raise LisaException(
+                    f"Passthrough device allocation for pool type '{pool_type}' "
+                    f"requested {requested_count} device(s), but assigned "
+                    f"{assigned_count}. Inspect the platform device-allocation logs."
+                )
+            counts = pool_counts.setdefault(
+                pool_type,
+                {"requested": 0, "assigned": 0},
+            )
+            counts["requested"] += requested_count
+            counts["assigned"] += assigned_count
             for host_device in passthrough_context.device_list:
                 vendor_device_id = self._vendor_device_from_host_device(
                     platform_name, platform, host_node, host_device
                 )
                 key = (
-                    pool_type,
                     vendor_device_id["vendor_id"],
                     vendor_device_id["device_id"],
                 )
-                expected_devices[key] = expected_devices.get(key, 0) + 1
+                expected_pool_counts = expected_devices.setdefault(key, {})
+                expected_pool_counts[pool_type] = (
+                    expected_pool_counts.get(pool_type, 0) + 1
+                )
 
-        for (pool_type, ven_id, dev_id), expected_count in expected_devices.items():
+        for (ven_id, dev_id), expected_pool_counts in expected_devices.items():
+            expected_count = sum(expected_pool_counts.values())
             devices = lspci.get_devices_by_vendor_device_id(
                 vendor_id=ven_id,
                 device_id=dev_id,
                 force_run=True,
             )
-            if len(devices) < expected_count:
-                raise LisaException(
-                    f"Passthrough device validation failed for "
-                    f"pool_type '{pool_type}': Found {len(devices)} "
-                    f"device(s) but expected {expected_count}. "
-                    f"Vendor/Device ID: {ven_id}:{dev_id}"
+            matching_guest_count = len(devices)
+            if matching_guest_count < expected_count:
+                pool_details = ", ".join(
+                    f"{pool_type}={count}"
+                    for pool_type, count in sorted(expected_pool_counts.items())
                 )
+                raise LisaException(
+                    f"Passthrough device validation failed: Found "
+                    f"{matching_guest_count} device(s) but expected "
+                    f"{expected_count} for Vendor/Device ID {ven_id}:{dev_id}. "
+                    f"Assigned pool counts: {pool_details}."
+                )
+
+        result.message = "Passthrough devices tested: " + "; ".join(
+            f"{pool_type}: requested={counts['requested']}, "
+            f"assigned={counts['assigned']}, "
+            f"verified={counts['assigned']}"
+            for pool_type, counts in sorted(pool_counts.items())
+        )
 
     @staticmethod
     def _get_platform_name(platform: Platform, node: Node) -> str:

@@ -640,6 +640,7 @@ class LibvirtDevicePool(BaseDevicePool):
             device_context = DevicePassthroughContext()
             device_context.managed = config.managed
             device_context.pool_type = config.pool_type
+            device_context.requested_count = config.count
             devices = self.request_devices(config.pool_type, config.count)
             device_context.device_list = devices
             node_context.passthrough_devices.append(device_context)

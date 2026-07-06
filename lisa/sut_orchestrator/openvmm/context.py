@@ -38,6 +38,7 @@ class DevicePassthroughContext:
     pool_type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
     device_list: List[DeviceAddressSchema] = field(default_factory=list)
     managed: str = ""
+    requested_count: int = 0
 
 
 @dataclass

@@ -42,6 +42,7 @@ class DevicePassthroughContext:
         default_factory=list,
     )
     managed: str = ""
+    requested_count: int = 0
 
 
 @dataclass

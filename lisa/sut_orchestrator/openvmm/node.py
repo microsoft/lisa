@@ -498,6 +498,7 @@ class OpenVmmController:
                     device_context = DevicePassthroughContext(
                         managed=config.managed,
                         pool_type=config.pool_type,
+                        requested_count=config.count,
                         device_list=[
                             DeviceAddressSchema(
                                 domain=device.domain,

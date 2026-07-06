@@ -17,6 +17,7 @@ class DevicePassthroughContext:
     device_list: List[DeviceAddressSchema] = field(
         default_factory=list,
     )
+    requested_count: int = 0
 
 
 @dataclass

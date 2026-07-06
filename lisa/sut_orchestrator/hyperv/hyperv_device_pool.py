@@ -574,5 +574,6 @@ Get-VM | ForEach-Object {{
             )
             device_context = DevicePassthroughContext()
             device_context.pool_type = config.pool_type
+            device_context.requested_count = config.count
             device_context.device_list = devices
             node_context.passthrough_devices.append(device_context)
