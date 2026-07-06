@@ -15,7 +15,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features.security_profile import is_cvm
+from lisa.features.security_profile import CvmDisabled, is_cvm
 from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -101,6 +101,7 @@ class HvModule(TestSuite):
         priority=1,
         requirement=simple_requirement(
             unsupported_os=[BSD],
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_initrd_modules(self, environment: Environment) -> None:
@@ -115,11 +116,6 @@ class HvModule(TestSuite):
             "hyperv_keyboard": "hyperv-keyboard.ko",
         }
         skip_modules = self._get_built_in_modules(node)
-        # CVMs do not have host-emulated input/display devices, so the
-        # corresponding modules are legitimately absent from initrd. Treat
-        # them as built-in for the purposes of this check.
-        if is_cvm(node):
-            skip_modules = list(set(skip_modules) | _CVM_UNAVAILABLE_MODULES)
         hv_modules_file_names = {
             k: v
             for (k, v) in all_necessary_hv_modules_file_names.items()
