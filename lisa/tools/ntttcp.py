@@ -166,11 +166,16 @@ class Ntttcp(Tool):
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
         return BSDNtttcp
 
-    def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
+    def setup_system(
+        self,
+        udp_mode: bool = False,
+        set_task_max: bool = True,
+        reboot_after_task_max: bool = True,
+    ) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
         if set_task_max:
-            self._set_tasks_max()
+            self._set_tasks_max(reboot_after_task_max=reboot_after_task_max)
         if udp_mode:
             sys_list = self.sys_list_udp
         for sys in sys_list:
@@ -788,7 +793,7 @@ class Ntttcp(Tool):
             ).assert_exit_code()
         return self._check_exists()
 
-    def _set_tasks_max(self) -> None:
+    def _set_tasks_max(self, reboot_after_task_max: bool = True) -> None:
         need_reboot = False
         if self.node.shell.exists(
             self.node.get_pure_path(
@@ -815,8 +820,13 @@ class Ntttcp(Tool):
                 " service or the config file location is incorrect."
             )
         if need_reboot:
-            self._log.debug("reboot vm to make sure TasksMax change take effect")
-            self.node.reboot(time_out=600)
+            if reboot_after_task_max:
+                self._log.debug("reboot vm to make sure TasksMax change take effect")
+                self.node.reboot(time_out=600)
+            else:
+                self._log.debug(
+                    "skip VM reboot after TasksMax change by configuration"
+                )
 
 
 class BSDNtttcp(Ntttcp):
@@ -847,7 +857,12 @@ class BSDNtttcp(Ntttcp):
         firewall = self.node.tools[Firewall]
         firewall.stop()
 
-    def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
+    def setup_system(
+        self,
+        udp_mode: bool = False,
+        set_task_max: bool = True,
+        reboot_after_task_max: bool = True,
+    ) -> None:
         # No additional setup is needed for FreeBSD
         return
 
