@@ -3,6 +3,7 @@
 import inspect
 import pathlib
 import time
+from decimal import Decimal
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
@@ -61,6 +62,29 @@ from lisa.util.process import ExecutableResult, Process
 
 # NTTTCP may need extra time after the requested run duration to emit totals.
 DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 60
+
+
+def _get_iperf_udp_bitrate(
+    udp_total_bitrate_gbps: Optional[Decimal], connections: int
+) -> str:
+    if udp_total_bitrate_gbps is None:
+        return ""
+    per_stream_bitrate_mbps = (
+        udp_total_bitrate_gbps * Decimal(1000) / Decimal(connections)
+    )
+    bitrate = format(per_stream_bitrate_mbps.normalize(), "f")
+    if "." in bitrate:
+        bitrate = bitrate.rstrip("0").rstrip(".")
+    return f"{bitrate}M"
+
+
+def _set_iperf_udp_max_sessions(nodes: List[Node]) -> None:
+    for node in nodes:
+        if not node.is_remote:
+            continue
+        ssh = node.tools[Ssh]
+        ssh.set_max_session()
+        node.close()
 
 
 def perf_nvme(
@@ -192,12 +216,9 @@ def perf_disk(
 
 def get_nic_datapath(node: Node) -> str:
     data_path: str = ""
-    assert (
-        node.capability.network_interface
-        and node.capability.network_interface.data_path
-    ), "nic datapath not available"
-    if isinstance(node.capability.network_interface.data_path, NetworkDataPath):
-        data_path = node.capability.network_interface.data_path.value
+    network_interface = node.capability.network_interface
+    if network_interface and isinstance(network_interface.data_path, NetworkDataPath):
+        data_path = network_interface.data_path.value
     return data_path
 
 
@@ -376,6 +397,8 @@ def perf_ntttcp(  # noqa: C901
         # set server and client from environment, if not set explicitly
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
+    client_node = client
+    server_node = server
 
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
@@ -399,12 +422,12 @@ def perf_ntttcp(  # noqa: C901
 
     try:
         client_ntttcp, server_ntttcp = run_in_parallel(
-            [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
+            [lambda: client_node.tools[Ntttcp], lambda: server_node.tools[Ntttcp]]
         )
         client_lagscope, server_lagscope = run_in_parallel(
             [
-                lambda: client.tools[Lagscope],  # type: ignore
-                lambda: server.tools[Lagscope],  # type: ignore
+                lambda: client_node.tools[Lagscope],
+                lambda: server_node.tools[Lagscope],
             ]
         )
         # no need to set task max and reboot VM when connection less than 20480
@@ -417,6 +440,8 @@ def perf_ntttcp(  # noqa: C901
             need_reboot = True
         else:
             need_reboot = False
+        client_sriov_count = 0
+        server_sriov_count = 0
         if need_reboot:
             client_sriov_count = len(client.nics.get_pci_nics(exclude_ib=True))
             server_sriov_count = len(server.nics.get_pci_nics(exclude_ib=True))
@@ -430,8 +455,8 @@ def perf_ntttcp(  # noqa: C901
             server_nic_name = refreshed_server_nic_name or server_nic_name
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        client_nic = client.nics.default_nic
-        server_nic = server.nics.default_nic
+        client_nic = client_nic_name or client.nics.default_nic
+        server_nic = server_nic_name or server.nics.default_nic
         client_ip = client.tools[Ip]
         server_ip = server.tools[Ip]
         mtu = variables.get("perf_ntttcp_mtu", 0) if variables is not None else 0
@@ -762,10 +787,12 @@ def perf_iperf(
     connections: List[int],
     buffer_length_list: List[int],
     udp_mode: bool = False,
+    udp_total_bitrate_gbps: Optional[Decimal] = None,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
     run_with_internal_address: bool = False,
-) -> None:
+    test_case_name: str = "",
+) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     if server is not None or client is not None:
         assert server is not None, "server need to be specified, if client is set"
         assert client is not None, "client need to be specified, if server is set"
@@ -775,12 +802,17 @@ def perf_iperf(
         # set server and client from environment, if not set explicitly
         client = cast(RemoteNode, environment.nodes[0])
         server = cast(RemoteNode, environment.nodes[1])
+    client_node = client
+    server_node = server
 
     client_iperf3, server_iperf3 = run_in_parallel(
-        [lambda: client.tools[Iperf3], lambda: server.tools[Iperf3]]  # type: ignore
+        [lambda: client_node.tools[Iperf3], lambda: server_node.tools[Iperf3]]
     )
-    test_case_name = inspect.stack()[1][3]
-    iperf3_messages_list: List[Any] = []
+    if not test_case_name:
+        test_case_name = inspect.stack()[1][3]
+    iperf3_messages_list: List[
+        Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
+    ] = []
     server_interface_ip = ""
     client_interface_ip = ""
     if run_with_internal_address:
@@ -790,10 +822,7 @@ def perf_iperf(
         assert client_interface_ip, "Client Node: internal address is not set"
 
     if udp_mode:
-        for node in [client, server]:
-            ssh = node.tools[Ssh]
-            ssh.set_max_session()
-            node.close()
+        _set_iperf_udp_max_sessions([client, server])
     for buffer_length in buffer_length_list:
         for connection in connections:
             server_iperf3_process_list: List[Process] = []
@@ -837,6 +866,11 @@ def perf_iperf(
                         report_unit="g",
                         port=current_client_port,
                         buffer_length=buffer_length,
+                        bitrate=(
+                            _get_iperf_udp_bitrate(udp_total_bitrate_gbps, connection)
+                            if udp_mode
+                            else ""
+                        ),
                         run_time_seconds=10,
                         parallel_number=num_threads_p,
                         ip_version="4",
@@ -874,6 +908,7 @@ def perf_iperf(
                 )
     for iperf3_message in iperf3_messages_list:
         notifier.notify(iperf3_message)
+    return iperf3_messages_list
 
 
 def perf_sockperf(

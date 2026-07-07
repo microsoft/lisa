@@ -366,6 +366,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             is_allow_set=True,
             items=[
                 schema.FeatureSettings.create(SerialConsole.name()),
+                schema.FeatureSettings.create(StartStop.name()),
                 security_profile_setting,
             ],
         )

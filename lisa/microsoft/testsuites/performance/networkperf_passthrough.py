@@ -4,8 +4,10 @@ import re
 from decimal import Decimal
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from statistics import median
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 
+from assertpy import assert_that
 from microsoft.testsuites.performance.common import (
     perf_iperf,
     perf_ntttcp,
@@ -25,10 +27,17 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment, Node
+from lisa.features import StartStop
+from lisa.messages import (
+    MetricRelativity,
+    NetworkTCPPerformanceMessage,
+    NetworkUDPPerformanceMessage,
+    send_unified_perf_message,
+)
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV, OPENVMM
 from lisa.testsuite import TestResult
-from lisa.tools import Dhclient, Kill, PowerShell, Sysctl
+from lisa.tools import Dhclient, Ethtool, Kill, PowerShell, Sysctl
 from lisa.tools.ip import Ip
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
@@ -40,17 +49,151 @@ from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY, Nt
 from lisa.util import (
     LisaException,
     SkippedException,
+    check_till_timeout,
     constants,
     find_group_in_lines,
-    find_groups_in_lines,
 )
 from lisa.util.logger import get_logger
 from lisa.util.parallel import run_in_parallel
+from lisa.util.shell import wait_tcp_port_ready
 
 SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV, OPENVMM]
 WINDOWS_NTTTCP_MAX_SERVER_THREADS = 64
 WINDOWS_NTTTCP_MAX_MIXED_TCP_CONNECTIONS = 512
 WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
+# Three matched sweeps dampen transient throughput variation without hiding a
+# consistently slow passthrough path.
+PASSTHROUGH_MEASUREMENT_RUN_COUNT = 3
+PASSTHROUGH_BASELINE_THRESHOLD = Decimal("0.95")
+PASSTHROUGH_BASELINE_THRESHOLD_PERCENT = PASSTHROUGH_BASELINE_THRESHOLD * Decimal(100)
+# Target above line rate so UDP iperf saturates the NIC instead of using its
+# default 1 Mbit/s UDP bitrate.
+PASSTHROUGH_IPERF_UDP_BITRATE_MULTIPLIER = Decimal("1.10")
+PASSTHROUGH_HOST_BASELINE_METRIC_NAME = "passthrough_host_baseline_gbps"
+PASSTHROUGH_GUEST_MEDIAN_METRIC_NAME = "passthrough_guest_median_gbps"
+PASSTHROUGH_BASELINE_PERCENT_METRIC_NAME = "passthrough_baseline_percent"
+PASSTHROUGH_GUEST_TO_PEER = "guest-to-peer"
+PASSTHROUGH_PEER_TO_GUEST = "peer-to-guest"
+# Native-driver reattachment and guest SSH normally complete well inside these
+# bounds; exceeding them indicates a device or boot failure worth surfacing.
+PASSTHROUGH_HOST_NIC_REBIND_TIMEOUT_SECONDS = 60
+PASSTHROUGH_GUEST_START_TIMEOUT_SECONDS = 300
+# perf_ntttcp changes TasksMax and may reboot its client at 20,480 connections.
+# The immediate Linux virtualization host must remain running during calibration.
+PASSTHROUGH_NTTTCP_MAX_CONNECTIONS_WITHOUT_HOST_REBOOT = 10240
+NetworkThroughputMessage = Union[
+    NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
+]
+ThroughputProfile = Tuple[str, str, int, Decimal]
+ThroughputProfileMedian = Tuple[Decimal, NetworkThroughputMessage]
+PassthroughBenchmark = Callable[
+    [Node, str, Node, str, Optional[ThroughputProfile]],
+    List[NetworkThroughputMessage],
+]
+
+
+def _to_decimal(value: Union[Decimal, float, int]) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
+
+
+def _get_median_throughput_by_profile(
+    runs: List[List[NetworkThroughputMessage]],
+) -> Dict[ThroughputProfile, ThroughputProfileMedian]:
+    samples: Dict[
+        ThroughputProfile, List[Tuple[Decimal, NetworkThroughputMessage]]
+    ] = {}
+    for run_index, messages in enumerate(runs, start=1):
+        profiles_in_run: Set[ThroughputProfile] = set()
+        for message in messages:
+            throughput_gbps = _get_delivered_throughput(message)
+            if throughput_gbps <= 0:
+                continue
+            profile = _get_throughput_profile(message)
+            if profile in profiles_in_run:
+                raise LisaException(
+                    f"Throughput run [{run_index}] reported duplicate profile "
+                    f"[{_format_throughput_profile(profile)}]."
+                )
+            profiles_in_run.add(profile)
+            samples.setdefault(profile, []).append((throughput_gbps, message))
+
+    medians: Dict[ThroughputProfile, ThroughputProfileMedian] = {}
+    for profile, profile_samples in samples.items():
+        if len(profile_samples) != len(runs):
+            raise LisaException(
+                f"Throughput profile [{_format_throughput_profile(profile)}] "
+                f"reported [{len(profile_samples)}] samples across [{len(runs)}] "
+                "runs. Verify every matched sweep completes."
+            )
+        median_gbps = median(sample[0] for sample in profile_samples)
+        medians[profile] = (median_gbps, profile_samples[0][1])
+    return medians
+
+
+def _get_throughput_profile(
+    message: NetworkThroughputMessage,
+) -> ThroughputProfile:
+    if isinstance(message, NetworkUDPPerformanceMessage):
+        buffer_size = _to_decimal(message.send_buffer_size)
+    elif message.buffer_size_bytes > 0:
+        buffer_size = _to_decimal(message.buffer_size_bytes)
+    else:
+        buffer_size = _to_decimal(message.buffer_size)
+    return (
+        message.tool,
+        str(message.protocol_type or ""),
+        message.connections_num,
+        buffer_size,
+    )
+
+
+def _get_delivered_throughput(
+    message: NetworkThroughputMessage,
+) -> Decimal:
+    if isinstance(message, NetworkUDPPerformanceMessage):
+        return _to_decimal(message.rx_throughput_in_gbps)
+    if message.rx_throughput_in_gbps > 0:
+        return _to_decimal(message.rx_throughput_in_gbps)
+    if message.throughput_in_gbps > 0:
+        return _to_decimal(message.throughput_in_gbps)
+    return _to_decimal(message.tx_throughput_in_gbps)
+
+
+def _format_throughput_profile(profile: ThroughputProfile) -> str:
+    tool, protocol, connections, buffer_size = profile
+    return (
+        f"tool={tool}, protocol={protocol}, connections={connections}, "
+        f"buffer={buffer_size}"
+    )
+
+
+def _select_best_throughput_profile(
+    messages: List[NetworkThroughputMessage],
+) -> ThroughputProfile:
+    medians = _get_median_throughput_by_profile([messages])
+    if not medians:
+        raise LisaException(
+            "The passthrough baseline tuning sweep did not report any delivered "
+            "Gbps samples. Verify the remote peer and test NIC data path."
+        )
+    return max(medians.items(), key=lambda item: item[1][0])[0]
+
+
+def _filter_throughput_profile(
+    messages: List[NetworkThroughputMessage],
+    profile: ThroughputProfile,
+) -> List[NetworkThroughputMessage]:
+    matching = [
+        message for message in messages if _get_throughput_profile(message) == profile
+    ]
+    if len(matching) != 1:
+        raise LisaException(
+            f"Expected exactly one throughput sample for matched profile "
+            f"[{_format_throughput_profile(profile)}], found [{len(matching)}]."
+        )
+    return matching
 
 
 @TestSuiteMetadata(
@@ -58,7 +201,10 @@ WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
     category="performance",
     description="""
     This test suite is to validate linux network performance
-    for various NIC passthrough scenarios.
+    for various NIC passthrough scenarios. Measured host-to-guest cases compare
+    Linux L2 against the immediate Linux virtualization host using the same NIC,
+    independent remote peer, direction, and tool profile. Guest-to-guest cases
+    publish performance measurements without enforcing a baseline threshold.
     """,
     requirement=simple_requirement(
         supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -75,18 +221,358 @@ class NetworkPerformance(TestSuite):
 
     # Track baremetal host nodes for cleanup
     _baremetal_hosts: List[RemoteNode] = []
+    _link_speed_pattern = re.compile(
+        r"^(?P<speed>\d+(?:\.\d+)?)\s*(?P<unit>[GM](?:b/s|bps))$",
+        re.IGNORECASE,
+    )
+
+    def _assert_passthrough_baseline(
+        self,
+        test_result: TestResult,
+        baseline_runs: List[List[NetworkThroughputMessage]],
+        guest_runs: List[List[NetworkThroughputMessage]],
+        direction: str,
+        guest: RemoteNode,
+        guest_nic_name: str,
+        host: Node,
+        host_nic_name: str,
+        peer: RemoteNode,
+        peer_nic_name: str,
+    ) -> str:
+        baseline_medians = _get_median_throughput_by_profile(baseline_runs)
+        guest_medians = _get_median_throughput_by_profile(guest_runs)
+        if not baseline_medians:
+            raise LisaException(
+                f"No host throughput samples were reported for passthrough "
+                f"baseline validation in direction [{direction}]."
+            )
+
+        profile, (baseline_gbps, _) = max(
+            baseline_medians.items(), key=lambda item: item[1][0]
+        )
+        guest_profile = guest_medians.get(profile)
+        if guest_profile is None:
+            raise LisaException(
+                f"Guest throughput did not report the host's best matched profile "
+                f"[{_format_throughput_profile(profile)}] in direction "
+                f"[{direction}]. Verify host and guest runs use identical tool "
+                "parameters."
+            )
+
+        guest_gbps, guest_message = guest_profile
+        threshold_gbps = baseline_gbps * PASSTHROUGH_BASELINE_THRESHOLD
+        baseline_percent = guest_gbps / baseline_gbps * Decimal(100)
+        profile_description = _format_throughput_profile(profile)
+        result_summary = (
+            f"Passthrough {direction}: guest median {guest_gbps:.2f} Gbps "
+            f"({baseline_percent:.2f}% of Linux-host median "
+            f"{baseline_gbps:.2f} Gbps), threshold {threshold_gbps:.2f} Gbps, "
+            f"profile [{profile_description}]"
+        )
+        guest.log.info(
+            f"Passthrough measured-baseline summary for "
+            f"{guest_message.test_case_name}: direction={direction}, "
+            f"host_median={baseline_gbps} Gbps, guest_median={guest_gbps} Gbps, "
+            f"baseline_percent={baseline_percent}%, "
+            f"threshold={threshold_gbps} Gbps, profile=[{profile_description}], "
+            f"host_nic={host.name}:{host_nic_name}, "
+            f"guest_nic={guest.name}:{guest_nic_name}, "
+            f"peer_nic={peer.name}:{peer_nic_name}"
+        )
+        metric_suffix = direction.replace("-", "_")
+        for metric_name, metric_value, metric_relativity, metric_description in [
+            (
+                f"{PASSTHROUGH_HOST_BASELINE_METRIC_NAME}_{metric_suffix}",
+                baseline_gbps,
+                MetricRelativity.Parameter,
+                "Median throughput measured on the immediate Linux host before "
+                "passing the NIC to the guest.",
+            ),
+            (
+                f"{PASSTHROUGH_GUEST_MEDIAN_METRIC_NAME}_{metric_suffix}",
+                guest_gbps,
+                MetricRelativity.HigherIsBetter,
+                "Median guest throughput for the matched host baseline profile.",
+            ),
+            (
+                f"{PASSTHROUGH_BASELINE_PERCENT_METRIC_NAME}_{metric_suffix}",
+                baseline_percent,
+                MetricRelativity.HigherIsBetter,
+                "Guest median throughput as a percentage of the immediate "
+                "Linux-host baseline.",
+            ),
+        ]:
+            send_unified_perf_message(
+                node=guest,
+                test_result=test_result,
+                test_case_name=guest_message.test_case_name,
+                metric_name=metric_name,
+                metric_value=float(metric_value),
+                metric_unit=("%" if "percent" in metric_name else "Gbps"),
+                metric_description=metric_description,
+                metric_relativity=metric_relativity,
+                tool=guest_message.tool,
+                protocol_type=guest_message.protocol_type,
+            )
+
+        assert_that(guest_gbps).described_as(
+            f"Guest median throughput [{guest_gbps} Gbps] in direction "
+            f"[{direction}] must be at least "
+            f"{PASSTHROUGH_BASELINE_THRESHOLD_PERCENT:.0f}% of the immediate "
+            f"Linux-host median [{baseline_gbps} Gbps], threshold "
+            f"[{threshold_gbps} Gbps], profile [{profile_description}]."
+        ).is_greater_than_or_equal_to(threshold_gbps)
+        return result_summary
+
+    def _run_measured_passthrough_benchmark(
+        self,
+        node: Node,
+        test_result: TestResult,
+        log_path: Path,
+        variables: Dict[str, Any],
+        benchmark: PassthroughBenchmark,
+    ) -> None:
+        guest = cast(RemoteNode, node)
+        peer = self._get_passthrough_peer(variables)
+        host = self._get_linux_passthrough_host(test_result, node, peer)
+        peer_nic_name = self._get_host_nic_name(peer)
+        self._validate_physical_pci_nic(peer, peer_nic_name, "remote peer")
+        start_stop = node.features[StartStop]
+        host_with_address = cast(Any, host)
+        had_host_internal_address = hasattr(host, "internal_address")
+        original_host_internal_address = getattr(host, "internal_address", "")
+
+        guest_stopped = False
+        host_nic_name = ""
+        try:
+            start_stop.stop()
+            guest_stopped = True
+            host, host_nic_name = self._configure_passthrough_nic_for_host(node, host)
+            self._validate_physical_pci_nic(
+                host, host_nic_name, "immediate virtualization host"
+            )
+            baseline_runs, profiles = self._collect_host_baseline_runs(
+                benchmark=benchmark,
+                host=host,
+                host_nic_name=host_nic_name,
+                peer=peer,
+                peer_nic_name=peer_nic_name,
+            )
+        finally:
+            try:
+                if host_nic_name:
+                    self._release_passthrough_host_dhcp(host, host_nic_name)
+            finally:
+                if had_host_internal_address:
+                    host_with_address.internal_address = original_host_internal_address
+                elif hasattr(host, "internal_address"):
+                    del host_with_address.internal_address
+                if guest_stopped:
+                    start_stop.start()
+                    self._wait_for_guest_start(guest)
+
+        guest, guest_nic_name = self._configure_passthrough_nic_for_node(node, log_path)
+        guest_runs = self._collect_guest_throughput_runs(
+            benchmark=benchmark,
+            guest=guest,
+            guest_nic_name=guest_nic_name,
+            peer=peer,
+            peer_nic_name=peer_nic_name,
+            profiles=profiles,
+        )
+        result_summaries: List[str] = []
+        for direction in [PASSTHROUGH_GUEST_TO_PEER, PASSTHROUGH_PEER_TO_GUEST]:
+            result_summaries.append(
+                self._assert_passthrough_baseline(
+                    test_result=test_result,
+                    baseline_runs=baseline_runs[direction],
+                    guest_runs=guest_runs[direction],
+                    direction=direction,
+                    guest=guest,
+                    guest_nic_name=guest_nic_name,
+                    host=host,
+                    host_nic_name=host_nic_name,
+                    peer=peer,
+                    peer_nic_name=peer_nic_name,
+                )
+            )
+        test_result.set_status(test_result.status, " | ".join(result_summaries))
+
+    def _collect_host_baseline_runs(
+        self,
+        benchmark: PassthroughBenchmark,
+        host: Node,
+        host_nic_name: str,
+        peer: RemoteNode,
+        peer_nic_name: str,
+    ) -> Tuple[
+        Dict[str, List[List[NetworkThroughputMessage]]],
+        Dict[str, ThroughputProfile],
+    ]:
+        host.log.info(
+            f"Starting passthrough baseline tuning sweep from "
+            f"{host.name}:{host_nic_name} to {peer.name}:{peer_nic_name}"
+        )
+        guest_to_peer_sweep = benchmark(host, host_nic_name, peer, peer_nic_name, None)
+        host.log.info(
+            f"Starting passthrough baseline tuning sweep from "
+            f"{peer.name}:{peer_nic_name} to {host.name}:{host_nic_name}"
+        )
+        peer_to_guest_sweep = benchmark(peer, peer_nic_name, host, host_nic_name, None)
+        profiles = {
+            PASSTHROUGH_GUEST_TO_PEER: _select_best_throughput_profile(
+                guest_to_peer_sweep
+            ),
+            PASSTHROUGH_PEER_TO_GUEST: _select_best_throughput_profile(
+                peer_to_guest_sweep
+            ),
+        }
+        runs = {
+            PASSTHROUGH_GUEST_TO_PEER: [
+                _filter_throughput_profile(
+                    guest_to_peer_sweep, profiles[PASSTHROUGH_GUEST_TO_PEER]
+                )
+            ],
+            PASSTHROUGH_PEER_TO_GUEST: [
+                _filter_throughput_profile(
+                    peer_to_guest_sweep, profiles[PASSTHROUGH_PEER_TO_GUEST]
+                )
+            ],
+        }
+
+        for run_number in range(2, PASSTHROUGH_MEASUREMENT_RUN_COUNT + 1):
+            host.log.info(
+                f"Running Linux-host passthrough baseline sample "
+                f"{run_number}/{PASSTHROUGH_MEASUREMENT_RUN_COUNT}"
+            )
+            runs[PASSTHROUGH_GUEST_TO_PEER].append(
+                benchmark(
+                    host,
+                    host_nic_name,
+                    peer,
+                    peer_nic_name,
+                    profiles[PASSTHROUGH_GUEST_TO_PEER],
+                )
+            )
+            runs[PASSTHROUGH_PEER_TO_GUEST].append(
+                benchmark(
+                    peer,
+                    peer_nic_name,
+                    host,
+                    host_nic_name,
+                    profiles[PASSTHROUGH_PEER_TO_GUEST],
+                )
+            )
+        return runs, profiles
+
+    def _collect_guest_throughput_runs(
+        self,
+        benchmark: PassthroughBenchmark,
+        guest: RemoteNode,
+        guest_nic_name: str,
+        peer: RemoteNode,
+        peer_nic_name: str,
+        profiles: Dict[str, ThroughputProfile],
+    ) -> Dict[str, List[List[NetworkThroughputMessage]]]:
+        runs: Dict[str, List[List[NetworkThroughputMessage]]] = {
+            PASSTHROUGH_GUEST_TO_PEER: [],
+            PASSTHROUGH_PEER_TO_GUEST: [],
+        }
+        for run_number in range(1, PASSTHROUGH_MEASUREMENT_RUN_COUNT + 1):
+            guest.log.info(
+                f"Running guest passthrough throughput sample "
+                f"{run_number}/{PASSTHROUGH_MEASUREMENT_RUN_COUNT}"
+            )
+            runs[PASSTHROUGH_GUEST_TO_PEER].append(
+                benchmark(
+                    guest,
+                    guest_nic_name,
+                    peer,
+                    peer_nic_name,
+                    profiles[PASSTHROUGH_GUEST_TO_PEER],
+                )
+            )
+            runs[PASSTHROUGH_PEER_TO_GUEST].append(
+                benchmark(
+                    peer,
+                    peer_nic_name,
+                    guest,
+                    guest_nic_name,
+                    profiles[PASSTHROUGH_PEER_TO_GUEST],
+                )
+            )
+        return runs
+
+    def _get_iperf_udp_line_rate_bitrate_gbps(
+        self,
+        client: RemoteNode,
+        client_nic_name: str,
+        server: RemoteNode,
+        server_nic_name: str,
+    ) -> Decimal:
+        line_rate_gbps = min(
+            self._get_link_rate_gbps(client, client_nic_name),
+            self._get_link_rate_gbps(server, server_nic_name),
+        )
+        return line_rate_gbps * PASSTHROUGH_IPERF_UDP_BITRATE_MULTIPLIER
+
+    def _get_link_rate_gbps(self, node: RemoteNode, nic_name: str) -> Decimal:
+        if isinstance(node.os, Windows):
+            escaped_nic_name = nic_name.replace("'", "''")
+            speed = cast(
+                str,
+                node.tools[PowerShell].run_cmdlet(
+                    f"(Get-NetAdapter -Name '{escaped_nic_name}' "
+                    "-ErrorAction Stop).LinkSpeed",
+                    fail_on_error=False,
+                    force_run=True,
+                ),
+            ).strip()
+        else:
+            speed = (
+                node.tools[Ethtool]
+                .get_device_link_settings(nic_name)
+                .link_settings.get("Speed", "")
+                .strip()
+            )
+        matched_speed = self._link_speed_pattern.match(speed)
+        if not matched_speed:
+            raise SkippedException(
+                f"Cannot determine line rate for NIC [{node.name}:{nic_name}] "
+                f"from link speed value [{speed}]."
+            )
+
+        speed_value = Decimal(matched_speed.group("speed"))
+        if speed_value <= 0:
+            raise SkippedException(
+                f"NIC [{node.name}:{nic_name}] reported non-positive link speed "
+                f"[{speed}]. Verify the NIC link is up and reports a valid speed "
+                "before sizing the passthrough UDP offered load."
+            )
+        speed_unit = matched_speed.group("unit").lower()
+        if speed_unit in ["mb/s", "mbps"]:
+            return speed_value / Decimal(1000)
+        if speed_unit in ["gb/s", "gbps"]:
+            return speed_value
+        raise SkippedException(
+            f"Unsupported link speed unit [{speed_unit}] for NIC "
+            f"[{node.name}:{nic_name}]."
+        )
 
     # Network device passthrough tests between host and guest
     @TestCaseMetadata(
         description="""
-        This test case uses iperf3 to test passthrough tcp network throughput.
-        Run iperf server on physical server and client on VM
+        Measure bidirectional TCP iperf throughput on the immediate Linux host,
+        pass the same NIC to L2, and require matched L2 medians to reach 95% of
+        the host medians. The independent Linux peer is configured with the
+        passthrough_peer_* test variables.
         """,
         priority=3,
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
+            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_features=[StartStop],
             unsupported_os=[Windows],
         ),
     )
@@ -97,35 +583,48 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
     ) -> None:
-        server = self._get_host_as_server(variables)
-        self._skip_if_windows_server(server, "iperf3")
+        def run_iperf(
+            client: Node,
+            client_nic_name: str,
+            server: Node,
+            server_nic_name: str,
+            profile: Optional[ThroughputProfile],
+        ) -> List[NetworkThroughputMessage]:
+            del client_nic_name, server_nic_name
+            connections = [profile[2]] if profile else IPERF_TCP_CONCURRENCY
+            buffer_lengths = [int(profile[3])] if profile else IPERF_TCP_BUFFER_LENGTHS
+            messages: List[NetworkThroughputMessage] = perf_iperf(
+                test_result=result,
+                connections=connections,
+                buffer_length_list=buffer_lengths,
+                server=cast(RemoteNode, server),
+                client=cast(RemoteNode, client),
+                run_with_internal_address=True,
+                test_case_name="perf_tcp_iperf_passthrough_host_guest",
+            )
+            return messages
 
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
-
-        client, _ = self._configure_passthrough_nic_for_node(
-            node, log_path, host_node=server
-        )
-
-        perf_iperf(
+        self._run_measured_passthrough_benchmark(
+            node=node,
             test_result=result,
-            connections=IPERF_TCP_CONCURRENCY,
-            buffer_length_list=IPERF_TCP_BUFFER_LENGTHS,
-            server=server,
-            client=client,
-            run_with_internal_address=True,
+            log_path=log_path,
+            variables=variables,
+            benchmark=run_iperf,
         )
 
     @TestCaseMetadata(
         description="""
-        This test case uses iperf3 to test passthrough udp network throughput.
-        Run iperf server on physical host and client on vm with udp mode
+        Measure bidirectional UDP iperf throughput on the immediate Linux host,
+        pass the same NIC to L2, and require matched L2 medians to reach 95% of
+        the host medians. The independent Linux peer is configured with the
+        passthrough_peer_* test variables.
         """,
         priority=3,
         timeout=TIMEOUT,
         requirement=simple_requirement(
             min_count=1,
-            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
+            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_features=[StartStop],
             unsupported_os=[Windows],
         ),
     )
@@ -136,24 +635,44 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
     ) -> None:
-        server = self._get_host_as_server(variables)
-        self._skip_if_windows_server(server, "iperf3")
+        udp_bitrate_gbps: Optional[Decimal] = None
 
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
+        def run_iperf(
+            client: Node,
+            client_nic_name: str,
+            server: Node,
+            server_nic_name: str,
+            profile: Optional[ThroughputProfile],
+        ) -> List[NetworkThroughputMessage]:
+            nonlocal udp_bitrate_gbps
+            if udp_bitrate_gbps is None:
+                udp_bitrate_gbps = self._get_iperf_udp_line_rate_bitrate_gbps(
+                    cast(RemoteNode, client),
+                    client_nic_name,
+                    cast(RemoteNode, server),
+                    server_nic_name,
+                )
+            connections = [profile[2]] if profile else IPERF_UDP_CONCURRENCY
+            buffer_lengths = [int(profile[3])] if profile else IPERF_UDP_BUFFER_LENGTHS
+            messages: List[NetworkThroughputMessage] = perf_iperf(
+                test_result=result,
+                connections=connections,
+                buffer_length_list=buffer_lengths,
+                server=cast(RemoteNode, server),
+                client=cast(RemoteNode, client),
+                udp_mode=True,
+                udp_total_bitrate_gbps=udp_bitrate_gbps,
+                run_with_internal_address=True,
+                test_case_name="perf_udp_iperf_passthrough_host_guest",
+            )
+            return messages
 
-        client, _ = self._configure_passthrough_nic_for_node(
-            node, log_path, host_node=server
-        )
-
-        perf_iperf(
+        self._run_measured_passthrough_benchmark(
+            node=node,
             test_result=result,
-            connections=IPERF_UDP_CONCURRENCY,
-            buffer_length_list=IPERF_UDP_BUFFER_LENGTHS,
-            server=server,
-            client=client,
-            udp_mode=True,
-            run_with_internal_address=True,
+            log_path=log_path,
+            variables=variables,
+            benchmark=run_iperf,
         )
 
     @TestCaseMetadata(
@@ -236,8 +755,10 @@ class NetworkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses ntttcp to test tcp network throughput.
-        We will run nttcp server of physical host and client on VM
+        Measure bidirectional TCP NTTTCP throughput on the immediate Linux host,
+        pass the same NIC to L2, and require matched L2 medians to reach 95% of
+        the host medians. The independent Linux peer is configured with the
+        passthrough_peer_* test variables.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -246,7 +767,8 @@ class NetworkPerformance(TestSuite):
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
+            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_features=[StartStop],
         ),
     )
     def perf_tcp_ntttcp_passthrough_host_guest(
@@ -256,48 +778,49 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
     ) -> None:
-        server = self._get_host_as_server(variables)
+        tcp_connections = [
+            connection
+            for connection in NTTTCP_TCP_CONCURRENCY
+            if connection <= PASSTHROUGH_NTTTCP_MAX_CONNECTIONS_WITHOUT_HOST_REBOOT
+        ]
 
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
-
-        client, client_nic_name = self._configure_passthrough_nic_for_node(
-            node, log_path, host_node=server
-        )
-
-        if isinstance(server.os, Windows):
-            self._perf_ntttcp_with_windows_server(
+        def run_ntttcp(
+            client: Node,
+            client_nic_name: str,
+            server: Node,
+            server_nic_name: str,
+            profile: Optional[ThroughputProfile],
+        ) -> List[NetworkThroughputMessage]:
+            connections = [profile[2]] if profile else tcp_connections
+            messages: List[NetworkThroughputMessage] = perf_ntttcp(
                 test_result=result,
-                client=client,
-                server=server,
-                client_nic_name=client_nic_name,
-                udp_mode=False,
+                client=cast(RemoteNode, client),
+                server=cast(RemoteNode, server),
+                connections=connections,
                 test_case_name="perf_tcp_ntttcp_passthrough_host_guest",
-            )
-        else:
-
-            def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
-                _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
-                    node, log_path, host_node=server
-                )
-                return refreshed_client_nic_name, None
-
-            perf_ntttcp(
-                test_result=result,
-                client=client,
-                server=server,
-                server_nic_name=self._get_host_nic_name(server),
+                server_nic_name=server_nic_name,
                 client_nic_name=client_nic_name,
-                skip_server_task_max=True,  # host: TasksMax reboot clears NIC DHCP
-                post_ntttcp_setup=refresh_passthrough_nics,
+                skip_server_task_max=True,
                 client_ntttcp_timeout_tolerance_seconds=(
                     self.NTTTCP_TCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
                 ),
             )
+            return messages
+
+        self._run_measured_passthrough_benchmark(
+            node=node,
+            test_result=result,
+            log_path=log_path,
+            variables=variables,
+            benchmark=run_ntttcp,
+        )
 
     @TestCaseMetadata(
         description="""
-        This test case uses ntttcp to test passthrough udp network throughput.
+        Measure bidirectional UDP NTTTCP throughput on the immediate Linux host,
+        pass the same NIC to L2, and require matched L2 medians to reach 95% of
+        the host medians. The independent Linux peer is configured with the
+        passthrough_peer_* test variables.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -306,7 +829,8 @@ class NetworkPerformance(TestSuite):
                 node_count=1,
                 memory_mb=search_space.IntRange(min=8192),
             ),
-            supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
+            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_features=[StartStop],
         ),
     )
     def perf_udp_1k_ntttcp_passthrough_host_guest(
@@ -316,40 +840,40 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
     ) -> None:
-        server = self._get_host_as_server(variables)
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
-
-        client, client_nic_name = self._configure_passthrough_nic_for_node(
-            node, log_path, host_node=server
-        )
-
-        if isinstance(server.os, Windows):
-            self._perf_ntttcp_with_windows_server(
+        def run_ntttcp(
+            client: Node,
+            client_nic_name: str,
+            server: Node,
+            server_nic_name: str,
+            profile: Optional[ThroughputProfile],
+        ) -> List[NetworkThroughputMessage]:
+            connections = [profile[2]] if profile else NTTTCP_UDP_CONCURRENCY
+            messages: List[NetworkThroughputMessage] = perf_ntttcp(
                 test_result=result,
-                client=client,
-                server=server,
-                client_nic_name=client_nic_name,
+                client=cast(RemoteNode, client),
+                server=cast(RemoteNode, server),
                 udp_mode=True,
+                connections=connections,
                 test_case_name="perf_udp_1k_ntttcp_passthrough_host_guest",
-            )
-        else:
-            perf_ntttcp(
-                test_result=result,
-                client=client,
-                server=server,
-                server_nic_name=self._get_host_nic_name(server),
+                server_nic_name=server_nic_name,
                 client_nic_name=client_nic_name,
-                udp_mode=True,
-                # host: TasksMax reboot clears NIC DHCP state
                 skip_server_task_max=True,
             )
+            return messages
+
+        self._run_measured_passthrough_benchmark(
+            node=node,
+            test_result=result,
+            log_path=log_path,
+            variables=variables,
+            benchmark=run_ntttcp,
+        )
 
     # Network device passthrough tests between 2 guests
     @TestCaseMetadata(
         description="""
-        This test case uses iperf3 to test passthrough tcp network throughput.
+        Run TCP iperf between two passthrough guests and publish the measurements
+        without enforcing a line-rate or host-baseline threshold.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -387,7 +911,8 @@ class NetworkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses iperf3 to test passthrough udp network throughput.
+        Run UDP iperf between two passthrough guests and publish the measurements
+        without enforcing a line-rate or host-baseline threshold.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -411,8 +936,12 @@ class NetworkPerformance(TestSuite):
         client_node.reboot()
         server_node.reboot()
 
-        client, _ = self._configure_passthrough_nic_for_node(client_node, log_path)
-        server, _ = self._configure_passthrough_nic_for_node(server_node, log_path)
+        client, client_nic_name = self._configure_passthrough_nic_for_node(
+            client_node, log_path
+        )
+        server, server_nic_name = self._configure_passthrough_nic_for_node(
+            server_node, log_path
+        )
 
         perf_iperf(
             test_result=result,
@@ -421,6 +950,9 @@ class NetworkPerformance(TestSuite):
             server=server,
             client=client,
             udp_mode=True,
+            udp_total_bitrate_gbps=self._get_iperf_udp_line_rate_bitrate_gbps(
+                client, client_nic_name, server, server_nic_name
+            ),
             run_with_internal_address=True,
         )
 
@@ -504,8 +1036,8 @@ class NetworkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses ntttcp to test passthrough tcp network throughput
-        between two guest VMs.
+        Run TCP NTTTCP between two passthrough guests and publish the measurements
+        without enforcing a line-rate or host-baseline threshold.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -538,12 +1070,15 @@ class NetworkPerformance(TestSuite):
         )
 
         def refresh_passthrough_nics() -> Tuple[Optional[str], Optional[str]]:
+            nonlocal client_nic_name, server_nic_name
             _, refreshed_client_nic_name = self._configure_passthrough_nic_for_node(
                 client_node, log_path
             )
             _, refreshed_server_nic_name = self._configure_passthrough_nic_for_node(
                 server_node, log_path
             )
+            client_nic_name = refreshed_client_nic_name
+            server_nic_name = refreshed_server_nic_name
             return refreshed_client_nic_name, refreshed_server_nic_name
 
         perf_ntttcp(
@@ -560,8 +1095,8 @@ class NetworkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses ntttcp to test passthrough udp network throughput
-        between two guest VMs.
+        Run UDP NTTTCP between two passthrough guests and publish the measurements
+        without enforcing a line-rate or host-baseline threshold.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -613,14 +1148,7 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         host_node: Optional[RemoteNode] = None,
     ) -> Tuple[RemoteNode, str]:
-        ctx = self._get_passthrough_node_context(node)
-        if not ctx.passthrough_devices:
-            raise SkippedException("No passthrough devices found for node")
-
-        passthrough_dev = ctx.passthrough_devices[0]
-        if not passthrough_dev.device_list:
-            raise LisaException("passthrough_devices[0].device_list is empty")
-        device_addr_obj = passthrough_dev.device_list[0]
+        _, device_addr_obj = self._get_passthrough_nic_context(node)
         device_bdf = self._get_device_bdf(device_addr_obj)
 
         host_nic_name = ""
@@ -739,6 +1267,238 @@ class NetworkPerformance(TestSuite):
         test_node.internal_address = passthrough_nic_ip
 
         return test_node, interface_name
+
+    def _configure_passthrough_nic_for_host(
+        self,
+        node: Node,
+        host: Node,
+    ) -> Tuple[Node, str]:
+        _, device_addr_obj = self._get_passthrough_nic_context(node)
+        device_bdf = self._get_device_bdf(device_addr_obj)
+        if not device_bdf:
+            raise LisaException(
+                "Cannot resolve the selected passthrough NIC BDF on the Linux "
+                "host. Verify the Cloud Hypervisor device context contains PCI "
+                "domain, bus, slot, and function values."
+            )
+
+        def get_native_interface_info() -> str:
+            return host.execute(
+                cmd=(
+                    f'driver=$(basename "$(readlink '
+                    f'/sys/bus/pci/devices/{device_bdf}/driver 2>/dev/null)" '
+                    "2>/dev/null); "
+                    f"for path in /sys/bus/pci/devices/{device_bdf}/net/*; do "
+                    '[ -e "$path" ] || continue; '
+                    'iface=$(basename "$path"); '
+                    'carrier=$(cat "/sys/class/net/$iface/carrier" '
+                    "2>/dev/null || echo 0); "
+                    'echo "${driver:-none}|$iface|$carrier"; '
+                    "done"
+                ),
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+                no_error_log=True,
+            ).stdout.strip()
+
+        interface_info = ""
+
+        def get_native_candidates() -> List[Tuple[bool, str]]:
+            candidates: List[Tuple[bool, str]] = []
+            for line in interface_info.splitlines():
+                parts = line.split("|")
+                if len(parts) == 3 and parts[0] not in ["none", "vfio-pci"]:
+                    candidates.append((parts[2] == "1", parts[1]))
+            return candidates
+
+        def is_native_driver_ready() -> bool:
+            nonlocal interface_info
+            interface_info = get_native_interface_info()
+            return bool(get_native_candidates())
+
+        check_till_timeout(
+            is_native_driver_ready,
+            timeout_message=(
+                f"wait for passthrough NIC [{device_bdf}] to rebind to its "
+                "native Linux driver after stopping the guest"
+            ),
+            timeout=PASSTHROUGH_HOST_NIC_REBIND_TIMEOUT_SECONDS,
+        )
+        candidates = get_native_candidates()
+        candidates.sort(key=lambda item: (not item[0], item[1]))
+        if not candidates:
+            raise LisaException(
+                f"Passthrough NIC [{device_bdf}] did not expose a native Linux "
+                f"network interface after stopping the guest. Observed: "
+                f"[{interface_info}]. Verify libvirt uses managed='yes'."
+            )
+        interface_name = candidates[0][1]
+        host.log.info(
+            f"Using immediate Linux-host NIC [{host.name}:{interface_name}] "
+            f"for passthrough baseline; BDF [{device_bdf}]"
+        )
+        host.execute(
+            cmd=f"ip link set {interface_name} up",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to bring up Linux-host baseline NIC [{interface_name}]. "
+                "Verify its native driver reattached after the guest stopped."
+            ),
+        )
+        self._wait_for_carrier(host, interface_name)
+        host.execute(
+            f"ip addr flush dev {interface_name} 2>/dev/null || true; "
+            f"ip route flush dev {interface_name} 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+        is_configured = False
+        try:
+            dhcp_result = self._run_dhcp_on_iface(
+                host, interface_name, keep_unmanaged=False
+            )
+            if dhcp_result.exit_code != 0:
+                self._raise_dhcp_failure(host, interface_name, dhcp_result)
+
+            interface_details = host.execute(
+                cmd=f"ip -4 -o addr show dev {interface_name} scope global",
+                sudo=True,
+                shell=True,
+            ).stdout
+            address_match = re.search(
+                r"\binet\s+(?P<ip>\d+(?:\.\d+){3})/", interface_details
+            )
+            if not address_match:
+                raise LisaException(
+                    f"Linux-host baseline NIC [{interface_name}] did not receive an "
+                    f"IPv4 address. Verify DHCP is available on the physical test "
+                    f"network. Interface details: [{interface_details[:500]}]"
+                )
+            cast(Any, host).internal_address = address_match.group("ip")
+            is_configured = True
+            return host, interface_name
+        finally:
+            if not is_configured:
+                self._release_passthrough_host_dhcp(host, interface_name)
+
+    def _release_passthrough_host_dhcp(self, host: Node, interface_name: str) -> None:
+        dhcp_pid = f"/run/dhclient-{interface_name}.pid"
+        dhcp_lease = f"/var/lib/dhcp/dhclient-{interface_name}.leases"
+        host.execute(
+            f"dhclient -r -pf {dhcp_pid} -lf {dhcp_lease} {interface_name} "
+            "2>/dev/null || true; "
+            f"if [ -s {dhcp_pid} ]; then "
+            f'kill "$(cat {dhcp_pid})" 2>/dev/null || true; fi; '
+            f"pkill -f '[d]hclient.*{interface_name}' 2>/dev/null || true; "
+            f"rm -f {dhcp_pid}; "
+            f"ip addr flush dev {interface_name} 2>/dev/null || true; "
+            f"ip route flush dev {interface_name} 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+
+    def _get_linux_passthrough_host(
+        self,
+        test_result: TestResult,
+        node: Node,
+        peer: RemoteNode,
+    ) -> Node:
+        environment = test_result.environment
+        if environment is None or environment.platform is None:
+            raise SkippedException(
+                "Measured passthrough validation requires the platform context. "
+                "Verify the test runs on Cloud Hypervisor."
+            )
+        platform = environment.platform
+        if platform.type_name() != CLOUD_HYPERVISOR:
+            raise SkippedException(
+                f"Measured passthrough validation requires an immediate Linux "
+                f"virtualization host, but platform [{platform.type_name()}] does "
+                "not expose one. Run this case on Cloud Hypervisor hosted by "
+                "bare-metal Linux or Linux L1VH."
+            )
+        host_node = getattr(platform, "host_node", None)
+        if not isinstance(host_node, Node) or isinstance(host_node.os, Windows):
+            raise SkippedException(
+                "Measured passthrough validation requires a Linux host that owns "
+                "the NIC before assigning it to L2."
+            )
+        if not node.features.is_supported(StartStop):
+            raise SkippedException(
+                "Measured passthrough validation must stop L2 to restore the NIC "
+                "to its Linux host, but StartStop is unavailable."
+            )
+
+        passthrough_context, _ = self._get_passthrough_nic_context(node)
+        if getattr(passthrough_context, "managed", "") != "yes":
+            raise SkippedException(
+                "Measured passthrough validation requires libvirt "
+                "managed='yes' so stopping L2 restores the NIC's native Linux "
+                "driver before baseline collection."
+            )
+
+        host_addresses = set(
+            host_node.execute(
+                "hostname -I 2>/dev/null || true",
+                shell=True,
+                no_info_log=True,
+            ).stdout.split()
+        )
+        if isinstance(host_node, RemoteNode):
+            host_addresses.add(
+                str(
+                    host_node.connection_info.get(
+                        constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS, ""
+                    )
+                )
+            )
+        peer_addresses = {
+            peer.internal_address,
+            str(
+                peer.connection_info.get(
+                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS, ""
+                )
+            ),
+        }
+        if {address for address in peer_addresses if address} & host_addresses:
+            raise SkippedException(
+                "The configured passthrough peer resolves to the Linux "
+                "virtualization host. Configure an independent remote server; "
+                "host-to-guest traffic is not a passthrough baseline."
+            )
+        return host_node
+
+    def _get_passthrough_nic_context(self, node: Node) -> Tuple[Any, Any]:
+        node_context = self._get_passthrough_node_context(node)
+        for passthrough_context in node_context.passthrough_devices:
+            if passthrough_context.pool_type.value != "pci_net":
+                continue
+            if not passthrough_context.device_list:
+                raise LisaException(
+                    "The passthrough NIC context has no selected host devices. "
+                    "Verify the PCI NIC device pool contains an available device."
+                )
+            return passthrough_context, passthrough_context.device_list[0]
+        raise SkippedException("No PCI NIC passthrough device is assigned to the node")
+
+    def _wait_for_guest_start(self, guest: RemoteNode) -> None:
+        address = guest.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+        port = guest.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT]
+        is_ready, error_code = wait_tcp_port_ready(
+            address,
+            port,
+            log=guest.log,
+            timeout=PASSTHROUGH_GUEST_START_TIMEOUT_SECONDS,
+        )
+        if not is_ready:
+            raise LisaException(
+                f"L2 guest [{guest.name}] did not become reachable at "
+                f"[{address}:{port}] after restoring passthrough ownership. TCP "
+                f"error [{error_code}]. Inspect the guest console and VFIO bind "
+                "state on the Linux host."
+            )
 
     def _refresh_passthrough_nic_address(
         self, node: RemoteNode, interface_name: str
@@ -1040,7 +1800,7 @@ class NetworkPerformance(TestSuite):
                 f"; if [ -s {dhcp_pid} ]; then"
                 f'  kill -9 "$(cat {dhcp_pid})" 2>/dev/null || true; fi'
                 f"; rm -f {dhcp_pid}"
-                f"; pkill -f 'dhclient.*{interface_name}' 2>/dev/null || true",
+                f"; pkill -f '[d]hclient.*{interface_name}' 2>/dev/null || true",
                 sudo=True,
                 shell=True,
             )
@@ -1162,6 +1922,47 @@ class NetworkPerformance(TestSuite):
             self._baremetal_hosts.append(server)
         return server
 
+    def _get_passthrough_peer(self, variables: Dict[str, Any]) -> RemoteNode:
+        ip = variables.get("passthrough_peer_ip", "")
+        username = variables.get("passthrough_peer_username", "")
+        password = variables.get("passthrough_peer_password", "")
+        private_key = variables.get("passthrough_peer_private_key_file", "")
+        if not (ip and username and (password or private_key)):
+            raise SkippedException(
+                "Independent passthrough peer details are not provided. Required: "
+                "passthrough_peer_ip, passthrough_peer_username, and either "
+                "passthrough_peer_password or passthrough_peer_private_key_file. "
+                "The peer IP must be assigned to the remote peer's dedicated "
+                "physical PCI test NIC."
+            )
+
+        peer = RemoteNode(
+            runbook=schema.Node(name="passthrough-peer"),
+            index=-1,
+            logger_name="passthrough-peer",
+            parent_logger=get_logger("passthrough-peer-platform"),
+        )
+        peer.set_connection_info(
+            address=ip,
+            public_address=ip,
+            public_port=22,
+            username=username,
+            password=password,
+            private_key_file=private_key,
+        )
+        peer.internal_address = ip
+        peer.initialize()
+        if isinstance(peer.os, Windows):
+            peer.close()
+            peer.cleanup()
+            raise SkippedException(
+                "Measured passthrough baselines currently require a Linux remote "
+                "peer so the same iperf and NTTTCP profiles run in both phases."
+            )
+        if peer not in self._baremetal_hosts:
+            self._baremetal_hosts.append(peer)
+        return peer
+
     def _skip_if_windows_server(self, server: RemoteNode, tool_name: str) -> None:
         if isinstance(server.os, Windows):
             if server in self._baremetal_hosts:
@@ -1182,16 +1983,21 @@ class NetworkPerformance(TestSuite):
         client_nic_name: str,
         udp_mode: bool,
         test_case_name: str,
-    ) -> None:
+    ) -> Tuple[List[NetworkThroughputMessage], str]:
         client_ntttcp = client.tools[Ntttcp]
         server_ntttcp = server.tools[Ntttcp]
         client_ntttcp.setup_system(udp_mode)
         server_ntttcp.setup_system(udp_mode, set_task_max=False)
+        ntttcp_messages: List[NetworkThroughputMessage] = []
+        server_nic_name = ""
 
         try:
             client_ip = client.tools[Ip]
             self._refresh_passthrough_nic_address(client, client_nic_name)
             client_mtu = client_ip.get_mtu(client_nic_name)
+            server_nic_name = self._get_windows_route_interface_name(
+                server, client.internal_address
+            )
             if udp_mode:
                 connections = NTTTCP_UDP_CONCURRENCY
                 max_server_threads = WINDOWS_NTTTCP_MAX_SERVER_THREADS
@@ -1306,7 +2112,7 @@ class NetworkPerformance(TestSuite):
                         f"Stderr: {receiver_result.stderr[:2000]}"
                     ) from parse_error
                 if udp_mode:
-                    notifier.notify(
+                    ntttcp_message: NetworkThroughputMessage = (
                         client_ntttcp.create_ntttcp_udp_performance_message(
                             parsed_server_result,
                             parsed_client_result,
@@ -1318,7 +2124,7 @@ class NetworkPerformance(TestSuite):
                         )
                     )
                 else:
-                    notifier.notify(
+                    ntttcp_message = (
                         client_ntttcp.create_ntttcp_tcp_performance_message(
                             parsed_server_result,
                             parsed_client_result,
@@ -1330,9 +2136,12 @@ class NetworkPerformance(TestSuite):
                             client_mtu,
                         )
                     )
+                notifier.notify(ntttcp_message)
+                ntttcp_messages.append(ntttcp_message)
         finally:
             client_ntttcp.restore_system(udp_mode)
             server_ntttcp.restore_system(udp_mode)
+        return ntttcp_messages, server_nic_name
 
     def _get_windows_route_source_ip(self, server: RemoteNode, remote_ip: str) -> str:
         escaped_remote_ip = remote_ip.replace("'", "''")
@@ -1368,41 +2177,164 @@ class NetworkPerformance(TestSuite):
             )
         return source_ip
 
+    def _get_windows_route_interface_name(
+        self, server: RemoteNode, remote_ip: str
+    ) -> str:
+        escaped_remote_ip = remote_ip.replace("'", "''")
+        interface_name = cast(
+            str,
+            server.tools[PowerShell].run_cmdlet(
+                "$route = Find-NetRoute -RemoteIPAddress "
+                f"'{escaped_remote_ip}' -ErrorAction Stop | Select-Object -First 1; "
+                "if ($route) { "
+                "  $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex "
+                "    -ErrorAction Stop; "
+                "  if ($adapter) { $adapter.Name.ToString() } "
+                "}",
+                fail_on_error=False,
+                force_run=True,
+            ),
+        ).strip()
+        if not interface_name:
+            raise SkippedException(
+                f"Cannot determine the Windows adapter for route to {remote_ip}. "
+                "Verify the Windows host has a route on the passthrough data-path NIC."
+            )
+        return interface_name
+
     def _get_host_nic_name(self, node: RemoteNode) -> str:
-        ip = node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
-        command = "ip route show"
-        routes = node.execute(
-            cmd=command,
+        ip = (
+            node.internal_address
+            or node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+        )
+        addresses = node.execute(
+            cmd="ip -4 -o addr show",
             sudo=True,
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Can not get IP route",
+            expected_exit_code_failure_message=(
+                f"Cannot list Linux interfaces while resolving data-plane IP [{ip}]."
+            ),
         ).stdout
-
         regex_pattern = re.compile(
-            r"^default.*?dev\s+(?P<interface>\S+).*?src\s+(?P<ip>\d+\.\d+\.\d+\.\d+)\s"
+            rf"^\d+:\s+(?P<interface>[^@\s]+)(?:@\S+)?\s+" rf"inet\s+{re.escape(ip)}/"
         )
-        matches = find_groups_in_lines(
-            lines=routes,
+        interface = find_group_in_lines(
+            lines=addresses,
             pattern=regex_pattern,
             single_line=True,
+        ).get("interface", "")
+        if not interface:
+            raise LisaException(
+                f"Cannot find a Linux interface with data-plane IP [{ip}] on "
+                f"node [{node.name}]. Configure passthrough_peer_ip with an address "
+                f"assigned to the peer's physical PCI test NIC. Interfaces: "
+                f"[{addresses[:1000]}]"
+            )
+        return interface
+
+    def _validate_physical_pci_nic(
+        self,
+        node: Node,
+        interface_name: str,
+        endpoint_role: str,
+    ) -> None:
+        nic_details_output = node.execute(
+            cmd=(
+                f"device_path=$(readlink -f /sys/class/net/{interface_name}/device "
+                "2>/dev/null); "
+                "subsystem=; bdf=; pci_class=; driver=; is_vf=false; "
+                "sriov_totalvfs=unavailable; sriov_numvfs=unavailable; "
+                'if [ -n "$device_path" ]; then '
+                'subsystem_path=$(readlink -f "$device_path/subsystem" '
+                "2>/dev/null); subsystem=${subsystem_path##*/}; "
+                "bdf=${device_path##*/}; "
+                'pci_class=$(cat "$device_path/class" 2>/dev/null); '
+                'driver_path=$(readlink -f "$device_path/driver" '
+                "2>/dev/null); driver=${driver_path##*/}; "
+                'if [ -e "$device_path/physfn" ]; then is_vf=true; fi; '
+                'if [ -r "$device_path/sriov_totalvfs" ]; then '
+                'sriov_totalvfs=$(cat "$device_path/sriov_totalvfs"); fi; '
+                'if [ -r "$device_path/sriov_numvfs" ]; then '
+                'sriov_numvfs=$(cat "$device_path/sriov_numvfs"); fi; fi; '
+                "printf '%s\\n' \"device_path=$device_path\" "
+                '"subsystem=$subsystem" "bdf=$bdf" '
+                '"pci_class=$pci_class" "driver=$driver" '
+                '"is_vf=$is_vf" "sriov_totalvfs=$sriov_totalvfs" '
+                '"sriov_numvfs=$sriov_numvfs"'
+            ),
+            sudo=True,
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+        ).stdout.strip()
+        nic_details = dict(
+            line.split("=", maxsplit=1)
+            for line in nic_details_output.splitlines()
+            if "=" in line
         )
-        interface_name: str = ""
-        for match in matches:
-            match_ip = match.get("ip", "").strip()
-            if match_ip == ip:
-                interface_name = match.get("interface", "")
-                break
-        assert interface_name, f"Can't get {ip} interface name from: {routes}"
-        return interface_name
+        device_path = nic_details.get("device_path", "")
+        subsystem = nic_details.get("subsystem", "")
+        bdf = nic_details.get("bdf", "")
+        pci_class = nic_details.get("pci_class", "")
+        driver = nic_details.get("driver", "") or "unavailable"
+        is_vf = nic_details.get("is_vf", "false") == "true"
+        sriov_totalvfs = nic_details.get("sriov_totalvfs", "unavailable")
+        sriov_numvfs = nic_details.get("sriov_numvfs", "unavailable")
+
+        node.log.info(
+            f"{endpoint_role.capitalize()} data NIC "
+            f"[{node.name}:{interface_name}] PCI identity: BDF "
+            f"[{bdf or 'unavailable'}], class [{pci_class or 'unavailable'}], "
+            f"driver [{driver}], VF [{is_vf}]"
+        )
+        node.log.info(
+            f"{endpoint_role.capitalize()} data NIC "
+            f"[{node.name}:{interface_name}] SR-IOV state: sriov_totalvfs "
+            f"[{sriov_totalvfs}], sriov_numvfs [{sriov_numvfs}]"
+        )
+
+        is_pci_network_function = (
+            subsystem == "pci"
+            and re.fullmatch(
+                r"[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]", bdf
+            )
+            is not None
+            and pci_class.lower().startswith("0x02")
+        )
+        if not is_pci_network_function:
+            raise SkippedException(
+                f"The {endpoint_role} data NIC [{node.name}:{interface_name}] is "
+                "not a physical PCI network function. Configure the data-plane IP "
+                "on a dedicated physical PCI NIC before running this test. "
+                f"Resolved device path [{device_path or 'unavailable'}], subsystem "
+                f"[{subsystem or 'unavailable'}], class "
+                f"[{pci_class or 'unavailable'}]."
+            )
+        if is_vf:
+            raise SkippedException(
+                f"The {endpoint_role} data NIC [{node.name}:{interface_name}] at "
+                f"BDF [{bdf}] is an SR-IOV virtual function, not a physical "
+                "function. Configure the data-plane IP on a dedicated physical "
+                "PCI NIC before running this test."
+            )
+
+    def _get_cleanup_nodes(self, environment: Environment) -> List[Node]:
+        all_nodes = list(environment.nodes.list())
+        if (
+            environment.platform
+            and environment.platform.type_name() == CLOUD_HYPERVISOR
+        ):
+            platform_host = getattr(environment.platform, "host_node", None)
+            if isinstance(platform_host, Node) and platform_host not in all_nodes:
+                all_nodes.append(platform_host)
+        if self._baremetal_hosts:
+            all_nodes.extend(self._baremetal_hosts)
+        return all_nodes
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-
-        # Include baremetal hosts in cleanup.
-        all_nodes = list(environment.nodes.list())
-        if self._baremetal_hosts:
-            all_nodes.extend(self._baremetal_hosts)
+        all_nodes = self._get_cleanup_nodes(environment)
 
         def do_process_cleanup(process: str, node: Node) -> None:
             try:
@@ -1457,5 +2389,7 @@ class NetworkPerformance(TestSuite):
         run_in_parallel(cleanup_tasks)
         run_in_parallel([partial(do_sysctl_cleanup, x) for x in all_nodes])
 
-        # Clear the baremetal hosts list after cleanup
+        for external_host in self._baremetal_hosts:
+            external_host.close()
+            external_host.cleanup()
         self._baremetal_hosts.clear()
