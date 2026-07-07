@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from functools import partial
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
+
+from assertpy import assert_that
 
 from microsoft.testsuites.performance.common import (
     cleanup_process,
@@ -26,7 +28,7 @@ from lisa.environment import Environment, Node
 from lisa.features import Sriov, Synthetic
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
-from lisa.tools import Sysctl
+from lisa.tools import Ethtool, Sysctl
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
@@ -34,6 +36,7 @@ from lisa.tools.iperf3 import (
     IPERF_UDP_CONCURRENCY,
 )
 from lisa.tools.sockperf import SOCKPERF_TCP, SOCKPERF_UDP
+from lisa.util import SkippedException, UnsupportedOperationException
 from lisa.util.parallel import run_in_parallel
 
 
@@ -187,7 +190,62 @@ class NetworkPerformace(TestSuite):
     def perf_tcp_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, variables=variables)
+        environment = result.environment
+        assert environment, "fail to get environment from test result"
+
+        # The mlx5 driver exposes a private flag that controls RX CQE
+        # coalescing. Enable it on the SRIOV VF interface of every node before
+        # running the throughput test, and revert to the original value after.
+        priv_flag = "rx_cqe_coalesce_4"
+        reverts: List[Tuple[Node, str, bool]] = []
+        try:
+            for node in environment.nodes.list():
+                # Print the loaded mana driver modules for diagnostics.
+                mana_modules = node.execute(
+                    "lsmod | grep mana", sudo=True, shell=True
+                ).stdout
+                node.log.info(f"mana modules on node {node.name}:\n{mana_modules}")
+
+                ethtool = node.tools[Ethtool]
+                for interface in node.nics.get_pci_nics(exclude_ib=True):
+                    # Step 1: show the current private flags.
+                    try:
+                        original_flags = ethtool.get_device_priv_flags(interface)
+                    except UnsupportedOperationException as e:
+                        raise SkippedException(e)
+
+                    if priv_flag not in original_flags.flags:
+                        raise SkippedException(
+                            f"Private flag '{priv_flag}' is not available on interface "
+                            f"{interface} of node {node.name}. The driver may not "
+                            "support it. Skipping test."
+                        )
+
+                    original_value = original_flags.flags[priv_flag]
+                    # Changing a NIC private flag alters device state.
+                    node.mark_dirty()
+
+                    # Step 2: enable the private flag and Step 3: re-read to
+                    # confirm the change took effect.
+                    try:
+                        updated_flags = ethtool.set_device_priv_flag(
+                            interface, priv_flag, True
+                        )
+                    except UnsupportedOperationException as e:
+                        raise SkippedException(e)
+                    reverts.append((node, interface, original_value))
+                    assert_that(updated_flags.flags[priv_flag]).described_as(
+                        f"Enabling private flag '{priv_flag}' on interface "
+                        f"{interface} of node {node.name} did not take effect"
+                    ).is_true()
+
+            perf_ntttcp(result, variables=variables)
+        finally:
+            # Revert each private flag we changed back to its original value.
+            for node, interface, original_value in reverts:
+                node.tools[Ethtool].set_device_priv_flag(
+                    interface, priv_flag, original_value
+                )
 
     @TestCaseMetadata(
         description="""

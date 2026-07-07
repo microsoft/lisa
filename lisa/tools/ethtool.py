@@ -459,6 +459,34 @@ class DeviceStatistics:
         self.counters = statistics
 
 
+class DevicePrivFlags:
+    # ethtool private flags are in the format:
+    # ~$ ethtool --show-priv-flags eth0
+    #   Private flags for eth0:
+    #   rx_cqe_moder       : on
+    #   tx_cqe_moder       : off
+    #   rx_cqe_coalesce_4  : off
+    _priv_flag_pattern = re.compile(
+        r"^\s*(?P<name>[\w\-]+)\s*:\s*(?P<value>on|off)\s*$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_priv_flags_raw: str) -> None:
+        self._parse_priv_flags_info(interface, device_priv_flags_raw)
+
+    def _parse_priv_flags_info(self, interface: str, raw_str: str) -> None:
+        items = find_groups_in_lines(raw_str, self._priv_flag_pattern)
+        if not items:
+            raise LisaException(
+                f"Could not get any private flags for device {interface}. Verify the "
+                "driver supports 'ethtool --show-priv-flags'."
+            )
+
+        self.interface = interface
+        self.flags: Dict[str, bool] = {
+            item["name"]: item["value"] == "on" for item in items
+        }
+
+
 @dataclass
 class DeviceSettings:
     interface: str
@@ -473,6 +501,7 @@ class DeviceSettings:
     device_sg_settings: Optional[DeviceSgSettings] = None
     device_firmware_version: Optional[str] = None
     device_statistics: Optional[DeviceStatistics] = None
+    device_priv_flags: Optional[DevicePrivFlags] = None
 
 
 class Ethtool(Tool):
@@ -641,6 +670,55 @@ class Ethtool(Tool):
         )
 
         return self.get_device_gro_lro_settings(interface, force_run=True)
+
+    def get_device_priv_flags(
+        self, interface: str, force_run: bool = False
+    ) -> DevicePrivFlags:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_priv_flags:
+            return device.device_priv_flags
+
+        result = self.run(
+            f"--show-priv-flags {interface}",
+            force_run=force_run,
+            sudo=True,
+            shell=True,
+        )
+        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+            raise UnsupportedOperationException(
+                f"ethtool --show-priv-flags {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} private flags."
+        )
+
+        device.device_priv_flags = DevicePrivFlags(interface, result.stdout)
+        return device.device_priv_flags
+
+    def set_device_priv_flag(
+        self, interface: str, flag: str, value: bool
+    ) -> DevicePrivFlags:
+        setting = "on" if value else "off"
+        change_result = self.run(
+            f"--set-priv-flags {interface} {flag} {setting}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+        )
+        if (change_result.exit_code != 0) and (
+            "Operation not supported" in change_result.stdout
+        ):
+            raise UnsupportedOperationException(
+                f"ethtool --set-priv-flags {interface} {flag} {setting} operation not"
+                " supported."
+            )
+        change_result.assert_exit_code(
+            message=(
+                f"Couldn't set device {interface} private flag {flag} to {setting}."
+            )
+        )
+
+        return self.get_device_priv_flags(interface, force_run=True)
 
     def get_device_link_settings(self, interface: str) -> DeviceLinkSettings:
         device = self._get_or_create_device_setting(interface)
