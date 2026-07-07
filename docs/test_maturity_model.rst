@@ -44,6 +44,56 @@ optionally ``TestSuiteMetadata`` for a suite-wide default):
 If omitted, maturity defaults to **stable**, requiring no changes to
 existing tests.
 
+Why Not Tags?
+~~~~~~~~~~~~~
+
+Tags could theoretically encode maturity (e.g. ``tags: ["preview"]``),
+but a dedicated field is preferred for several reasons:
+
+-  **Semantic clarity** — maturity is a lifecycle property, not a
+   topical grouping. Mixing the two in tags makes filtering ambiguous.
+-  **Validated values** — the ``maturity`` field accepts only the four
+   defined levels (``experimental``, ``preview``, ``stable``,
+   ``deprecated``). Tags are free-form strings with no validation.
+-  **Implicit gate** — the stable gate is applied automatically after
+   all other selection rules. Implementing this with tags would require
+   every runbook to explicitly exclude non-stable tags, which is
+   error-prone and not backward compatible.
+-  **Inheritance** — a suite-level maturity default is inherited by all
+   its test cases unless overridden. Tags do not support this
+   inheritance model.
+
+Suite vs Case Maturity Precedence
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When both ``TestSuiteMetadata`` and ``TestCaseMetadata`` specify a
+``maturity`` value, the **case-level value wins**. If the case does not
+set ``maturity``, it inherits the suite's value. If neither is set, the
+default is ``stable``.
+
+.. code-block:: python
+
+   @TestSuiteMetadata(
+       area="example",
+       category="functional",
+       description="Suite with preview maturity",
+       maturity="preview",       # suite-wide default
+   )
+   class ExampleSuite(TestSuite):
+
+       @TestCaseMetadata(
+           description="Inherits suite maturity (preview)",
+           priority=2,
+       )
+       def test_inherits_preview(self, ...) -> None: ...
+
+       @TestCaseMetadata(
+           description="Overrides to stable",
+           priority=2,
+           maturity="stable",    # case-level override
+       )
+       def test_overrides_to_stable(self, ...) -> None: ...
+
 Test Maturity Levels
 --------------------
 
@@ -162,6 +212,51 @@ Precedence (highest to lowest):
    maturity scope selection to those levels.
 4. **Implicit stable gate** — applied last; drops any remaining
    non-stable case not covered above.
+
+Test Selection Flow
+-------------------
+
+The following describes the step-by-step order of operations when LISA
+selects test cases with the maturity model enabled:
+
+1. **Discover all test cases** — LISA loads all registered
+   ``TestCaseMetadata`` from the codebase. Each case has a resolved
+   maturity (case-level → suite-level → ``stable``).
+
+2. **Apply target OS pre-filter** — if a ``target_os`` is configured,
+   cases incompatible with that OS are dropped.
+
+3. **Process runbook filters sequentially** — each filter rule in the
+   runbook's ``testcase`` list is applied in order:
+
+   a. Criteria (name, area, category, priority, tags, **maturity**) are
+      matched against the case metadata.
+   b. The ``select_action`` (include / exclude / forceInclude /
+      forceExclude) determines whether matched cases are added to or
+      removed from the selection.
+   c. If the filter contains a ``maturity`` criterion **and** the action
+      is include or forceInclude, all matched cases are recorded in the
+      **maturity-approved** set.
+
+4. **Apply the implicit stable gate** — for every case still in the
+   selection:
+
+   - If ``maturity == stable`` → **keep** (always passes the gate).
+   - If the case is in the **force-included** set → **keep** (force
+     overrides the gate).
+   - If the case is in the **maturity-approved** set → **keep**
+     (explicitly approved by a maturity criterion).
+   - Otherwise → **drop** (non-stable case with no explicit approval).
+
+5. **Emit warnings** — any ``deprecated`` case that survived the gate
+   (via forceInclude or maturity approval) triggers a deprecation
+   warning in the log.
+
+.. note::
+
+   When no filters are specified in the runbook, LISA returns all
+   discovered cases. The implicit stable gate still applies, so only
+   ``stable`` cases are selected.
 
 Changes Required
 ----------------
