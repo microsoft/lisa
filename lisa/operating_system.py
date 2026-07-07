@@ -2267,10 +2267,12 @@ class CBLMariner(RPMDistro):
     def _dnf_tool(self) -> str:
         if not self._dnf_tool_name:
             self._initialize_package_installation()
+        assert self._dnf_tool_name is not None
         return self._dnf_tool_name
 
     def _package_exists(self, package: str) -> bool:
-        self._initialize_package_installation()
+        if not self._dnf_tool_name:
+            self._initialize_package_installation()
         return super()._package_exists(package)
 
     def add_azure_core_repo(
