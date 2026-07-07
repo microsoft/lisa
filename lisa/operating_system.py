@@ -1122,7 +1122,9 @@ class Debian(Linux):
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
-        result = self._node.execute("apt-get update", sudo=True, timeout=1800)
+        result = self._node.execute(
+            "apt-get -o DPkg::Lock::Timeout=600 update", sudo=True, timeout=1800
+        )
         if result.exit_code != 0:
             not_available_keys = self._key_not_available_pattern.findall(result.stdout)
             if len(set(not_available_keys)) > 0:
@@ -1133,7 +1135,11 @@ class Debian(Linux):
                         f"--recv-keys {key}",
                         sudo=True,
                     )
-                result = self._node.execute("apt-get update", sudo=True, timeout=1800)
+                result = self._node.execute(
+                    "apt-get -o DPkg::Lock::Timeout=600 update",
+                    sudo=True,
+                    timeout=1800,
+                )
         for pattern in self._repo_not_exist_patterns:
             if pattern.search(result.stdout):
                 if self.is_end_of_life_release():
@@ -1163,8 +1169,13 @@ class Debian(Linux):
                 package = Path(package).stem
                 packages[index] = package
         add_args = self._process_extra_package_args(extra_args)
+        # DPkg::Lock::Timeout makes apt wait (instead of failing immediately)
+        # when the dpkg/apt lock is held by another process, e.g. cloud-init or
+        # unattended-upgrades running on first boot. Without it, installs race
+        # with those and fail with "Could not get lock /var/lib/dpkg/...".
         command = (
             f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"-o DPkg::Lock::Timeout=600 "
             f"-y install {' '.join(packages)}"
         )
         if not signed:
@@ -1199,6 +1210,7 @@ class Debian(Linux):
         add_args = self._process_extra_package_args(extra_args)
         command = (
             f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"-o DPkg::Lock::Timeout=600 "
             f"-y remove {' '.join(packages)}"
         )
         if not signed:
@@ -1301,6 +1313,7 @@ class Debian(Linux):
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
         command = (
             "DEBIAN_FRONTEND=noninteractive apt-get upgrade -y "
+            "-o DPkg::Lock::Timeout=600 "
             '-o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" '
         )
         if packages:
