@@ -71,6 +71,9 @@ param publicIpAllocationMethod string = 'Static'
 ])
 param publicIpAddressVersion string = 'IPv4'
 
+@description('IP service tags stamped on the jumphost public IP, e.g. { FirstPartyUsage: \'/SyntheticLoad\' }. Empty object leaves the public IP untagged.')
+param ipServiceTags object = {}
+
 // --- Jumphost OS disk ---
 @allowed([
   'Premium_LRS'
@@ -193,6 +196,12 @@ resource jumphostPublicIp 'Microsoft.Network/publicIPAddresses@2023-09-01' = {
   properties: {
     publicIPAllocationMethod: publicIpAllocationMethod
     publicIPAddressVersion: publicIpAddressVersion
+    ipTags: [
+      for tag in items(ipServiceTags): {
+        ipTagType: tag.key
+        tag: tag.value
+      }
+    ]
   }
 }
 

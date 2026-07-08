@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from dataclasses_json import dataclass_json
 from marshmallow import validate
@@ -127,6 +127,11 @@ class BmiPlatformSchema:
     # First TCP port on the jumphost public IP that maps to BMI #1:22.
     # BMI #2 gets nat_port_start+1, etc.
     nat_port_start: int = 50001
+    # Optional IP service tags stamped on the jumphost public IP
+    # (e.g. {"FirstPartyUsage": "/SyntheticLoad"}). Mirrors
+    # ``AzurePlatformSchema.ip_service_tags``. When unset, the public IP is
+    # left untagged.
+    ip_service_tags: Optional[Dict[str, str]] = field(default=None)
 
     # ── Deployment knobs ───────────────────────────────────────────────
     # ARM template deployment timeout in seconds. BMI provisioning can
