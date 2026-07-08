@@ -823,7 +823,7 @@ class BmiDeployer:
             _stdin, stdout, _stderr = jumphost_client.exec_command(cmd, timeout=20)
             data = stdout.read()
             rc = stdout.channel.recv_exit_status()
-            return rc == 0 and data.startswith(b"SSH-")
+            return bool(rc == 0 and data.startswith(b"SSH-"))
         except Exception:
             return False
 

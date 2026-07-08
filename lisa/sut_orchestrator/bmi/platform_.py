@@ -262,9 +262,8 @@ class BmiPlatform(Platform):
             try:
                 shell = getattr(node, "_shell", None)
                 if shell is not None:
-                    shell._pre_connect_failure_hook = node._bmi_diag[
-                        "nsg_refresh"
-                    ]  # type: ignore[attr-defined]
+                    diag = node._bmi_diag  # type: ignore[attr-defined]
+                    shell._pre_connect_failure_hook = diag["nsg_refresh"]
             except Exception:
                 pass
             log.info(
