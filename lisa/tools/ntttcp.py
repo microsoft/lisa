@@ -881,7 +881,10 @@ class Ntttcp(Tool):
             )
         if need_reboot:
             self._log.debug("reboot vm to make sure TasksMax change take effect")
-            self.node.reboot(time_out=600)
+            # Allow up to 20 minutes for the node to reboot and re-establish
+            # SSH connectivity. Under packed-node noisy-neighbor load the
+            # reconnect can take longer than the previous 10 minute window.
+            self.node.reboot(time_out=1200)
 
 
 class BSDNtttcp(Ntttcp):
