@@ -9,7 +9,9 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
+from lisa.tools.rm import Rm
 from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
+from lisa.util.process import ExecutableResult
 
 
 class CodeExistsException(LisaException):
@@ -58,6 +60,7 @@ class Git(Tool):
         fail_on_exists: bool = True,
         auth_token: Optional[str] = None,
         timeout: int = 600,
+        retries: int = 1,
     ) -> pathlib.PurePath:
         self.node.shell.mkdir(cwd, exist_ok=True)
         auth_flag = ""
@@ -66,17 +69,7 @@ class Git(Tool):
 
         cmd = f"clone {auth_flag} {url} {dir_name} --recurse-submodules"
 
-        # git print to stderr for normal info, so set no_error_log to True.
-        result = self.run(cmd, cwd=cwd, no_error_log=True, timeout=timeout)
-        if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):
-            self.run("config --global http.sslverify false")
-            result = self.run(
-                cmd,
-                cwd=cwd,
-                no_error_log=True,
-                force_run=True,
-                timeout=timeout,
-            )
+        result = self._clone_with_retries(cmd, cwd, url, dir_name, timeout, retries)
 
         # mark directory safe
         self._mark_safe(cwd)
@@ -101,6 +94,76 @@ class Git(Tool):
         if ref:
             self.checkout(ref, cwd=full_path)
         return full_path
+
+    def _clone_with_retries(
+        self,
+        cmd: str,
+        cwd: pathlib.PurePath,
+        url: str,
+        dir_name: str,
+        timeout: int,
+        retries: int,
+    ) -> ExecutableResult:
+        # Directory git creates for the clone. It is removed before a retry so a
+        # partial clone left by a failed attempt does not make the next attempt
+        # fail with "destination path already exists".
+        clone_dir = dir_name or url.rstrip("/").rsplit("/", 1)[-1]
+        if clone_dir.endswith(".git"):
+            clone_dir = clone_dir[: -len(".git")]
+
+        for attempt in range(1, retries + 1):
+            is_last_attempt = attempt == retries
+            try:
+                # force_run on retries to bypass the cached result of a failed
+                # attempt.
+                result = self._run_clone(cmd, cwd, timeout, force_run=attempt > 1)
+            except LisaException:
+                # Includes the clone timing out after a mid-transfer stall.
+                if is_last_attempt:
+                    raise
+            else:
+                # Return on success, on a non-transient outcome (destination
+                # already exists) handled by the caller, or on the final result.
+                clone_exists = bool(
+                    get_matched_str(result.stdout, self.CODE_FOLDER_ON_EXISTS_PATTERN)
+                )
+                if result.exit_code == 0 or clone_exists or is_last_attempt:
+                    return result
+
+            self._log.debug(
+                f"git clone of [{url}] failed on attempt {attempt}/{retries}; "
+                "removing any partial clone and retrying."
+            )
+            self.node.tools[Rm].remove_directory(str(cwd / clone_dir), sudo=True)
+
+        # The loop always returns or raises on the final attempt.
+        raise LisaException(f"failed to clone [{url}] after {retries} attempt(s).")
+
+    def _run_clone(
+        self,
+        cmd: str,
+        cwd: pathlib.PurePath,
+        timeout: int,
+        force_run: bool,
+    ) -> ExecutableResult:
+        # git prints to stderr for normal info, so set no_error_log to True.
+        result = self.run(
+            cmd,
+            cwd=cwd,
+            no_error_log=True,
+            force_run=force_run,
+            timeout=timeout,
+        )
+        if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):
+            self.run("config --global http.sslverify false")
+            result = self.run(
+                cmd,
+                cwd=cwd,
+                no_error_log=True,
+                force_run=True,
+                timeout=timeout,
+            )
+        return result
 
     def checkout(
         self,

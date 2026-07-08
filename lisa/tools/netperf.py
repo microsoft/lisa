@@ -18,6 +18,9 @@ from .texinfo import Texinfo
 class Netperf(Tool):
     repo = "https://github.com/HewlettPackard/netperf/"
     branch = "netperf-2.7.0"
+    # Cloning netperf from GitHub occasionally stalls mid-transfer and hits the
+    # git clone timeout; retry the clone to tolerate transient network issues.
+    _clone_attempts = 3
 
     @property
     def command(self) -> str:
@@ -118,7 +121,7 @@ class Netperf(Tool):
         self._install_dep_packages()
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path, ref=self.branch)
+        git.clone(self.repo, tool_path, ref=self.branch, retries=self._clone_attempts)
         code_path = tool_path.joinpath("netperf")
         make = self.node.tools[Make]
         if self.node.shell.exists(self.node.get_pure_path(f"{code_path}/autogen.sh")):
