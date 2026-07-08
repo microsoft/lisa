@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.34.1.11899",
-      "templateHash": "15854325197496605689"
+      "version": "0.44.1.10279",
+      "templateHash": "12778817751587052184"
     }
   },
   "parameters": {
@@ -128,6 +128,13 @@
         "IPv4",
         "IPv6"
       ]
+    },
+    "ipServiceTags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "IP service tags stamped on the jumphost public IP, e.g. { FirstPartyUsage: '/SyntheticLoad' }. Empty object leaves the public IP untagged."
+      }
     },
     "jumphostOsDiskStorageAccountType": {
       "type": "string",
@@ -287,6 +294,16 @@
         "name": "[parameters('publicIpSkuName')]"
       },
       "properties": {
+        "copy": [
+          {
+            "name": "ipTags",
+            "count": "[length(items(parameters('ipServiceTags')))]",
+            "input": {
+              "ipTagType": "[items(parameters('ipServiceTags'))[copyIndex('ipTags')].key]",
+              "tag": "[items(parameters('ipServiceTags'))[copyIndex('ipTags')].value]"
+            }
+          }
+        ],
         "publicIPAllocationMethod": "[parameters('publicIpAllocationMethod')]",
         "publicIPAddressVersion": "[parameters('publicIpAddressVersion')]"
       }

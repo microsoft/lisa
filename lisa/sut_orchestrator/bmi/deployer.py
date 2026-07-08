@@ -527,6 +527,7 @@ class BmiDeployer:
             "natPortStart": {"value": self._runbook.nat_port_start},
             "bmiVmSize": {"value": self._runbook.bmi_vm_size},
             "bmiImageId": {"value": self._runbook.bmi_image_sig},
+            "ipServiceTags": {"value": dict(self._runbook.ip_service_tags or {})},
         }
         # Decompose the Canonical-style URN into the four image fields. The
         # URN is "publisher:offer:sku:version".
