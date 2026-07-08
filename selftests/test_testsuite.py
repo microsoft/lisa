@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 from unittest import TestCase
 
 from assertpy import assert_that
@@ -143,10 +143,16 @@ def generate_cases_result() -> List[TestResult]:
 
 
 def select_and_check(
-    ut: TestCase, case_runbook: List[Any], expected_descriptions: List[str]
+    ut: TestCase,
+    case_runbook: List[Any],
+    expected_descriptions: List[str],
+    init_cases: Optional[List[TestCaseMetadata]] = None,
 ) -> List[TestCaseRuntimeData]:
     runbook = RunbookBuilder._validate_and_load({constants.TESTCASE: case_runbook})
-    case_metadata = generate_cases_metadata()
+    if init_cases is None:
+        case_metadata = generate_cases_metadata()
+    else:
+        case_metadata = init_cases
     runbook.testcase = parse_testcase_filters(runbook.testcase_raw)
     filters = cast(List[schema.TestCase], runbook.testcase)
     selected = select_testcases(filters, case_metadata)
