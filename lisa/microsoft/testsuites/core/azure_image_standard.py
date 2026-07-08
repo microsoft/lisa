@@ -57,6 +57,7 @@ from lisa.tools import (
     Ssh,
     Stat,
     Swap,
+    Sysctl,
 )
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
@@ -526,7 +527,10 @@ class AzureImageStandard(TestSuite):
                     f"networking=yes should be present in {network_file_path}",
                 ).contains("networking=yes".upper())
         elif isinstance(node.os, CBLMariner):
-            network_file_path = "/etc/systemd/networkd.conf"
+            if node.os.information.version >= "4.0.0":
+                network_file_path = "/usr/lib/systemd/networkd.conf"
+            else:
+                network_file_path = "/etc/systemd/networkd.conf"
             file_exists = node.shell.exists(PurePosixPath(network_file_path))
             assert_that(
                 file_exists,
@@ -668,7 +672,10 @@ class AzureImageStandard(TestSuite):
                 f"file {dhcp_file_path}",
             ).contains('DHCLIENT_SET_HOSTNAME="no"')
         elif isinstance(node.os, CBLMariner):
-            if node.os.information.version.major == 3:
+            if (
+                node.os.information.version.major == 3
+                or node.os.information.version.major == 4
+            ):
                 dhcp_file_path = "/etc/dhcpcd.conf"
                 dhcp_file_content = "option host_name"
             else:
@@ -767,11 +774,14 @@ class AzureImageStandard(TestSuite):
             if len(running_processes) == 0:
                 raise PassedException("hv_kvp_daemon is not installed")
         elif isinstance(node.os, CBLMariner):
-            running_processes = node.tools[Pgrep].get_processes("hypervkvpd")
+            kvp_daemon_name = "hypervkvpd"
+            if node.os.information.version >= "4.0.0":
+                kvp_daemon_name = "hv_kvp_daemon"
+            running_processes = node.tools[Pgrep].get_processes(kvp_daemon_name)
             assert_that(running_processes, "Expected one running process").is_length(1)
             assert_that(
-                running_processes[0].name, "Expected name 'hypervkvpd'"
-            ).is_equal_to("hypervkvpd")
+                running_processes[0].name, f"Expected name '{kvp_daemon_name}'"
+            ).is_equal_to(kvp_daemon_name)
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
@@ -1338,6 +1348,31 @@ class AzureImageStandard(TestSuite):
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
+        if isinstance(node.os, CBLMariner) and node.os.information.version.major >= 4:
+            tcp_keepalive_setting = "TCPKeepAlive"
+            tcp_keepalive_value = (
+                node.tools[Ssh].get(tcp_keepalive_setting).strip().lower()
+            )
+            if tcp_keepalive_value != "yes":
+                raise LisaException(
+                    f"The {tcp_keepalive_setting} configuration of OpenSSH is "
+                    f"set to {tcp_keepalive_value} in this image. Azure Linux 4+ "
+                    "uses kernel TCP keepalive for SSH, so OpenSSH TCPKeepAlive "
+                    "must be enabled."
+                )
+            setting = "net.ipv4.tcp_keepalive_time"
+            value = node.tools[Sysctl].get(setting).strip()
+            keepalive_time = int(value)
+            if not (30 <= keepalive_time <= 235):
+                raise LisaException(
+                    f"The {setting} configuration is set to {keepalive_time} "
+                    "seconds in this image. Azure Linux 4+ configures TCP "
+                    "keepalive globally instead of using OpenSSH "
+                    "ClientAliveInterval. Please set net.ipv4.tcp_keepalive_time "
+                    "to a value between 30 and 235."
+                )
+            return
+
         ssh = node.tools[Ssh]
         setting = "ClientAliveInterval"
         value = ssh.get(setting)
