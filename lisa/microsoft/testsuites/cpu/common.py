@@ -8,6 +8,12 @@ from lisa import BadEnvironmentStateException, Logger, Node
 from lisa.tools import Cat, Dmesg, Echo, KernelConfig, Lscpu, Lsvmbus, Uname
 from lisa.util import SkippedException
 
+# Writing a VMBus channel's target CPU via sysfs can be slow on large VMs
+# (hundreds of vCPUs) when it contends with CPU-hotplug stop_machine work.
+# Use a generous timeout so a slow (but successful) write does not fail the
+# test on the default 60s command timeout.
+CHANNEL_CPU_WRITE_TIMEOUT: int = 300
+
 
 class CPUState:
     OFFLINE: str = "0"
@@ -168,7 +174,17 @@ def assign_interrupts(
     target_cpu: str = "0",
 ) -> None:
     for path, _ in path_cpu.items():
-        node.tools[Echo].write_to_file(target_cpu, node.get_pure_path(path), sudo=True)
+        # On large VMs (hundreds of vCPUs) reassigning a VMBus channel's target
+        # CPU can occasionally take much longer than the default 60s timeout,
+        # because the sysfs write briefly contends with the CPU-hotplug
+        # stop_machine operations running in this test. Use a generous timeout
+        # so a slow (but successful) write does not fail the case.
+        node.tools[Echo].write_to_file(
+            target_cpu,
+            node.get_pure_path(path),
+            sudo=True,
+            timeout=CHANNEL_CPU_WRITE_TIMEOUT,
+        )
 
 
 def restore_interrupts_assignment(
@@ -178,7 +194,10 @@ def restore_interrupts_assignment(
     if path_cpu:
         for path, target_cpu in path_cpu.items():
             node.tools[Echo].write_to_file(
-                target_cpu, node.get_pure_path(path), sudo=True
+                target_cpu,
+                node.get_pure_path(path),
+                sudo=True,
+                timeout=CHANNEL_CPU_WRITE_TIMEOUT,
             )
 
 
