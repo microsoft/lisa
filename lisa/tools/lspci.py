@@ -378,14 +378,22 @@ class Lspci(Tool):
         )
 
     def get_used_module(self, slot: str) -> str:
-        result = self.run(
-            f"-nks {slot}",
-            force_run=True,
-            shell=True,
-            expected_exit_code=0,
-        )
-        matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
-        return matched
+        # DIAGNOSTIC EXPERIMENT (bug 63016748): `lspci -nks <slot>` reads the PCI
+        # config space of the device. On a packed node where the MANA VF has become
+        # unresponsive (HWC timeout, bug 62828642), this config-space read soft-locks
+        # the CPU (pci_user_read_config_dword / _raw_spin_unlock_irq) and reboots the
+        # VM. The lspci call below is commented out to test whether lspci is the
+        # trigger; restore it to return to normal behavior.
+        #
+        # result = self.run(
+        #     f"-nks {slot}",
+        #     force_run=True,
+        #     shell=True,
+        #     expected_exit_code=0,
+        # )
+        # matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
+        # return matched
+        return ""
 
     def get_gpu_devices(self, force_run: bool = False) -> List[PciDevice]:
         class_names = DEVICE_TYPE_DICT[constants.DEVICE_TYPE_GPU]
