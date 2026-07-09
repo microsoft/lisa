@@ -190,6 +190,10 @@ class BmiPlatform(Platform):
         assert self._deployer is not None
         assert self._bmi_runbook is not None
 
+        # Propagate LISA's keep_environment so the deploy-failure cleanup
+        # keeps the resource group when the runbook asks to (always/failed).
+        self._deployer.keep_environment = self.runbook.keep_environment
+
         if self._bmi_runbook.reuse_existing:
             log.info(
                 "reuse_existing=true; skipping ARM deployment. The platform "
