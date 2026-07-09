@@ -1478,12 +1478,15 @@ exit $ec
         # tracking keep working exactly as before.
         #
         # dev_cli.sh has no list sub-command, so nextest is run inside the same
-        # dev container via "dev_cli.sh shell". Mirror the environment the
-        # integration test scripts build with: the "mshv" feature for MSHV
-        # hosts and the devcli_testenv cfg.
+        # dev container via "dev_cli.sh shell", which executes its arguments as
+        # `bash -c "$*"`. That re-joins the arguments on spaces and drops
+        # quoting, so RUSTFLAGS must be a single space-free token: the
+        # "--cfg=<name>" form is used instead of "--cfg <name>" so the
+        # devcli_testenv cfg the integration test scripts build with is still
+        # applied. The "mshv" feature mirrors the MSHV build.
         test_features = "--features mshv" if hypervisor == "mshv" else ""
         nextest_list_cmd = (
-            "RUSTFLAGS='--cfg devcli_testenv' cargo nextest list "
+            "RUSTFLAGS=--cfg=devcli_testenv cargo nextest list "
             f"-p cloud-hypervisor {test_features} --message-format json"
         )
         cmd_args = f"shell -- {nextest_list_cmd}"
@@ -1511,22 +1514,27 @@ exit $ec
 
     @staticmethod
     def _parse_nextest_subtest_list(stdout: str) -> List[str]:
-        # "cargo nextest list --message-format json" prints a JSON document with
-        # a "rust-suites" map; each suite has a "testcases" map keyed by the test
-        # name (e.g. "live_migration::test_live_migration_local"). Build progress
-        # is written to stderr, so stdout starts at the first '{'. Return the
-        # test names to preserve the previous "<module>::<test>" list contract.
-        brace = stdout.find("{")
-        if brace == -1:
-            return []
-        try:
-            data = json.loads(stdout[brace:])
-        except json.JSONDecodeError:
-            return []
-        subtests: List[str] = []
-        for suite in data.get("rust-suites", {}).values():
-            subtests.extend(suite.get("testcases", {}).keys())
-        return subtests
+        # "cargo nextest list --message-format json" emits a JSON object with a
+        # "rust-suites" map; each suite has a "testcases" map keyed by the test
+        # name (e.g. "live_migration::test_live_migration_local"). dev_cli.sh
+        # interleaves docker pull and cargo build output on the same stream, so
+        # scan each '{' and decode the first object that has "rust-suites". The
+        # returned names preserve the previous "<module>::<test>" list contract.
+        decoder = json.JSONDecoder()
+        pos = stdout.find("{")
+        while pos != -1:
+            try:
+                decoded, _ = decoder.raw_decode(stdout[pos:])
+            except json.JSONDecodeError:
+                decoded = None
+            if isinstance(decoded, dict) and "rust-suites" in decoded:
+                data = cast(Dict[str, Any], decoded)
+                subtests: List[str] = []
+                for suite in data["rust-suites"].values():
+                    subtests.extend(suite.get("testcases", {}).keys())
+                return subtests
+            pos = stdout.find("{", pos + 1)
+        return []
 
     def _extract_test_results(
         self, output: str, log_path: Path, subtests: Set[str]
