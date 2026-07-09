@@ -368,6 +368,23 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             self._get_connection()
             raise e
 
+    def send_sysrq(self, key: str) -> None:
+        # TODO: deliver a Magic SysRq over the Azure serial console. A SysRq is
+        # triggered by a serial BREAK followed by the key; the BREAK frame over
+        # the serial-console websocket still needs to be confirmed. Until then
+        # this is unimplemented so capture_hang_diagnostics() degrades to
+        # detect + out-of-band console read. Prefer trigger_nmi() for
+        # IRQ-disabled spinlock hangs (SysRq-l relies on IPIs a spinning,
+        # IRQ-disabled CPU won't service).
+        raise NotImplementedError
+
+    def trigger_nmi(self) -> None:
+        # TODO: inject an NMI via the Azure Serial Console admin channel to get
+        # an all-CPU nmi_backtrace without a reboot (guest needs
+        # kernel.unknown_nmi_panic=0). Non-maskable, so it works even when a CPU
+        # spins with IRQs disabled - the preferred capture for this failure.
+        raise NotImplementedError
+
     def close(self) -> None:
         if self._ws is not None:
             self._log.debug("Closing connection to serial console")

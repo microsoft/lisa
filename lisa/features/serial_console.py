@@ -383,6 +383,153 @@ class SerialConsole(Feature):
     def write(self, data: str) -> None:
         raise NotImplementedError
 
+    def send_sysrq(self, key: str) -> None:
+        """Send a Magic SysRq command over the serial console (out-of-band).
+
+        Triggers a kernel action without SSH, useful to capture diagnostics
+        from a wedged guest without a reboot. Requires magic sysrq enabled in
+        the guest (``sysctl kernel.sysrq=1``) and platform support for sending
+        a serial BREAK.
+
+        Common keys:
+            l - backtrace of all active CPUs
+            w - dump tasks in uninterruptible (blocked) state
+            t - dump all task stacks
+
+        Note: SysRq-l uses IPIs; for a CPU spinning with IRQs disabled (e.g. a
+        spinlock soft-lockup) prefer ``trigger_nmi`` (non-maskable) which drives
+        an all-CPU ``nmi_backtrace`` even when IRQs are off.
+        """
+        raise NotImplementedError
+
+    def trigger_nmi(self) -> None:
+        """Inject a non-maskable interrupt to the guest (no reboot).
+
+        Preferred over ``send_sysrq('l')`` for IRQ-disabled spinlock hangs.
+        The guest must have ``kernel.unknown_nmi_panic=0`` so the NMI is logged
+        (drives ``nmi_backtrace``) rather than panicking the VM.
+        """
+        raise NotImplementedError
+
+    def capture_hang_diagnostics(
+        self,
+        saved_path: Optional[Path] = None,
+        test_result: Optional["TestResult"] = None,
+        use_nmi: bool = True,
+        sysrq_keys: str = "lwt",
+        stage: str = "",
+    ) -> str:
+        """Capture no-reboot diagnostics from an unresponsive guest.
+
+        Intended to be called when a node becomes unreachable (e.g. SSH lost)
+        while the VM has *not* rebooted. It:
+          1. scans the out-of-band serial log and attaches any detected panic /
+             soft-lockup to ``test_result`` (see ``check_panic``);
+          2. triggers an all-CPU backtrace without rebooting - via NMI when
+             ``use_nmi`` is set (preferred for spinlock hangs), else Magic
+             SysRq. Degrades gracefully if the platform implements neither;
+          3. reads the fresh console output and saves it next to the node logs
+             so it lands in the run artifact.
+
+        ``stage`` labels *which test step* the node went unreachable at; it is
+        recorded in the saved filename and (with ``test_result``) attached to the
+        test result so the disconnect point is documented.
+
+        Returns the captured console text (may be empty if the platform does
+        not support an interactive read).
+        """
+        # 1. detect + attach any panic / lockup already in the serial log.
+        try:
+            self.check_panic(
+                saved_path=saved_path, test_result=test_result, force_run=True
+            )
+        except KernelPanicException:
+            # check_panic raises when a panic is found and test_result is set;
+            # continue so we can still capture a live backtrace below.
+            self._node.log.debug("panic detected in serial log; capturing backtrace")
+
+        # 2. trigger an all-CPU backtrace without rebooting.
+        triggered = False
+        if use_nmi:
+            try:
+                self.trigger_nmi()
+                triggered = True
+            except NotImplementedError:
+                self._node.log.debug("NMI trigger unavailable; trying SysRq")
+        if not triggered:
+            try:
+                for key in sysrq_keys:
+                    self.send_sysrq(key)
+                triggered = True
+            except NotImplementedError:
+                self._node.log.debug(
+                    "SysRq/NMI trigger unavailable; capturing existing log only"
+                )
+
+        # 3. read the fresh console output (out-of-band, no SSH needed).
+        captured = ""
+        try:
+            captured = self.read()
+        except NotImplementedError:
+            captured = self.get_console_log(force_run=True)
+
+        # record which step the node went unreachable at, so it is documented.
+        stage_note = f" at stage: {stage}" if stage else ""
+        if stage and test_result is not None:
+            summary = f"Node {self._node.name} unreachable{stage_note}"
+            if test_result.message:
+                test_result.message += f"\n{summary}"
+            else:
+                test_result.message = summary
+
+        if captured:
+            log_path = self._node.local_log_path / get_datetime_path()
+            log_path.mkdir(parents=True, exist_ok=True)
+            safe_stage = re.sub(r"[^0-9A-Za-z]+", "_", stage).strip("_")
+            file_name = (
+                f"hang_backtrace_{safe_stage}.log"
+                if safe_stage
+                else "hang_backtrace.log"
+            )
+            out_file = log_path / file_name
+            header = f"# node: {self._node.name}{stage_note}\n\n"
+            with open(out_file, mode="w", encoding="utf-8") as f:
+                f.write(header + captured)
+            self._node.log.info(f"saved hang backtrace to {out_file}")
+
+        return captured
+
     def close(self) -> None:
         # it's not required to implement close method.
         pass
+
+
+def capture_on_node_unreachable(
+    node: Any,
+    test_result: Optional["TestResult"] = None,
+    saved_path: Optional[Path] = None,
+    use_nmi: bool = True,
+    stage: str = "",
+) -> str:
+    """Hook: capture no-reboot serial diagnostics for an unreachable node.
+
+    Call this from *any* test step that finds a node not responding to SSH but
+    believed to still be up (soft lockup / hang rather than a reboot). It
+    fetches the node's SerialConsole feature and delegates to
+    ``capture_hang_diagnostics`` (detect + attach lockup, trigger an out-of-band
+    all-CPU backtrace without rebooting, and save the console output). Pass
+    ``stage`` to record *which step* the node went unreachable at. Safe no-op
+    if the node has no SerialConsole feature.
+
+    Returns the captured console text (may be empty).
+    """
+    try:
+        serial: SerialConsole = node.features[SerialConsole]
+    except Exception:  # noqa: BLE001 - feature may be absent on some platforms
+        return ""
+    return serial.capture_hang_diagnostics(
+        saved_path=saved_path,
+        test_result=test_result,
+        use_nmi=use_nmi,
+        stage=stage,
+    )
