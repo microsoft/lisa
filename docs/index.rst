@@ -48,6 +48,7 @@ Why LISA
    Run tests <run_test/run>
    Write tests <write_test/write>
    Test Maturity Model <test_maturity_model>
+   Distro Pre-Filter <distro_pre_filter>
    Contributing <contributing>
    Troubleshooting <troubleshooting>
 
