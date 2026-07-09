@@ -37,7 +37,7 @@ from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD
 
 from lisa.environment import Environment
 from lisa.sut_orchestrator.azure.credential import build_compute_credential
-from lisa.util import LisaException, plugin_manager
+from lisa.util import LisaException, constants, plugin_manager
 from lisa.util.logger import Logger
 
 from .schema import BmiDeploymentInfo, BmiNodeContext, BmiPlatformSchema
@@ -64,6 +64,11 @@ class BmiDeployer:
         # BMI fleet size, set by BmiPlatform from ``nodes_requirement``
         # before deploy() runs. No static fallback in the runbook schema.
         self.bmi_count: int = 0
+        # LISA ``keep_environment`` runbook value, set by BmiPlatform before
+        # deploy() runs. Honored by the deploy-failure cleanup so an
+        # ``always``/``failed`` setting keeps a failed environment for
+        # debugging instead of deleting it.
+        self.keep_environment: str = constants.ENVIRONMENT_KEEP_NO
         # Jumphost SSH credentials generated/discovered at deploy time.
         # Not user-facing runbook fields.
         self.jumphost_public_key_data: str = ""
@@ -123,8 +128,18 @@ class BmiDeployer:
                     node_contexts=node_contexts,
                 )
         except Exception:
-            # Best-effort cleanup so a failed deploy does not leak quota.
-            if self._runbook.delete_on_cleanup:
+            # Best-effort cleanup so a failed deploy does not leak quota,
+            # unless the runbook asks to keep the environment for debugging.
+            keep = self.keep_environment in (
+                constants.ENVIRONMENT_KEEP_ALWAYS,
+                constants.ENVIRONMENT_KEEP_FAILED,
+            )
+            if keep:
+                self._log.info(
+                    f"deploy failed; keep_environment='{self.keep_environment}', "
+                    f"leaving resource group '{rg_name}' intact"
+                )
+            elif self._runbook.delete_on_cleanup:
                 self._log.info(f"deploy failed; deleting resource group '{rg_name}'")
                 try:
                     self._rm_client.resource_groups.begin_delete(rg_name)
