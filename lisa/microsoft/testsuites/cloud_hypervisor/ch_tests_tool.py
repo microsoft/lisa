@@ -34,6 +34,7 @@ from lisa.tools import (
 )
 from lisa.util import (
     LisaException,
+    SkippedException,
     UnsupportedDistroException,
     check_test_panic,
     find_groups_in_lines,
@@ -220,10 +221,20 @@ class CloudHypervisorTests(Tool):
             ]
 
         if not filtered_subtests:
-            fail(
+            # An empty match is a legitimate "nothing to run" precondition, not a
+            # failure: some subtest families are compiled out for a given
+            # hypervisor (for example, Cloud Hypervisor gates every live
+            # migration test behind cfg(not(feature = "mshv")), so none exist in
+            # an mshv build), or the include/exclude filters removed all matches.
+            raise SkippedException(
                 f"No Cloud Hypervisor {test_type} subtests matched filter "
-                f"'{cli_test_filter}'. Verify the selected Cloud Hypervisor ref "
-                "contains matching tests and review include/exclude filters."
+                f"'{cli_test_filter}' for hypervisor '{hypervisor}' in the "
+                "selected Cloud Hypervisor ref. These tests may be gated out "
+                "for this hypervisor (for example, live migration tests are "
+                "compiled only when the 'mshv' feature is disabled), or the "
+                "include/exclude filters removed all matches. Verify the ref "
+                "builds matching tests for this hypervisor and review the "
+                "include/exclude filters."
             )
 
         self._log.debug(f"Final Subtests list to run: {filtered_subtests}")
