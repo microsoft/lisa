@@ -1469,7 +1469,24 @@ exit $ec
             self._log.debug(f"Could not cache VMM version: {e}")
 
     def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
-        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- --list"
+        # Cloud Hypervisor's integration tests run under cargo-nextest, which
+        # rejects the libtest "-- -- --list" flag ("failed to parse test binary
+        # arguments `--list`: arguments are unsupported"). Enumerate the subtests
+        # with "cargo nextest list" instead. The return value is still the same
+        # List[str] of "<module>::<test>" names, so the runbook-driven
+        # include/exclude (only/skip/cli_test_filter) and per-subtest result
+        # tracking keep working exactly as before.
+        #
+        # dev_cli.sh has no list sub-command, so nextest is run inside the same
+        # dev container via "dev_cli.sh shell". Mirror the environment the
+        # integration test scripts build with: the "mshv" feature for MSHV
+        # hosts and the devcli_testenv cfg.
+        test_features = "--features mshv" if hypervisor == "mshv" else ""
+        nextest_list_cmd = (
+            "RUSTFLAGS='--cfg devcli_testenv' cargo nextest list "
+            f"-p cloud-hypervisor {test_features} --message-format json"
+        )
+        cmd_args = f"shell -- {nextest_list_cmd}"
         # Use enhanced environment variables for consistency
         enhanced_env_vars = self.env_vars.copy()
         enhanced_env_vars.update(
@@ -1488,10 +1505,28 @@ exit $ec
             shell=True,
             update_envs=enhanced_env_vars,
         )
-        # e.g. "integration::test_vfio: test"
-        matches = re.findall(r"^(.*::.*): test", result.stdout, re.M)
-        self._log.debug(f"Subtests list: {matches}")
-        return matches
+        subtests = self._parse_nextest_subtest_list(result.stdout)
+        self._log.debug(f"Subtests list: {subtests}")
+        return subtests
+
+    @staticmethod
+    def _parse_nextest_subtest_list(stdout: str) -> List[str]:
+        # "cargo nextest list --message-format json" prints a JSON document with
+        # a "rust-suites" map; each suite has a "testcases" map keyed by the test
+        # name (e.g. "live_migration::test_live_migration_local"). Build progress
+        # is written to stderr, so stdout starts at the first '{'. Return the
+        # test names to preserve the previous "<module>::<test>" list contract.
+        brace = stdout.find("{")
+        if brace == -1:
+            return []
+        try:
+            data = json.loads(stdout[brace:])
+        except json.JSONDecodeError:
+            return []
+        subtests: List[str] = []
+        for suite in data.get("rust-suites", {}).values():
+            subtests.extend(suite.get("testcases", {}).keys())
+        return subtests
 
     def _extract_test_results(
         self, output: str, log_path: Path, subtests: Set[str]
