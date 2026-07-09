@@ -572,6 +572,7 @@ class TestSuiteMetadata:
         self.description = description
         self.requirement = requirement
         self.owner = owner
+        maturity = maturity.strip() if maturity else ""
         self.maturity = maturity if maturity else constants.TESTCASE_MATURITY_STABLE
         if self.maturity not in constants.TESTCASE_MATURITY_LEVELS:
             raise LisaException(
@@ -619,8 +620,8 @@ class TestCaseMetadata:
         if tags:
             self.tags = tags
         self._owner = owner
-        self._maturity = maturity
-        if maturity and maturity not in constants.TESTCASE_MATURITY_LEVELS:
+        self._maturity = maturity.strip() if maturity else ""
+        if self._maturity and self._maturity not in constants.TESTCASE_MATURITY_LEVELS:
             raise LisaException(
                 f"invalid maturity '{maturity}' for test case '{description}'. "
                 f"Must be one of: {constants.TESTCASE_MATURITY_LEVELS}"

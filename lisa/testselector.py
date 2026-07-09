@@ -83,12 +83,14 @@ def select_testcases(  # noqa: C901
     filters: Optional[List[schema.TestCase]] = None,
     init_cases: Optional[List[TestCaseMetadata]] = None,
     target_os: Optional[Type[OperatingSystem]] = None,
+    apply_stable_gate: bool = True,
 ) -> List[TestCaseRuntimeData]:
     """
-    Select test cases based on filters. An implicit stable gate is always
-    applied: only tests with maturity == stable are included by default.
-    Non-stable tests require an explicit maturity criterion or forceInclude.
-    If filters are None, all stable cases are returned.
+    Select test cases based on filters. When ``apply_stable_gate`` is True
+    (the default), an implicit stable gate filters out non-stable tests
+    unless they are approved by an explicit maturity criterion or
+    forceInclude. Set ``apply_stable_gate`` to False to bypass the gate
+    (e.g. for ``lisa list --all``).
 
     When ``target_os`` is provided, cases whose declared ``supported_os`` /
     ``unsupported_os`` requirement makes them inapplicable to that OS class
@@ -122,17 +124,18 @@ def select_testcases(  # noqa: C901
         # implicit stable gate: drop non-stable tests that were not
         # explicitly approved by a maturity criterion or force-included
         dropped: List[str] = []
-        for name in list(selected.keys()):
-            case_maturity = selected[name].metadata.maturity
-            if case_maturity != constants.TESTCASE_MATURITY_STABLE:
-                if name not in force_included and name not in maturity_approved:
-                    del selected[name]
-                    dropped.append(name)
-                elif case_maturity == constants.TESTCASE_MATURITY_DEPRECATED:
-                    log.warning(
-                        f"deprecated test '{name}' is included; "
-                        "consider removing it from your runbook"
-                    )
+        if apply_stable_gate:
+            for name in list(selected.keys()):
+                case_maturity = selected[name].metadata.maturity
+                if case_maturity != constants.TESTCASE_MATURITY_STABLE:
+                    if name not in force_included and name not in maturity_approved:
+                        del selected[name]
+                        dropped.append(name)
+                    elif case_maturity == constants.TESTCASE_MATURITY_DEPRECATED:
+                        log.warning(
+                            f"deprecated test '{name}' is included; "
+                            "consider removing it from your runbook"
+                        )
         if dropped:
             log.info(
                 f"stable gate: dropped {len(dropped)} non-stable " f"test(s): {dropped}"
@@ -150,7 +153,10 @@ def select_testcases(  # noqa: C901
         results = []
         for metadata in full_list.values():
             # implicit stable gate: only include stable tests by default
-            if metadata.maturity == constants.TESTCASE_MATURITY_STABLE:
+            if (
+                not apply_stable_gate
+                or metadata.maturity == constants.TESTCASE_MATURITY_STABLE
+            ):
                 results.append(TestCaseRuntimeData(metadata))
             else:
                 log.debug(

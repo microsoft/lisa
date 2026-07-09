@@ -85,7 +85,9 @@ def list_start(args: Namespace) -> int:
         else:
             target_os = None
         if list_all:
-            cases: Iterable[TestCaseRuntimeData] = select_testcases(target_os=target_os)
+            cases: Iterable[TestCaseRuntimeData] = select_testcases(
+                target_os=target_os, apply_stable_gate=False
+            )
         else:
             criteria_dict = builder.partial_resolve(constants.TESTCASE)
             criteria = schema.load_by_type_many(schema.TestCase, criteria_dict)
