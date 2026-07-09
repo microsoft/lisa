@@ -28,6 +28,10 @@ CLOUD_HYPERVISOR_RELEASE_REF_PATTERN = re.compile(r"^v\d+(?:\.\d+)*(?:[-+].*)?$"
 # Rustup downloads the full Rust toolchain. Bare-metal lab network throughput can
 # be slow enough to exceed the generic 600-second command timeout.
 RUSTUP_INSTALL_TIMEOUT_SECONDS = 1800
+# A from-scratch release build of cloud-hypervisor compiles vendored native crates
+# (openssl-src, zstd-sys, libssh2-sys) that can exceed the generic 600-second
+# command timeout on a cold cache or a slow bare-metal agent.
+CLOUD_HYPERVISOR_BUILD_TIMEOUT_SECONDS = 1800
 
 
 @dataclass_json()
@@ -488,6 +492,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
             shell=True,
             sudo=False,
             cwd=code_path,
+            timeout=CLOUD_HYPERVISOR_BUILD_TIMEOUT_SECONDS,
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to build cloud-hypervisor",
         )
