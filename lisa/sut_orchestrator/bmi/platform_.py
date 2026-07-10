@@ -135,7 +135,35 @@ class BmiPlatform(Platform):
             f"'{self._bmi_runbook.bmi_vm_size}' in "
             f"'{self._bmi_runbook.location}': {raw_caps}"
         )
-        return self._capability_from_raw(raw_caps)
+        cap = self._capability_from_raw(raw_caps)
+        if self._bmi_runbook.maximize_capability:
+            self._apply_max_capability(cap)
+        return cap
+
+    def _apply_max_capability(self, cap: schema.NodeSpace) -> None:
+        """Advertise every platform-supported feature on the capability.
+
+        Mirrors ``AzurePlatform._generate_max_capability``: some Azure
+        resourceSkus under-report the real hardware (e.g. GB200 metal has
+        NVMe disks the SKU does not expose), which makes LISA skip tests
+        whose requirement references such a feature (``perf_nvme`` needs
+        the ``Nvme`` feature). When ``maximize_capability`` is set we add a
+        generic ``FeatureSettings`` for each supported feature and reload it
+        into its typed form (e.g. ``NvmeSettings`` with ``disk_count`` >= 0),
+        so any feature-only requirement is satisfied without deploying.
+        """
+        cap.features = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
+        cap.features.update(
+            [schema.FeatureSettings.create(f.name()) for f in self.supported_features()]
+        )
+        # Convert the placeholder FeatureSettings into their typed settings
+        # (NvmeSettings, GpuSettings, ...) so requirement matching compares
+        # like-for-like instead of asserting on the generic base type.
+        reload_platform_features(cap, self.supported_features())
+        self._log.info(
+            "BMI maximize_capability=true; advertising all supported "
+            f"features: {[f.name() for f in self.supported_features()]}"
+        )
 
     def _capability_from_raw(self, raw_caps: Dict[str, str]) -> schema.NodeSpace:
         """Translate an Azure resourceSku capabilities dict into a NodeSpace.
