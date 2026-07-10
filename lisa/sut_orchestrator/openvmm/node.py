@@ -20,7 +20,7 @@ import yaml
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import CpuArchitecture
+from lisa.operating_system import CpuArchitecture, Posix
 from lisa.tools import (
     Dnsmasq,
     Echo,
@@ -254,6 +254,11 @@ class OpenVmmController:
         if not source_path:
             return ""
 
+        # A URL is neither a local file nor an on-host path: fetch (and, for
+        # firmware archives / non-raw disks, prepare) it directly on the host.
+        if self._is_remote_url(source_path):
+            return self._fetch_host_url_asset(source_path, working_path)
+
         if is_remote_path or not self.host_node.is_remote:
             return source_path
 
@@ -355,6 +360,121 @@ class OpenVmmController:
             f"'{destination}' in {copy_timer.elapsed_text()}."
         )
         return str(destination)
+
+    def _is_remote_url(self, source_path: str) -> bool:
+        return source_path.startswith("http://") or source_path.startswith("https://")
+
+    def _fetch_host_url_asset(self, url: str, working_path: PurePath) -> str:
+        # Download an OpenVMM asset from a URL directly on the L1 host so asset
+        # delivery does not depend on the pipeline agent (e.g. a Windows/docker
+        # BMI agent that cannot run the bash download flow). Firmware archives
+        # (.tar.gz/.tgz) are extracted and the MSVM firmware (.fd) path is
+        # returned; disk images that are not raw are converted with qemu-img.
+        # Results are cached per URL under the host artifact cache.
+        host_context = get_host_context(self.host_node)
+        with host_context.artifact_copy_lock:
+            cached_path = host_context.artifact_cache.get(url)
+            if cached_path:
+                check = self.host_node.execute(
+                    f"test -e {shlex.quote(cached_path)}",
+                    shell=True,
+                    expected_exit_code=None,
+                )
+                if check.exit_code == 0:
+                    return cached_path
+                del host_context.artifact_cache[url]
+
+            self._install_host_asset_tools()
+            cache_directory = working_path.parent / ".openvmm-artifacts"
+            self.host_node.execute(
+                f"mkdir -p {shlex.quote(str(cache_directory))}",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to create OpenVMM asset cache directory "
+                    f"'{cache_directory}'"
+                ),
+            )
+            file_name = url.split("?")[0].rstrip("/").split("/")[-1]
+            if not file_name:
+                raise LisaException(
+                    f"cannot derive a file name from OpenVMM asset URL '{url}'"
+                )
+            download_path = cache_directory / file_name
+            self._log.info(
+                f"Downloading OpenVMM asset '{url}' on host to '{download_path}'."
+            )
+            self.host_node.execute(
+                f"curl -fL {shlex.quote(url)} " f"-o {shlex.quote(str(download_path))}",
+                shell=True,
+                timeout=1800,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"failed to download OpenVMM asset from '{url}' on the host"
+                ),
+            )
+
+            lowered = file_name.lower()
+            if lowered.endswith(".tar.gz") or lowered.endswith(".tgz"):
+                resolved = self._extract_host_firmware(download_path, cache_directory)
+            else:
+                resolved = self._ensure_host_raw_disk(download_path, cache_directory)
+
+            host_context.artifact_cache[url] = resolved
+            return resolved
+
+    def _install_host_asset_tools(self) -> None:
+        # curl to download, tar to unpack firmware archives, and qemu-img
+        # (qemu-utils) to convert qcow2/img guest disks to raw.
+        cast(Posix, self.host_node.os).install_packages(["curl", "tar", "qemu-utils"])
+
+    def _extract_host_firmware(
+        self, archive_path: PurePath, cache_directory: PurePath
+    ) -> str:
+        extract_dir = cache_directory / f"{archive_path.name}.extracted"
+        self.host_node.execute(
+            f"rm -rf {shlex.quote(str(extract_dir))} && "
+            f"mkdir -p {shlex.quote(str(extract_dir))} && "
+            f"tar -xzf {shlex.quote(str(archive_path))} "
+            f"-C {shlex.quote(str(extract_dir))}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to extract OpenVMM firmware archive '{archive_path}'"
+            ),
+        )
+        # mu_msvm archives ship the firmware at FV/MSVM.fd; fall back to the
+        # first *.fd found if the layout changes.
+        find_result = self.host_node.execute(
+            f"find {shlex.quote(str(extract_dir))} -type f -name '*.fd' "
+            "-print -quit",
+            shell=True,
+            expected_exit_code=0,
+        )
+        firmware_path = find_result.stdout.strip()
+        if not firmware_path:
+            raise LisaException(
+                f"no UEFI firmware (*.fd) found in archive '{archive_path}'"
+            )
+        return firmware_path
+
+    def _ensure_host_raw_disk(
+        self, disk_path: PurePath, cache_directory: PurePath
+    ) -> str:
+        if str(disk_path).lower().endswith(".raw"):
+            return str(disk_path)
+        raw_path = cache_directory / f"{disk_path.stem}.raw"
+        self.host_node.execute(
+            f"qemu-img convert -O raw {shlex.quote(str(disk_path))} "
+            f"{shlex.quote(str(raw_path))}",
+            shell=True,
+            timeout=1800,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to convert OpenVMM disk image '{disk_path}' to raw"
+            ),
+        )
+        return str(raw_path)
 
     def get_openvmm_tool(self, binary_path: str) -> OpenVmm:
         openvmm = cast(OpenVmm, OpenVmm.create(self.host_node))
