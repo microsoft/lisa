@@ -61,6 +61,11 @@ class BmiDeployer:
         # Throttle agent-IP NSG refresh: at most one Azure update per minute.
         self._last_nsg_refresh_ts: float = 0.0
         self._nsg_refresh_min_interval_s: float = 60.0
+        # Throttle the post-reboot jumphost connectivity check + ARP flush so
+        # back-to-back reconnect probes don't open a jumphost SSH session on
+        # every single failure.
+        self._last_reboot_check_ts: float = 0.0
+        self._reboot_check_min_interval_s: float = 30.0
         # BMI fleet size, set by BmiPlatform from ``nodes_requirement``
         # before deploy() runs. No static fallback in the runbook schema.
         self.bmi_count: int = 0
@@ -636,29 +641,10 @@ class BmiDeployer:
         jumphost_public_ip: str,
         node_contexts: List[BmiNodeContext],
     ) -> None:
-        # paramiko import is lazy because the rest of LISA may not need it,
-        # and this keeps platform import lightweight.
-        import paramiko
-
         self._wait_for_ssh(jumphost_public_ip, port=22, timeout=300)
 
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client = self._open_jumphost_client(jumphost_public_ip)
         try:
-            connect_kwargs: Dict[str, Any] = dict(
-                hostname=jumphost_public_ip,
-                port=22,
-                username=self._runbook.jumphost_username,
-                timeout=60,
-                allow_agent=False,
-                look_for_keys=False,
-            )
-            if self.jumphost_private_key_file:
-                connect_kwargs["key_filename"] = self.jumphost_private_key_file
-            else:
-                connect_kwargs["password"] = self._runbook.jumphost_password
-            client.connect(**connect_kwargs)
-
             commands: List[str] = [
                 # Enable IP forwarding (runtime and persistent).
                 "echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward",
@@ -709,6 +695,92 @@ class BmiDeployer:
             )
         finally:
             client.close()
+
+    def _open_jumphost_client(self, jumphost_public_ip: str) -> Any:
+        # paramiko import is lazy because the rest of LISA may not need it,
+        # and this keeps platform import lightweight.
+        import paramiko
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        connect_kwargs: Dict[str, Any] = dict(
+            hostname=jumphost_public_ip,
+            port=22,
+            username=self._runbook.jumphost_username,
+            timeout=60,
+            allow_agent=False,
+            look_for_keys=False,
+        )
+        if self.jumphost_private_key_file:
+            connect_kwargs["key_filename"] = self.jumphost_private_key_file
+        else:
+            connect_kwargs["password"] = self._runbook.jumphost_password
+        client.connect(**connect_kwargs)
+        return client
+
+    def check_reboot_connectivity(
+        self, rg_name: str, internal_ip: str, jumphost_public_ip: str
+    ) -> None:
+        """Diagnose and self-heal BMI reachability after a reboot.
+
+        Called from the reconnect-failure hook while the generic Reboot tool
+        waits for a BMI to come back. Logs BOTH hops of the path LISA uses
+        (agent -> jumphost, jumphost -> BMI) so a wedged reconnect can be
+        traced to the exact hop. When the jumphost can reach BMI:22
+        internally but the external NAT path is still stuck, the neighbor
+        entry on the jumphost is almost always stale after the BMI reboot,
+        so flush it (mirrors the deploy-time self-heal in
+        ``_wait_for_all_nat_ports``). Also refreshes the NSG in case the
+        agent's egress IP rotated. Best-effort and throttled; never raises.
+        """
+        now = time.time()
+        if now - self._last_reboot_check_ts < self._reboot_check_min_interval_s:
+            return
+        self._last_reboot_check_ts = now
+
+        # Hop 1: agent -> jumphost public IP :22.
+        ext_jumphost_ok = self._probe_ssh_banner(jumphost_public_ip, 22)
+        self._log.debug(
+            "reboot connectivity: agent->jumphost "
+            f"{jumphost_public_ip}:22 {'OK' if ext_jumphost_ok else 'FAIL'}"
+        )
+
+        # Always try to refresh the NSG; the agent egress IP may have rotated
+        # (this is itself throttled inside refresh_nsg_for_agent_ip).
+        try:
+            self.refresh_nsg_for_agent_ip(rg_name)
+        except Exception as e:  # noqa: BLE001
+            self._log.debug(f"nsg refresh during reboot check failed: {e}")
+
+        if not ext_jumphost_ok:
+            # Can't even reach the jumphost; NSG refresh above is the best we
+            # can do without a jumphost session.
+            return
+
+        client = None
+        try:
+            client = self._open_jumphost_client(jumphost_public_ip)
+            internal_ok = self._probe_internal_ssh_banner(client, internal_ip)
+            self._log.debug(
+                "reboot connectivity: jumphost->BMI "
+                f"{internal_ip}:22 {'OK' if internal_ok else 'FAIL'}"
+            )
+            if internal_ok:
+                # BMI sshd is up internally but the external NAT path is stuck:
+                # flush the stale jumphost ARP/neighbor entry for the BMI.
+                self._log.info(
+                    "reboot self-heal: BMI reachable from jumphost, flushing "
+                    f"jumphost ARP for {internal_ip}"
+                )
+                self._flush_jumphost_arp(client, internal_ip)
+        except Exception as e:  # noqa: BLE001
+            self._log.debug(f"reboot connectivity check failed: {e}")
+        finally:
+            if client is not None:
+                try:
+                    client.close()
+                except Exception:  # noqa: BLE001
+                    pass
 
     def _run_ssh(self, client: Any, command: str) -> None:
         # Encode the script in base64 so the remote login shell does not
