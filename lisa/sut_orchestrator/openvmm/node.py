@@ -20,7 +20,9 @@ import yaml
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
-from lisa.tools import Dnsmasq, Ip, Kill, Mkdir, Modprobe, OpenVmm, Rm
+from lisa.operating_system import CpuArchitecture
+from lisa.tools import Dnsmasq, Ip, Kill, Lscpu, Mkdir, Modprobe, OpenVmm, Rm
+from lisa.tools.lscpu import CpuType
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.util import (
     LisaException,
@@ -400,21 +402,55 @@ class OpenVmmController:
         )
 
     def _ensure_kvm_ready(self) -> None:
-        # OpenVMM's KVM backend drives /dev/kvm directly on the L1 host.
-        # Bare-metal and nested-virt hosts usually expose it once the kvm
-        # module is loaded; load it best-effort before failing with a clear
-        # message so launch does not fail with an opaque error.
-        if self._host_has_kvm_device():
-            return
-        self.host_node.execute(
-            "modprobe kvm", shell=True, sudo=True, expected_exit_code=None
-        )
-        if not self._host_has_kvm_device():
-            raise LisaException(
-                "OpenVMM KVM hypervisor requires /dev/kvm on the host, but it "
-                "is not available after attempting to load the kvm module. "
-                "Ensure hardware virtualization is enabled for the host."
-            )
+        # OpenVMM's KVM backend opens /dev/kvm directly on the L1 host. Prepare
+        # the host once (guarded by the host context) rather than on every
+        # guest launch: load the KVM kernel modules best-effort, then fail with
+        # a clear, actionable message if the device is still missing.
+        host_context = get_host_context(self.host_node)
+        with host_context.hypervisor_prepare_lock:
+            if host_context.prepared_hypervisor == OPENVMM_HYPERVISOR_KVM:
+                return
+            if not self._host_has_kvm_device():
+                self._load_kvm_modules()
+                if not self._host_has_kvm_device():
+                    raise LisaException(
+                        "OpenVMM KVM hypervisor requires /dev/kvm on the host, "
+                        "but it is not available after attempting to load the "
+                        "KVM kernel modules. Ensure hardware virtualization is "
+                        "enabled in firmware/BIOS, and that nested "
+                        "virtualization is enabled if this host is itself a VM."
+                    )
+            host_context.prepared_hypervisor = OPENVMM_HYPERVISOR_KVM
+
+    def _load_kvm_modules(self) -> None:
+        # On x86_64 the /dev/kvm device is created by the CPU-vendor module --
+        # kvm_intel (Intel VMX) or kvm_amd (AMD SVM) -- which also pulls in the
+        # base kvm module. On aarch64 KVM is built into the kernel with no
+        # vendor module (kvm_intel/kvm_amd are x86-only), so /dev/kvm is exposed
+        # once the kernel and firmware provide EL2; only a best-effort load of
+        # the (usually built-in) kvm module is attempted there.
+        lscpu = self.host_node.tools[Lscpu]
+        modprobe = self.host_node.tools[Modprobe]
+        if lscpu.get_architecture() == CpuArchitecture.X64:
+            vendor_module = {
+                CpuType.Intel: "kvm_intel",
+                CpuType.AMD: "kvm_amd",
+            }.get(lscpu.get_cpu_type())
+            candidate_modules = [vendor_module] if vendor_module else ["kvm"]
+        else:
+            candidate_modules = ["kvm"]
+        for module in candidate_modules:
+            if not modprobe.module_exists(module):
+                continue
+            try:
+                modprobe.load(module)
+            except AssertionError:
+                # Best effort: _ensure_kvm_ready re-checks /dev/kvm and raises a
+                # clear error if the device is still unavailable (for example,
+                # virtualization disabled in firmware).
+                self._log.debug(
+                    f"best-effort load of KVM kernel module '{module}' failed"
+                )
 
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
