@@ -259,6 +259,14 @@ class BmiPlatform(Platform):
                         self._deployer.refresh_nsg_for_agent_ip(rg)
                     )
                 ),
+                # Full post-reboot self-heal: logs both hops (agent->jumphost,
+                # jumphost->BMI), flushes the stale jumphost ARP for the BMI
+                # when the external NAT path is wedged, and refreshes the NSG.
+                "reboot_connectivity": (
+                    lambda rg=info.resource_group, ip=ctx.internal_ip, jh=(
+                        ctx.public_address
+                    ): (self._deployer.check_reboot_connectivity(rg, ip, jh))
+                ),
             }
             # Wire the same NSG self-heal into the SSH shell's connect
             # failure path. This covers spawn() retries from any tool
@@ -267,7 +275,7 @@ class BmiPlatform(Platform):
                 shell = getattr(node, "_shell", None)
                 if shell is not None:
                     diag = node._bmi_diag  # type: ignore[attr-defined]
-                    shell._pre_connect_failure_hook = diag["nsg_refresh"]
+                    shell._pre_connect_failure_hook = diag["reboot_connectivity"]
             except Exception:
                 pass
             log.info(
