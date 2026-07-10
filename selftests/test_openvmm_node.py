@@ -137,6 +137,7 @@ class OpenVmmNodeTestCase(TestCase):
         node = SimpleNamespace(
             runbook=SimpleNamespace(
                 openvmm_binary="/usr/local/bin/openvmm",
+                hypervisor="mshv",
                 disk_device=OPENVMM_DISK_DEVICE_SCSI,
                 iommu=OPENVMM_IOMMU_NONE,
                 vps_per_socket=None,

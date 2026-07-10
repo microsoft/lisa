@@ -48,6 +48,7 @@ from .context import (
 from .schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
+    OPENVMM_HYPERVISOR_KVM,
     OPENVMM_NETWORK_MODE_TAP,
     OPENVMM_NETWORK_MODE_USER,
     OpenVmmGuestNodeSchema,
@@ -737,14 +738,42 @@ class OpenVmmController:
                     f"{restore_error}"
                 )
 
+    def _host_has_kvm_device(self) -> bool:
+        return (
+            self.host_node.execute(
+                "test -e /dev/kvm", shell=True, sudo=True, expected_exit_code=None
+            ).exit_code
+            == 0
+        )
+
+    def _ensure_kvm_ready(self) -> None:
+        # OpenVMM's KVM backend drives /dev/kvm directly on the L1 host.
+        # Bare-metal and nested-virt hosts usually expose it once the kvm
+        # module is loaded; load it best-effort before failing with a clear
+        # message so launch does not fail with an opaque error.
+        if self._host_has_kvm_device():
+            return
+        self.host_node.execute(
+            "modprobe kvm", shell=True, sudo=True, expected_exit_code=None
+        )
+        if not self._host_has_kvm_device():
+            raise LisaException(
+                "OpenVMM KVM hypervisor requires /dev/kvm on the host, but it "
+                "is not available after attempting to load the kvm module. "
+                "Ensure hardware virtualization is enabled for the host."
+            )
+
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         node_context = get_node_context(node)
+        if runbook.hypervisor == OPENVMM_HYPERVISOR_KVM:
+            self._ensure_kvm_ready()
         network = self._get_node_network(node, node_context)
         self._prepare_tap_network(network, node_context)
         processor_count = _countspace_to_int(node.capability.core_count)
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
+            hypervisor=runbook.hypervisor,
             disk_img_path=node_context.disk_img_path,
             disk_device=runbook.disk_device,
             iommu=runbook.iommu,
