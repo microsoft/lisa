@@ -78,6 +78,15 @@ class BmiPlatformSchema:
     reuse_existing: bool = False
     # If True, the resource group is deleted on environment teardown.
     delete_on_cleanup: bool = True
+    # If True, advertise a "maximum" capability for the BMI fleet instead
+    # of the (sometimes incomplete) values reported by Azure resourceSkus.
+    # Mirrors ``AzurePlatformSchema.maximize_capability`` /
+    # ``_generate_max_capability``: every platform-supported feature (Nvme,
+    # Gpu, Sriov, ...) is advertised generically and disk types/controller
+    # types are set permissively. Use this when the SKU under-reports real
+    # hardware (e.g. GB200 metal has NVMe disks the SKU does not expose),
+    # so tests like ``perf_nvme`` are not skipped for a missing capability.
+    maximize_capability: bool = False
 
     # ── BMI node fleet ─────────────────────────────────────────────────
     # NOTE: BMI fleet size is derived from the test environment's
