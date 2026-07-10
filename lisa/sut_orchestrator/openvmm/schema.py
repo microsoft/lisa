@@ -22,6 +22,8 @@ OPENVMM_NETWORK_MODE_USER = "user"
 OPENVMM_NETWORK_MODE_TAP = "tap"
 OPENVMM_SERIAL_MODE_STDERR = "stderr"
 OPENVMM_SERIAL_MODE_FILE = "file"
+OPENVMM_HYPERVISOR_MSHV = "mshv"
+OPENVMM_HYPERVISOR_KVM = "kvm"
 # Keep raw disk growth opt-in so existing OpenVMM runbooks don't mutate
 # user-supplied images unless they explicitly request it.
 OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB = 0
@@ -223,6 +225,7 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
         ),
     )
     openvmm_binary: str = "/usr/local/bin/openvmm"
+    hypervisor: str = OPENVMM_HYPERVISOR_MSHV
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)
     extra_args: List[str] = field(default_factory=list)
@@ -242,6 +245,15 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
             )
         if not self.disk_img:
             raise LisaException("disk_img is required for UEFI OpenVMM guests")
+        if self.hypervisor not in [
+            OPENVMM_HYPERVISOR_MSHV,
+            OPENVMM_HYPERVISOR_KVM,
+        ]:
+            raise LisaException(
+                f"hypervisor '{self.hypervisor}' is not supported for OpenVMM "
+                f"guests. Supported values: {OPENVMM_HYPERVISOR_MSHV}, "
+                f"{OPENVMM_HYPERVISOR_KVM}"
+            )
         if (
             self.cloud_init
             and not self.private_key_file

@@ -130,6 +130,7 @@ class OpenVmmNodeTestCase(TestCase):
         node = SimpleNamespace(
             runbook=SimpleNamespace(
                 openvmm_binary="/usr/local/bin/openvmm",
+                hypervisor="mshv",
                 network=SimpleNamespace(mode="user", consomme_cidr=""),
                 serial=SimpleNamespace(mode="file"),
                 extra_args=[],
