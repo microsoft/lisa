@@ -25,6 +25,16 @@ from .date import Date
 from .uptime import Uptime
 from .who import Who
 
+# Total time (in seconds) to wait for the node to come back after a reboot.
+# Slow-booting VMs (e.g. large GPU/bare-metal SKUs) can take several minutes
+# to bring sshd back up, so keep this generous.
+REBOOT_TIMEOUT = 600
+# Dedicated budget (in seconds) to confirm the ssh session is stable after the
+# node reboots. Kept separate from the reconnection budget so a slow-to-boot
+# node that consumes most of the reconnection window still gets a full
+# stability check instead of being starved of time.
+STABLE_SESSION_TIMEOUT = 120
+
 
 # this method is easy to stuck on reboot, so use timeout to recycle it faster.
 @func_set_timeout(30)  # type: ignore
@@ -122,7 +132,7 @@ class Reboot(Tool):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
             raise e
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = REBOOT_TIMEOUT) -> None:
         timer = create_timer()
 
         last_boot_time = self._get_last_boot_time()
@@ -194,9 +204,9 @@ class Reboot(Tool):
                 self._log.debug(f"ignorable ssh exception: {e}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
             if last_boot_time < current_boot_time:
-                remaining_stability_wait = max(0, time_out - int(timer.elapsed(False)))
-                if remaining_stability_wait > 0:
-                    self._wait_ssh_session_stable(remaining_stability_wait)
+                # Confirm the session is stable with a dedicated budget so a
+                # slow reconnection above does not starve the stability check.
+                self._wait_ssh_session_stable(STABLE_SESSION_TIMEOUT)
                 break
         if last_boot_time == current_boot_time:
             if connected:
