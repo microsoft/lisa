@@ -327,6 +327,9 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
         ),
     )
     openvmm_binary: str = "/usr/local/bin/openvmm"
+    # OpenVMM backend used to launch the guest: 'mshv' (default) or 'kvm'.
+    # OpenVMM's mshv backend supports x86_64 guests only, so aarch64 hosts must
+    # select 'kvm' (the only Linux backend available on ARM64).
     hypervisor: str = OPENVMM_HYPERVISOR_MSHV
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)

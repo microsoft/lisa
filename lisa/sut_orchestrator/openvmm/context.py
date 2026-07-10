@@ -104,6 +104,10 @@ class OpenVmmHostContext:
     shared_tap_networks: Dict[str, SharedTapNetworkContext] = field(
         default_factory=dict
     )
+    # Guards one-time host hypervisor preparation (e.g. loading KVM kernel
+    # modules) so it runs once per host instead of on every guest launch.
+    hypervisor_prepare_lock: Lock = field(default_factory=Lock)
+    prepared_hypervisor: str = ""
 
 
 def get_node_context(node: Node) -> NodeContext:
