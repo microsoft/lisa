@@ -2,12 +2,13 @@
 # Licensed under the MIT license.
 
 from typing import Any, Dict
+import os
 
 from microsoft.testsuites.kselftest.kselftest import Kselftest
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.util import SkippedException, UnsupportedDistroException
+from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
 
 @TestSuiteMetadata(
@@ -46,6 +47,9 @@ class KselftestTestsuite(TestSuite):
         to run (e.g., "bpf,net,timers").
         - `kselftest_skip_tests`: A comma-separated list of tests to skip
         (e.g., "net:test_tcp,test_udp").
+        - `kselftest_skip_tests_file`: Path to a file listing tests to skip, one
+        per line. Merged with `kselftest_skip_tests`. Useful when the skip list is
+        long enough to risk command-line length limits.
         """,
         priority=3,
         timeout=_CASE_TIME_OUT,
@@ -73,6 +77,18 @@ class KselftestTestsuite(TestSuite):
             if variables.get("kselftest_skip_tests", "")
             else []
         )
+        # Optionally extend the skip list from a file (one test per line). This
+        # keeps the LISA command line short when the skip list is large.
+        skip_tests_file = variables.get("kselftest_skip_tests_file", "")
+        if skip_tests_file:
+            if not os.path.exists(skip_tests_file):
+                raise LisaException(
+                    f"kselftest_skip_tests_file does not exist: {skip_tests_file}"
+                )
+            with open(skip_tests_file, "r") as f:
+                skip_tests_list.extend(
+                    line.strip() for line in f if line.strip()
+                )
 
         try:
             kselftest: Kselftest = node.tools.get(
