@@ -157,6 +157,9 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        # Each of the 10 reboot cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
+        timeout=7200,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
@@ -189,6 +192,9 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        # Each of the 10 restart cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
+        timeout=7200,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
@@ -222,6 +228,9 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        # Each of the 10 stop/start cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
+        timeout=7200,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
