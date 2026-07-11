@@ -374,16 +374,21 @@ class Nics(InitializableMixin):
     @retry(tries=15, delay=3, backoff=1.15)  # type: ignore
     def check_pci_enabled(self, pci_enabled: bool) -> None:
         self.reload()
+        # Exclude InfiniBand devices: they are independent SR-IOV fabric NICs
+        # (e.g. ib0-ib3 on ND/HB/HX SKUs) that remain present regardless of the
+        # Ethernet accelerated networking (AN) state. Only the Ethernet AN VF is
+        # added/removed when SR-IOV is toggled, so counting IB devices here would
+        # make the disabled state (no PCI devices) unobservable and hang the check.
         if pci_enabled:
-            assert_that(len(self.get_device_slots())).described_as(
+            assert_that(len(self.get_device_slots(exclude_ib=True))).described_as(
                 "Could not identify any pci devices on the test node."
             ).is_not_zero()
             if self.is_pci_module_enabled():
                 assert_that(pci_enabled).described_as(
                     "AN enablement and pci device are inconsistent"
-                ).is_equal_to(any(self.get_pci_nics()))
+                ).is_equal_to(any(self.get_pci_nics(exclude_ib=True)))
         else:
-            assert_that(self.get_device_slots()).described_as(
+            assert_that(self.get_device_slots(exclude_ib=True)).described_as(
                 "pci devices still on the test node."
             ).is_empty()
 
