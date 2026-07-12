@@ -19,7 +19,8 @@ class GpuSmi(Tool):
 
 
 class NvidiaSmi(GpuSmi):
-    # tuple of gpu device names and their device id pattern
+    # tuple of gpu device names and their vmbus device id pattern, used by
+    # lsvmbus-based counting (see GpuFeature.get_gpu_count_with_lsvmbus).
     # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
     # A10-4Q device id "56475055-0002-0000-3130-444532323336"
     gpu_devices = (
@@ -29,6 +30,10 @@ class NvidiaSmi(GpuSmi):
         ("A10-4Q", "56475055", 0),
         ("A10-8Q", "3e810200", 0),
     )
+
+    # Pattern to match GPU entries in `nvidia-smi -L` output, e.g.:
+    # GPU 0: NVIDIA GB300 (UUID: GPU-086d0e4e-3bbb-1193-3200-49fdb1857fb7)
+    _gpu_pattern = re.compile(r"^GPU\s+\d+:", re.MULTILINE)
 
     @property
     def command(self) -> str:
@@ -46,12 +51,8 @@ class NvidiaSmi(GpuSmi):
                 raise LisaException(
                     f"nvidia-smi command exited with exit_code {result.exit_code}"
                 )
-        gpu_types = [x[0] for x in self.gpu_devices]
-        device_count = 0
-        for gpu_type in gpu_types:
-            device_count += result.stdout.count(gpu_type)
-
-        return device_count
+        gpu_matches = find_groups_in_lines(result.stdout, self._gpu_pattern)
+        return len(gpu_matches)
 
 
 class AmdSmi(GpuSmi):
