@@ -190,6 +190,106 @@ class OpenVmmNodeTestCase(TestCase):
 
         self.assertTrue(controller._should_use_pci_devices(OPENVMM_HYPERVISOR_KVM))
 
+    def test_launch_process_creates_vmgs_only_when_missing(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        openvmm = MagicMock()
+        openvmm.build_command.return_value = "openvmm --uefi"
+        openvmm.launch_vm.return_value = "1234"
+        node = SimpleNamespace(
+            runbook=SimpleNamespace(
+                openvmm_binary="/usr/local/bin/openvmm",
+                hypervisor=OPENVMM_HYPERVISOR_KVM,
+                serial=SimpleNamespace(mode="file"),
+                extra_args=[],
+            ),
+            capability=SimpleNamespace(core_count=4, memory_mb=8192),
+            log=MagicMock(),
+        )
+        node_context = NodeContext(
+            working_path="/var/tmp/openvmm-host-g0",
+            uefi_firmware_path="/var/tmp/MSVM.fd",
+            vmgs_file_path="/var/tmp/openvmm-host-g0/openvmm.vmgs",
+            disk_img_path="/var/tmp/root.raw",
+            console_log_file_path="/var/tmp/console.log",
+            launcher_log_file_path="/var/tmp/launcher.log",
+            launcher_stderr_log_file_path="/var/tmp/launcher.stderr.log",
+        )
+        network = OpenVmmNetworkSchema()
+
+        with patch.object(
+            controller, "_should_use_pci_devices", return_value=True
+        ), patch.object(
+            controller, "get_openvmm_tool", return_value=openvmm
+        ), patch.object(controller, "_ensure_process_running"):
+            cast(MagicMock, controller.host_node.execute).return_value = (
+                SimpleNamespace(exit_code=1)
+            )
+            controller._launch_process(
+                cast(Any, node),
+                node_context,
+                network,
+                cast(Any, node.log),
+            )
+            first_config = openvmm.launch_vm.call_args.args[0]
+
+            cast(MagicMock, controller.host_node.execute).return_value = (
+                SimpleNamespace(exit_code=0)
+            )
+            controller._launch_process(
+                cast(Any, node),
+                node_context,
+                network,
+                cast(Any, node.log),
+            )
+            second_config = openvmm.launch_vm.call_args.args[0]
+
+        self.assertTrue(first_config.create_vmgs)
+        self.assertFalse(second_config.create_vmgs)
+        self.assertTrue(first_config.exit_on_guest_reset)
+        self.assertEqual(node_context.vmgs_file_path, first_config.vmgs_path)
+
+    def test_restart_after_guest_reset_relaunches_once(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        node = SimpleNamespace(log=MagicMock())
+        node_context = NodeContext(
+            process_id="1234",
+            launcher_log_file_path="/var/tmp/openvmm-launcher.log",
+            restart_on_guest_reset=True,
+        )
+        network = OpenVmmNetworkSchema()
+
+        with patch.object(
+            controller, "_is_process_running", return_value=False
+        ), patch.object(controller, "_launch_process") as launch_process:
+            restarted = controller._restart_after_guest_reset(
+                cast(Any, node),
+                node_context,
+                network,
+                cast(Any, node.log),
+            )
+
+        self.assertTrue(restarted)
+        self.assertEqual(1, node_context.guest_reset_restart_count)
+        launch_process.assert_called_once_with(
+            node,
+            node_context,
+            network,
+            node.log,
+        )
+
+        with patch.object(
+            controller, "_is_process_running", return_value=False
+        ), patch.object(controller, "_launch_process") as launch_process:
+            restarted = controller._restart_after_guest_reset(
+                cast(Any, node),
+                node_context,
+                network,
+                cast(Any, node.log),
+            )
+
+        self.assertFalse(restarted)
+        launch_process.assert_not_called()
+
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()
         network = OpenVmmNetworkSchema(

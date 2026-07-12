@@ -49,6 +49,9 @@ class OpenVmmLaunchConfig:
     uefi_firmware_path: str
     with_hv: bool = True
     hypervisor: str = "mshv"
+    vmgs_path: str = ""
+    create_vmgs: bool = False
+    exit_on_guest_reset: bool = False
     disk_img_path: str = ""
     disk_device: str = OPENVMM_DISK_DEVICE_SCSI
     iommu: str = OPENVMM_IOMMU_NONE
@@ -132,6 +135,18 @@ class OpenVmm(Tool):
             raise LisaException("uefi_firmware_path must be provided for UEFI boot")
         args.append("--uefi")
         args.extend(["--uefi-firmware", config.uefi_firmware_path])
+        if config.vmgs_path:
+            vmgs_disk = f"file:{config.vmgs_path}"
+            if config.create_vmgs:
+                vmgs_disk = f"{vmgs_disk};create=VMGS_DEFAULT"
+            args.extend(
+                [
+                    "--vmgs",
+                    f"{vmgs_disk},fmt-on-fail",
+                ]
+            )
+        if config.exit_on_guest_reset:
+            args.extend(["--guest-reset-action", "exit"])
 
         network_backend = self._get_network_backend(config)
 
