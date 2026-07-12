@@ -542,6 +542,13 @@ class OpenVmmController:
                     )
             host_context.prepared_hypervisor = OPENVMM_HYPERVISOR_KVM
 
+    def _should_use_pci_devices(self, hypervisor: str) -> bool:
+        return (
+            hypervisor == OPENVMM_HYPERVISOR_KVM
+            and self.host_node.tools[Lscpu].get_architecture()
+            == CpuArchitecture.ARM64
+        )
+
     def _load_kvm_modules(self) -> None:
         # On x86_64 the /dev/kvm device is created by the CPU-vendor module --
         # kvm_intel (Intel VMX) or kvm_amd (AMD SVM) -- which also pulls in the
@@ -595,6 +602,7 @@ class OpenVmmController:
             network_cidr=network.consomme_cidr,
             serial_mode=runbook.serial.mode,
             serial_path=node_context.console_log_file_path,
+            use_pci_devices=self._should_use_pci_devices(runbook.hypervisor),
             extra_args=runbook.extra_args,
             stdout_path=node_context.launcher_log_file_path,
             stderr_path=node_context.launcher_stderr_log_file_path,

@@ -12,9 +12,11 @@ import yaml
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
+from lisa.operating_system import CpuArchitecture
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
+    OPENVMM_HYPERVISOR_KVM,
     OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
@@ -24,7 +26,7 @@ from lisa.sut_orchestrator.openvmm.schema import (
 from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
-from lisa.tools import Cat, Ip, Kill, Mkdir
+from lisa.tools import Cat, Ip, Kill, Lscpu, Mkdir
 from lisa.util import LisaException
 
 
@@ -158,6 +160,15 @@ class OpenVmmNodeTestCase(TestCase):
             cwd=PurePosixPath("/var/tmp/openvmm-host-g0"),
             sudo=False,
         )
+        self.assertFalse(openvmm.launch_vm.call_args.args[0].use_pci_devices)
+
+    def test_kvm_arm64_uses_pci_devices(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        controller.host_node.tools[Lscpu] = SimpleNamespace(
+            get_architecture=MagicMock(return_value=CpuArchitecture.ARM64)
+        )
+
+        self.assertTrue(controller._should_use_pci_devices(OPENVMM_HYPERVISOR_KVM))
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()

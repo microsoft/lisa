@@ -43,6 +43,7 @@ class OpenVmmLaunchConfig:
     extra_args: List[str] = field(default_factory=list)
     stdout_path: str = ""
     stderr_path: str = ""
+    use_pci_devices: bool = False
 
 
 class OpenVmm(Tool):
@@ -103,23 +104,61 @@ class OpenVmm(Tool):
         args.append("--uefi")
         args.extend(["--uefi-firmware", config.uefi_firmware_path])
 
-        if config.disk_img_path:
-            args.extend(["--disk", f"file:{config.disk_img_path}"])
-
-        for dvd_disk_path in config.dvd_disk_paths:
-            args.extend(["--disk", f"file:{dvd_disk_path},dvd"])
-
         if config.network_mode == "user":
             network_backend = OPENVMM_NETWORK_BACKEND_CONSOMME
             if config.network_cidr:
                 network_backend = f"{network_backend}:{config.network_cidr}"
-            args.extend(["--net", network_backend])
         elif config.network_mode == "tap":
             if not config.tap_name:
                 raise LisaException("tap_name must be provided for tap networking")
-            args.extend(["--net", f"tap:{config.tap_name}"])
+            network_backend = f"tap:{config.tap_name}"
         else:
             raise LisaException(f"Unsupported network mode: {config.network_mode}")
+
+        if config.use_pci_devices:
+            root_complex = "rc0"
+            root_disk_port = "disk"
+            network_port = "net"
+            dvd_ports = [f"dvd{index}" for index, _ in enumerate(config.dvd_disk_paths)]
+
+            args.extend(["--pcie-root-complex", root_complex])
+            if config.disk_img_path:
+                args.extend(["--pcie-root-port", f"{root_complex}:{root_disk_port}"])
+            for dvd_port in dvd_ports:
+                args.extend(["--pcie-root-port", f"{root_complex}:{dvd_port}"])
+            args.extend(["--pcie-root-port", f"{root_complex}:{network_port}"])
+
+            if config.disk_img_path:
+                args.extend(
+                    [
+                        "--nvme-pci",
+                        f"id=nvme-disk,pcie_port={root_disk_port}",
+                        "--disk",
+                        f"file:{config.disk_img_path},on=nvme-disk",
+                    ]
+                )
+            for dvd_disk_path, dvd_port in zip(config.dvd_disk_paths, dvd_ports):
+                args.extend(
+                    [
+                        "--virtio-blk",
+                        f"file:{dvd_disk_path},ro,pcie_port={dvd_port}",
+                    ]
+                )
+            args.extend(
+                [
+                    "--virtio-net",
+                    f"pcie_port={network_port}:{network_backend}",
+                    "--default-boot-always-attempt",
+                ]
+            )
+        else:
+            if config.disk_img_path:
+                args.extend(["--disk", f"file:{config.disk_img_path}"])
+
+            for dvd_disk_path in config.dvd_disk_paths:
+                args.extend(["--disk", f"file:{dvd_disk_path},dvd"])
+
+            args.extend(["--net", network_backend])
 
         if config.serial_mode == "stderr":
             args.extend(["--com1", "stderr"])
