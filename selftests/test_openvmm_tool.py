@@ -44,6 +44,7 @@ class OpenVmmToolTestCase(TestCase):
                 "--uefi",
                 "--uefi-firmware",
                 "/var/tmp/MSVM.fd",
+                "--no-vmbus",
                 "--pcie-root-complex",
                 "rc0",
                 "--pcie-root-port",

@@ -121,6 +121,7 @@ class OpenVmm(Tool):
             network_port = "net"
             dvd_ports = [f"dvd{index}" for index, _ in enumerate(config.dvd_disk_paths)]
 
+            args.append("--no-vmbus")
             args.extend(["--pcie-root-complex", root_complex])
             if config.disk_img_path:
                 args.extend(["--pcie-root-port", f"{root_complex}:{root_disk_port}"])
