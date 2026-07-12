@@ -100,6 +100,7 @@ class OpenVmmInstallerTestCase(TestCase):
 
         self.assertEqual("openvmm 1.0.0", version)
         self.assertTrue(package_installs)
+        self.assertIn("libarchive-tools", package_installs[0])
         restore_call = next(
             command
             for command in executed_commands
