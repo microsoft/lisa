@@ -12,11 +12,13 @@ from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_NETWORK_MODE_USER,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
+    OpenVmmUefiSchema,
 )
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_VIRTIO_BLK,
     OPENVMM_NETWORK_DEVICE_VIRTIO,
 )
+from lisa.util import LisaException
 
 
 class OpenVmmSchemaTestCase(TestCase):
@@ -93,3 +95,11 @@ class OpenVmmSchemaTestCase(TestCase):
 
         self.assertFalse(network.forward_ssh_port)
         self.assertEqual(0, network.forwarded_port)
+
+    def test_guest_schema_rejects_kernel_arg_with_whitespace(self) -> None:
+        with self.assertRaises(LisaException):
+            OpenVmmGuestNodeSchema(
+                uefi=OpenVmmUefiSchema(firmware_path="/var/tmp/MSVM.fd"),
+                disk_img="/var/tmp/guest.raw",
+                kernel_command_line_args=["console=ttyAMA0 earlycon"],
+            )

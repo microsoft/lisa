@@ -79,6 +79,7 @@ class OpenVmmToolTestCase(TestCase):
         command = openvmm.build_command(
             OpenVmmLaunchConfig(
                 uefi_firmware_path="/var/tmp/MSVM.fd",
+                with_hv=False,
                 hypervisor="kvm",
                 vmgs_path="/var/tmp/openvmm.vmgs",
                 create_vmgs=True,
@@ -98,7 +99,6 @@ class OpenVmmToolTestCase(TestCase):
         self.assertEqual(
             [
                 "/usr/local/bin/openvmm",
-                "--hv",
                 "--hypervisor",
                 "kvm",
                 "--processors",
@@ -146,6 +146,7 @@ class OpenVmmToolTestCase(TestCase):
             OpenVmmLaunchConfig(
                 uefi_firmware_path="/var/tmp/MSVM.fd",
                 vmgs_path="/var/tmp/openvmm.vmgs",
+                serial_path="/var/tmp/console.log",
             )
         )
 

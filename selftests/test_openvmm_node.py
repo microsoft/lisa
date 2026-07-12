@@ -104,6 +104,28 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertNotEqual(first_destination, second_destination)
         self.assertEqual(1, shell_copy.call_count)
 
+    def test_prepare_raw_disk_kernel_command_line_uses_private_copy(self) -> None:
+        controller, _, _, _ = self._create_controller()
+
+        destination = controller.prepare_raw_disk_kernel_command_line(
+            "/var/tmp/.openvmm-artifacts/guest.raw",
+            PurePosixPath("/var/tmp/openvmm/g0"),
+            ["initcall_blacklist=hyperv_init"],
+        )
+
+        self.assertEqual(
+            "/var/tmp/openvmm/g0/guest-kernel-args.raw",
+            destination,
+        )
+        commands = [
+            call.args[0]
+            for call in cast(MagicMock, controller.host_node.execute).call_args_list
+        ]
+        self.assertIn("cp --reflink=auto --sparse=always", commands[0])
+        self.assertIn("losetup --find --show --partscan", commands[1])
+        self.assertIn("initcall_blacklist=hyperv_init", commands[1])
+        self.assertIn("/grub/grub.cfg", commands[1])
+
     def test_stop_node_kills_process_after_wait_timeout(self) -> None:
         controller, _, kill_by_pid, guest_log = self._create_controller()
         node = SimpleNamespace(
@@ -220,10 +242,12 @@ class OpenVmmNodeTestCase(TestCase):
             controller, "_should_use_pci_devices", return_value=True
         ), patch.object(
             controller, "get_openvmm_tool", return_value=openvmm
-        ), patch.object(controller, "_ensure_process_running"):
-            cast(MagicMock, controller.host_node.execute).return_value = (
-                SimpleNamespace(exit_code=1)
-            )
+        ), patch.object(
+            controller, "_ensure_process_running"
+        ):
+            cast(
+                MagicMock, controller.host_node.execute
+            ).return_value = SimpleNamespace(exit_code=1)
             controller._launch_process(
                 cast(Any, node),
                 node_context,
@@ -232,9 +256,9 @@ class OpenVmmNodeTestCase(TestCase):
             )
             first_config = openvmm.launch_vm.call_args.args[0]
 
-            cast(MagicMock, controller.host_node.execute).return_value = (
-                SimpleNamespace(exit_code=0)
-            )
+            cast(
+                MagicMock, controller.host_node.execute
+            ).return_value = SimpleNamespace(exit_code=0)
             controller._launch_process(
                 cast(Any, node),
                 node_context,
@@ -245,6 +269,7 @@ class OpenVmmNodeTestCase(TestCase):
 
         self.assertTrue(first_config.create_vmgs)
         self.assertFalse(second_config.create_vmgs)
+        self.assertFalse(first_config.with_hv)
         self.assertTrue(first_config.exit_on_guest_reset)
         self.assertEqual(node_context.vmgs_file_path, first_config.vmgs_path)
 

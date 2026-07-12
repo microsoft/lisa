@@ -319,6 +319,9 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
         ),
     )
     smt: str = OPENVMM_SMT_OFF
+    # Applied to GRUB entries in a private raw-disk copy before first boot.
+    # Each entry must be one kernel command-line token.
+    kernel_command_line_args: List[str] = field(default_factory=list)
     min_raw_disk_size_gb: int = field(
         default=OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB,
         metadata=schema.field_metadata(
@@ -380,6 +383,12 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
                 f"Supported values: {OPENVMM_SMT_AUTO}, {OPENVMM_SMT_FORCE}, "
                 f"{OPENVMM_SMT_OFF}"
             )
+        for kernel_arg in self.kernel_command_line_args:
+            if not kernel_arg or any(character.isspace() for character in kernel_arg):
+                raise LisaException(
+                    "OpenVMM kernel_command_line_args entries must be non-empty "
+                    f"single tokens without whitespace: '{kernel_arg}'"
+                )
         if self.hypervisor not in [
             OPENVMM_HYPERVISOR_MSHV,
             OPENVMM_HYPERVISOR_KVM,
