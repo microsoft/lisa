@@ -12,11 +12,13 @@ import yaml
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
+from lisa.operating_system import CpuArchitecture
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
+    OPENVMM_HYPERVISOR_KVM,
     OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
@@ -26,7 +28,7 @@ from lisa.sut_orchestrator.openvmm.schema import (
 from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
-from lisa.tools import Cat, Ip, Kill, Mkdir
+from lisa.tools import Cat, Ip, Kill, Lscpu, Mkdir
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_IOMMU_NONE,
@@ -178,6 +180,15 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertEqual(OPENVMM_DISK_DEVICE_SCSI, launch_config.disk_device)
         self.assertEqual(OPENVMM_NETWORK_DEVICE_SYNTHETIC, launch_config.network_device)
         self.assertEqual(1, launch_config.network_queue_count)
+        self.assertFalse(launch_config.use_pci_devices)
+
+    def test_kvm_arm64_uses_pci_devices(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        controller.host_node.tools[Lscpu] = SimpleNamespace(
+            get_architecture=MagicMock(return_value=CpuArchitecture.ARM64)
+        )
+
+        self.assertTrue(controller._should_use_pci_devices(OPENVMM_HYPERVISOR_KVM))
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()
