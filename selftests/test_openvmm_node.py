@@ -250,6 +250,9 @@ class OpenVmmNodeTestCase(TestCase):
 
         self.assertTrue(restarted)
         self.assertEqual(1, node_context.guest_reset_restart_count)
+        reset_command = cast(MagicMock, controller.host_node.execute).call_args.args[0]
+        self.assertIn("guest halted reason=Reset", reset_command)
+        self.assertIn("guest-initiated reset", reset_command)
         launch_process.assert_called_once_with(
             node,
             node_context,

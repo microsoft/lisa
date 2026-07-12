@@ -56,7 +56,10 @@ OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 OPENVMM_DNS_SERVER_PORT = 53
 OPENVMM_GIBIBYTE = 1 << 30
-OPENVMM_GUEST_RESET_LOG_MARKER = "guest-initiated reset"
+OPENVMM_GUEST_RESET_LOG_MARKERS = (
+    "guest halted reason=Reset",
+    "guest-initiated reset",
+)
 OPENVMM_MAX_EXTERNAL_RESET_RESTARTS = 1
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
@@ -1131,10 +1134,14 @@ class OpenVmmController:
         ):
             return False
 
+        reset_patterns = " ".join(
+            f"-e {shlex.quote(marker)}"
+            for marker in OPENVMM_GUEST_RESET_LOG_MARKERS
+        )
         reset_check = self.host_node.execute(
             (
                 f"test -f {shlex.quote(node_context.launcher_log_file_path)} && "
-                f"grep -Fq -- {shlex.quote(OPENVMM_GUEST_RESET_LOG_MARKER)} "
+                f"grep -Fq {reset_patterns} -- "
                 f"{shlex.quote(node_context.launcher_log_file_path)}"
             ),
             shell=True,
