@@ -8,8 +8,11 @@ from marshmallow import ValidationError
 
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_NETWORK_MODE_USER,
+    OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
+    OpenVmmUefiSchema,
 )
+from lisa.util import LisaException
 
 
 class OpenVmmSchemaTestCase(TestCase):
@@ -34,4 +37,12 @@ class OpenVmmSchemaTestCase(TestCase):
                     "connection_address": "127.0.0.1",
                     "ssh_port": 0,
                 }
+            )
+
+    def test_guest_schema_rejects_kernel_arg_with_whitespace(self) -> None:
+        with self.assertRaises(LisaException):
+            OpenVmmGuestNodeSchema(
+                uefi=OpenVmmUefiSchema(firmware_path="/var/tmp/MSVM.fd"),
+                disk_img="/var/tmp/guest.raw",
+                kernel_command_line_args=["console=ttyAMA0 earlycon"],
             )

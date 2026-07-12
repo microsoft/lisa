@@ -469,6 +469,137 @@ class OpenVmmController:
             ),
         )
 
+    def prepare_raw_disk_kernel_command_line(
+        self,
+        disk_image_path: str,
+        working_path: PurePath,
+        kernel_command_line_args: List[str],
+    ) -> str:
+        if not kernel_command_line_args:
+            return disk_image_path
+        if not _is_raw_disk_image(disk_image_path):
+            raise LisaException(
+                "OpenVMM kernel_command_line_args require a raw guest disk image. "
+                f"Received '{disk_image_path}'."
+            )
+
+        source_path = PurePosixPath(disk_image_path)
+        destination = working_path / (
+            f"{source_path.stem}-kernel-args{source_path.suffix}"
+        )
+        quoted_source = shlex.quote(disk_image_path)
+        quoted_destination = shlex.quote(str(destination))
+        copy_result = self.host_node.execute(
+            (
+                "cp --reflink=auto --sparse=always -- "
+                f"{quoted_source} {quoted_destination}"
+            ),
+            shell=True,
+            sudo=True,
+            expected_exit_code=None,
+        )
+        if copy_result.exit_code != 0:
+            self.host_node.execute(
+                f"cp -f --sparse=always -- {quoted_source} {quoted_destination}",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to create a private OpenVMM guest disk copy for "
+                    "kernel command-line updates"
+                ),
+            )
+
+        quoted_kernel_args = " ".join(
+            shlex.quote(kernel_arg) for kernel_arg in kernel_command_line_args
+        )
+        update_script = f"""
+set -eu
+loop_device=
+mount_dir=
+
+cleanup() {{
+    set +e
+    if [ -n "$mount_dir" ] && mountpoint -q "$mount_dir"; then
+        umount "$mount_dir"
+    fi
+    if [ -n "$loop_device" ]; then
+        losetup -d "$loop_device"
+    fi
+    if [ -n "$mount_dir" ]; then
+        rmdir "$mount_dir"
+    fi
+}}
+trap cleanup EXIT
+
+loop_device=$(losetup --find --show --partscan {quoted_destination})
+mount_dir=$(mktemp -d)
+modified=0
+
+for partition in "${{loop_device}}"p*; do
+    [ -b "$partition" ] || continue
+    fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || true)
+    case "$fs_type" in
+        ext2|ext3|ext4) ;;
+        *) continue ;;
+    esac
+
+    if ! mount "$partition" "$mount_dir"; then
+        continue
+    fi
+
+    for grub_cfg in \
+        "$mount_dir/grub/grub.cfg" \
+        "$mount_dir/boot/grub/grub.cfg"; do
+        [ -f "$grub_cfg" ] || continue
+        for kernel_arg in {quoted_kernel_args}; do
+            temp_cfg="$grub_cfg.lisa.tmp"
+            awk -v arg="$kernel_arg" '
+                /^[[:space:]]*linux[[:space:]]/ {{
+                    found = 0
+                    for (i = 1; i <= NF; i++) {{
+                        if ($i == arg) {{
+                            found = 1
+                            break
+                        }}
+                    }}
+                    if (!found) {{
+                        $0 = $0 " " arg
+                    }}
+                }}
+                {{ print }}
+            ' "$grub_cfg" > "$temp_cfg"
+            cat "$temp_cfg" > "$grub_cfg"
+            rm -f "$temp_cfg"
+        done
+        modified=1
+    done
+
+    umount "$mount_dir"
+done
+
+if [ "$modified" -eq 0 ]; then
+    echo "No GRUB configuration was found in {quoted_destination}." >&2
+    exit 1
+fi
+"""
+        self.host_node.execute(
+            f"bash -c {shlex.quote(update_script)}",
+            shell=True,
+            sudo=True,
+            timeout=300,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to apply OpenVMM guest kernel command-line arguments "
+                f"{kernel_command_line_args} to '{destination}'"
+            ),
+        )
+        self._log.info(
+            "Applied OpenVMM guest kernel command-line arguments "
+            f"{kernel_command_line_args} to '{destination}'."
+        )
+        return str(destination)
+
     def create_effective_network(
         self, network: OpenVmmNetworkSchema, guest_index: int
     ) -> OpenVmmNetworkSchema:
@@ -550,8 +681,7 @@ class OpenVmmController:
     def _should_use_pci_devices(self, hypervisor: str) -> bool:
         return (
             hypervisor == OPENVMM_HYPERVISOR_KVM
-            and self.host_node.tools[Lscpu].get_architecture()
-            == CpuArchitecture.ARM64
+            and self.host_node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64
         )
 
     def _load_kvm_modules(self) -> None:
@@ -620,10 +750,9 @@ class OpenVmmController:
             create_vmgs = vmgs_exists.exit_code != 0
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
+            with_hv=not use_pci_devices,
             hypervisor=runbook.hypervisor,
-            vmgs_path=(
-                node_context.vmgs_file_path if restart_on_guest_reset else ""
-            ),
+            vmgs_path=(node_context.vmgs_file_path if restart_on_guest_reset else ""),
             create_vmgs=create_vmgs,
             exit_on_guest_reset=restart_on_guest_reset,
             disk_img_path=node_context.disk_img_path,
@@ -1135,8 +1264,7 @@ class OpenVmmController:
             return False
 
         reset_patterns = " ".join(
-            f"-e {shlex.quote(marker)}"
-            for marker in OPENVMM_GUEST_RESET_LOG_MARKERS
+            f"-e {shlex.quote(marker)}" for marker in OPENVMM_GUEST_RESET_LOG_MARKERS
         )
         reset_check = self.host_node.execute(
             (
@@ -2031,6 +2159,14 @@ class OpenVmmGuestNode(RemoteNode):
                     working_path,
                 )
             )
+            if runbook.kernel_command_line_args:
+                node_context.disk_img_path = (
+                    self._openvmm_controller.prepare_raw_disk_kernel_command_line(
+                        node_context.disk_img_path,
+                        working_path,
+                        runbook.kernel_command_line_args,
+                    )
+                )
             if runbook.min_raw_disk_size_gb > 0 and _is_raw_disk_image(
                 node_context.disk_img_path
             ):

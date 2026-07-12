@@ -217,6 +217,9 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     uefi: Optional[OpenVmmUefiSchema] = None
     disk_img: str = ""
     disk_img_is_remote_path: bool = False
+    # Applied to GRUB entries in a private raw-disk copy before first boot.
+    # Each entry must be one kernel command-line token.
+    kernel_command_line_args: List[str] = field(default_factory=list)
     min_raw_disk_size_gb: int = field(
         default=OPENVMM_DEFAULT_MIN_RAW_DISK_SIZE_GB,
         metadata=schema.field_metadata(
@@ -248,6 +251,12 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
             )
         if not self.disk_img:
             raise LisaException("disk_img is required for UEFI OpenVMM guests")
+        for kernel_arg in self.kernel_command_line_args:
+            if not kernel_arg or any(character.isspace() for character in kernel_arg):
+                raise LisaException(
+                    "OpenVMM kernel_command_line_args entries must be non-empty "
+                    f"single tokens without whitespace: '{kernel_arg}'"
+                )
         if self.hypervisor not in [
             OPENVMM_HYPERVISOR_MSHV,
             OPENVMM_HYPERVISOR_KVM,
