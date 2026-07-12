@@ -19,6 +19,9 @@ class OpenVmmToolTestCase(TestCase):
             OpenVmmLaunchConfig(
                 uefi_firmware_path="/var/tmp/MSVM.fd",
                 hypervisor="kvm",
+                vmgs_path="/var/tmp/openvmm.vmgs",
+                create_vmgs=True,
+                exit_on_guest_reset=True,
                 disk_img_path="/var/tmp/root.raw",
                 dvd_disk_paths=["/var/tmp/cloud-init.iso"],
                 processors=4,
@@ -44,6 +47,10 @@ class OpenVmmToolTestCase(TestCase):
                 "--uefi",
                 "--uefi-firmware",
                 "/var/tmp/MSVM.fd",
+                "--vmgs",
+                "file:/var/tmp/openvmm.vmgs;create=VMGS_DEFAULT,fmt-on-fail",
+                "--guest-reset-action",
+                "exit",
                 "--no-vmbus",
                 "--pcie-root-complex",
                 "rc0",
@@ -67,3 +74,20 @@ class OpenVmmToolTestCase(TestCase):
             ],
             shlex.split(command),
         )
+
+    def test_build_command_reuses_existing_vmgs(self) -> None:
+        openvmm = OpenVmm(cast(Any, SimpleNamespace(log=MagicMock())))
+        openvmm.set_binary_path("/usr/local/bin/openvmm")
+
+        command = openvmm.build_command(
+            OpenVmmLaunchConfig(
+                uefi_firmware_path="/var/tmp/MSVM.fd",
+                vmgs_path="/var/tmp/openvmm.vmgs",
+            )
+        )
+
+        self.assertIn(
+            "file:/var/tmp/openvmm.vmgs,fmt-on-fail",
+            shlex.split(command),
+        )
+        self.assertNotIn("create=VMGS_DEFAULT", command)

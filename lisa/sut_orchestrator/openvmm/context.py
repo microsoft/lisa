@@ -30,6 +30,7 @@ class NodeContext:
     working_path: str = ""
     uefi_firmware_path: str = ""
     disk_img_path: str = ""
+    vmgs_file_path: str = ""
     cloud_init_file_path: str = ""
     console_log_file_path: str = ""
     launcher_log_file_path: str = ""
@@ -51,6 +52,8 @@ class NodeContext:
     effective_network: Optional[OpenVmmNetworkSchema] = None
     process_id: str = ""
     command_line: str = ""
+    restart_on_guest_reset: bool = False
+    guest_reset_restart_count: int = 0
 
 
 @dataclass
