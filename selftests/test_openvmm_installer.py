@@ -60,7 +60,7 @@ class OpenVmmInstallerTestCase(TestCase):
         linux = Ubuntu(package_installs)
         cargo = SimpleNamespace(
             exists=True,
-            command="/home/test/.cargo/bin/cargo",
+            command="cargo",
             toolchain="stable",
         )
         git = SimpleNamespace(

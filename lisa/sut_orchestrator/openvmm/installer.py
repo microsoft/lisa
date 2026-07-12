@@ -190,10 +190,8 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             f"requested ref: {runbook.ref or '<default>'}, HEAD: {openvmm_commit}"
         )
 
-        cargo_command = shlex.quote(cargo.command)
-        cargo_bin_dir = self._node.get_str_path(
-            self._node.get_pure_path(cargo.command).parent
-        )
+        cargo_bin_dir = f"{home_dir}/.cargo/bin"
+        cargo_command = shlex.quote(f"{cargo_bin_dir}/cargo")
         cargo_env = {
             "OPENSSL_NO_VENDOR": "1",
             "PATH": f"{cargo_bin_dir}:$PATH",
