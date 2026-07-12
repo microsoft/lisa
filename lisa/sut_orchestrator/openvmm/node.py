@@ -1178,6 +1178,68 @@ fi
 
         return str(host_interface.ip), f"{guest_ip},{guest_ip}"
 
+    def _get_parent_ssh_proxy(self) -> schema.ProxyConnectionInfo:
+        if not self.host_node.is_remote:
+            raise LisaException(
+                "use_parent_ssh_proxy requires a remotely connected OpenVMM host"
+            )
+
+        return schema.ProxyConnectionInfo(
+            **cast(RemoteNode, self.host_node).connection_info
+        )
+
+    def _wait_for_guest_ssh_from_host(
+        self,
+        node_context: NodeContext,
+        network: OpenVmmNetworkSchema,
+        address: str,
+        port: int,
+    ) -> None:
+        probe_script = "exec 3<>/dev/tcp/$1/$2; head -c 4 <&3"
+        probe_command = (
+            f"timeout 10 bash -c {shlex.quote(probe_script)} -- "
+            f"{shlex.quote(address)} {port} 2>/dev/null"
+        )
+
+        def _guest_ssh_is_ready() -> bool:
+            result = self.host_node.execute(
+                probe_command,
+                shell=True,
+                timeout=15,
+                no_info_log=True,
+                no_error_log=True,
+                no_debug_log=True,
+                expected_exit_code=None,
+            )
+            if result.exit_code == 0 and result.stdout.startswith("SSH-"):
+                return True
+
+            if node_context.process_id and not self._is_process_running(
+                node_context.process_id
+            ):
+                raise LisaException(
+                    "OpenVMM process exited before guest SSH became reachable. "
+                    f"{self._get_openvmm_failure_context(node_context, network)}"
+                )
+            return False
+
+        try:
+            check_till_timeout(
+                _guest_ssh_is_ready,
+                timeout_message=(
+                    "wait for OpenVMM guest SSH from the parent host at "
+                    f"{address}:{port}"
+                ),
+                timeout=OPENVMM_CONNECTION_TIMEOUT,
+                interval=5,
+            )
+        except LisaTimeoutException as identifier:
+            raise LisaException(
+                "OpenVMM guest SSH port did not become reachable from the "
+                f"parent host at {address}:{port}. "
+                f"{self._get_openvmm_failure_context(node_context, network)}"
+            ) from identifier
+
     def configure_connection(self, node: RemoteNode, log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         node_context = get_node_context(node)
@@ -1200,6 +1262,7 @@ fi
         public_address = network.connection_address or guest_address
         port = network.ssh_port
         public_port = port
+        jump_boxes: Optional[List[schema.ProxyConnectionInfo]] = None
 
         if network.forward_ssh_port:
             self._enable_ssh_forwarding(node_context, guest_address, network)
@@ -1207,6 +1270,14 @@ fi
                 network.connection_address or self._get_host_public_address()
             )
             public_port = network.forwarded_port
+        elif network.use_parent_ssh_proxy:
+            self._wait_for_guest_ssh_from_host(
+                node_context,
+                network,
+                public_address,
+                public_port,
+            )
+            jump_boxes = [self._get_parent_ssh_proxy()]
 
         node.set_connection_info(
             address=address,
@@ -1216,7 +1287,11 @@ fi
             private_key_file=runbook.private_key_file,
             port=port,
             public_port=public_port,
+            jump_boxes=jump_boxes,
         )
+        if network.use_parent_ssh_proxy:
+            return
+
         try:
             is_ready, error_code = wait_tcp_port_ready(
                 public_address,

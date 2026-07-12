@@ -328,6 +328,90 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertEqual("tap0", network.tap_name)
         self.assertEqual("10.0.0.1/24", network.tap_host_cidr)
 
+    def test_configure_connection_uses_parent_ssh_proxy(self) -> None:
+        host_node = SimpleNamespace(
+            is_remote=True,
+            connection_info={
+                "address": "203.0.113.10",
+                "port": 50001,
+                "username": "host-user",
+                "password": "host-password",
+                "private_key_file": None,
+            },
+        )
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap0",
+            use_parent_ssh_proxy=True,
+        )
+        runbook = OpenVmmGuestNodeSchema(
+            username="guest-user",
+            password="guest-password",
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.raw",
+            network=network,
+        )
+        node = SimpleNamespace(
+            runbook=runbook,
+            set_connection_info=MagicMock(),
+        )
+        node_context = NodeContext(effective_network=network)
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=node_context,
+        ), patch.object(
+            controller,
+            "_resolve_guest_address",
+            return_value="10.0.0.2",
+        ), patch.object(
+            controller,
+            "_wait_for_guest_ssh_from_host",
+        ) as wait_for_guest_ssh:
+            controller.configure_connection(cast(Any, node), MagicMock())
+
+        wait_for_guest_ssh.assert_called_once_with(
+            node_context,
+            network,
+            "10.0.0.2",
+            22,
+        )
+        connection = node.set_connection_info.call_args.kwargs
+        self.assertEqual("10.0.0.2", connection["address"])
+        self.assertEqual("10.0.0.2", connection["public_address"])
+        self.assertEqual(22, connection["public_port"])
+        jump_boxes = connection["jump_boxes"]
+        self.assertEqual(1, len(jump_boxes))
+        self.assertEqual("203.0.113.10", jump_boxes[0].address)
+        self.assertEqual(50001, jump_boxes[0].port)
+        self.assertEqual("host-user", jump_boxes[0].username)
+
+    def test_wait_for_guest_ssh_probes_from_openvmm_host(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        execute = cast(MagicMock, controller.host_node.execute)
+        execute.return_value = SimpleNamespace(
+            exit_code=0,
+            stderr="",
+            stdout="SSH-2.0-OpenSSH",
+        )
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap0",
+            use_parent_ssh_proxy=True,
+        )
+
+        controller._wait_for_guest_ssh_from_host(
+            NodeContext(process_id="1234"),
+            network,
+            "10.0.0.2",
+            22,
+        )
+
+        command = execute.call_args.args[0]
+        self.assertIn("/dev/tcp/$1/$2", command)
+        self.assertIn("10.0.0.2 22", command)
+
     def test_supported_features_include_serial_console(self) -> None:
         supported_feature_names = [
             feature.name() for feature in OpenVmmController.supported_features()

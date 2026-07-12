@@ -262,10 +262,15 @@ def _minimize_shell(shell: spur.ssh.SshShell) -> None:
 
 
 class SshShell(InitializableMixin):
-    def __init__(self, connection_info: schema.ConnectionInfo) -> None:
+    def __init__(
+        self,
+        connection_info: schema.ConnectionInfo,
+        jump_boxes: Optional[Sequence[schema.ProxyConnectionInfo]] = None,
+    ) -> None:
         super().__init__()
         self.is_remote = True
         self.connection_info = connection_info
+        self._jump_box_connections = list(jump_boxes or [])
         self._inner_shell: Optional[spur.SshShell] = None
         self._jump_boxes: List[Any] = []
         self._jump_box_sock: Any = None
@@ -279,19 +284,24 @@ class SshShell(InitializableMixin):
         paramiko_logger.setLevel(logging.WARN)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        jump_boxes_runbook = self._get_jump_boxes()
+        probe_connection = (
+            jump_boxes_runbook[0] if jump_boxes_runbook else self.connection_info
+        )
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            self.connection_info.address, self.connection_info.port
+            probe_connection.address, probe_connection.port
         )
         if not is_ready:
             raise TcpConnectionException(
-                self.connection_info.address,
-                self.connection_info.port,
+                probe_connection.address,
+                probe_connection.port,
                 tcp_error_code,
             )
 
         sock = self._establish_jump_boxes(
             address=self.connection_info.address,
             port=self.connection_info.port,
+            jump_boxes_runbook=jump_boxes_runbook,
         )
 
         try:
@@ -331,6 +341,7 @@ class SshShell(InitializableMixin):
         sock = self._establish_jump_boxes(
             address=self.connection_info.address,
             port=self.connection_info.port,
+            jump_boxes_runbook=jump_boxes_runbook,
         )
 
         # According to paramiko\client.py connect() function,
@@ -678,8 +689,17 @@ class SshShell(InitializableMixin):
                 path = str(PureWindowsPath(path))
         return path
 
-    def _establish_jump_boxes(self, address: str, port: int) -> Any:
-        jump_boxes_runbook = development.get_jump_boxes()
+    def _get_jump_boxes(self) -> List[schema.ProxyConnectionInfo]:
+        return [*development.get_jump_boxes(), *self._jump_box_connections]
+
+    def _establish_jump_boxes(
+        self,
+        address: str,
+        port: int,
+        jump_boxes_runbook: Optional[Sequence[schema.ProxyConnectionInfo]] = None,
+    ) -> Any:
+        if jump_boxes_runbook is None:
+            jump_boxes_runbook = self._get_jump_boxes()
         sock: Any = None
         is_trace_enabled = development.is_trace_enabled()
         if is_trace_enabled:

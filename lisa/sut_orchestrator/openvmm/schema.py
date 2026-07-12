@@ -96,6 +96,7 @@ class OpenVmmNetworkSchema:
         ),
     )
     forward_ssh_port: bool = False
+    use_parent_ssh_proxy: bool = False
     forwarded_port: int = field(
         default=0,
         metadata=schema.field_metadata(
@@ -166,6 +167,16 @@ class OpenVmmNetworkSchema:
 
         if self.forwarded_port:
             self.forward_ssh_port = True
+
+        if self.use_parent_ssh_proxy:
+            if self.mode != OPENVMM_NETWORK_MODE_TAP:
+                raise LisaException(
+                    "use_parent_ssh_proxy is supported only with tap networking"
+                )
+            if self.forward_ssh_port:
+                raise LisaException(
+                    "use_parent_ssh_proxy and forward_ssh_port cannot both be enabled"
+                )
 
         if self.forward_ssh_port:
             if self.mode != OPENVMM_NETWORK_MODE_TAP:
