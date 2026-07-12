@@ -78,7 +78,14 @@ class OpenVmmInstaller(subclasses.BaseClassWithRunbookMixin):
 
 class OpenVmmSourceInstaller(OpenVmmInstaller):
     _distro_package_mapping = {
-        Ubuntu.__name__: ["build-essential", "libssl-dev", "perl", "pkg-config"],
+        Ubuntu.__name__: [
+            "build-essential",
+            "git",
+            "libarchive-tools",
+            "libssl-dev",
+            "perl",
+            "pkg-config",
+        ],
         CBLMariner.__name__: [
             "build-essential",
             "gcc",
