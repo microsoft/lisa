@@ -712,7 +712,9 @@ class LisaRunner(BaseRunner):
                 try:
                     if result.check_environment(
                         environment=tested_environment,
-                        environment_platform_type=self.platform.type_name(),
+                        environment_platform_type=self._get_test_platform_type(
+                            result, self.platform.type_name()
+                        ),
                         save_reason=True,
                     ) and (
                         not result.runtime_data.use_new_environment
@@ -872,7 +874,9 @@ class LisaRunner(BaseRunner):
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
             environment_requirement: Optional[EnvironmentSpace] = None
 
-            check_result = test_result.check_platform(platform_type)
+            check_result = test_result.check_platform(
+                self._get_test_platform_type(test_result, platform_type)
+            )
             if not check_result.result:
                 test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
                 continue
@@ -925,6 +929,31 @@ class LisaRunner(BaseRunner):
             return EnvironmentSpace(nodes=[platform_requirement])
 
         return EnvironmentSpace(nodes=[schema.NodeSpace()])
+
+    def _get_test_platform_type(
+        self, test_result: TestResult, platform_type: str
+    ) -> str:
+        if not getattr(self, "_guest_enabled", False):
+            return platform_type
+
+        requirement = test_result.runtime_data.requirement
+        if (
+            not requirement
+            or not requirement.platform_type
+            or len(requirement.platform_type.items) == 0
+        ):
+            return platform_type
+
+        platform_runbook = cast(schema.Platform, self.platform.runbook)
+        for guest_runbook in platform_runbook.guests:
+            guest_platform_type = getattr(guest_runbook, "type", "")
+            if (
+                guest_platform_type
+                and test_result.check_platform(guest_platform_type).result
+            ):
+                return guest_platform_type
+
+        return platform_type
 
     def _merge_platform_requirement(
         self,

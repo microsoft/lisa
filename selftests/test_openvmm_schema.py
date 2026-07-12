@@ -13,6 +13,7 @@ from lisa.sut_orchestrator.openvmm.schema import (
     OpenVmmNetworkSchema,
     OpenVmmUefiSchema,
 )
+from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 from lisa.util import LisaException
 
 
@@ -66,3 +67,35 @@ class OpenVmmSchemaTestCase(TestCase):
                 disk_img="/var/tmp/guest.raw",
                 kernel_command_line_args=["console=ttyAMA0 earlycon"],
             )
+
+    def test_guest_schema_loads_device_passthrough(self) -> None:
+        guest_schema = cast(Any, OpenVmmGuestNodeSchema).schema()
+
+        guest = guest_schema.load(
+            {
+                "uefi": {"firmware_path": "/var/tmp/MSVM.fd"},
+                "disk_img": "/var/tmp/guest.raw",
+                "device_pools": [
+                    {
+                        "type": "pci_net",
+                        "auto_discover": True,
+                    }
+                ],
+                "device_passthrough": [
+                    {
+                        "pool_type": "pci_net",
+                        "count": 1,
+                    }
+                ],
+            }
+        )
+
+        assert guest.device_pools is not None
+        assert guest.device_passthrough is not None
+        self.assertEqual(HostDevicePoolType.PCI_NIC, guest.device_pools[0].type)
+        self.assertTrue(guest.device_pools[0].auto_discover)
+        self.assertEqual(
+            HostDevicePoolType.PCI_NIC,
+            guest.device_passthrough[0].pool_type,
+        )
+        self.assertEqual(1, guest.device_passthrough[0].count)

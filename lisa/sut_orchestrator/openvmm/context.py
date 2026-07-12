@@ -2,10 +2,11 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from threading import Lock
+from threading import Lock, RLock
 from typing import Any, Dict, List, Optional
 
 from lisa.node import Node
+from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 from lisa.util import LisaException
 
 from .schema import OpenVmmNetworkSchema
@@ -21,6 +22,22 @@ def _new_str_list() -> List[str]:
 
 def _new_str_dict() -> Dict[str, str]:
     return {}
+
+
+@dataclass
+class DeviceAddressSchema:
+    domain: str = "0000"
+    bus: str = ""
+    slot: str = ""
+    function: str = "0"
+    original_driver: str = ""
+
+
+@dataclass
+class DevicePassthroughContext:
+    pool_type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
+    device_list: List[DeviceAddressSchema] = field(default_factory=list)
+    managed: str = ""
 
 
 @dataclass
@@ -42,6 +59,7 @@ class NodeContext:
     ssh_port: int = 22
     forwarded_port: int = 0
     forwarding_enabled: bool = False
+    ssh_forwarding_enabled: bool = False
     forwarding_interface: str = ""
     tap_created: bool = False
     tap_bridge_created: bool = False
@@ -54,6 +72,7 @@ class NodeContext:
     command_line: str = ""
     restart_on_guest_reset: bool = False
     guest_reset_restart_count: int = 0
+    passthrough_devices: List[DevicePassthroughContext] = field(default_factory=list)
 
 
 @dataclass
@@ -64,12 +83,17 @@ class OpenVmmHostContext:
         default_factory=_new_str_dict
     )
     active_bridge_netfilter_count: int = 0
+    bridge_netfilter_lock: RLock = field(default_factory=RLock)
+    forwarding_lock: RLock = field(default_factory=RLock)
     artifact_copy_lock: Lock = field(default_factory=Lock)
     artifact_cache: Dict[str, str] = field(default_factory=_new_str_dict)
     # Guards one-time host hypervisor preparation (e.g. loading KVM kernel
     # modules) so it runs once per host instead of on every guest launch.
     hypervisor_prepare_lock: Lock = field(default_factory=Lock)
     prepared_hypervisor: str = ""
+    device_pool_lock: Lock = field(default_factory=Lock)
+    device_pool: Optional[Any] = None
+    device_pool_config_key: str = ""
 
 
 def get_node_context(node: Node) -> NodeContext:

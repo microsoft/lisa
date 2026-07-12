@@ -10,7 +10,11 @@ from dataclasses_json import config, dataclass_json
 
 from lisa import schema
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.sut_orchestrator.util.schema import CloudInitSchema
+from lisa.sut_orchestrator.util.schema import (
+    CloudInitSchema,
+    DevicePassthroughSchema,
+    HostDevicePoolSchema,
+)
 from lisa.util import LisaException
 
 from .. import OPENVMM
@@ -215,6 +219,12 @@ class OpenVmmNetworkSchema:
 
 @dataclass_json()
 @dataclass
+class OpenVmmDevicePassthroughSchema(DevicePassthroughSchema):
+    managed: str = ""
+
+
+@dataclass_json()
+@dataclass
 class OpenVmmGuestNodeSchema(schema.GuestNode):
     type: str = OPENVMM
     username: str = "root"
@@ -245,6 +255,8 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     hypervisor: str = OPENVMM_HYPERVISOR_MSHV
     serial: OpenVmmSerialSchema = field(default_factory=OpenVmmSerialSchema)
     network: OpenVmmNetworkSchema = field(default_factory=OpenVmmNetworkSchema)
+    device_pools: Optional[List[HostDevicePoolSchema]] = None
+    device_passthrough: Optional[List[OpenVmmDevicePassthroughSchema]] = None
     extra_args: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
