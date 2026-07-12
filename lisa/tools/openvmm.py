@@ -106,6 +106,7 @@ class OpenVmm(Tool):
             raise LisaException("uefi_firmware_path must be provided for UEFI boot")
         args.append("--uefi")
         args.extend(["--uefi-firmware", config.uefi_firmware_path])
+        args.extend(["--uefi-console-mode", "com1"])
         if config.vmgs_path:
             vmgs_disk = f"file:{config.vmgs_path}"
             if config.create_vmgs:

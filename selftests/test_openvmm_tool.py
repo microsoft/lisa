@@ -47,6 +47,8 @@ class OpenVmmToolTestCase(TestCase):
                 "--uefi",
                 "--uefi-firmware",
                 "/var/tmp/MSVM.fd",
+                "--uefi-console-mode",
+                "com1",
                 "--vmgs",
                 "file:/var/tmp/openvmm.vmgs;create=VMGS_DEFAULT,fmt-on-fail",
                 "--guest-reset-action",
