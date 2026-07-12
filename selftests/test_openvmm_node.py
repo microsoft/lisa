@@ -13,7 +13,12 @@ import yaml
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
 from lisa.operating_system import CpuArchitecture
-from lisa.sut_orchestrator.openvmm.context import NodeContext
+from lisa.sut_orchestrator.openvmm.context import (
+    DeviceAddressSchema,
+    DevicePassthroughContext,
+    NodeContext,
+    get_host_context,
+)
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
@@ -28,6 +33,7 @@ from lisa.sut_orchestrator.openvmm.schema import (
 from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
+from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 from lisa.tools import Cat, Ip, Kill, Lscpu, Mkdir
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
@@ -245,9 +251,9 @@ class OpenVmmNodeTestCase(TestCase):
         ), patch.object(
             controller, "_ensure_process_running"
         ):
-            cast(
-                MagicMock, controller.host_node.execute
-            ).return_value = SimpleNamespace(exit_code=1)
+            cast(MagicMock, controller.host_node.execute).return_value = (
+                SimpleNamespace(exit_code=1)
+            )
             controller._launch_process(
                 cast(Any, node),
                 node_context,
@@ -256,9 +262,9 @@ class OpenVmmNodeTestCase(TestCase):
             )
             first_config = openvmm.launch_vm.call_args.args[0]
 
-            cast(
-                MagicMock, controller.host_node.execute
-            ).return_value = SimpleNamespace(exit_code=0)
+            cast(MagicMock, controller.host_node.execute).return_value = (
+                SimpleNamespace(exit_code=0)
+            )
             controller._launch_process(
                 cast(Any, node),
                 node_context,
@@ -680,6 +686,139 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertEqual("10.0.0.2", kwargs["address"])
         self.assertFalse(kwargs["use_public_address"])
         self.assertEqual([host_connection], kwargs["proxy_jump_boxes"])
+
+    def test_parent_proxy_routing_does_not_add_ssh_dnat(self) -> None:
+        execute_result = SimpleNamespace(exit_code=0, stderr="", stdout="0")
+        host_node = SimpleNamespace(
+            is_remote=True,
+            execute=MagicMock(return_value=execute_result),
+            tools={Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))},
+        )
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+        node_context = NodeContext()
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap2",
+            bridge_name="ovmbr2",
+            tap_host_cidr="10.0.2.1/24",
+            connection_mode=OPENVMM_CONNECTION_MODE_HOST_PROXY,
+        )
+
+        controller._enable_host_forwarding(node_context, network)
+        controller._disable_host_forwarding_context(node_context, network)
+
+        commands = [call.args[0] for call in host_node.execute.call_args_list]
+        self.assertTrue(
+            any(
+                "iptables -t nat -C POSTROUTING -s 10.0.2.0/24 "
+                "-o eth0 -j MASQUERADE" in command
+                for command in commands
+            )
+        )
+        self.assertFalse(any("DNAT" in command for command in commands))
+
+    def test_device_passthrough_args_use_dedicated_root_ports(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        node_context = NodeContext(
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    pool_type=HostDevicePoolType.PCI_NIC,
+                    device_list=[
+                        DeviceAddressSchema(
+                            domain="0000",
+                            bus="65",
+                            slot="00",
+                            function="0",
+                        ),
+                        DeviceAddressSchema(
+                            domain="0000",
+                            bus="66",
+                            slot="00",
+                            function="1",
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        args = controller._get_device_passthrough_args(node_context)
+
+        self.assertEqual(
+            [
+                "--pcie-root-complex",
+                "lisa_vfio_rc0",
+                "--pcie-root-port",
+                "lisa_vfio_rc0:lisa_vfio_rp0",
+                "--vfio",
+                "host=0000:65:00.0,port=lisa_vfio_rp0",
+                "--pcie-root-port",
+                "lisa_vfio_rc0:lisa_vfio_rp1",
+                "--vfio",
+                "host=0000:66:00.1,port=lisa_vfio_rp1",
+            ],
+            args,
+        )
+
+        existing_root_args = controller._get_device_passthrough_args(
+            node_context,
+            use_existing_root_complex=True,
+        )
+        self.assertNotIn("--pcie-root-complex", existing_root_args)
+        self.assertEqual("rc0:lisa_vfio_rp0", existing_root_args[1])
+
+    def test_failed_passthrough_restore_keeps_device_reserved(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        node_context = NodeContext(
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    device_list=[
+                        DeviceAddressSchema(
+                            domain="0000",
+                            bus="65",
+                            slot="00",
+                            function="0",
+                            original_driver="mlx5_core",
+                        )
+                    ]
+                )
+            ]
+        )
+        node = SimpleNamespace(get_context=lambda _: node_context)
+        device_pool = MagicMock()
+        get_host_context(cast(Any, controller.host_node)).device_pool = device_pool
+
+        with patch.object(
+            controller,
+            "_restore_device_passthrough_drivers",
+            side_effect=LisaException("restore failed"),
+        ), self.assertRaises(LisaException):
+            controller.release_device_passthrough(cast(Any, node))
+
+        device_pool.release_devices.assert_not_called()
+        self.assertEqual(1, len(node_context.passthrough_devices))
+
+    def test_restore_passthrough_returns_unbound_device_to_unbound_state(
+        self,
+    ) -> None:
+        controller, _, _, _ = self._create_controller()
+        device = DeviceAddressSchema(
+            domain="0000",
+            bus="65",
+            slot="00",
+            function="0",
+        )
+
+        with patch.object(
+            controller,
+            "_get_pci_device_driver",
+            side_effect=["vfio-pci", ""],
+        ), patch.object(controller, "_write_sysfs_value") as write_sysfs:
+            controller._restore_pci_device_driver(device)
+
+        write_sysfs.assert_called_once_with(
+            "0000:65:00.0",
+            "/sys/bus/pci/devices/0000:65:00.0/driver/unbind",
+        )
 
     def test_create_node_cloud_init_iso_skips_root_resize_for_non_raw_disk(
         self,

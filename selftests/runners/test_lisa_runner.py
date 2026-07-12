@@ -33,7 +33,7 @@ def generate_runner(
     )
     if platform_schema:
         platform_runbook.extended_schemas = {
-            constants.PLATFORM_MOCK: platform_schema.to_dict()  # type:ignore
+            constants.PLATFORM_MOCK: platform_schema.to_dict()  # type: ignore
         }
     runbook = schema.Runbook(
         platform=[platform_runbook],
@@ -315,25 +315,37 @@ class RunnerTestCase(TestCase):
         runner._guest_enabled = True
 
         test_results = test_testsuite.generate_cases_result()
-        for test_result in test_results:
-            metadata = test_result.runtime_data.metadata
-            metadata.requirement = simple_requirement(
-                supported_platform_type=["guest-platform"]
+        original_requirements = [
+            test_result.runtime_data.metadata.requirement
+            for test_result in test_results
+        ]
+        try:
+            for test_result in test_results:
+                metadata = test_result.runtime_data.metadata
+                metadata.requirement = simple_requirement(
+                    supported_platform_type=["guest-platform"]
+                )
+
+            runner._merge_test_requirements(
+                test_results=test_results,
+                existing_environments=envs,
+                platform_type=constants.PLATFORM_MOCK,
             )
 
-        runner._merge_test_requirements(
-            test_results=test_results,
-            existing_environments=envs,
-            platform_type=constants.PLATFORM_MOCK,
-        )
-
-        self.verify_test_results(
-            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
-            expected_envs=["", "", ""],
-            expected_status=[TestStatus.QUEUED, TestStatus.QUEUED, TestStatus.QUEUED],
-            expected_message=["", "", ""],
-            test_results=test_results,
-        )
+            self.verify_test_results(
+                expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+                expected_envs=["", "", ""],
+                expected_status=[
+                    TestStatus.QUEUED,
+                    TestStatus.QUEUED,
+                    TestStatus.QUEUED,
+                ],
+                expected_message=["", "", ""],
+                test_results=test_results,
+            )
+        finally:
+            for test_result, requirement in zip(test_results, original_requirements):
+                test_result.runtime_data.metadata.requirement = requirement
 
     def test_fit_a_predefined_env(self) -> None:
         # predefined env can run case in below condition.

@@ -71,6 +71,7 @@ class NodeContext:
     ssh_port: int = 22
     forwarded_port: int = 0
     forwarding_enabled: bool = False
+    ssh_forwarding_enabled: bool = False
     forwarding_interface: str = ""
     forwarding_rules_added: List[str] = field(default_factory=_new_str_list)
     tap_created: bool = False
@@ -97,7 +98,7 @@ class OpenVmmHostContext:
     )
     active_bridge_netfilter_count: int = 0
     bridge_netfilter_lock: RLock = field(default_factory=RLock)
-    ssh_forwarding_lock: RLock = field(default_factory=RLock)
+    forwarding_lock: RLock = field(default_factory=RLock)
     artifact_copy_lock: Lock = field(default_factory=Lock)
     artifact_cache: Dict[str, str] = field(default_factory=_new_str_dict)
     device_pool_lock: Lock = field(default_factory=Lock)
