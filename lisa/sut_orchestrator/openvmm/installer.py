@@ -100,6 +100,33 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
 
         return OpenVmmSourceInstallerSchema
 
+    def _ensure_rustup(self, cargo: Cargo, rustup_bin: str) -> None:
+        check_command = f"test -x {shlex.quote(rustup_bin)}"
+        result = self._node.execute(
+            check_command,
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code == 0:
+            return
+
+        self._log.info(
+            "cargo is available without rustup; installing the rustup-managed "
+            "toolchain for OpenVMM"
+        )
+        if not cargo.install():
+            raise LisaException("failed to install rustup for OpenVMM build")
+        self._node.execute(
+            check_command,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "rustup is unavailable after installing the OpenVMM toolchain"
+            ),
+        )
+
     def install(self) -> str:
         from .schema import OpenVmmSourceInstallerSchema
 
@@ -122,6 +149,7 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
             ),
         ).stdout.strip()
         rustup_bin = f"{home_dir}/.cargo/bin/rustup"
+        self._ensure_rustup(cargo, rustup_bin)
         toolchain = cargo.toolchain or "stable"
         self._node.execute(
             "mkdir -p ~/.rustup/downloads ~/.rustup/tmp ~/.cargo/bin",
