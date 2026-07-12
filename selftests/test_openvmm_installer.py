@@ -29,6 +29,32 @@ class Ubuntu:
 
 
 class OpenVmmInstallerTestCase(TestCase):
+    def test_source_installer_adds_rustup_for_system_cargo(self) -> None:
+        node = SimpleNamespace(
+            execute=MagicMock(
+                side_effect=[
+                    SimpleNamespace(exit_code=1),
+                    SimpleNamespace(exit_code=0),
+                ]
+            )
+        )
+        cargo = SimpleNamespace(install=MagicMock(return_value=True))
+        installer = OpenVmmSourceInstaller(
+            runbook=OpenVmmSourceInstallerSchema(),
+            node=cast(Any, node),
+            log=MagicMock(),
+        )
+
+        installer._ensure_rustup(cast(Any, cargo), "/home/test/.cargo/bin/rustup")
+
+        cargo.install.assert_called_once_with()
+        self.assertEqual(2, node.execute.call_count)
+        self.assertEqual(
+            "test -x /home/test/.cargo/bin/rustup",
+            node.execute.call_args_list[0].args[0],
+        )
+        self.assertEqual(0, node.execute.call_args_list[1].kwargs["expected_exit_code"])
+
     def test_source_installer_uses_host_paths_for_remote_commands(self) -> None:
         package_installs: List[List[str]] = []
         linux = Ubuntu(package_installs)
