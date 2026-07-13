@@ -843,7 +843,30 @@ class Ntttcp(Tool):
 
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
+        code_root = git.clone(self.repo, tool_path)
+        if self.repo == "https://github.com/microsoft/ntttcp-for-linux":
+            pr_number = "113"
+            self._log.debug(
+                f"sync ntttcp source with PR {pr_number}: "
+                f"git fetch origin pull/{pr_number}/head"
+            )
+            git.run(
+                f"fetch origin pull/{pr_number}/head", cwd=code_root
+            ).assert_exit_code(
+                message=f"failed to fetch PR {pr_number} source"
+            )
+            self._log.debug(
+                f"apply fetched PR {pr_number} source: "
+                "git restore --source FETCH_HEAD ."
+            )
+            git.run("restore --source FETCH_HEAD .", cwd=code_root).assert_exit_code(
+                message="failed to restore source from FETCH_HEAD"
+            )
+            status_result = git.run("status --short", cwd=code_root)
+            self._log.debug(
+                f"ntttcp source status after PR {pr_number} sync: "
+                f"{status_result.stdout}"
+            )
         make = self.node.tools[Make]
         code_path = tool_path.joinpath(self.tool_path_folder)
         make.make_install(cwd=code_path)
