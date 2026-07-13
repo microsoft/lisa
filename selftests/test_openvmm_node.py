@@ -33,7 +33,7 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.sut_orchestrator.util.schema import HostDevicePoolType
-from lisa.tools import Cat, Ip, Kill, Lscpu, Mkdir, Readlink
+from lisa.tools import Cat, Ip, Kill, Lscpu, Mkdir, Modprobe, Readlink
 from lisa.util import LisaException
 
 
@@ -190,6 +190,7 @@ class OpenVmmNodeTestCase(TestCase):
     def test_launch_uses_host_pure_path_for_cwd(self) -> None:
         controller, _, _, _ = self._create_controller()
         openvmm = MagicMock()
+        openvmm.command = "/usr/local/bin/openvmm"
         openvmm.build_command.return_value = "openvmm --uefi"
         openvmm.launch_vm.return_value = "1234"
         node = SimpleNamespace(
@@ -294,6 +295,75 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertFalse(first_config.exit_on_guest_reset)
         self.assertTrue(first_config.auto_restart_on_guest_reset)
         self.assertEqual(node_context.vmgs_file_path, first_config.vmgs_path)
+
+    def test_arm_iommufd_passthrough_uses_private_memory(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        openvmm = MagicMock()
+        openvmm.command = "/resolved/openvmm"
+        openvmm.build_command.return_value = "openvmm --uefi"
+        openvmm.launch_vm.return_value = "1234"
+        node = SimpleNamespace(
+            runbook=SimpleNamespace(
+                openvmm_binary="/usr/local/bin/openvmm",
+                hypervisor=OPENVMM_HYPERVISOR_KVM,
+                serial=SimpleNamespace(mode="file"),
+                extra_args=[],
+            ),
+            capability=SimpleNamespace(core_count=4, memory_mb=8192),
+            log=MagicMock(),
+        )
+        node_context = NodeContext(
+            working_path="/var/tmp/openvmm-host-g0",
+            uefi_firmware_path="/var/tmp/MSVM.fd",
+            vmgs_file_path="/var/tmp/openvmm-host-g0/openvmm.vmgs",
+            disk_img_path="/var/tmp/root.raw",
+            console_log_file_path="/var/tmp/console.log",
+            launcher_log_file_path="/var/tmp/launcher.log",
+            launcher_stderr_log_file_path="/var/tmp/launcher.stderr.log",
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    device_list=[
+                        DeviceAddressSchema(
+                            domain="0000",
+                            bus="65",
+                            slot="00",
+                            function="0",
+                        )
+                    ]
+                )
+            ],
+        )
+
+        with patch.object(
+            controller,
+            "_should_use_pci_devices",
+            return_value=True,
+        ), patch.object(
+            controller,
+            "get_openvmm_tool",
+            return_value=openvmm,
+        ), patch.object(
+            controller,
+            "_ensure_process_running",
+        ), patch.object(
+            controller,
+            "_supports_iommufd",
+            return_value=True,
+        ) as supports_iommufd:
+            controller._launch_process(
+                cast(Any, node),
+                node_context,
+                OpenVmmNetworkSchema(),
+                cast(Any, node.log),
+            )
+
+        launch_config = openvmm.launch_vm.call_args.args[0]
+        self.assertIs(False, launch_config.memory_shared)
+        self.assertIn("--iommu", launch_config.extra_args)
+        self.assertEqual(
+            "/resolved/openvmm",
+            supports_iommufd.call_args.args[1],
+        )
 
     def test_create_device_pool_without_libvirt_runtime_dependency(self) -> None:
         controller, _, _, _ = self._create_controller()
@@ -793,6 +863,133 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertNotIn("--pcie-root-complex", existing_root_args)
         self.assertEqual("rc0:lisa_vfio_rp0", existing_root_args[1])
+
+    def test_arm_device_passthrough_args_prefer_iommufd(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        node_context = NodeContext(
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    pool_type=HostDevicePoolType.PCI_NIC,
+                    device_list=[
+                        DeviceAddressSchema(
+                            domain="0000",
+                            bus="65",
+                            slot="00",
+                            function="0",
+                        )
+                    ],
+                )
+            ]
+        )
+
+        args = controller._get_device_passthrough_args(
+            node_context,
+            use_existing_root_complex=True,
+            prefer_iommufd=True,
+            openvmm_binary="/usr/local/bin/openvmm",
+        )
+
+        self.assertEqual(
+            [
+                "--iommu",
+                "id=lisa_iommu0",
+                "--pcie-root-port",
+                "rc0:lisa_vfio_rp0",
+                "--vfio",
+                (
+                    "host=0000:65:00.0,port=lisa_vfio_rp0,"
+                    "iommu=lisa_iommu0"
+                ),
+            ],
+            args,
+        )
+        detection_command = cast(
+            MagicMock,
+            controller.host_node.execute,
+        ).call_args.args[0]
+        self.assertIn("test -c /dev/iommu", detection_command)
+        self.assertIn("/usr/local/bin/openvmm --help", detection_command)
+        self.assertIn(
+            "/sys/bus/pci/devices/0000:65:00.0/vfio-dev/vfio*",
+            detection_command,
+        )
+
+    def test_arm_device_passthrough_args_fall_back_to_legacy_vfio(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        cast(MagicMock, controller.host_node.execute).return_value = (
+            SimpleNamespace(exit_code=1, stderr="", stdout="")
+        )
+        node_context = NodeContext(
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    pool_type=HostDevicePoolType.PCI_NIC,
+                    device_list=[
+                        DeviceAddressSchema(
+                            domain="0000",
+                            bus="65",
+                            slot="00",
+                            function="0",
+                        )
+                    ],
+                )
+            ]
+        )
+
+        args = controller._get_device_passthrough_args(
+            node_context,
+            use_existing_root_complex=True,
+            prefer_iommufd=True,
+            openvmm_binary="/usr/local/bin/openvmm",
+        )
+
+        self.assertNotIn("--iommu", args)
+        self.assertEqual(
+            "host=0000:65:00.0,port=lisa_vfio_rp0",
+            args[-1],
+        )
+
+    def test_arm_without_passthrough_does_not_enable_iommufd(self) -> None:
+        controller, _, _, _ = self._create_controller()
+
+        with patch.object(controller, "_supports_iommufd") as supports_iommufd:
+            args = controller._get_device_passthrough_args(
+                NodeContext(),
+                use_existing_root_complex=True,
+                prefer_iommufd=True,
+                openvmm_binary="/usr/local/bin/openvmm",
+            )
+
+        self.assertEqual([], args)
+        supports_iommufd.assert_not_called()
+
+    def test_optional_iommufd_load_failure_uses_legacy_vfio(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        modprobe = MagicMock()
+        modprobe.module_exists.return_value = True
+        modprobe.load.side_effect = [AssertionError("load failed"), True, True]
+        controller.host_node.tools[Modprobe] = modprobe
+        node_context = NodeContext(
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    device_list=[
+                        DeviceAddressSchema(
+                            domain="0000",
+                            bus="65",
+                            slot="00",
+                            function="0",
+                        )
+                    ]
+                )
+            ]
+        )
+
+        with patch.object(controller, "_bind_pci_device_to_vfio"):
+            controller._bind_device_passthrough_to_vfio(node_context)
+
+        self.assertEqual(
+            ["iommufd", "vfio_iommu_type1", "vfio-pci"],
+            [call.args[0] for call in modprobe.load.call_args_list],
+        )
 
     def test_failed_passthrough_restore_keeps_device_reserved(self) -> None:
         controller, _, _, _ = self._create_controller()

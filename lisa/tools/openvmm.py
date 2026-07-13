@@ -44,6 +44,7 @@ class OpenVmmLaunchConfig:
     dvd_disk_paths: List[str] = field(default_factory=list)
     processors: int = 1
     memory_mb: int = 1024
+    memory_shared: Optional[bool] = None
     network_mode: str = "user"
     tap_name: str = ""
     network_cidr: str = ""
@@ -106,7 +107,11 @@ class OpenVmm(Tool):
         if config.hypervisor:
             args.extend(["--hypervisor", config.hypervisor])
         args.extend(["--processors", str(config.processors)])
-        args.extend(["--memory", f"{config.memory_mb}MB"])
+        memory = f"{config.memory_mb}MB"
+        if config.memory_shared is not None:
+            shared = "on" if config.memory_shared else "off"
+            memory = f"size={memory},shared={shared}"
+        args.extend(["--memory", memory])
 
         if not config.uefi_firmware_path:
             raise LisaException("uefi_firmware_path must be provided for UEFI boot")
