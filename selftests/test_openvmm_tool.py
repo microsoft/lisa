@@ -2,7 +2,10 @@
 # Licensed under the MIT license.
 
 import shlex
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest import TestCase
+from unittest.mock import MagicMock
 
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_VIRTIO_BLK,
@@ -11,6 +14,7 @@ from lisa.tools.openvmm import (
     OpenVmm,
     OpenVmmLaunchConfig,
 )
+from lisa.util import LisaException
 
 
 class OpenVmmToolTestCase(TestCase):
@@ -186,3 +190,51 @@ class OpenVmmToolTestCase(TestCase):
         self.assertIn("tail -f /dev/null >", shell_command)
         self.assertNotIn("| script -qefc", shell_command)
         self.assertIn("/var/tmp/launcher.log.feeder.pid", shell_command)
+
+    def test_launch_failure_includes_launcher_logs_and_command(self) -> None:
+        node = SimpleNamespace(
+            log=MagicMock(),
+            execute=MagicMock(
+                side_effect=[
+                    SimpleNamespace(
+                        exit_code=1,
+                        stdout="OpenVMM supervisor did not record a child PID.",
+                        stderr="",
+                    ),
+                    SimpleNamespace(
+                        exit_code=0,
+                        stdout="launcher output",
+                        stderr="",
+                    ),
+                    SimpleNamespace(
+                        exit_code=0,
+                        stdout="failed to open VFIO group",
+                        stderr="",
+                    ),
+                ]
+            ),
+        )
+        openvmm = OpenVmm(cast(Any, node))
+        openvmm.set_binary_path("/usr/local/bin/openvmm")
+        config = OpenVmmLaunchConfig(
+            uefi_firmware_path="/var/tmp/MSVM.fd",
+            serial_path="/var/tmp/console.log",
+            stdout_path="/var/tmp/launcher.log",
+            stderr_path="/var/tmp/launcher.stderr.log",
+        )
+
+        with self.assertRaises(LisaException) as error:
+            openvmm.launch_vm(config, sudo=True)
+
+        message = str(error.exception)
+        self.assertIn("exit code: 1", message)
+        self.assertIn("launcher stdout tail: launcher output", message)
+        self.assertIn(
+            "launcher stderr tail: failed to open VFIO group",
+            message,
+        )
+        self.assertIn("command: /usr/local/bin/openvmm", message)
+
+        log_tail_calls = node.execute.call_args_list[1:]
+        self.assertEqual(2, len(log_tail_calls))
+        self.assertTrue(all(call.kwargs["sudo"] for call in log_tail_calls))

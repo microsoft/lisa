@@ -29,6 +29,7 @@ OPENVMM_VIRTIO_DISK_PORT = "lisa_virtio_disk"
 OPENVMM_VIRTIO_NETWORK_PORT = "lisa_virtio_net"
 OPENVMM_GUEST_RESET_EXIT_CODE = 42
 OPENVMM_MAX_GUEST_RESET_RESTARTS = 8
+OPENVMM_LAUNCH_LOG_TAIL_LINES = 40
 
 _COMMAND_NOT_FOUND_MARKERS = (
     "command not found",
@@ -388,12 +389,39 @@ class OpenVmm(Tool):
         ]
         pid = pid_lines[-1] if pid_lines else ""
         if not pid or not pid.isdigit():
+            launcher_stdout = self._read_launch_log_tail(
+                config.stdout_path,
+                sudo=sudo,
+            )
+            launcher_stderr = self._read_launch_log_tail(
+                config.stderr_path,
+                sudo=sudo,
+            )
             raise LisaException(
                 "OpenVMM launch did not return a valid PID. "
+                f"exit code: {result.exit_code}. "
                 f"stdout: {result.stdout.strip() or '<empty>'}. "
-                f"stderr: {result.stderr.strip() or '<empty>'}"
+                f"stderr: {result.stderr.strip() or '<empty>'}. "
+                f"launcher stdout tail: {launcher_stdout}. "
+                f"launcher stderr tail: {launcher_stderr}. "
+                f"command: {command}"
             )
         return pid
+
+    def _read_launch_log_tail(self, path: str, sudo: bool) -> str:
+        result = self.node.execute(
+            (
+                f"test -f {shlex.quote(path)} && "
+                f"tail -n {OPENVMM_LAUNCH_LOG_TAIL_LINES} "
+                f"{shlex.quote(path)} || true"
+            ),
+            shell=True,
+            sudo=sudo,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=0,
+        )
+        return result.stdout.strip() or result.stderr.strip() or "<empty>"
 
     def _build_launch_shell_command(
         self, command: str, config: OpenVmmLaunchConfig
