@@ -5,7 +5,7 @@ import re
 import xml.etree.ElementTree as ET  # noqa: N817
 from itertools import combinations
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
@@ -18,12 +18,14 @@ from lisa.util import (
     find_group_in_lines,
 )
 
-from .context import DevicePassthroughContext, NodeContext
 from .schema import (
     BaseLibvirtNodeSchema,
     BaseLibvirtPlatformSchema,
     DeviceAddressSchema,
 )
+
+if TYPE_CHECKING:
+    from .context import NodeContext
 
 
 class LibvirtDevicePool(BaseDevicePool):
@@ -114,7 +116,7 @@ class LibvirtDevicePool(BaseDevicePool):
 
     def release_devices(
         self,
-        node_context: NodeContext,
+        node_context: "NodeContext",
     ) -> None:
         device_context = node_context.passthrough_devices
         for context in device_context:
@@ -529,7 +531,7 @@ class LibvirtDevicePool(BaseDevicePool):
     def _add_device_passthrough_xml(
         self,
         devices: ET.Element,
-        node_context: NodeContext,
+        node_context: "NodeContext",
     ) -> ET.Element:
         for context in node_context.passthrough_devices:
             for config in context.device_list:
@@ -597,7 +599,7 @@ class LibvirtDevicePool(BaseDevicePool):
 
     def _verify_device_passthrough_post_boot(
         self,
-        node_context: NodeContext,
+        node_context: "NodeContext",
     ) -> None:
         device_context = node_context.passthrough_devices
         for context in device_context:
@@ -631,9 +633,11 @@ class LibvirtDevicePool(BaseDevicePool):
 
     def _set_device_passthrough_node_context(
         self,
-        node_context: NodeContext,
+        node_context: "NodeContext",
         node_runbook: BaseLibvirtNodeSchema,
     ) -> None:
+        from .context import DevicePassthroughContext
+
         if not node_runbook.device_passthrough:
             return
         for config in node_runbook.device_passthrough:
