@@ -2256,21 +2256,21 @@ class CBLMariner(RPMDistro):
 
     def _initialize_package_installation(self) -> None:
         self.set_kill_user_processes()
-
-        result = self._node.execute("command -v dnf", no_info_log=True, shell=True)
-        if result.exit_code == 0:
-            self._dnf_tool_name = "dnf"
-            return
-
-        self._dnf_tool_name = "tdnf -q"
+        # Resolve the package tool name (dnf or tdnf) for later use.
+        self._dnf_tool()
 
     def _dnf_tool(self) -> str:
-        # The tool name is resolved lazily by _initialize_package_installation,
-        # which runs on the install path but not on the update path. Ensure it is
-        # resolved here so callers such as _update_packages work regardless of
-        # which path runs first.
+        # Resolve the package tool name lazily on first use and cache it.
+        # _initialize_package_installation sets it on the install path, but
+        # callers such as _update_packages reach here without going through
+        # that path. Detect it directly here rather than calling
+        # _initialize_package_installation, which would restart systemd-logind
+        # as a side effect and could recurse back into this method.
         if not self._dnf_tool_name:
-            self._initialize_package_installation()
+            result = self._node.execute(
+                "command -v dnf", no_info_log=True, shell=True
+            )
+            self._dnf_tool_name = "dnf" if result.exit_code == 0 else "tdnf -q"
         return self._dnf_tool_name
 
     def _package_exists(self, package: str) -> bool:
@@ -2325,45 +2325,37 @@ class CBLMariner(RPMDistro):
     # Disable KillUserProcesses to avoid test processes being terminated when
     # the SSH session is reset
     def set_kill_user_processes(self) -> None:
-        logind_conf = "/etc/systemd/logind.conf"
-        if self._node.shell.exists(self._node.get_pure_path(logind_conf)):
-            # The stock logind.conf already contains a [Login] section, so a
-            # bare key can be appended to it.
-            sed = self._node.tools[Sed]
-            sed.append(
-                text="KillUserProcesses=no",
-                file=logind_conf,
-                sudo=True,
-            )
-        else:
-            # On some distros (e.g. Azure Linux 4.0) /etc/systemd/logind.conf
-            # does not exist by default, so appending to it fails. Write a
-            # systemd drop-in instead, which is honored without the base file
-            # and must carry its own [Login] section header.
-            from lisa.tools import Echo
+        # Write the setting as a systemd drop-in rather than editing
+        # /etc/systemd/logind.conf directly. A drop-in is honored uniformly
+        # across all Azure Linux/Mariner versions, including those where the
+        # base logind.conf does not exist by default (e.g. Azure Linux 4.0),
+        # and it must carry its own [Login] section header. The file is
+        # rewritten from scratch each time, so the operation is idempotent.
+        from lisa.tools import Echo
 
-            dropin_dir = "/etc/systemd/logind.conf.d"
-            dropin_file = f"{dropin_dir}/99-lisa-kill-user-processes.conf"
-            self._node.execute(
-                f"mkdir -p {dropin_dir}",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    f"Failed to create {dropin_dir}"
-                ),
-            )
-            echo = self._node.tools[Echo]
-            echo.write_to_file(
-                "[Login]",
-                self._node.get_pure_path(dropin_file),
-                sudo=True,
-            )
-            echo.write_to_file(
-                "KillUserProcesses=no",
-                self._node.get_pure_path(dropin_file),
-                sudo=True,
-                append=True,
-            )
+        dropin_dir = "/etc/systemd/logind.conf.d"
+        dropin_file = f"{dropin_dir}/99-lisa-kill-user-processes.conf"
+        self._node.execute(
+            f"mkdir -p {dropin_dir}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to create {dropin_dir}",
+        )
+        echo = self._node.tools[Echo]
+        dropin_path = self._node.get_pure_path(dropin_file)
+        echo.write_to_file(
+            "[Login]",
+            dropin_path,
+            sudo=True,
+            ignore_error=False,
+        )
+        echo.write_to_file(
+            "KillUserProcesses=no",
+            dropin_path,
+            sudo=True,
+            append=True,
+            ignore_error=False,
+        )
         self._node.tools[Service].restart_service("systemd-logind")
 
     def _replace_default_entry(self, entry: str) -> None:
