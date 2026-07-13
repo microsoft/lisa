@@ -3,9 +3,8 @@
 
 import re
 import xml.etree.ElementTree as ET  # noqa: N817
-from itertools import combinations
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from lisa.node import Node
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
@@ -86,21 +85,36 @@ class LibvirtDevicePool(BaseDevicePool):
     ) -> List[DeviceAddressSchema]:
         pool = self.available_host_devices.get(pool_type, {})
         keys = list(pool.keys())
-        results = []
-        for r in range(1, len(keys) + 1):
-            for combo in combinations(keys, r):
-                if sum(len(pool.get(key, [])) for key in combo) == count:
-                    results.append(combo)
-        if not results:
-            for r in range(1, len(keys) + 1):
-                for combo in combinations(keys, r):
-                    if sum(len(pool.get(key, [])) for key in combo) >= count:
-                        results.append(combo)
-                        break
-                if results:
-                    break
+        best_groups_by_count: Dict[int, Tuple[int, ...]] = {0: ()}
+        for key_index, key in enumerate(keys):
+            device_count = len(pool.get(key, []))
+            for selected_count, selected_indices in list(best_groups_by_count.items()):
+                candidate_count = selected_count + device_count
+                candidate_indices = selected_indices + (key_index,)
+                current_indices = best_groups_by_count.get(candidate_count)
+                if current_indices is None or (
+                    len(candidate_indices),
+                    candidate_indices,
+                ) < (
+                    len(current_indices),
+                    current_indices,
+                ):
+                    best_groups_by_count[candidate_count] = candidate_indices
 
-        if not results:
+        selected_indices = best_groups_by_count.get(count)
+        if selected_indices is None:
+            sufficient_groups = [
+                indices
+                for selected_count, indices in best_groups_by_count.items()
+                if selected_count >= count and indices
+            ]
+            if sufficient_groups:
+                selected_indices = min(
+                    sufficient_groups,
+                    key=lambda indices: (len(indices), indices),
+                )
+
+        if selected_indices is None:
             raise ResourceAwaitableException(
                 f"Pool {pool_type} running out of devices: {pool}, "
                 "No IOMMU Group has sufficient count of devices, "
@@ -108,7 +122,7 @@ class LibvirtDevicePool(BaseDevicePool):
             )
 
         devices: List[DeviceAddressSchema] = []
-        selected_pools = results[0]
+        selected_pools = [keys[index] for index in selected_indices]
         for iommu_grp in selected_pools:
             devices += pool.pop(iommu_grp)
         self.available_host_devices[pool_type] = pool
