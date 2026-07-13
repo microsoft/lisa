@@ -66,6 +66,7 @@ class OpenVmmLaunchConfig:
     vps_per_socket: Optional[int] = None
     smt: str = ""
     memory_mb: int = 1024
+    memory_shared: Optional[bool] = None
     network_mode: str = "user"
     network_device: str = OPENVMM_NETWORK_DEVICE_SYNTHETIC
     network_queue_count: Optional[int] = None
@@ -123,7 +124,7 @@ class OpenVmm(Tool):
                 return output.splitlines()[0].strip()
         return "Unknown"
 
-    def build_command(self, config: OpenVmmLaunchConfig) -> str:
+    def build_command(self, config: OpenVmmLaunchConfig) -> str:  # noqa: C901
         args: List[str] = [self.command]
         if config.with_hv:
             args.append("--hv")
@@ -135,7 +136,11 @@ class OpenVmm(Tool):
             args.extend(["--vps-per-socket", str(config.vps_per_socket)])
         if config.smt:
             args.extend(["--smt", config.smt])
-        args.extend(["--memory", f"{config.memory_mb}MB"])
+        memory = f"{config.memory_mb}MB"
+        if config.memory_shared is not None:
+            shared = "on" if config.memory_shared else "off"
+            memory = f"size={memory},shared={shared}"
+        args.extend(["--memory", memory])
 
         if not config.uefi_firmware_path:
             raise LisaException("uefi_firmware_path must be provided for UEFI boot")

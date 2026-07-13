@@ -80,6 +80,7 @@ OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 OPENVMM_DNS_SERVER_PORT = 53
 OPENVMM_GIBIBYTE = 1 << 30
+OPENVMM_IOMMU_ID = "lisa_iommu0"
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -735,6 +736,8 @@ fi
         self,
         node_context: NodeContext,
         use_existing_root_complex: bool = False,
+        prefer_iommufd: bool = False,
+        openvmm_binary: str = "openvmm",
     ) -> List[str]:
         devices = [
             device
@@ -746,18 +749,71 @@ fi
 
         root_complex_name = "rc0" if use_existing_root_complex else "lisa_vfio_rc0"
         args: List[str] = []
+        use_iommufd = bool(devices) and prefer_iommufd and self._supports_iommufd(
+            devices,
+            openvmm_binary,
+        )
+        if use_iommufd:
+            args.extend(["--iommu", f"id={OPENVMM_IOMMU_ID}"])
         if not use_existing_root_complex:
             args.extend(["--pcie-root-complex", root_complex_name])
         for port_index, device in enumerate(devices):
             port_name = f"lisa_vfio_rp{port_index}"
             args.extend(["--pcie-root-port", f"{root_complex_name}:{port_name}"])
+            vfio_config = f"host={_get_pci_address_str(device)},port={port_name}"
+            if use_iommufd:
+                vfio_config = f"{vfio_config},iommu={OPENVMM_IOMMU_ID}"
             args.extend(
                 [
                     "--vfio",
-                    f"host={_get_pci_address_str(device)},port={port_name}",
+                    vfio_config,
                 ]
             )
         return args
+
+    def _supports_iommufd(
+        self,
+        devices: List[DeviceAddressSchema],
+        openvmm_binary: str,
+    ) -> bool:
+        checks = [
+            "test -c /dev/iommu",
+            (
+                f"{shlex.quote(openvmm_binary)} --help 2>&1 | "
+                "grep -q -- '--iommu'"
+            ),
+        ]
+        for device in devices:
+            device_path = (
+                f"/sys/bus/pci/devices/{_get_pci_address_str(device)}/vfio-dev"
+            )
+            checks.append(
+                (
+                    f"(for cdev in {device_path}/vfio*; do "
+                    'test -e "$cdev" || continue; '
+                    'test -c "/dev/vfio/devices/$(basename "$cdev")" && exit 0; '
+                    "done; exit 1)"
+                )
+            )
+
+        result = self.host_node.execute(
+            " && ".join(checks),
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code == 0:
+            self._log.info(
+                "Using OpenVMM iommufd/cdev for ARM PCI passthrough."
+            )
+            return True
+
+        self._log.debug(
+            "OpenVMM iommufd/cdev is unavailable; using legacy VFIO "
+            "group/container passthrough."
+        )
+        return False
 
     def _get_device_pool_config_key(self, runbook: OpenVmmGuestNodeSchema) -> str:
         return repr(runbook.device_pools or [])
@@ -855,7 +911,17 @@ fi
         if not managed_contexts:
             return
 
-        self.host_node.tools[Modprobe].load("vfio-pci")
+        modprobe = self.host_node.tools[Modprobe]
+        for optional_module in ["iommufd", "vfio_iommu_type1"]:
+            if modprobe.module_exists(optional_module):
+                try:
+                    modprobe.load(optional_module)
+                except AssertionError:
+                    self._log.debug(
+                        "best-effort load of optional VFIO kernel module "
+                        f"'{optional_module}' failed"
+                    )
+        modprobe.load("vfio-pci")
         for passthrough_context in managed_contexts:
             for device in passthrough_context.device_list:
                 self._bind_pci_device_to_vfio(device)
@@ -1128,6 +1194,14 @@ fi
                 expected_exit_code=None,
             )
             create_vmgs = vmgs_exists.exit_code != 0
+        openvmm = self.get_openvmm_tool(runbook.openvmm_binary)
+        passthrough_args = self._get_device_passthrough_args(
+            node_context,
+            use_existing_root_complex=use_pci_devices,
+            prefer_iommufd=use_pci_devices,
+            openvmm_binary=openvmm.command,
+        )
+        use_iommufd = "--iommu" in passthrough_args
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
             with_hv=not use_pci_devices,
@@ -1153,6 +1227,7 @@ fi
             ),
             smt=runbook.smt,
             memory_mb=_countspace_to_int(node.capability.memory_mb),
+            memory_shared=False if use_iommufd else None,
             network_mode=network.mode,
             network_device=network.device,
             network_queue_count=network.queue_count,
@@ -1161,15 +1236,10 @@ fi
             serial_mode=runbook.serial.mode,
             serial_path=node_context.console_log_file_path,
             use_pci_devices=use_pci_devices,
-            extra_args=self._get_device_passthrough_args(
-                node_context,
-                use_existing_root_complex=use_pci_devices,
-            )
-            + runbook.extra_args,
+            extra_args=passthrough_args + runbook.extra_args,
             stdout_path=node_context.launcher_log_file_path,
             stderr_path=node_context.launcher_stderr_log_file_path,
         )
-        openvmm = self.get_openvmm_tool(runbook.openvmm_binary)
         node_context.command_line = openvmm.build_command(launch_config)
         launch_cwd = self.host_node.get_pure_path(node_context.working_path)
         node_context.process_id = openvmm.launch_vm(

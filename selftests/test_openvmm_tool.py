@@ -162,6 +162,26 @@ class OpenVmmToolTestCase(TestCase):
         )
         self.assertNotIn("create=VMGS_DEFAULT", command)
 
+    def test_build_command_supports_private_memory(self) -> None:
+        openvmm = OpenVmm(cast(Any, SimpleNamespace(log=MagicMock())))
+        openvmm.set_binary_path("/usr/local/bin/openvmm")
+
+        command = openvmm.build_command(
+            OpenVmmLaunchConfig(
+                uefi_firmware_path="/var/tmp/MSVM.fd",
+                memory_mb=8192,
+                memory_shared=False,
+                serial_path="/var/tmp/console.log",
+            )
+        )
+
+        args = shlex.split(command)
+        memory_index = args.index("--memory")
+        self.assertEqual(
+            "size=8192MB,shared=off",
+            args[memory_index + 1],
+        )
+
     def test_auto_restart_supervisor_reuses_existing_vmgs(self) -> None:
         openvmm = OpenVmm(cast(Any, SimpleNamespace(log=MagicMock())))
         openvmm.set_binary_path("/usr/local/bin/openvmm")
