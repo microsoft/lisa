@@ -1810,6 +1810,10 @@ fi
         for label, path in [
             ("console tail", node_context.console_log_file_path),
             ("launcher tail", node_context.launcher_log_file_path),
+            (
+                "launcher stderr tail",
+                node_context.launcher_stderr_log_file_path,
+            ),
         ]:
             if not path:
                 continue

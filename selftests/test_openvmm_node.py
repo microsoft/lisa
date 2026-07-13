@@ -579,6 +579,45 @@ class OpenVmmNodeTestCase(TestCase):
             no_debug_log=True,
         )
 
+    def test_failure_context_includes_launcher_stderr(self) -> None:
+        controller, _, _, _ = self._create_controller()
+
+        def _execute(command: str, **_: Any) -> SimpleNamespace:
+            output = ""
+            if "console.log" in command:
+                output = "serial output"
+            elif "launcher.stderr.log" in command:
+                output = "VFIO initialization failed"
+            elif "launcher.log" in command:
+                output = "launcher output"
+            return SimpleNamespace(exit_code=0, stderr="", stdout=output)
+
+        cast(MagicMock, controller.host_node.execute).side_effect = _execute
+        node_context = NodeContext(
+            console_log_file_path="/var/tmp/console.log",
+            launcher_log_file_path="/var/tmp/launcher.log",
+            launcher_stderr_log_file_path="/var/tmp/launcher.stderr.log",
+        )
+
+        with patch.object(controller, "_log_tap_network_state"), patch.object(
+            controller,
+            "_log_dnsmasq_state",
+        ), patch.object(controller, "_log_process_state"), patch.object(
+            controller,
+            "_log_forwarding_state",
+        ):
+            failure_context = controller._get_openvmm_failure_context(
+                node_context,
+                None,
+            )
+
+        self.assertIn("console tail: serial output", failure_context)
+        self.assertIn("launcher tail: launcher output", failure_context)
+        self.assertIn(
+            "launcher stderr tail: VFIO initialization failed",
+            failure_context,
+        )
+
     def test_tap_network_rejects_invalid_interface_names(self) -> None:
         valid_network = OpenVmmNetworkSchema(
             mode=OPENVMM_NETWORK_MODE_TAP,
