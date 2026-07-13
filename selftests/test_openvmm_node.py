@@ -152,6 +152,40 @@ class OpenVmmNodeTestCase(TestCase):
             "timeout Forcing OpenVMM process '1234' to stop."
         )
 
+    def test_stop_node_kills_supervised_child_and_supervisor(self) -> None:
+        controller, _, kill_by_pid, _ = self._create_controller()
+        cast(MagicMock, controller.host_node.execute).return_value = SimpleNamespace(
+            exit_code=0,
+            stderr="",
+            stdout="5678\n6789\n",
+        )
+        node = SimpleNamespace(
+            is_connected=False,
+            runbook=SimpleNamespace(network=OpenVmmNetworkSchema()),
+        )
+        node_context = NodeContext(
+            process_id="1234",
+            launcher_log_file_path="/var/tmp/openvmm-launcher.log",
+        )
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=node_context,
+        ), patch.object(controller, "_wait_for_process_exit"):
+            controller.stop_node(cast(Any, node), wait=True)
+
+        self.assertEqual(
+            [
+                (("5678",), {"ignore_not_exist": True}),
+                (("6789",), {"ignore_not_exist": True}),
+                (("1234",), {"ignore_not_exist": True}),
+            ],
+            [
+                (call.args, call.kwargs)
+                for call in cast(MagicMock, kill_by_pid).call_args_list
+            ],
+        )
+
     def test_launch_uses_host_pure_path_for_cwd(self) -> None:
         controller, _, _, _ = self._create_controller()
         openvmm = MagicMock()
@@ -256,53 +290,9 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertTrue(first_config.create_vmgs)
         self.assertFalse(second_config.create_vmgs)
         self.assertFalse(first_config.with_hv)
-        self.assertTrue(first_config.exit_on_guest_reset)
+        self.assertFalse(first_config.exit_on_guest_reset)
+        self.assertTrue(first_config.auto_restart_on_guest_reset)
         self.assertEqual(node_context.vmgs_file_path, first_config.vmgs_path)
-
-    def test_restart_after_guest_reset_relaunches_once(self) -> None:
-        controller, _, _, _ = self._create_controller()
-        node = SimpleNamespace(log=MagicMock())
-        node_context = NodeContext(
-            process_id="1234",
-            launcher_log_file_path="/var/tmp/openvmm-launcher.log",
-            restart_on_guest_reset=True,
-        )
-        network = OpenVmmNetworkSchema()
-
-        with patch.object(
-            controller, "_is_process_running", return_value=False
-        ), patch.object(controller, "_launch_process") as launch_process:
-            restarted = controller._restart_after_guest_reset(
-                cast(Any, node),
-                node_context,
-                network,
-                cast(Any, node.log),
-            )
-
-        self.assertTrue(restarted)
-        self.assertEqual(1, node_context.guest_reset_restart_count)
-        reset_command = cast(MagicMock, controller.host_node.execute).call_args.args[0]
-        self.assertIn("guest halted reason=Reset", reset_command)
-        self.assertIn("guest-initiated reset", reset_command)
-        launch_process.assert_called_once_with(
-            node,
-            node_context,
-            network,
-            node.log,
-        )
-
-        with patch.object(
-            controller, "_is_process_running", return_value=False
-        ), patch.object(controller, "_launch_process") as launch_process:
-            restarted = controller._restart_after_guest_reset(
-                cast(Any, node),
-                node_context,
-                network,
-                cast(Any, node.log),
-            )
-
-        self.assertFalse(restarted)
-        launch_process.assert_not_called()
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()

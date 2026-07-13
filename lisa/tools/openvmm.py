@@ -3,7 +3,7 @@
 
 import re
 import shlex
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import PurePath
 from typing import List, Optional
 
@@ -13,6 +13,8 @@ from lisa.util import LisaException
 VERSION_PATTERN = re.compile(r"openvmm(?:\.exe)?\s+(?P<version>.+)")
 
 OPENVMM_NETWORK_BACKEND_CONSOMME = "consomme"
+OPENVMM_GUEST_RESET_EXIT_CODE = 42
+OPENVMM_MAX_GUEST_RESET_RESTARTS = 8
 
 _COMMAND_NOT_FOUND_MARKERS = (
     "command not found",
@@ -34,6 +36,9 @@ class OpenVmmLaunchConfig:
     vmgs_path: str = ""
     create_vmgs: bool = False
     exit_on_guest_reset: bool = False
+    auto_restart_on_guest_reset: bool = False
+    guest_reset_exit_code: int = OPENVMM_GUEST_RESET_EXIT_CODE
+    max_guest_reset_restarts: int = OPENVMM_MAX_GUEST_RESET_RESTARTS
     disk_img_path: str = ""
     dvd_disk_paths: List[str] = field(default_factory=list)
     processors: int = 1
@@ -117,7 +122,20 @@ class OpenVmm(Tool):
                     f"{vmgs_disk},fmt-on-fail",
                 ]
             )
-        if config.exit_on_guest_reset:
+        if config.auto_restart_on_guest_reset:
+            if not 0 <= config.guest_reset_exit_code <= 255:
+                raise LisaException("guest_reset_exit_code must be between 0 and 255")
+            if config.max_guest_reset_restarts <= 0:
+                raise LisaException("max_guest_reset_restarts must be greater than 0")
+            args.extend(
+                [
+                    "--guest-reset-action",
+                    f"exit:{config.guest_reset_exit_code}",
+                    "--guest-shutdown-action",
+                    "exit",
+                ]
+            )
+        elif config.exit_on_guest_reset:
             args.extend(["--guest-reset-action", "exit"])
 
         if config.network_mode == "user":
@@ -227,6 +245,100 @@ class OpenVmm(Tool):
             return f"nohup {command} > {stdout_path} 2>&1 < /dev/null & echo $!"
         stderr_path = shlex.quote(config.stderr_path)
         pid_path = shlex.quote(f"{config.stdout_path}.pid")
+
+        def _build_child_command(launch_command: str, use_pty: bool) -> str:
+            inner_command = shlex.quote(f"echo $$ > {pid_path}; exec {launch_command}")
+            wrapped_command = f"sh -c {inner_command}"
+            if not use_pty:
+                return wrapped_command
+            return f"script -qefc {shlex.quote(wrapped_command)} /dev/null"
+
+        if config.auto_restart_on_guest_reset:
+            restart_config = replace(config, create_vmgs=False)
+            restart_command = self.build_command(restart_config)
+            fifo_path = shlex.quote(f"{config.stdout_path}.stdin")
+            feeder_pid_path = shlex.quote(f"{config.stdout_path}.feeder.pid")
+
+            def _build_supervisor_command(use_pty: bool) -> str:
+                def _build_supervised_child(launch_command: str) -> str:
+                    child_command = _build_child_command(
+                        launch_command,
+                        use_pty=use_pty,
+                    )
+                    if use_pty:
+                        return (
+                            f"rm -f {fifo_path}; "
+                            f"mkfifo {fifo_path}; "
+                            f"tail -f /dev/null > {fifo_path} & "
+                            "feeder_pid=$!; "
+                            f"echo $feeder_pid > {feeder_pid_path}; "
+                            f"{child_command} < {fifo_path}; "
+                            "exit_code=$?; "
+                            'kill "$feeder_pid" >/dev/null 2>&1 || true; '
+                            'wait "$feeder_pid" 2>/dev/null || true; '
+                            "feeder_pid=''; "
+                            f"rm -f {fifo_path} {pid_path} {feeder_pid_path}"
+                        )
+                    return f"{child_command}; exit_code=$?; rm -f {pid_path}"
+
+                first_child = _build_supervised_child(command)
+                restart_child = _build_supervised_child(restart_command)
+                return shlex.quote(
+                    "feeder_pid=''; "
+                    "cleanup() { "
+                    f"if [ -s {pid_path} ]; then "
+                    f"child_pid=$(cat {pid_path}); "
+                    'if [ -n "$child_pid" ]; then '
+                    'kill "$child_pid" >/dev/null 2>&1 || true; '
+                    "fi; "
+                    "fi; "
+                    'if [ -n "$feeder_pid" ]; then '
+                    'kill "$feeder_pid" >/dev/null 2>&1 || true; '
+                    "fi; "
+                    f"rm -f {fifo_path} {pid_path} {feeder_pid_path}; "
+                    "}; "
+                    "trap 'cleanup; exit 143' INT TERM; "
+                    "trap cleanup EXIT; "
+                    "restart_count=0; "
+                    f"{first_child}; "
+                    f'while [ "$exit_code" -eq '
+                    f"{config.guest_reset_exit_code} ] && "
+                    f'[ "$restart_count" -lt '
+                    f"{config.max_guest_reset_restarts} ]; do "
+                    "restart_count=$((restart_count + 1)); "
+                    'echo "Restarting OpenVMM after guest reset '
+                    "($restart_count/"
+                    f'{config.max_guest_reset_restarts})" >&2; '
+                    f"{restart_child}; "
+                    'done; exit "$exit_code"'
+                )
+
+            wait_for_child = (
+                "supervisor_pid=$!; "
+                "attempt=0; "
+                "while [ $attempt -lt 100 ]; do "
+                f"if [ -s {pid_path} ]; then "
+                "echo $supervisor_pid; exit 0; fi; "
+                "if ! kill -0 $supervisor_pid >/dev/null 2>&1; then break; fi; "
+                "attempt=$((attempt + 1)); "
+                "sleep 0.1; "
+                "done; "
+                "echo 'OpenVMM supervisor did not record a child PID.' >&2; "
+                "exit 1"
+            )
+            pty_supervisor = _build_supervisor_command(use_pty=True)
+            direct_supervisor = _build_supervisor_command(use_pty=False)
+            return (
+                f"rm -f {pid_path}; "
+                "if command -v script >/dev/null 2>&1; then "
+                f"nohup sh -c {pty_supervisor} > {stdout_path} "
+                f"2> {stderr_path} < /dev/null & {wait_for_child}; "
+                "else "
+                f"nohup sh -c {direct_supervisor} > {stdout_path} "
+                f"2> {stderr_path} < /dev/null & {wait_for_child}; "
+                "fi"
+            )
+
         inner_command = shlex.quote(f"echo $$ > {pid_path}; exec {command}")
         wrapped_command = shlex.quote(f"sh -c {inner_command}")
         pty_command = shlex.quote(

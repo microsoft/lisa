@@ -78,11 +78,6 @@ OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 OPENVMM_DNS_SERVER_PORT = 53
 OPENVMM_GIBIBYTE = 1 << 30
-OPENVMM_GUEST_RESET_LOG_MARKERS = (
-    "guest halted reason=Reset",
-    "guest-initiated reset",
-)
-OPENVMM_MAX_EXTERNAL_RESET_RESTARTS = 1
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -1058,7 +1053,6 @@ fi
             self._ensure_kvm_ready()
         network = self._get_node_network(node, node_context)
         self._prepare_tap_network(network, node_context)
-        node_context.guest_reset_restart_count = 0
         self._launch_process(node, node_context, network, log)
 
     def _launch_process(
@@ -1070,12 +1064,12 @@ fi
     ) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         use_pci_devices = self._should_use_pci_devices(runbook.hypervisor)
-        restart_on_guest_reset = (
+        auto_restart_on_guest_reset = (
             runbook.hypervisor == OPENVMM_HYPERVISOR_KVM and use_pci_devices
         )
-        node_context.restart_on_guest_reset = restart_on_guest_reset
+        node_context.auto_restart_on_guest_reset = auto_restart_on_guest_reset
         create_vmgs = False
-        if restart_on_guest_reset:
+        if auto_restart_on_guest_reset:
             vmgs_exists = self.host_node.execute(
                 f"test -f {shlex.quote(node_context.vmgs_file_path)}",
                 shell=True,
@@ -1089,9 +1083,11 @@ fi
             uefi_firmware_path=node_context.uefi_firmware_path,
             with_hv=not use_pci_devices,
             hypervisor=runbook.hypervisor,
-            vmgs_path=(node_context.vmgs_file_path if restart_on_guest_reset else ""),
+            vmgs_path=(
+                node_context.vmgs_file_path if auto_restart_on_guest_reset else ""
+            ),
             create_vmgs=create_vmgs,
-            exit_on_guest_reset=restart_on_guest_reset,
+            auto_restart_on_guest_reset=auto_restart_on_guest_reset,
             disk_img_path=node_context.disk_img_path,
             dvd_disk_paths=(
                 [node_context.cloud_init_file_path]
@@ -1620,17 +1616,7 @@ fi
         node_context = get_node_context(node)
         network = self._get_node_network(cast(OpenVmmGuestNode, node), node_context)
 
-        try:
-            guest_address = self._resolve_guest_address(node_context, network, log)
-        except LisaException:
-            if not self._restart_after_guest_reset(
-                cast(OpenVmmGuestNode, node),
-                node_context,
-                network,
-                log,
-            ):
-                raise
-            guest_address = self._resolve_guest_address(node_context, network, log)
+        guest_address = self._resolve_guest_address(node_context, network, log)
         node_context.guest_address = guest_address
 
         address = guest_address
@@ -1694,50 +1680,6 @@ fi
                 "OpenVMM guest and host logs for startup or networking errors. "
                 f"{self._get_openvmm_failure_context(node_context, network)}"
             )
-
-    def _restart_after_guest_reset(
-        self,
-        node: "OpenVmmGuestNode",
-        node_context: NodeContext,
-        network: OpenVmmNetworkSchema,
-        log: Logger,
-    ) -> bool:
-        restart_limit_reached = (
-            node_context.guest_reset_restart_count
-            >= OPENVMM_MAX_EXTERNAL_RESET_RESTARTS
-        )
-        if (
-            not node_context.restart_on_guest_reset
-            or restart_limit_reached
-            or self._is_process_running(node_context.process_id)
-        ):
-            return False
-
-        reset_patterns = " ".join(
-            f"-e {shlex.quote(marker)}" for marker in OPENVMM_GUEST_RESET_LOG_MARKERS
-        )
-        reset_check = self.host_node.execute(
-            (
-                f"test -f {shlex.quote(node_context.launcher_log_file_path)} && "
-                f"grep -Fq {reset_patterns} -- "
-                f"{shlex.quote(node_context.launcher_log_file_path)}"
-            ),
-            shell=True,
-            sudo=True,
-            no_info_log=True,
-            no_error_log=True,
-            expected_exit_code=None,
-        )
-        if reset_check.exit_code != 0:
-            return False
-
-        node_context.guest_reset_restart_count += 1
-        log.info(
-            "Restarting OpenVMM after the guest-requested UEFI reset because "
-            "KVM/aarch64 does not support in-place partition reset."
-        )
-        self._launch_process(node, node_context, network, log)
-        return True
 
     def _resolve_guest_address(
         self,
@@ -2057,6 +1999,32 @@ fi
                 wait_failure = identifier
 
         if process_id:
+            recorded_process_result = self.host_node.execute(
+                (
+                    "for pid_file in "
+                    f"{shlex.quote(node_context.launcher_log_file_path)}.pid "
+                    f"{shlex.quote(node_context.launcher_log_file_path)}.feeder.pid; "
+                    'do test -s "$pid_file" && cat "$pid_file"; done'
+                ),
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=None,
+            )
+            recorded_process_ids: List[str] = []
+            for candidate in recorded_process_result.stdout.splitlines():
+                candidate = candidate.strip()
+                if (
+                    candidate.isdigit()
+                    and candidate != process_id
+                    and candidate not in recorded_process_ids
+                ):
+                    recorded_process_ids.append(candidate)
+            for recorded_process_id in recorded_process_ids:
+                self.host_node.tools[Kill].by_pid(
+                    recorded_process_id, ignore_not_exist=True
+                )
             self.host_node.tools[Kill].by_pid(
                 process_id,
                 ignore_not_exist=True,
@@ -2126,8 +2094,7 @@ fi
         node_context.cloud_init_file_path = ""
         node_context.console_log_file_path = ""
         node_context.launcher_log_file_path = ""
-        node_context.restart_on_guest_reset = False
-        node_context.guest_reset_restart_count = 0
+        node_context.auto_restart_on_guest_reset = False
 
     def _get_host_public_address(self) -> str:
         if self.host_node.is_remote:
