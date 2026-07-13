@@ -423,7 +423,7 @@ class InfinibandSuite(TestSuite):
             )
             if find_results and find_results[0]:
                 return find_results[0]
-        raise SkippedException(
+        raise LisaException(
             "IMB-MPI1 (Intel MPI Benchmarks) was not found under /usr or /opt. "
             "This benchmark ships with the HPC image, not with the Open MPI "
             "build, so it is unavailable on this image. Use an HPC image that "
