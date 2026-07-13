@@ -245,75 +245,15 @@ class Kselftest(Tool):
             env_var_dict["TMPDIR"] = new_tmp_path
             self._log.debug(f"Kselftest set TMPDIR to {new_tmp_path}!")
 
-        if run_collections or skip_tests:
-            # List all available tests
-            list_result = self.run(" -l", shell=True)
-            list_result.assert_exit_code(
-                message="failed to retrieve the list of available kself tests"
-            )
-            all_tests = list_result.stdout.splitlines()
-
-            # Filter tests based on run_collections if it exists
-            # Example: if run_collections = ['uevent']
-            # all_tests will already have all tests in the format:
-            #   ['core:close_range_test', 'core:unshare_test',
-            #    'tty:tty_tstamp_update', 'uevent:uevent_filtering']
-            # The filtered_tests will then have the value:
-            #   ['uevent:uevent_filtering']
-            # This means all the tests that belong to the 'uevent'
-            #   collection are selected.
-            if run_collections:
-                filtered_tests = [
-                    test
-                    for test in all_tests
-                    if any(
-                        (match := re.match(r"^[^:/]+", test))
-                        and collection == match.group(0)
-                        for collection in run_collections
-                    )
-                ]
-            else:
-                filtered_tests = all_tests
-
-            # Ensure skip_tests is not None
-            skip_tests = skip_tests or []
-            # Exclude tests based on skip_tests
-            tests_to_run = [test for test in filtered_tests if test not in skip_tests]
-
-            if tests_to_run:
-                self._log.debug(f"Running tests: {tests_to_run}")
-                # Passing every selected test as a separate "-t" argument on a
-                # single command line can produce a command tens of KB long
-                # (e.g. ~900 tests => ~30KB), which fails to spawn on some
-                # nodes such as WSL (SshSpawnTimeoutException). Run the tests in
-                # batches so each command line stays short.
-                batch_size = 100
-                for start in range(0, len(tests_to_run), batch_size):
-                    batch = tests_to_run[start : start + batch_size]
-                    tests_to_run_str = " ".join(f"-t {test}" for test in batch)
-                    # Truncate the results file on the first batch, then append
-                    # subsequent batches so all output accumulates.
-                    tee = "tee" if start == 0 else "tee -a"
-                    self.run(
-                        f" {tests_to_run_str} 2>&1 | {tee} {result_file}",
-                        cwd=work_dir,
-                        sudo=run_test_as_root,
-                        force_run=True,
-                        shell=True,
-                        timeout=timeout,
-                        update_envs=env_var_dict,
-                    )
-        else:
-            # run all tests
-            self.run(
-                f" 2>&1 | tee {result_file}",
-                cwd=work_dir,
-                sudo=run_test_as_root,
-                force_run=True,
-                shell=True,
-                timeout=timeout,
-                update_envs=env_var_dict,
-            )
+        self._run_tests(
+            result_file=result_file,
+            work_dir=work_dir,
+            run_test_as_root=run_test_as_root,
+            run_collections=run_collections,
+            skip_tests=skip_tests,
+            timeout=timeout,
+            env_var_dict=env_var_dict,
+        )
 
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
@@ -358,6 +298,99 @@ class Kselftest(Tool):
         assert_that(failed_tests).described_as("kselftests failed").is_empty()
 
         return results
+
+    def _run_tests(
+        self,
+        result_file: str,
+        work_dir: Optional[PurePosixPath],
+        run_test_as_root: bool,
+        run_collections: Optional[List[str]],
+        skip_tests: Optional[List[str]],
+        timeout: int,
+        env_var_dict: Dict[str, str],
+    ) -> None:
+        # When neither a collection filter nor a skip list is given, run the
+        # whole suite in a single invocation.
+        if not (run_collections or skip_tests):
+            self.run(
+                f" 2>&1 | tee {result_file}",
+                cwd=work_dir,
+                sudo=run_test_as_root,
+                force_run=True,
+                shell=True,
+                timeout=timeout,
+                update_envs=env_var_dict,
+            )
+            return
+
+        # List all available tests
+        list_result = self.run(" -l", shell=True)
+        list_result.assert_exit_code(
+            message="failed to retrieve the list of available kself tests"
+        )
+        all_tests = list_result.stdout.splitlines()
+
+        # Filter tests based on run_collections if it exists
+        # Example: if run_collections = ['uevent']
+        # all_tests will already have all tests in the format:
+        #   ['core:close_range_test', 'core:unshare_test',
+        #    'tty:tty_tstamp_update', 'uevent:uevent_filtering']
+        # The filtered_tests will then have the value:
+        #   ['uevent:uevent_filtering']
+        # This means all the tests that belong to the 'uevent'
+        #   collection are selected.
+        if run_collections:
+            filtered_tests = [
+                test
+                for test in all_tests
+                if any(
+                    (match := re.match(r"^[^:/]+", test))
+                    and collection == match.group(0)
+                    for collection in run_collections
+                )
+            ]
+        else:
+            filtered_tests = all_tests
+
+        # Exclude tests based on skip_tests. run_kselftest.sh -l lists tests as
+        # "collection:test" (e.g. "net:altnames.sh"), but a skip entry may be
+        # either the full "collection:test" or just the bare test name (e.g.
+        # "altnames.sh"). Match on both so a bare name skips that test in any
+        # collection.
+        skip_set = set(skip_tests or [])
+
+        def _is_skipped(test: str) -> bool:
+            if test in skip_set:
+                return True
+            bare_name = test.split(":", 1)[1] if ":" in test else test
+            return bare_name in skip_set
+
+        tests_to_run = [test for test in filtered_tests if not _is_skipped(test)]
+        if not tests_to_run:
+            return
+
+        self._log.debug(f"Running tests: {tests_to_run}")
+        # Passing every selected test as a separate "-t" argument on a single
+        # command line can produce a command tens of KB long (e.g. ~900 tests
+        # => ~30KB), which fails to spawn on some nodes such as WSL
+        # (SshSpawnTimeoutException). Run the tests in batches so each command
+        # line stays short.
+        batch_size = 100
+        for start in range(0, len(tests_to_run), batch_size):
+            batch = tests_to_run[start:start + batch_size]
+            tests_to_run_str = " ".join(f"-t {test}" for test in batch)
+            # Truncate the results file on the first batch, then append
+            # subsequent batches so all output accumulates.
+            tee = "tee" if start == 0 else "tee -a"
+            self.run(
+                f" {tests_to_run_str} 2>&1 | {tee} {result_file}",
+                cwd=work_dir,
+                sudo=run_test_as_root,
+                force_run=True,
+                shell=True,
+                timeout=timeout,
+                update_envs=env_var_dict,
+            )
 
     def _parse_results(self, result: str) -> List[KselftestResult]:
         parsed_result: List[KselftestResult] = []
