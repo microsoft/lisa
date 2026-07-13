@@ -83,7 +83,7 @@ class OpenVmmToolTestCase(TestCase):
                 hypervisor="kvm",
                 vmgs_path="/var/tmp/openvmm.vmgs",
                 create_vmgs=True,
-                exit_on_guest_reset=True,
+                auto_restart_on_guest_reset=True,
                 disk_img_path="/var/tmp/root.raw",
                 dvd_disk_paths=["/var/tmp/cloud-init.iso"],
                 processors=4,
@@ -113,6 +113,8 @@ class OpenVmmToolTestCase(TestCase):
                 "--vmgs",
                 "file:/var/tmp/openvmm.vmgs;create=VMGS_DEFAULT,fmt-on-fail",
                 "--guest-reset-action",
+                "exit:42",
+                "--guest-shutdown-action",
                 "exit",
                 "--no-vmbus",
                 "--pcie-root-complex",
@@ -155,3 +157,32 @@ class OpenVmmToolTestCase(TestCase):
             shlex.split(command),
         )
         self.assertNotIn("create=VMGS_DEFAULT", command)
+
+    def test_auto_restart_supervisor_reuses_existing_vmgs(self) -> None:
+        openvmm = OpenVmm(cast(Any, SimpleNamespace(log=MagicMock())))
+        openvmm.set_binary_path("/usr/local/bin/openvmm")
+        config = OpenVmmLaunchConfig(
+            uefi_firmware_path="/var/tmp/MSVM.fd",
+            hypervisor="kvm",
+            vmgs_path="/var/tmp/openvmm.vmgs",
+            create_vmgs=True,
+            auto_restart_on_guest_reset=True,
+            serial_path="/var/tmp/console.log",
+            stdout_path="/var/tmp/launcher.log",
+            stderr_path="/var/tmp/launcher.stderr.log",
+        )
+
+        command = openvmm.build_command(config)
+        shell_command = openvmm._build_launch_shell_command(command, config)
+
+        self.assertEqual(2, shell_command.count("create=VMGS_DEFAULT"))
+        self.assertEqual(
+            2,
+            shell_command.count("file:/var/tmp/openvmm.vmgs,fmt-on-fail"),
+        )
+        self.assertIn('"$exit_code" -eq 42', shell_command)
+        self.assertIn('"$restart_count" -lt 8', shell_command)
+        self.assertIn("supervisor_pid", shell_command)
+        self.assertIn("tail -f /dev/null >", shell_command)
+        self.assertNotIn("| script -qefc", shell_command)
+        self.assertIn("/var/tmp/launcher.log.feeder.pid", shell_command)

@@ -84,9 +84,8 @@ class NodeContext:
     effective_network: Optional[OpenVmmNetworkSchema] = None
     process_id: str = ""
     command_line: str = ""
+    auto_restart_on_guest_reset: bool = False
     passthrough_devices: List[DevicePassthroughContext] = field(default_factory=list)
-    restart_on_guest_reset: bool = False
-    guest_reset_restart_count: int = 0
 
 
 @dataclass
