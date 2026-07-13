@@ -13,6 +13,7 @@ import yaml
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
 from lisa.operating_system import CpuArchitecture
+from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
 from lisa.sut_orchestrator.openvmm.context import (
     DeviceAddressSchema,
     DevicePassthroughContext,
@@ -313,6 +314,19 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertFalse(first_config.exit_on_guest_reset)
         self.assertTrue(first_config.auto_restart_on_guest_reset)
         self.assertEqual(node_context.vmgs_file_path, first_config.vmgs_path)
+
+    def test_create_device_pool_without_libvirt_runtime_dependency(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        runbook = SimpleNamespace(device_pools=[SimpleNamespace(type="pci_net")])
+
+        with patch.object(
+            LibvirtDevicePool,
+            "configure_device_passthrough_pool",
+        ) as configure_device_pool:
+            device_pool = controller._get_or_create_device_pool(cast(Any, runbook))
+
+        self.assertIsInstance(device_pool, LibvirtDevicePool)
+        configure_device_pool.assert_called_once_with(runbook.device_pools)
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()
