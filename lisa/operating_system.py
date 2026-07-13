@@ -228,7 +228,8 @@ class OperatingSystem:
     def name(self) -> str:
         return self.__class__.__name__
 
-    def capture_system_information(self, saved_path: Path) -> None: ...
+    def capture_system_information(self, saved_path: Path) -> None:
+        ...
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -739,7 +740,8 @@ class Posix(OperatingSystem, BaseClassMixin):
         return package_name
 
 
-class BSD(Posix): ...
+class BSD(Posix):
+    ...
 
 
 class BMC(Posix):
@@ -760,7 +762,8 @@ class MacOS(Posix):
         return re.compile("^Darwin$")
 
 
-class Linux(Posix): ...
+class Linux(Posix):
+    ...
 
 
 class CoreOs(Linux):
@@ -1686,7 +1689,8 @@ class Zscaler(FreeBSD):
         return re.compile("^ZscalerOS|zscaleros$")
 
 
-class OpenBSD(BSD): ...
+class OpenBSD(BSD):
+    ...
 
 
 @dataclass
