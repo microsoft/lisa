@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import List
+from typing import List, cast
 
 from lisa import (
     Logger,
@@ -14,7 +14,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, Posix, Windows
 from lisa.tools import Mount
 from lisa.util import SkippedException
 
@@ -98,8 +98,9 @@ class FscryptSuite(TestSuite):
         secret_dir = f"{mount_point}/secret"
 
         # --- Preconditions ------------------------------------------------
+        posix_os = cast(Posix, node.os)
         for package in packages:
-            node.os.install_packages(package)
+            posix_os.install_packages(package)
 
         if node.execute(f"command -v {crypt_tool}", shell=True).exit_code != 0:
             raise SkippedException(f"{crypt_tool} is not available on this image")
