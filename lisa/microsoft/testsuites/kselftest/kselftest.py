@@ -281,17 +281,28 @@ class Kselftest(Tool):
             tests_to_run = [test for test in filtered_tests if test not in skip_tests]
 
             if tests_to_run:
-                tests_to_run_str = " ".join(f"-t {test}" for test in tests_to_run)
                 self._log.debug(f"Running tests: {tests_to_run}")
-                self.run(
-                    f" {tests_to_run_str} 2>&1 | tee -a {result_file}",
-                    cwd=work_dir,
-                    sudo=run_test_as_root,
-                    force_run=True,
-                    shell=True,
-                    timeout=timeout,
-                    update_envs=env_var_dict,
-                )
+                # Passing every selected test as a separate "-t" argument on a
+                # single command line can produce a command tens of KB long
+                # (e.g. ~900 tests => ~30KB), which fails to spawn on some
+                # nodes such as WSL (SshSpawnTimeoutException). Run the tests in
+                # batches so each command line stays short.
+                batch_size = 100
+                for start in range(0, len(tests_to_run), batch_size):
+                    batch = tests_to_run[start : start + batch_size]
+                    tests_to_run_str = " ".join(f"-t {test}" for test in batch)
+                    # Truncate the results file on the first batch, then append
+                    # subsequent batches so all output accumulates.
+                    tee = "tee" if start == 0 else "tee -a"
+                    self.run(
+                        f" {tests_to_run_str} 2>&1 | {tee} {result_file}",
+                        cwd=work_dir,
+                        sudo=run_test_as_root,
+                        force_run=True,
+                        shell=True,
+                        timeout=timeout,
+                        update_envs=env_var_dict,
+                    )
         else:
             # run all tests
             self.run(
