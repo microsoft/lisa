@@ -33,7 +33,7 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.sut_orchestrator.util.schema import HostDevicePoolType
-from lisa.tools import Cat, Ip, Kill, Lscpu, Mkdir
+from lisa.tools import Cat, Ip, Kill, Lscpu, Mkdir, Readlink
 from lisa.util import LisaException
 
 
@@ -307,6 +307,88 @@ class OpenVmmNodeTestCase(TestCase):
 
         self.assertIsInstance(device_pool, LibvirtDevicePool)
         configure_device_pool.assert_called_once_with(runbook.device_pools)
+
+    def test_device_pool_uses_ssh_server_ip_for_primary_nic(self) -> None:
+        readlink = MagicMock(return_value="/sys/devices/pci0000:16/0000:16:00.1")
+        host_node = SimpleNamespace(
+            connection_info={"address": "203.0.113.10"},
+            execute=MagicMock(
+                side_effect=[
+                    SimpleNamespace(
+                        exit_code=0,
+                        stderr="",
+                        stdout=(
+                            "1: lo inet 127.0.0.1/8 scope host lo\n"
+                            "2: enP22p1s0f1 inet 10.0.1.4/24 scope global"
+                        ),
+                    ),
+                    SimpleNamespace(
+                        exit_code=0,
+                        stderr="",
+                        stdout="10.0.1.5 50000 10.0.1.4 22",
+                    ),
+                ]
+            ),
+            tools={Readlink: SimpleNamespace(get_canonical_path=readlink)},
+        )
+        device_pool = LibvirtDevicePool(cast(Any, host_node), cast(Any, None))
+
+        with patch.object(
+            device_pool,
+            "_resolve_iommu_group_from_sysfs_path",
+            return_value="iommu_grp_12",
+        ):
+            iommu_group = device_pool.get_primary_nic_iommu_group()
+
+        self.assertEqual("iommu_grp_12", iommu_group)
+        readlink.assert_called_once_with(
+            "/sys/class/net/enP22p1s0f1/device",
+            sudo=True,
+            no_error_log=True,
+        )
+
+    def test_device_pool_uses_default_route_for_primary_nic(self) -> None:
+        readlink = MagicMock(return_value="/sys/devices/pci0000:16/0000:16:00.1")
+        host_node = SimpleNamespace(
+            connection_info={"address": "203.0.113.10"},
+            execute=MagicMock(
+                side_effect=[
+                    SimpleNamespace(
+                        exit_code=0,
+                        stderr="",
+                        stdout=(
+                            "1: lo inet 127.0.0.1/8 scope host lo\n"
+                            "2: enP22p1s0f1 inet 10.0.1.4/24 scope global"
+                        ),
+                    ),
+                    SimpleNamespace(exit_code=0, stderr="", stdout=""),
+                    SimpleNamespace(
+                        exit_code=0,
+                        stderr="",
+                        stdout=(
+                            "default via 10.0.1.1 dev enP22p1s0f1 "
+                            "proto dhcp src 10.0.1.4"
+                        ),
+                    ),
+                ]
+            ),
+            tools={Readlink: SimpleNamespace(get_canonical_path=readlink)},
+        )
+        device_pool = LibvirtDevicePool(cast(Any, host_node), cast(Any, None))
+
+        with patch.object(
+            device_pool,
+            "_resolve_iommu_group_from_sysfs_path",
+            return_value="iommu_grp_12",
+        ):
+            iommu_group = device_pool.get_primary_nic_iommu_group()
+
+        self.assertEqual("iommu_grp_12", iommu_group)
+        readlink.assert_called_once_with(
+            "/sys/class/net/enP22p1s0f1/device",
+            sudo=True,
+            no_error_log=True,
+        )
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()

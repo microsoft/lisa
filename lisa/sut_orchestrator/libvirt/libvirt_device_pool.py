@@ -5,9 +5,9 @@ import re
 import xml.etree.ElementTree as ET  # noqa: N817
 from itertools import combinations
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from lisa.node import Node, RemoteNode
+from lisa.node import Node
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
 from lisa.tools import Ls, Lsblk, Lspci, Modprobe, Readlink
@@ -133,17 +133,12 @@ class LibvirtDevicePool(BaseDevicePool):
         node_context.passthrough_devices.clear()
 
     def get_primary_nic_iommu_group(self) -> str:
-        # This is for baremetal. For azure, we have to get private IP
-        host_ip = cast(RemoteNode, self.host_node).connection_info.get("address")
-        assert host_ip, "Host IP is empty"
-        cmd = "ip -o -4 addr show"
-        err = f"Can not get interface for IP: {host_ip}"
-        result = self.host_node.execute(
-            cmd=cmd,
+        address_result = self.host_node.execute(
+            cmd="ip -o -4 addr show",
             shell=True,
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=err,
+            expected_exit_code_failure_message="Can not list host IPv4 addresses",
         )
         # Output for above command
         # ===============================
@@ -155,12 +150,61 @@ class LibvirtDevicePool(BaseDevicePool):
         # 6: eth4    inet 10.10.40.135/22 metric 1024 brd 10.10.43.255
         #   scope global dynamic eth4\       valid_lft 27011sec preferred_lft 27011sec
 
-        interface_name = ""
-        for line in result.stdout.strip().splitlines():
-            if line.find(host_ip) >= 0:
-                interface_name = line.split()[1].strip()
+        connection_info = getattr(self.host_node, "connection_info", {})
+        host_endpoint = (
+            str(connection_info.get("address", "")).strip()
+            if isinstance(connection_info, dict)
+            else ""
+        )
+        interface_name = self._find_interface_for_ip(
+            address_result.stdout,
+            host_endpoint,
+        )
 
-        assert interface_name, "Can not find interface name"
+        ssh_connection = ""
+        if not interface_name:
+            ssh_result = self.host_node.execute(
+                cmd='printf "%s" "$SSH_CONNECTION"',
+                shell=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=None,
+            )
+            ssh_connection = ssh_result.stdout.strip()
+            ssh_fields = ssh_connection.split()
+            if len(ssh_fields) >= 4:
+                interface_name = self._find_interface_for_ip(
+                    address_result.stdout,
+                    ssh_fields[2],
+                )
+
+        default_routes = ""
+        if not interface_name:
+            route_result = self.host_node.execute(
+                cmd="ip -o route show default",
+                shell=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=None,
+            )
+            default_routes = route_result.stdout.strip()
+            for line in default_routes.splitlines():
+                fields = line.split()
+                if "dev" in fields:
+                    dev_index = fields.index("dev")
+                    if dev_index + 1 < len(fields):
+                        interface_name = fields[dev_index + 1].split("@", 1)[0]
+                        break
+
+        if not interface_name:
+            raise LisaException(
+                "Can not identify the host management interface. "
+                f"Connection endpoint: '{host_endpoint or '<empty>'}'. "
+                f"SSH_CONNECTION: '{ssh_connection or '<empty>'}'. "
+                f"IPv4 addresses: '{address_result.stdout.strip() or '<empty>'}'. "
+                f"Default routes: '{default_routes or '<empty>'}'."
+            )
+
         readlink = self.host_node.tools[Readlink]
         sysfs_path = readlink.get_canonical_path(
             f"/sys/class/net/{interface_name}/device",
@@ -170,6 +214,23 @@ class LibvirtDevicePool(BaseDevicePool):
         return self._resolve_iommu_group_from_sysfs_path(
             sysfs_path, context="primary NIC"
         )
+
+    @staticmethod
+    def _find_interface_for_ip(address_output: str, ip_address: str) -> str:
+        if not ip_address:
+            return ""
+
+        for line in address_output.splitlines():
+            fields = line.split()
+            if "inet" not in fields:
+                continue
+            inet_index = fields.index("inet")
+            if inet_index + 1 >= len(fields):
+                continue
+            if fields[inet_index + 1].split("/", 1)[0] == ip_address:
+                return fields[1].split("@", 1)[0]
+
+        return ""
 
     def get_rootfs_nvme_iommu_group(self) -> str:
         # Find the NVMe device backing the root filesystem to exclude it
