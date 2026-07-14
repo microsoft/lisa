@@ -697,8 +697,20 @@ class DpdkTestpmd(Tool):
 
     def kill_previous_testpmd_command(self) -> None:
         # kill testpmd early
-        self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
+        # try SIGINT first to get a clean termination with stats
+        self.node.tools[Kill].by_name(
+            self.command, signum=SIGINT, ignore_not_exist=True
+        )
         if self.check_testpmd_is_running():
+            # attempt to SIGKILL instead of SIGINT
+            # doesn't give us the same exit data about send/recv/drop stats
+            self.node.log.debug(
+                "Testpmd did not respond to SIGINT, attempting SIGKILL."
+            )
+            self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
+            if not self.check_testpmd_is_running():
+                return
+
             self.node.log.debug(
                 "Testpmd is not responding to signals, "
                 "attempt network connection reset."
