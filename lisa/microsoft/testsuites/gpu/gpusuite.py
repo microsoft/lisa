@@ -16,7 +16,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Gpu, GpuEnabled, SerialConsole
+from lisa.features import Gpu, GpuEnabled
 from lisa.operating_system import (
     BSD,
     AlmaLinux,
@@ -79,7 +79,7 @@ class GpuTestSuite(TestSuite):
         """,
         timeout=TIMEOUT,
         requirement=simple_requirement(
-            supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
+            supported_features=[GpuEnabled(), AzureExtension],
             unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=1,
@@ -145,7 +145,7 @@ class GpuTestSuite(TestSuite):
         """,
         timeout=TIMEOUT,
         requirement=simple_requirement(
-            supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
+            supported_features=[GpuEnabled(), AzureExtension],
             unsupported_os=[AlmaLinux, Oracle, Suse],
         ),
         priority=2,
