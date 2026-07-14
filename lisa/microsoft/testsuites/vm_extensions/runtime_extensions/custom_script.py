@@ -125,24 +125,27 @@ class CustomScriptTests(TestSuite):
             "extension_publisher", "Microsoft.Azure.Extensions"
         ).strip()
         extension_type: str = variables.get("extension_type", "CustomScript").strip()
-        version: str = variables.get("extension_version", "2.1").strip()
+        version: str = variables.get("extension_version", "").strip()
 
         extension_name = f"{publisher}_{extension_type}_boot_validation_test"
         settings = {"commandToExecute": "echo 'CSE test success'"}
+
+        create_kwargs: Dict[str, Any] = {
+            "name": extension_name,
+            "publisher": publisher,
+            "type_": extension_type,
+            "auto_upgrade_minor_version": True,
+            "settings": settings,
+        }
+        if version:
+            create_kwargs["type_handler_version"] = version
 
         extension = node.features[AzureExtension]
         extension.delete(name=extension_name, ignore_not_found=True)
 
         try:
             log.info(f"Installing extension '{extension_name}'...")
-            result = extension.create_or_update(
-                name=extension_name,
-                publisher=publisher,
-                type_=extension_type,
-                type_handler_version=version,
-                auto_upgrade_minor_version=True,
-                settings=settings,
-            )
+            result = extension.create_or_update(**create_kwargs)
 
             assert_that(result["provisioning_state"]).described_as(
                 "Expected the extension to succeed"
