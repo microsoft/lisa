@@ -47,6 +47,7 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
     parse_version,
+    sleep,
 )
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 
@@ -691,14 +692,47 @@ class DpdkTestpmd(Tool):
         self.populate_performance_data()
         return result.stdout
 
-    def check_testpmd_is_running(self) -> bool:
-        pids = self.node.tools[Pidof].get_pids(self.command, sudo=True)
+    def check_testpmd_is_running(
+        self, tries: int = 10, want_dead: bool = False
+    ) -> bool:
+        # check if testpmd is running.
+        #
+        # Allow retrying a few times, and hinting whether you want
+        # the process to be dead or alive.
+        #
+        # avoid retry decorator to avoid raising more exceptions
+        command = self.node.get_pure_path(self.command).name
+        while tries > 0:
+            pids = self.node.tools[Pidof].get_pids(command, sudo=True)
+            if len(pids) > 0 and not want_dead:
+                return True
+            elif len(pids) == 0 and want_dead:
+                return False
+            tries -= 1
+            sleep(1)
         return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
         # kill testpmd early
-        self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
-        if self.check_testpmd_is_running():
+        # try SIGINT first to get a clean termination with stats
+        command_name = self.node.get_pure_path(self.command).name
+
+        # try SIGINT first to get a clean termination with stats
+        self.node.tools[Kill].by_name(
+            command_name, signum=SIGINT, ignore_not_exist=True
+        )
+        # check if testpmd is running, retry a few times to let it terminate gracefully
+        if self.check_testpmd_is_running(tries=10, want_dead=True):
+            # attempt to SIGKILL instead of SIGINT
+            # doesn't give us the same exit data about send/recv/drop stats
+            self.node.log.debug(
+                "Testpmd did not respond to SIGINT, attempting SIGKILL."
+            )
+            self.node.tools[Kill].by_name(command_name, ignore_not_exist=True)
+
+            if not self.check_testpmd_is_running(tries=10, want_dead=True):
+                return
+
             self.node.log.debug(
                 "Testpmd is not responding to signals, "
                 "attempt network connection reset."
