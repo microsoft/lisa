@@ -102,9 +102,24 @@ class AzureCVMAttestationTests(Tool):
 
     def _install(self) -> bool:
         self._clone_repo()
+        # install.sh runs apt via its own inner `sudo`, which resets the
+        # environment and drops NEEDRESTART_MODE/DEBIAN_FRONTEND. On Ubuntu
+        # 22.04+ that makes needrestart show the interactive "Which services
+        # should be restarted?" dialog, hanging the install until it times out.
+        # Force needrestart into automatic mode by appending the setting to the
+        # end of its config file (last assignment wins in the perl config);
+        # this is read from disk and so survives the inner sudo.
+        needrestart_conf = "/etc/needrestart/needrestart.conf"
         self.node.execute(
-            "sudo ./install.sh",
+            f"test -f {needrestart_conf} && "
+            f"echo '$nrconf{{restart}} = \"a\";' >> {needrestart_conf} || true",
             shell=True,
+            sudo=True,
+        )
+        self.node.execute(
+            "./install.sh",
+            shell=True,
+            sudo=True,
             cwd=self.attestation_dir,
         )
         return self._check_exists()
