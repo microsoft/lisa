@@ -116,7 +116,7 @@ class CustomScriptTests(TestSuite):
         Custom Script extension. The deployed extension is named
         '<publisher>_<extension_type>_boot_validation_test'.
         """,
-        priority=1,
+        priority=5,
     )
     def microsoft_azure_extensions_customscript_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
