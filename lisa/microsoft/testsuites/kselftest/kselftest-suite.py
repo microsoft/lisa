@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict
 import os
+from typing import Any, Dict
 
 from microsoft.testsuites.kselftest.kselftest import Kselftest
 
@@ -86,9 +86,7 @@ class KselftestTestsuite(TestSuite):
                     f"kselftest_skip_tests_file does not exist: {skip_tests_file}"
                 )
             with open(skip_tests_file, "r") as f:
-                skip_tests_list.extend(
-                    line.strip() for line in f if line.strip()
-                )
+                skip_tests_list.extend(line.strip() for line in f if line.strip())
 
         try:
             kselftest: Kselftest = node.tools.get(

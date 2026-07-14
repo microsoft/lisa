@@ -377,7 +377,7 @@ class Kselftest(Tool):
         # line stays short.
         batch_size = 100
         for start in range(0, len(tests_to_run), batch_size):
-            batch = tests_to_run[start:start + batch_size]
+            batch = tests_to_run[start : start + batch_size]
             tests_to_run_str = " ".join(f"-t {test}" for test in batch)
             # Truncate the results file on the first batch, then append
             # subsequent batches so all output accumulates.
