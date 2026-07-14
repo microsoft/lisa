@@ -375,7 +375,7 @@ class Kselftest(Tool):
         # => ~30KB), which fails to spawn on some nodes such as WSL
         # (SshSpawnTimeoutException). Run the tests in batches so each command
         # line stays short.
-        batch_size = 100  # number of "-t" args per invocation; keep command lines short enough for WSL/SSH spawn limits
+        batch_size = 100  # number of "-t" args per invocation;
         import time
 
         start_time = time.monotonic()
