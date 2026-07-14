@@ -85,7 +85,7 @@ class KselftestTestsuite(TestSuite):
                 raise LisaException(
                     f"kselftest_skip_tests_file does not exist: {skip_tests_file}"
                 )
-            with open(skip_tests_file, "r") as f:
+            with open(skip_tests_file, "r", encoding="utf-8") as f:
                 skip_tests_list.extend(line.strip() for line in f if line.strip())
 
         try:
