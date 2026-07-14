@@ -2334,7 +2334,7 @@ class CBLMariner(RPMDistro):
         dropin_dir = self._node.get_pure_path("/etc/systemd/logind.conf.d")
         dropin_path = dropin_dir / "99-lisa-kill-user-processes.conf"
         self._node.execute(
-            f"mkdir -p {dropin_dir}",
+            f'mkdir -p "{dropin_dir}"',
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"Failed to create {dropin_dir}",
