@@ -2329,16 +2329,11 @@ class CBLMariner(RPMDistro):
         # base logind.conf does not exist by default (e.g. Azure Linux 4.0),
         # and it must carry its own [Login] section header. The file is
         # rewritten from scratch each time, so the operation is idempotent.
-        from lisa.tools import Echo
+        from lisa.tools import Echo, Mkdir
 
         dropin_dir = self._node.get_pure_path("/etc/systemd/logind.conf.d")
         dropin_path = dropin_dir / "99-lisa-kill-user-processes.conf"
-        self._node.execute(
-            f'mkdir -p "{dropin_dir}"',
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"Failed to create {dropin_dir}",
-        )
+        self._node.tools[Mkdir].create_directory(str(dropin_dir), sudo=True)
         echo = self._node.tools[Echo]
         echo.write_to_file(
             "[Login]",
