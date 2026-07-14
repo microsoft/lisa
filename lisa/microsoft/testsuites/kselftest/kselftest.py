@@ -376,19 +376,24 @@ class Kselftest(Tool):
         # (SshSpawnTimeoutException). Run the tests in batches so each command
         # line stays short.
         batch_size = 100  # number of "-t" args per invocation; keep command lines short enough for WSL/SSH spawn limits
+        import time
+
+        start_time = time.monotonic()
         for start in range(0, len(tests_to_run), batch_size):
             batch = tests_to_run[start : start + batch_size]
             tests_to_run_str = " ".join(f"-t {test}" for test in batch)
             # Truncate the results file on the first batch, then append
             # subsequent batches so all output accumulates.
             tee = "tee" if start == 0 else "tee -a"
+
+            remaining_timeout = max(1, timeout - int(time.monotonic() - start_time))
             self.run(
                 f" {tests_to_run_str} 2>&1 | {tee} {result_file}",
                 cwd=work_dir,
                 sudo=run_test_as_root,
                 force_run=True,
                 shell=True,
-                timeout=timeout,
+                timeout=remaining_timeout,
                 update_envs=env_var_dict,
             )
 
