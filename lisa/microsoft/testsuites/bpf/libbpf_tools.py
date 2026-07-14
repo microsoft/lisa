@@ -17,6 +17,7 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Linux
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -181,3 +182,229 @@ class LibbpfToolsSuite(TestSuite):
         assert_that(len(failed_tools)).described_as(
             f"No libbpf tools should fail to execute. Failed tools: {failed_tools}"
         ).is_equal_to(0)
+
+    def _ensure_profile_tool(self, node: Node) -> str:
+        """Make sure bpf-profile is installed and return the binary name."""
+        self.verify_libbpf_tools_package_available(node)
+        tool_found, tool_name = self._find_tool(node, "profile")
+        if not tool_found:
+            raise SkippedException("bpf-profile tool not found")
+        return cast(str, tool_name)
+
+    def _start_cpu_workload(self, node: Node) -> str:
+        """Spin up a CPU-burning workload and return its PID."""
+        pid_result = node.execute(
+            "yes >/dev/null 2>&1 & echo $!",
+            sudo=True,
+            shell=True,
+        )
+        pid_lines = [
+            line.strip() for line in pid_result.stdout.splitlines() if line.strip()
+        ]
+        pid = pid_lines[-1] if pid_lines else ""
+        if not pid.isdigit():
+            raise LisaException(
+                "Failed to start CPU workload: did not get a valid PID. "
+                f"stdout: {pid_result.stdout.strip() or '<empty>'}. "
+                f"stderr: {pid_result.stderr.strip() or '<empty>'}"
+            )
+        return pid
+
+    def _kill_workload(self, node: Node, pid: str) -> None:
+        """Clean up a background workload."""
+        pid = pid.strip()
+        if not pid.isdigit():
+            return
+        node.execute(
+            f"kill -- {pid} 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Verify bpf-profile captures stack traces from a running process.
+        Starts a CPU workload, profiles it for 3s, checks output has stacks.
+        """,
+        priority=2,
+        requirement=simple_requirement(),
+    )
+    def verify_bpf_profile_captures_stacks(self, node: Node, log: Logger) -> None:
+        tool = self._ensure_profile_tool(node)
+        pid = self._start_cpu_workload(node)
+
+        try:
+            profile_seconds = 3  # Short duration while still capturing stacks.
+            result = node.execute(
+                f"{tool} -p {pid} {profile_seconds}",
+                sudo=True,
+                timeout=30,  # Allow extra time on slow/contended VMs.
+            )
+            combined = result.stdout + result.stderr
+            lines = combined.strip().splitlines()
+            # Expect at least the header + some stack lines
+            has_stacks = len(lines) > 2
+            assert_that(has_stacks).described_as(
+                f"bpf-profile should produce stack traces. "
+                f"Got {len(lines)} line(s): {combined[:500]}"
+            ).is_true()
+            log.info(
+                f"bpf-profile captured stack traces successfully "
+                f"({len(lines)} lines)"
+            )
+        finally:
+            self._kill_workload(node, pid)
+
+    @TestCaseMetadata(
+        description="""
+        Verify -K (kernel only) and -U (user only) stack filtering.
+        Uses a CPU workload to generate stacks and validates
+        presence/absence of kernel frames.
+        """,
+        priority=3,
+        requirement=simple_requirement(),
+    )
+    def verify_bpf_profile_stack_filtering(self, node: Node, log: Logger) -> None:
+        tool = self._ensure_profile_tool(node)
+        kernel_symbols = ["vfs_write", "ksys_write", "entry_SYSCALL"]
+        pid = self._start_cpu_workload(node)
+
+        try:
+            profile_seconds = 3  # Enough to capture stack variety.
+            profile_timeout = 30  # Allow extra time on slow/contended VMs.
+
+            k_result = node.execute(
+                f"{tool} -p {pid} -K {profile_seconds}",
+                sudo=True,
+                timeout=profile_timeout,
+            )
+            k_out = k_result.stdout + k_result.stderr
+            has_kernel = any(sym in k_out for sym in kernel_symbols)
+            assert_that(has_kernel).described_as(
+                "-K should show kernel functions like vfs_write"
+            ).is_true()
+            log.info("-K filtering works")
+
+            u_result = node.execute(
+                f"{tool} -p {pid} -U {profile_seconds}",
+                sudo=True,
+                timeout=profile_timeout,
+            )
+            u_out = u_result.stdout + u_result.stderr
+            has_no_kernel = not any(sym in u_out for sym in kernel_symbols)
+            assert_that(has_no_kernel).described_as(
+                "-U should exclude kernel frames"
+            ).is_true()
+            log.info("-U filtering works")
+        finally:
+            self._kill_workload(node, pid)
+
+    @TestCaseMetadata(
+        description="""
+        Verify bpf-profile cleans up BPF resources after repeated runs.
+        Profiles a workload 5 times and checks BPF program count is stable.
+        """,
+        priority=3,
+        requirement=simple_requirement(),
+    )
+    def verify_bpf_profile_no_resource_leak(self, node: Node, log: Logger) -> None:
+        tool = self._ensure_profile_tool(node)
+
+        # Install bpftool if not available; skip if it can't be installed
+        bpftool_check = node.execute("which bpftool", sudo=True)
+        if bpftool_check.exit_code != 0:
+            linux_os = cast(Linux, node.os)
+            try:
+                linux_os.install_packages("bpftool")
+            except LisaException as e:
+                raise SkippedException(
+                    f"bpftool not available - cannot verify BPF resource leak: {e}"
+                )
+
+        before = node.execute(
+            "set -o pipefail; bpftool prog show | wc -l",
+            sudo=True,
+            shell=True,
+        )
+        before.assert_exit_code(
+            0, message="bpftool prog show failed", include_output=True
+        )
+        before_count = int(before.stdout.strip())
+        pid = self._start_cpu_workload(node)
+
+        try:
+            run_count = 5  # Enough iterations to detect leaks.
+            profile_seconds = 1  # Short per-iteration to keep total time low.
+            for _ in range(run_count):
+                node.execute(
+                    f"{tool} -p {pid} {profile_seconds}",
+                    sudo=True,
+                    timeout=15,  # Each 1s profile should complete quickly.
+                )
+
+            after = node.execute(
+                "set -o pipefail; bpftool prog show | wc -l",
+                sudo=True,
+                shell=True,
+            )
+            after.assert_exit_code(
+                0, message="bpftool prog show failed", include_output=True
+            )
+            after_count = int(after.stdout.strip())
+            delta = after_count - before_count
+            # Allow delta of 1 for transient system BPF programs (e.g. systemd).
+            assert_that(delta).described_as(
+                f"BPF programs should not leak. "
+                f"Before: {before_count}, after: {after_count}"
+            ).is_less_than_or_equal_to(1)
+            log.info(f"No BPF resource leak (delta={delta})")
+        finally:
+            self._kill_workload(node, pid)
+
+    @TestCaseMetadata(
+        description="""
+        Verify bpf-profile handles bad input and target exit gracefully.
+        Tests non-existent PID and target dying mid-profile.
+        """,
+        priority=3,
+        requirement=simple_requirement(),
+    )
+    def verify_bpf_profile_handles_edge_cases(self, node: Node, log: Logger) -> None:
+        tool = self._ensure_profile_tool(node)
+
+        # Use a PID that is almost certainly not in use.
+        invalid_pid = 99999999
+        profile_seconds = 2  # Short duration, tool should fail quickly.
+        result = node.execute(
+            f"{tool} -p {invalid_pid} {profile_seconds}",
+            sudo=True,
+            timeout=15,  # Allow time for error path.
+        )
+        assert_that(result.exit_code).described_as(
+            f"Should not segfault on bad PID (exit={result.exit_code})"
+        ).is_not_in(139, -11)
+        log.info("Non-existent PID handled gracefully")
+
+        # Target dies mid-profile
+        pid_result = node.execute(
+            "sleep 3 >/dev/null 2>&1 & echo $!",
+            sudo=True,
+            shell=True,
+        )
+        pid_lines = [
+            line.strip() for line in pid_result.stdout.splitlines() if line.strip()
+        ]
+        pid = pid_lines[-1] if pid_lines else ""
+        if not pid.isdigit():
+            raise LisaException(
+                "Failed to start sleep workload: did not get a valid PID. "
+                f"stdout: {pid_result.stdout.strip() or '<empty>'}. "
+                f"stderr: {pid_result.stderr.strip() or '<empty>'}"
+            )
+
+        # Profile for 10s but target exits after ~3s, tool should handle gracefully.
+        result = node.execute(f"{tool} -p {pid} 10", sudo=True, timeout=30)
+        assert_that(result.exit_code).described_as(
+            "Should not crash when target exits mid-profile"
+        ).is_not_in(139, -11)
+        log.info("Target exit mid-profile handled gracefully")
