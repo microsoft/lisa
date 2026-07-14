@@ -2331,8 +2331,8 @@ class CBLMariner(RPMDistro):
         # rewritten from scratch each time, so the operation is idempotent.
         from lisa.tools import Echo
 
-        dropin_dir = "/etc/systemd/logind.conf.d"
-        dropin_file = f"{dropin_dir}/99-lisa-kill-user-processes.conf"
+        dropin_dir = self._node.get_pure_path("/etc/systemd/logind.conf.d")
+        dropin_path = dropin_dir / "99-lisa-kill-user-processes.conf"
         self._node.execute(
             f"mkdir -p {dropin_dir}",
             sudo=True,
@@ -2340,7 +2340,6 @@ class CBLMariner(RPMDistro):
             expected_exit_code_failure_message=f"Failed to create {dropin_dir}",
         )
         echo = self._node.tools[Echo]
-        dropin_path = self._node.get_pure_path(dropin_file)
         echo.write_to_file(
             "[Login]",
             dropin_path,
