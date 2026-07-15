@@ -136,24 +136,6 @@ class Ltp(Tool):
             )
         self._assert_skip_file_non_empty(skip_file, skip_tests)
 
-    def _verify_or_rewrite_skip_file(self, skip_file: str, local_path: str) -> None:
-        """Verify a copied skip file is non-empty; rewrite it if not."""
-        verify = self.node.execute(
-            f"test -s {shlex.quote(skip_file)}", sudo=True, shell=True
-        )
-        if verify.exit_code != 0:
-            self._log.warning(
-                f"shell.copy() left {skip_file} empty; " "rewriting via remote command"
-            )
-            with open(local_path, "r") as f:
-                lines = [line.strip() for line in f if line.strip()]
-            if not lines:
-                raise LisaException(
-                    f"Local skip file {local_path} is empty; "
-                    "cannot generate a valid skip file."
-                )
-            self._write_skip_tests_to_remote(skip_file, lines)
-
     def _assert_skip_file_non_empty(
         self, skip_file: str, skip_tests: List[str]
     ) -> None:
@@ -225,20 +207,24 @@ class Ltp(Tool):
 
         # add the list of skip tests to run
         if user_input_skip_file:
-            # copy user provided skip file to remote skip_file location
+            # Read the user-provided skip file and write it to the remote
+            # skip_file location with sudo. The LTP install dir (e.g. /opt/ltp)
+            # is root-owned, so an unprivileged SFTP copy fails with "Permission
+            # denied" on nodes where the run user is not root (e.g. Azure
+            # Mariner VMs). Writing via a sudo remote command works regardless
+            # of the run user's privileges.
             if not os.path.exists(user_input_skip_file):
                 raise LisaException(
                     f"User provided skip file does not exist: {user_input_skip_file}"
                 )
             self._log.debug(f"user_input_skip_file: {user_input_skip_file}")
-            self.node.shell.copy(
-                PurePath(user_input_skip_file),
-                PurePosixPath(skip_file),
-            )
-            # shell.copy() is unreliable for some node types (e.g. WSL): it
-            # may create the file but leave it empty.  Fall back to writing
-            # the content via a remote command when that happens.
-            self._verify_or_rewrite_skip_file(skip_file, user_input_skip_file)
+            with open(user_input_skip_file, "r") as f:
+                skip_lines = [line.strip() for line in f if line.strip()]
+            if not skip_lines:
+                raise LisaException(
+                    f"User provided skip file is empty: {user_input_skip_file}"
+                )
+            self._write_skip_tests_to_remote(skip_file, skip_lines)
             parameters += f"-S {skip_file} "
         elif len(skip_tests) > 0:
             self._write_skip_tests_to_remote(skip_file, skip_tests)
