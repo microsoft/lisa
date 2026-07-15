@@ -133,7 +133,10 @@ class Stress(TestSuite):
         5. Do step 2 ~ step 4 for 25 times.
         """,
         priority=3,
-        timeout=4500,
+        # Each disable/enable cycle triggers an Azure NIC update plus in-guest VF
+        # detach/re-attach and revalidation, which can take several minutes on large
+        # VMs (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
+        timeout=7200,
         requirement=simple_requirement(
             min_core_count=4,
             network_interface=features.Sriov(),
@@ -143,7 +146,8 @@ class Stress(TestSuite):
     def stress_sriov_disable_enable(self, environment: Environment) -> None:
         skip_if_pci_only_nics(environment)
 
-        sriov_disable_enable(environment, times=50)
+        # 25 disable/enable cycles, matching the documented steps above.
+        sriov_disable_enable(environment, times=25)
 
     @TestCaseMetadata(
         description="""
@@ -265,6 +269,10 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        # Each of the 10 reboot cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs) with max sriov nics, so the default 3600s
+        # timeout is insufficient.
+        timeout=7200,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
@@ -293,6 +301,10 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        # Each of the 10 restart cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs) with max sriov nics, so the default 3600s
+        # timeout is insufficient.
+        timeout=7200,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
@@ -324,6 +336,10 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        # Each of the 10 stop/start cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs) with max sriov nics, so the default 3600s
+        # timeout is insufficient.
+        timeout=7200,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
