@@ -141,15 +141,12 @@ class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("rdma-core")
-            # _get_installed_version for source install throws
-            # if package is not found. So we don't need the result,
-            # if the function doesn't throw, the version was found.
-            _ = self.get_installed_version()
-            # this becomes '(not package manager installed) and
-            #                _get_installed_version() doesn't throw'
-            return not package_manager_install
+            # if pkg-config info is available (but not from apt, dnf, etc...)
+            version_is_available = self.get_installed_version()
+
+            return (not package_manager_install) and version_is_available
         except AssertionError:
-            # _get_installed_version threw an AssertionError
+            # get_installed_version threw an AssertionError
             # so PkgConfig info was not found
             return False
 
@@ -157,6 +154,7 @@ class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
         if isinstance(self._os, (Debian, Fedora, Suse)):
             if self._os.package_exists("rdma-core"):
                 self._os.uninstall_packages("rdma-core")
+                self._os.clean_package_cache
         if isinstance(self._os, Fedora):
             self._os.group_install_packages("Development Tools")
         super()._setup_node()
