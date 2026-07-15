@@ -200,6 +200,43 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
         ).is_true()
 
 
+def testpmd_start_process(kit: DpdkTestResources, cmd: str):
+    proc = kit.node.execute_async(cmd, sudo=True, shell=True)
+    proc.wait_output("start packet forwarding", timeout=5)
+    return proc
+
+
+def run_testpmd_receiver_hotplug(
+    kit_cmd_pairs: Dict[DpdkTestResources, str],
+    receiver: DpdkTestResources,
+    sender: DpdkTestResources,
+):
+    processes: Dict[DpdkTestResources, Process] = {}
+
+    processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
+    processes[sender] = testpmd_start_process(sender, kit_cmd_pairs[sender])
+    # switch_sriov(... wait=True) has become really expensive,
+    # and it can easily timeout if things aren't perfect.
+    # So: we'll avoid all of that and just start processes and wait for output.
+    # We can assume things went well as long as we see these debug messages from testpmd.
+    receiver.nic_controller.switch_sriov(
+        enable=False, wait=False, reset_connections=False
+    )
+    processes[receiver].wait_output(
+        "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1", timeout=120
+    )
+    receiver.nic_controller.switch_sriov(
+        enable=True, wait=False, reset_connections=False
+    )
+    processes[receiver].wait_output(
+        "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, adding device",
+        timeout=60,
+    )
+    for kit in [sender, receiver]:
+        kit.testpmd.kill_previous_testpmd_command()
+        kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
+
+
 def generate_send_receive_run_info(
     pmd: Pmd,
     sender: DpdkTestResources,
@@ -547,20 +584,18 @@ def run_testpmd_concurrent(
         # disable sriov (and wait for change to apply)
         for node_resources in [x for x in test_kits if x.switch_sriov]:
             node_resources.nic_controller.switch_sriov(
-                enable=False, wait=True, reset_connections=False
+                enable=False, wait=False, reset_connections=False
             )
 
-        # let run for a bit with SRIOV disabled
         time.sleep(10)
 
         # re-enable sriov
         for node_resources in [x for x in test_kits if x.switch_sriov]:
             node_resources.nic_controller.switch_sriov(
-                enable=True, wait=True, reset_connections=False
+                enable=True, wait=False, reset_connections=False
             )
 
-        # run for a bit with SRIOV re-enabled
-        time.sleep(10)
+        time.sleep(30)
 
         # kill the commands to collect the output early and terminate before timeout
         for node_resources in test_kits:
@@ -965,7 +1000,7 @@ def do_parallel_cleanup(environment: Environment) -> None:
     def _parallel_cleanup(node: Node) -> None:
         interface = node.features[NetworkInterface]
         if not interface.is_enabled_sriov():
-            interface.switch_sriov(enable=True, wait=False, reset_connections=True)
+            interface.switch_sriov(enable=True, wait=False, reset_connections=False)
             # cleanup temporary hugepage and driver changes
         try:
             node.reboot(time_out=60)

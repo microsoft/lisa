@@ -17,6 +17,7 @@ from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
+    DpdkTestResources,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
@@ -26,6 +27,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     initialize_node_resources,
     run_dpdk_symmetric_mp,
     run_testpmd_concurrent,
+    run_testpmd_receiver_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_mutliple_ports,
@@ -518,10 +520,11 @@ class Dpdk(TestSuite):
         receiver.switch_sriov = True
         sender.switch_sriov = False
 
-        kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
-
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
+        kit_cmd_pairs = generate_send_receive_run_info(
+            pmd, sender, receiver, multiple_queues=True
+        )
+        run_testpmd_receiver_hotplug(
+            kit_cmd_pairs=kit_cmd_pairs, receiver=receiver, sender=sender
         )
 
         hotplug_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()

@@ -640,7 +640,7 @@ class DpdkTestpmd(Tool):
             and bool(self.get_dpdk_version() > "23.7.0")
         ):
             extra_args += " --txonly-multi-flow"
-        else:
+        elif mode == "txonly":
             self.node.log.debug(
                 "note: skipping use of testpmd txonly-multi-flow flag "
                 "before dpdk 24.11. perf on receive side may be suboptimal."
@@ -698,9 +698,11 @@ class DpdkTestpmd(Tool):
     def kill_previous_testpmd_command(self) -> None:
         # kill testpmd early
         # try SIGINT first to get a clean termination with stats
+        command_name = self.command.split("/")[-1]
         self.node.tools[Kill].by_name(
-            self.command, signum=SIGINT, ignore_not_exist=True
+            command_name, signum=SIGINT, ignore_not_exist=True
         )
+
         if self.check_testpmd_is_running():
             # attempt to SIGKILL instead of SIGINT
             # doesn't give us the same exit data about send/recv/drop stats
@@ -708,6 +710,7 @@ class DpdkTestpmd(Tool):
                 "Testpmd did not respond to SIGINT, attempting SIGKILL."
             )
             self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
+
             if not self.check_testpmd_is_running():
                 return
 
