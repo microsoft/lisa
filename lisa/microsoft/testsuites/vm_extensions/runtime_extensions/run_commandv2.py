@@ -105,6 +105,68 @@ class RunCommandV2Tests(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        Basic boot validation for the Run Command v2 VM extension.
+
+        Installs the extension with a single inline RunShellScript command and no
+        script uris, so it needs no storage account or public blob access. Verifies
+        that provisioning succeeds.
+
+        The RunCommand v2 (RunCommandHandlerLinux) extension is managed by the
+        Compute Resource Provider and cannot be removed with a normal
+        'Delete VM Extension' operation, so no explicit cleanup is done here; the
+        resource group teardown removes it.
+
+        The extension publisher, type and version are read from runbook variables
+        (extension_publisher, extension_type, extension_version), defaulting to the
+        Run Command v2 extension. The deployed extension is named
+        '<publisher>_<extension_type>_boot_validation_test'.
+        """,
+        priority=5,
+    )
+    def microsoft_azure_extensions_runcommandv2_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        publisher: str = variables.get(
+            "extension_publisher", "Microsoft.CPlat.Core"
+        ).strip()
+        extension_type: str = variables.get(
+            "extension_type", "RunCommandHandlerLinux"
+        ).strip()
+        version: str = variables.get("extension_version", "").strip()
+
+        if not version:
+            raise SkippedException(
+                "Required runbook variable 'extension_version' is missing or "
+                "empty. Please set it in the runbook before running this test "
+                "case."
+            )
+
+        extension_name = f"{publisher}_{extension_type}_boot_validation_test"
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "script": "echo 'RCv2 boot validation success'",
+            }
+        }
+
+        extension = node.features[AzureExtension]
+
+        log.info(f"Installing extension '{extension_name}'...")
+        result = extension.create_or_update(
+            name=extension_name,
+            publisher=publisher,
+            type_=extension_type,
+            type_handler_version=version,
+            auto_upgrade_minor_version=True,
+            settings=settings,
+        )
+
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")
+
+    @TestCaseMetadata(
+        description="""
         Runs the Run Command v2 VM extension with a pre-existing ifconfig script.
         """,
         priority=1,

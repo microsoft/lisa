@@ -17,6 +17,7 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
 from lisa import (
     Logger,
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -98,6 +99,62 @@ def _create_and_verify_extension_run(
     ),
 )
 class RunCommandV1Tests(TestSuite):
+    @TestCaseMetadata(
+        description="""
+        Basic boot validation for the Run Command v1 VM extension.
+
+        Installs the extension with a single inline commandToExecute and no file
+        uris, so it needs no storage account or public blob access. Verifies that
+        provisioning succeeds, then removes the extension.
+
+        The extension publisher, type and version are read from runbook variables
+        (extension_publisher, extension_type, extension_version), defaulting to the
+        Run Command v1 extension. The deployed extension is named
+        '<publisher>_<extension_type>_boot_validation_test'.
+        """,
+        priority=5,
+    )
+    def microsoft_azure_extensions_runcommandv1_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        publisher: str = variables.get(
+            "extension_publisher", "Microsoft.CPlat.Core"
+        ).strip()
+        extension_type: str = variables.get(
+            "extension_type", "RunCommandLinux"
+        ).strip()
+        version: str = variables.get("extension_version", "").strip()
+
+        if not version:
+            raise SkippedException(
+                "Required runbook variable 'extension_version' is missing or "
+                "empty. Please set it in the runbook before running this test "
+                "case."
+            )
+
+        extension_name = f"{publisher}_{extension_type}_boot_validation_test"
+        settings = {"commandToExecute": "echo 'RCv1 boot validation success'"}
+
+        extension = node.features[AzureExtension]
+        extension.delete(name=extension_name, ignore_not_found=True)
+
+        try:
+            log.info(f"Installing extension '{extension_name}'...")
+            result = extension.create_or_update(
+                name=extension_name,
+                publisher=publisher,
+                type_=extension_type,
+                type_handler_version=version,
+                auto_upgrade_minor_version=True,
+                settings=settings,
+            )
+
+            assert_that(result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+        finally:
+            extension.delete(name=extension_name, ignore_not_found=True)
+
     @TestCaseMetadata(
         description="""
         Runs the Run Command v2 VM extension with a public Azure storage file uri.
