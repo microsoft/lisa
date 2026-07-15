@@ -231,7 +231,7 @@ def run_testpmd_hotplug(
     )
     # wait for the hot unplug
     processes[collect_from].wait_output(
-        "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1", timeout=180
+        "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1",
     )
     # turn sriov on again without waiting or resetting everything
     collect_from.nic_controller.switch_sriov(
@@ -240,7 +240,6 @@ def run_testpmd_hotplug(
     # wait for the hot plug
     processes[collect_from].wait_output(
         "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, adding device",
-        timeout=180,
         delta_only=True,
     )
 
