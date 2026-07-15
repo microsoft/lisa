@@ -1,3 +1,5 @@
+from pathlib import PurePath
+
 from assertpy import assert_that
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
@@ -198,3 +200,10 @@ class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
             sudo=True,
         )
         make.make_install(self.asset_path)
+        # rdma-core installs some systemd services for infiniband that
+        # we don't actually want enabled for these dpdk tests.
+        # Specifically rdma-ndd.service, it has to wait for cloud-init,
+        # but also has to run before network-pre...
+        # this ends up preventing login via ssh for like 3 minutes while it times out and restarts.
+        # we're only using rdma for the ib verbs, so we can safely just mask this service.
+        node.execute("systemctl mask rdma-ndd.service", sudo=True, shell=True)
