@@ -968,7 +968,7 @@ def do_parallel_cleanup(environment: Environment) -> None:
             interface.switch_sriov(enable=True, wait=False, reset_connections=True)
             # cleanup temporary hugepage and driver changes
         try:
-            node.reboot(time_out=60)
+            node.reboot()
         except LisaException:
             node.log.debug("Timeout during cleanup reboot. Marking node for deletion.")
             node.mark_dirty()
