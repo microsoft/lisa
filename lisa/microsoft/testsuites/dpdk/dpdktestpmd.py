@@ -551,6 +551,7 @@ class DpdkTestpmd(Tool):
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
+        stats_period: int = 2,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -642,7 +643,7 @@ class DpdkTestpmd(Tool):
             and bool(self.get_dpdk_version() > "23.7.0")
         ):
             extra_args += " --txonly-multi-flow"
-        else:
+        elif mode == "txonly":
             self.node.log.debug(
                 "note: skipping use of testpmd txonly-multi-flow flag "
                 "before dpdk 24.11. perf on receive side may be suboptimal."
@@ -665,7 +666,8 @@ class DpdkTestpmd(Tool):
         return (
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            f"-a --stats-period {stats_period} --nb-cores={forwarding_cores}"
+            f" {extra_args}"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -743,7 +745,7 @@ class DpdkTestpmd(Tool):
 
             # reset node connections (quicker and less risky than netvsc reset)
             self.node.close()
-            if not self.check_testpmd_is_running():
+            if not self.check_testpmd_is_running(tries=10, want_dead=True):
                 return
 
             self.node.log.debug(
@@ -751,7 +753,7 @@ class DpdkTestpmd(Tool):
             )
             # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload("hv_netvsc")
-            if self.check_testpmd_is_running():
+            if self.check_testpmd_is_running(tries=10, want_dead=True):
                 raise LisaException("Testpmd has hung, killing the test.")
             else:
                 self.node.log.debug(
