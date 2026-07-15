@@ -23,6 +23,7 @@ from lisa import (
     TestSuiteMetadata,
     UnsupportedOperationException,
     create_timer,
+    features,
     simple_requirement,
 )
 from lisa.base_tools import Uname
@@ -271,6 +272,100 @@ class NetworkSettings(TestSuite):
         if skip_test:
             raise SkippedException(
                 "Max Channel count for all the devices is <=1 and cannot be"
+                " tested for changing. Skipping test."
+            )
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies changing channels count with ethtool on the
+            VF (SR-IOV / Accelerated Networking) device.
+
+            Steps:
+            1. Get the VF device(s) paired with the synthetic nic(s).
+            2. Get the current channels info of the VF device.
+            3   a. Keep changing the channel count from min to max value using ethtool.
+                b. Get the channel count info and validate the channel count
+                    value is equal to the new value assigned.
+            4. Revert back the channel count to its original value.
+        """,
+        priority=2,
+        # BSD unsupported due to channels being read only at runtime.
+        requirement=simple_requirement(
+            network_interface=features.Sriov(),
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def verify_vf_device_channels_change(self, node: Node, log: Logger) -> None:
+        skip_if_no_synthetic_nics(node)
+
+        # Identify the VF device(s). For a synthetic nic paired with a VF,
+        # pci_device_name returns the lower (VF) interface; for a standalone
+        # PCI nic it returns the nic itself.
+        node.nics.reload()
+        vf_interfaces: List[str] = []
+        for nic_name in node.nics.get_nic_names():
+            nic = node.nics.get_nic(nic_name)
+            if (
+                nic.is_pci_module_enabled
+                and nic.pci_device_name
+                and nic.pci_device_name not in vf_interfaces
+            ):
+                vf_interfaces.append(nic.pci_device_name)
+
+        if not vf_interfaces:
+            raise SkippedException(
+                "No VF (SR-IOV / Accelerated Networking) device found on the VM. "
+                "This test requires accelerated networking to be enabled. Verify "
+                "the VM size supports SR-IOV and the feature is enabled."
+            )
+
+        ethtool = node.tools[Ethtool]
+
+        skip_test = True
+        for interface in vf_interfaces:
+            try:
+                channels_info = ethtool.get_device_channels_info(
+                    interface, force_run=True
+                )
+            except UnsupportedOperationException as e:
+                raise SkippedException(e)
+
+            channels = channels_info.current_channels
+            max_channels = channels_info.max_channels
+
+            if max_channels <= 1:
+                log.info(
+                    f"Max channels for VF device {interface} is <= 1."
+                    " Not attempting to change, Skipping."
+                )
+                continue
+
+            skip_test = False
+            for new_channels in range(1, max_channels + 1):
+                new_channels_info = ethtool.change_device_channels_info(
+                    interface, new_channels
+                )
+                assert_that(
+                    new_channels_info.current_channels,
+                    f"Setting channels count to {new_channels} on VF device"
+                    f" {interface} didn't succeed",
+                ).is_equal_to(new_channels)
+
+            if new_channels != channels:
+                # revert back the channel count to original value
+                new_channels_info = ethtool.change_device_channels_info(
+                    interface, channels
+                )
+                assert_that(
+                    new_channels_info.current_channels,
+                    f"Reverting channels count to its original value {channels} on VF"
+                    f" device {interface} didn't succeed. Current Value is"
+                    f" {new_channels_info.current_channels}",
+                ).is_equal_to(channels)
+
+        if skip_test:
+            raise SkippedException(
+                "Max Channel count for all the VF devices is <=1 and cannot be"
                 " tested for changing. Skipping test."
             )
 
