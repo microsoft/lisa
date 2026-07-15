@@ -15,7 +15,6 @@ from lisa.search_space import (
     SetSpace,
     check,
     check_countspace,
-    check_setspace,
     choose_value,
     choose_value_countspace,
 )
@@ -161,40 +160,6 @@ class SearchSpaceTestCase(unittest.TestCase):
                 SetSpace[str](items=set_aa_cc, is_allow_set=True),
             ],
         )
-
-    def test_check_setspace_negated_requirement(self) -> None:
-        # A negated requirement, e.g. not(SCSI), must be met by any capability
-        # that does not include the excluded item(s). This mirrors the disk
-        # controller type check where an NVMe-only image (requirement
-        # not(SCSI)) must match an NVMe-only VM capability.
-        set_scsi = set(["SCSI"])
-        set_nvme = set(["NVMe"])
-        set_scsi_nvme = set(["SCSI", "NVMe"])
-
-        not_scsi = SetSpace[str](items=set_scsi, is_allow_set=False)
-
-        # capability offers only NVMe -> met (does not include SCSI)
-        self.assertTrue(
-            check_setspace(
-                not_scsi, SetSpace[str](items=set_nvme, is_allow_set=True)
-            ).result
-        )
-        # capability offers both SCSI and NVMe -> not met (includes SCSI)
-        self.assertFalse(
-            check_setspace(
-                not_scsi, SetSpace[str](items=set_scsi_nvme, is_allow_set=True)
-            ).result
-        )
-        # capability offers only SCSI -> not met
-        self.assertFalse(
-            check_setspace(
-                not_scsi, SetSpace[str](items=set_scsi, is_allow_set=True)
-            ).result
-        )
-        # bare (non-SetSpace) capability that isn't excluded -> met
-        self.assertTrue(check_setspace(not_scsi, "NVMe").result)
-        # bare (non-SetSpace) capability that is excluded -> not met
-        self.assertFalse(check_setspace(not_scsi, "SCSI").result)
 
     def test_choose_value_not_supported(self) -> None:
         requirement = IntRange(min=5)

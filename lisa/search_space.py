@@ -527,30 +527,19 @@ def check_setspace(
         result.add_reason("capability shouldn't be None")
     else:
         if requirement is not None:
+            has_met_check = False
             if not isinstance(capability, SetSpace):
                 capability = SetSpace[T](is_allow_set=True, items=[capability])
             if not isinstance(requirement, SetSpace):
                 requirement = SetSpace[T](is_allow_set=True, items=[requirement])
-            if not requirement.is_allow_set:
-                # Negated requirement, e.g. not(SCSI). It is met as long as the
-                # capability does not include any of the excluded items.
-                excluded = requirement.intersection(capability)
-                if excluded:
-                    names = ", ".join(
-                        item.value if isinstance(item, Enum) else str(item)
-                        for item in excluded
-                    )
-                    result.add_reason(f"requirements excludes {names}")
-            else:
-                has_met_check = False
-                for item in requirement:
-                    if item in capability:
-                        has_met_check = True
-                        break
-                if not has_met_check:
-                    result.add_reason(
-                        f"requires [{requirement}]" f" but VM supports [{capability}]"
-                    )
+            for item in requirement:
+                if item in capability:
+                    has_met_check = True
+                    break
+            if not has_met_check:
+                result.add_reason(
+                    f"requires [{requirement}]" f" but VM supports [{capability}]"
+                )
     return result
 
 

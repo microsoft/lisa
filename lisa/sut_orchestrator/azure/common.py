@@ -335,6 +335,18 @@ class AzureImageSchema(schema.ImageSchema):
         elif arch == "x64":
             self.architecture = schema.ArchitectureType.x64
 
+    def _is_arm64(self) -> bool:
+        # Detect whether the image targets the Arm64 architecture, handling
+        # both a scalar value and a SetSpace of architectures.
+        architecture = self.architecture
+        if architecture is None:
+            return False
+        if isinstance(architecture, schema.ArchitectureType):
+            return architecture == schema.ArchitectureType.Arm64
+        if isinstance(architecture, search_space.SetSpace):
+            return architecture.isunique(schema.ArchitectureType.Arm64)
+        return False
+
     def _parse_disk_controller_type(
         self, raw_features: Dict[str, Any], log: Logger
     ) -> None:
@@ -343,7 +355,20 @@ class AzureImageSchema(schema.ImageSchema):
             isinstance(disk_controller_type, str)
             and disk_controller_type.lower() == "scsi"
         ):
-            self.disk_controller_type = schema.DiskControllerType.SCSI
+            # Azure Arm64 (e.g. Cobalt) VMs only support the NVMe disk
+            # controller. Some Arm64 marketplace images (e.g. SUSE SLES
+            # arm64) still advertise a "SCSI" DiskControllerTypes tag, which
+            # would produce a SCSI-only requirement that can never match an
+            # NVMe-only Arm64 VM size, causing the environment to be skipped.
+            # Treat these as NVMe so deployment can proceed.
+            if self._is_arm64():
+                log.debug(
+                    "image advertises SCSI disk controller but is Arm64; "
+                    "using NVMe since Arm64 VMs only support NVMe"
+                )
+                self.disk_controller_type = schema.DiskControllerType.NVME
+            else:
+                self.disk_controller_type = schema.DiskControllerType.SCSI
         elif (
             isinstance(disk_controller_type, str)
             and disk_controller_type.lower() == "nvme"
