@@ -3163,6 +3163,7 @@ class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
             "Standard_M192idms_v2",
             "Standard_F72s_v2",
             "Standard_M128ms",
+            "Standard_E192ids_v6",
             # add custom vm sizes below,
         ]
     )
