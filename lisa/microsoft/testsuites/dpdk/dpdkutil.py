@@ -74,6 +74,7 @@ from lisa.tools import (
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import sleep
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 
@@ -111,7 +112,7 @@ class UnsupportedPackageVersionException(LisaException):
         return message
 
 
-# container class for test resources to be passed to run_testpmd_concurrent
+# container class for test resources
 class DpdkTestResources:
     def __init__(
         self, _node: Node, _testpmd: DpdkTestpmd, _rdma_core: Installer
@@ -200,39 +201,52 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
         ).is_true()
 
 
-def testpmd_start_process(kit: DpdkTestResources, cmd: str):
+def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
     proc = kit.node.execute_async(cmd, sudo=True, shell=True)
     proc.wait_output("start packet forwarding", timeout=5)
     return proc
 
 
-def run_testpmd_receiver_hotplug(
+# run the send/receive hotplug test.
+def run_testpmd_hotplug(
     kit_cmd_pairs: Dict[DpdkTestResources, str],
-    receiver: DpdkTestResources,
     sender: DpdkTestResources,
-):
+    receiver: Optional[DpdkTestResources] = None,
+) -> None:
     processes: Dict[DpdkTestResources, Process] = {}
 
-    processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
+    collect_from = receiver if receiver else sender
+    all_kits = [sender]
+    if receiver:
+        all_kits += [receiver]
+        processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
+
     processes[sender] = testpmd_start_process(sender, kit_cmd_pairs[sender])
     # switch_sriov(... wait=True) has become really expensive,
     # and it can easily timeout if things aren't perfect.
     # So: we'll avoid all of that and just start processes and wait for output.
     # We can assume things went well as long as we see these debug messages from testpmd.
-    receiver.nic_controller.switch_sriov(
+    collect_from.nic_controller.switch_sriov(
         enable=False, wait=False, reset_connections=False
     )
-    processes[receiver].wait_output(
-        "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1", timeout=120
+    # wait for the hot unplug
+    processes[collect_from].wait_output(
+        "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1", timeout=180
     )
-    receiver.nic_controller.switch_sriov(
+    # turn sriov on again without waiting or resetting everything
+    collect_from.nic_controller.switch_sriov(
         enable=True, wait=False, reset_connections=False
     )
-    processes[receiver].wait_output(
+    # wait for the hot plug
+    processes[collect_from].wait_output(
         "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, adding device",
-        timeout=60,
+        timeout=180,
+        delta_only=True,
     )
-    for kit in [sender, receiver]:
+
+    sleep(30)
+    # kill testpmd and process the output
+    for kit in all_kits:
         kit.testpmd.kill_previous_testpmd_command()
         kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
 
@@ -244,6 +258,7 @@ def generate_send_receive_run_info(
     multiple_queues: bool = False,
     use_service_cores: int = 1,
     set_mtu: int = 0,
+    stats_period: int = 2,
 ) -> Dict[DpdkTestResources, str]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
     # for MTU test: check that we can fetch the max MTU size for the NIC
@@ -269,6 +284,7 @@ def generate_send_receive_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
+        stats_period=stats_period,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         [rcv_nic],
@@ -278,6 +294,7 @@ def generate_send_receive_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
+        stats_period=stats_period,
     )
 
     kit_cmd_pairs = {
@@ -565,70 +582,6 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
                 kit.testpmd.get_dpdk_version(),
                 "-tx-ip flag for ip forwarding",
             )
-
-
-def run_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
-    seconds: int,
-    log: Logger,
-    hotplug_sriov: bool = False,
-) -> Dict[DpdkTestResources, str]:
-    output: Dict[DpdkTestResources, str] = dict()
-
-    task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
-    if hotplug_sriov:
-        time.sleep(10)  # run testpmd for a bit before disabling sriov
-
-        test_kits = node_cmd_pairs.keys()
-
-        # disable sriov (and wait for change to apply)
-        for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(
-                enable=False, wait=False, reset_connections=False
-            )
-
-        time.sleep(10)
-
-        # re-enable sriov
-        for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(
-                enable=True, wait=False, reset_connections=False
-            )
-
-        time.sleep(30)
-
-        # kill the commands to collect the output early and terminate before timeout
-        for node_resources in test_kits:
-            node_resources.testpmd.kill_previous_testpmd_command()
-
-    task_manager.wait_for_all_workers()
-
-    return output
-
-
-def start_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
-    seconds: int,
-    log: Logger,
-    output: Dict[DpdkTestResources, str],
-) -> TaskManager[Tuple[DpdkTestResources, str]]:
-    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
-
-    def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
-        output[result[0]] = result[1]
-
-    def _run_command_with_testkit(
-        run_kit: Tuple[DpdkTestResources, str],
-    ) -> Tuple[DpdkTestResources, str]:
-        testkit, cmd = run_kit
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
-
-    task_manager = run_in_parallel_async(
-        [partial(_run_command_with_testkit, x) for x in cmd_pairs_as_tuples],
-        _collect_dict_result,
-    )
-
-    return task_manager
 
 
 def init_nodes_concurrent(

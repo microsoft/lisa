@@ -26,8 +26,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     init_nodes_concurrent,
     initialize_node_resources,
     run_dpdk_symmetric_mp,
-    run_testpmd_concurrent,
-    run_testpmd_receiver_hotplug,
+    run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_mutliple_ports,
@@ -521,10 +520,12 @@ class Dpdk(TestSuite):
         sender.switch_sriov = False
 
         kit_cmd_pairs = generate_send_receive_run_info(
-            pmd, sender, receiver, multiple_queues=True
+            pmd, sender, receiver, multiple_queues=True, stats_period=5
         )
-        run_testpmd_receiver_hotplug(
-            kit_cmd_pairs=kit_cmd_pairs, receiver=receiver, sender=sender
+        run_testpmd_hotplug(
+            kit_cmd_pairs=kit_cmd_pairs,
+            sender=sender,
+            receiver=receiver,
         )
 
         hotplug_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
@@ -550,9 +551,7 @@ class Dpdk(TestSuite):
             test_kit: testpmd_cmd,
         }
 
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
-        )
+        run_testpmd_hotplug(kit_cmd_pairs=kit_cmd_pairs, sender=test_kit)
 
         hotplug_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
         self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_pps_set)
