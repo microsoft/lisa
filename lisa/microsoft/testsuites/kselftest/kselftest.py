@@ -367,7 +367,12 @@ class Kselftest(Tool):
 
         tests_to_run = [test for test in filtered_tests if not _is_skipped(test)]
         if not tests_to_run:
-            return
+            raise LisaException(
+                "No kselftests selected after applying"
+                " run_collections/skip_tests filters."
+                " Verify the requested collections exist"
+                " and that the skip list doesn't exclude everything."
+            )
 
         self._log.debug(f"Running tests: {tests_to_run}")
         # Passing every selected test as a separate "-t" argument on a single
