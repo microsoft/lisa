@@ -970,7 +970,7 @@ def do_parallel_cleanup(environment: Environment) -> None:
         try:
             node.reboot()
         except LisaException:
-            node.log.debug("Timeout during cleanup reboot. Marking node for deletion.")
+            node.log.debug("Cleanup reboot failed. Marking node for deletion.")
             node.mark_dirty()
 
     run_in_parallel(
