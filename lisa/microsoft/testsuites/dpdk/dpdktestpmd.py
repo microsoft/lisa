@@ -718,7 +718,6 @@ class DpdkTestpmd(Tool):
 
     def kill_previous_testpmd_command(self) -> None:
         # kill testpmd early
-        # try SIGINT first to get a clean termination with stats
         command_name = self.node.get_pure_path(self.command).name
 
         # try SIGINT first to get a clean termination with stats
