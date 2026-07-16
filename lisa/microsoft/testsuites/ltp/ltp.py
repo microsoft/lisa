@@ -218,7 +218,7 @@ class Ltp(Tool):
                     f"User provided skip file does not exist: {user_input_skip_file}"
                 )
             self._log.debug(f"user_input_skip_file: {user_input_skip_file}")
-            with open(user_input_skip_file, "r") as f:
+            with open(user_input_skip_file, "r", encoding="utf-8") as f:
                 skip_lines = [line.strip() for line in f if line.strip()]
             if not skip_lines:
                 raise LisaException(
