@@ -107,9 +107,10 @@ class RunCommandV1Tests(TestSuite):
         uris, so it needs no storage account or public blob access. Verifies that
         provisioning succeeds, then removes the extension.
 
-        The extension publisher, type and version are read from runbook variables
-        (extension_publisher, extension_type, extension_version), defaulting to the
-        Run Command v1 extension. The deployed extension is named
+        The extension publisher and type are read from runbook variables
+        (extension_publisher, extension_type), defaulting to the Run Command v1
+        extension. The extension_version runbook variable is required; the test
+        is skipped if it is not set. The deployed extension is named
         '<publisher>_<extension_type>_boot_validation_test'.
         """,
         priority=5,

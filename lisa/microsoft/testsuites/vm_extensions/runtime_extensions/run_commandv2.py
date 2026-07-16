@@ -116,9 +116,10 @@ class RunCommandV2Tests(TestSuite):
         'Delete VM Extension' operation, so no explicit cleanup is done here; the
         resource group teardown removes it.
 
-        The extension publisher, type and version are read from runbook variables
-        (extension_publisher, extension_type, extension_version), defaulting to the
-        Run Command v2 extension. The deployed extension is named
+        The extension publisher and type are read from runbook variables
+        (extension_publisher, extension_type), defaulting to the Run Command v2
+        extension. The extension_version runbook variable is required; the test
+        is skipped if it is not set. The deployed extension is named
         '<publisher>_<extension_type>_boot_validation_test'.
         """,
         priority=5,
