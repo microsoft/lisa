@@ -206,8 +206,7 @@ class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
         #
         # We're only using rdma for the ib verbs,
         # so we can safely just mask this service.
-        mask_cmd = "systemctl mask rdma-ndd.service"
-        mask_result = node.execute(mask_cmd, sudo=True, shell=True)
+        mask_result = node.execute("systemctl mask rdma-ndd.service", sudo=True)
         if mask_result.exit_code != 0:
             node.log.debug(
                 "Failed to mask rdma-ndd.service (exit_code=%s). "
