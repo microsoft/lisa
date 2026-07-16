@@ -1125,13 +1125,20 @@ class KdumpCheck(Tool):
         Checks if already in fstab, adds entry if missing.
         """
         fstab = self.node.tools[Fstab]
-        # ensure_entry returns True if added, False if already exists
+        # ensure_entry returns True if added, False if already exists.
+        # Use "nofail" and a short device timeout so a missing or slow-to-
+        # enumerate disk does not make local-fs.target boot-critical. Without
+        # "nofail" the mount is pulled into local-fs.target ordering, which on
+        # some distros (e.g. Ubuntu 18.04) both drops the VM into emergency
+        # mode after a crash/kexec reboot and creates a systemd ordering cycle
+        # that skips networking, leaving the node unreachable over SSH.
+        # pass_num=0 disables the boot-time fsck for this auxiliary disk.
         was_added = fstab.ensure_entry(
             mount_point=mount_point,
             fs_type="ext4",
-            options="defaults",
+            options="defaults,nofail,x-systemd.device-timeout=5s",
             dump=0,
-            pass_num=2,
+            pass_num=0,
             use_uuid=True,
         )
         if was_added:
