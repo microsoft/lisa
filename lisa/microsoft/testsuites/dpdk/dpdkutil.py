@@ -222,6 +222,10 @@ def run_testpmd_hotplug(
         processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
 
     processes[sender] = testpmd_start_process(sender, kit_cmd_pairs[sender])
+
+    # let it run for a bit
+    sleep(10)
+
     # switch_sriov(... wait=True) has become really expensive,
     # and it can easily timeout if things aren't perfect.
     # So: we'll avoid all of that and just start processes and wait for output.
@@ -233,6 +237,10 @@ def run_testpmd_hotplug(
     processes[collect_from].wait_output(
         "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1",
     )
+
+    # let it run for a bit
+    sleep(10)
+
     # turn sriov on again without waiting or resetting everything
     collect_from.nic_controller.switch_sriov(
         enable=True, wait=False, reset_connections=False
@@ -243,6 +251,7 @@ def run_testpmd_hotplug(
         delta_only=True,
     )
 
+    # let it run for a bit
     sleep(30)
     # kill testpmd and process the output
     for kit in all_kits:
@@ -254,7 +263,7 @@ def generate_send_receive_run_info(
     pmd: Pmd,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    multiple_queues: bool = False,
+    multiple_queues: Union[bool, Tuple[bool, bool]] = False,
     use_service_cores: int = 1,
     set_mtu: int = 0,
     stats_period: int = 2,
@@ -274,12 +283,20 @@ def generate_send_receive_run_info(
             )
     else:
         maxmtu_int = 0
+
+    # handle case where one is mq and not the other
+    if isinstance(multiple_queues, tuple):
+        snd_mq, rcv_mq = multiple_queues
+    else:
+        snd_mq = multiple_queues
+        rcv_mq = multiple_queues
+
     snd_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
         0,
         "txonly",
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-        multiple_queues=multiple_queues,
+        multiple_queues=snd_mq,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -289,7 +306,7 @@ def generate_send_receive_run_info(
         [rcv_nic],
         0,
         "rxonly",
-        multiple_queues=multiple_queues,
+        multiple_queues=rcv_mq,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
