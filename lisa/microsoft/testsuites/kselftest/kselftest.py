@@ -324,7 +324,15 @@ class Kselftest(Tool):
             return
 
         # List all available tests
-        list_result = self.run(" -l", shell=True)
+        list_result = self.run(
+            " -l",
+            cwd=work_dir,
+            sudo=run_test_as_root,
+            force_run=True,
+            shell=True,
+            timeout=timeout,
+            update_envs=env_var_dict,
+        )
         list_result.assert_exit_code(
             message="failed to retrieve the list of available kself tests"
         )
