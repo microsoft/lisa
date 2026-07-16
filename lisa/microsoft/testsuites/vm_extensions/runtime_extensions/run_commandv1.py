@@ -120,9 +120,7 @@ class RunCommandV1Tests(TestSuite):
         publisher: str = variables.get(
             "extension_publisher", "Microsoft.CPlat.Core"
         ).strip()
-        extension_type: str = variables.get(
-            "extension_type", "RunCommandLinux"
-        ).strip()
+        extension_type: str = variables.get("extension_type", "RunCommandLinux").strip()
         version: str = variables.get("extension_version", "").strip()
 
         if not version:
