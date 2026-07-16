@@ -44,10 +44,11 @@ from lisa.tools import (
 )
 from lisa.util import (
     LisaException,
+    LisaTimeoutException,
     SkippedException,
     UnsupportedDistroException,
+    check_till_timeout,
     parse_version,
-    sleep,
 )
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 
@@ -695,21 +696,24 @@ class DpdkTestpmd(Tool):
     def check_testpmd_is_running(
         self, tries: int = 10, want_dead: bool = False
     ) -> bool:
-        # check if testpmd is running.
-        #
-        # Allow retrying a few times, and hinting whether you want
-        # the process to be dead or alive.
-        #
-        # avoid retry decorator to avoid raising more exceptions
         command = self.node.get_pure_path(self.command).name
-        while tries > 0:
+        pids: List[str] = []
+
+        def _condition() -> bool:
+            nonlocal pids
             pids = self.node.tools[Pidof].get_pids(command, sudo=True)
-            if len(pids) > 0 and not want_dead:
-                return True
-            elif len(pids) == 0 and want_dead:
-                return False
-            tries -= 1
-            sleep(1)
+            return (len(pids) == 0) if want_dead else (len(pids) > 0)
+
+        try:
+            check_till_timeout(
+                _condition,
+                f"testpmd state wait timed out (want_dead={want_dead})",
+                timeout=tries,
+                interval=1,
+            )
+        except LisaTimeoutException:
+            pass
+
         return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
