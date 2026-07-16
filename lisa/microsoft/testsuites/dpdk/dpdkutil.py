@@ -969,8 +969,10 @@ def do_parallel_cleanup(environment: Environment) -> None:
             # cleanup temporary hugepage and driver changes
         try:
             node.reboot()
-        except LisaException:
-            node.log.debug("Cleanup reboot failed. Marking node for deletion.")
+        except LisaException as e:
+            node.log.debug(
+                f"Cleanup reboot failed. Marking node for deletion. {str(e)}"
+            )
             node.mark_dirty()
 
     run_in_parallel(
