@@ -87,7 +87,8 @@ class KselftestTestsuite(TestSuite):
                 )
             with open(skip_tests_file, "r", encoding="utf-8") as f:
                 skip_tests_list.extend(line.strip() for line in f if line.strip())
-
+        # Normalize whitespace and drop empty entries in the combined skip list.
+        skip_tests_list = [t.strip() for t in skip_tests_list if t and t.strip()]
         try:
             kselftest: Kselftest = node.tools.get(
                 Kselftest,
