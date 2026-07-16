@@ -726,7 +726,8 @@ class DpdkTestpmd(Tool):
         self.node.tools[Kill].by_name(
             command_name, signum=SIGINT, ignore_not_exist=True
         )
-        # check if testpmd is running, retry a few times to let it terminate gracefully
+        # check if testpmd is running,
+        # retry a few times to let it terminate gracefully
         if self.check_testpmd_is_running(tries=10, want_dead=True):
             # attempt to SIGKILL instead of SIGINT
             # doesn't give us the same exit data about send/recv/drop stats
