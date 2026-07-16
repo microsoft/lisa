@@ -1,11 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import io
+import ipaddress
 import re
 import secrets
 import string
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
+import paramiko
 import pycdlib
 import yaml
 
@@ -115,6 +118,68 @@ def _create_cloud_init_iso(
     return str(host.working_path / iso_file_name)
 
 
+def _is_ipv6_address(address: str) -> bool:
+    try:
+        return ipaddress.ip_address(address).version == 6
+    except ValueError:
+        return False
+
+
+def _open_host_loopback_channel(
+    jump_client: paramiko.SSHClient, guest_port: int
+) -> Any:
+    transport = jump_client.get_transport()
+    assert transport
+    return transport.open_channel(
+        kind="direct-tcpip",
+        src_addr=("127.0.0.1", 0),
+        dest_addr=("127.0.0.1", guest_port),
+    )
+
+
+def _wait_nested_ssh_via_host(
+    host_jump_box: schema.ConnectionInfo,
+    connection_info: schema.ConnectionInfo,
+    guest_port: int,
+    timeout: int = 300,
+) -> None:
+    # QEMU forwards the nested vm's SSH port on the host loopback only, so reach
+    # it by tunneling through the host as an SSH jump box. A fresh direct-tcpip
+    # channel is opened for each attempt while the nested vm boots.
+    jump_client = paramiko.SSHClient()
+    jump_client.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy())
+    jump_client.connect(
+        hostname=host_jump_box.address,
+        port=host_jump_box.port,
+        username=host_jump_box.username,
+        password=host_jump_box.password,
+        key_filename=host_jump_box.private_key_file,
+        banner_timeout=10,
+    )
+    try:
+        deadline = time.time() + timeout
+        last_error: Optional[Exception] = None
+        while time.time() < deadline:
+            try:
+                try_connect(
+                    connection_info,
+                    ssh_timeout=30,
+                    sock_factory=lambda: _open_host_loopback_channel(
+                        jump_client, guest_port
+                    ),
+                )
+                return
+            except Exception as e:
+                last_error = e
+                time.sleep(5)
+        raise LisaException(
+            "nested vm ssh connection cannot be established through host "
+            f"tunnel: {last_error}"
+        )
+    finally:
+        jump_client.close()
+
+
 def qemu_connect_nested_vm(
     host: RemoteNode,
     guest_username: str,
@@ -188,10 +253,27 @@ def qemu_connect_nested_vm(
         )
 
     # setup connection to nested vm
-    # Use the host's connection address which respects use_public_address setting.
-    host_address = host.connection_info["address"]
+    # QEMU user-mode networking forwards the nested vm's SSH port on the host
+    # with `hostfwd=tcp::<port>-:22`, which binds IPv4 (0.0.0.0) only. When LISA
+    # reaches the host over IPv6 (use_ipv6), a direct connection to
+    # [host_ipv6]:<port> has nothing listening. To make nested tests pass over
+    # both IPv4 and IPv6, when the host is reached over IPv6 tunnel to the host
+    # loopback (127.0.0.1:<port>, always covered by 0.0.0.0) through the host
+    # itself as an SSH jump box.
+    host_connection = host.connection_info
+    host_address = host_connection["address"]
+
+    host_jump_box: Optional[schema.ConnectionInfo] = None
+    proxy_jump_boxes: Optional[List[schema.ConnectionInfo]] = None
+    if _is_ipv6_address(host_address):
+        host_jump_box = schema.ConnectionInfo(**host_connection)
+        proxy_jump_boxes = [host_jump_box]
+        nested_address = "127.0.0.1"
+    else:
+        nested_address = host_address
+
     connection_info = schema.ConnectionInfo(
-        address=host_address,
+        address=nested_address,
         port=guest_port,
         username=guest_username,
         password=guest_password,
@@ -200,11 +282,15 @@ def qemu_connect_nested_vm(
     nested_vm = RemoteNode(Node(name=name), 0, name)
     nested_vm.set_connection_info(
         public_port=guest_port,
+        proxy_jump_boxes=proxy_jump_boxes,
         **fields_to_dict(connection_info, ["address", "port", "username", "password"]),
     )
 
     # wait for nested vm ssh connection to be ready
-    try_connect(connection_info)
+    if host_jump_box is not None:
+        _wait_nested_ssh_via_host(host_jump_box, connection_info, guest_port)
+    else:
+        try_connect(connection_info)
 
     return nested_vm
 
