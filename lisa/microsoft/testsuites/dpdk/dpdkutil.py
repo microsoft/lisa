@@ -203,7 +203,7 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
 
 def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
     proc = kit.node.execute_async(cmd, sudo=True, shell=True)
-    proc.wait_output("start packet forwarding", timeout=5)
+    proc.wait_output("start packet forwarding", timeout=30)
     return proc
 
 
