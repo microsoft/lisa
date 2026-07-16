@@ -202,14 +202,14 @@ class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
         # we don't actually want enabled for these dpdk tests.
         #
         # this ends up preventing login via ssh for like 3 minutes
-        # while it times out and restarts.
+        # while it times out and restarts during the next boot.
         #
         # We're only using rdma for the ib verbs,
         # so we can safely just mask this service.
         mask_result = node.execute("systemctl mask rdma-ndd.service", sudo=True)
         if mask_result.exit_code != 0:
             node.log.debug(
-                "Failed to mask rdma-ndd.service (exit_code=%s). "
-                "stdout: %s, stderr: %s"
-                % (mask_result.exit_code, mask_result.stdout, mask_result.stderr)
+                "Failed to mask rdma-ndd.service "
+                f"(exit_code={mask_result.exit_code}). "
+                f"stdout: {mask_result.stdout}, stderr: {mask_result.stderr}"
             )
