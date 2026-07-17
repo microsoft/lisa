@@ -988,6 +988,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"into status [{enable}]"
                 ).is_equal_to(enable)
 
+    @retry(HttpResponseError, tries=3, delay=30)
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
