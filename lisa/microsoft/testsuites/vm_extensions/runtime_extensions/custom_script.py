@@ -118,6 +118,7 @@ class CustomScriptTests(TestSuite):
         '<publisher>_<extension_type>_boot_validation_test'.
         """,
         priority=5,
+        maturity="experimental",
     )
     def microsoft_azure_extensions_customscript_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
