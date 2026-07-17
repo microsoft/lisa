@@ -18,4 +18,5 @@ class Whoami(Tool):
         return False
 
     def get_username(self) -> str:
+        # Return the current effective user name reported by `whoami`.
         return self.run("", shell=True).stdout.strip()
