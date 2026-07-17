@@ -21,7 +21,7 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.util import SkippedException, parse_version
+from lisa.util import LisaException, SkippedException, parse_version
 
 
 def create_and_verify_vmaccess_extension_run(
@@ -66,8 +66,9 @@ def run_extension_boot_validation(
 
     The publisher and type are read from the runbook variables
     extension_publisher and extension_type, defaulting to the values passed by
-    the caller. The extension_version runbook variable is required; the test is
-    skipped if it is not set. The deployed extension is named
+    the caller. The extension_version runbook variable is required and must be a
+    'Major.Minor' or 'Major.Minor.Patch' value; the test is skipped if it is not
+    set or is malformed. The deployed extension is named
     '<publisher>_<extension_type>_boot_validation_test'.
     """
     publisher: str = variables.get("extension_publisher", default_publisher).strip()
@@ -85,6 +86,19 @@ def run_extension_boot_validation(
     extension_name = f"{publisher}_{extension_type}_boot_validation_test"
 
     extension = node.features[AzureExtension]
+
+    # Skip if extension_version is not a valid 'Major.Minor' or
+    # 'Major.Minor.Patch' value. Reuse AzureExtension's validator, which raises
+    # LisaException on a malformed version, and turn that into a skip.
+    try:
+        extension.normalize_type_handler_version(version)
+    except LisaException:
+        raise SkippedException(
+            f"Runbook variable 'extension_version'='{version}' is not a valid "
+            "'Major.Minor' or 'Major.Minor.Patch' version. Please set a valid "
+            "version in the runbook before running this test case."
+        )
+
     if cleanup:
         extension.delete(name=extension_name, ignore_not_found=True)
 
