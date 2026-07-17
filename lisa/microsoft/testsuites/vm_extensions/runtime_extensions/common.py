@@ -7,7 +7,7 @@ from assertpy import assert_that
 from azure.core.exceptions import ResourceExistsError
 from azure.storage.blob import BlobType
 
-from lisa import Node
+from lisa import Logger, Node
 from lisa.environment import Environment
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
@@ -43,6 +43,69 @@ def create_and_verify_vmaccess_extension_run(
     assert_that(result["provisioning_state"]).described_as(
         "Expected the extension to succeed"
     ).is_equal_to("Succeeded")
+
+
+def run_extension_boot_validation(
+    node: Node,
+    log: Logger,
+    variables: Dict[str, Any],
+    default_publisher: str,
+    default_extension_type: str,
+    settings: Dict[str, Any],
+    protected_settings: Optional[Dict[str, Any]] = None,
+    cleanup: bool = True,
+) -> None:
+    """
+    Shared boot-validation flow for VM extensions.
+
+    Installs the extension with the provided inline settings, asserts that
+    provisioning succeeds, and optionally removes it. Extensions managed by the
+    Compute Resource Provider (e.g. RunCommand v2 / RunCommandHandlerLinux)
+    cannot be deleted with a normal 'Delete VM Extension' operation, so callers
+    pass cleanup=False for those and rely on resource group teardown instead.
+
+    The publisher and type are read from the runbook variables
+    extension_publisher and extension_type, defaulting to the values passed by
+    the caller. The extension_version runbook variable is required; the test is
+    skipped if it is not set. The deployed extension is named
+    '<publisher>_<extension_type>_boot_validation_test'.
+    """
+    publisher: str = variables.get("extension_publisher", default_publisher).strip()
+    extension_type: str = variables.get(
+        "extension_type", default_extension_type
+    ).strip()
+    version: str = variables.get("extension_version", "").strip()
+
+    if not version:
+        raise SkippedException(
+            "Required runbook variable 'extension_version' is missing or "
+            "empty. Please set it in the runbook before running this test case."
+        )
+
+    extension_name = f"{publisher}_{extension_type}_boot_validation_test"
+
+    extension = node.features[AzureExtension]
+    if cleanup:
+        extension.delete(name=extension_name, ignore_not_found=True)
+
+    try:
+        log.info(f"Installing extension '{extension_name}'...")
+        result = extension.create_or_update(
+            name=extension_name,
+            publisher=publisher,
+            type_=extension_type,
+            type_handler_version=version,
+            auto_upgrade_minor_version=True,
+            settings=settings,
+            protected_settings=protected_settings or {},
+        )
+
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")
+    finally:
+        if cleanup:
+            extension.delete(name=extension_name, ignore_not_found=True)
 
 
 def execute_command(file_name: str, expected_exit_code: int, node: Node) -> None:
