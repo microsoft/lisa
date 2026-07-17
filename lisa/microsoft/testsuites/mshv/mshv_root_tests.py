@@ -16,6 +16,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.features import NestedVirtualization
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -41,7 +42,10 @@ from lisa.util.perf_timer import create_timer
     Microsoft Hypervisor (MSHV) root partition. This test suite contains tests
     to check health of mshv root node.
     """,
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(
+        supported_os=[CBLMariner],
+        supported_features=[NestedVirtualization],
+    ),
 )
 class MshvHostTestSuite(TestSuite):
     mshvdiag_dmesg_pattern = re.compile(r"\[\s+\d+.\d+\]\s+mshv_diag:.*$")
