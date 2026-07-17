@@ -1,4 +1,4 @@
-.. 
+..
    LISA documentation master file, created by
    sphinx-quickstart on Tue Jun 29 13:51:04 2021.
    You can adapt this file completely to your liking, but it should at least
@@ -48,6 +48,7 @@ Why LISA
    Run tests <run_test/run>
    Write tests <write_test/write>
    Test Maturity Model <test_maturity_model>
+   VM Extension Test Onboarding Strategy <vm_extension_validation_framework>
    Distro Pre-Filter <distro_pre_filter>
    Contributing <contributing>
    Troubleshooting <troubleshooting>
