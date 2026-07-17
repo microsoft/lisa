@@ -124,7 +124,7 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=5,
     )
-    def microsoft_azure_extensions_runcommandv2_boot_validation_test(
+    def microsoft_cplat_core_runcommandhandlerlinux_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         publisher: str = variables.get(
