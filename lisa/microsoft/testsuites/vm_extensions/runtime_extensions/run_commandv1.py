@@ -104,7 +104,7 @@ class RunCommandV1Tests(TestSuite):
         Basic boot validation for the Run Command v1 VM extension.
 
         Installs the extension with a single inline commandToExecute and no file
-        uris, so it needs no storage account or public blob access. Verifies that
+        URIs, so it needs no storage account or public blob access. Verifies that
         provisioning succeeds, then removes the extension.
 
         The extension publisher and type are read from runbook variables

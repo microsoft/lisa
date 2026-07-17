@@ -109,7 +109,7 @@ class RunCommandV2Tests(TestSuite):
         Basic boot validation for the Run Command v2 VM extension.
 
         Installs the extension with a single inline RunShellScript command and no
-        script uris, so it needs no storage account or public blob access. Verifies
+        script URIs, so it needs no storage account or public blob access. Verifies
         that provisioning succeeds.
 
         The RunCommand v2 (RunCommandHandlerLinux) extension is managed by the
