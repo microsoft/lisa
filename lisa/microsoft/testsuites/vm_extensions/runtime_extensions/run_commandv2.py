@@ -12,12 +12,12 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     retrieve_storage_blob_url,
     run_extension_boot_validation,
 )
+from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
 from lisa import (
     Logger,
     Node,
     TestCaseMetadata,
-    TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
@@ -27,47 +27,6 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
-
-
-def _check_architecture_supported(node: Node) -> None:
-    arch = node.os.get_kernel_information().hardware_platform  # type: ignore
-    if arch == CpuArchitecture.ARM64:
-        # Support RCv2 on ARM64 Mariner in Canary regions
-        if isinstance(node.os, CBLMariner):
-            node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-            canary_locations = ["centraluseuap", "eastus2euap"]
-            if node_context.location in canary_locations:
-                return
-
-        raise SkippedException("RunCommandv2 Extension not published on ARM64.")
-
-
-def _create_and_verify_extension_run(
-    node: Node,
-    settings: Dict[str, Any],
-    protected_settings: Optional[Dict[str, Any]] = None,
-    test_file: Optional[str] = None,
-    expected_exit_code: Optional[int] = None,
-) -> None:
-    extension = node.features[AzureExtension]
-    result = extension.create_or_update(
-        name="RunCommandv2",
-        publisher="Microsoft.CPlat.Core",
-        type_="RunCommandHandlerLinux",
-        type_handler_version="1.3",
-        auto_upgrade_minor_version=True,
-        settings=settings,
-        protected_settings=protected_settings or {},
-    )
-
-    assert_that(result["provisioning_state"]).described_as(
-        "Expected the extension to succeed"
-    ).is_equal_to("Succeeded")
-
-    if test_file is not None and expected_exit_code is not None:
-        execute_command(
-            file_name=test_file, expected_exit_code=expected_exit_code, node=node
-        )
 
 
 @TestSuiteMetadata(
@@ -91,18 +50,67 @@ def _create_and_verify_extension_run(
         11. Provided a different valid user to run a command with
         12. Provided a different invalid user to run a command with (should fail)
     """,
-    tags=["VM_Extension"],
+    tags=["VM_Extension", "RunCommandHandlerLinux"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
         unsupported_os=[BSD],
     ),
 )
-class RunCommandV2Tests(TestSuite):
+class RunCommandV2Tests(VmExtensionTestBase):
+    PUBLISHER = "Microsoft.CPlat.Core"
+    EXTENSION_TYPE = "RunCommandHandlerLinux"
+    EXTENSION_KEY = "run_command_v2"
+
+    def _create_and_verify_extension_run(
+        self,
+        node: Node,
+        variables: Dict[str, Any],
+        settings: Dict[str, Any],
+        protected_settings: Optional[Dict[str, Any]] = None,
+        test_file: Optional[str] = None,
+        expected_exit_code: Optional[int] = None,
+    ) -> None:
+        version = self._get_version(variables)
+        extension = node.features[AzureExtension]
+        result = extension.create_or_update(
+            name=self.extension_name,
+            publisher=self.PUBLISHER,
+            type_=self.EXTENSION_TYPE,
+            type_handler_version=version,
+            auto_upgrade_minor_version=True,
+            settings=settings,
+            protected_settings=protected_settings or {},
+        )
+
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")
+
+        if test_file is not None and expected_exit_code is not None:
+            execute_command(
+                file_name=test_file, expected_exit_code=expected_exit_code, node=node
+            )
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
-        _check_architecture_supported(node=node)
+        self._check_architecture_supported(node=node)
         check_waagent_version_supported(node=node)
+
+    @staticmethod
+    def _check_architecture_supported(node: Node) -> None:
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+        if arch == CpuArchitecture.ARM64:
+            # Support RCv2 on ARM64 Mariner in Canary regions
+            if isinstance(node.os, CBLMariner):
+                node_context = node.capability.get_extended_runbook(
+                    AzureNodeSchema, AZURE
+                )
+                canary_locations = ["centraluseuap", "eastus2euap"]
+                if node_context.location in canary_locations:
+                    return
+
+            raise SkippedException("RunCommandv2 Extension not published on ARM64.")
 
     @TestCaseMetadata(
         description="""
@@ -152,10 +160,14 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=1,
     )
-    def verify_existing_script_run(self, log: Logger, node: Node) -> None:
+    def verify_existing_script_run(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         settings = {"source": {"CommandId": "ifconfig"}}
 
-        _create_and_verify_extension_run(node=node, settings=settings)
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+        )
 
     @TestCaseMetadata(
         description="""
@@ -163,14 +175,17 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_custom_script_run(self, log: Logger, node: Node) -> None:
+    def verify_custom_script_run(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         test_file = f"/tmp/{str(uuid.uuid4())}"
         settings = {
             "source": {"CommandId": "RunShellScript", "script": f"touch {test_file}"}
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -180,7 +195,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_script_run_with_named_parameter(self, log: Logger, node: Node) -> None:
+    def verify_script_run_with_named_parameter(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         env_var_name = "TestVar"
         test_file = "/tmp/rcv2-named.txt"
         settings = {
@@ -191,8 +208,9 @@ class RunCommandV2Tests(TestSuite):
             "parameters": [{"Name": env_var_name, "Value": test_file}],
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -202,7 +220,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_script_run_with_unnamed_parameter(self, log: Logger, node: Node) -> None:
+    def verify_script_run_with_unnamed_parameter(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
@@ -212,8 +232,9 @@ class RunCommandV2Tests(TestSuite):
             "parameters": [{"Name": "", "Value": test_file}],
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -224,7 +245,7 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_script_run_with_protected_parameter(
-        self, log: Logger, node: Node
+        self, log: Logger, node: Node, variables: Dict[str, Any],
     ) -> None:
         env_var_name = "ProtectedVar"
         test_file = f"/tmp/{uuid.uuid4()}.txt"
@@ -239,8 +260,9 @@ class RunCommandV2Tests(TestSuite):
             "protectedParameters": [{"Name": env_var_name, "Value": test_file}],
         }
 
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             protected_settings=protected_settings,
             test_file=test_file,
@@ -258,7 +280,8 @@ class RunCommandV2Tests(TestSuite):
         priority=5,
     )
     def verify_public_uri_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self, log: Logger, node: Node, environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "rcv2lisa-public"
         blob_name = "public.sh"
@@ -278,8 +301,9 @@ class RunCommandV2Tests(TestSuite):
             },
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -290,7 +314,8 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_private_uri_script_run_failed(
-        self, log: Logger, node: Node, environment: Environment
+        self, log: Logger, node: Node, environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "rcv2lisa"
         blob_name = "no-sas.sh"
@@ -310,8 +335,9 @@ class RunCommandV2Tests(TestSuite):
             },
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=2
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=2,
         )
 
     @TestCaseMetadata(
@@ -322,7 +348,8 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_sas_uri_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self, log: Logger, node: Node, environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "rcv2lisa"
         blob_name = "sas.sh"
@@ -343,8 +370,9 @@ class RunCommandV2Tests(TestSuite):
             },
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -353,7 +381,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_script_run_with_timeout(self, log: Logger, node: Node) -> None:
+    def verify_script_run_with_timeout(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
@@ -363,8 +393,9 @@ class RunCommandV2Tests(TestSuite):
             "timeoutInSeconds": 1,
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -373,7 +404,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_script_run_with_timeout_failed(self, log: Logger, node: Node) -> None:
+    def verify_script_run_with_timeout_failed(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
@@ -383,8 +416,9 @@ class RunCommandV2Tests(TestSuite):
             "timeoutInSeconds": 1,
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=2
+        self._create_and_verify_extension_run(
+            node=node, variables=variables, settings=settings,
+            test_file=test_file, expected_exit_code=2,
         )
 
     @TestCaseMetadata(
@@ -393,7 +427,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_script_run_with_valid_user(self, log: Logger, node: Node) -> None:
+    def verify_script_run_with_valid_user(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         username = "vmaccessuser-valid"
         password = str(uuid.uuid4())
         protected_settings = {"username": username, "password": password}
@@ -414,8 +450,9 @@ class RunCommandV2Tests(TestSuite):
 
         protected_settings = {"runAsPassword": password}
 
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             protected_settings=protected_settings,
             test_file=test_file,
@@ -428,7 +465,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_script_run_with_invalid_user(self, log: Logger, node: Node) -> None:
+    def verify_script_run_with_invalid_user(
+        self, log: Logger, node: Node, variables: Dict[str, Any],
+    ) -> None:
         username = "vmaccessuser-valid"
         invalid_username = "vmaccessuser-invalid"
         password = str(uuid.uuid4())
@@ -450,8 +489,9 @@ class RunCommandV2Tests(TestSuite):
 
         protected_settings = {"runAsPassword": password}
 
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             protected_settings=protected_settings,
             test_file=test_file,
