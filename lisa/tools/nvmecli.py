@@ -342,6 +342,31 @@ class Nvmecli(Tool):
         device_paths_namespace_ids_map = self.get_devices(force_run=force_run)
         return [{path: nsid} for path, nsid in device_paths_namespace_ids_map.items()]
 
+    def get_controller_model(
+        self, device_name: str, force_run: bool = False
+    ) -> str:
+        """
+        Return the model number of an NVMe controller (e.g. /dev/nvme0)
+        using 'id-ctrl'. Unlike 'list', this works even when the controller
+        exposes no namespace (e.g. a remote Accelerator controller with no
+        data disk attached, or one whose namespace failed to enumerate).
+        Returns an empty string if the model cannot be determined.
+        """
+        result = self.run(
+            f"id-ctrl {device_name} -o json 2>/dev/null",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
+        if not result.stdout:
+            return ""
+        try:
+            model = json.loads(result.stdout).get("mn", "")
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            return ""
+        return model.strip() if isinstance(model, str) else ""
+
     def get_device_models(self, force_run: bool = False) -> Dict[str, str]:
         """
         Return a mapping of NVMe device paths to their model names.

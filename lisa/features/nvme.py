@@ -174,6 +174,18 @@ class Nvme(Feature):
                         if ns_path.startswith(f"{disk}n") and ns_model:
                             if "nvme accelerator" in ns_model.lower():
                                 return True
+                    # A remote "Accelerator" controller may expose no
+                    # namespace at all (e.g. no data disk attached, or the
+                    # kernel failed to enumerate its namespaces). Such a
+                    # controller path is absent from the namespace-keyed
+                    # model map above, so query the controller model
+                    # directly via 'id-ctrl' to classify it. This is only
+                    # attempted for controller paths (e.g. /dev/nvme1), not
+                    # namespace paths (e.g. /dev/nvme1n1).
+                    if re.fullmatch(r"/dev/nvme[0-9]+", disk):
+                        ctrl_model = nvme_cli.get_controller_model(disk)
+                        if ctrl_model:
+                            return "nvme accelerator" in ctrl_model.lower()
                     return False
 
                 disk_list[:] = [disk for disk in disk_list if not _is_remote(disk)]

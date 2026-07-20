@@ -17,6 +17,7 @@ from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Df, Echo, Fdisk, Lspci, Mkfs, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
+from lisa.util import get_matched_str
 from lisa.util.constants import DEVICE_TYPE_NVME, DEVICE_TYPE_SRIOV
 
 
@@ -292,25 +293,35 @@ class NvmeTestSuite(TestSuite):
         assert_that(len(nvme_namespaces)).described_as(
             "Could not identify any nvme devices on the test node."
         ).is_not_zero()
-        nvme_devices = nvme.get_devices()
         nvme_cli = node.tools[Nvmecli]
-        device_format_exit_code = 0
-        ns_management_exit_code = [0]
-        # 1. Use `nvme id-ctrl device` command list the capabilities of the device.
-        # 1.1 When 'Format NVM Supported' shown up in output of 'nvme id-ctrl device',
-        #  then nvme disk can be format, otherwise, it can't be format.
-        if not nvme_cli.support_device_format(nvme_devices[0]):
-            device_format_exit_code = 1
-        # 1.2 When 'NS Management and Attachment Supported' shown up in output of
-        #  'nvme id-ctrl device', nvme namespace can be created, deleted and detached,
-        #  otherwise it can't be managed.
-        if not nvme_cli.support_ns_manage_attach(nvme_devices[0]):
-            # for old nvme cli version, it returns 22
-            # for new nvme cli version, it returns 1
-            # for nvmecontrol on FreeBSD, it returns 69
-            # refer https://github.com/linux-nvme/nvme-cli/issues/1120
-            ns_management_exit_code = [1, 22, 69]
         for namespace in nvme_namespaces:
+            # A VM can expose multiple NVMe controllers with different capabilities
+            # (e.g. GB200 systems), so the format/namespace-management support must be
+            # queried on the controller that owns this namespace instead of assuming
+            # every controller behaves like the first one.
+            controller = get_matched_str(namespace, Nvme.NVME_CONTROLLER_PATTERN)
+            assert_that(controller).described_as(
+                f"Could not derive the owning NVMe controller for namespace "
+                f"{namespace}. Verify the namespace path follows the "
+                f"/dev/nvme<ctrl>n<ns> convention."
+            ).is_not_empty()
+            device_format_exit_code = 0
+            ns_management_exit_code = [0]
+            # 1. Use `nvme id-ctrl device` command list the capabilities of the device.
+            # 1.1 When 'Format NVM Supported' shown up in output of
+            #  'nvme id-ctrl device', then nvme disk can be format, otherwise, it
+            #  can't be format.
+            if not nvme_cli.support_device_format(controller):
+                device_format_exit_code = 1
+            # 1.2 When 'NS Management and Attachment Supported' shown up in output of
+            #  'nvme id-ctrl device', nvme namespace can be created, deleted and
+            #  detached, otherwise it can't be managed.
+            if not nvme_cli.support_ns_manage_attach(controller):
+                # for old nvme cli version, it returns 22
+                # for new nvme cli version, it returns 1
+                # for nvmecontrol on FreeBSD, it returns 69
+                # refer https://github.com/linux-nvme/nvme-cli/issues/1120
+                ns_management_exit_code = [1, 22, 69]
             # 2. `nvme format namespace` - format a namespace.
             format_namespace = nvme_cli.format_namespace(namespace)
             format_namespace.assert_exit_code(device_format_exit_code)
