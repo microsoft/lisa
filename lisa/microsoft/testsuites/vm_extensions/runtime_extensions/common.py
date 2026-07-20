@@ -52,7 +52,6 @@ def run_extension_boot_validation(
     default_publisher: str,
     default_extension_type: str,
     settings: Dict[str, Any],
-    protected_settings: Optional[Dict[str, Any]] = None,
     cleanup: bool = True,
 ) -> None:
     """
@@ -115,7 +114,6 @@ def run_extension_boot_validation(
             type_handler_version=install_version,
             auto_upgrade_minor_version=True,
             settings=settings,
-            protected_settings=protected_settings or {},
         )
 
         assert_that(result["provisioning_state"]).described_as(
