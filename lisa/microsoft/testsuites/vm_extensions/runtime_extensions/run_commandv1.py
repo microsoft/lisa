@@ -114,6 +114,7 @@ class RunCommandV1Tests(TestSuite):
         '<publisher>_<extension_type>_boot_validation_test'.
         """,
         priority=5,
+        maturity="preview",
     )
     def microsoft_cplat_core_runcommandlinux_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]

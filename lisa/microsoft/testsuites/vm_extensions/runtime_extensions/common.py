@@ -71,11 +71,13 @@ def run_extension_boot_validation(
     set or is malformed. The deployed extension is named
     '<publisher>_<extension_type>_boot_validation_test'.
     """
-    publisher: str = variables.get("extension_publisher", default_publisher).strip()
-    extension_type: str = variables.get(
-        "extension_type", default_extension_type
+    publisher: str = str(
+        variables.get("extension_publisher", default_publisher)
     ).strip()
-    version: str = variables.get("extension_version", "").strip()
+    extension_type: str = str(
+        variables.get("extension_type", default_extension_type)
+    ).strip()
+    version: str = str(variables.get("extension_version", "")).strip()
 
     if not version:
         raise SkippedException(
@@ -89,9 +91,11 @@ def run_extension_boot_validation(
 
     # Skip if extension_version is not a valid 'Major.Minor' or
     # 'Major.Minor.Patch' value. Reuse AzureExtension's validator, which raises
-    # LisaException on a malformed version, and turn that into a skip.
+    # LisaException on a malformed version, and turn that into a skip. Use the
+    # normalized 'Major.Minor' value for installation (Azure installs by
+    # Major.Minor even when a patch version is supplied).
     try:
-        extension.normalize_type_handler_version(version)
+        install_version, _ = extension.normalize_type_handler_version(version)
     except LisaException:
         raise SkippedException(
             f"Runbook variable 'extension_version'='{version}' is not a valid "
@@ -108,7 +112,7 @@ def run_extension_boot_validation(
             name=extension_name,
             publisher=publisher,
             type_=extension_type,
-            type_handler_version=version,
+            type_handler_version=install_version,
             auto_upgrade_minor_version=True,
             settings=settings,
             protected_settings=protected_settings or {},
