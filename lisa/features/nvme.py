@@ -174,16 +174,23 @@ class Nvme(Feature):
                         if ns_path.startswith(f"{disk}n") and ns_model:
                             if "nvme accelerator" in ns_model.lower():
                                 return True
-                    # A remote "Accelerator" controller may expose no
-                    # namespace at all (e.g. no data disk attached, or the
-                    # kernel failed to enumerate its namespaces). Such a
-                    # controller path is absent from the namespace-keyed
-                    # model map above, so query the controller model
-                    # directly via 'id-ctrl' to classify it. This is only
-                    # attempted for controller paths (e.g. /dev/nvme1), not
-                    # namespace paths (e.g. /dev/nvme1n1).
-                    if re.fullmatch(r"/dev/nvme[0-9]+", disk):
-                        ctrl_model = nvme_cli.get_controller_model(disk)
+                    # The disk is absent from the namespace-keyed model map
+                    # above. This happens for a remote "Accelerator"
+                    # controller that exposes no usable namespace (e.g. no
+                    # data disk attached, or the kernel failed to enumerate
+                    # its namespaces with "Identify NS List failed"). The disk
+                    # may be either the controller path (e.g. /dev/nvme1) or a
+                    # stale/phantom namespace path under it (e.g. /dev/nvme1n1)
+                    # that a cached 'ls' still reports even though 'nvme list'
+                    # no longer enumerates it. In both cases derive the owning
+                    # controller and query its model directly via 'id-ctrl',
+                    # which works even when the controller has no live
+                    # namespace, to classify it.
+                    controller = get_matched_str(
+                        disk, self.NVME_CONTROLLER_PATTERN
+                    )
+                    if controller:
+                        ctrl_model = nvme_cli.get_controller_model(controller)
                         if ctrl_model:
                             return "nvme accelerator" in ctrl_model.lower()
                     return False
