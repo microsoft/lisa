@@ -228,17 +228,17 @@ steps:
     sudo apt-get update -qq
     sudo apt-get install -y git gcc libgirepository1.0-dev libcairo2-dev pkg-config python3-dev
   displayName: Install system dependencies
-  condition: ne(variables['CASE_COUNT'], '0')
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
 
 - script: |
     python -m pip install --upgrade pip
     pip install -e ".[azure]"
   displayName: Install LISA
-  condition: ne(variables['CASE_COUNT'], '0')
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
 
 - task: AzureCLI@2
   displayName: Login to Azure using OIDC
-  condition: ne(variables['CASE_COUNT'], '0')
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
   inputs:
     azureSubscription: $(SERVICECONNECTION)
     scriptType: bash
@@ -267,7 +267,7 @@ steps:
     echo "No test case selected."
     exit 0
   displayName: Skip
-  condition: eq(variables['CASE_COUNT'], '0')
+  condition: and(succeeded(), eq(variables['CASE_COUNT'], '0'))
 
 - script: |
 
@@ -286,7 +286,7 @@ steps:
       -v "auth_type:token"
 
   displayName: Run Selected LISA Tests
-  condition: ne(variables['CASE_COUNT'], '0')
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
   env:
     # Pass the ARM token as a secret env var (S_LISA_ prefix) instead of a
     # -v command-line argument, so it is not exposed via /proc/*/cmdline.
