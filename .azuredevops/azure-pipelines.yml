@@ -212,6 +212,14 @@ steps:
     if image and not re.fullmatch(r"[A-Za-z0-9 ._-]+", image):
         raise ValueError(f"Invalid marketplace image: {image!r}")
 
+    # Fallback: if the AI selected no cases, run the smoke test so every PR
+    # still gets basic provisioning coverage. Use the default image when the
+    # selection did not provide one.
+    if not cases:
+        cases = ["smoke_test"]
+    if not image:
+        image = "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest"
+
     case_names = sanitize_vso(",".join(cases))
     image = sanitize_vso(image)
 
@@ -228,17 +236,17 @@ steps:
     sudo apt-get update -qq
     sudo apt-get install -y git gcc libgirepository1.0-dev libcairo2-dev pkg-config python3-dev
   displayName: Install system dependencies
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
 
 - script: |
     python -m pip install --upgrade pip
     pip install -e ".[azure]"
   displayName: Install LISA
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
 
 - task: AzureCLI@2
   displayName: Login to Azure using OIDC
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
   inputs:
     azureSubscription: $(SERVICECONNECTION)
     scriptType: bash
@@ -264,12 +272,6 @@ steps:
   displayName: Summary
 
 - script: |
-    echo "No test case selected."
-    exit 0
-  displayName: Skip
-  condition: and(succeeded(), eq(variables['CASE_COUNT'], '0'))
-
-- script: |
 
     CASE_PATTERN=$(echo "$(CASE_NAMES)" | tr ',' '|')
 
@@ -286,7 +288,7 @@ steps:
       -v "auth_type:token"
 
   displayName: Run Selected LISA Tests
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], '0'))
+  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
   env:
     # Pass the ARM token as a secret env var (S_LISA_ prefix) instead of a
     # -v command-line argument, so it is not exposed via /proc/*/cmdline.
@@ -295,7 +297,7 @@ steps:
 
 - task: PublishTestResults@2
   displayName: Publish JUnit Results
-  condition: and(always(), ne(variables['CASE_COUNT'], '0'))
+  condition: and(always(), ne(variables['CASE_COUNT'], ''))
   inputs:
     testResultsFormat: JUnit
     testResultsFiles: '**/lisa.junit.xml'
@@ -304,23 +306,23 @@ steps:
 
 - task: PublishBuildArtifacts@1
   displayName: Publish Runtime Artifacts
-  condition: and(always(), ne(variables['CASE_COUNT'], '0'))
+  condition: and(always(), ne(variables['CASE_COUNT'], ''))
   inputs:
     PathtoPublish: runtime
     ArtifactName: lisa-runtime
 
 - task: PublishBuildArtifacts@1
   displayName: Publish AI Selection
-  condition: always()
+  condition: and(always(), ne(variables['CASE_COUNT'], ''))
   inputs:
     PathtoPublish: ai_selected_cases.yml
     ArtifactName: ai-selected-runbook
 
 - task: GitHubComment@0
-  displayName: Comment on GitHub PR (cases selected)
+  displayName: Comment on GitHub PR (test results)
   condition: >-
     and(always(), eq(variables['Build.Reason'], 'PullRequest'),
-    ne(variables['CASE_COUNT'], '0'))
+    ne(variables['CASE_COUNT'], ''))
   inputs:
     # Name of the GitHub service connection created when the repo was
     # connected to Azure DevOps (OAuth-based, no PAT required).
@@ -338,20 +340,3 @@ steps:
       **Result:** $(Agent.JobStatus)
 
       [View full logs in Azure DevOps]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
-
-- task: GitHubComment@0
-  displayName: Comment on GitHub PR (no cases)
-  condition: >-
-    and(always(), eq(variables['Build.Reason'], 'PullRequest'),
-    eq(variables['CASE_COUNT'], '0'))
-  inputs:
-    gitHubConnection: $(gitHubConnection)
-    repositoryName: $(Build.Repository.Name)
-    id: $(System.PullRequest.PullRequestNumber)
-    comment: |
-      <!-- ai-test-selection -->
-      ## AI Test Case Selection
-
-      No impacted test cases were selected for this change, so the LISA test run was skipped.
-
-      [View details in Azure DevOps]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
