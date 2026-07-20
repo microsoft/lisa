@@ -21,6 +21,7 @@ from microsoft.testsuites.performance.networkperf_passthrough import (
 
 from lisa.features import StartStop
 from lisa.messages import NetworkTCPPerformanceMessage, TransportProtocol
+from lisa.tools import Dhclient
 from lisa.util import LisaException, SkippedException
 
 
@@ -231,6 +232,94 @@ sriov_numvfs=unavailable
 
         with self.assertRaisesRegex(SkippedException, "SR-IOV virtual function"):
             suite._validate_physical_pci_nic(node, "enp1s0f1", "remote peer")
+
+    def test_dhclient_cleanup_does_not_self_match(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        node = MagicMock()
+
+        suite._stop_dhcp_on_iface(node, "eth1", "dhclient")
+
+        commands = [item.args[0] for item in node.execute.call_args_list]
+        self.assertEqual(3, len(commands))
+        self.assertIn("dhclient -r", commands[0])
+        self.assertNotIn("pkill", commands[0])
+        self.assertIn("dhclient-eth1.pid", commands[1])
+        self.assertNotIn("pkill", commands[1])
+        self.assertEqual(
+            "pkill -f '[d]hclient.*[[:space:]]eth1([[:space:]]|$)' "
+            "2>/dev/null || true",
+            commands[2],
+        )
+
+    def test_dhcpcd_cleanup_releases_only_target_interface(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        node = MagicMock()
+
+        suite._stop_dhcp_on_iface(node, "eth1", "dhcpcd")
+
+        node.execute.assert_called_once_with(
+            "dhcpcd -k eth1 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+
+    def test_dhcp_supports_dhcpcd(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        suite._install_dhclient_scripts = MagicMock()
+        suite._stop_dhcp_on_iface = MagicMock()
+        node = MagicMock()
+        node.tools = {Dhclient: SimpleNamespace(command="dhcpcd")}
+        dhcp_result = MagicMock(exit_code=0, stdout="configured")
+
+        def execute(command: str, *_: Any, **__: Any) -> Any:
+            result = MagicMock(exit_code=0, stdout="")
+            if "dhcpcd -4 -1 -d eth1" in command:
+                return dhcp_result
+            return result
+
+        node.execute.side_effect = execute
+
+        result = suite._run_dhcp_on_iface(node, "eth1")
+
+        self.assertIs(dhcp_result, result)
+        suite._install_dhclient_scripts.assert_not_called()
+        suite._stop_dhcp_on_iface.assert_called_once_with(node, "eth1", "dhcpcd")
+        self.assertTrue(
+            any(
+                "timeout -k 2s 30s dhcpcd -4 -1 -d eth1" in item.args[0]
+                for item in node.execute.call_args_list
+            )
+        )
+
+    def test_dhcp_preserves_dhclient_config_hook(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        suite._install_dhclient_scripts = MagicMock()
+        suite._stop_dhcp_on_iface = MagicMock()
+        node = MagicMock()
+        node.tools = {Dhclient: SimpleNamespace(command="dhclient")}
+        dhcp_result = MagicMock(exit_code=0, stdout="configured")
+
+        def execute(command: str, *_: Any, **__: Any) -> Any:
+            result = MagicMock(exit_code=0, stdout="")
+            if "dhclient -v -1 -4 -sf" in command:
+                return dhcp_result
+            return result
+
+        node.execute.side_effect = execute
+
+        result = suite._run_dhcp_on_iface(node, "eth1")
+
+        self.assertIs(dhcp_result, result)
+        suite._install_dhclient_scripts.assert_called_once_with(
+            node, "/usr/local/bin/lisa-dhclient-config"
+        )
+        suite._stop_dhcp_on_iface.assert_called_once_with(node, "eth1", "dhclient")
+        self.assertTrue(
+            any(
+                "aa-exec -p unconfined -- dhclient -v -1 -4 -sf" in item.args[0]
+                for item in node.execute.call_args_list
+            )
+        )
 
     def test_baseline_failure_restarts_guest_and_restores_host_address(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)

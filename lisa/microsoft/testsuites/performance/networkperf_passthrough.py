@@ -1384,17 +1384,50 @@ class NetworkPerformance(TestSuite):
                 self._release_passthrough_host_dhcp(host, interface_name)
 
     def _release_passthrough_host_dhcp(self, host: Node, interface_name: str) -> None:
-        dhcp_pid = f"/run/dhclient-{interface_name}.pid"
-        dhcp_lease = f"/var/lib/dhcp/dhclient-{interface_name}.leases"
+        dhcp_client = host.tools[Dhclient].command
+        self._stop_dhcp_on_iface(host, interface_name, dhcp_client)
         host.execute(
-            f"dhclient -r -pf {dhcp_pid} -lf {dhcp_lease} {interface_name} "
-            "2>/dev/null || true; "
-            f"if [ -s {dhcp_pid} ]; then "
-            f'kill "$(cat {dhcp_pid})" 2>/dev/null || true; fi; '
-            f"pkill -f '[d]hclient.*{interface_name}' 2>/dev/null || true; "
-            f"rm -f {dhcp_pid}; "
             f"ip addr flush dev {interface_name} 2>/dev/null || true; "
             f"ip route flush dev {interface_name} 2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+
+    def _stop_dhcp_on_iface(
+        self, node: Node, interface_name: str, dhcp_client: str
+    ) -> None:
+        if dhcp_client == "dhcpcd":
+            node.execute(
+                f"dhcpcd -k {interface_name} 2>/dev/null || true",
+                sudo=True,
+                shell=True,
+            )
+            return
+        if dhcp_client != "dhclient":
+            raise LisaException(
+                f"Cannot stop unsupported DHCP client [{dhcp_client}] on "
+                f"interface [{interface_name}]. Install dhclient or dhcpcd and "
+                "retry the passthrough benchmark."
+            )
+
+        dhcp_pid = f"/run/dhclient-{interface_name}.pid"
+        dhcp_lease = f"/var/lib/dhcp/dhclient-{interface_name}.leases"
+        node.execute(
+            f"dhclient -r -pf {dhcp_pid} -lf {dhcp_lease} {interface_name} "
+            "2>/dev/null || true",
+            sudo=True,
+            shell=True,
+        )
+        node.execute(
+            f"if [ -s {dhcp_pid} ]; then "
+            f'kill "$(cat {dhcp_pid})" 2>/dev/null || true; fi; '
+            f"rm -f {dhcp_pid}",
+            sudo=True,
+            shell=True,
+        )
+        node.execute(
+            f"pkill -f '[d]hclient.*[[:space:]]{interface_name}"
+            "([[:space:]]|$)' 2>/dev/null || true",
             sudo=True,
             shell=True,
         )
@@ -1707,14 +1740,12 @@ class NetworkPerformance(TestSuite):
     def _run_dhcp_on_iface(
         self, node: Node, interface_name: str, keep_unmanaged: bool = True
     ) -> Any:
-        """Run dhclient with safety guards and return its result."""
-        # Probe which DHCP client is available via the Dhclient tool.
-        # Our custom -sf hook is dhclient-specific; skip on images with only dhcpcd.
-        dhclient_tool = node.tools[Dhclient]
-        if dhclient_tool.command != "dhclient":
+        """Run the available DHCP client with safety guards."""
+        dhcp_client = node.tools[Dhclient].command
+        if dhcp_client not in ["dhclient", "dhcpcd"]:
             raise SkippedException(
-                f"Passthrough NIC DHCP requires dhclient; "
-                f"found '{dhclient_tool.command}' which is not supported."
+                f"Passthrough NIC DHCP found unsupported client [{dhcp_client}]. "
+                "Install dhclient or dhcpcd before running this test."
             )
         dhcp_pid = f"/run/dhclient-{interface_name}.pid"
         dhcp_lease = f"/var/lib/dhcp/dhclient-{interface_name}.leases"
@@ -1730,7 +1761,8 @@ class NetworkPerformance(TestSuite):
                 "fi'"
             )
 
-        self._install_dhclient_scripts(node, config_script)
+        if dhcp_client == "dhclient":
+            self._install_dhclient_scripts(node, config_script)
 
         # Isolate only the target interface from competing DHCP managers.
         # NM: mark this interface unmanaged instead of stopping the service.
@@ -1786,36 +1818,22 @@ class NetworkPerformance(TestSuite):
                 shell=True,
             )
         try:
-            # Release stale lease and kill leftover dhclient processes.
-            node.execute(
-                f"dhclient -r -pf {dhcp_pid} -lf {dhcp_lease}"
-                f" {interface_name} 2>/dev/null || true",
-                sudo=True,
-                shell=True,
-            )
-            node.execute(
-                f"if [ -s {dhcp_pid} ]; then"
-                f'  kill "$(cat {dhcp_pid})" 2>/dev/null || true; fi'
-                f"; sleep 1"
-                f"; if [ -s {dhcp_pid} ]; then"
-                f'  kill -9 "$(cat {dhcp_pid})" 2>/dev/null || true; fi'
-                f"; rm -f {dhcp_pid}"
-                f"; pkill -f '[d]hclient.*{interface_name}' 2>/dev/null || true",
-                sudo=True,
-                shell=True,
-            )
+            self._stop_dhcp_on_iface(node, interface_name, dhcp_client)
             node.execute(
                 f"ip addr flush dev {interface_name} 2>/dev/null || true",
                 sudo=True,
                 shell=True,
             )
-            # Real dhclient run with minimal config hook.
-            dhcp_cmd = (
-                f"dhclient -v -1 -4 -sf {config_script}"
-                f" -pf {dhcp_pid} -lf {dhcp_lease} {interface_name}"
-            )
+            if dhcp_client == "dhclient":
+                dhcp_cmd = (
+                    f"dhclient -v -1 -4 -sf {config_script}"
+                    f" -pf {dhcp_pid} -lf {dhcp_lease} {interface_name}"
+                )
+                dhcp_cmd = _wrap_aa(dhcp_cmd)
+            else:
+                dhcp_cmd = f"dhcpcd -4 -1 -d {interface_name}"
             dhcp_result = node.execute(
-                f"timeout -k 2s 30s {_wrap_aa(dhcp_cmd)}",
+                f"timeout -k 2s 30s {dhcp_cmd}",
                 sudo=True,
                 shell=True,
                 timeout=45,
