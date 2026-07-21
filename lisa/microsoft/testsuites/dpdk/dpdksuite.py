@@ -518,6 +518,8 @@ class Dpdk(TestSuite):
         receiver.switch_sriov = True
         sender.switch_sriov = False
 
+        # use multiple queues on receiver only to avoid
+        # losing the connection with AN is disabled.
         kit_cmd_pairs = generate_send_receive_run_info(
             pmd, sender, receiver, multiple_queues=(False, True), stats_period=5
         )
