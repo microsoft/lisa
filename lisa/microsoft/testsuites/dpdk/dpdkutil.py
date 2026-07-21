@@ -209,6 +209,15 @@ def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
     return proc
 
 
+def _quick_check_for_segfault(proc: Process, phase: str) -> None:
+    # cursory check for worst case scenario after hot add.
+    # just to avoid waiting a full 5-10 minutes
+    if proc.wait_output(
+        "Segmentation fault (core dumped)", timeout=15, error_on_missing=False
+    ):
+        raise LisaException(f"Error: testpmd segfaulted after {phase}.")
+
+
 # run the send/receive hotplug test.
 def run_testpmd_hotplug(
     kit_cmd_pairs: Dict[DpdkTestResources, str],
@@ -236,6 +245,10 @@ def run_testpmd_hotplug(
     collect_from.nic_controller.switch_sriov(
         enable=False, wait=False, reset_connections=False
     )
+
+    # cursory check for worst case scenario after hot remove.
+    _quick_check_for_segfault(processes[collect_from], "hot remove")
+
     # wait for the hot unplug
     processes[collect_from].wait_output(
         "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1"
@@ -248,6 +261,10 @@ def run_testpmd_hotplug(
     collect_from.nic_controller.switch_sriov(
         enable=True, wait=False, reset_connections=False
     )
+
+    # cursory check for worst case scenario after hot remove.
+    _quick_check_for_segfault(processes[collect_from], "hot add")
+
     # wait for the hot plug
     processes[collect_from].wait_output(
         "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, adding device",
