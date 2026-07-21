@@ -14,13 +14,7 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
 )
 from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
-from lisa import (
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuiteMetadata,
-    simple_requirement,
-)
+from lisa import Logger, Node, TestCaseMetadata, TestSuiteMetadata, simple_requirement
 from lisa.environment import Environment
 from lisa.operating_system import BSD, CBLMariner, CpuArchitecture
 from lisa.sut_orchestrator import AZURE
@@ -57,7 +51,7 @@ from lisa.util import SkippedException
         unsupported_os=[BSD],
     ),
 )
-class RunCommandV2Tests(VmExtensionTestBase):
+class RunCommandV2Tests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.CPlat.Core"
     EXTENSION_TYPE = "RunCommandHandlerLinux"
     EXTENSION_KEY = "run_command_v2"
@@ -161,12 +155,17 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=1,
     )
     def verify_existing_script_run(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         settings = {"source": {"CommandId": "ifconfig"}}
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
+            node=node,
+            variables=variables,
+            settings=settings,
         )
 
     @TestCaseMetadata(
@@ -176,7 +175,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_custom_script_run(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         test_file = f"/tmp/{str(uuid.uuid4())}"
         settings = {
@@ -184,8 +186,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -196,7 +201,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_script_run_with_named_parameter(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         env_var_name = "TestVar"
         test_file = "/tmp/rcv2-named.txt"
@@ -209,8 +217,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -221,7 +232,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_script_run_with_unnamed_parameter(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
@@ -233,8 +247,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -245,7 +262,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_script_run_with_protected_parameter(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         env_var_name = "ProtectedVar"
         test_file = f"/tmp/{uuid.uuid4()}.txt"
@@ -280,7 +300,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=5,
     )
     def verify_public_uri_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "rcv2lisa-public"
@@ -302,8 +325,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -314,7 +340,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_private_uri_script_run_failed(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "rcv2lisa"
@@ -336,8 +365,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=2,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=2,
         )
 
     @TestCaseMetadata(
@@ -348,7 +380,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_sas_uri_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "rcv2lisa"
@@ -371,8 +406,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -382,7 +420,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_script_run_with_timeout(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
@@ -394,8 +435,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -405,7 +449,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_script_run_with_timeout_failed(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
@@ -417,8 +464,11 @@ class RunCommandV2Tests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=2,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=2,
         )
 
     @TestCaseMetadata(
@@ -428,7 +478,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_script_run_with_valid_user(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         username = "vmaccessuser-valid"
         password = str(uuid.uuid4())
@@ -466,7 +519,10 @@ class RunCommandV2Tests(VmExtensionTestBase):
         priority=3,
     )
     def verify_script_run_with_invalid_user(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         username = "vmaccessuser-valid"
         invalid_username = "vmaccessuser-invalid"

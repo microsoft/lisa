@@ -16,13 +16,7 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
 )
 from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
-from lisa import (
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuiteMetadata,
-    simple_requirement,
-)
+from lisa import Logger, Node, TestCaseMetadata, TestSuiteMetadata, simple_requirement
 from lisa.environment import Environment
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE
@@ -60,7 +54,7 @@ from lisa.sut_orchestrator.azure.tools import Waagent
         unsupported_os=[BSD],
     ),
 )
-class CustomScriptTests(VmExtensionTestBase):
+class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.Azure.Extensions"
     EXTENSION_TYPE = "CustomScript"
     EXTENSION_KEY = "custom_script"
@@ -139,7 +133,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_public_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
@@ -157,8 +154,11 @@ class CustomScriptTests(VmExtensionTestBase):
         settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -173,7 +173,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_second_public_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
@@ -222,7 +225,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_script_in_both_settings_failed(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
@@ -263,7 +269,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_public_script_protected_settings_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
@@ -302,7 +311,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_public_script_without_command_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
@@ -338,7 +350,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_base64_script_with_command_run(
-        self, log: Logger, node: Node, variables: Dict[str, Any],
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
     ) -> None:
         test_file = "/tmp/cse-base64-command.txt"
 
@@ -348,7 +363,9 @@ class CustomScriptTests(VmExtensionTestBase):
         settings = {"script": script_base64, "commandToExecute": "sh script.sh"}
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
+            node=node,
+            variables=variables,
+            settings=settings,
             assert_exception=HttpResponseError,
         )
 
@@ -363,7 +380,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_public_script_with_base64_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
@@ -384,8 +404,11 @@ class CustomScriptTests(VmExtensionTestBase):
         settings = {"fileUris": [blob_url], "script": script_base64}
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -399,7 +422,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_public_script_with_gzip_base64_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
@@ -421,8 +447,11 @@ class CustomScriptTests(VmExtensionTestBase):
         settings = {"fileUris": [blob_url], "script": script_base64}
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -434,7 +463,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_private_script_without_sas_run_failed(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
@@ -475,7 +507,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_private_script_with_storage_credentials_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
@@ -519,7 +554,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_private_sas_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
@@ -541,8 +579,11 @@ class CustomScriptTests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -557,7 +598,10 @@ class CustomScriptTests(VmExtensionTestBase):
         maturity="preview",
     )
     def verify_public_python_script_run(
-        self, log: Logger, node: Node, environment: Environment,
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
@@ -580,6 +624,9 @@ class CustomScriptTests(VmExtensionTestBase):
         }
 
         self._create_and_verify_extension_run(
-            node=node, variables=variables, settings=settings,
-            test_file=test_file, expected_exit_code=0,
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )

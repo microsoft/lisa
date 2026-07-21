@@ -45,7 +45,7 @@ class VmExtensionTestBase(TestSuite):
         Raises SkippedException if not set — the test is not applicable
         for this run.
         """
-        version = variables.get(self.version_variable, "").strip()
+        version = str(variables.get(self.version_variable, "")).strip()
         if not version:
             raise SkippedException(
                 f"Runbook variable '{self.version_variable}' is required for "
@@ -68,7 +68,7 @@ class VmExtensionTestBase(TestSuite):
         version = self._get_version(variables)
         extension = node.features[AzureExtension]
         extension.delete(name=self.extension_name, ignore_not_found=True)
-        return extension.create_or_update(
+        result: Dict[str, Any] = extension.create_or_update(
             name=self.extension_name,
             publisher=self.PUBLISHER,
             type_=self.EXTENSION_TYPE,
@@ -77,6 +77,7 @@ class VmExtensionTestBase(TestSuite):
             settings=settings or {},
             protected_settings=protected_settings or {},
         )
+        return result
 
     def _assert_provisioned(self, result: Dict[str, Any]) -> None:
         """Assert the extension provisioning state is Succeeded."""
