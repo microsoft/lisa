@@ -4,13 +4,11 @@
 import base64
 import gzip
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     check_waagent_version_supported,
-    execute_command,
     retrieve_storage_account_name_and_key,
     retrieve_storage_blob_url,
 )
@@ -58,45 +56,6 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.Azure.Extensions"
     EXTENSION_TYPE = "CustomScript"
     EXTENSION_KEY = "custom_script"
-
-    def _create_and_verify_extension_run(
-        self,
-        node: Node,
-        variables: Dict[str, Any],
-        settings: Optional[Dict[str, Any]] = None,
-        protected_settings: Optional[Dict[str, Any]] = None,
-        test_file: Optional[str] = None,
-        expected_exit_code: Optional[int] = None,
-        assert_exception: Any = None,
-    ) -> None:
-        version = self._get_version(variables)
-        extension = node.features[AzureExtension]
-        extension.delete(name=self.extension_name, ignore_not_found=True)
-
-        def enable_extension() -> Any:
-            result = extension.create_or_update(
-                name=self.extension_name,
-                publisher=self.PUBLISHER,
-                type_=self.EXTENSION_TYPE,
-                type_handler_version=version,
-                auto_upgrade_minor_version=True,
-                settings=settings or {},
-                protected_settings=protected_settings or {},
-            )
-            return result
-
-        if assert_exception:
-            assert_that(enable_extension).raises(assert_exception).when_called_with()
-        else:
-            result = enable_extension()
-            assert_that(result["provisioning_state"]).described_as(
-                "Expected the extension to succeed"
-            ).is_equal_to("Succeeded")
-
-        if test_file is not None and expected_exit_code is not None:
-            execute_command(
-                file_name=test_file, expected_exit_code=expected_exit_code, node=node
-            )
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")

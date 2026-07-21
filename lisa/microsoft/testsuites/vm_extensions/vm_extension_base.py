@@ -4,6 +4,7 @@
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
+from microsoft.testsuites.vm_extensions.runtime_extensions.common import execute_command
 from retry import retry
 
 from lisa import Logger, Node, TestSuite
@@ -28,6 +29,10 @@ class VmExtensionTestBase(TestSuite):
     PUBLISHER: str = ""
     EXTENSION_TYPE: str = ""
     EXTENSION_KEY: str = ""
+    # Whether the extension can be removed with a normal 'Delete VM Extension'
+    # operation. Set to False for CRP-managed extensions (e.g. RunCommand v2 /
+    # RunCommandHandlerLinux) that cannot be deleted this way.
+    SUPPORTS_DELETE: bool = True
 
     @property
     def version_variable(self) -> str:
@@ -130,3 +135,54 @@ class VmExtensionTestBase(TestSuite):
         finally:
             self._uninstall(node)
         self._assert_vm_reachable(node)
+
+    def _create_and_verify_extension_run(
+        self,
+        node: Node,
+        variables: Dict[str, Any],
+        settings: Optional[Dict[str, Any]] = None,
+        protected_settings: Optional[Dict[str, Any]] = None,
+        test_file: Optional[str] = None,
+        expected_exit_code: Optional[int] = None,
+        assert_exception: Optional[Any] = None,
+    ) -> None:
+        """
+        Install the extension and verify the outcome.
+
+          - assert_exception set: expect create_or_update to raise it.
+          - otherwise: expect provisioning_state to be 'Succeeded'.
+          - test_file + expected_exit_code set: verify the command result on
+            the VM via execute_command.
+
+        Any pre-existing instance with the same name is deleted first, unless
+        SUPPORTS_DELETE is False (e.g. CRP-managed extensions such as
+        RunCommand v2).
+        """
+        version = self._get_version(variables)
+        extension = node.features[AzureExtension]
+        if self.SUPPORTS_DELETE:
+            extension.delete(name=self.extension_name, ignore_not_found=True)
+
+        def enable_extension() -> Any:
+            return extension.create_or_update(
+                name=self.extension_name,
+                publisher=self.PUBLISHER,
+                type_=self.EXTENSION_TYPE,
+                type_handler_version=version,
+                auto_upgrade_minor_version=True,
+                settings=settings or {},
+                protected_settings=protected_settings or {},
+            )
+
+        if assert_exception:
+            assert_that(enable_extension).raises(assert_exception).when_called_with()
+        else:
+            result = enable_extension()
+            assert_that(result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+
+        if test_file is not None and expected_exit_code is not None:
+            execute_command(
+                file_name=test_file, expected_exit_code=expected_exit_code, node=node
+            )

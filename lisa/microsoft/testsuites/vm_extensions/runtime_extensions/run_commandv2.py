@@ -2,13 +2,11 @@
 # Licensed under the MIT license.
 
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from assertpy import assert_that
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     check_waagent_version_supported,
     create_and_verify_vmaccess_extension_run,
-    execute_command,
     retrieve_storage_blob_url,
     run_extension_boot_validation,
 )
@@ -55,36 +53,7 @@ class RunCommandV2Tests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.CPlat.Core"
     EXTENSION_TYPE = "RunCommandHandlerLinux"
     EXTENSION_KEY = "run_command_v2"
-
-    def _create_and_verify_extension_run(
-        self,
-        node: Node,
-        variables: Dict[str, Any],
-        settings: Dict[str, Any],
-        protected_settings: Optional[Dict[str, Any]] = None,
-        test_file: Optional[str] = None,
-        expected_exit_code: Optional[int] = None,
-    ) -> None:
-        version = self._get_version(variables)
-        extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name=self.extension_name,
-            publisher=self.PUBLISHER,
-            type_=self.EXTENSION_TYPE,
-            type_handler_version=version,
-            auto_upgrade_minor_version=True,
-            settings=settings,
-            protected_settings=protected_settings or {},
-        )
-
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
-        if test_file is not None and expected_exit_code is not None:
-            execute_command(
-                file_name=test_file, expected_exit_code=expected_exit_code, node=node
-            )
+    SUPPORTS_DELETE = False
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
