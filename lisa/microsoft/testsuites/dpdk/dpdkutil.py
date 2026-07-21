@@ -201,7 +201,11 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
 
 def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
     proc = kit.node.execute_async(cmd, sudo=True, shell=True)
-    proc.wait_output("start packet forwarding", timeout=30)
+    # Note: This is an extremely long timeout for this command...
+    # But some timeout here is better than none here.
+    # The hotplug tests have really long timeouts, but testpmd
+    # should be able to start within a few seconds.
+    proc.wait_output("start packet forwarding", timeout=60)
     return proc
 
 
