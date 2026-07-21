@@ -3,6 +3,7 @@
 import re
 from decimal import Decimal
 from functools import partial
+from ipaddress import AddressValueError, IPv4Address
 from pathlib import Path
 from statistics import median
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
@@ -37,7 +38,7 @@ from lisa.messages import (
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV, OPENVMM
 from lisa.testsuite import TestResult
-from lisa.tools import Dhclient, Ethtool, Kill, PowerShell, Sysctl
+from lisa.tools import Dhclient, Ethtool, Kill, Lagscope, Lsof, PowerShell, Sysctl
 from lisa.tools.ip import Ip
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
@@ -331,12 +332,15 @@ class NetworkPerformance(TestSuite):
         log_path: Path,
         variables: Dict[str, Any],
         benchmark: PassthroughBenchmark,
+        prepare_ntttcp_tools: bool = False,
     ) -> None:
         guest = cast(RemoteNode, node)
         peer = self._get_passthrough_peer(variables)
         host = self._get_linux_passthrough_host(test_result, node, peer)
         peer_nic_name = self._get_host_nic_name(peer)
         self._validate_physical_pci_nic(peer, peer_nic_name, "remote peer")
+        if prepare_ntttcp_tools:
+            self._prepare_ntttcp_tools([guest, host, peer])
         start_stop = node.features[StartStop]
         host_with_address = cast(Any, host)
         had_host_internal_address = hasattr(host, "internal_address")
@@ -351,6 +355,7 @@ class NetworkPerformance(TestSuite):
             self._validate_physical_pci_nic(
                 host, host_nic_name, "immediate virtualization host"
             )
+            self._set_passthrough_peer_route(host, host_nic_name, peer)
             baseline_runs, profiles = self._collect_host_baseline_runs(
                 benchmark=benchmark,
                 host=host,
@@ -372,6 +377,7 @@ class NetworkPerformance(TestSuite):
                     self._wait_for_guest_start(guest)
 
         guest, guest_nic_name = self._configure_passthrough_nic_for_node(node, log_path)
+        self._set_passthrough_peer_route(guest, guest_nic_name, peer)
         guest_runs = self._collect_guest_throughput_runs(
             benchmark=benchmark,
             guest=guest,
@@ -397,6 +403,28 @@ class NetworkPerformance(TestSuite):
                 )
             )
         test_result.set_status(test_result.status, " | ".join(result_summaries))
+
+    def _prepare_ntttcp_tools(self, nodes: List[Node]) -> None:
+        for benchmark_node in nodes:
+            benchmark_node.tools[Ntttcp]
+            benchmark_node.tools[Lagscope]
+            benchmark_node.tools[Lsof]
+
+    def _set_passthrough_peer_route(
+        self, node: Node, interface_name: str, peer: RemoteNode
+    ) -> None:
+        source_address = cast(Any, node).internal_address
+        node.execute(
+            f"ip route replace {peer.internal_address}/32 "
+            f"dev {interface_name} src {source_address}",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to route passthrough benchmark peer "
+                f"[{peer.internal_address}] through interface [{interface_name}]."
+            ),
+        )
 
     def _collect_host_baseline_runs(
         self,
@@ -813,6 +841,7 @@ class NetworkPerformance(TestSuite):
             log_path=log_path,
             variables=variables,
             benchmark=run_ntttcp,
+            prepare_ntttcp_tools=True,
         )
 
     @TestCaseMetadata(
@@ -867,6 +896,7 @@ class NetworkPerformance(TestSuite):
             log_path=log_path,
             variables=variables,
             benchmark=run_ntttcp,
+            prepare_ntttcp_tools=True,
         )
 
     # Network device passthrough tests between 2 guests
@@ -1831,7 +1861,7 @@ class NetworkPerformance(TestSuite):
                 )
                 dhcp_cmd = _wrap_aa(dhcp_cmd)
             else:
-                dhcp_cmd = f"dhcpcd -4 -1 -d {interface_name}"
+                dhcp_cmd = f"dhcpcd -4 -1 -d -G -C resolv.conf {interface_name}"
             dhcp_result = node.execute(
                 f"timeout -k 2s 30s {dhcp_cmd}",
                 sudo=True,
@@ -1953,6 +1983,14 @@ class NetworkPerformance(TestSuite):
                 "The peer IP must be assigned to the remote peer's dedicated "
                 "physical PCI test NIC."
             )
+        try:
+            ip = str(IPv4Address(ip))
+        except AddressValueError as identifier:
+            raise SkippedException(
+                f"passthrough_peer_ip [{ip}] is not a valid IPv4 address. "
+                "Configure the IPv4 address assigned to the remote peer's "
+                "dedicated physical PCI test NIC."
+            ) from identifier
 
         peer = RemoteNode(
             runbook=schema.Node(name="passthrough-peer"),

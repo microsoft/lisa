@@ -21,7 +21,7 @@ from microsoft.testsuites.performance.networkperf_passthrough import (
 
 from lisa.features import StartStop
 from lisa.messages import NetworkTCPPerformanceMessage, TransportProtocol
-from lisa.tools import Dhclient
+from lisa.tools import Dhclient, Lagscope, Lsof, Ntttcp
 from lisa.util import LisaException, SkippedException
 
 
@@ -116,6 +116,18 @@ class NetworkPerformancePassthroughTestCase(TestCase):
         with self.assertRaisesRegex(SkippedException, "passthrough_peer_ip"):
             suite._get_passthrough_peer(
                 {
+                    "passthrough_peer_username": "lisa",
+                    "passthrough_peer_private_key_file": "id_rsa",
+                }
+            )
+
+    def test_passthrough_peer_rejects_invalid_peer_ip(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+
+        with self.assertRaisesRegex(SkippedException, "not a valid IPv4 address"):
+            suite._get_passthrough_peer(
+                {
+                    "passthrough_peer_ip": "invalid; command",
                     "passthrough_peer_username": "lisa",
                     "passthrough_peer_private_key_file": "id_rsa",
                 }
@@ -273,7 +285,7 @@ sriov_numvfs=unavailable
 
         def execute(command: str, *_: Any, **__: Any) -> Any:
             result = MagicMock(exit_code=0, stdout="")
-            if "dhcpcd -4 -1 -d eth1" in command:
+            if "dhcpcd -4 -1 -d -G -C resolv.conf eth1" in command:
                 return dhcp_result
             return result
 
@@ -286,7 +298,8 @@ sriov_numvfs=unavailable
         suite._stop_dhcp_on_iface.assert_called_once_with(node, "eth1", "dhcpcd")
         self.assertTrue(
             any(
-                "timeout -k 2s 30s dhcpcd -4 -1 -d eth1" in item.args[0]
+                "timeout -k 2s 30s dhcpcd -4 -1 -d -G -C resolv.conf eth1"
+                in item.args[0]
                 for item in node.execute.call_args_list
             )
         )
@@ -342,6 +355,7 @@ sriov_numvfs=unavailable
         suite._configure_passthrough_nic_for_host = MagicMock(
             side_effect=configure_host_nic
         )
+        suite._set_passthrough_peer_route = MagicMock()
         suite._collect_host_baseline_runs = MagicMock(
             side_effect=LisaException("baseline collection failed")
         )
@@ -363,6 +377,9 @@ sriov_numvfs=unavailable
                 call(peer, "peer-data-nic", "remote peer"),
                 call(host, "host-data-nic", "immediate virtualization host"),
             ]
+        )
+        suite._set_passthrough_peer_route.assert_called_once_with(
+            host, "host-data-nic", peer
         )
         suite._release_passthrough_host_dhcp.assert_called_once_with(
             host, "host-data-nic"
@@ -390,6 +407,7 @@ sriov_numvfs=unavailable
         suite._configure_passthrough_nic_for_host = MagicMock(
             side_effect=configure_host_nic
         )
+        suite._set_passthrough_peer_route = MagicMock()
         suite._collect_host_baseline_runs = MagicMock(
             side_effect=LisaException("baseline collection failed")
         )
@@ -411,6 +429,40 @@ sriov_numvfs=unavailable
         start_stop.start.assert_called_once_with()
         suite._wait_for_guest_start.assert_called_once_with(guest)
         self.assertFalse(hasattr(host, "internal_address"))
+
+    def test_passthrough_peer_route_uses_data_interface_and_source(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        source_address = "192.0.2.11"
+        peer_address = "192.0.2.10"
+        node = MagicMock()
+        node.internal_address = source_address
+        peer = MagicMock()
+        peer.internal_address = peer_address
+
+        suite._set_passthrough_peer_route(node, "eth1", peer)
+
+        node.execute.assert_called_once_with(
+            f"ip route replace {peer_address}/32 dev eth1 src {source_address}",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to route passthrough benchmark peer [{peer_address}] "
+                "through interface [eth1]."
+            ),
+        )
+
+    def test_ntttcp_tools_are_prepared_before_passthrough_handoff(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        nodes = [MagicMock(), MagicMock(), MagicMock()]
+
+        suite._prepare_ntttcp_tools(nodes)
+
+        for node in nodes:
+            self.assertEqual(
+                [call(Ntttcp), call(Lagscope), call(Lsof)],
+                node.tools.__getitem__.call_args_list,
+            )
 
     def test_passthrough_baseline_accepts_exactly_95_percent(self) -> None:
         summary = self._assert_baseline(
