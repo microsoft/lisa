@@ -1736,8 +1736,11 @@ def run_dpdk_symmetric_mp(
         for nic in node.nics.nics.values()
         if nic != node.nics.get_primary_nic() and nic.lower
     ][:2]
+
+    # make sure ping is installed _before_ the test starts.
     ping = node.tools[Ping]
-    ping.install()
+    if not ping.exists:
+        ping.install()
 
     # initialize for netvsc, we rely on the debug messages in this test
     # to identify the hotplug events.
