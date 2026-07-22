@@ -2,8 +2,10 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from unittest.case import TestCase
+from unittest.mock import patch
 
 from azure.mgmt.compute.models import ResourceSku  # type: ignore
 
@@ -32,6 +34,22 @@ class AzurePrepareTestCase(TestCase):
         locations = ["westus3", "eastus", "notreal"]
         for location in locations:
             self._platform.get_location_info(location, self._log)
+
+    def test_get_sig_os_disk_size(self) -> None:
+        shared_image = common.SharedImageGallerySchema()
+        for size_in_gb, expected_size in [(None, 0), (64, 64)]:
+            with self.subTest(size_in_gb=size_in_gb):
+                gallery_image: Any = SimpleNamespace(
+                    storage_profile=SimpleNamespace(
+                        os_disk_image=SimpleNamespace(size_in_gb=size_in_gb)
+                    )
+                )
+                with patch.object(
+                    self._platform, "_get_sig_version", return_value=gallery_image
+                ):
+                    actual_size = self._platform._get_sig_os_disk_size(shared_image)
+
+                self.assertEqual(expected_size, actual_size)
 
     def test_load_capability(self) -> None:
         # capability can be loaded correct

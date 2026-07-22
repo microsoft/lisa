@@ -3013,14 +3013,12 @@ class AzurePlatform(Platform):
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_version(shared_image)
-        assert found_image.storage_profile, "'storage_profile' must not be 'None'"
-        assert (
-            found_image.storage_profile.os_disk_image
-        ), "'os_disk_image' must not be 'None'"
-        assert (
-            found_image.storage_profile.os_disk_image.size_in_gb
-        ), "'size_in_gb' must not be 'None'"
-        return int(found_image.storage_profile.os_disk_image.size_in_gb)
+        storage_profile = found_image.storage_profile
+        assert storage_profile, "'storage_profile' must not be 'None'"
+        os_disk_image = storage_profile.os_disk_image
+        assert os_disk_image, "'os_disk_image' must not be 'None'"
+        size_in_gb = os_disk_image.size_in_gb
+        return int(size_in_gb) if size_in_gb is not None else 0
 
     def _get_cgi_os_disk_size(
         self, community_gallery_image: CommunityGalleryImageSchema
