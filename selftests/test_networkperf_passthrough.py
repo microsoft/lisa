@@ -21,7 +21,7 @@ from microsoft.testsuites.performance.networkperf_passthrough import (
 
 from lisa.features import StartStop
 from lisa.messages import NetworkTCPPerformanceMessage, TransportProtocol
-from lisa.tools import Dhclient, Lagscope, Lsof, Ntttcp
+from lisa.tools import Dhclient, Kill, Lagscope, Lsof, Ntttcp, Sysctl
 from lisa.util import LisaException, SkippedException
 
 
@@ -275,7 +275,7 @@ sriov_numvfs=unavailable
             shell=True,
         )
 
-    def test_dhcp_supports_dhcpcd(self) -> None:
+    def test_dhcp_keeps_dhcpcd_running_for_lease_renewal(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)
         suite._install_dhclient_scripts = MagicMock()
         suite._stop_dhcp_on_iface = MagicMock()
@@ -285,7 +285,7 @@ sriov_numvfs=unavailable
 
         def execute(command: str, *_: Any, **__: Any) -> Any:
             result = MagicMock(exit_code=0, stdout="")
-            if "dhcpcd -4 -1 -d -G -C resolv.conf eth1" in command:
+            if "dhcpcd -4 -d -G -C resolv.conf eth1" in command:
                 return dhcp_result
             return result
 
@@ -298,10 +298,12 @@ sriov_numvfs=unavailable
         suite._stop_dhcp_on_iface.assert_called_once_with(node, "eth1", "dhcpcd")
         self.assertTrue(
             any(
-                "timeout -k 2s 30s dhcpcd -4 -1 -d -G -C resolv.conf eth1"
-                in item.args[0]
+                "timeout -k 2s 30s dhcpcd -4 -d -G -C resolv.conf eth1" in item.args[0]
                 for item in node.execute.call_args_list
             )
+        )
+        self.assertFalse(
+            any("dhcpcd -4 -1" in item.args[0] for item in node.execute.call_args_list)
         )
 
     def test_dhcp_preserves_dhclient_config_hook(self) -> None:
@@ -463,6 +465,51 @@ sriov_numvfs=unavailable
                 [call(Ntttcp), call(Lagscope), call(Lsof)],
                 node.tools.__getitem__.call_args_list,
             )
+
+    def test_cleanup_nodes_deduplicate_baremetal_host(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        node = MagicMock()
+        environment = MagicMock()
+        environment.nodes.list.return_value = [node]
+        environment.platform = None
+        suite._baremetal_hosts = [node]
+
+        self.assertEqual([node], suite._get_cleanup_nodes(environment))
+
+    def test_after_case_cleans_processes_sequentially_per_node(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        nodes = [MagicMock(name="node-0"), MagicMock(name="node-1")]
+        kills = [MagicMock(), MagicMock()]
+        sysctls = [MagicMock(), MagicMock()]
+        for node, kill, sysctl in zip(nodes, kills, sysctls):
+            node.tools.__getitem__.side_effect = {
+                Kill: kill,
+                Sysctl: sysctl,
+            }.__getitem__
+        suite._get_cleanup_nodes = MagicMock(return_value=nodes)
+        suite._baremetal_hosts = []
+        task_counts = []
+
+        def run_tasks(tasks: Any) -> None:
+            task_counts.append(len(tasks))
+            for task in tasks:
+                task()
+
+        with patch(
+            "microsoft.testsuites.performance.networkperf_passthrough."
+            "run_in_parallel",
+            side_effect=run_tasks,
+        ):
+            suite.after_case(log=MagicMock(), environment=MagicMock())
+
+        self.assertEqual([2, 2], task_counts)
+        expected_processes = [
+            call(process, ignore_not_exist=True)
+            for process in ["lagscope", "netperf", "netserver", "ntttcp", "iperf3"]
+        ]
+        for kill, sysctl in zip(kills, sysctls):
+            self.assertEqual(expected_processes, kill.by_name.call_args_list)
+            sysctl.reset.assert_called_once_with()
 
     def test_passthrough_baseline_accepts_exactly_95_percent(self) -> None:
         summary = self._assert_baseline(

@@ -1861,7 +1861,7 @@ class NetworkPerformance(TestSuite):
                 )
                 dhcp_cmd = _wrap_aa(dhcp_cmd)
             else:
-                dhcp_cmd = f"dhcpcd -4 -1 -d -G -C resolv.conf {interface_name}"
+                dhcp_cmd = f"dhcpcd -4 -d -G -C resolv.conf {interface_name}"
             dhcp_result = node.execute(
                 f"timeout -k 2s 30s {dhcp_cmd}",
                 sudo=True,
@@ -2384,47 +2384,50 @@ class NetworkPerformance(TestSuite):
             platform_host = getattr(environment.platform, "host_node", None)
             if isinstance(platform_host, Node) and platform_host not in all_nodes:
                 all_nodes.append(platform_host)
-        if self._baremetal_hosts:
-            all_nodes.extend(self._baremetal_hosts)
+        for baremetal_host in self._baremetal_hosts:
+            if baremetal_host not in all_nodes:
+                all_nodes.append(baremetal_host)
         return all_nodes
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         all_nodes = self._get_cleanup_nodes(environment)
+        cleanup_processes = ["lagscope", "netperf", "netserver", "ntttcp", "iperf3"]
 
-        def do_process_cleanup(process: str, node: Node) -> None:
-            try:
-                if isinstance(node.os, Windows):
-                    escaped_process = process.replace("'", "''")
-                    node.tools[PowerShell].run_cmdlet(
-                        cmdlet=(
-                            f"$p = Get-Process -Name '{escaped_process}' "
-                            "-ErrorAction SilentlyContinue; "
-                            "if ($p) { $p | Stop-Process -Force "
-                            "-ErrorAction SilentlyContinue }"
-                        ),
-                        fail_on_error=False,
+        def do_process_cleanup(node: Node) -> None:
+            for process in cleanup_processes:
+                try:
+                    if isinstance(node.os, Windows):
+                        escaped_process = process.replace("'", "''")
+                        node.tools[PowerShell].run_cmdlet(
+                            cmdlet=(
+                                f"$p = Get-Process -Name '{escaped_process}' "
+                                "-ErrorAction SilentlyContinue; "
+                                "if ($p) { $p | Stop-Process -Force "
+                                "-ErrorAction SilentlyContinue }"
+                            ),
+                            fail_on_error=False,
+                        )
+                        continue
+
+                    kill = node.tools[Kill]
+                    kill.by_name(process, ignore_not_exist=True)
+                except LisaException as identifier_error:
+                    log.debug(
+                        f"Skipping Kill tool-based cleanup for '{process}' on "
+                        f"node '{node.name}': {identifier_error}"
                     )
-                    return
+                    if isinstance(node.os, Windows):
+                        continue
 
-                kill = node.tools[Kill]
-                kill.by_name(process, ignore_not_exist=True)
-            except LisaException as identifier_error:
-                log.debug(
-                    f"Skipping Kill tool-based cleanup for '{process}' on "
-                    f"node '{node.name}': {identifier_error}"
-                )
-                if isinstance(node.os, Windows):
-                    return
-
-                node.execute(
-                    cmd=(
-                        f"pids=$(pidof {process} 2>/dev/null || true); "
-                        '[ -z "$pids" ] || kill -9 $pids || true'
-                    ),
-                    shell=True,
-                    sudo=True,
-                )
+                    node.execute(
+                        cmd=(
+                            f"pids=$(pidof {process} 2>/dev/null || true); "
+                            '[ -z "$pids" ] || kill -9 $pids || true'
+                        ),
+                        shell=True,
+                        sudo=True,
+                    )
 
         def do_sysctl_cleanup(node: Node) -> None:
             if isinstance(node.os, Windows):
@@ -2437,12 +2440,7 @@ class NetworkPerformance(TestSuite):
                     f"Skipping sysctl cleanup on node '{node.name}': {sysctl_error}"
                 )
 
-        cleanup_tasks: List[Callable[[], None]] = []
-        for process in ["lagscope", "netperf", "netserver", "ntttcp", "iperf3"]:
-            for node in all_nodes:
-                cleanup_tasks.append(partial(do_process_cleanup, process, node))
-
-        run_in_parallel(cleanup_tasks)
+        run_in_parallel([partial(do_process_cleanup, node) for node in all_nodes])
         run_in_parallel([partial(do_sysctl_cleanup, x) for x in all_nodes])
 
         for external_host in self._baremetal_hosts:
