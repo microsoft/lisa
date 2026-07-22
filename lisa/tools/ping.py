@@ -4,7 +4,7 @@ import re
 from typing import Optional, Type
 
 from lisa.executable import Tool
-from lisa.operating_system import Alpine, CBLMariner, Debian
+from lisa.operating_system import Alpine, Debian, RPMDistro
 from lisa.tools.ip import Ip
 from lisa.util import UnsupportedDistroException
 from lisa.util.process import Process
@@ -40,7 +40,7 @@ class Ping(Tool):
     def install(self) -> bool:
         if isinstance(self.node.os, Debian):
             package_name = "iputils-ping"
-        elif isinstance(self.node.os, CBLMariner):
+        elif isinstance(self.node.os, RPMDistro):
             package_name = "iputils"
         else:
             raise UnsupportedDistroException(self.node.os)
