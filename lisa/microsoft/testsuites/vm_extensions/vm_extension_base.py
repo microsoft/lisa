@@ -16,14 +16,22 @@ class VmExtensionTestBase(TestSuite):
     """
     Base class for publisher-owned VM extension test suites.
 
-    Subclasses MUST define:
-      - PUBLISHER: str       — e.g. "Microsoft.Azure.Extensions"
-      - EXTENSION_TYPE: str  — e.g. "CustomScript"
-      - EXTENSION_KEY: str   — e.g. "custom_script" (snake_case, unique)
+    Supports two usage patterns:
 
-    The extension version is always read from a runbook variable named
-    '{EXTENSION_KEY}_version'. This allows multiple extensions to be
-    tested in a single run without code changes.
+    1. **Dedicated suite** — subclass sets class constants:
+       - PUBLISHER: str       — e.g. "Microsoft.Azure.Extensions"
+       - EXTENSION_TYPE: str  — e.g. "CustomScript"
+       - EXTENSION_KEY: str   — e.g. "custom_script" (snake_case, unique)
+       Version is read from runbook variable '{EXTENSION_KEY}_version'.
+
+    2. **Generic suite** — leave class constants empty, pass via runbook
+       variables:
+       - extension_publisher: str
+       - extension_type: str
+       - extension_version: str
+       This is the existing contract used by generic VM extension tests.
+
+    When class constants are set they take precedence over runbook variables.
     """
 
     PUBLISHER: str = ""
@@ -38,6 +46,45 @@ class VmExtensionTestBase(TestSuite):
     # RunCommandHandlerLinux) that cannot be deleted this way.
     SUPPORTS_DELETE: bool = True
 
+    def _resolve_publisher(self, variables: Dict[str, Any]) -> str:
+        """Return publisher from runbook variable, falling back to class constant."""
+        return variables.get("extension_publisher", "").strip() or self.PUBLISHER
+
+    def _resolve_type(self, variables: Dict[str, Any]) -> str:
+        """Return extension type from runbook variable, falling back to class constant."""
+        return variables.get("extension_type", "").strip() or self.EXTENSION_TYPE
+
+    def _validate_extension_variables(self, variables: Dict[str, Any]) -> None:
+        """
+        Validate that if any extension_* runbook variable is provided,
+        all three (extension_publisher, extension_type, extension_version)
+        are present. This matches the existing GenericVmExtension contract.
+        Raises SkippedException on partial specification.
+
+        Note: The extension_* runbook variable approach is maintained for
+        backward compatibility with existing runbooks and pipelines that
+        use the generic VM extension test contract.
+        """
+        pub = variables.get("extension_publisher", "").strip()
+        ext_type = variables.get("extension_type", "").strip()
+        ver = variables.get("extension_version", "").strip()
+
+        # If any generic variable is set, require all three
+        if any([pub, ext_type, ver]) and not all([pub, ext_type, ver]):
+            missing = []
+            if not pub:
+                missing.append("extension_publisher")
+            if not ext_type:
+                missing.append("extension_type")
+            if not ver:
+                missing.append("extension_version")
+            raise SkippedException(
+                f"Partial extension_* specification: missing {missing}. "
+                f"When using generic runbook variables, all of "
+                f"'extension_publisher', 'extension_type', and "
+                f"'extension_version' are required."
+            )
+
     @property
     def version_variable(self) -> str:
         """Runbook variable name for this extension's version."""
@@ -46,25 +93,34 @@ class VmExtensionTestBase(TestSuite):
     @property
     def extension_name(self) -> str:
         """Azure resource name used when installing the extension."""
-        return self.EXTENSION_KEY
+        return self.EXTENSION_KEY or self.EXTENSION_TYPE or "vm_extension"
 
     def _get_version(self, variables: Dict[str, Any]) -> str:
         """
         Resolve the extension version.
 
         Order of precedence:
-          1. runbook variable '{EXTENSION_KEY}_version' (allows overriding /
-             testing multiple versions without code changes);
-          2. the suite's DEFAULT_VERSION code-level fallback.
-        Raises SkippedException only if neither is set.
+          1. runbook variable 'extension_version' (generic suite / override);
+          2. runbook variable '{EXTENSION_KEY}_version' (dedicated suite);
+          3. the suite's DEFAULT_VERSION code-level fallback.
+        Raises SkippedException only if none is set.
         """
-        version = str(variables.get(self.version_variable, "")).strip()
+        self._validate_extension_variables(variables)
+        # Generic variable takes priority
+        version = str(variables.get("extension_version", "")).strip()
+        # Then dedicated suite variable
+        if not version and self.EXTENSION_KEY:
+            version = str(variables.get(self.version_variable, "")).strip()
+        # Then code-level fallback
         if not version:
             version = self.DEFAULT_VERSION.strip()
         if not version:
+            publisher = self._resolve_publisher(variables)
+            type_ = self._resolve_type(variables)
             raise SkippedException(
-                f"No version set for {self.PUBLISHER}.{self.EXTENSION_TYPE}: "
-                f"runbook variable '{self.version_variable}' is empty and no "
+                f"No version set for {publisher}.{type_}: "
+                f"runbook variable 'extension_version' or "
+                f"'{self.version_variable}' is empty and no "
                 f"DEFAULT_VERSION is defined. Skipping."
             )
         return version
@@ -81,13 +137,15 @@ class VmExtensionTestBase(TestSuite):
         Install the extension on the node. Pre-deletes any existing instance
         with the same name to avoid conflicts.
         """
+        publisher = self._resolve_publisher(variables)
+        type_ = self._resolve_type(variables)
         version = self._get_version(variables)
         extension = node.features[AzureExtension]
         extension.delete(name=self.extension_name, ignore_not_found=True)
         result: Dict[str, Any] = extension.create_or_update(
             name=self.extension_name,
-            publisher=self.PUBLISHER,
-            type_=self.EXTENSION_TYPE,
+            publisher=publisher,
+            type_=type_,
             type_handler_version=version,
             auto_upgrade_minor_version=True,
             settings=settings or {},
@@ -95,11 +153,15 @@ class VmExtensionTestBase(TestSuite):
         )
         return result
 
-    def _assert_provisioned(self, result: Dict[str, Any]) -> None:
+    def _assert_provisioned(
+        self, result: Dict[str, Any], variables: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Assert the extension provisioning state is Succeeded."""
+        variables = variables or {}
+        publisher = self._resolve_publisher(variables)
+        type_ = self._resolve_type(variables)
         assert_that(result["provisioning_state"]).described_as(
-            f"Expected {self.PUBLISHER}.{self.EXTENSION_TYPE} "
-            f"provisioning to succeed"
+            f"Expected {publisher}.{type_} provisioning to succeed"
         ).is_equal_to("Succeeded")
 
     @retry(tries=3, delay=10)  # type: ignore
@@ -136,11 +198,13 @@ class VmExtensionTestBase(TestSuite):
         result = self._install(
             node, variables, settings=settings, protected_settings=protected_settings
         )
+        publisher = self._resolve_publisher(variables)
+        type_ = self._resolve_type(variables)
         try:
-            self._assert_provisioned(result)
+            self._assert_provisioned(result, variables)
             log.info(
                 f"Extension '{self.extension_name}' "
-                f"({self.PUBLISHER}.{self.EXTENSION_TYPE}) provisioned successfully."
+                f"({publisher}.{type_}) provisioned successfully."
             )
             self._assert_vm_reachable(node)
         finally:
@@ -169,6 +233,8 @@ class VmExtensionTestBase(TestSuite):
         SUPPORTS_DELETE is False (e.g. CRP-managed extensions such as
         RunCommand v2).
         """
+        publisher = self._resolve_publisher(variables)
+        type_ = self._resolve_type(variables)
         version = self._get_version(variables)
         extension = node.features[AzureExtension]
         if self.SUPPORTS_DELETE:
@@ -177,8 +243,8 @@ class VmExtensionTestBase(TestSuite):
         def enable_extension() -> Any:
             return extension.create_or_update(
                 name=self.extension_name,
-                publisher=self.PUBLISHER,
-                type_=self.EXTENSION_TYPE,
+                publisher=publisher,
+                type_=type_,
                 type_handler_version=version,
                 auto_upgrade_minor_version=True,
                 settings=settings or {},

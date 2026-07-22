@@ -108,6 +108,8 @@ from it:
 Runbook Configuration
 ~~~~~~~~~~~~~~~~~~~~~
 
+**Pattern 1: Dedicated suites** — each extension uses a scoped version variable:
+
 .. code-block:: yaml
 
    variable:
@@ -122,6 +124,30 @@ Runbook Configuration
 - **Variable present** → extension tests run
 - **Variable missing** → tests are skipped (not failed)
 - **No code changes needed** to test a different version
+
+**Pattern 2: Generic suite** — uses ``extension_*`` variables for backward
+compatibility with existing runbooks and pipelines:
+
+.. code-block:: yaml
+
+   variable:
+     - name: extension_publisher
+       value: "Microsoft.Azure.Monitor"
+     - name: extension_type
+       value: "AzureMonitorLinuxAgent"
+     - name: extension_version
+       value: "1.7.1"
+
+When ``extension_*`` variables are present, they take priority over class
+constants. All three must be specified together — partial specification
+raises ``SkippedException`` with a clear error message.
+
+**Resolution order:**
+
+- Publisher: ``extension_publisher`` → ``PUBLISHER`` (class constant)
+- Type: ``extension_type`` → ``EXTENSION_TYPE`` (class constant)
+- Version: ``extension_version`` → ``{EXTENSION_KEY}_version`` →
+  ``DEFAULT_VERSION`` (code fallback)
 
 Filtering Tests in Runbooks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
