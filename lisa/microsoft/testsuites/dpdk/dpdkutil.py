@@ -744,7 +744,7 @@ def verify_dpdk_send_receive(
         kit_cmd_pairs[receiver],
         receive_timeout,
         constants.SIGINT,
-        kill_timeout=receive_timeout,
+        kill_timeout=receive_timeout + 10,
     )
     receive_result.wait_output("start packet forwarding")
     sender_result = sender.node.tools[Timeout].start_with_timeout(
