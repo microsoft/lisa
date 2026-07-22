@@ -53,6 +53,7 @@ class RunCommandV2Tests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.CPlat.Core"
     EXTENSION_TYPE = "RunCommandHandlerLinux"
     EXTENSION_KEY = "run_command_v2"
+    DEFAULT_VERSION = "1.3"
     SUPPORTS_DELETE = False
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:

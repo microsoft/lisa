@@ -29,6 +29,10 @@ class VmExtensionTestBase(TestSuite):
     PUBLISHER: str = ""
     EXTENSION_TYPE: str = ""
     EXTENSION_KEY: str = ""
+    # Optional code-level fallback version, used when the runbook variable
+    # '{EXTENSION_KEY}_version' is not provided. Leave empty to require the
+    # variable (the test is skipped when neither is set).
+    DEFAULT_VERSION: str = ""
     # Whether the extension can be removed with a normal 'Delete VM Extension'
     # operation. Set to False for CRP-managed extensions (e.g. RunCommand v2 /
     # RunCommandHandlerLinux) that cannot be deleted this way.
@@ -46,15 +50,22 @@ class VmExtensionTestBase(TestSuite):
 
     def _get_version(self, variables: Dict[str, Any]) -> str:
         """
-        Read the extension version from runbook variables.
-        Raises SkippedException if not set — the test is not applicable
-        for this run.
+        Resolve the extension version.
+
+        Order of precedence:
+          1. runbook variable '{EXTENSION_KEY}_version' (allows overriding /
+             testing multiple versions without code changes);
+          2. the suite's DEFAULT_VERSION code-level fallback.
+        Raises SkippedException only if neither is set.
         """
         version = str(variables.get(self.version_variable, "")).strip()
         if not version:
+            version = self.DEFAULT_VERSION.strip()
+        if not version:
             raise SkippedException(
-                f"Runbook variable '{self.version_variable}' is required for "
-                f"{self.PUBLISHER}.{self.EXTENSION_TYPE}. Skipping."
+                f"No version set for {self.PUBLISHER}.{self.EXTENSION_TYPE}: "
+                f"runbook variable '{self.version_variable}' is empty and no "
+                f"DEFAULT_VERSION is defined. Skipping."
             )
         return version
 

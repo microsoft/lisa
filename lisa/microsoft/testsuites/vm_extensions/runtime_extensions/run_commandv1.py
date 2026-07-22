@@ -56,6 +56,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.CPlat.Core"
     EXTENSION_TYPE = "RunCommandLinux"
     EXTENSION_KEY = "run_command_v1"
+    DEFAULT_VERSION = "1.0"
 
     @TestCaseMetadata(
         description="""

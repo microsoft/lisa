@@ -56,6 +56,7 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.Azure.Extensions"
     EXTENSION_TYPE = "CustomScript"
     EXTENSION_KEY = "custom_script"
+    DEFAULT_VERSION = "2.1"
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
