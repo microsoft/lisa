@@ -17,7 +17,7 @@ from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException
 
-DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
+DPDK_STABLE_GIT_REPO = "https://github.com/dpdk/dpdk-stable.git"
 
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
