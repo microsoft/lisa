@@ -519,7 +519,7 @@ class Dpdk(TestSuite):
         sender.switch_sriov = False
 
         # use multiple queues on receiver only to avoid
-        # losing the connection with AN is disabled.
+        # losing the connection when AN is disabled on it.
         kit_cmd_pairs = generate_send_receive_run_info(
             pmd, sender, receiver, multiple_queues=(False, True), stats_period=5
         )
@@ -547,7 +547,7 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly")
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
@@ -862,7 +862,7 @@ class Dpdk(TestSuite):
         # allow configuring for different platforms
         mtu_size = 4000
         try:
-            snd, rcv = verify_dpdk_send_receive_multi_txrx_queue(
+            verify_dpdk_send_receive_multi_txrx_queue(
                 environment,
                 log,
                 variables,
