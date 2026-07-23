@@ -150,6 +150,7 @@ class TarDownloader(Downloader):
                 self._tar_url,
                 overwrite=False,
                 file_path=str(work_path),
+                skip_exists=True,
             )
             remote_path = node.get_pure_path(tarfile)
             self.tar_filename = remote_path.name
@@ -167,12 +168,13 @@ class TarDownloader(Downloader):
         # force name as tarfile name
         # add option to skip files which already exist on disk
         # in the event we have already extracted this specific tar
-        node.tools[Tar].extract(
-            file=str(remote_path),
-            dest_dir=str(work_path),
-            gzip=True,
-            skip_existing_files=True,
-        )
+        if not node.shell.exists(self.asset_path):
+            node.tools[Tar].extract(
+                file=str(remote_path),
+                dest_dir=str(work_path),
+                gzip=True,
+                skip_existing_files=True,
+            )
         return self.asset_path
 
 
@@ -186,7 +188,8 @@ class Installer:
     # First we download the assets to ensure asset_path is set
     # even if we end up skipping re-installation
     def _setup_node(self) -> None:
-        pass
+        if not hasattr(self, "asset_path"):
+            self._download_assets()
 
     # check if the package is already installed:
     # Is the package installed from source? Or from the package manager?
