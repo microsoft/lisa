@@ -80,7 +80,7 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         settings = {"commandToExecute": "echo 'CSE test success'"}
-        self._full_lifecycle(node, log, variables, settings=settings)
+        self._boot_validation(node, log, variables, settings=settings)
 
     @TestCaseMetadata(
         description="""

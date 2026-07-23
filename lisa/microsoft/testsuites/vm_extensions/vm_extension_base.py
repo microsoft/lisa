@@ -144,18 +144,28 @@ class VmExtensionTestBase(TestSuite):
         variables: Dict[str, Any],
         settings: Optional[Dict[str, Any]] = None,
         protected_settings: Optional[Dict[str, Any]] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Install the extension on the node. Pre-deletes any existing instance
-        with the same name to avoid conflicts.
+        Install the extension on the node.
+
+        ``name`` defaults to ``self.extension_name`` and ``version`` to the
+        resolved runbook/DEFAULT_VERSION value; callers (e.g. boot validation)
+        may override both. Any pre-existing instance with the same name is
+        deleted first, unless the extension cannot be deleted normally
+        (``SUPPORTS_DELETE`` is False, e.g. CRP-managed extensions).
         """
         publisher = self._resolve_publisher(variables)
         type_ = self._resolve_type(variables)
-        version = self._get_version(variables)
+        if version is None:
+            version = self._get_version(variables)
+        name = name or self.extension_name
         extension = node.features[AzureExtension]
-        extension.delete(name=self.extension_name, ignore_not_found=True)
+        if self.SUPPORTS_DELETE:
+            extension.delete(name=name, ignore_not_found=True)
         result: Dict[str, Any] = extension.create_or_update(
-            name=self.extension_name,
+            name=name,
             publisher=publisher,
             type_=type_,
             type_handler_version=version,
@@ -177,10 +187,14 @@ class VmExtensionTestBase(TestSuite):
         ).is_equal_to("Succeeded")
 
     @retry(tries=3, delay=10)  # type: ignore
-    def _uninstall(self, node: Node) -> None:
-        """Remove the extension from the node."""
+    def _uninstall(self, node: Node, name: Optional[str] = None) -> None:
+        """Remove the extension from the node.
+
+        ``name`` defaults to ``self.extension_name``; callers may override it
+        (e.g. boot validation deletes its ``*_boot_validation_test`` instance).
+        """
         extension = node.features[AzureExtension]
-        extension.delete(name=self.extension_name, ignore_not_found=True)
+        extension.delete(name=name or self.extension_name, ignore_not_found=True)
 
     def _assert_vm_reachable(self, node: Node) -> None:
         """Verify the VM is still reachable via SSH after extension operations."""
@@ -243,42 +257,69 @@ class VmExtensionTestBase(TestSuite):
         'extension_type' runbook variables, falling back to the suite's
         PUBLISHER / EXTENSION_TYPE. The version is required (no DEFAULT_VERSION
         fallback) and must be a 'Major.Minor' or 'Major.Minor.Patch' value; the
-        case is skipped otherwise. The deployed extension is named
-        '<publisher>_<extension_type>_boot_validation_test'.
+        case is skipped otherwise. When a full 'Major.Minor.Patch' version is
+        requested, the actually-installed version is verified to match. After
+        provisioning succeeds the VM is checked for SSH reachability. The
+        deployed extension is named
+        '<publisher>_<extension_type>_boot_validation_test'. Install/cleanup
+        reuse the shared ``_install`` / ``_uninstall`` helpers.
         """
-        publisher = self._resolve_publisher(variables)
-        type_ = self._resolve_type(variables)
         version = self._get_version(variables, use_default=False)
         extension = node.features[AzureExtension]
 
         # Azure installs by 'Major.Minor'; normalize and skip on malformed
         # input. normalize_type_handler_version raises LisaException when the
         # version is not a valid 'Major.Minor'/'Major.Minor.Patch' value.
+        # is_patch_version is True when a full 'Major.Minor.Patch' was
+        # requested (Azure must then install exactly that patch).
         try:
-            install_version, _ = extension.normalize_type_handler_version(version)
+            (
+                install_version,
+                is_patch_version,
+            ) = extension.normalize_type_handler_version(version)
         except LisaException:
             raise SkippedException(
                 f"Version '{version}' is not a valid 'Major.Minor' or "
                 "'Major.Minor.Patch' value. Please set a valid version."
             )
 
+        publisher = self._resolve_publisher(variables)
+        type_ = self._resolve_type(variables)
         extension_name = f"{publisher}_{type_}_boot_validation_test"
-        if self.SUPPORTS_DELETE:
-            extension.delete(name=extension_name, ignore_not_found=True)
+        log.info(f"Installing extension '{extension_name}'...")
         try:
-            log.info(f"Installing extension '{extension_name}'...")
-            result = extension.create_or_update(
-                name=extension_name,
-                publisher=publisher,
-                type_=type_,
-                type_handler_version=install_version,
-                auto_upgrade_minor_version=True,
+            result = self._install(
+                node,
+                variables,
                 settings=settings,
+                name=extension_name,
+                version=install_version,
             )
             self._assert_provisioned(result, variables)
+
+            # Verify the actually-installed version. When a full
+            # 'Major.Minor.Patch' was requested, Azure must deliver exactly
+            # that patch; a 'Major.Minor' request lets Azure choose the patch,
+            # so it is only logged. Mirrors GenericVmExtension.
+            installed_version = extension.get_installed_type_handler_version(
+                extension_name
+            )
+            if is_patch_version:
+                assert_that(installed_version).described_as(
+                    f"Installed extension '{extension_name}' version mismatch: "
+                    f"expected '{version}', actual '{installed_version}'. Verify "
+                    f"which patch version Azure delivers for the requested "
+                    f"major.minor version and whether this version is published "
+                    f"in the current region."
+                ).is_equal_to(version)
+            log.info(
+                f"Installed extension '{extension_name}' "
+                f"version: {installed_version}"
+            )
+            self._assert_vm_reachable(node)
         finally:
             if self.SUPPORTS_DELETE:
-                extension.delete(name=extension_name, ignore_not_found=True)
+                self._uninstall(node, name=extension_name)
 
     def _create_and_verify_extension_run(
         self,
@@ -302,31 +343,39 @@ class VmExtensionTestBase(TestSuite):
         SUPPORTS_DELETE is False (e.g. CRP-managed extensions such as
         RunCommand v2).
         """
-        publisher = self._resolve_publisher(variables)
-        type_ = self._resolve_type(variables)
-        version = self._get_version(variables)
-        extension = node.features[AzureExtension]
-        if self.SUPPORTS_DELETE:
-            extension.delete(name=self.extension_name, ignore_not_found=True)
-
-        def enable_extension() -> Any:
-            return extension.create_or_update(
-                name=self.extension_name,
-                publisher=publisher,
-                type_=type_,
-                type_handler_version=version,
-                auto_upgrade_minor_version=True,
-                settings=settings or {},
-                protected_settings=protected_settings or {},
-            )
-
+        # Negative path: expect create_or_update to raise. Call directly rather
+        # than via _install so the retry wrapper doesn't re-attempt the
+        # expected failure three times.
         if assert_exception:
+            publisher = self._resolve_publisher(variables)
+            type_ = self._resolve_type(variables)
+            version = self._get_version(variables)
+            extension = node.features[AzureExtension]
+            if self.SUPPORTS_DELETE:
+                extension.delete(name=self.extension_name, ignore_not_found=True)
+
+            def enable_extension() -> Any:
+                return extension.create_or_update(
+                    name=self.extension_name,
+                    publisher=publisher,
+                    type_=type_,
+                    type_handler_version=version,
+                    auto_upgrade_minor_version=True,
+                    settings=settings or {},
+                    protected_settings=protected_settings or {},
+                )
+
             assert_that(enable_extension).raises(assert_exception).when_called_with()
-        else:
-            result = enable_extension()
-            assert_that(result["provisioning_state"]).described_as(
-                "Expected the extension to succeed"
-            ).is_equal_to("Succeeded")
+            return
+
+        # Positive path: reuse the shared install + provisioning assertion.
+        result = self._install(
+            node,
+            variables,
+            settings=settings,
+            protected_settings=protected_settings,
+        )
+        self._assert_provisioned(result, variables)
 
         if test_file is not None and expected_exit_code is not None:
             execute_command(
