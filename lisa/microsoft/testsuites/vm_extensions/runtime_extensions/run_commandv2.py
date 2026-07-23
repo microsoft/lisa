@@ -8,7 +8,6 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     check_waagent_version_supported,
     create_and_verify_vmaccess_extension_run,
     retrieve_storage_blob_url,
-    run_extension_boot_validation,
 )
 from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
@@ -101,21 +100,16 @@ class RunCommandV2Tests(VmExtensionTestBase):  # type: ignore[misc]
     def microsoft_cplat_core_runcommandhandlerlinux_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
-        run_extension_boot_validation(
+        self._boot_validation(
             node=node,
             log=log,
             variables=variables,
-            default_publisher="Microsoft.CPlat.Core",
-            default_extension_type="RunCommandHandlerLinux",
             settings={
                 "source": {
                     "CommandId": "RunShellScript",
                     "script": "echo 'RCv2 boot validation success'",
                 }
             },
-            # RunCommand v2 is CRP-managed and cannot be deleted; resource
-            # group teardown handles cleanup.
-            cleanup=False,
         )
 
     @TestCaseMetadata(

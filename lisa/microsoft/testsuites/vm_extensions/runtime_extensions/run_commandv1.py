@@ -10,7 +10,6 @@ from azure.core.exceptions import HttpResponseError
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     retrieve_storage_account_name_and_key,
     retrieve_storage_blob_url,
-    run_extension_boot_validation,
 )
 from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
@@ -78,12 +77,10 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
     def microsoft_cplat_core_runcommandlinux_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
-        run_extension_boot_validation(
+        self._boot_validation(
             node=node,
             log=log,
             variables=variables,
-            default_publisher="Microsoft.CPlat.Core",
-            default_extension_type="RunCommandLinux",
             settings={"commandToExecute": "echo 'RCv1 boot validation success'"},
         )
 
