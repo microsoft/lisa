@@ -584,7 +584,10 @@ class Process:
             # check if buffer contains the keyword
             find_pos = self.log_buffer_offset if delta_only else 0
             if self.log_buffer.getvalue().find(keyword, find_pos) >= 0:
-                self.log_buffer_offset = len(self.log_buffer.getvalue())
+                next_chunk = self.log_buffer.getvalue().find(keyword, find_pos) + len(
+                    keyword
+                )
+                self.log_buffer_offset = next_chunk
                 return True
 
             time.sleep(interval)
