@@ -82,6 +82,9 @@ PASSTHROUGH_GUEST_START_TIMEOUT_SECONDS = 300
 # perf_ntttcp changes TasksMax and may reboot its client at 20,480 connections.
 # The immediate Linux virtualization host must remain running during calibration.
 PASSTHROUGH_NTTTCP_MAX_CONNECTIONS_WITHOUT_HOST_REBOOT = 10240
+# The 1,024-connection UDP profile can hang after lower profiles saturate the
+# dedicated peer; 512 connections retains line-rate calibration without the hang.
+PASSTHROUGH_NTTTCP_UDP_MAX_CONNECTIONS = 512
 NetworkThroughputMessage = Union[
     NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
 ]
@@ -876,7 +879,15 @@ class NetworkPerformance(TestSuite):
             server_nic_name: str,
             profile: Optional[ThroughputProfile],
         ) -> List[NetworkThroughputMessage]:
-            connections = [profile[2]] if profile else NTTTCP_UDP_CONCURRENCY
+            connections = (
+                [profile[2]]
+                if profile
+                else [
+                    connection
+                    for connection in NTTTCP_UDP_CONCURRENCY
+                    if connection <= PASSTHROUGH_NTTTCP_UDP_MAX_CONNECTIONS
+                ]
+            )
             messages: List[NetworkThroughputMessage] = perf_ntttcp(
                 test_result=result,
                 client=cast(RemoteNode, client),

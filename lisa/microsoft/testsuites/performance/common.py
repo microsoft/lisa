@@ -648,6 +648,10 @@ def perf_ntttcp(  # noqa: C901
                     # An error occurred during the test (timeout, process hang,
                     # network issue, etc.)
 
+                    for node in [client, server]:
+                        if "SSH session not active" in str(e) or not node.is_connected:
+                            node.close()
+
                     time.sleep(30)
                     client.log.error(
                         f"Error during ntttcp test for {test_thread} connections "
