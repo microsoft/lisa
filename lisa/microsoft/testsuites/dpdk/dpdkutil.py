@@ -269,6 +269,7 @@ def generate_send_receive_run_info(
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
     multiple_queues: Union[bool, Tuple[bool, bool]] = False,
+    extra_args: Union[str, Tuple[str, str]] = "",
     use_service_cores: int = 1,
     set_mtu: int = 0,
     stats_period: int = 2,
@@ -296,12 +297,18 @@ def generate_send_receive_run_info(
         snd_mq = multiple_queues
         rcv_mq = multiple_queues
 
+    if isinstance(extra_args, tuple):
+        snd_args, rcv_args = extra_args
+    else:
+        snd_args = f" {extra_args}"
+        rcv_args = extra_args
+
     snd_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
         0,
         "txonly",
         pmd=pmd,
-        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
+        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr} {snd_args}",
         multiple_queues=snd_mq,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -318,6 +325,7 @@ def generate_send_receive_run_info(
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
         stats_period=stats_period,
+        extra_args=rcv_args,
     )
 
     kit_cmd_pairs = {

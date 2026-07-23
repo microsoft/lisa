@@ -521,7 +521,12 @@ class Dpdk(TestSuite):
         # use multiple queues on receiver only to avoid
         # losing the connection when AN is disabled on it.
         kit_cmd_pairs = generate_send_receive_run_info(
-            pmd, sender, receiver, multiple_queues=(False, True), stats_period=5
+            pmd,
+            sender,
+            receiver,
+            multiple_queues=(False, True),
+            extra_args=("--burst=5", ""),
+            stats_period=5,
         )
         run_testpmd_hotplug(
             kit_cmd_pairs=kit_cmd_pairs,
