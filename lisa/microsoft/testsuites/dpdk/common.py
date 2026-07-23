@@ -186,7 +186,7 @@ class Installer:
     # First we download the assets to ensure asset_path is set
     # even if we end up skipping re-installation
     def _setup_node(self) -> None:
-        self._download_assets()
+        pass
 
     # check if the package is already installed:
     # Is the package installed from source? Or from the package manager?
@@ -230,6 +230,7 @@ class Installer:
     def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
         self._setup_node()
         if self._should_install():
+            self._download_assets()
             self._uninstall()
             self._install_dependencies()
             self._install()
