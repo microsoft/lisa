@@ -574,6 +574,7 @@ class Process:
     ) -> bool:
         # check if stdout buffers contain the string "keyword" to determine if
         # it is running
+        last_search_len = 0
         start_time = time.time()
         while time.time() - start_time < timeout:
             # LogWriter only flushes if "\n" is written, so we need to flush
@@ -583,16 +584,16 @@ class Process:
 
             # check if buffer contains the keyword
             find_pos = self.log_buffer_offset if delta_only else 0
-            if self.log_buffer.getvalue().find(keyword, find_pos) >= 0:
-                next_chunk = self.log_buffer.getvalue().find(keyword, find_pos) + len(
-                    keyword
-                )
+            found_at_index = self.log_buffer.getvalue().find(keyword, find_pos)
+            last_search_len = len(self.log_buffer.getvalue())
+            if found_at_index >= 0:
+                next_chunk = found_at_index + len(keyword)
                 self.log_buffer_offset = next_chunk
                 return True
 
             time.sleep(interval)
 
-        self.log_buffer_offset = len(self.log_buffer.getvalue())
+        self.log_buffer_offset = last_search_len
 
         if error_on_missing:
             raise LisaException(
