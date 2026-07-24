@@ -238,7 +238,7 @@ def run_testpmd_hotplug(
     )
     # wait for the hot unplug
     processes[collect_from].wait_output(
-        "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=1"
+        "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic"
     )
 
     # let it run for a bit
@@ -250,7 +250,7 @@ def run_testpmd_hotplug(
     )
     # wait for the hot plug
     processes[collect_from].wait_output(
-        "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, adding device",
+        "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
         delta_only=True,
     )
 
@@ -1864,8 +1864,7 @@ def run_dpdk_symmetric_mp(
 
             # wait for the RTE_DEV_EVENT_REMOVE message
             primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): "
-                "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
+                "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",  # RTE_DEV_EVENT_REMOVE
                 delta_only=True,
             )  # relying on compiler defaults here, not great.
 
@@ -1875,7 +1874,7 @@ def run_dpdk_symmetric_mp(
             )
 
             primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=0",
+                "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
                 delta_only=True,
             )
             ping.ping_async(
