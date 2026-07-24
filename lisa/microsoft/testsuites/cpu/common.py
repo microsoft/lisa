@@ -101,6 +101,7 @@ def set_cpu_state_serial(
 def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) -> None:
     for target_cpu in idle_cpu:
         set_offline = set_cpu_state(node, target_cpu, False)
+        log.debug(f"set_offline: {set_offline}")
         log.debug(f"set cpu{target_cpu} from online to offline.")
         exception_message = (
             f"expected cpu{target_cpu} state: {CPUState.OFFLINE}(offline), "
