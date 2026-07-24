@@ -335,7 +335,7 @@ def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
+_UBUNTU_LTS_VERSIONS = ["26.4.0", "24.4.0", "22.4.0", "20.4.0", "18.4.0"]
 
 
 # see https://ubuntu.com/about/release-cycle
