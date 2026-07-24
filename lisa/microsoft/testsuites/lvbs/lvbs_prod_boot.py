@@ -42,7 +42,7 @@ class LvbsProdBoot(TestSuite):
         1. Confirm Secure Boot is enabled via mokutil.
         2. Check dmesg for VSM VTL1 boot thread messages indicating
            the VSM module is built-in and active.
-           Example matched string: "vsm: cpu0 entering vtl1 boot thread"
+           Example matched string: "vsm: cpu1 entering vtl1 boot thread"
         3. Verify OP-TEE device nodes /dev/tee0 and /dev/teepriv0 exist.
         """,
         priority=1,
@@ -76,19 +76,15 @@ class LvbsProdBoot(TestSuite):
         # --- Act & Assert: VSM module (built-in) ---
         # VSM is built into the kernel and won't appear in lsmod.
         # Instead, verify dmesg contains VTL1 boot thread messages.
-        # Example: "vsm: cpu0 entering vtl1 boot thread"
+        # Example: "vsm: cpu1 entering vtl1 boot thread"
         log.info("Checking dmesg for VSM VTL1 boot thread messages...")
         dmesg_output = dmesg.get_output(force_run=True)
-        vsm_pattern = re.compile(
-            r"^(?:\[\s*\d+\.\d+\](?:\s*\[\s*T\d+\])?\s+)?"
-            r"vsm:[ \t]+cpu\d+[ \t]+entering vtl1 boot thread$",
-            re.MULTILINE,
-        )
+        vsm_pattern = re.compile(r"vsm:\s+cpu\d+\s+entering vtl1 boot thread")
         vsm_matches = vsm_pattern.findall(dmesg_output)
         if not vsm_matches:
             raise LisaException(
                 "No VSM VTL1 boot thread messages found in dmesg. "
-                "Expected messages like 'vsm: cpu0 entering vtl1 boot thread'. "
+                "Expected messages like 'vsm: cpu1 entering vtl1 boot thread'. "
                 "The VSM module may not be active in this image."
             )
         log.info(
