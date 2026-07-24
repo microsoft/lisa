@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from functools import partial
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from assertpy import assert_that
 
@@ -194,11 +194,17 @@ class NetworkPerformace(TestSuite):
         assert environment, "fail to get environment from test result"
 
         # The mlx5 driver exposes a private flag that controls RX CQE
-        # coalescing. Enable it on the SRIOV VF interface of every node before
-        # running the throughput test, and revert to the original value after.
+        # coalescing. It must be enabled on the SRIOV VF interface of every node
+        # so it is in effect during the ntttcp run. perf_ntttcp reboots the VM
+        # for the TasksMax change, and ethtool private flags do NOT persist
+        # across a reboot. Applying the flag here (before perf_ntttcp) would be
+        # silently reverted by that reboot, so we apply it via the
+        # post_ntttcp_setup hook, which perf_ntttcp invokes AFTER the reboot and
+        # before the ntttcp command executes.
         priv_flag = "rx_cqe_coalesce_4"
         reverts: List[Tuple[Node, str, bool]] = []
-        try:
+
+        def enable_priv_flags() -> Tuple[Optional[str], Optional[str]]:
             for node in environment.nodes.list():
                 # Print the loaded mana driver modules for diagnostics.
                 mana_modules = node.execute(
@@ -238,8 +244,15 @@ class NetworkPerformace(TestSuite):
                         f"Enabling private flag '{priv_flag}' on interface "
                         f"{interface} of node {node.name} did not take effect"
                     ).is_true()
+            # We do not override the ntttcp NIC names; keep perf_ntttcp's own.
+            return None, None
 
-            perf_ntttcp(result, variables=variables)
+        try:
+            perf_ntttcp(
+                result,
+                variables=variables,
+                post_ntttcp_setup=enable_priv_flags,
+            )
         finally:
             # Revert each private flag we changed back to its original value.
             for node, interface, original_value in reverts:
