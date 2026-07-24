@@ -2039,6 +2039,22 @@ class Disk(AzureFeatureMixin, features.Disk):
         assert matched[0], "not found the matched disk label"
         return list(set(matched[0]))
 
+    # The fabric operation can fail transiently (InternalExecutionError:
+    # "The fabric operation failed") while Azure applies a VM update. Retry
+    # just the VM update + wait, so a flaky fabric error does not fail the
+    # whole routine -- and, for add_data_disk, so the managed disks created
+    # above are not re-created on each attempt.
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)  # type: ignore
+    def _update_vm(self, vm: Any) -> None:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+            self._resource_group_name,
+            vm.name,
+            vm,
+        )
+        async_vm_update.wait()
+
     def add_data_disk(
         self,
         count: int,
@@ -2095,13 +2111,8 @@ class Disk(AzureFeatureMixin, features.Disk):
                 }
             )
 
-        # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
+        # update vm (retry transient fabric errors on the update only)
+        self._update_vm(vm)
 
         # update data disk count
         add_disk_names = [managed_disk.name for managed_disk in managed_disks]
@@ -2127,13 +2138,8 @@ class Disk(AzureFeatureMixin, features.Disk):
         data_disks = vm.storage_profile.data_disks
         data_disks[:] = [disk for disk in data_disks if disk.name not in names]
 
-        # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
+        # update vm (retry transient fabric errors on the update only)
+        self._update_vm(vm)
 
         # delete managed disk
         for name in names:
