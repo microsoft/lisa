@@ -300,7 +300,7 @@ def generate_send_receive_run_info(
     if isinstance(extra_args, tuple):
         snd_args, rcv_args = extra_args
     else:
-        snd_args = f" {extra_args}"
+        snd_args = extra_args
         rcv_args = extra_args
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
@@ -308,7 +308,7 @@ def generate_send_receive_run_info(
         0,
         "txonly",
         pmd=pmd,
-        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr} {snd_args}",
+        extra_args=" ".join([f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}", snd_args]),
         multiple_queues=snd_mq,
         service_cores=use_service_cores,
         mtu=set_mtu,
