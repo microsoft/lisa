@@ -254,20 +254,6 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         self._node.tools[Ninja].run(
             "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
         )
-        working_path = str(self._node.get_working_path())
-        assert_that(str(self.dpdk_build_path)).described_as(
-            "DPDK Installer source path was empty during attempted cleanup!"
-        ).is_not_empty()
-        assert_that(str(self.dpdk_build_path)).described_as(
-            "DPDK Installer source path was set to root dir "
-            "'/' during attempted cleanup!"
-        ).is_not_equal_to("/")
-        assert_that(str(self.dpdk_build_path)).described_as(
-            f"DPDK Installer source path {self.dpdk_build_path} was set to "
-            f"working path '{working_path}' during attempted cleanup!"
-        ).is_not_equal_to(working_path)
-        # remove build path only since we may want the repo again.
-        self._node.execute(f"rm -rf {str(self.dpdk_build_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
         version: VersionInfo = self._node.tools[Pkgconfig].get_package_version(
