@@ -731,7 +731,7 @@ def verify_dpdk_send_receive(
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
-    kill_timeout = test_duration + 5
+    kill_timeout = test_duration + 10
     test_kits = init_nodes_concurrent(
         environment, log, variables, pmd, hugepage_size=hugepage_size
     )
@@ -759,12 +759,18 @@ def verify_dpdk_send_receive(
         kill_timeout=receive_timeout + 10,
     )
     receive_result.wait_output("start packet forwarding")
+
     sender_result = sender.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[sender],
         test_duration,
         constants.SIGINT,
         kill_timeout=kill_timeout,
     )
+    sender_result.wait_output("start packet forwarding")
+
+    sleep(test_duration)
+    for kit in [sender, receiver]:
+        kit.testpmd.kill_previous_testpmd_command()
 
     results = dict()
     results[sender] = sender.testpmd.process_testpmd_output(sender_result.wait_result())
