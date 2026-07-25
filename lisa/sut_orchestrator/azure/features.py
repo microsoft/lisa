@@ -188,9 +188,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -565,8 +565,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         ]
     }
     """  # noqa: E501
-    _gpu_extension_nvidia_properties = json.loads(
-        """
+    _gpu_extension_nvidia_properties = json.loads("""
         {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
@@ -575,8 +574,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             "settings": {
             }
         }
-    """
-    )
+    """)
 
     def is_supported(self) -> bool:
         # TODO: The GPU Feature is supposed to handle cloud related
@@ -2022,9 +2020,9 @@ class Disk(AzureFeatureMixin, features.Disk):
             cmd_result = self._node.execute(
                 f"readlink -f {disk}", shell=True, sudo=True
             )
-            disk_array[
-                int(disk.split("/")[-1].replace("lun", ""))
-            ] = cmd_result.stdout.strip()
+            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = (
+                cmd_result.stdout.strip()
+            )
         return disk_array
 
     def get_all_disks(self) -> List[str]:
@@ -2941,9 +2939,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile[
-                "disk_encryption_set_id"
-            ] = settings.disk_encryption_set_id
+            node_parameters.security_profile["disk_encryption_set_id"] = (
+                settings.disk_encryption_set_id
+            )
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
