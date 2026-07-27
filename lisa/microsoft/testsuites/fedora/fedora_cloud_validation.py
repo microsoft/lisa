@@ -23,7 +23,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import Fedora
-from lisa.tools import Cat, Reboot
+from lisa.tools import Cat, Journalctl, Reboot
 from lisa.util import check_till_timeout
 
 
@@ -291,16 +291,26 @@ class FedoraCloudValidation(TestSuite):
         Reboot and assert no filesystem corruption or recovery errors
         in the journal.
         """
+        corruption_keywords = [
+            "corrupt",
+            "run fsck",
+            "recovery",
+            "recovering",
+            "tree-log replay",
+        ]
 
         def check_unmount_errors() -> None:
-            error_check = node.execute(
-                "journalctl --boot --no-pager"
-                " | grep -iv 'recovery algorithm'"
-                " | grep -iE '(corrupt|run fsck|recovery|recovering|tree-log replay)'",
-                shell=True,
-                no_error_log=True,
-            )
-            assert_that(error_check.stdout.strip()).described_as(
+            journalctl = node.tools[Journalctl]
+            # Fetch full boot journal (no_of_lines=0 skips head truncation) to
+            # catch both kernel FS errors and user-space fsck output.
+            boot_logs = journalctl.first_n_logs_from_boot(no_of_lines=0)
+            matches = [
+                line
+                for line in boot_logs.splitlines()
+                if any(kw in line.lower() for kw in corruption_keywords)
+                and "recovery algorithm" not in line.lower()
+            ]
+            assert_that(matches).described_as(
                 "No filesystem corruption or recovery errors"
                 " should appear in journalctl"
             ).is_empty()
