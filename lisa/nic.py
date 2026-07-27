@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from assertpy import assert_that
 from retry import retry
@@ -18,6 +18,7 @@ from lisa.util import InitializableMixin, LisaException, constants, find_groups_
 
 if TYPE_CHECKING:
     from lisa import Node
+    from lisa.node import RemoteNode
 
 
 class NicInfo:
@@ -273,6 +274,34 @@ class Nics(InitializableMixin):
 
     def get_primary_nic(self) -> NicInfo:
         return self.get_nic_by_index(0)
+
+    def get_internal_ipv4_address(self) -> str:
+        # Return an IPv4 address usable for intra-VM communication. Prefer the
+        # node's internal_address, but on a dual-stack (use_ipv6) environment
+        # that address is IPv6 -- tools that bind/connect over IPv4 only (e.g.
+        # ntttcp/lagscope) cannot use it. The node still has an internal IPv4
+        # on its primary (SRIOV) NIC, so fall back to that. IPv4-only
+        # deployments are unaffected: internal_address is already IPv4 and is
+        # returned unchanged.
+        address: str = cast("RemoteNode", self._node).internal_address
+        try:
+            is_ipv6 = ipaddress.ip_address(address).version == 6
+        except ValueError:
+            is_ipv6 = False
+        if not is_ipv6:
+            return address
+        ipv4_address: str = self.get_primary_nic().ip_addr
+        if not ipv4_address:
+            raise LisaException(
+                f"internal address {address} is IPv6 but the primary NIC "
+                f"'{self.get_primary_nic().name}' has no IPv4 address to fall "
+                f"back to."
+            )
+        self._node.log.debug(
+            f"internal address {address} is IPv6; using the node's internal "
+            f"IPv4 {ipv4_address} instead."
+        )
+        return ipv4_address
 
     def get_secondary_nic(self) -> NicInfo:
         # get a nic which isn't servicing the SSH connection with lisa.

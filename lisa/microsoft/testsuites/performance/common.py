@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import inspect
-import ipaddress
 import pathlib
 import time
 from functools import partial
@@ -345,28 +344,6 @@ def perf_tcp_pps(
     notifier.notify(pps_message)
 
 
-def _get_ntttcp_ipv4_address(node: RemoteNode) -> str:
-    # ntttcp and lagscope bind/connect over IPv4 only. When the environment is
-    # deployed dual-stack (use_ipv6), node.internal_address is the IPv6 private
-    # address, which makes lagscope fail to open its listening port. The node
-    # still has an internal IPv4 on the same (SRIOV) NIC, so run the perf tools
-    # over that IPv4 address instead. IPv4-only deployments are unaffected: the
-    # address is already IPv4 and is returned unchanged.
-    address = node.internal_address
-    try:
-        is_ipv6 = ipaddress.ip_address(address).version == 6
-    except ValueError:
-        is_ipv6 = False
-    if not is_ipv6:
-        return address
-    ipv4_address = node.nics.get_primary_nic().ip_addr
-    node.log.debug(
-        f"internal address {address} is IPv6; ntttcp/lagscope will use the "
-        f"node's internal IPv4 {ipv4_address} instead."
-    )
-    return ipv4_address
-
-
 def perf_ntttcp(  # noqa: C901
     test_result: TestResult,
     server: Optional[RemoteNode] = None,
@@ -407,7 +384,7 @@ def perf_ntttcp(  # noqa: C901
     # ntttcp and lagscope run over IPv4. On dual-stack (use_ipv6) environments
     # server.internal_address is IPv6, so resolve the server's internal IPv4 to
     # use as the ntttcp/lagscope target.
-    server_comm_address = _get_ntttcp_ipv4_address(server)
+    server_comm_address = server.nics.get_internal_ipv4_address()
 
     if connections is None:
         if udp_mode:
