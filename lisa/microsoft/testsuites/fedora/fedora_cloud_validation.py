@@ -299,11 +299,11 @@ class FedoraCloudValidation(TestSuite):
             "tree-log replay",
         ]
 
-        def check_unmount_errors() -> None:
+        def check_unmount_errors(boot_id: str = "") -> None:
             journalctl = node.tools[Journalctl]
-            # Fetch full boot journal (no_of_lines=0 skips head truncation) to
-            # catch both kernel FS errors and user-space fsck output.
-            boot_logs = journalctl.first_n_logs_from_boot(no_of_lines=0)
+            boot_logs = journalctl.first_n_logs_from_boot(
+                boot_id=boot_id, no_of_lines=0
+            )
             matches = [
                 line
                 for line in boot_logs.splitlines()
@@ -320,4 +320,5 @@ class FedoraCloudValidation(TestSuite):
         reboot = node.tools[Reboot]
         reboot.reboot()
 
-        check_unmount_errors()
+        check_unmount_errors(boot_id="-1")
+        check_unmount_errors()  # check again after reboot to ensure no new errors
