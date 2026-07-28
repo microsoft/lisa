@@ -2834,10 +2834,12 @@ def find_storage_account(
                     f"after 3 attempts: {e}"
                 ) from e
 
+        account_names = [
+            getattr(sc, "name", "") for sc in _storage_account_cache[subscription_id]
+        ]
         log.debug(
             f"storage account cache loaded for subscription '{subscription_id}', "
-            "account names: "
-            f"{[getattr(sc, 'name', '') for sc in _storage_account_cache[subscription_id]]}"
+            f"account names: {account_names}"
         )
 
     # Search in cached list
