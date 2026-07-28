@@ -3014,13 +3014,37 @@ class AzurePlatform(Platform):
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_version(shared_image)
         assert found_image.storage_profile, "'storage_profile' must not be 'None'"
-        assert (
-            found_image.storage_profile.os_disk_image
-        ), "'os_disk_image' must not be 'None'"
-        assert (
-            found_image.storage_profile.os_disk_image.size_in_gb
-        ), "'size_in_gb' must not be 'None'"
-        return int(found_image.storage_profile.os_disk_image.size_in_gb)
+        os_disk_image = found_image.storage_profile.os_disk_image
+        assert os_disk_image, "'os_disk_image' must not be 'None'"
+        # Azure populates size_in_gb only when the gallery image version is
+        # created from a managed image/disk/snapshot. For versions created from
+        # a VHD blob it stays None, so fall back to reading the size from the OS
+        # disk image's source VHD blob, and finally to a default size. Check for
+        # None explicitly so a genuine 0 is not treated as "not provided".
+        if os_disk_image.size_in_gb is not None:
+            return int(os_disk_image.size_in_gb)
+        source = os_disk_image.source
+        source_uri = getattr(source, "uri", "") if source else ""
+        if source_uri:
+            try:
+                return self._get_vhd_os_disk_size(source_uri)
+            except Exception as ex:
+                # Strip any query string (e.g. SAS token) from the URI and log
+                # only the exception type; the exception message itself may also
+                # embed the URI/SAS token, so it is not logged.
+                safe_uri = source_uri.split("?", 1)[0]
+                self._log.debug(
+                    "failed to read OS disk size from source VHD "
+                    f"'{safe_uri}': {type(ex).__name__}"
+                )
+        # Final fallback: neither size_in_gb nor a readable source VHD is
+        # available to determine the actual OS disk size.
+        default_os_disk_size = 30
+        self._log.debug(
+            "could not determine SIG OS disk size; using default "
+            f"{default_os_disk_size}GB."
+        )
+        return default_os_disk_size
 
     def _get_cgi_os_disk_size(
         self, community_gallery_image: CommunityGalleryImageSchema
