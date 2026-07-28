@@ -100,7 +100,9 @@ class CPUSuite(TestSuite):
         # run fio process asynchronously on the node
         fio_data_size_in_gb = 1
         try:
-            image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
+            image_folder_path = node.find_partition_with_freespace(
+                fio_data_size_in_gb, use_os_drive=False
+            )
             # Each CPU takes ~10 seconds to toggle offline-online
             fio_run_time = 300 + (node.tools[Lscpu].get_thread_count() * 10)
             fio_process = node.tools[Fio].launch_async(
