@@ -4,69 +4,22 @@
 import base64
 import gzip
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     check_waagent_version_supported,
-    execute_command,
     retrieve_storage_account_name_and_key,
     retrieve_storage_blob_url,
 )
+from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
-from lisa import (
-    Logger,
-    Node,
-    SkippedException,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-    simple_requirement,
-)
+from lisa import Logger, Node, TestCaseMetadata, TestSuiteMetadata, simple_requirement
 from lisa.environment import Environment
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.tools import Waagent
-
-
-def _create_and_verify_extension_run(
-    node: Node,
-    settings: Optional[Dict[str, Any]] = None,
-    protected_settings: Optional[Dict[str, Any]] = None,
-    test_file: Optional[str] = None,
-    expected_exit_code: Optional[int] = None,
-    assert_exception: Any = None,
-) -> None:
-    extension = node.features[AzureExtension]
-    extension_name = "CustomScript"
-    extension.delete(name=extension_name, ignore_not_found=True)
-
-    def enable_extension() -> Any:
-        result = extension.create_or_update(
-            name=extension_name,
-            publisher="Microsoft.Azure.Extensions",
-            type_="CustomScript",
-            type_handler_version="2.1",
-            auto_upgrade_minor_version=True,
-            settings=settings or {},
-            protected_settings=protected_settings or {},
-        )
-        return result
-
-    if assert_exception:
-        assert_that(enable_extension).raises(assert_exception).when_called_with()
-    else:
-        result = enable_extension()
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
-    if test_file is not None and expected_exit_code is not None:
-        execute_command(
-            file_name=test_file, expected_exit_code=expected_exit_code, node=node
-        )
 
 
 @TestSuiteMetadata(
@@ -92,14 +45,19 @@ def _create_and_verify_extension_run(
         11. Private sas file uri and command in public settings
         12. File uri (pointing to python script) and command in public settings
     """,
-    tags=["VM_Extension"],
+    tags=["VM_Extension", "CustomScript"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
         unsupported_os=[BSD],
     ),
 )
-class CustomScriptTests(TestSuite):
+class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
+    PUBLISHER = "Microsoft.Azure.Extensions"
+    EXTENSION_TYPE = "CustomScript"
+    EXTENSION_KEY = "custom_script"
+    DEFAULT_VERSION = "2.1"
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
         check_waagent_version_supported(node=node)
@@ -112,51 +70,17 @@ class CustomScriptTests(TestSuite):
         uris, so it needs no storage account or public blob access. Verifies that
         provisioning succeeds, then removes the extension.
 
-        The extension publisher, type and version are read from runbook variables
-        (extension_publisher, extension_type, extension_version), defaulting to the
-        Custom Script extension. The deployed extension is named
-        '<publisher>_<extension_type>_boot_validation_test'.
+        The extension version is read from runbook variable
+        'custom_script_version'.
         """,
         priority=5,
+        maturity="preview",
     )
     def microsoft_azure_extensions_customscript_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
-        publisher: str = variables.get(
-            "extension_publisher", "Microsoft.Azure.Extensions"
-        ).strip()
-        extension_type: str = variables.get("extension_type", "CustomScript").strip()
-        version: str = variables.get("extension_version", "").strip()
-
-        if not version:
-            raise SkippedException(
-                "Required runbook variable 'extension_version' is missing or "
-                "empty. Please set it in the runbook before running this test "
-                "case."
-            )
-
-        extension_name = f"{publisher}_{extension_type}_boot_validation_test"
         settings = {"commandToExecute": "echo 'CSE test success'"}
-
-        extension = node.features[AzureExtension]
-        extension.delete(name=extension_name, ignore_not_found=True)
-
-        try:
-            log.info(f"Installing extension '{extension_name}'...")
-            result = extension.create_or_update(
-                name=extension_name,
-                publisher=publisher,
-                type_=extension_type,
-                type_handler_version=version,
-                auto_upgrade_minor_version=True,
-                settings=settings,
-            )
-
-            assert_that(result["provisioning_state"]).described_as(
-                "Expected the extension to succeed"
-            ).is_equal_to("Succeeded")
-        finally:
-            extension.delete(name=extension_name, ignore_not_found=True)
+        self._boot_validation(node, log, variables, settings=settings)
 
     @TestCaseMetadata(
         description="""
@@ -166,9 +90,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
         blob_name = "public.sh"
@@ -184,8 +113,12 @@ class CustomScriptTests(TestSuite):
 
         settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -197,9 +130,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_second_public_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
         first_blob_name = "public.sh"
@@ -227,8 +165,9 @@ class CustomScriptTests(TestSuite):
             "commandToExecute": f"sh {second_blob_name}",
         }
 
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             test_file=second_test_file,
             expected_exit_code=0,
@@ -243,9 +182,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_script_in_both_settings_failed(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
         blob_name = "public.sh"
@@ -265,8 +209,9 @@ class CustomScriptTests(TestSuite):
         }
 
         # Expect HttpResponseError
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             protected_settings=settings,
             assert_exception=HttpResponseError,
@@ -281,9 +226,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_protected_settings_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
         blob_name = "protected-settings.sh"
@@ -302,8 +252,9 @@ class CustomScriptTests(TestSuite):
             "commandToExecute": f"sh {blob_name}",
         }
 
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             protected_settings=protected_settings,
             test_file=test_file,
             expected_exit_code=0,
@@ -317,9 +268,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_without_command_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
         blob_name = "public.sh"
@@ -338,8 +294,9 @@ class CustomScriptTests(TestSuite):
         }
 
         # Expect HttpResponseError
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             assert_exception=HttpResponseError,
         )
@@ -349,9 +306,15 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension with a base64 script
         and command with no file uris.
         """,
-        priority=3,
+        priority=5,
+        maturity="preview",
     )
-    def verify_base64_script_with_command_run(self, log: Logger, node: Node) -> None:
+    def verify_base64_script_with_command_run(
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
+    ) -> None:
         test_file = "/tmp/cse-base64-command.txt"
 
         script = f"#!/bin/sh\ntouch {test_file}"
@@ -359,8 +322,11 @@ class CustomScriptTests(TestSuite):
 
         settings = {"script": script_base64, "commandToExecute": "sh script.sh"}
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, assert_exception=HttpResponseError
+        self._create_and_verify_extension_run(
+            node=node,
+            variables=variables,
+            settings=settings,
+            assert_exception=HttpResponseError,
         )
 
     @TestCaseMetadata(
@@ -371,9 +337,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_with_base64_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
         blob_name = "base64-script.sh"
@@ -392,8 +363,12 @@ class CustomScriptTests(TestSuite):
 
         settings = {"fileUris": [blob_url], "script": script_base64}
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -404,9 +379,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_with_gzip_base64_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
         blob_name = "base64-gzip.sh"
@@ -426,8 +406,12 @@ class CustomScriptTests(TestSuite):
 
         settings = {"fileUris": [blob_url], "script": script_base64}
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -435,10 +419,15 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension with private Azure storage file uri
         without a sas token.
         """,
-        priority=3,
+        priority=5,
+        maturity="preview",
     )
     def verify_private_script_without_sas_run_failed(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
         blob_name = "no-sas.sh"
@@ -459,8 +448,9 @@ class CustomScriptTests(TestSuite):
         }
 
         # Expect HttpResponseError
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             assert_exception=HttpResponseError,
         )
@@ -474,9 +464,14 @@ class CustomScriptTests(TestSuite):
          storage account key, which we cannot use currently.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_private_script_with_storage_credentials_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
         blob_name = "storage-creds.sh"
@@ -501,8 +496,9 @@ class CustomScriptTests(TestSuite):
             "storageAccountKey": credentials["account_key"],
         }
 
-        _create_and_verify_extension_run(
+        self._create_and_verify_extension_run(
             node=node,
+            variables=variables,
             settings=settings,
             protected_settings=protected_settings,
             test_file=test_file,
@@ -514,10 +510,15 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension with private Azure storage file uri
         with a sas token.
         """,
-        priority=3,
+        priority=5,
+        maturity="preview",
     )
     def verify_private_sas_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa"
         blob_name = "sas.sh"
@@ -537,8 +538,12 @@ class CustomScriptTests(TestSuite):
             "commandToExecute": f"sh {blob_name}",
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -550,9 +555,14 @@ class CustomScriptTests(TestSuite):
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_python_script_run(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        variables: Dict[str, Any],
     ) -> None:
         container_name = "cselisa-public"
         blob_name = "python.py"
@@ -573,6 +583,10 @@ class CustomScriptTests(TestSuite):
             "commandToExecute": f"{python_command} {blob_name}",
         }
 
-        _create_and_verify_extension_run(
-            node=node, settings=settings, test_file=test_file, expected_exit_code=0
+        self._create_and_verify_extension_run(
+            node=node,
+            variables=variables,
+            settings=settings,
+            test_file=test_file,
+            expected_exit_code=0,
         )
