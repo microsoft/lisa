@@ -2730,6 +2730,10 @@ def get_vhd_details_by_resource_graph(
     except Exception:
         # Fall back to existing logic below if Resource Graph is unavailable
         # transiently or blocked by permissions.
+        log.debug(
+            "resource graph lookup failed; falling back to storage account traversal",
+            exc_info=True,
+        )
         return None
 
     return None
