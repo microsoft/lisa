@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from assertpy import assert_that
 from retry import retry
@@ -18,7 +18,6 @@ from lisa.util import InitializableMixin, LisaException, constants, find_groups_
 
 if TYPE_CHECKING:
     from lisa import Node
-    from lisa.node import RemoteNode
 
 
 class NicInfo:
@@ -277,29 +276,28 @@ class Nics(InitializableMixin):
 
     def get_internal_ipv4_address(self) -> str:
         # Return an IPv4 address usable for intra-VM communication. Prefer the
-        # node's internal_address, but on a dual-stack (use_ipv6) environment
-        # that address is IPv6 -- tools that bind/connect over IPv4 only (e.g.
-        # ntttcp/lagscope) cannot use it. The node still has an internal IPv4
-        # on its primary (SRIOV) NIC, so fall back to that. IPv4-only
-        # deployments are unaffected: internal_address is already IPv4 and is
-        # returned unchanged.
-        address: str = cast("RemoteNode", self._node).internal_address
+        # node's internal_address when it is a valid IPv4. On a dual-stack
+        # (use_ipv6) environment it is IPv6, and some node types (e.g.
+        # LocalNode) don't define internal_address at all -- in both cases fall
+        # back to the primary NIC's internal IPv4, since tools that bind/connect
+        # over IPv4 only (ntttcp/lagscope/netperf/sockperf) need an IPv4 target.
+        address: str = getattr(self._node, "internal_address", "") or ""
         try:
-            is_ipv6 = ipaddress.ip_address(address).version == 6
+            is_ipv4 = ipaddress.ip_address(address).version == 4
         except ValueError:
-            is_ipv6 = False
-        if not is_ipv6:
+            is_ipv4 = False
+        if is_ipv4:
             return address
         ipv4_address: str = self.get_primary_nic().ip_addr
         if not ipv4_address:
             raise LisaException(
-                f"internal address {address} is IPv6 but the primary NIC "
-                f"'{self.get_primary_nic().name}' has no IPv4 address to fall "
-                f"back to."
+                f"internal address '{address}' is not a usable IPv4 and the "
+                f"primary NIC '{self.get_primary_nic().name}' has no IPv4 "
+                f"address to fall back to."
             )
         self._node.log.debug(
-            f"internal address {address} is IPv6; using the node's internal "
-            f"IPv4 {ipv4_address} instead."
+            f"internal address '{address}' is not IPv4; using the node's "
+            f"internal IPv4 {ipv4_address} instead."
         )
         return ipv4_address
 

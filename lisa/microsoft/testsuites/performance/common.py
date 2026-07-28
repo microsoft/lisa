@@ -314,15 +314,14 @@ def perf_tcp_pps(
     server_interface_ip: str = ""
     client_interface_ip: str = ""
     if use_internal_address:
-        assert_that(server_comm_ip).described_as(
+        server_interface_ip = server_comm_ip
+        client_interface_ip = client_node.nics.get_internal_ipv4_address()
+        assert_that(server_interface_ip).described_as(
             "Server Node: internal address is not set"
         ).is_not_empty()
-        client_comm_ip = client_node.nics.get_internal_ipv4_address()
-        assert_that(client_comm_ip).described_as(
+        assert_that(client_interface_ip).described_as(
             "Client Node: internal address is not set"
         ).is_not_empty()
-        server_interface_ip = server_comm_ip
-        client_interface_ip = client_comm_ip
 
     cpu = client_node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
