@@ -186,7 +186,8 @@ VM_SIZE_FALLBACK_PATTERNS = [
     # e.g., Standard_D64s_v5, Standard_F32as_v6, Standard_E16ads_v5
     re.compile(r"^Standard_[A-Z]+\d+[a-z]*_v\d+$"),
     # Catch-all for any remaining VM sizes
-    re.compile(r".*"),
+    # (excluding "internal" and "SPO" sizes)
+    re.compile(r"^(?!.*(?:[Ii]nternal|SPO)).*$"),
 ]
 
 # VM sizes that have been retired by Azure and must not be deployed.
