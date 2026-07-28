@@ -2820,19 +2820,23 @@ def find_storage_account(
                 break
             except Exception as e:
                 log.exception(
-                    f"failed to load storage account cache for subscription '{subscription_id}' on attempt {attempt}/3",
+                    "failed to load storage account cache for "
+                    f"subscription '{subscription_id}' on "
+                    f"attempt {attempt}/3",
                     exc_info=e,
                 )
                 if attempt < 3:
                     sleep(10 * attempt)
                     continue
                 raise LisaException(
-                    f"failed to load storage account cache for subscription '{subscription_id}' after 3 attempts: {e}"
+                    "failed to load storage account cache for "
+                    f"subscription '{subscription_id}' "
+                    f"after 3 attempts: {e}"
                 ) from e
 
         log.debug(
             f"storage account cache loaded for subscription '{subscription_id}', "
-            f"account names: "
+            "account names: "
             f"{[getattr(sc, 'name', '') for sc in _storage_account_cache[subscription_id]]}"
         )
 
