@@ -214,6 +214,7 @@ def run_testpmd_hotplug(
     kit_cmd_pairs: Dict[DpdkTestResources, str],
     sender: DpdkTestResources,
     receiver: Optional[DpdkTestResources] = None,
+    hotplug: bool = True,
 ) -> None:
     processes: Dict[DpdkTestResources, Process] = {}
 
@@ -224,35 +225,35 @@ def run_testpmd_hotplug(
         processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
 
     processes[sender] = testpmd_start_process(sender, kit_cmd_pairs[sender])
+    if hotplug:
+        # let it run for a bit
+        sleep(10)
 
-    # let it run for a bit
-    sleep(10)
+        # switch_sriov(... wait=True) has become really expensive,
+        # and it can easily timeout if things aren't perfect.
+        # So: we'll avoid all of that and just start processes and wait for output.
+        # We can assume things went well as long as we see
+        # these debug messages from testpmd.
+        collect_from.nic_controller.switch_sriov(
+            enable=False, wait=False, reset_connections=False
+        )
+        # wait for the hot unplug
+        processes[collect_from].wait_output(
+                "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",
+        )
 
-    # switch_sriov(... wait=True) has become really expensive,
-    # and it can easily timeout if things aren't perfect.
-    # So: we'll avoid all of that and just start processes and wait for output.
-    # We can assume things went well as long as we see
-    # these debug messages from testpmd.
-    collect_from.nic_controller.switch_sriov(
-        enable=False, wait=False, reset_connections=False
-    )
-    # wait for the hot unplug
-    processes[collect_from].wait_output(
-            "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",
-    )
+        # let it run for a bit
+        sleep(10)
 
-    # let it run for a bit
-    sleep(10)
-
-    # turn sriov on again without waiting or resetting everything
-    collect_from.nic_controller.switch_sriov(
-        enable=True, wait=False, reset_connections=False
-    )
-    # wait for the hot plug
-    processes[collect_from].wait_output(
-        "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
-        delta_only=True,
-    )
+        # turn sriov on again without waiting or resetting everything
+        collect_from.nic_controller.switch_sriov(
+            enable=True, wait=False, reset_connections=False
+        )
+        # wait for the hot plug
+        processes[collect_from].wait_output(
+            "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
+            delta_only=True,
+        )
 
     # let it run for a bit
     sleep(30)
@@ -600,13 +601,19 @@ def do_pmd_driver_setup(
                 node.nics.bind(nic, UIO_HV_GENERIC_SYSFS_PATH)
                 bound.append(nic.dev_uuid)
 
+    ip = node.tools[Ip]
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
     if testpmd.is_mana:
-        ip = node.tools[Ip]
         for test_nic in test_nics:
             if test_nic.lower and ip.is_device_up(test_nic.lower):
                 ip.down(test_nic.lower)
+    else:
+        # ensure the VF is in the right state
+        for test_nic in test_nics:
+            if test_nic.lower and not ip.is_device_up(test_nic.lower):
+                ip.up(test_nic.lower)
+
 
 
 def initialize_node_resources(
