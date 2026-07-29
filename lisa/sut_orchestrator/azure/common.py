@@ -400,7 +400,11 @@ class AzureImageSchema(schema.ImageSchema):
             "ConfidentialVM",
         ):
             security_profile_capabilities.extend(
-                [SecurityProfileType.CVM, SecurityProfileType.Stateless]
+                [
+                    SecurityProfileType.SecureBoot,
+                    SecurityProfileType.CVM,
+                    SecurityProfileType.Stateless,
+                ]
             )
             encrypt_capability.append(True)
         else:
