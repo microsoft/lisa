@@ -1216,20 +1216,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         sender: subnet_b_nics[sender],
         receiver: subnet_a_nics[receiver],
     }
-    reroute_traffic_and_disable_nic(
-        node=sender,
-        src_nic=subnet_a_nics[sender],
-        dst_nic=subnet_b_nics[receiver],
-        new_gateway_nic=subnet_a_nics[forwarder],
-        unused_nic=_unused_nics[sender],
-    )
-    reroute_traffic_and_disable_nic(
-        node=receiver,
-        src_nic=subnet_b_nics[receiver],
-        dst_nic=subnet_a_nics[sender],
-        new_gateway_nic=subnet_b_nics[forwarder],
-        unused_nic=_unused_nics[receiver],
-    )
+    # create sender/receiver ntttcp instances
+    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
     # AZ ROUTING TABLES
     # The kernel routes are not sufficient, since Azure also manages
@@ -1239,22 +1227,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # see:
     # https://learn.microsoft.com/en-us/azure/virtual-network/
     #  tutorial-create-route-table-portal#create-a-route
-    sender.features[NetworkInterface].create_route_table(
-        nic_name=subnet_a_nics[forwarder].name,
-        route_name="fwd-rx",
-        subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
-        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
-        next_hop_type="VirtualAppliance",
-        dest_hop=subnet_a_nics[forwarder].ip_addr,
-    )
-    receiver.features[NetworkInterface].create_route_table(
-        nic_name=subnet_b_nics[forwarder].name,
-        route_name="fwd-tx",
-        subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
-        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
-        next_hop_type="VirtualAppliance",
-        dest_hop=subnet_b_nics[forwarder].ip_addr,
-    )
 
     # Do actual DPDK initialization, compile l3fwd and apply setup to
     # the extra forwarding nic
@@ -1272,18 +1244,50 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         raise SkippedException(err)
     if result is not None:
         annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)
-    # NOTE: we're cheating here and not dynamically picking the port IDs
-    # Why? You can't do it with the sdk tools for netvsc without writing your own app.
-    # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
-    if fwd_kit.testpmd.is_mana:
-        dpdk_port_a = 1
-        dpdk_port_b = 2
-    else:
-        dpdk_port_a = 2
-        dpdk_port_b = 3
 
-    # create sender/receiver ntttcp instances
-    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
+    sender.features[NetworkInterface].create_route_table(
+        nic_name=subnet_a_nics[forwarder].name,
+        route_name="fwd-rx",
+        subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
+        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        next_hop_type="VirtualAppliance",
+        dest_hop=subnet_a_nics[forwarder].ip_addr,
+    )
+    receiver.features[NetworkInterface].create_route_table(
+        nic_name=subnet_b_nics[forwarder].name,
+        route_name="fwd-tx",
+        subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
+        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        next_hop_type="VirtualAppliance",
+        dest_hop=subnet_b_nics[forwarder].ip_addr,
+    )
+
+    reroute_traffic_and_disable_nic(
+        node=sender,
+        src_nic=subnet_a_nics[sender],
+        dst_nic=subnet_b_nics[receiver],
+        new_gateway_nic=subnet_a_nics[forwarder],
+        unused_nic=_unused_nics[sender],
+    )
+    reroute_traffic_and_disable_nic(
+        node=receiver,
+        src_nic=subnet_b_nics[receiver],
+        dst_nic=subnet_a_nics[sender],
+        new_gateway_nic=subnet_b_nics[forwarder],
+        unused_nic=_unused_nics[receiver],
+    )
+
+    # use our devname example program to make sure
+    # we pick the correct dpdk port number for each subnet.
+    # This is needed to write the routing rules for dpdk l3fwd.
+    # this tool also will give us the correct vdev and portmask arguments.
+    devname = DpdkDevnameInfo(fwd_kit.testpmd)
+    port_mask = devname.get_port_info(
+        [subnet_a_nics[forwarder], subnet_b_nics[forwarder]], expect_ports=2
+    )
+    # now we can fetch the correct dpdk port id for each nic's mac address
+    dpdk_port_a = devname.nic_port_info[subnet_a_nics[forwarder].mac_addr.lower()]
+    dpdk_port_b = devname.nic_port_info[subnet_b_nics[forwarder].mac_addr.lower()]
 
     # SETUP FORWADING RULES
     # Set up DPDK forwarding rules:
@@ -1301,16 +1305,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         dpdk_port_b,
     )
 
-    # generate the dpdk include arguments to add to our commandline
-    include_devices = [
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, pmd=Pmd.NETVSC
-        ),
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, pmd=Pmd.NETVSC
-        ),
-    ]
-
     # Generating port,queue,core mappings for forwarder
     # NOTE: For DPDK 'N queues' means N queues * N PORTS
     # Each port P has N queues (really queue pairs for tx/rx)
@@ -1325,13 +1319,16 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         is_mana=fwd_kit.testpmd.is_mana,
     )
 
+    # now wrap all of that work up into the correct l3fwd command
     fwd_cmd = generate_l3fwd_command(
         fwd_kit=fwd_kit,
         dpdk_port_a=dpdk_port_a,
         dpdk_port_b=dpdk_port_b,
-        include_devices=include_devices,
+        include_devices=[devname.nic_args],
         queue_count=queue_count,
+        port_mask=port_mask,
     )
+
     # START THE TEST
     # finally, start the forwarder
     fwd_proc = forwarder.execute_async(
@@ -1346,6 +1343,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "L3fwd did not start. Check command output for incorrect flags, "
             "core dumps, or other setup/init issues."
         )
+
     ntttcp_run_time = 30
     # start ntttcp client and server
     ntttcp_threads_count = 64
@@ -1454,6 +1452,7 @@ def generate_l3fwd_command(
     dpdk_port_b: int,
     queue_count: int,
     include_devices: List[str],
+    port_mask: str = "",
 ) -> str:
     config_tups = []
     included_cores = []
@@ -1478,6 +1477,8 @@ def generate_l3fwd_command(
         promiscuous = ""
     else:
         promiscuous = "-P"
+    if not port_mask:
+        port_mask = get_dpdk_portmask([dpdk_port_a, dpdk_port_b])
 
     # join all our options into strings for use in the commmand
     joined_configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
@@ -1486,7 +1487,7 @@ def generate_l3fwd_command(
     joined_core_list = ",".join(included_cores)
     fwd_cmd = (
         f"{server_app_path} {joined_include} -l {joined_core_list} -- "
-        f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
+        f" {promiscuous} -p {port_mask} "
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
@@ -1519,16 +1520,16 @@ def create_l3fwd_rules_files(
 
     # create our longest-prefix-match aka 'lpm' rules
     sample_rules_v4 += [
-        f"R {ipv4_to_lpm(subnet_b_nics[receiver].ip_addr)} {dpdk_port_b}",
-        f"R {ipv4_to_lpm(subnet_a_nics[sender].ip_addr)} {dpdk_port_a}",
+        f"R {ipv4_to_lpm(subnet_b_nics[receiver].ip_addr)} {dpdk_port_a}",
+        f"R {ipv4_to_lpm(subnet_a_nics[sender].ip_addr)} {dpdk_port_b}",
     ]
 
     # Need to map ipv4 to ipv6 addresses, unused but the rules must be
     # provided. A valid ipv6 address needs to be in the ipv6 rules, but
     # ipv6 is not enabled in azure.
     sample_rules_v6 += [
-        f"R {ipv4_to_ipv6_lpm(subnet_b_nics[receiver].ip_addr)} {dpdk_port_b}",
-        f"R {ipv4_to_ipv6_lpm(subnet_a_nics[sender].ip_addr)} {dpdk_port_a}",
+        f"R {ipv4_to_ipv6_lpm(subnet_b_nics[receiver].ip_addr)} {dpdk_port_a}",
+        f"R {ipv4_to_ipv6_lpm(subnet_a_nics[sender].ip_addr)} {dpdk_port_b}",
     ]
 
     # write them out to the rules files on the forwarder
@@ -1619,7 +1620,7 @@ def annotate_dpdk_test_result(
 
 
 devname_port_regex = re.compile(
-    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc get_name_by_port_name=.* owner_id=.* owner_name=.* macaddr=(?P<macaddr>(?:[0-9A-Fa-f]{2}:){5}(?:[0-9A-Fa-f]{2}))"
 )
 
 
@@ -1635,6 +1636,7 @@ class DpdkDevnameInfo:
     def __init__(self, testpmd: DpdkTestpmd) -> None:
         self._node = testpmd.node
         self._testpmd = testpmd
+        self.nic_port_info: Dict[str, int] = dict()
 
     def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
         # since we only need this for netvsc, we'll only generate
@@ -1677,9 +1679,12 @@ class DpdkDevnameInfo:
         found_ports = 0
         for match in matches:
             found_ports += 1
-            port_id = int(match)
+            id, macaddr = match
+            mac_addr = str(macaddr)
+            port_id = int(id)
             self.port_ids += [port_id]
             port_mask ^= 1 << (port_id)
+            self.nic_port_info[mac_addr.lower()] = port_id
         if found_ports != expect_ports:
             self._node.execute("dmesg", sudo=True)
             fail(
