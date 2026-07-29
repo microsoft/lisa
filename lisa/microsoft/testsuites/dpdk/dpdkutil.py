@@ -1181,10 +1181,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "performance data reporting for this test will be broken!"
         )
 
-    # we're about to fully ruin this environment, so mark these dirty before we start
-    for node in [forwarder, sender, receiver]:
-        node.mark_dirty()
-
     # enable ip forwarding on secondary and tertiary nics
     run_in_parallel(
         [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
