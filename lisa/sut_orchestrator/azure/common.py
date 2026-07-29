@@ -2637,7 +2637,114 @@ def find_by_name(resources: Any, type_name: str) -> Any:
     return next(x for x in resources if x["type"] == type_name)
 
 
+def get_vhd_details_by_resource_graph(
+    platform: "AzurePlatform", vhd_path: str
+) -> Optional[Dict[str, str]]:
+    """
+    Resolve VHD details by querying Azure Resource Graph first.
+
+    This avoids expensive per-subscription list operations when only a VHD URL is
+    provided and subscription/resource group information is needed.
+    """
+    log = platform._log
+    matched = STORAGE_CONTAINER_BLOB_PATTERN.match(vhd_path)
+    assert matched, f"fail to get matched info from {vhd_path}"
+    sc_name = matched.group("sc")
+    container_name = matched.group("container")
+    blob_name = matched.group("blob")
+
+    try:
+        from azure.mgmt.resourcegraph import ResourceGraphClient
+        from azure.mgmt.resourcegraph.models import QueryRequest
+    except ImportError:
+        # Keep backward compatibility when resource graph dependency isn't present.
+        return None
+
+    try:
+        subscription_client = SubscriptionClient(platform.credential)
+        with global_credential_access_lock:
+            subscription_ids = [
+                x.subscription_id
+                for x in subscription_client.subscriptions.list()
+                if x.subscription_id
+            ]
+        if not subscription_ids:
+            return None
+
+        rg_client = ResourceGraphClient(platform.credential)
+        escaped_name = sc_name.replace("'", "''")
+        query = (
+            "Resources "
+            "| where type =~ 'microsoft.storage/storageaccounts' "
+            f"| where name =~ '{escaped_name}' "
+            "| project subscriptionId, resourceGroup, name, location"
+        )
+        with global_credential_access_lock:
+            response = rg_client.resources(
+                QueryRequest(subscriptions=subscription_ids, query=query)
+            )
+
+        data = getattr(response, "data", None)
+        if not data:
+            return None
+
+        records: List[Dict[str, Any]] = []
+        if isinstance(data, list):
+            records = [x for x in data if isinstance(x, dict)]
+        elif isinstance(data, dict):
+            columns = data.get("columns")
+            rows = data.get("rows")
+            if isinstance(columns, list) and isinstance(rows, list):
+                column_names = [
+                    str(x.get("name")) for x in columns if isinstance(x, dict)
+                ]
+                for row in rows:
+                    if isinstance(row, list) and len(row) == len(column_names):
+                        records.append(dict(zip(column_names, row)))
+
+        for item in records:
+            if str(item.get("name", "")).lower() != sc_name.lower():
+                continue
+
+            subscription_id = str(item.get("subscriptionId", ""))
+            resource_group_name = str(item.get("resourceGroup", ""))
+            location = str(item.get("location", ""))
+            if not subscription_id or not resource_group_name or not location:
+                continue
+
+            log.debug(
+                "resolved vhd details via resource graph: "
+                f"storage_account={sc_name}, subscription={subscription_id}, "
+                f"resource_group={resource_group_name}, location={location}"
+            )
+
+            return {
+                "location": location,
+                "resource_group_name": resource_group_name,
+                "account_name": sc_name,
+                "container_name": container_name,
+                "blob_name": blob_name,
+                "subscription": subscription_id,
+            }
+
+    except Exception:
+        # Fall back to existing logic below if Resource Graph is unavailable
+        # transiently or blocked by permissions.
+        log.debug(
+            "resource graph lookup failed; falling back to storage account traversal",
+            exc_info=True,
+        )
+        return None
+
+    return None
+
+
 def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
+    # Prefer Resource Graph lookup for faster and more reliable resolution.
+    rg_result = get_vhd_details_by_resource_graph(platform, vhd_path)
+    if rg_result:
+        return rg_result
+
     matched = STORAGE_CONTAINER_BLOB_PATTERN.match(vhd_path)
     assert matched, f"fail to get matched info from {vhd_path}"
     sc_name = matched.group("sc")
@@ -2694,6 +2801,8 @@ def find_storage_account(
         (an object) is not reliably hashable. Instead, we use a module-level
         dict cache keyed by subscription_id.
     """
+    log = platform._log
+
     # Check cache first
     if subscription_id not in _storage_account_cache:
         storage_client = get_storage_client(
@@ -2708,9 +2817,26 @@ def find_storage_account(
         # triggers additional API calls during iteration. Frequent or concurrent
         # iterations can exceed Azure's request limits, resulting in throttling
         # errors. To mitigate this, we cache the full list of storage accounts.
-        _storage_account_cache[subscription_id] = list(
-            storage_client.storage_accounts.list()
-        )
+        for attempt in range(1, 4):
+            try:
+                sc_list = storage_client.storage_accounts.list()
+                _storage_account_cache[subscription_id] = list(sc_list)
+                break
+            except Exception as e:
+                log.exception(
+                    "failed to load storage account cache for "
+                    f"subscription '{subscription_id}' on "
+                    f"attempt {attempt}/3",
+                    exc_info=e,
+                )
+                if attempt < 3:
+                    sleep(2 * attempt)
+                    continue
+                raise LisaException(
+                    "failed to load storage account cache for "
+                    f"subscription '{subscription_id}' "
+                    f"after 3 attempts: {e}"
+                ) from e
 
     # Search in cached list
     for sc in _storage_account_cache[subscription_id]:

@@ -49,6 +49,7 @@ azure = [
     "azure-mgmt-msi ~= 7.0.0",
     "azure-mgmt-network ~= 27.0.0",
     "azure-mgmt-privatedns ~= 1.0.0",
+    "azure-mgmt-resourcegraph ~= 8.0.0",
     "azure-mgmt-resource ~= 21.0.0",
     "azure-mgmt-serialconsole ~= 1.0.0",
     "azure-mgmt-storage ~= 21.2.1",
