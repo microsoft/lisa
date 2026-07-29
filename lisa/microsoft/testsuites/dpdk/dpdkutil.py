@@ -238,7 +238,7 @@ def run_testpmd_hotplug(
     )
     # wait for the hot unplug
     processes[collect_from].wait_output(
-        "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic"
+            "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",
     )
 
     # let it run for a bit
@@ -274,7 +274,9 @@ def generate_send_receive_run_info(
     set_mtu: int = 0,
     stats_period: int = 2,
 ) -> Dict[DpdkTestResources, str]:
-    snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
+    snd_nic, rcv_nic = [
+        x.node.nics.get_nic_by_subnet("10.0.1.0/24") for x in [sender, receiver]
+    ]
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
         check_nic = sender.node.nics.get_primary_nic().lower
@@ -287,6 +289,9 @@ def generate_send_receive_run_info(
                 "Requested MTU size exceeds max mtu for DPDK mtu test: "
                 f"{set_mtu} > {maxmtu}."
             )
+        # Set MTU on sender and receiver NICs
+        set_mtu_for_nics(sender.node, [snd_nic], set_mtu)
+        set_mtu_for_nics(receiver.node, [rcv_nic], set_mtu)
     else:
         maxmtu_int = 0
 
@@ -336,6 +341,85 @@ def generate_send_receive_run_info(
     return kit_cmd_pairs
 
 
+def _validate_and_set_mtu_for_kit(
+    kit: DpdkTestResources, nics: List[NicInfo], mtu: int
+) -> None:
+    """
+    Validate and set MTU for a kit's network interfaces.
+
+    Args:
+        kit: The DpdkTestResources kit
+        nics: List of NicInfo objects for this kit
+        mtu: Target MTU size in bytes
+
+    Raises:
+        SkippedException: If MTU validation fails
+    """
+    if not nics:
+        return
+
+    # Check max MTU using the first NIC
+    
+    validate_mtu_size_for_nic_type(kit.node, mtu=mtu)
+    # Set MTU on all NICs for this kit
+    set_mtu_for_nics(kit.node, nics, mtu)
+
+
+def validate_mtu_size_for_nic_type(node: Node, mtu: int) -> None:
+    if mtu == 0:
+        return
+
+    # then verify the MTU size is supported
+    for nic in node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV, force_run=True):
+        # verify mtu is not too large for the NIC
+        # there should only be a single item in this list
+        ethdev = [
+            dev.lower for dev in node.nics.nics.values() if dev.pci_slot == nic.slot
+        ][0]
+        maxmtu = node.tools[Ip].get_detail(ethdev, "maxmtu")
+        if not maxmtu:
+            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+        maxmtu_int = int(maxmtu)
+        if mtu > maxmtu_int:
+            raise SkippedException(
+                "Requested MTU size exceeds max mtu for DPDK mtu test: "
+                f"{mtu} > {maxmtu}."
+            )
+        node.log.debug(f"nic info found as: {str(nic)}")
+        info = nic.device_info.lower()
+        vendor = nic.vendor
+        # restict jumbo frame to supported sizes for that nic
+        # I'm attempting to strike a balance between not breaking when a new nic
+        # is encountered and enforcing restrictions that I know about.
+        #
+        # Connect-X3 has a hard 'only 1500' restriction,
+        # Connect-X4 and X5 both support 1400,1500, 2k, 4k and 9k
+        if "Mellanox" in vendor:
+            if "connect-x3" in info:
+                validated = mtu == 1500
+            else:
+                validated = mtu != 8000 and  mtu >= 1400 and mtu <= maxmtu_int
+        # mana and the rest of the mlx nics have better jumbo support.
+        # So we'll be more permissive with the validation.
+        # We're still restricting the value based on whatever the test case calls for,
+        # So we shouldn't have any surprises here unless a new NIC is encountered (i.e. CX6+)
+        #
+        # If you find this comment because some jumbo test is failing,
+        # check the nic type and the supported MTU size list from the manufacturer
+        # to see if the size that is failing isn't supported by the NIC.
+        #
+        # note the supported max size for cx4, cx5, and MANA is 9k
+        # but I'll trust `ip` to give us the right max mtu to future proof
+        # this check. Also in case we add a larger jumbo test later.
+        else:
+            validated = mtu >= 1400 and mtu <= maxmtu_int
+    # if there is an unknown nic, we should skip the mtu tests until it's added
+    if not validated:
+        raise SkippedException(
+            f"This MTU test size ({mtu}) is not supported for this nic: {vendor, info}"
+        )
+
+
 def generate_testpmd_multiple_port_command(
     pmd: Pmd,
     senders: List[DpdkTestResources],
@@ -352,30 +436,42 @@ def generate_testpmd_multiple_port_command(
     subnets = []
     for i in range(len(senders)):
         subnets += [f"10.0.{i + 1}.0/24"]
+
     sender_nics: Dict[DpdkTestResources, NicInfo] = dict()
     receiver_nics: Dict[str, NicInfo] = dict()
     for i in range(len(senders)):
         # pick one nic per subnet for the senders
         subnet = subnets[i]  # defined above as "10.0.{i + 1}.0/24"
         sender = senders[i]
-        sender_nics[sender] = sender.node.nics.get_nic_by_subnet(subnet)
+        nic = sender.node.nics.get_nic_by_subnet(subnet)
+        sender_nics[sender] = nic
         # and the corresponding nic on the receiver for that subnet.
         receiver_nics[subnet] = receiver.node.nics.get_nic_by_subnet(subnet)
 
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
-        for sender in senders:
-            # fixme: this will break with mana direct vf
-            check_nic = sender_nics[sender].lower
-            maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
-            if not maxmtu:
-                raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
-            maxmtu_int = int(maxmtu)
-            if set_mtu > maxmtu_int:
-                raise SkippedException(
-                    "Requested MTU size exceeds max mtu for DPDK mtu test: "
-                    f"{set_mtu} > {maxmtu}."
-                )
+        # Build list of (kit, nics) pairs for parallel validation and configuration
+        kit_nic_pairs = [(sender, [sender_nics[sender]]) for sender in senders] + [
+            (receiver, list(receiver_nics.values()))
+        ]
+
+        # Validate and set MTU in parallel
+        run_in_parallel(
+            [
+                partial(_validate_and_set_mtu_for_kit, kit, nics, set_mtu)
+                for kit, nics in kit_nic_pairs
+            ]
+        )
+
+        # Get maxmtu from first sender for mbuf_size calculation
+        first_sender = senders[0]
+        check_nic = (
+            sender_nics[first_sender].lower
+            if sender_nics[first_sender].lower
+            else sender_nics[first_sender].name
+        )
+        maxmtu = first_sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        maxmtu_int = int(maxmtu) if maxmtu else 0
     else:
         maxmtu_int = 0
     kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
@@ -467,6 +563,24 @@ def enable_uio_hv_generic(node: Node) -> None:
         node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
         sudo=True,
     )
+
+
+def set_mtu_for_nics(node: Node, nics: List[NicInfo], mtu: int) -> None:
+    """
+    Set MTU for a list of network interfaces on the given node.
+
+    Args:
+        node: The node containing the network interfaces
+        nics: List of NicInfo objects to configure
+        mtu: MTU size in bytes
+    """
+    validate_mtu_size_for_nic_type(node=node, mtu=mtu)
+    ip_tool = node.tools[Ip]
+    for nic in nics:
+        ip_tool.set_mtu(nic.name, mtu, assert_success=False)
+        if nic.lower:
+            ip_tool.set_mtu(nic.lower, mtu)
+        node.log.debug(f"Set MTU to {mtu} for interface {nic.name}")
 
 
 def do_pmd_driver_setup(
@@ -564,7 +678,7 @@ def initialize_node_resources(
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
     try:
-        hugepages.init_hugepages(hugepage_size, minimum_gb=4 * numa_nodes)
+        hugepages.init_hugepages(hugepage_size, minimum_gb=8 * numa_nodes)
     except NotEnoughMemoryException as err:
         raise SkippedException(err)
 
@@ -645,13 +759,15 @@ def init_nodes_concurrent(
                     pmd,
                     hugepage_size=hugepage_size,
                     sample_apps=sample_apps,
-                    test_nics=specific_pairings[node]
-                    if specific_pairings
-                    else [
-                        nic
-                        for nic in node.nics.nics.values()
-                        if nic is not node.nics.get_primary_nic()
-                    ][:test_nic_count],
+                    test_nics=(
+                        specific_pairings[node]
+                        if specific_pairings
+                        else [
+                            nic
+                            for nic in node.nics.nics.values()
+                            if nic is not node.nics.get_primary_nic()
+                        ][:test_nic_count]
+                    ),
                 )
                 for node in environment.nodes.list()
             ],
