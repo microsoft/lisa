@@ -723,9 +723,7 @@ def verify_dpdk_send_receive(
             ]
         else:
             raise SkippedException()
-        # skip MTU test if not on MANA (for now).
-        if set_mtu and not node.nics.is_mana_device_present():
-            raise SkippedException("set mtu test is intended for MANA VMs only.")
+
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
     # get test duration variable if set
@@ -1364,12 +1362,14 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         forwarder.features[NetworkInterface].switch_sriov(
             enable=False, wait=False, reset_connections=False
         )
+        fwd_proc.wait_output(
+            "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",
+        )
         forwarder.features[NetworkInterface].switch_sriov(
             enable=True, wait=False, reset_connections=False
         )
         fwd_proc.wait_output(
-            "HN_DRIVER: netvsc_hotplug_retry(): "
-            "Found matching MAC address, adding device",
+            "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
             delta_only=True,
         )
         _receiver_after = ntttcp[receiver].run_as_server_async(
