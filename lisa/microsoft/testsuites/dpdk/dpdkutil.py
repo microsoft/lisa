@@ -988,7 +988,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
 
 # Multiple ports test
 #  to simplify this
-def verify_dpdk_mutliple_ports(
+def verify_dpdk_multiple_ports(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],

@@ -28,7 +28,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
-    verify_dpdk_mutliple_ports,
+    verify_dpdk_multiple_ports,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -1116,7 +1116,7 @@ class Dpdk(TestSuite):
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = Pmd.NETVSC
-        verify_dpdk_mutliple_ports(
+        verify_dpdk_multiple_ports(
             environment,
             log,
             variables,
