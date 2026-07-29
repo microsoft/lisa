@@ -129,7 +129,7 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # if no other source was provided.
     if node.nics.is_mana_device_present():
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v24.11")
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "v25.11")
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
@@ -280,19 +280,15 @@ def generate_send_receive_run_info(
     ]
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
-        check_nic = sender.node.nics.get_primary_nic().lower
+        run_in_parallel(
+            [
+                partial(_validate_and_set_mtu_for_kit, sender, [snd_nic], set_mtu),
+                partial(_validate_and_set_mtu_for_kit, receiver, [rcv_nic], set_mtu),
+            ]
+        )
+        check_nic = snd_nic.lower if snd_nic.lower else snd_nic.name
         maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
-        if not maxmtu:
-            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
-        maxmtu_int = int(maxmtu)
-        if set_mtu > maxmtu_int:
-            raise SkippedException(
-                "Requested MTU size exceeds max mtu for DPDK mtu test: "
-                f"{set_mtu} > {maxmtu}."
-            )
-        # Set MTU on sender and receiver NICs
-        set_mtu_for_nics(sender.node, [snd_nic], set_mtu)
-        set_mtu_for_nics(receiver.node, [rcv_nic], set_mtu)
+        maxmtu_int = int(maxmtu) if maxmtu else 0
     else:
         maxmtu_int = 0
 

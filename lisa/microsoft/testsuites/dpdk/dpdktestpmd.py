@@ -285,7 +285,7 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=meson_args, build_dir="build", cwd=self.asset_path
         )
         install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -635,11 +635,25 @@ class DpdkTestpmd(Tool):
         ).is_not_empty()
         # add debug logging args, EAL ones are very verbose
         # but netvsc are useful for identifying hotplugs on azure
-        debug_logging = "--log-level=debug"
+        debug_logging=[]
+        for lib in [
+            "mlx5"
+            "mana"
+            "vmbus"
+            "netvsc"
+            "vmbus"
+            "mbuf"
+            "ring"
+            "eal"
+            "app"
+            "ethdev"
+        ]:
+            debug_logging += [f"--log-level {lib},debug"]
+        debug_log_args = " ".join(debug_logging)
         nic_includes = " ".join(nic_include_infos)
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
+            f"{nic_includes} {debug_log_args} -- --forward-mode={mode} "
             f"-a --stats-period {stats_period} --nb-cores={forwarding_cores}"
             f" {extra_args}"
         )
