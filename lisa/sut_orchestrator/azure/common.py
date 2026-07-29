@@ -394,8 +394,16 @@ class AzureImageSchema(schema.ImageSchema):
                 ]
             )
             encrypt_capability.append(True)
+        elif security_profile == "TrustedLaunchAndConfidentialVmSupported":
+            security_profile_capabilities.extend(
+                [
+                    SecurityProfileType.SecureBoot,
+                    SecurityProfileType.CVM,
+                    SecurityProfileType.Stateless,
+                ]
+            )
+            encrypt_capability.append(True)
         elif security_profile in (
-            "TrustedLaunchAndConfidentialVmSupported",
             "ConfidentialVmSupported",
             "ConfidentialVM",
         ):
