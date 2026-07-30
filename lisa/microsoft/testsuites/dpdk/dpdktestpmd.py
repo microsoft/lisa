@@ -280,7 +280,7 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
             sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
         else:
             sample_apps = ""
-        meson_args = f"-Dbuild_type=debug {sample_apps}"
+        meson_args = f"-Dbuildtype=debug {sample_apps}"
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
