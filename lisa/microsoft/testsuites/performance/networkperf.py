@@ -187,7 +187,18 @@ class NetworkPerformace(TestSuite):
     def perf_tcp_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        run_in_parallel(
+            [
+                partial(self._disable_irqbalance, node)
+                for node in [environment.nodes[0], environment.nodes[1]]
+            ]
+        )
         perf_ntttcp(result, variables=variables)
+
+    def _disable_irqbalance(self, node: Node) -> None:
+        node.execute("systemctl disable --now irqbalance", sudo=True).assert_exit_code()
 
     @TestCaseMetadata(
         description="""
