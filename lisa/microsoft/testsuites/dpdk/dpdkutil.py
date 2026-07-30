@@ -355,8 +355,7 @@ def _validate_and_set_mtu_for_kit(
     if not nics:
         return
 
-    # Check max MTU using the first NIC
-    
+    # Check max MTU for the nics in the test kit
     validate_mtu_size_for_nic_type(kit.node, mtu=mtu)
     # Set MTU on all NICs for this kit
     set_mtu_for_nics(kit.node, nics, mtu)
@@ -395,7 +394,7 @@ def validate_mtu_size_for_nic_type(node: Node, mtu: int) -> None:
             if "connect-x3" in info:
                 validated = mtu == 1500
             else:
-                validated = mtu != 8000 and  mtu >= 1400 and mtu <= maxmtu_int
+                validated = mtu in [1400, 1500, 4000]
         # mana and the rest of the mlx nics have better jumbo support.
         # So we'll be more permissive with the validation.
         # We're still restricting the value based on whatever the test case calls for,
